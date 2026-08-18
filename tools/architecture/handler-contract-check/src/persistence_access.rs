@@ -753,29 +753,170 @@ fn sql_is_advisory_lock(fingerprint: &str) -> bool {
     .any(|needle| normalized.contains(needle))
 }
 
-fn compact_composed_sql_source(
+/// The composed-source kinds. A composition collapses to one opaque digest so a
+/// nested composition keeps a single stable identity in the exact snapshot.
+const COMPOSED_SQL_CONTROL_FLOW_KIND: &str = "control-flow";
+const COMPOSED_SQL_ADDITION_KIND: &str = "binary-add";
+const COMPOSED_SQL_KINDS: &[&str] = &[COMPOSED_SQL_CONTROL_FLOW_KIND, COMPOSED_SQL_ADDITION_KIND];
+
+/// One syntactic slot of a composed SQL expression: the position that selects
+/// the source (`then`, `else`, `arm0`…, `left`, `right`) paired with the sources
+/// that position resolved to.
+///
+/// The position has to travel into the digest. A digest over an unordered union
+/// cannot distinguish `if flag { LOCK_SQL } else { READ_SQL }` from the same
+/// expression with both constants' values exchanged, so the advisory-lock query
+/// could move to the opposite branch without the exact snapshot changing.
+type ComposedSqlSlots = Vec<(String, BTreeSet<String>)>;
+
+fn composed_sql_slot(position: &str, sources: BTreeSet<String>) -> (String, BTreeSet<String>) {
+    (position.to_owned(), sources)
+}
+
+fn is_composed_sql_source(source: &str) -> bool {
+    COMPOSED_SQL_KINDS.iter().any(|kind| {
+        source
+            .strip_prefix(kind)
+            .is_some_and(|rest| rest.starts_with("-sha256:"))
+    })
+}
+
+/// Compose the resolved sources of one expression, keeping the composition only
+/// when at least one slot pins something that reads as SQL.
+fn composed_sql_sources(
     kind: &str,
     expression: &Expr,
-    resolved_sources: &BTreeSet<String>,
-) -> String {
+    slots: ComposedSqlSlots,
+) -> BTreeSet<String> {
+    if slots
+        .iter()
+        .flat_map(|(_, sources)| sources)
+        .any(|source| source_looks_like_sql(source))
+    {
+        BTreeSet::from([compact_composed_sql_source(kind, expression, &slots)])
+    } else {
+        BTreeSet::new()
+    }
+}
+
+fn compact_composed_sql_source(kind: &str, expression: &Expr, slots: &ComposedSqlSlots) -> String {
     let expression_source = normalized_tokens(expression);
     let mut digest_input = expression_source.clone();
-    for source in resolved_sources {
+    for (position, sources) in slots {
+        // Tag every slot, including one that resolved to nothing, so a source
+        // cannot silently migrate between branches or operands: the digest has
+        // to change when the condition selecting a statement is inverted.
         digest_input.push('\0');
-        digest_input.push_str(source);
+        digest_input.push_str(position);
+        for source in sources {
+            digest_input.push('\u{1}');
+            digest_input.push_str(source);
+        }
     }
     let digest = Sha256::digest(digest_input.as_bytes());
-    let advisory = (sql_is_advisory_lock(&expression_source)
-        || resolved_sources
-            .iter()
-            .any(|source| sql_is_advisory_lock(source)))
-    .then_some("|GET_LOCK")
-    .unwrap_or_default();
+    let advisory = composed_sql_is_advisory_lock(kind, &expression_source, slots)
+        .then_some("|GET_LOCK")
+        .unwrap_or_default();
     format!("{kind}-sha256:{digest:x}{advisory}")
 }
 
+/// An advisory-lock identity survives composition when the unresolved syntax or
+/// a single resolved source names one of the functions, and additionally — for
+/// `+` — when the name exists only in the concatenation of the operands.
+fn composed_sql_is_advisory_lock(
+    kind: &str,
+    expression_source: &str,
+    slots: &ComposedSqlSlots,
+) -> bool {
+    if sql_is_advisory_lock(expression_source)
+        || slots
+            .iter()
+            .flat_map(|(_, sources)| sources)
+            .any(|source| sql_is_advisory_lock(source))
+    {
+        return true;
+    }
+    kind == COMPOSED_SQL_ADDITION_KIND && sql_is_advisory_lock(&concatenated_sql_operands(slots))
+}
+
+/// Rebuild what `a + b` produces at runtime, in operand order, so a function
+/// name divided between the operands — `String::from("SELECT GET_") +
+/// "LOCK('x', 0)"` — is still recognized as an advisory lock.
+///
+/// An operand whose text is not pinned (an opaque composed digest, an
+/// unresolved value, or several alternative sources) contributes a separator
+/// instead. Concatenating across it would let unrelated fragments spell a
+/// function name the program never builds.
+fn concatenated_sql_operands(slots: &ComposedSqlSlots) -> String {
+    let mut concatenated = String::new();
+    for (_, sources) in slots {
+        match sources.iter().next().filter(|_| sources.len() == 1) {
+            Some(source) => match sql_source_text(source) {
+                Some(text) => concatenated.push_str(&text),
+                None => concatenated.push('\0'),
+            },
+            None => concatenated.push('\0'),
+        }
+    }
+    concatenated
+}
+
+/// The SQL text a resolved source pins exactly.
+///
+/// A string literal unquotes to its value; `concat!`, `stringify!`, and
+/// `format!` sources contribute their literal pieces in order (a `format!`
+/// template pins every part of the statement except the interpolated values).
+/// A composed digest stays unpinned: its identity already travels in the digest
+/// and in the advisory marker, so inventing text for it would be a guess.
+fn sql_source_text(source: &str) -> Option<String> {
+    if is_composed_sql_source(source) {
+        return None;
+    }
+    let mut text = String::new();
+    collect_string_literal_values(source.parse().ok()?, &mut text);
+    (!text.is_empty()).then_some(text)
+}
+
+fn collect_string_literal_values(tokens: TokenStream, text: &mut String) {
+    for token in tokens {
+        match token {
+            TokenTree::Literal(literal) => {
+                if let Ok(literal) = syn::parse_str::<syn::LitStr>(&literal.to_string()) {
+                    text.push_str(&literal.value());
+                }
+            }
+            TokenTree::Group(group) => collect_string_literal_values(group.stream(), text),
+            _ => {}
+        }
+    }
+}
+
+/// Skip the comment forms MySQL accepts before the first keyword of a statement.
+/// Without this, `/* guarded */ SELECT GET_LOCK('x', 0)` reads as the identifier
+/// `guarded`, the resolved source is discarded as non-SQL, and the composed
+/// fingerprint loses both the statement and its advisory identity.
+fn strip_leading_sql_comments(statement: &str) -> &str {
+    let mut rest = statement.trim_start();
+    loop {
+        if let Some(tail) = rest.strip_prefix("/*") {
+            // An unterminated block comment never reaches a keyword.
+            let Some(end) = tail.find("*/") else {
+                return "";
+            };
+            rest = tail[end + "*/".len()..].trim_start();
+        } else if let Some(tail) = rest.strip_prefix("--").or_else(|| rest.strip_prefix('#')) {
+            rest = tail
+                .find('\n')
+                .map_or("", |end| &tail[end + '\n'.len_utf8()..])
+                .trim_start();
+        } else {
+            return rest;
+        }
+    }
+}
+
 fn source_looks_like_sql(source: &str) -> bool {
-    if source.starts_with("control-flow-sha256:") || source.starts_with("binary-add-sha256:") {
+    if is_composed_sql_source(source) {
         return true;
     }
     const KEYWORDS: &[&str] = &[
@@ -813,7 +954,11 @@ fn source_looks_like_sql(source: &str) -> bool {
         "IS_FREE_LOCK",
         "RELEASE_ALL_LOCKS",
     ];
-    source
+    // Judge the statement the source actually pins, not its Rust tokens: a
+    // literal carries its quotes and a `format!` source carries its macro name,
+    // and either would hide the first SQL keyword behind punctuation.
+    let statement = sql_source_text(source).unwrap_or_else(|| source.to_owned());
+    strip_leading_sql_comments(&statement)
         .split(|character: char| !(character.is_ascii_alphanumeric() || character == '_'))
         .find(|word| !word.is_empty())
         .is_some_and(|word| {
@@ -6038,66 +6183,34 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             Expr::Reference(reference) => self.sql_sources(&reference.expr),
             Expr::Paren(paren) => self.sql_sources(&paren.expr),
             Expr::Group(group) => self.sql_sources(&group.expr),
-            Expr::Block(block) => block
-                .block
-                .stmts
-                .last()
-                .and_then(|statement| match statement {
-                    Stmt::Expr(tail, None) => Some(self.sql_sources(tail)),
-                    _ => None,
-                })
-                .unwrap_or_default(),
+            Expr::Block(block) => self.block_tail_sql_sources(&block.block),
             Expr::If(if_expression) => {
-                let mut sources = if_expression
-                    .then_branch
-                    .stmts
-                    .last()
-                    .and_then(|statement| match statement {
-                        Stmt::Expr(tail, None) => Some(self.sql_sources(tail)),
-                        _ => None,
-                    })
-                    .unwrap_or_default();
+                let mut slots = vec![composed_sql_slot(
+                    "then",
+                    self.block_tail_sql_sources(&if_expression.then_branch),
+                )];
                 if let Some((_, alternative)) = &if_expression.else_branch {
-                    sources.extend(self.sql_sources(alternative));
+                    slots.push(composed_sql_slot("else", self.sql_sources(alternative)));
                 }
-                if sources.iter().any(|source| source_looks_like_sql(source)) {
-                    BTreeSet::from([compact_composed_sql_source(
-                        "control-flow",
-                        expression,
-                        &sources,
-                    )])
-                } else {
-                    BTreeSet::new()
-                }
+                composed_sql_sources(COMPOSED_SQL_CONTROL_FLOW_KIND, expression, slots)
             }
             Expr::Match(match_expression) => {
-                let sources = match_expression
+                let slots = match_expression
                     .arms
                     .iter()
-                    .flat_map(|arm| self.sql_sources(&arm.body))
-                    .collect::<BTreeSet<_>>();
-                if sources.iter().any(|source| source_looks_like_sql(source)) {
-                    BTreeSet::from([compact_composed_sql_source(
-                        "control-flow",
-                        expression,
-                        &sources,
-                    )])
-                } else {
-                    BTreeSet::new()
-                }
+                    .enumerate()
+                    .map(|(index, arm)| {
+                        composed_sql_slot(&format!("arm{index}"), self.sql_sources(&arm.body))
+                    })
+                    .collect();
+                composed_sql_sources(COMPOSED_SQL_CONTROL_FLOW_KIND, expression, slots)
             }
             Expr::Binary(binary) if matches!(binary.op, syn::BinOp::Add(_)) => {
-                let mut sources = self.sql_sources(&binary.left);
-                sources.extend(self.sql_sources(&binary.right));
-                if sources.iter().any(|source| source_looks_like_sql(source)) {
-                    BTreeSet::from([compact_composed_sql_source(
-                        "binary-add",
-                        expression,
-                        &sources,
-                    )])
-                } else {
-                    BTreeSet::new()
-                }
+                let slots = vec![
+                    composed_sql_slot("left", self.sql_sources(&binary.left)),
+                    composed_sql_slot("right", self.sql_sources(&binary.right)),
+                ];
+                composed_sql_sources(COMPOSED_SQL_ADDITION_KIND, expression, slots)
             }
             Expr::Path(path) if path.qself.is_none() && path.path.segments.len() == 1 => {
                 last_path_name(&path.path)
@@ -6132,6 +6245,25 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             {
                 BTreeSet::from([normalized_tokens(expression)])
             }
+            Expr::Macro(mac)
+                if self
+                    .canonical_local_path_names(path_names(&mac.mac.path))
+                    .last()
+                    .is_some_and(|name| matches!(name.as_str(), "format" | "format_args")) =>
+            {
+                // A `format!` template pins every literal part of the statement,
+                // so binding it (`let sql = format!("… GET_LOCK('{}', 0)", name)`)
+                // and querying the binding must still fingerprint the template
+                // and keep the advisory identity. Formatting that does not spell
+                // SQL stays out of the provenance graph: it is unrelated to
+                // persistence and would only add noise to the exact snapshot.
+                let source = normalized_tokens(expression);
+                if source_looks_like_sql(&source) {
+                    BTreeSet::from([source])
+                } else {
+                    BTreeSet::new()
+                }
+            }
             Expr::MethodCall(method)
                 if matches!(
                     normalized_ident(&method.method).as_str(),
@@ -6142,6 +6274,17 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             }
             _ => BTreeSet::new(),
         }
+    }
+
+    fn block_tail_sql_sources(&self, block: &syn::Block) -> BTreeSet<String> {
+        block
+            .stmts
+            .last()
+            .and_then(|statement| match statement {
+                Stmt::Expr(tail, None) => Some(self.sql_sources(tail)),
+                _ => None,
+            })
+            .unwrap_or_default()
     }
 
     fn fingerprint_with_sql_source(&self, base: String, argument: Option<&Expr>) -> String {
@@ -16764,6 +16907,197 @@ mod tests {
                 && row.operation == PersistenceOperation::AdvisoryLock
                 && row.fingerprint.contains("GET_LOCK")
         }));
+    }
+
+    #[test]
+    fn persistence_inventory_detects_advisory_lock_split_across_string_addition() {
+        let baseline = inventory(
+            r#"
+                fn split() {
+                    let sql = String::from("SELECT GET_") + "LOCK('split', 0)";
+                    sqlx::query(&sql);
+                }
+                fn bridged(name: String) {
+                    let sql = String::from("SELECT GET_") + name.as_str() + "LOCK('bridged', 0)";
+                    sqlx::query(&sql);
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn split"
+                && row.operation == PersistenceOperation::AdvisoryLock
+                && row.fingerprint.contains("GET_LOCK")
+        }));
+        // An unresolved operand between the fragments must not be concatenated
+        // away: the program never builds `GET_LOCK` there.
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn bridged" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_retains_commented_sql_through_control_flow() {
+        let collect = |sql: &str| {
+            inventory(&format!(
+                r#"
+                    fn guarded(flag: bool) {{
+                        let sql = if flag {{ {sql:?} }} else {{ "-- fallback\nSELECT 1" }};
+                        sqlx::query(sql);
+                    }}
+                "#
+            ))
+            .unwrap()
+        };
+        let query_fingerprint = |baseline: &PersistenceAccessBaseline| {
+            baseline
+                .accesses
+                .iter()
+                .find(|row| {
+                    row.enclosing == "fn guarded" && row.operation == PersistenceOperation::Query
+                })
+                .map(|row| row.fingerprint.clone())
+                .unwrap()
+        };
+        let locked = collect("/* guarded */ SELECT GET_LOCK('guarded', 0)");
+        let clean = collect("/* guarded */ SELECT 2");
+        assert!(locked.accesses.iter().any(|row| {
+            row.enclosing == "fn guarded" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+        assert_ne!(query_fingerprint(&locked), query_fingerprint(&clean));
+
+        // A comment with no statement behind it, and plain prose, are still not
+        // SQL: neither may enter the provenance graph.
+        let unrelated = inventory(
+            r#"
+                fn unrelated(flag: bool) {
+                    let text = if flag { "/* just a note */" } else { "plain text" };
+                    sqlx::query(text);
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(unrelated.accesses.iter().any(|row| {
+            row.enclosing == "fn unrelated"
+                && row.operation == PersistenceOperation::Query
+                && !row.fingerprint.contains("sql-source")
+        }));
+        assert!(!unrelated.accesses.iter().any(|row| {
+            row.enclosing == "fn unrelated" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_fingerprints_sql_from_local_format_macro() {
+        let collect = |sql: &str| {
+            inventory(&format!(
+                r#"
+                    fn formatted(name: &str) {{
+                        let sql = format!({sql:?}, name);
+                        sqlx::query(&sql);
+                    }}
+                "#
+            ))
+            .unwrap()
+        };
+        let query_fingerprint = |baseline: &PersistenceAccessBaseline| {
+            baseline
+                .accesses
+                .iter()
+                .find(|row| {
+                    row.enclosing == "fn formatted" && row.operation == PersistenceOperation::Query
+                })
+                .map(|row| row.fingerprint.clone())
+                .unwrap()
+        };
+        let locked = collect("SELECT GET_LOCK('{}', 0)");
+        let clean = collect("SELECT name FROM t WHERE id = '{}'");
+        assert_ne!(query_fingerprint(&locked), query_fingerprint(&clean));
+        for operation in [
+            PersistenceOperation::AdvisoryLock,
+            PersistenceOperation::InterpolatedSql,
+        ] {
+            assert!(
+                locked
+                    .accesses
+                    .iter()
+                    .any(|row| row.enclosing == "fn formatted" && row.operation == operation),
+                "missing {operation:?} row for formatted advisory SQL"
+            );
+        }
+
+        // Formatting that spells no statement stays out of the SQL provenance
+        // graph instead of padding the exact snapshot.
+        let unrelated = inventory(
+            r#"
+                fn greeting(name: &str) {
+                    let message = format!("hello {}", name);
+                    sqlx::query(&message);
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(unrelated.accesses.iter().any(|row| {
+            row.enclosing == "fn greeting"
+                && row.operation == PersistenceOperation::Query
+                && !row.fingerprint.contains("sql-source")
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_binds_composed_sql_sources_to_their_position() {
+        // Exchanging the two constants' values leaves the expression and the
+        // union of resolved sources identical; only the branch, arm, or operand
+        // association changes, and the exact fingerprint must follow it.
+        let collect = |first: &str, second: &str| {
+            inventory(&format!(
+                r#"
+                    const FIRST: &str = {first:?};
+                    const SECOND: &str = {second:?};
+                    fn conditional(flag: bool) {{
+                        let sql = if flag {{ FIRST }} else {{ SECOND }};
+                        sqlx::query(sql);
+                    }}
+                    fn matched(flag: bool) {{
+                        let sql = match flag {{ true => FIRST, false => SECOND }};
+                        sqlx::query(sql);
+                    }}
+                    fn added() {{
+                        let sql = String::from(FIRST) + SECOND;
+                        sqlx::query(&sql);
+                    }}
+                "#
+            ))
+            .unwrap()
+        };
+        let fingerprint = |baseline: &PersistenceAccessBaseline, enclosing: &str| {
+            baseline
+                .accesses
+                .iter()
+                .find(|row| {
+                    row.enclosing == enclosing && row.operation == PersistenceOperation::Query
+                })
+                .map(|row| row.fingerprint.clone())
+                .unwrap()
+        };
+        let lock_first = collect("SELECT GET_LOCK('positioned', 0)", "SELECT 1");
+        let lock_second = collect("SELECT 1", "SELECT GET_LOCK('positioned', 0)");
+        for enclosing in ["fn conditional", "fn matched", "fn added"] {
+            assert_ne!(
+                fingerprint(&lock_first, enclosing),
+                fingerprint(&lock_second, enclosing),
+                "{enclosing} kept one fingerprint after exchanging the branch sources"
+            );
+            for baseline in [&lock_first, &lock_second] {
+                assert!(
+                    baseline.accesses.iter().any(|row| {
+                        row.enclosing == enclosing
+                            && row.operation == PersistenceOperation::AdvisoryLock
+                    }),
+                    "{enclosing} lost the advisory identity"
+                );
+            }
+        }
     }
 
     #[test]

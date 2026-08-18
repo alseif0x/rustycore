@@ -55,8 +55,11 @@ jobs:
     name: Check core crates
     runs-on: ubuntu-24.04
     # The exact persistence inventory is intentionally scanned both by its
-    # repository test and by the boundary command before the core build.
-    timeout-minutes: 60
+    # repository test and by the boundary command before the core build. A
+    # single full scan measures ~36 minutes locally, so the two scans plus the
+    # core build and clippy steps exhausted a 60-minute budget exactly; keep
+    # every intentional validation and give the job room instead.
+    timeout-minutes: 120
     env:
       CARGO_INCREMENTAL: "0"
     steps:
