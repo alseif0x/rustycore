@@ -3253,6 +3253,19 @@ fn collect_nested_item_values(
                     let TraitItem::Const(associated) = associated else {
                         continue;
                     };
+                    // Each default carries its own cfg. Without this, mutually
+                    // exclusive `cfg(test)` and `cfg(not(test))` values are both
+                    // registered in both views, and a test-only statement — an
+                    // advisory lock included — enters the production inventory.
+                    if !source_class_allows(
+                        source_class,
+                        cfg,
+                        &associated.attrs,
+                        errors,
+                        "trait associated const",
+                    ) {
+                        continue;
+                    }
                     let Some((_, default)) = &associated.default else {
                         continue;
                     };
@@ -19485,6 +19498,32 @@ mod tests {
                 "{needle} did not follow the constant it names"
             );
         }
+    }
+
+    #[test]
+    fn persistence_inventory_filters_cfg_on_trait_default_constants() {
+        let baseline = inventory(
+            r#"
+                trait Sql {
+                    #[cfg(not(test))]
+                    const SQL: &'static str = "SELECT 1";
+                    #[cfg(test)]
+                    const SQL: &'static str = "SELECT GET_LOCK('test-only', 0)";
+                }
+                struct Statements;
+                impl Sql for Statements {}
+                fn production() {
+                    sqlx::query(<Statements as Sql>::SQL);
+                }
+            "#,
+        )
+        .unwrap();
+        // A `cfg(test)` default must not reach the production view, or the
+        // frozen baseline gains a statement the server never runs and every
+        // edit to test SQL churns production rows.
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.source_class == "production" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
     }
 
     #[test]
