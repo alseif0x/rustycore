@@ -757,7 +757,18 @@ fn sql_is_advisory_lock(fingerprint: &str) -> bool {
 /// nested composition keeps a single stable identity in the exact snapshot.
 const COMPOSED_SQL_CONTROL_FLOW_KIND: &str = "control-flow";
 const COMPOSED_SQL_ADDITION_KIND: &str = "binary-add";
-const COMPOSED_SQL_KINDS: &[&str] = &[COMPOSED_SQL_CONTROL_FLOW_KIND, COMPOSED_SQL_ADDITION_KIND];
+const COMPOSED_SQL_FORMAT_KIND: &str = "format";
+const COMPOSED_SQL_KINDS: &[&str] = &[
+    COMPOSED_SQL_CONTROL_FLOW_KIND,
+    COMPOSED_SQL_ADDITION_KIND,
+    COMPOSED_SQL_FORMAT_KIND,
+];
+
+/// The composed kinds whose slots are concatenated at runtime rather than
+/// selected between. Only these may be rebuilt into one statement.
+fn kind_concatenates_slots(kind: &str) -> bool {
+    matches!(kind, COMPOSED_SQL_ADDITION_KIND | COMPOSED_SQL_FORMAT_KIND)
+}
 
 /// One syntactic slot of a composed SQL expression: the position that selects
 /// the source (`then`, `else`, `arm0`…, `left`, `right`) paired with the sources
@@ -836,7 +847,29 @@ fn composed_sql_is_advisory_lock(
     {
         return true;
     }
-    kind == COMPOSED_SQL_ADDITION_KIND && sql_is_advisory_lock(&concatenated_sql_operands(slots))
+    kind_concatenates_slots(kind) && sql_is_advisory_lock(&concatenated_sql_operands(slots))
+}
+
+/// Collect the operands of a `+` chain in evaluation order.
+///
+/// Rust parses `a + b + c` as `(a + b) + c`, so the inner addition has to
+/// contribute its own operands here. Composing it first would hide its text
+/// behind an opaque digest, and a function name divided across three or more
+/// pieces — `String::from("SELECT GET_") + "LO" + "CK('x', 0)"` — would never
+/// be reassembled.
+fn flatten_added_operands<'expression>(
+    expression: &'expression Expr,
+    operands: &mut Vec<&'expression Expr>,
+) {
+    match expression {
+        Expr::Binary(binary) if matches!(binary.op, syn::BinOp::Add(_)) => {
+            flatten_added_operands(&binary.left, operands);
+            flatten_added_operands(&binary.right, operands);
+        }
+        Expr::Paren(paren) => flatten_added_operands(&paren.expr, operands),
+        Expr::Group(group) => flatten_added_operands(&group.expr, operands),
+        _ => operands.push(expression),
+    }
 }
 
 /// Rebuild what `a + b` produces at runtime, in operand order, so a function
@@ -859,6 +892,79 @@ fn concatenated_sql_operands(slots: &ComposedSqlSlots) -> String {
         }
     }
     concatenated
+}
+
+/// Which value replaces one `format!` placeholder.
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum FormatArgument {
+    Next,
+    Index(usize),
+    Named(String),
+}
+
+/// One piece of a `format!` template in textual order.
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum FormatPiece {
+    Text(String),
+    Placeholder(FormatArgument),
+}
+
+/// Split a `format!` template into its literal pieces and placeholders.
+///
+/// Returns `None` for a template this grammar cannot read exactly, so the
+/// caller stays conservative instead of guessing at the produced statement.
+fn format_template_pieces(template: &str) -> Option<Vec<FormatPiece>> {
+    let mut pieces = Vec::new();
+    let mut text = String::new();
+    let mut rest = template.chars().peekable();
+    while let Some(character) = rest.next() {
+        match character {
+            '{' if rest.peek() == Some(&'{') => {
+                rest.next();
+                text.push('{');
+            }
+            '}' if rest.peek() == Some(&'}') => {
+                rest.next();
+                text.push('}');
+            }
+            // An unmatched `}` is not a template this grammar can read.
+            '}' => return None,
+            '{' => {
+                let mut specifier = String::new();
+                loop {
+                    let character = rest.next()?;
+                    if character == '}' {
+                        break;
+                    }
+                    specifier.push(character);
+                }
+                if !text.is_empty() {
+                    pieces.push(FormatPiece::Text(std::mem::take(&mut text)));
+                }
+                let name = specifier
+                    .split_once(':')
+                    .map_or(specifier.as_str(), |(name, _)| name);
+                pieces.push(FormatPiece::Placeholder(if name.is_empty() {
+                    FormatArgument::Next
+                } else if let Ok(index) = name.parse::<usize>() {
+                    FormatArgument::Index(index)
+                } else {
+                    FormatArgument::Named(name.to_owned())
+                }));
+            }
+            _ => text.push(character),
+        }
+    }
+    if !text.is_empty() {
+        pieces.push(FormatPiece::Text(text));
+    }
+    Some(pieces)
+}
+
+/// A literal piece of a template, rendered as the Rust string literal the rest
+/// of the grammar already knows how to read back.
+fn literal_sql_source(text: &str) -> String {
+    format!("{text:?}")
 }
 
 /// The SQL text a resolved source pins exactly.
@@ -891,14 +997,34 @@ fn collect_string_literal_values(tokens: TokenStream, text: &mut String) {
     }
 }
 
+/// The payload of a MySQL (`/*!`) or MariaDB (`/*M!`) executable comment, whose
+/// body the server runs as part of the statement. The optional version prefix
+/// (`/*!50000 SELECT …`) is not part of the SQL.
+///
+/// `body` starts immediately after the opening `/*`.
+fn executable_comment_payload(body: &str) -> Option<&str> {
+    let payload = body
+        .strip_prefix('!')
+        .or_else(|| body.strip_prefix("M!"))
+        .or_else(|| body.strip_prefix("m!"))?;
+    Some(payload.trim_start_matches(|character: char| character.is_ascii_digit()))
+}
+
 /// Skip the comment forms MySQL accepts before the first keyword of a statement.
 /// Without this, `/* guarded */ SELECT GET_LOCK('x', 0)` reads as the identifier
 /// `guarded`, the resolved source is discarded as non-SQL, and the composed
 /// fingerprint loses both the statement and its advisory identity.
+///
+/// An executable comment is not skipped: the database runs its body, so
+/// `/*!50000 SELECT GET_LOCK('x', 0) */` is a statement, not a remark.
 fn strip_leading_sql_comments(statement: &str) -> &str {
     let mut rest = statement.trim_start();
     loop {
         if let Some(tail) = rest.strip_prefix("/*") {
+            if let Some(payload) = executable_comment_payload(tail) {
+                rest = payload.trim_start();
+                continue;
+            }
             // An unterminated block comment never reaches a keyword.
             let Some(end) = tail.find("*/") else {
                 return "";
@@ -932,6 +1058,31 @@ fn source_looks_like_sql(source: &str) -> bool {
         "TRUNCATE",
         "CALL",
         "EXEC",
+        "DO",
+        "HANDLER",
+        "LOAD",
+        "PREPARE",
+        "EXECUTE",
+        "DEALLOCATE",
+        "ANALYZE",
+        "CHECK",
+        "CHECKSUM",
+        "OPTIMIZE",
+        "REPAIR",
+        "RENAME",
+        "FLUSH",
+        "RESET",
+        "PURGE",
+        "KILL",
+        "START",
+        "XA",
+        "INSTALL",
+        "UNINSTALL",
+        "CACHE",
+        "SIGNAL",
+        "RESIGNAL",
+        "VALUES",
+        "TABLE",
         "SET",
         "SHOW",
         "DESCRIBE",
@@ -6206,10 +6357,18 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 composed_sql_sources(COMPOSED_SQL_CONTROL_FLOW_KIND, expression, slots)
             }
             Expr::Binary(binary) if matches!(binary.op, syn::BinOp::Add(_)) => {
-                let slots = vec![
-                    composed_sql_slot("left", self.sql_sources(&binary.left)),
-                    composed_sql_slot("right", self.sql_sources(&binary.right)),
-                ];
+                // Flatten the whole `+` chain: composing the left-associative
+                // inner addition first would hide its text behind a digest and
+                // lose a function name divided across three or more pieces.
+                let mut operands = Vec::new();
+                flatten_added_operands(expression, &mut operands);
+                let slots = operands
+                    .iter()
+                    .enumerate()
+                    .map(|(index, operand)| {
+                        composed_sql_slot(&format!("operand{index}"), self.sql_sources(operand))
+                    })
+                    .collect();
                 composed_sql_sources(COMPOSED_SQL_ADDITION_KIND, expression, slots)
             }
             Expr::Path(path) if path.qself.is_none() && path.path.segments.len() == 1 => {
@@ -6253,16 +6412,13 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             {
                 // A `format!` template pins every literal part of the statement,
                 // so binding it (`let sql = format!("… GET_LOCK('{}', 0)", name)`)
-                // and querying the binding must still fingerprint the template
+                // and querying the binding must still fingerprint the statement
                 // and keep the advisory identity. Formatting that does not spell
                 // SQL stays out of the provenance graph: it is unrelated to
                 // persistence and would only add noise to the exact snapshot.
-                let source = normalized_tokens(expression);
-                if source_looks_like_sql(&source) {
-                    BTreeSet::from([source])
-                } else {
-                    BTreeSet::new()
-                }
+                self.format_macro_slots(&mac.mac)
+                    .map(|slots| composed_sql_sources(COMPOSED_SQL_FORMAT_KIND, expression, slots))
+                    .unwrap_or_default()
             }
             Expr::MethodCall(method)
                 if matches!(
@@ -6274,6 +6430,87 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             }
             _ => BTreeSet::new(),
         }
+    }
+
+    fn sql_sources_of_name(&self, name: &str) -> BTreeSet<String> {
+        self.lookup(name)
+            .or_else(|| self.symbols.item_values.get(name))
+            .map(|info| info.sql_sources.clone())
+            .unwrap_or_default()
+    }
+
+    /// The ordered slots a `format!` produces: every literal piece of the
+    /// template followed by the resolved sources of the value that replaces the
+    /// placeholder after it.
+    ///
+    /// Keeping the arguments in the digest is what makes
+    /// `let table = "characters"; format!("SELECT * FROM {table}")` change its
+    /// fingerprint when the constant changes, and rebuilding the pieces in
+    /// order is what recognizes a function name divided between the template
+    /// and an interpolated value.
+    fn format_macro_slots(&self, mac: &syn::Macro) -> Option<ComposedSqlSlots> {
+        let arguments = syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated
+            .parse2(mac.tokens.clone())
+            .ok()?;
+        let mut arguments = arguments.iter();
+        let Expr::Lit(literal) = arguments.next()? else {
+            return None;
+        };
+        let syn::Lit::Str(template) = &literal.lit else {
+            return None;
+        };
+        let mut positional = Vec::new();
+        let mut named = BTreeMap::new();
+        for argument in arguments {
+            match argument {
+                Expr::Assign(assignment) => {
+                    let Expr::Path(path) = assignment.left.as_ref() else {
+                        return None;
+                    };
+                    let name = last_path_name(&path.path)?;
+                    named.insert(name, assignment.right.as_ref());
+                }
+                // Positional arguments must precede named ones; anything else
+                // is a template this grammar cannot read exactly.
+                _ if named.is_empty() => positional.push(argument),
+                _ => return None,
+            }
+        }
+        let mut slots = ComposedSqlSlots::new();
+        let mut next_positional = 0;
+        for piece in format_template_pieces(&template.value())? {
+            match piece {
+                FormatPiece::Text(text) => slots.push(composed_sql_slot(
+                    &format!("text{}", slots.len()),
+                    BTreeSet::from([literal_sql_source(&text)]),
+                )),
+                FormatPiece::Placeholder(argument) => {
+                    let sources = match argument {
+                        FormatArgument::Next => {
+                            let index = next_positional;
+                            next_positional += 1;
+                            positional
+                                .get(index)
+                                .map(|argument| self.sql_sources(argument))
+                                .unwrap_or_default()
+                        }
+                        FormatArgument::Index(index) => positional
+                            .get(index)
+                            .map(|argument| self.sql_sources(argument))
+                            .unwrap_or_default(),
+                        // A name resolves to an explicit named argument first
+                        // and to the captured binding of the same name second,
+                        // exactly as the macro itself resolves it.
+                        FormatArgument::Named(name) => named
+                            .get(&name)
+                            .map(|argument| self.sql_sources(argument))
+                            .unwrap_or_else(|| self.sql_sources_of_name(&name)),
+                    };
+                    slots.push(composed_sql_slot(&format!("value{}", slots.len()), sources));
+                }
+            }
+        }
+        Some(slots)
     }
 
     fn block_tail_sql_sources(&self, block: &syn::Block) -> BTreeSet<String> {
@@ -17098,6 +17335,160 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn persistence_inventory_detects_advisory_lock_split_across_three_additions() {
+        let baseline = inventory(
+            r#"
+                fn triple() {
+                    let sql = String::from("SELECT GET_") + "LO" + "CK('triple', 0)";
+                    sqlx::query(&sql);
+                }
+                fn interrupted(name: String) {
+                    let sql = String::from("SELECT GET_") + "LO" + name.as_str() + "CK('x', 0)";
+                    sqlx::query(&sql);
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn triple"
+                && row.operation == PersistenceOperation::AdvisoryLock
+                && row.fingerprint.contains("GET_LOCK")
+        }));
+        // The chain is flattened, not bridged: an unresolved operand between
+        // the fragments still breaks the concatenation.
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn interrupted" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_executes_mysql_executable_comments() {
+        let baseline = inventory(
+            r#"
+                fn versioned(flag: bool) {
+                    let sql = if flag {
+                        "/*!50000 SELECT GET_LOCK('versioned', 0) */"
+                    } else {
+                        "/* inert */ not sql"
+                    };
+                    sqlx::query(sql);
+                }
+                fn mariadb(flag: bool) {
+                    let sql = if flag {
+                        "/*M!100000 DO GET_LOCK('mariadb', 0) */"
+                    } else {
+                        "/* inert */ not sql"
+                    };
+                    sqlx::query(sql);
+                }
+                fn inert(flag: bool) {
+                    let text = if flag { "/* 50000 not sql */" } else { "/* inert */" };
+                    sqlx::query(text);
+                }
+            "#,
+        )
+        .unwrap();
+        for enclosing in ["fn versioned", "fn mariadb"] {
+            assert!(
+                baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.operation == PersistenceOperation::AdvisoryLock
+                }),
+                "{enclosing} lost the executable comment body"
+            );
+        }
+        // An ordinary block comment stays inert even when it contains digits.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn inert"
+                && row.operation == PersistenceOperation::Query
+                && !row.fingerprint.contains("sql-source")
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_resolves_format_argument_provenance() {
+        let collect = |table: &str| {
+            inventory(&format!(
+                r#"
+                    const TABLE: &str = {table:?};
+                    fn captured() {{
+                        let table = TABLE;
+                        let sql = format!("SELECT * FROM {{table}}");
+                        sqlx::query(&sql);
+                    }}
+                    fn positional() {{
+                        let sql = format!("SELECT * FROM {{}}", TABLE);
+                        sqlx::query(&sql);
+                    }}
+                "#
+            ))
+            .unwrap()
+        };
+        let fingerprint = |baseline: &PersistenceAccessBaseline, enclosing: &str| {
+            baseline
+                .accesses
+                .iter()
+                .find(|row| {
+                    row.enclosing == enclosing && row.operation == PersistenceOperation::Query
+                })
+                .map(|row| row.fingerprint.clone())
+                .unwrap()
+        };
+        let characters = collect("characters");
+        let accounts = collect("account");
+        for enclosing in ["fn captured", "fn positional"] {
+            assert_ne!(
+                fingerprint(&characters, enclosing),
+                fingerprint(&accounts, enclosing),
+                "{enclosing} kept one fingerprint after the interpolated table changed"
+            );
+        }
+
+        // A lock function reaching the statement through an argument is
+        // classified like one written in the template.
+        let locked = inventory(
+            r#"
+                const LOCK_CALL: &str = "GET_LOCK('argument', 0)";
+                fn through_argument() {
+                    let sql = format!("SELECT {}", LOCK_CALL);
+                    sqlx::query(&sql);
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(locked.accesses.iter().any(|row| {
+            row.enclosing == "fn through_argument"
+                && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_accepts_remaining_statement_starters() {
+        let baseline = inventory(
+            r#"
+                fn executed(flag: bool) {
+                    let sql = if flag { "DO GET_LOCK('do', 0)" } else { "DO 1" };
+                    sqlx::query(sql);
+                }
+                fn prose(flag: bool) {
+                    let text = if flag { "does not start a statement" } else { "plain" };
+                    sqlx::query(text);
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn executed" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+        // `does` is not `DO`: prefix-like prose must still be rejected.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn prose"
+                && row.operation == PersistenceOperation::Query
+                && !row.fingerprint.contains("sql-source")
+        }));
     }
 
     #[test]
