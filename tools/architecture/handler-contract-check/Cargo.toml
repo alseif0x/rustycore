@@ -15,3 +15,10 @@ quote = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 syn = { version = "2", features = ["full", "visit"] }
+
+# The architecture gate runs in release because a full workspace scan is the
+# job's dominant cost, but its debug assertions cross-check the semantic row
+# counts against the exact inventory. Keep them: the scan stays optimized and
+# the safety net survives the profile change.
+[profile.release]
+debug-assertions = true

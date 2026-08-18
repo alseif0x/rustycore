@@ -11563,6 +11563,58 @@ fn package_named_type_info_cache(
         .collect()
 }
 
+/// Refresh only the cache entries a finished package can have changed.
+///
+/// Both caches are pure functions of the registry, and analyzing one package
+/// rewrites only that package's own entries. Rebuilding them from scratch once
+/// per package re-cloned and re-merged the entire registry O(packages) times
+/// per fixpoint iteration; the merged workspace view additionally has to be
+/// rebuilt only for consumers that can actually see the changed provider.
+fn refresh_named_type_caches(
+    registries: &BTreeMap<(String, PersistenceSourceClass), BTreeMap<String, VariableInfo>>,
+    dependencies: &WorkspaceDependencyAliases,
+    changed_package: &str,
+    workspace_cache: &mut BTreeMap<
+        (String, PersistenceSourceClass),
+        std::sync::Arc<BTreeMap<String, VariableInfo>>,
+    >,
+    package_cache: &mut BTreeMap<
+        (String, PersistenceSourceClass),
+        std::sync::Arc<BTreeMap<String, VariableInfo>>,
+    >,
+) {
+    for source_class in [
+        PersistenceSourceClass::Production,
+        PersistenceSourceClass::TestFixture,
+    ] {
+        let key = (changed_package.to_owned(), source_class);
+        match registries.get(&key) {
+            Some(info) => {
+                package_cache.insert(key, std::sync::Arc::new(info.clone()));
+            }
+            None => {
+                package_cache.remove(&key);
+            }
+        }
+    }
+    let changed_crate = changed_package.replace('-', "_");
+    for (aliases_by_package, source_class) in [
+        (&dependencies.production, PersistenceSourceClass::Production),
+        (&dependencies.test, PersistenceSourceClass::TestFixture),
+    ] {
+        for (consumer, aliases) in aliases_by_package {
+            let roots = aliases.values().cloned().collect::<BTreeSet<_>>();
+            if !roots.contains(&changed_crate) {
+                continue;
+            }
+            workspace_cache.insert(
+                (consumer.clone(), source_class),
+                std::sync::Arc::new(workspace_named_type_info(registries, source_class, &roots)),
+            );
+        }
+    }
+}
+
 fn dependency_alias_cache(
     dependencies: &WorkspaceDependencyAliases,
 ) -> BTreeMap<(String, PersistenceSourceClass), std::sync::Arc<BTreeMap<String, String>>> {
@@ -12471,8 +12523,9 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
     let mut named_type_registries =
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, VariableInfo>>::new();
     for _ in 0..=ordered.len() {
-        let before = named_type_registries.clone();
-        let mut next = before.clone();
+        let mut next = named_type_registries.clone();
+        let mut workspace_cache = workspace_named_type_info_cache(&next, dependencies);
+        let mut package_cache = package_named_type_info_cache(&next);
         let mut package_start = 0;
         while package_start < ordered.len() {
             let package = ordered[package_start].package;
@@ -12480,8 +12533,6 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
                 .iter()
                 .position(|source| source.package != package)
                 .map_or(ordered.len(), |offset| package_start + offset);
-            let workspace_cache = workspace_named_type_info_cache(&next, dependencies);
-            let package_cache = package_named_type_info_cache(&next);
             for source in &ordered[package_start..package_end] {
                 let Ok(syntax) = syn::parse_file(source.source) else {
                     continue;
@@ -12522,9 +12573,17 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
                 }
             }
             package_start = package_end;
+            refresh_named_type_caches(
+                &next,
+                dependencies,
+                package,
+                &mut workspace_cache,
+                &mut package_cache,
+            );
         }
+        let converged = next == named_type_registries;
         named_type_registries = next;
-        if named_type_registries == before {
+        if converged {
             break;
         }
     }
