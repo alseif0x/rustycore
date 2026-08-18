@@ -299,7 +299,12 @@ exact rows—11,327 production and 10,491 test-fixture—with multiplicity 23,97
 11,183 test). Six generated-source inputs are an orthogonal subset, not a third source class. Schema
 v3 covers SQLx and concrete `wow_database` types/imports, typed statements/results/errors,
 prepare/query/execute/direct/raw/nonliteral/interpolated SQL, pool access, transaction construction/append/commit,
-database opening, advisory locks, value flow and escapes. The 905 semantic groups classify every
+database opening, advisory locks, value flow and escapes. Statement text is read only where it is
+pinned—a literal, a `concat!`, or a name bound to one of those. SQL assembled at run time (`+`
+chains, `format!` templates, branches, helper returns, projections) is deliberately recorded as
+interpolated or nonliteral without a content claim: deciding which string an expression produces
+has no natural stopping point, so the connection-affinity and ordering facts for those call sites
+come from the reviewed workflow annotation covering them. The 905 semantic groups classify every
 row exactly once by logical database,
 capability owner, connection/transaction affinity, current order, failure/unknown-commit behavior
 and open removal/decision issue; unmatched, overlapping or stale groups fail. The legacy/canonical
