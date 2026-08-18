@@ -92,20 +92,26 @@ jobs:
           python3 tools/architecture/check_architecture.py check
           cargo +1.88.0 test --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml
           cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check
+
+      - name: Check persistence and session ownership ratchets
+        id: ratchets
+        run: |
           cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check
 
       # Regenerating the exact persistence baseline takes about 36 minutes, so
       # a failed ratchet would otherwise send the author back to a long local
-      # scan just to see what the checker now computes. Publish it instead.
+      # scan just to see what the checker now computes. Publish it instead —
+      # but only for a ratchet mismatch, never after an unrelated failure that
+      # the author is already waiting to read.
       - name: Publish recomputed persistence baseline
-        if: failure()
+        if: failure() && steps.ratchets.outcome == 'failure'
         run: |
           cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
             --bin session-ownership-check -- print-persistence-baseline \
             > "${RUNNER_TEMP}/persistence-access-snapshot.json"
 
       - name: Upload recomputed persistence baseline
-        if: failure()
+        if: failure() && steps.ratchets.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: persistence-access-snapshot

@@ -836,9 +836,14 @@ fn executable_sql_text(fingerprint: &str) -> String {
 /// would hand the rest of the statement back to the scanner as if it were
 /// executable, and `SELECT 'it\'s', GET_LOCK('x', 0)` would lose its call.
 fn quoted_span_length(rest: &str, quote: char) -> usize {
+    // A backtick identifier escapes its delimiter only by doubling it; a
+    // backslash inside one is an ordinary character. Treating it as an escape
+    // would swallow the closing backtick and read the statement after it as
+    // data.
+    let backslash_escapes = quote != '`';
     let mut characters = rest.char_indices().skip(1);
     while let Some((offset, character)) = characters.next() {
-        if character == '\\' {
+        if backslash_escapes && character == '\\' {
             characters.next();
             continue;
         }
@@ -859,14 +864,28 @@ fn quoted_span_length(rest: &str, quote: char) -> usize {
 /// no call, and neither does prose that merely contains the word.
 fn calls_sql_function(executable: &str, function: &str) -> bool {
     let is_name_character = |character: char| character.is_ascii_alphanumeric() || character == '_';
+    // `CALL GET_LOCK(…)` invokes a stored routine and `app.GET_LOCK(…)` names a
+    // schema one; neither is the built-in whose connection affinity this
+    // classification stands for.
+    let is_routine_context = |before: &str| {
+        let trimmed = before.trim_end();
+        trimmed.ends_with('.')
+            || trimmed
+                .rsplit(|character: char| !is_name_character(character))
+                .find(|word| !word.is_empty())
+                .is_some_and(|word| word == "CALL")
+    };
     let mut search = executable;
     let mut consumed = 0;
     while let Some(position) = search.find(function) {
         let start = consumed + position;
         let end = start + function.len();
-        let preceded = executable[..start].chars().next_back();
+        let before = &executable[..start];
         let follows = executable[end..].trim_start();
-        if !preceded.is_some_and(is_name_character) && follows.starts_with('(') {
+        if !before.chars().next_back().is_some_and(is_name_character)
+            && follows.starts_with('(')
+            && !is_routine_context(before)
+        {
             return true;
         }
         consumed = end;
@@ -898,6 +917,34 @@ fn string_literal_values(tokens: TokenStream) -> Vec<String> {
     values
 }
 
+/// What a literal contributes to a compile-time string.
+///
+/// `concat!` renders integers, characters, and booleans as well as strings, so
+/// dropping them would both lose statement text and let neighbouring pieces
+/// close over the gap: `concat!("SELECT GET", 1, "_LOCK(…)")` must read as
+/// `SELECT GET1_LOCK(…)`, which calls nothing.
+fn rendered_literal(literal: &proc_macro2::Literal) -> Option<String> {
+    let text = literal.to_string();
+    if let Ok(value) = syn::parse_str::<syn::LitStr>(&text) {
+        return Some(value.value());
+    }
+    if let Ok(value) = syn::parse_str::<syn::LitChar>(&text) {
+        return Some(value.value().to_string());
+    }
+    if let Ok(value) = syn::parse_str::<syn::LitInt>(&text) {
+        return Some(value.base10_digits().to_owned());
+    }
+    if let Ok(value) = syn::parse_str::<syn::LitFloat>(&text) {
+        return Some(value.base10_digits().to_owned());
+    }
+    if let Ok(value) = syn::parse_str::<syn::LitBool>(&text) {
+        return Some(value.value().to_string());
+    }
+    // A byte string is not part of a compile-time `concat!` string; leaving it
+    // unrendered keeps the pieces around it from closing over the gap.
+    None
+}
+
 fn collect_string_literal_values(tokens: TokenStream, values: &mut Vec<String>) {
     let trees = tokens.into_iter().collect::<Vec<_>>();
     let mut index = 0;
@@ -917,8 +964,8 @@ fn collect_string_literal_values(tokens: TokenStream, values: &mut Vec<String>) 
         }
         match &trees[index] {
             TokenTree::Literal(literal) => {
-                if let Ok(literal) = syn::parse_str::<syn::LitStr>(&literal.to_string()) {
-                    values.push(literal.value());
+                if let Some(value) = rendered_literal(literal) {
+                    values.push(value);
                 }
             }
             TokenTree::Group(group) => collect_string_literal_values(group.stream(), values),
@@ -939,6 +986,19 @@ fn executable_comment_payload(body: &str) -> Option<&str> {
         .or_else(|| body.strip_prefix("M!"))
         .or_else(|| body.strip_prefix("m!"))?;
     Some(payload.trim_start_matches(|character: char| character.is_ascii_digit()))
+}
+
+/// The argument of a SQLx query macro that carries the statement.
+///
+/// `query!` and `query_scalar!` take it first; the `query_as!` family takes the
+/// output type first and the statement second. Anything else in the invocation
+/// is a bound value, and a value is not executed as SQL.
+fn query_macro_statement(name: &str, tokens: &TokenStream) -> Option<String> {
+    let arguments = syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated
+        .parse2(tokens.clone())
+        .ok()?;
+    let position = usize::from(name.ends_with("_as") || name.ends_with("_as_unchecked"));
+    arguments.iter().nth(position).map(normalized_tokens)
 }
 
 fn sqlx_calls_in_tokens(tokens: TokenStream, output: &mut Vec<(String, String)>) {
@@ -6055,15 +6115,13 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             Expr::Block(_) | Expr::If(_) | Expr::Match(_) => {
                 control_flow_sql_kind(expression.to_token_stream())
             }
-            Expr::Path(path) if path.qself.is_none() && path.path.segments.len() == 1 => {
-                // A module-level constant is pinned exactly like a local one;
-                // reading only body scopes would report it as runtime-assembled
-                // and force a needless workflow classification.
-                last_path_name(&path.path)
-                    .and_then(|name| {
-                        self.lookup(&name)
-                            .or_else(|| self.symbols.item_values.get(&name))
-                    })
+            Expr::Path(path) if path.qself.is_none() => {
+                // A pinned constant keeps its kind however it is named: a local
+                // binding, a module item, an imported name, or a qualified
+                // path. Reading only body scopes reported it as
+                // runtime-assembled and forced a needless workflow
+                // classification.
+                self.pinned_path_info(path)
                     .map(|info| info.sql_expression)
                     .unwrap_or(SqlExpressionKind::Nonliteral)
             }
@@ -6168,6 +6226,25 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     /// yields nothing, and the call site is then ratcheted as interpolated or
     /// nonliteral SQL whose connection affinity is a reviewed workflow
     /// annotation rather than a guess made from token text.
+    /// The value a path names, wherever it is declared: a local binding, an
+    /// item of this module, an imported name, or a qualified path. An imported
+    /// or qualified name is resolved through the canonical package registry,
+    /// which is where a constant declared in another module is recorded.
+    fn pinned_path_info(&self, path: &syn::ExprPath) -> Option<&VariableInfo> {
+        let names = path_names(&path.path);
+        if names.len() == 1
+            && let Some(name) = names.first()
+            && let Some(info) = self
+                .lookup(name)
+                .or_else(|| self.symbols.item_values.get(name))
+        {
+            return Some(info);
+        }
+        self.symbols
+            .package_item_values
+            .get(&self.package_function_key(names))
+    }
+
     fn sql_sources(&self, expression: &Expr) -> BTreeSet<String> {
         match expression {
             Expr::Lit(literal) if matches!(literal.lit, syn::Lit::Str(_)) => {
@@ -6176,19 +6253,8 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             Expr::Reference(reference) => self.sql_sources(&reference.expr),
             Expr::Paren(paren) => self.sql_sources(&paren.expr),
             Expr::Group(group) => self.sql_sources(&group.expr),
-            Expr::Path(path) if path.qself.is_none() && path.path.segments.len() == 1 => {
-                last_path_name(&path.path)
-                    .and_then(|name| {
-                        self.lookup(&name)
-                            .or_else(|| self.symbols.item_values.get(&name))
-                    })
-                    .map(|info| info.sql_sources.clone())
-                    .unwrap_or_default()
-            }
-            Expr::Path(path) => self
-                .symbols
-                .package_item_values
-                .get(&self.package_function_key(path_names(&path.path)))
+            Expr::Path(path) if path.qself.is_none() => self
+                .pinned_path_info(path)
                 .map(|info| info.sql_sources.clone())
                 .unwrap_or_default(),
             Expr::Call(call)
@@ -6896,7 +6962,13 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 &cfg,
                 fingerprint.clone(),
             );
-            if sql_is_advisory_lock(&fingerprint) {
+            // Only one argument of a query macro is the statement; the rest are
+            // bound values. `query!("SELECT ?", "GET_LOCK('x', 0)")` executes no
+            // lock, so classifying the whole invocation would invent one.
+            if query_macro_statement(&name, &mac.tokens)
+                .as_deref()
+                .is_some_and(sql_is_advisory_lock)
+            {
                 self.add_generated(
                     PersistenceTarget::Sqlx,
                     PersistenceOperation::AdvisoryLock,
@@ -17123,6 +17195,138 @@ mod tests {
             error.contains("env!") && error.contains("fn from_environment"),
             "unexpected rejection: {error}"
         );
+    }
+
+    #[test]
+    fn persistence_inventory_reads_sql_quoting_and_routine_context() {
+        let baseline = inventory(
+            r#"
+                fn backtick_identifier() {
+                    sqlx::query("SELECT `col\\`, GET_LOCK('backtick', 0)");
+                }
+                fn stored_routine() {
+                    sqlx::query("CALL GET_LOCK('routine', 0)");
+                }
+                fn schema_routine() {
+                    sqlx::query("SELECT app.GET_LOCK('schema', 0)");
+                }
+                fn builtin() {
+                    sqlx::query("SELECT GET_LOCK('builtin', 0)");
+                }
+            "#,
+        )
+        .unwrap();
+        // A backslash is an ordinary character inside a backtick identifier, so
+        // the call after it is still the built-in.
+        for enclosing in ["fn backtick_identifier", "fn builtin"] {
+            assert!(
+                baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.operation == PersistenceOperation::AdvisoryLock
+                }),
+                "{enclosing} lost the built-in call"
+            );
+        }
+        // A routine of the same name is not the built-in whose connection
+        // affinity this classification stands for.
+        for enclosing in ["fn stored_routine", "fn schema_routine"] {
+            assert!(
+                !baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.operation == PersistenceOperation::AdvisoryLock
+                }),
+                "{enclosing} classified a routine as the built-in"
+            );
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_renders_every_concat_literal() {
+        let baseline = inventory(
+            r#"
+                fn spliced() {
+                    sqlx::query(concat!("SELECT GET", 1, "_LOCK('x', 0)"));
+                }
+                fn joined() {
+                    sqlx::query(concat!("SELECT GET_", "LOCK('x', 0)"));
+                }
+            "#,
+        )
+        .unwrap();
+        // `concat!` renders the integer, so the pieces do not close over it and
+        // `GET1_LOCK` is not the advisory function.
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn spliced" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn joined" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_classifies_only_the_statement_of_a_query_macro() {
+        let baseline = inventory(
+            r#"
+                fn bound_value() {
+                    sqlx::query!("SELECT ?", "GET_LOCK('x', 0)");
+                }
+                fn statement() {
+                    sqlx::query!("SELECT GET_LOCK('macro', 0)");
+                }
+            "#,
+        )
+        .unwrap();
+        // The second argument is a bound value; the database never executes it.
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn bound_value" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn statement" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_pins_imported_and_qualified_constants() {
+        let facade = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "queries-a",
+            module: "crate::queries",
+            source_path: "src/queries.rs",
+            inherited_cfg: &[],
+            source: r#"pub const SQL: &str = "SELECT 1";"#,
+        };
+        let consumer = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "queries-a",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: r#"
+                use crate::queries::SQL;
+                fn imported() {
+                    sqlx::query(SQL);
+                }
+                fn qualified() {
+                    sqlx::query(crate::queries::SQL);
+                }
+            "#,
+        };
+        let baseline = inventory_persistence_accesses(&[facade, consumer]).unwrap();
+        // However the constant is named, the statement is pinned and must not
+        // be reported as assembled at run time.
+        for enclosing in ["fn imported", "fn qualified"] {
+            assert!(
+                !baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && matches!(
+                            row.operation,
+                            PersistenceOperation::NonliteralSql
+                                | PersistenceOperation::InterpolatedSql
+                        )
+                }),
+                "{enclosing} reported a pinned constant as runtime-assembled"
+            );
+        }
     }
 
     #[test]
