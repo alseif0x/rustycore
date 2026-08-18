@@ -3175,6 +3175,47 @@ fn collect_nested_item_values(
 ) {
     for item in items {
         match item {
+            // `impl Statements { const SQL: &str = "…" }` pins a statement
+            // exactly like a module constant, and the call site can only see
+            // `Statements::SQL` unless it is registered under that name.
+            Item::Impl(item_impl)
+                if source_class_allows(source_class, cfg, &item_impl.attrs, errors, "impl") =>
+            {
+                for associated in &item_impl.items {
+                    let ImplItem::Const(associated) = associated else {
+                        continue;
+                    };
+                    if !source_class_allows(
+                        source_class,
+                        cfg,
+                        &associated.attrs,
+                        errors,
+                        "impl associated const",
+                    ) {
+                        continue;
+                    }
+                    let (kind, sources) = source_sql_info(&associated.expr, &|path| {
+                        standard_string_macro_of(
+                            path,
+                            &|path| canonical_path_names(path, symbols),
+                            &symbols.module_path,
+                            &symbols.local_macro_definitions,
+                        )
+                    });
+                    if sources.is_empty() {
+                        continue;
+                    }
+                    let mut info = variable_info_in_type(&associated.ty, symbols);
+                    info.sql_expression = kind;
+                    info.sql_sources = sources;
+                    for owner in nominal_types_in_type(&item_impl.self_ty) {
+                        let mut path = module_path.to_vec();
+                        path.push(owner);
+                        path.push(normalized_ident(&associated.ident));
+                        output.entry(path.join("::")).or_default().union(&info);
+                    }
+                }
+            }
             Item::Const(item_const)
                 if source_class_allows(source_class, cfg, &item_const.attrs, errors, "const") =>
             {
@@ -3261,8 +3302,11 @@ fn collect_module_symbols(
     let mut symbols = parent
         .cloned()
         .unwrap_or_else(|| ModuleSymbols::for_package(package));
-    // A module's own `macro_rules!` shadow the prelude, and an initializer
-    // classified before they are known would be read against the wrong macro.
+    // A module that declares its own `concat!`/`stringify!` shadows the prelude
+    // one. Rust starts that scope at the declaration; this reads it as covering
+    // the module, which is the conservative direction — an invocation written
+    // above the declaration is classified as opaque rather than pinned, so its
+    // statement is ratcheted as nonliteral instead of being claimed.
     symbols
         .local_macro_definitions
         .extend(items.iter().filter_map(|item| match item {
@@ -5512,12 +5556,15 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             }
             // `let run = sqlx::Executor::execute;` names an executor; the call
             // through `run` sends whatever SQL it is handed.
-            if path_is_sqlx(&names, self.symbols)
-                && names
+            // The trait may be imported inside this block, so the path has to
+            // be resolved before it can be recognized.
+            let canonical = self.canonical_names(names.clone());
+            if (path_is_sqlx(&names, self.symbols) || path_is_sqlx(&canonical, self.symbols))
+                && canonical
                     .iter()
                     .nth_back(1)
                     .is_some_and(|owner| owner == "Executor")
-                && let Some(method) = names.last()
+                && let Some(method) = canonical.last()
                 && PersistenceOperation::from_executor_method(method).is_some()
             {
                 return VariableInfo {
@@ -18681,6 +18728,101 @@ mod tests {
             row.enclosing == "fn broken"
                 && row.operation == PersistenceOperation::ReturnEscape
                 && row.target == PersistenceTarget::CharacterDatabase
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_reads_a_macro_shadow_as_covering_its_module() {
+        let baseline = inventory(
+            r#"
+                const EARLY: &str = concat!("SELECT GET_LOCK('early', 0)");
+                macro_rules! concat { () => { "SELECT 1" }; }
+                const LATE: &str = concat!();
+                fn before_the_shadow() {
+                    sqlx::query(EARLY);
+                }
+                fn after_the_shadow() {
+                    sqlx::query(LATE);
+                }
+            "#,
+        )
+        .unwrap();
+        // Rust starts a `macro_rules!` scope at its declaration, so `EARLY`
+        // really expands with the prelude macro. This grammar reads the shadow
+        // as covering the module instead, which errs toward claiming less: both
+        // statements are ratcheted as nonliteral rather than pinned.
+        for enclosing in ["fn before_the_shadow", "fn after_the_shadow"] {
+            assert!(
+                baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && matches!(
+                            row.operation,
+                            PersistenceOperation::NonliteralSql
+                                | PersistenceOperation::InterpolatedSql
+                        )
+                }),
+                "{enclosing} claimed a statement a shadowed macro can change"
+            );
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_keeps_executor_identity_through_a_block_alias() {
+        let baseline = inventory(
+            r#"
+                fn stored(pool: sqlx::MySqlPool) {
+                    use sqlx::Executor as E;
+                    let run = E::execute;
+                    run(&pool, "SELECT GET_LOCK('aliased', 0)");
+                }
+            "#,
+        )
+        .unwrap();
+        for operation in [
+            PersistenceOperation::Execute,
+            PersistenceOperation::AdvisoryLock,
+        ] {
+            assert!(
+                baseline
+                    .accesses
+                    .iter()
+                    .any(|row| row.enclosing == "fn stored" && row.operation == operation),
+                "an executor behind a block alias lost its {operation:?} row"
+            );
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_pins_associated_constants() {
+        let collect = |sql: &str| {
+            inventory(&format!(
+                r#"
+                    struct Statements;
+                    impl Statements {{
+                        const SQL: &str = {sql:?};
+                    }}
+                    fn associated() {{
+                        sqlx::query(Statements::SQL);
+                    }}
+                "#
+            ))
+            .unwrap()
+        };
+        let locked = collect("SELECT GET_LOCK('associated', 0)");
+        let clean = collect("SELECT 1");
+        let fingerprint = |baseline: &PersistenceAccessBaseline| {
+            baseline
+                .accesses
+                .iter()
+                .find(|row| {
+                    row.enclosing == "fn associated" && row.operation == PersistenceOperation::Query
+                })
+                .map(|row| row.fingerprint.clone())
+                .unwrap()
+        };
+        assert_ne!(fingerprint(&locked), fingerprint(&clean));
+        assert!(locked.accesses.iter().any(|row| {
+            row.enclosing == "fn associated" && row.operation == PersistenceOperation::AdvisoryLock
         }));
     }
 
