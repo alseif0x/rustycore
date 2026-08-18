@@ -4548,6 +4548,8 @@ struct BodyAnalyzer<'a, 'b> {
     return_value_collectors: Vec<VariableInfo>,
     context_version: u64,
     suppress_records: bool,
+    /// Macro shadows declared above the item whose body this analyzes.
+    visible_macro_shadows: BTreeSet<String>,
 }
 
 #[derive(Default)]
@@ -4617,6 +4619,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             return_value_collectors: Vec::new(),
             context_version: 0,
             suppress_records: false,
+            visible_macro_shadows: BTreeSet::new(),
         }
     }
 
@@ -6539,7 +6542,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             Expr::Block(_) | Expr::If(_) | Expr::Match(_) => {
                 control_flow_sql_kind(expression.to_token_stream())
             }
-            Expr::Path(path) if path.qself.is_none() => {
+            Expr::Path(path) => {
                 // A pinned constant keeps its kind however it is named: a local
                 // binding, a module item, an imported name, or a qualified
                 // path. Reading only body scopes reported it as
@@ -6653,6 +6656,19 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     /// or qualified name is resolved through the canonical package registry,
     /// which is where a constant declared in another module is recorded.
     fn pinned_path_info(&self, path: &syn::ExprPath) -> Option<&VariableInfo> {
+        // `<Statements as Sql>::SQL` names the same constant as
+        // `Statements::SQL`; the qualification says which impl, not which value.
+        if let Some(qself) = &path.qself {
+            let member = last_path_name(&path.path)?;
+            return nominal_types_in_type(&qself.ty)
+                .into_iter()
+                .chain(receiver_nominal_types_in_type(&qself.ty))
+                .find_map(|owner| {
+                    self.symbols
+                        .package_item_values
+                        .get(&self.package_function_key(vec![owner, member.clone()]))
+                });
+        }
         let names = path_names(&path.path);
         if names.len() == 1
             && let Some(name) = names.first()
@@ -6681,12 +6697,15 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     /// (`use std::concat as c`), and only an *unqualified* name is the alias:
     /// `other::c!` is a different macro that happens to share a leaf name.
     /// The standard compile-time string macro a path names, if it names one.
+    ///
+    /// Only shadows declared above this body are in scope for it, so the set is
+    /// the one recorded where the enclosing item was reached.
     fn standard_string_macro(&self, written: Vec<String>) -> Option<String> {
         standard_string_macro_of(
             written,
             &|path| self.canonical_names(path),
             &self.symbols.module_path,
-            &self.symbols.local_macro_definitions,
+            &self.visible_macro_shadows,
         )
     }
 
@@ -6710,7 +6729,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             Expr::Reference(reference) => self.sql_sources(&reference.expr),
             Expr::Paren(paren) => self.sql_sources(&paren.expr),
             Expr::Group(group) => self.sql_sources(&group.expr),
-            Expr::Path(path) if path.qself.is_none() => self
+            Expr::Path(path) => self
                 .pinned_path_info(path)
                 .map(|info| info.sql_sources.clone())
                 .unwrap_or_default(),
@@ -6767,6 +6786,14 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 Expr::Reference(reference) => is_indirect(&reference.expr),
                 Expr::Paren(paren) => is_indirect(&paren.expr),
                 Expr::Group(group) => is_indirect(&group.expr),
+                // `String::from(SQL)` is the same conversion in call form.
+                Expr::Call(call)
+                    if matches!(call.func.as_ref(), Expr::Path(path)
+                        if path.path.segments.iter().rev().take(2).map(|segment| normalized_ident(&segment.ident)).collect::<Vec<_>>()
+                            == ["from", "String"]) =>
+                {
+                    call.args.first().is_some_and(is_indirect)
+                }
                 // The same conversions `sql_sources` follows: a pinned source
                 // is no less pinned for having been converted on the way in.
                 Expr::MethodCall(method)
@@ -9463,6 +9490,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 self.enclosing
             ));
         }
+        let mut bound_parameter = false;
         let validated_flow_passthrough = FLOW_PASSTHROUGH_METHODS.contains(&name.as_str())
             || (name == "bind" && receiver.has_stage(FlowStage::Query));
         let operation = if is_query_name(&name) && !receiver.0.is_empty() {
@@ -9477,9 +9505,10 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         ) && (receiver.targets().contains(&PersistenceTarget::Sqlx)
             || receiver.has_stage(FlowStage::Query))
         {
-            // A `QueryBuilder` bind changes the executed statement as surely as
-            // pushed SQL does: without a row, altering a bound value or its
-            // order moves past a baselined constructor unnoticed.
+            // A bind changes what the builder sends, so the call carries a row
+            // — but the value is a parameter, not a statement, and it is kept
+            // out of SQL-content classification below.
+            bound_parameter = true;
             Some(PersistenceOperation::RawSql)
         } else {
             PersistenceOperation::from_executor_method(&name)
@@ -9552,14 +9581,15 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                             fingerprint.clone(),
                         );
                     }
-                    if matches!(
+                    if (matches!(
                         operation,
                         PersistenceOperation::DirectQuery
                             | PersistenceOperation::RawSql
                             // `prepare` receives the statement itself, so its
                             // text belongs to the inventory like any other.
                             | PersistenceOperation::PrepareStatement
-                    ) || executor_consumes_raw_sql
+                    ) || executor_consumes_raw_sql)
+                        && !bound_parameter
                     {
                         if self.statement_takes_advisory_lock(&fingerprint) {
                             self.add(
@@ -9571,7 +9601,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                             );
                         }
                     }
-                    if matches!(
+                    if (matches!(
                         operation,
                         PersistenceOperation::DirectQuery
                             | PersistenceOperation::DirectExecute
@@ -9581,7 +9611,8 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                             // dynamic text is recorded, and text the snapshot
                             // cannot see is refused.
                             | PersistenceOperation::PrepareStatement
-                    ) || executor_consumes_raw_sql
+                    ) || executor_consumes_raw_sql)
+                        && !bound_parameter
                     {
                         let Some(argument) = method.args.first() else {
                             continue;
@@ -9876,9 +9907,17 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             return;
         }
         self.visit_expr(&expression.expr);
-        // On `Err`, `?` returns the operand's error from the function, so
+        // On `Err`, `?` returns the operand's residual from the function, so
         // persistence carried there leaves by the same door as an explicit
-        // `return` and must be recorded as such.
+        // `return`.
+        //
+        // Known over-report: this records the operand's whole flow, so a pool
+        // held in the *success* payload is reported as escaping although `?`
+        // consumes it. Extracting only the residual needs shape information
+        // that is present for some operands and absent for others, and two
+        // attempts at it each lost a real escape. Reporting an escape that does
+        // not happen is the lesser fault for a ratchet whose purpose is to
+        // notice change; missing one is the fault that matters.
         let flow = self.info_from_expr(&expression.expr).flow;
         let cfg = item_cfg(&self.cfg, &expression.attrs);
         self.record_pool_escape(
@@ -10433,6 +10472,7 @@ fn analyze_function(
     function: &ItemFn,
     context: RecordContext<'_>,
     symbols: &ModuleSymbols,
+    visible_macro_shadows: BTreeSet<String>,
     cfg: Vec<String>,
     accumulator: &mut AccessAccumulator,
     errors: &mut Vec<String>,
@@ -10496,6 +10536,7 @@ fn analyze_function(
         visibility,
         cfg.clone(),
     );
+    analyzer.visible_macro_shadows = visible_macro_shadows;
     analyzer.register_local_uses(&function.block.stmts);
     analyzer.register_local_callables(&function.block.stmts);
     analyzer.register_local_constants(&function.block.stmts);
@@ -10798,7 +10839,7 @@ fn analyze_module_items(
         context.source_class,
         errors,
     );
-    for item in items {
+    for (item_index, item) in items.iter().enumerate() {
         match item {
             Item::Use(item_use) => {
                 if !source_class_allows(
@@ -10945,6 +10986,7 @@ fn analyze_module_items(
                         source: context.source,
                     },
                     &symbols,
+                    macro_shadows_before(items, item_index),
                     item_cfg(&cfg, &function.attrs),
                     accumulator,
                     errors,
@@ -19007,6 +19049,106 @@ mod tests {
             fingerprint(&collect("SELECT GET_LOCK('late', 0)")),
             fingerprint(&collect("SELECT 1"))
         );
+    }
+
+    /// Characterizes the scope a body sees. The shadows visible where the item
+    /// is written are threaded into its analysis; this shape already behaved
+    /// correctly, so the test records the contract rather than a fix.
+    #[test]
+    fn persistence_inventory_shadows_macros_only_for_bodies_below_them() {
+        let baseline = inventory(
+            r#"
+                fn early() {
+                    sqlx::query(concat!("SELECT GET_LOCK('early', 0)"));
+                }
+                macro_rules! concat { () => { "SELECT 1" }; }
+                fn late() {
+                    sqlx::query(concat!());
+                }
+            "#,
+        )
+        .unwrap();
+        // A body written above the declaration resolves the prelude macro.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn early" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn late"
+                && matches!(
+                    row.operation,
+                    PersistenceOperation::NonliteralSql | PersistenceOperation::InterpolatedSql
+                )
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_resolves_qualified_and_converted_constants() {
+        let collect = |sql: &str| {
+            inventory(&format!(
+                r#"
+                    trait Sql {{ const SQL: &'static str; }}
+                    struct Statements;
+                    impl Statements {{
+                        const SQL: &str = {sql:?};
+                    }}
+                    fn qualified() {{
+                        sqlx::query(<Statements as Sql>::SQL);
+                    }}
+                    fn converted() {{
+                        sqlx::query(String::from(Statements::SQL).as_str());
+                    }}
+                "#
+            ))
+            .unwrap()
+        };
+        let fingerprint = |baseline: &PersistenceAccessBaseline, enclosing: &str| {
+            baseline
+                .accesses
+                .iter()
+                .find(|row| {
+                    row.enclosing == enclosing && row.operation == PersistenceOperation::Query
+                })
+                .map(|row| row.fingerprint.clone())
+                .unwrap()
+        };
+        let locked = collect("SELECT GET_LOCK('qualified', 0)");
+        let clean = collect("SELECT 1");
+        for enclosing in ["fn qualified", "fn converted"] {
+            assert_ne!(
+                fingerprint(&locked, enclosing),
+                fingerprint(&clean, enclosing),
+                "{enclosing} did not follow the constant it names"
+            );
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_keeps_bound_values_out_of_sql_classification() {
+        let baseline = inventory(
+            r#"
+                fn bound() {
+                    let mut builder = sqlx::QueryBuilder::new("SELECT 1 WHERE name = ");
+                    builder.push_bind("GET_LOCK('x', 0)");
+                }
+            "#,
+        )
+        .unwrap();
+        // A bound value is a parameter: it is sent, not executed.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn bound" && row.operation == PersistenceOperation::RawSql
+        }));
+        for operation in [
+            PersistenceOperation::AdvisoryLock,
+            PersistenceOperation::NonliteralSql,
+        ] {
+            assert!(
+                !baseline
+                    .accesses
+                    .iter()
+                    .any(|row| row.enclosing == "fn bound" && row.operation == operation),
+                "a bound parameter was classified as {operation:?}"
+            );
+        }
     }
 
     #[test]
