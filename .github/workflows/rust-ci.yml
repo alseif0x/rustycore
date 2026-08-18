@@ -90,8 +90,14 @@ jobs:
       - name: Check architecture boundaries
         run: |
           python3 tools/architecture/check_architecture.py check
-          cargo +1.88.0 test --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml
-          cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check
+          # A full workspace collection is this job's dominant cost, and
+          # `repository_surface_can_be_collected` performs the same one the
+          # ratchet step below already performs. Skip it here: the ratchet
+          # validates the collected surface against the checked snapshot, so
+          # running it twice bought no coverage and doubled the wait.
+          cargo +1.88.0 test --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
+            -- --skip repository_surface_can_be_collected
+          cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check
 
       # The combined check compares the session surface before the persistence
       # snapshot, so a session-only mismatch must not launch the long scan
@@ -101,7 +107,7 @@ jobs:
         id: ratchets
         run: |
           set +e
-          report="$(cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check 2>&1)"
+          report="$(cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check 2>&1)"
           status=$?
           printf '%s\n' "$report"
           if [ "$status" -ne 0 ] && printf '%s' "$report" | grep -q "direct persistence"; then
@@ -117,7 +123,7 @@ jobs:
       - name: Publish recomputed persistence baseline
         if: failure() && steps.ratchets.outputs.persistence_mismatch == 'true'
         run: |
-          cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
+          cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
             --bin session-ownership-check -- print-persistence-baseline \
             > "${RUNNER_TEMP}/persistence-access-snapshot.json"
           # The semantic policy is a pure function of the reviewed annotations
@@ -126,7 +132,7 @@ jobs:
           # author a policy that the next run rejects as stale — and a stale
           # policy never reaches this step, because only a persistence
           # mismatch does.
-          cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
+          cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
             --bin session-ownership-check -- print-persistence-policy \
             --from-snapshot "${RUNNER_TEMP}/persistence-access-snapshot.json" \
             > "${RUNNER_TEMP}/persistence-boundary-policy.json"
@@ -145,7 +151,12 @@ jobs:
         run: |
           cargo +1.88.0 check --locked -p wow-data -p wow-database -p wow-network -p wow-world -p bnet-server -p world-server
           cargo +1.88.0 check --locked --manifest-path tools/wow-test-bot/Cargo.toml
-          cargo +1.88.0 build --locked -j1 -p bnet-server -p world-server
+          # `-j1` was introduced to stop two large debug binaries from linking
+          # concurrently, but it also serialized every dependency compile in the
+          # job. Link one server at a time instead and keep bounded parallelism
+          # inside each: same peak-memory protection, without the serial build.
+          cargo +1.88.0 build --locked -j4 -p bnet-server
+          cargo +1.88.0 build --locked -j4 -p world-server
 
       - name: Clippy loot authority boundary
         run: cargo +1.88.0 clippy --locked --no-deps --message-format short -p wow-loot -p wow-entities -p wow-map -p wow-network --lib
