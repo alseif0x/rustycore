@@ -1042,6 +1042,22 @@ fn is_standard_string_macro(
     }
 }
 
+/// The names a module declares with `macro_rules!` before `index`.
+///
+/// A `macro_rules!` scope starts at its declaration, so an invocation above it
+/// is still the prelude macro. Marking it opaque is not the safe direction for
+/// a ratchet that exists to notice changes: an opaque source lets its literal
+/// change without moving a row.
+fn macro_shadows_before(items: &[Item], index: usize) -> BTreeSet<String> {
+    items[..index]
+        .iter()
+        .filter_map(|item| match item {
+            Item::Macro(item_macro) => item_macro.ident.as_ref().map(normalized_ident),
+            _ => None,
+        })
+        .collect()
+}
+
 /// The standard compile-time string macro `written` names, if it names one.
 fn standard_string_macro_of(
     written: Vec<String>,
@@ -3173,7 +3189,7 @@ fn collect_nested_item_values(
     output: &mut BTreeMap<String, VariableInfo>,
     errors: &mut Vec<String>,
 ) {
-    for item in items {
+    for (item_index, item) in items.iter().enumerate() {
         match item {
             // `impl Statements { const SQL: &str = "…" }` pins a statement
             // exactly like a module constant, and the call site can only see
@@ -3199,7 +3215,7 @@ fn collect_nested_item_values(
                             path,
                             &|path| canonical_path_names(path, symbols),
                             &symbols.module_path,
-                            &symbols.local_macro_definitions,
+                            &macro_shadows_before(items, item_index),
                         )
                     });
                     if sources.is_empty() {
@@ -3208,11 +3224,25 @@ fn collect_nested_item_values(
                     let mut info = variable_info_in_type(&associated.ty, symbols);
                     info.sql_expression = kind;
                     info.sql_sources = sources;
-                    for owner in nominal_types_in_type(&item_impl.self_ty) {
-                        let mut path = module_path.to_vec();
-                        path.push(owner);
-                        path.push(normalized_ident(&associated.ident));
-                        output.entry(path.join("::")).or_default().union(&info);
+                    // The impl may target a type of another module, so the key
+                    // comes from the self type's own path rather than from
+                    // where the impl happens to be written.
+                    let owners: Vec<Vec<String>> = match item_impl.self_ty.as_ref() {
+                        Type::Path(path) => {
+                            vec![canonical_path_names(path_names(&path.path), symbols)]
+                        }
+                        other => nominal_types_in_type(other)
+                            .into_iter()
+                            .map(|owner| {
+                                let mut path = module_path.to_vec();
+                                path.push(owner);
+                                path
+                            })
+                            .collect(),
+                    };
+                    for mut owner in owners {
+                        owner.push(normalized_ident(&associated.ident));
+                        output.entry(owner.join("::")).or_default().union(&info);
                     }
                 }
             }
@@ -3227,7 +3257,7 @@ fn collect_nested_item_values(
                         path,
                         &|path| canonical_path_names(path, symbols),
                         &symbols.module_path,
-                        &symbols.local_macro_definitions,
+                        &macro_shadows_before(items, item_index),
                     )
                 });
                 info.sql_expression = kind;
@@ -3245,7 +3275,7 @@ fn collect_nested_item_values(
                         path,
                         &|path| canonical_path_names(path, symbols),
                         &symbols.module_path,
-                        &symbols.local_macro_definitions,
+                        &macro_shadows_before(items, item_index),
                     )
                 });
                 info.sql_expression = kind;
@@ -3302,17 +3332,7 @@ fn collect_module_symbols(
     let mut symbols = parent
         .cloned()
         .unwrap_or_else(|| ModuleSymbols::for_package(package));
-    // A module that declares its own `concat!`/`stringify!` shadows the prelude
-    // one. Rust starts that scope at the declaration; this reads it as covering
-    // the module, which is the conservative direction — an invocation written
-    // above the declaration is classified as opaque rather than pinned, so its
-    // statement is ratcheted as nonliteral instead of being claimed.
-    symbols
-        .local_macro_definitions
-        .extend(items.iter().filter_map(|item| match item {
-            Item::Macro(item_macro) => item_macro.ident.as_ref().map(normalized_ident),
-            _ => None,
-        }));
+
     symbols.module_path = module
         .split("::")
         .filter(|segment| *segment != "crate")
@@ -3322,7 +3342,7 @@ fn collect_module_symbols(
     symbols.anonymous_traits_in_scope.clear();
     for _ in 0..=items.len() {
         let mut changed = false;
-        for item in items {
+        for (item_index, item) in items.iter().enumerate() {
             match item {
                 Item::Trait(item_trait)
                     if source_class_allows(
@@ -3437,7 +3457,7 @@ fn collect_module_symbols(
                             path,
                             &|path| canonical_path_names(path, &symbols),
                             &symbols.module_path,
-                            &symbols.local_macro_definitions,
+                            &macro_shadows_before(items, item_index),
                         )
                     });
                     info.sql_expression = kind;
@@ -3465,7 +3485,7 @@ fn collect_module_symbols(
                             path,
                             &|path| canonical_path_names(path, &symbols),
                             &symbols.module_path,
-                            &symbols.local_macro_definitions,
+                            &macro_shadows_before(items, item_index),
                         )
                     });
                     info.sql_expression = kind;
@@ -3497,7 +3517,7 @@ fn collect_module_symbols(
         );
     }
 
-    for item in items {
+    for (item_index, item) in items.iter().enumerate() {
         match item {
             Item::Struct(item_struct)
                 if source_class_allows(source_class, cfg, &item_struct.attrs, errors, "struct") =>
@@ -4639,6 +4659,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         self.push_scope();
         self.register_local_uses(&expression.body.stmts);
         self.register_local_callables(&expression.body.stmts);
+        self.register_local_constants(&expression.body.stmts);
         self.bind_pattern(&expression.pat, iterator_info);
         for statement in &expression.body.stmts {
             self.visit_stmt(statement);
@@ -4661,6 +4682,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         self.push_scope();
         self.register_local_uses(&expression.body.stmts);
         self.register_local_callables(&expression.body.stmts);
+        self.register_local_constants(&expression.body.stmts);
         visit_let_chain_condition(self, &expression.cond, true);
         // Evaluating a false condition exits the loop with every mutation
         // performed by that condition, before the body can overwrite it.
@@ -4827,6 +4849,65 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                         .insert(leaf.local, source);
                 }
             }
+        }
+    }
+
+    /// Bind a block's `const`/`static` items before its statements run.
+    ///
+    /// They are in scope throughout the block, so a query written above the
+    /// declaration still reads the value; installing it only when the visitor
+    /// reaches the declaration would record that query against an opaque path
+    /// and let the literal change without moving a row.
+    fn register_local_constants(&mut self, statements: &[Stmt]) {
+        let items = statements
+            .iter()
+            .filter_map(|statement| match statement {
+                Stmt::Item(item) => Some(item),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for (index, item) in items.iter().enumerate() {
+            if !self.allows_source_class(item_attributes(item), "block-local item") {
+                continue;
+            }
+            let shadows = items[..index]
+                .iter()
+                .filter_map(|item| match item {
+                    Item::Macro(item_macro) => item_macro.ident.as_ref().map(normalized_ident),
+                    _ => None,
+                })
+                .collect::<BTreeSet<_>>();
+            let declared = match item {
+                Item::Const(item_const) => Some((
+                    normalized_ident(&item_const.ident),
+                    &item_const.expr,
+                    &item_const.ty,
+                )),
+                Item::Static(item_static) => Some((
+                    normalized_ident(&item_static.ident),
+                    &item_static.expr,
+                    &item_static.ty,
+                )),
+                _ => None,
+            };
+            let Some((name, expression, declared_type)) = declared else {
+                continue;
+            };
+            let (kind, sources) = source_sql_info(expression, &|path| {
+                standard_string_macro_of(
+                    path,
+                    &|path| self.canonical_names(path),
+                    &self.symbols.module_path,
+                    &shadows,
+                )
+            });
+            if kind == SqlExpressionKind::Nonliteral {
+                continue;
+            }
+            let mut info = self.info_from_type(declared_type);
+            info.sql_expression = kind;
+            info.sql_sources = sources;
+            self.bind(name, info);
         }
     }
 
@@ -6686,10 +6767,12 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 Expr::Reference(reference) => is_indirect(&reference.expr),
                 Expr::Paren(paren) => is_indirect(&paren.expr),
                 Expr::Group(group) => is_indirect(&group.expr),
+                // The same conversions `sql_sources` follows: a pinned source
+                // is no less pinned for having been converted on the way in.
                 Expr::MethodCall(method)
                     if matches!(
                         normalized_ident(&method.method).as_str(),
-                        "as_str" | "as_ref"
+                        "as_str" | "as_ref" | "to_owned" | "to_string"
                     ) =>
                 {
                     is_indirect(&method.receiver)
@@ -8760,6 +8843,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         self.push_scope();
         self.register_local_uses(&block.stmts);
         self.register_local_callables(&block.stmts);
+        self.register_local_constants(&block.stmts);
         for statement in &block.stmts {
             self.visit_stmt(statement);
         }
@@ -8961,15 +9045,26 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                     is_flow_passthrough_call(&names),
                 )
             }
-            _ => (
-                String::new(),
-                String::new(),
-                false,
-                false,
-                false,
-                TargetSet::new(),
-                false,
-            ),
+            // `(sqlx::query)(SQL)` names the same callable as `sqlx::query`;
+            // the parentheses do not change what it constructs.
+            callee => {
+                let info = self.info_from_expr(callee);
+                let executor = info.executor_callable.clone();
+                let name = executor.clone().unwrap_or_else(|| {
+                    info.query_callable
+                        .then(|| "query".to_owned())
+                        .unwrap_or_default()
+                });
+                (
+                    name.clone(),
+                    name,
+                    executor.is_some(),
+                    executor.is_some() || info.query_callable,
+                    info.query_callable,
+                    TargetSet::new(),
+                    false,
+                )
+            }
         };
         let query_builder_constructor = rooted_sqlx
             && canonical_name == "new"
@@ -10403,6 +10498,7 @@ fn analyze_function(
     );
     analyzer.register_local_uses(&function.block.stmts);
     analyzer.register_local_callables(&function.block.stmts);
+    analyzer.register_local_constants(&function.block.stmts);
     analyzer.register_generic_bounds(&function.sig.generics);
     analyzer.register_parameters(&function.sig.inputs);
     for statement in &function.block.stmts {
@@ -10588,6 +10684,7 @@ fn analyze_impl(
         );
         analyzer.register_local_uses(&method.block.stmts);
         analyzer.register_local_callables(&method.block.stmts);
+        analyzer.register_local_constants(&method.block.stmts);
         analyzer.register_generic_bounds(&item_impl.generics);
         analyzer.register_generic_bounds(&method.sig.generics);
         let mut self_info = analyzer.info_from_type(&item_impl.self_ty);
@@ -18732,7 +18829,7 @@ mod tests {
     }
 
     #[test]
-    fn persistence_inventory_reads_a_macro_shadow_as_covering_its_module() {
+    fn persistence_inventory_shadows_a_macro_only_from_its_declaration() {
         let baseline = inventory(
             r#"
                 const EARLY: &str = concat!("SELECT GET_LOCK('early', 0)");
@@ -18747,23 +18844,22 @@ mod tests {
             "#,
         )
         .unwrap();
-        // Rust starts a `macro_rules!` scope at its declaration, so `EARLY`
-        // really expands with the prelude macro. This grammar reads the shadow
-        // as covering the module instead, which errs toward claiming less: both
-        // statements are ratcheted as nonliteral rather than pinned.
-        for enclosing in ["fn before_the_shadow", "fn after_the_shadow"] {
-            assert!(
-                baseline.accesses.iter().any(|row| {
-                    row.enclosing == enclosing
-                        && matches!(
-                            row.operation,
-                            PersistenceOperation::NonliteralSql
-                                | PersistenceOperation::InterpolatedSql
-                        )
-                }),
-                "{enclosing} claimed a statement a shadowed macro can change"
-            );
-        }
+        // A `macro_rules!` scope starts at its declaration, so `EARLY` really
+        // expands with the prelude macro and its statement is pinned. Reading
+        // the shadow as covering the module would have been the wrong kind of
+        // caution here: an opaque source lets its literal change without moving
+        // a row, which is the very signal this ratchet exists to give.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn before_the_shadow"
+                && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn after_the_shadow"
+                && matches!(
+                    row.operation,
+                    PersistenceOperation::NonliteralSql | PersistenceOperation::InterpolatedSql
+                )
+        }));
     }
 
     #[test]
@@ -18824,6 +18920,93 @@ mod tests {
         assert!(locked.accesses.iter().any(|row| {
             row.enclosing == "fn associated" && row.operation == PersistenceOperation::AdvisoryLock
         }));
+    }
+
+    #[test]
+    fn persistence_inventory_classifies_parenthesized_callables() {
+        let baseline = inventory(
+            r#"
+                const SQL: &str = "SELECT GET_LOCK('paren', 0)";
+                fn parenthesized_query(pool: sqlx::MySqlPool) {
+                    (sqlx::query)(SQL).execute(&pool);
+                }
+                fn parenthesized_executor(pool: sqlx::MySqlPool) {
+                    (sqlx::Executor::execute)(&pool, SQL);
+                }
+            "#,
+        )
+        .unwrap();
+        // Parentheses do not change what a callee constructs.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn parenthesized_query"
+                && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn parenthesized_executor"
+                && row.operation == PersistenceOperation::Execute
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_follows_inline_string_conversions() {
+        let collect = |sql: &str| {
+            inventory(&format!(
+                r#"
+                    const SQL: &str = {sql:?};
+                    fn converted(pool: sqlx::MySqlPool) {{
+                        sqlx::query(SQL.to_owned().as_str()).execute(&pool);
+                    }}
+                "#
+            ))
+            .unwrap()
+        };
+        let fingerprint = |baseline: &PersistenceAccessBaseline| {
+            baseline
+                .accesses
+                .iter()
+                .find(|row| {
+                    row.enclosing == "fn converted" && row.operation == PersistenceOperation::Query
+                })
+                .map(|row| row.fingerprint.clone())
+                .unwrap()
+        };
+        // A pinned statement is no less pinned for being converted on the way
+        // in, so editing the constant has to move the row.
+        assert_ne!(
+            fingerprint(&collect("SELECT GET_LOCK('converted', 0)")),
+            fingerprint(&collect("SELECT 1"))
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_pins_block_constants_declared_after_use() {
+        let collect = |sql: &str| {
+            inventory(&format!(
+                r#"
+                    fn run() {{
+                        sqlx::query(SQL);
+                        const SQL: &str = {sql:?};
+                    }}
+                "#
+            ))
+            .unwrap()
+        };
+        let fingerprint = |baseline: &PersistenceAccessBaseline| {
+            baseline
+                .accesses
+                .iter()
+                .find(|row| {
+                    row.enclosing == "fn run" && row.operation == PersistenceOperation::Query
+                })
+                .map(|row| row.fingerprint.clone())
+                .unwrap()
+        };
+        // A block constant is in scope throughout its block, declaration order
+        // notwithstanding.
+        assert_ne!(
+            fingerprint(&collect("SELECT GET_LOCK('late', 0)")),
+            fingerprint(&collect("SELECT 1"))
+        );
     }
 
     #[test]
