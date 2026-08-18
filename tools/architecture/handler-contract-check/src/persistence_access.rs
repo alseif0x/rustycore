@@ -1498,17 +1498,34 @@ enum SqlExpressionKind {
     Interpolated,
 }
 
-fn source_sql_info(expression: &Expr) -> (SqlExpressionKind, BTreeSet<String>) {
+/// The SQL an item initializer pins.
+///
+/// A macro is identified by the path it resolves to: somebody's
+/// `other::concat!` expands to whatever it likes, so treating it as the
+/// standard one would pin a statement that its definition can change.
+fn source_sql_info(
+    expression: &Expr,
+    symbols: &ModuleSymbols,
+) -> (SqlExpressionKind, BTreeSet<String>) {
     match expression {
         Expr::Lit(literal) if matches!(literal.lit, syn::Lit::Str(_)) => (
             SqlExpressionKind::Static,
             BTreeSet::from([normalized_tokens(expression)]),
         ),
-        Expr::Reference(reference) => source_sql_info(&reference.expr),
-        Expr::Paren(paren) => source_sql_info(&paren.expr),
-        Expr::Group(group) => source_sql_info(&group.expr),
+        Expr::Reference(reference) => source_sql_info(&reference.expr, symbols),
+        Expr::Paren(paren) => source_sql_info(&paren.expr, symbols),
+        Expr::Group(group) => source_sql_info(&group.expr, symbols),
         Expr::Macro(mac) => {
-            let name = last_path_name(&mac.mac.path).unwrap_or_default();
+            let resolved = canonical_path_names(path_names(&mac.mac.path), symbols);
+            let leaf = resolved.last().cloned().unwrap_or_default();
+            // Only the standard compile-time macros pin a statement; a
+            // namesake in another module is a nonliteral source.
+            let name = match leaf.as_str() {
+                "concat" | "stringify" if !is_standard_string_macro(&resolved, &leaf) => {
+                    String::new()
+                }
+                _ => leaf,
+            };
             match name.as_str() {
                 "env" => (SqlExpressionKind::Environment, BTreeSet::new()),
                 "include_str" => (SqlExpressionKind::Included, BTreeSet::new()),
@@ -1531,7 +1548,7 @@ fn source_sql_info(expression: &Expr) -> (SqlExpressionKind, BTreeSet<String>) {
                     let kind = arguments
                         .iter()
                         .fold(SqlExpressionKind::Static, |kind, argument| {
-                            kind.max(source_sql_info(argument).0)
+                            kind.max(source_sql_info(argument, symbols).0)
                         });
                     let sources = match kind {
                         SqlExpressionKind::Static => {
@@ -3116,7 +3133,7 @@ fn collect_nested_item_values(
                 let mut path = module_path.to_vec();
                 path.push(normalized_ident(&item_const.ident));
                 let mut info = variable_info_in_type(&item_const.ty, symbols);
-                let (kind, sources) = source_sql_info(&item_const.expr);
+                let (kind, sources) = source_sql_info(&item_const.expr, symbols);
                 info.sql_expression = kind;
                 info.sql_sources = sources;
                 output.entry(path.join("::")).or_default().union(&info);
@@ -3127,7 +3144,7 @@ fn collect_nested_item_values(
                 let mut path = module_path.to_vec();
                 path.push(normalized_ident(&item_static.ident));
                 let mut info = variable_info_in_type(&item_static.ty, symbols);
-                let (kind, sources) = source_sql_info(&item_static.expr);
+                let (kind, sources) = source_sql_info(&item_static.expr, symbols);
                 info.sql_expression = kind;
                 info.sql_sources = sources;
                 output.entry(path.join("::")).or_default().union(&info);
@@ -3301,7 +3318,7 @@ fn collect_module_symbols(
                     ) =>
                 {
                     let mut info = variable_info_in_type(&item_const.ty, &symbols);
-                    let (kind, sources) = source_sql_info(&item_const.expr);
+                    let (kind, sources) = source_sql_info(&item_const.expr, &symbols);
                     info.sql_expression = kind;
                     info.sql_sources = sources;
                     let entry = symbols
@@ -3322,7 +3339,7 @@ fn collect_module_symbols(
                     ) =>
                 {
                     let mut info = variable_info_in_type(&item_static.ty, &symbols);
-                    let (kind, sources) = source_sql_info(&item_static.expr);
+                    let (kind, sources) = source_sql_info(&item_static.expr, &symbols);
                     info.sql_expression = kind;
                     info.sql_sources = sources;
                     let entry = symbols
@@ -7222,6 +7239,16 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             }
             return;
         }
+        // `migrate!` runs every `.sql` file of a directory this inventory does
+        // not read, so a baselined invocation would let their contents — and
+        // the statements they execute — change with no row moving.
+        if rooted_sqlx && canonical_name == "migrate" {
+            self.errors.push(format!(
+                "{} runs migrate! SQL whose migration directory is outside the persistence snapshot; mount and fingerprint the migrations explicitly",
+                self.enclosing
+            ));
+            return;
+        }
         let direct_targets = targets_for_path(&mac.path, self.symbols);
         if rooted_sqlx || !direct_targets.is_empty() {
             let targets = if direct_targets.is_empty() {
@@ -8487,7 +8514,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 return;
             }
             if let Item::Const(item_const) = item {
-                let (kind, sources) = source_sql_info(&item_const.expr);
+                let (kind, sources) = source_sql_info(&item_const.expr, self.symbols);
                 if kind != SqlExpressionKind::Nonliteral {
                     let mut info = self.info_from_type(&item_const.ty);
                     info.sql_expression = kind;
@@ -8497,7 +8524,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 }
             }
             if let Item::Static(item_static) = item {
-                let (kind, sources) = source_sql_info(&item_static.expr);
+                let (kind, sources) = source_sql_info(&item_static.expr, self.symbols);
                 if kind != SqlExpressionKind::Nonliteral {
                     let mut info = self.info_from_type(&item_static.ty);
                     info.sql_expression = kind;
@@ -18182,6 +18209,63 @@ mod tests {
         assert!(baseline.accesses.iter().any(|row| {
             row.enclosing == "fn described" && row.operation == PersistenceOperation::AdvisoryLock
         }));
+    }
+
+    #[test]
+    fn persistence_inventory_resolves_item_macros_before_pinning_them() {
+        let baseline = inventory(
+            r#"
+                mod other {
+                    macro_rules! concat { ($($piece:tt)*) => { "SELECT 1" }; }
+                    pub(crate) use concat;
+                }
+                const CUSTOM: &str = other::concat!();
+                const STANDARD: &str = concat!("SELECT ", "1");
+                fn from_custom() {
+                    sqlx::query(CUSTOM);
+                }
+                fn from_standard() {
+                    sqlx::query(STANDARD);
+                }
+            "#,
+        )
+        .unwrap();
+        // A namesake macro can expand to anything, so the constant it defines
+        // is not a pinned statement.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn from_custom"
+                && matches!(
+                    row.operation,
+                    PersistenceOperation::NonliteralSql | PersistenceOperation::InterpolatedSql
+                )
+        }));
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn from_standard"
+                && matches!(
+                    row.operation,
+                    PersistenceOperation::NonliteralSql | PersistenceOperation::InterpolatedSql
+                )
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_rejects_unmounted_migrations() {
+        let baseline = inventory(
+            r#"
+                async fn migrated(pool: sqlx::MySqlPool) {
+                    sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+                }
+            "#,
+        );
+        // The migration files execute SQL this inventory never reads, so the
+        // invocation cannot be baselined as if it were pinned.
+        let error = baseline
+            .err()
+            .expect("an unmounted migration directory must be rejected");
+        assert!(
+            error.contains("migrate!") && error.contains("fn migrated"),
+            "unexpected rejection: {error}"
+        );
     }
 
     #[test]
