@@ -93,10 +93,21 @@ jobs:
           cargo +1.88.0 test --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml
           cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check
 
+      # The combined check compares the session surface before the persistence
+      # snapshot, so a session-only mismatch must not launch the long scan
+      # below. Publish the baseline only when the persistence comparison is
+      # what failed.
       - name: Check persistence and session ownership ratchets
         id: ratchets
         run: |
-          cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check
+          set +e
+          report="$(cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check 2>&1)"
+          status=$?
+          printf '%s\n' "$report"
+          if [ "$status" -ne 0 ] && printf '%s' "$report" | grep -q "direct persistence"; then
+            echo "persistence_mismatch=true" >> "$GITHUB_OUTPUT"
+          fi
+          exit "$status"
 
       # Regenerating the exact persistence baseline takes about 36 minutes, so
       # a failed ratchet would otherwise send the author back to a long local
@@ -104,14 +115,14 @@ jobs:
       # but only for a ratchet mismatch, never after an unrelated failure that
       # the author is already waiting to read.
       - name: Publish recomputed persistence baseline
-        if: failure() && steps.ratchets.outcome == 'failure'
+        if: failure() && steps.ratchets.outputs.persistence_mismatch == 'true'
         run: |
           cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
             --bin session-ownership-check -- print-persistence-baseline \
             > "${RUNNER_TEMP}/persistence-access-snapshot.json"
 
       - name: Upload recomputed persistence baseline
-        if: failure() && steps.ratchets.outcome == 'failure'
+        if: failure() && steps.ratchets.outputs.persistence_mismatch == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: persistence-access-snapshot

@@ -23,6 +23,14 @@
 //! would build at run time. A `+` chain, a `format!` template, a branch, a
 //! helper's return, and a projection deliberately yield no statement text.
 //!
+//! "Pinned" also means pinned *here*: a constant this package declares, or one
+//! it imports within its own item registry. A constant owned by another
+//! package is read as runtime-assembled, which over-reports rather than
+//! under-reports — the call site still carries its row, and the reviewed
+//! workflow annotation covering it states the affinity. Reaching across
+//! packages would mean resolving their re-exports and globs too, which is the
+//! same open-ended chase in a different register.
+//!
 //! That boundary is a design decision, not an omission. Deciding "which string
 //! does this expression produce" has no natural stopping point: every answer
 //! invites another shape to reconstruct, and each reconstruction has to be
@@ -770,7 +778,7 @@ const ADVISORY_LOCK_FUNCTIONS: &[&str] = &[
 /// `/*!…*/` or `/*M!…*/` comment is kept because the server runs it. Double
 /// quotes are left alone — in this grammar they delimit the Rust literal that
 /// carries the statement, not a SQL string.
-fn executable_sql_text(fingerprint: &str) -> String {
+fn executable_sql_text(fingerprint: &str, backslash_escapes: bool) -> String {
     // A fingerprint is Rust token text whose statements live inside string
     // literals. Read those out first: the double quotes around them belong to
     // Rust, while double quotes *inside* a statement are SQL — a string under
@@ -817,7 +825,7 @@ fn executable_sql_text(fingerprint: &str) -> String {
             .next()
             .filter(|character| matches!(character, '\'' | '`' | '"'))
         {
-            index += quoted_span_length(rest, quote);
+            index += quoted_span_length(rest, quote, backslash_escapes);
             executable.push(' ');
             continue;
         }
@@ -835,12 +843,12 @@ fn executable_sql_text(fingerprint: &str) -> String {
 /// delimiter stands for one literal delimiter. Stopping at the first raw match
 /// would hand the rest of the statement back to the scanner as if it were
 /// executable, and `SELECT 'it\'s', GET_LOCK('x', 0)` would lose its call.
-fn quoted_span_length(rest: &str, quote: char) -> usize {
+fn quoted_span_length(rest: &str, quote: char, backslash_escapes: bool) -> usize {
     // A backtick identifier escapes its delimiter only by doubling it; a
     // backslash inside one is an ordinary character. Treating it as an escape
     // would swallow the closing backtick and read the statement after it as
     // data.
-    let backslash_escapes = quote != '`';
+    let backslash_escapes = backslash_escapes && quote != '`';
     let mut characters = rest.char_indices().skip(1);
     while let Some((offset, character)) = characters.next() {
         if backslash_escapes && character == '\\' {
@@ -898,10 +906,16 @@ fn calls_sql_function(executable: &str, function: &str) -> bool {
 /// lock. Valid MySQL spells these functions in any case
 /// (`SELECT get_lock(...)`), so the comparison is case-insensitive.
 fn sql_is_advisory_lock(fingerprint: &str) -> bool {
-    let executable = executable_sql_text(fingerprint);
-    ADVISORY_LOCK_FUNCTIONS
-        .iter()
-        .any(|function| calls_sql_function(&executable, function))
+    // The repository pins no `sql_mode`, and `NO_BACKSLASH_ESCAPES` decides
+    // where a quoted token ends. Read the statement under both meanings and
+    // keep the identity if either one calls the function: a ratchet may record
+    // a lock the session does not take, but it must not miss one it does.
+    [true, false].into_iter().any(|backslash_escapes| {
+        let executable = executable_sql_text(fingerprint, backslash_escapes);
+        ADVISORY_LOCK_FUNCTIONS
+            .iter()
+            .any(|function| calls_sql_function(&executable, function))
+    })
 }
 
 /// The statements a token stream pins, one entry per statement.
@@ -919,10 +933,11 @@ fn string_literal_values(tokens: TokenStream) -> Vec<String> {
 
 /// What a literal contributes to a compile-time string.
 ///
-/// `concat!` renders integers, characters, and booleans as well as strings, so
+/// `concat!` renders integers, characters, and floats as well as strings, so
 /// dropping them would both lose statement text and let neighbouring pieces
 /// close over the gap: `concat!("SELECT GET", 1, "_LOCK(…)")` must read as
-/// `SELECT GET1_LOCK(…)`, which calls nothing.
+/// `SELECT GET1_LOCK(…)`, which calls nothing. Booleans arrive as identifiers
+/// rather than literals and are rendered where the pieces are collected.
 fn rendered_literal(literal: &proc_macro2::Literal) -> Option<String> {
     let text = literal.to_string();
     if let Ok(value) = syn::parse_str::<syn::LitStr>(&text) {
@@ -937,9 +952,6 @@ fn rendered_literal(literal: &proc_macro2::Literal) -> Option<String> {
     if let Ok(value) = syn::parse_str::<syn::LitFloat>(&text) {
         return Some(value.base10_digits().to_owned());
     }
-    if let Ok(value) = syn::parse_str::<syn::LitBool>(&text) {
-        return Some(value.value().to_string());
-    }
     // A byte string is not part of a compile-time `concat!` string; leaving it
     // unrendered keeps the pieces around it from closing over the gap.
     None
@@ -949,15 +961,17 @@ fn collect_string_literal_values(tokens: TokenStream, values: &mut Vec<String>) 
     let trees = tokens.into_iter().collect::<Vec<_>>();
     let mut index = 0;
     while index < trees.len() {
-        if let TokenTree::Ident(ident) = &trees[index]
-            && normalized_ident(ident) == "concat"
-            && matches!(trees.get(index + 1), Some(TokenTree::Punct(punct)) if punct.as_char() == '!')
-            && let Some(TokenTree::Group(group)) = trees.get(index + 2)
-        {
-            let mut joined = Vec::new();
-            collect_string_literal_values(group.stream(), &mut joined);
-            if !joined.is_empty() {
-                values.push(joined.concat());
+        if let Some((macro_name, group)) = compile_time_string_macro(&trees, index) {
+            if macro_name == "stringify" {
+                // `stringify!` renders its input tokens, not the literals in
+                // them.
+                values.push(group.stream().to_string());
+            } else {
+                let mut joined = Vec::new();
+                collect_concat_pieces(group.stream(), &mut joined);
+                if !joined.is_empty() {
+                    values.push(joined.concat());
+                }
             }
             index += 3;
             continue;
@@ -969,6 +983,67 @@ fn collect_string_literal_values(tokens: TokenStream, values: &mut Vec<String>) 
                 }
             }
             TokenTree::Group(group) => collect_string_literal_values(group.stream(), values),
+            _ => {}
+        }
+        index += 1;
+    }
+}
+
+/// The name and argument group of a `concat!`/`stringify!` invocation starting
+/// at `index`, both of which build a string at compile time.
+fn compile_time_string_macro(
+    trees: &[TokenTree],
+    index: usize,
+) -> Option<(String, proc_macro2::Group)> {
+    let TokenTree::Ident(ident) = trees.get(index)? else {
+        return None;
+    };
+    let name = normalized_ident(ident);
+    if !matches!(name.as_str(), "concat" | "stringify") {
+        return None;
+    }
+    match (trees.get(index + 1), trees.get(index + 2)) {
+        (Some(TokenTree::Punct(punct)), Some(TokenTree::Group(group)))
+            if punct.as_char() == '!' =>
+        {
+            Some((name, group.clone()))
+        }
+        _ => None,
+    }
+}
+
+/// The pieces a `concat!` renders, in order.
+///
+/// Every argument contributes: `true` and `false` reach a token stream as
+/// identifiers rather than literals, and dropping one would let the strings
+/// around it close over the gap — `concat!("SELECT GET", true, "_LOCK(…)")`
+/// expands to `SELECT GETtrue_LOCK(…)`, which calls nothing.
+fn collect_concat_pieces(tokens: TokenStream, pieces: &mut Vec<String>) {
+    let trees = tokens.into_iter().collect::<Vec<_>>();
+    let mut index = 0;
+    while index < trees.len() {
+        if let Some((macro_name, group)) = compile_time_string_macro(&trees, index) {
+            if macro_name == "stringify" {
+                pieces.push(group.stream().to_string());
+            } else {
+                collect_concat_pieces(group.stream(), pieces);
+            }
+            index += 3;
+            continue;
+        }
+        match &trees[index] {
+            TokenTree::Literal(literal) => {
+                if let Some(value) = rendered_literal(literal) {
+                    pieces.push(value);
+                }
+            }
+            TokenTree::Ident(ident) => {
+                let name = normalized_ident(ident);
+                if matches!(name.as_str(), "true" | "false") {
+                    pieces.push(name);
+                }
+            }
+            TokenTree::Group(group) => collect_concat_pieces(group.stream(), pieces),
             _ => {}
         }
         index += 1;
@@ -993,6 +1068,9 @@ fn executable_comment_payload(body: &str) -> Option<&str> {
 /// `query!` and `query_scalar!` take it first; the `query_as!` family takes the
 /// output type first and the statement second. Anything else in the invocation
 /// is a bound value, and a value is not executed as SQL.
+///
+/// `name` must be the canonical SQLx macro name: an import alias
+/// (`use sqlx::query_as as q`) hides which position carries the statement.
 fn query_macro_statement(name: &str, tokens: &TokenStream) -> Option<String> {
     let arguments = syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated
         .parse2(tokens.clone())
@@ -6965,7 +7043,12 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             // Only one argument of a query macro is the statement; the rest are
             // bound values. `query!("SELECT ?", "GET_LOCK('x', 0)")` executes no
             // lock, so classifying the whole invocation would invent one.
-            if query_macro_statement(&name, &mac.tokens)
+            let canonical_macro = self
+                .canonical_local_path_names(names.clone())
+                .last()
+                .cloned()
+                .unwrap_or_else(|| name.clone());
+            if query_macro_statement(&canonical_macro, &mac.tokens)
                 .as_deref()
                 .is_some_and(sql_is_advisory_lock)
             {
@@ -17327,6 +17410,84 @@ mod tests {
                 "{enclosing} reported a pinned constant as runtime-assembled"
             );
         }
+    }
+
+    #[test]
+    fn persistence_inventory_expands_compile_time_string_macros() {
+        let baseline = inventory(
+            r#"
+                fn stringified() {
+                    sqlx::query(concat!(stringify!(SELECT GET_LOCK), "('x', 0)"));
+                }
+                fn boolean_piece() {
+                    sqlx::query(concat!("SELECT GET", true, "_LOCK('x', 0)"));
+                }
+                fn integer_piece() {
+                    sqlx::query(concat!("SELECT GET", 1, "_LOCK('x', 0)"));
+                }
+            "#,
+        )
+        .unwrap();
+        // `stringify!` renders its tokens, so the call it spells is executed.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn stringified" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+        // A rendered piece separates the strings around it, so no call is
+        // fabricated where the expansion has none.
+        for enclosing in ["fn boolean_piece", "fn integer_piece"] {
+            assert!(
+                !baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.operation == PersistenceOperation::AdvisoryLock
+                }),
+                "{enclosing} fabricated a call the expansion does not contain"
+            );
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_reads_quoting_under_either_sql_mode() {
+        let baseline = inventory(
+            r#"
+                fn escaping_mode() {
+                    sqlx::query("SELECT 'it\\'s', GET_LOCK('escaped', 0)");
+                }
+                fn no_backslash_escapes_mode() {
+                    sqlx::query("SELECT 'x\\', GET_LOCK('literal', 0)");
+                }
+            "#,
+        )
+        .unwrap();
+        // No `sql_mode` is pinned, so a statement whose quoting ends the token
+        // differently under `NO_BACKSLASH_ESCAPES` keeps its identity too.
+        for enclosing in ["fn escaping_mode", "fn no_backslash_escapes_mode"] {
+            assert!(
+                baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.operation == PersistenceOperation::AdvisoryLock
+                }),
+                "{enclosing} lost a call that one supported mode executes"
+            );
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_keeps_the_statement_position_of_aliased_query_macros() {
+        let baseline = inventory(
+            r#"
+                use sqlx::query_as as q;
+                struct Row;
+                fn aliased() {
+                    q!(Row, "SELECT GET_LOCK('aliased', 0)");
+                }
+            "#,
+        )
+        .unwrap();
+        // The alias hides which argument carries the statement; the canonical
+        // macro name decides it.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn aliased" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
     }
 
     #[test]
