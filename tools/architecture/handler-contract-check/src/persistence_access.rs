@@ -313,7 +313,9 @@ impl PersistenceOperation {
             "commit" => Some(Self::Commit),
             "rollback" => Some(Self::Rollback),
             "acquire" | "pool" => Some(Self::PoolAccess),
-            "prepare" | "prepare_with" => Some(Self::PrepareStatement),
+            // `describe` sends the statement for description, so its SQL is
+            // inventoried exactly like a prepared one.
+            "prepare" | "prepare_with" | "describe" => Some(Self::PrepareStatement),
             "direct_query" => Some(Self::DirectQuery),
             "direct_execute" => Some(Self::DirectExecute),
             "commit_transaction" | "commit_with_outcome_like_cpp" => Some(Self::Commit),
@@ -1017,6 +1019,16 @@ fn collect_string_literal_values(
 
 /// The name and argument group of a `concat!`/`stringify!` invocation starting
 /// at `index`, both of which build a string at compile time.
+/// Whether a resolved path names the standard `concat!`/`stringify!` rather
+/// than somebody's macro of the same leaf name.
+fn is_standard_string_macro(resolved: &[String], macro_name: &str) -> bool {
+    match resolved {
+        [name] => name == macro_name,
+        [root, name] if matches!(root.as_str(), "std" | "core") => name == macro_name,
+        _ => false,
+    }
+}
+
 fn compile_time_string_macro(
     trees: &[TokenTree],
     index: usize,
@@ -1039,14 +1051,10 @@ fn compile_time_string_macro(
         segment -= 3;
     }
     let resolved = resolve_path(written);
-    let name = match resolved.as_slice() {
-        [name] => name.clone(),
-        [root, name] if matches!(root.as_str(), "std" | "core") => name.clone(),
-        _ => return None,
-    };
-    if !matches!(name.as_str(), "concat" | "stringify") {
-        return None;
-    }
+    let name = ["concat", "stringify"]
+        .into_iter()
+        .find(|candidate| is_standard_string_macro(&resolved, candidate))?
+        .to_owned();
     match (trees.get(index + 1), trees.get(index + 2)) {
         (Some(TokenTree::Punct(punct)), Some(TokenTree::Group(group)))
             if punct.as_char() == '!' =>
@@ -5110,14 +5118,15 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 })
                 .collect()
         } else {
-            let owner = normalized_ident(
-                &path
-                    .segments
-                    .iter()
-                    .nth_back(1)
-                    .expect("path has an owner")
-                    .ident,
-            );
+            // The owner is the type the path resolves to, not the name it is
+            // written with: `use sqlx::mysql::MySqlPoolOptions as Opt` still
+            // builds a MySQL pool.
+            let written = path_names(path);
+            let owner = self
+                .canonical_names(written[..written.len().saturating_sub(1)].to_vec())
+                .last()
+                .cloned()
+                .unwrap_or_default();
             if owner == "Self" {
                 self.lookup("Self")
                     .map(|info| info.nominal_types.clone())
@@ -6287,10 +6296,10 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 SqlExpressionKind::Environment
             }
             Expr::Macro(mac)
-                if self
-                    .canonical_local_path_names(path_names(&mac.mac.path))
-                    .last()
-                    .is_some_and(|name| name == "concat") =>
+                if is_standard_string_macro(
+                    &self.canonical_names(path_names(&mac.mac.path)),
+                    "concat",
+                ) =>
             {
                 syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated
                     .parse2(mac.mac.tokens.clone())
@@ -6432,10 +6441,13 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             // `concat!` and `stringify!` are pinned by their own tokens, which
             // already carry their arguments in order.
             Expr::Macro(mac)
-                if self
-                    .canonical_local_path_names(path_names(&mac.mac.path))
-                    .last()
-                    .is_some_and(|name| matches!(name.as_str(), "concat" | "stringify")) =>
+                if is_standard_string_macro(
+                    &self.canonical_names(path_names(&mac.mac.path)),
+                    "concat",
+                ) || is_standard_string_macro(
+                    &self.canonical_names(path_names(&mac.mac.path)),
+                    "stringify",
+                ) =>
             {
                 BTreeSet::from([normalized_tokens(expression)])
             }
@@ -6555,6 +6567,9 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             .map_pool_stage(FlowStage::DerivedPool)
     }
 
+    /// The flow a path names. An imported alias is resolved first, so
+    /// `use sqlx::mysql::MySqlPoolOptions as Opt` keeps the provider that
+    /// `Opt::new()` builds.
     fn flow_of_path(&self, path: &syn::ExprPath) -> Flow {
         if path.qself.is_none() && path.path.segments.len() == 1 {
             if let Some(name) = last_path_name(&path.path) {
@@ -6570,7 +6585,10 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         if let Some(info) = self.symbols.package_item_values.get(&key) {
             return info.flow.clone();
         }
-        Flow::pools(&targets_for_path(&path.path, self.symbols))
+        Flow::pools(&targets_for_names(
+            &self.canonical_names(path_names(&path.path)),
+            self.symbols,
+        ))
     }
 
     fn flow_of_call(&self, call: &ExprCall) -> Flow {
@@ -6605,7 +6623,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             path_is_sqlx(&names, self.symbols) || path_is_sqlx(&canonical, self.symbols);
         if rooted_sqlx
             && last == "new"
-            && let Some(target) = sqlx_pool_options_target(&names)
+            && let Some(target) = sqlx_pool_options_target(&canonical)
         {
             return Flow::pools(&BTreeSet::from([target]));
         }
@@ -6660,7 +6678,10 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             }
             return flow;
         }
-        let path_targets = targets_for_path(&path.path, self.symbols);
+        // `use sqlx::mysql::MySqlPoolOptions as Opt` must not erase which
+        // provider `Opt::new()` builds, or the pool the chain opens loses its
+        // concrete identity.
+        let path_targets = targets_for_names(&canonical, self.symbols);
         if !path_targets.is_empty() {
             return Flow::pools(&path_targets);
         }
@@ -6760,12 +6781,17 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 Flow::query()
             }
             "acquire" | "pool" => receiver.map_pool_stage(FlowStage::DerivedPool),
-            "prepare" => receiver.map_pool_stage(FlowStage::Query),
+            "prepare" | "describe" => receiver.map_pool_stage(FlowStage::Query),
             "query" | "direct_query" | "delay_query_holder_like_cpp" => {
                 receiver.map_pool_stage(FlowStage::Query)
             }
             "execute" | "direct_execute" => receiver.map_pool_stage(FlowStage::Query),
             "bind" if receiver.has_stage(FlowStage::Query) => receiver,
+            // A modifier returns the query it was called on, so the executor
+            // chained after it is still executing that query.
+            "persistent" | "fetch_last_insert_id" if receiver.has_stage(FlowStage::Query) => {
+                receiver
+            }
             name if FLOW_TRANSFORMING_METHODS.contains(&name) => {
                 let mut flow = receiver;
                 for argument in &method.args {
@@ -8677,7 +8703,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                         canonical_name,
                         rooted_sqlx,
                         imported_query,
-                        targets_for_path(&path.path, self.symbols),
+                        targets_for_names(&canonical, self.symbols),
                         is_flow_passthrough_call(&names),
                     )
                 }
@@ -8803,6 +8829,11 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 && call.args.first().is_some_and(|receiver| {
                     let flow = self.flow_of_expr(receiver);
                     !flow.is_empty() && !flow.has_stage(FlowStage::Query)
+                })
+                // The second argument is the statement only when it is not an
+                // already built query, exactly as in the method form.
+                && call.args.get(1).is_some_and(|argument| {
+                    !self.flow_of_expr(argument).has_stage(FlowStage::Query)
                 });
             let mut targets = path_targets;
             for argument in &call.args {
@@ -18058,6 +18089,98 @@ mod tests {
         }
         assert!(baseline.accesses.iter().any(|row| {
             row.enclosing == "fn typed" && row.operation == PersistenceOperation::Query
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_separates_built_queries_from_ufcs_raw_sql() {
+        let baseline = inventory(
+            r#"
+                fn typed_ufcs(pool: sqlx::MySqlPool) {
+                    sqlx::Executor::execute(&pool, sqlx::query("SELECT 1"));
+                }
+                fn raw_ufcs(pool: sqlx::MySqlPool, sql: String) {
+                    sqlx::Executor::execute(&pool, &sql);
+                }
+            "#,
+        )
+        .unwrap();
+        // The second argument is the statement only when it is not a query.
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn typed_ufcs"
+                && matches!(
+                    row.operation,
+                    PersistenceOperation::RawSql | PersistenceOperation::NonliteralSql
+                )
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn raw_ufcs" && row.operation == PersistenceOperation::NonliteralSql
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_grants_static_sql_only_to_the_standard_concat() {
+        let baseline = inventory(
+            r#"
+                mod other {
+                    macro_rules! concat { ($($piece:tt)*) => { String::new() }; }
+                    pub(crate) use concat;
+                }
+                fn custom_macro() {
+                    sqlx::query(other::concat!("SELECT 1"));
+                }
+                fn standard_macro() {
+                    sqlx::query(concat!("SELECT ", "1"));
+                }
+            "#,
+        )
+        .unwrap();
+        // Somebody's macro of the same name expands to whatever it likes, so
+        // its result is not a pinned statement.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn custom_macro"
+                && matches!(
+                    row.operation,
+                    PersistenceOperation::NonliteralSql | PersistenceOperation::InterpolatedSql
+                )
+        }));
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn standard_macro"
+                && matches!(
+                    row.operation,
+                    PersistenceOperation::NonliteralSql | PersistenceOperation::InterpolatedSql
+                )
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_keeps_provider_identity_and_query_modifiers() {
+        let baseline = inventory(
+            r#"
+                use sqlx::mysql::MySqlPoolOptions as Opt;
+                async fn connected() {
+                    Opt::new().connect("mysql://localhost/db").await.unwrap();
+                }
+                fn modified(pool: sqlx::MySqlPool) {
+                    sqlx::query("SELECT 1").persistent(false).execute(&pool);
+                }
+                fn described(pool: sqlx::MySqlPool) {
+                    pool.describe("SELECT GET_LOCK('described', 0)");
+                }
+            "#,
+        )
+        .unwrap();
+        // An aliased options constructor still names the provider it builds.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn connected" && row.target == PersistenceTarget::MySqlPool
+        }));
+        // A modifier returns the query, so the chained executor is inventoried.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn modified" && row.operation == PersistenceOperation::Execute
+        }));
+        // `describe` sends a statement, so its SQL is inventoried.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn described" && row.operation == PersistenceOperation::AdvisoryLock
         }));
     }
 
