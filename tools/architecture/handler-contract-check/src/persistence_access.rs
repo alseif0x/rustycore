@@ -806,20 +806,18 @@ fn executable_sql_text(fingerprint: &str) -> String {
                     .chars()
                     .next()
                     .is_some_and(|character| character.is_whitespace() || character.is_control())
-        }) || (rest.starts_with('#')
-            && executable
-                .chars()
-                .next_back()
-                .is_none_or(char::is_whitespace));
+        }) || rest.starts_with('#');
         if opens_line_comment {
             index += rest.find('\n').map_or(rest.len(), |end| end + 1);
             executable.push(' ');
             continue;
         }
-        if rest.starts_with('\'') || rest.starts_with('`') || rest.starts_with('"') {
-            let quote = rest.as_bytes()[0] as char;
-            let closing = rest[1..].find(quote).map_or(rest.len(), |end| end + 2);
-            index += closing;
+        if let Some(quote) = rest
+            .chars()
+            .next()
+            .filter(|character| matches!(character, '\'' | '`' | '"'))
+        {
+            index += quoted_span_length(rest, quote);
             executable.push(' ');
             continue;
         }
@@ -828,6 +826,32 @@ fn executable_sql_text(fingerprint: &str) -> String {
         index += character.len_utf8();
     }
     executable
+}
+
+/// How far a quoted SQL token extends, including its delimiters.
+///
+/// MySQL ends the token at the first unescaped delimiter: outside
+/// `NO_BACKSLASH_ESCAPES` a backslash escapes the next character, and a doubled
+/// delimiter stands for one literal delimiter. Stopping at the first raw match
+/// would hand the rest of the statement back to the scanner as if it were
+/// executable, and `SELECT 'it\'s', GET_LOCK('x', 0)` would lose its call.
+fn quoted_span_length(rest: &str, quote: char) -> usize {
+    let mut characters = rest.char_indices().skip(1);
+    while let Some((offset, character)) = characters.next() {
+        if character == '\\' {
+            characters.next();
+            continue;
+        }
+        if character == quote {
+            // A doubled delimiter is one literal delimiter, not the end.
+            if rest[offset + character.len_utf8()..].starts_with(quote) {
+                characters.next();
+                continue;
+            }
+            return offset + character.len_utf8();
+        }
+    }
+    rest.len()
 }
 
 /// Whether `executable` calls `function`: the name must stand as a whole token
@@ -861,6 +885,13 @@ fn sql_is_advisory_lock(fingerprint: &str) -> bool {
         .any(|function| calls_sql_function(&executable, function))
 }
 
+/// The statements a token stream pins, one entry per statement.
+///
+/// Two literals of one expression are separate entries: they are not
+/// concatenated at run time unless the expression says so, and
+/// `"SELECT GET_" + name.as_str() + "LOCK(…)"` never builds a call. The
+/// exception is `concat!`, which does join its arguments, so its literals form
+/// a single entry.
 fn string_literal_values(tokens: TokenStream) -> Vec<String> {
     let mut values = Vec::new();
     collect_string_literal_values(tokens, &mut values);
@@ -868,8 +899,23 @@ fn string_literal_values(tokens: TokenStream) -> Vec<String> {
 }
 
 fn collect_string_literal_values(tokens: TokenStream, values: &mut Vec<String>) {
-    for token in tokens {
-        match token {
+    let trees = tokens.into_iter().collect::<Vec<_>>();
+    let mut index = 0;
+    while index < trees.len() {
+        if let TokenTree::Ident(ident) = &trees[index]
+            && normalized_ident(ident) == "concat"
+            && matches!(trees.get(index + 1), Some(TokenTree::Punct(punct)) if punct.as_char() == '!')
+            && let Some(TokenTree::Group(group)) = trees.get(index + 2)
+        {
+            let mut joined = Vec::new();
+            collect_string_literal_values(group.stream(), &mut joined);
+            if !joined.is_empty() {
+                values.push(joined.concat());
+            }
+            index += 3;
+            continue;
+        }
+        match &trees[index] {
             TokenTree::Literal(literal) => {
                 if let Ok(literal) = syn::parse_str::<syn::LitStr>(&literal.to_string()) {
                     values.push(literal.value());
@@ -878,6 +924,7 @@ fn collect_string_literal_values(tokens: TokenStream, values: &mut Vec<String>) 
             TokenTree::Group(group) => collect_string_literal_values(group.stream(), values),
             _ => {}
         }
+        index += 1;
     }
 }
 
@@ -1277,10 +1324,28 @@ fn source_sql_info(expression: &Expr) -> (SqlExpressionKind, BTreeSet<String>) {
                 ),
                 // The macro tokens already carry the arguments in order, so a
                 // swapped pair of statements changes the source text itself.
-                "concat" => (
-                    SqlExpressionKind::Static,
-                    BTreeSet::from([normalized_tokens(expression)]),
-                ),
+                // The kind still comes from the arguments: a nested `env!` or
+                // `include_str!` puts the statement outside the snapshot.
+                "concat" => {
+                    let Ok(arguments) =
+                        syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated
+                            .parse2(mac.mac.tokens.clone())
+                    else {
+                        return (SqlExpressionKind::Nonliteral, BTreeSet::new());
+                    };
+                    let kind = arguments
+                        .iter()
+                        .fold(SqlExpressionKind::Static, |kind, argument| {
+                            kind.max(source_sql_info(argument).0)
+                        });
+                    let sources = match kind {
+                        SqlExpressionKind::Static => {
+                            BTreeSet::from([normalized_tokens(expression)])
+                        }
+                        _ => BTreeSet::new(),
+                    };
+                    (kind, sources)
+                }
                 _ => (SqlExpressionKind::Nonliteral, BTreeSet::new()),
             }
         }
@@ -5991,8 +6056,14 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 control_flow_sql_kind(expression.to_token_stream())
             }
             Expr::Path(path) if path.qself.is_none() && path.path.segments.len() == 1 => {
+                // A module-level constant is pinned exactly like a local one;
+                // reading only body scopes would report it as runtime-assembled
+                // and force a needless workflow classification.
                 last_path_name(&path.path)
-                    .and_then(|name| self.lookup(&name))
+                    .and_then(|name| {
+                        self.lookup(&name)
+                            .or_else(|| self.symbols.item_values.get(&name))
+                    })
                     .map(|info| info.sql_expression)
                     .unwrap_or(SqlExpressionKind::Nonliteral)
             }
@@ -16962,6 +17033,96 @@ mod tests {
                 "{enclosing} was classified from inert text"
             );
         }
+    }
+
+    #[test]
+    fn persistence_inventory_lexes_pinned_statements_like_mysql() {
+        let baseline = inventory(
+            r#"
+                fn escaped_quote() {
+                    sqlx::query("SELECT 'it\\'s', GET_LOCK('escaped', 0)");
+                }
+                fn doubled_quote() {
+                    sqlx::query("SELECT 'it''s', GET_LOCK('doubled', 0)");
+                }
+                fn concatenated() {
+                    sqlx::query(concat!("SELECT GET_", "LOCK('joined', 0)"));
+                }
+                fn hash_without_space() {
+                    sqlx::query("SELECT 1# GET_LOCK('inert', 0)");
+                }
+                fn quoted_span() {
+                    sqlx::query("SELECT 'GET_LOCK('");
+                }
+            "#,
+        )
+        .unwrap();
+        // A quote closed by an escape or a doubling does not swallow the call
+        // that follows it, and `concat!` really does join its arguments.
+        for enclosing in ["fn escaped_quote", "fn doubled_quote", "fn concatenated"] {
+            assert!(
+                baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.operation == PersistenceOperation::AdvisoryLock
+                }),
+                "{enclosing} lost a call the database makes"
+            );
+        }
+        // `#` opens a comment with no preceding whitespace, and text inside a
+        // quoted span is data.
+        for enclosing in ["fn hash_without_space", "fn quoted_span"] {
+            assert!(
+                !baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.operation == PersistenceOperation::AdvisoryLock
+                }),
+                "{enclosing} read inert text as a call"
+            );
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_keeps_module_constants_static() {
+        let baseline = inventory(
+            r#"
+                const SQL: &str = "SELECT 1";
+                fn pinned() {
+                    sqlx::query(SQL);
+                }
+            "#,
+        )
+        .unwrap();
+        // The statement is pinned, so it must not be reported as assembled at
+        // run time and pushed into a workflow classification it does not need.
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn pinned"
+                && matches!(
+                    row.operation,
+                    PersistenceOperation::NonliteralSql | PersistenceOperation::InterpolatedSql
+                )
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_rejects_environment_sql_inside_concat_constants() {
+        let baseline = inventory(
+            r#"
+                const SQL: &str = concat!(env!("SQL_PREFIX"), "SELECT 1");
+                fn from_environment() {
+                    sqlx::query(SQL);
+                }
+            "#,
+        );
+        // The expanded prefix is outside the snapshot, so the constant is not a
+        // pinned statement and the inventory must refuse it outright rather
+        // than fingerprint a statement it cannot see.
+        let error = baseline
+            .err()
+            .expect("a constant built from the environment must be rejected");
+        assert!(
+            error.contains("env!") && error.contains("fn from_environment"),
+            "unexpected rejection: {error}"
+        );
     }
 
     #[test]
