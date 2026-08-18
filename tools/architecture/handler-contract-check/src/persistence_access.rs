@@ -778,7 +778,11 @@ const ADVISORY_LOCK_FUNCTIONS: &[&str] = &[
 /// `/*!…*/` or `/*M!…*/` comment is kept because the server runs it. Double
 /// quotes are left alone — in this grammar they delimit the Rust literal that
 /// carries the statement, not a SQL string.
-fn executable_sql_text(fingerprint: &str, backslash_escapes: bool) -> String {
+fn executable_sql_text(
+    fingerprint: &str,
+    backslash_escapes: bool,
+    resolve_alias: &dyn Fn(&str) -> Option<String>,
+) -> String {
     // A fingerprint is Rust token text whose statements live inside string
     // literals. Read those out first: the double quotes around them belong to
     // Rust, while double quotes *inside* a statement are SQL — a string under
@@ -788,7 +792,9 @@ fn executable_sql_text(fingerprint: &str, backslash_escapes: bool) -> String {
     // the expression says so — `"SELECT GET_" + name.as_str() + "LOCK(…)"`
     // never builds `GET_LOCK`. Separate them so no call can be fabricated
     // across whatever stands between them.
-    let sql = match string_literal_values(fingerprint.parse().unwrap_or_default()).as_slice() {
+    let sql = match string_literal_values(fingerprint.parse().unwrap_or_default(), resolve_alias)
+        .as_slice()
+    {
         [] => fingerprint.to_owned(),
         values => values.join("\0"),
     };
@@ -873,8 +879,12 @@ fn quoted_span_length(rest: &str, quote: char, backslash_escapes: bool) -> usize
 fn calls_sql_function(executable: &str, function: &str) -> bool {
     // MySQL's unquoted identifiers admit `$` and characters beyond ASCII, so a
     // routine named `éGET_LOCK` must not read as the built-in.
-    let is_name_character =
-        |character: char| character.is_alphanumeric() || character == '_' || character == '$';
+    let is_name_character = |character: char| {
+        character.is_ascii_alphanumeric()
+            || character == '_'
+            || character == '$'
+            || ('\u{80}'..='\u{ffff}').contains(&character)
+    };
     // `CALL GET_LOCK(…)` invokes a stored routine and `app.GET_LOCK(…)` names a
     // schema one; neither is the built-in whose connection affinity this
     // classification stands for.
@@ -908,13 +918,13 @@ fn calls_sql_function(executable: &str, function: &str) -> bool {
 /// Whether the executable SQL carried by `fingerprint` takes a MySQL advisory
 /// lock. Valid MySQL spells these functions in any case
 /// (`SELECT get_lock(...)`), so the comparison is case-insensitive.
-fn sql_is_advisory_lock(fingerprint: &str) -> bool {
+fn sql_is_advisory_lock(fingerprint: &str, resolve_alias: &dyn Fn(&str) -> Option<String>) -> bool {
     // The repository pins no `sql_mode`, and `NO_BACKSLASH_ESCAPES` decides
     // where a quoted token ends. Read the statement under both meanings and
     // keep the identity if either one calls the function: a ratchet may record
     // a lock the session does not take, but it must not miss one it does.
     [true, false].into_iter().any(|backslash_escapes| {
-        let executable = executable_sql_text(fingerprint, backslash_escapes);
+        let executable = executable_sql_text(fingerprint, backslash_escapes, resolve_alias);
         ADVISORY_LOCK_FUNCTIONS
             .iter()
             .any(|function| calls_sql_function(&executable, function))
@@ -929,26 +939,12 @@ fn sql_is_advisory_lock(fingerprint: &str) -> bool {
 /// exception is `concat!`, which does join its arguments, so its literals form
 /// a single entry.
 /// The statement a source pins, when it pins exactly one.
-/// Every single-segment name invoked as a macro in `tokens`.
-fn macro_invocation_names(tokens: TokenStream) -> BTreeSet<String> {
-    let mut names = BTreeSet::new();
-    let trees = tokens.into_iter().collect::<Vec<_>>();
-    for (index, tree) in trees.iter().enumerate() {
-        if let TokenTree::Ident(ident) = tree
-            && matches!(trees.get(index + 1), Some(TokenTree::Punct(punct)) if punct.as_char() == '!')
-        {
-            names.insert(normalized_ident(ident));
-        }
-        if let TokenTree::Group(group) = tree {
-            names.extend(macro_invocation_names(group.stream()));
-        }
-    }
-    names
-}
-
-fn string_literal_values(tokens: TokenStream) -> Vec<String> {
+fn string_literal_values(
+    tokens: TokenStream,
+    resolve_alias: &dyn Fn(&str) -> Option<String>,
+) -> Vec<String> {
     let mut values = Vec::new();
-    collect_string_literal_values(tokens, &mut values);
+    collect_string_literal_values(tokens, resolve_alias, &mut values);
     values
 }
 
@@ -978,18 +974,22 @@ fn rendered_literal(literal: &proc_macro2::Literal) -> Option<String> {
     None
 }
 
-fn collect_string_literal_values(tokens: TokenStream, values: &mut Vec<String>) {
+fn collect_string_literal_values(
+    tokens: TokenStream,
+    resolve_alias: &dyn Fn(&str) -> Option<String>,
+    values: &mut Vec<String>,
+) {
     let trees = tokens.into_iter().collect::<Vec<_>>();
     let mut index = 0;
     while index < trees.len() {
-        if let Some((macro_name, group)) = compile_time_string_macro(&trees, index) {
+        if let Some((macro_name, group)) = compile_time_string_macro(&trees, index, resolve_alias) {
             if macro_name == "stringify" {
                 // `stringify!` renders its input tokens, not the literals in
                 // them.
                 values.push(group.stream().to_string());
             } else {
                 let mut joined = Vec::new();
-                collect_concat_pieces(group.stream(), &mut joined);
+                collect_concat_pieces(group.stream(), resolve_alias, &mut joined);
                 if !joined.is_empty() {
                     values.push(joined.concat());
                 }
@@ -1003,7 +1003,9 @@ fn collect_string_literal_values(tokens: TokenStream, values: &mut Vec<String>) 
                     values.push(value);
                 }
             }
-            TokenTree::Group(group) => collect_string_literal_values(group.stream(), values),
+            TokenTree::Group(group) => {
+                collect_string_literal_values(group.stream(), resolve_alias, values)
+            }
             _ => {}
         }
         index += 1;
@@ -1015,11 +1017,21 @@ fn collect_string_literal_values(tokens: TokenStream, values: &mut Vec<String>) 
 fn compile_time_string_macro(
     trees: &[TokenTree],
     index: usize,
+    resolve_alias: &dyn Fn(&str) -> Option<String>,
 ) -> Option<(String, proc_macro2::Group)> {
     let TokenTree::Ident(ident) = trees.get(index)? else {
         return None;
     };
-    let name = normalized_ident(ident);
+    // Only an unqualified name can be an alias in this scope. `other::c!`
+    // shares a leaf name with `use std::concat as c` and is a different macro.
+    let qualified = index >= 2
+        && matches!(trees.get(index - 1), Some(TokenTree::Punct(punct)) if punct.as_char() == ':');
+    let written = normalized_ident(ident);
+    let name = if qualified {
+        written
+    } else {
+        resolve_alias(&written).unwrap_or(written)
+    };
     if !matches!(name.as_str(), "concat" | "stringify") {
         return None;
     }
@@ -1039,15 +1051,19 @@ fn compile_time_string_macro(
 /// identifiers rather than literals, and dropping one would let the strings
 /// around it close over the gap — `concat!("SELECT GET", true, "_LOCK(…)")`
 /// expands to `SELECT GETtrue_LOCK(…)`, which calls nothing.
-fn collect_concat_pieces(tokens: TokenStream, pieces: &mut Vec<String>) {
+fn collect_concat_pieces(
+    tokens: TokenStream,
+    resolve_alias: &dyn Fn(&str) -> Option<String>,
+    pieces: &mut Vec<String>,
+) {
     let trees = tokens.into_iter().collect::<Vec<_>>();
     let mut index = 0;
     while index < trees.len() {
-        if let Some((macro_name, group)) = compile_time_string_macro(&trees, index) {
+        if let Some((macro_name, group)) = compile_time_string_macro(&trees, index, resolve_alias) {
             if macro_name == "stringify" {
                 pieces.push(group.stream().to_string());
             } else {
-                collect_concat_pieces(group.stream(), pieces);
+                collect_concat_pieces(group.stream(), resolve_alias, pieces);
             }
             index += 3;
             continue;
@@ -1064,7 +1080,7 @@ fn collect_concat_pieces(tokens: TokenStream, pieces: &mut Vec<String>) {
                     pieces.push(name);
                 }
             }
-            TokenTree::Group(group) => collect_concat_pieces(group.stream(), pieces),
+            TokenTree::Group(group) => collect_concat_pieces(group.stream(), resolve_alias, pieces),
             _ => {}
         }
         index += 1;
@@ -6351,20 +6367,16 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     /// (`use std::concat as c`), and the reader below recognizes only the macro
     /// it actually is. Rename them first so a pinned statement is not split
     /// into unrelated pieces.
-    fn statement_takes_advisory_lock(&self, text: &str) -> String {
-        let Ok(tokens) = text.parse::<TokenStream>() else {
-            return text.to_owned();
-        };
-        let mut renamed = text.to_owned();
-        for alias in macro_invocation_names(tokens) {
-            if let Some(canonical) = self.canonical_names(vec![alias.clone()]).last()
-                && *canonical != alias
-                && matches!(canonical.as_str(), "concat" | "stringify")
-            {
-                renamed = renamed.replace(&format!("{alias} !"), &format!("{canonical} !"));
-            }
-        }
-        renamed
+    /// Whether the statement `fingerprint` carries takes an advisory lock,
+    /// read with this scope's imports in hand.
+    ///
+    /// A compile-time string macro can be invoked under an alias
+    /// (`use std::concat as c`), and only an *unqualified* name is the alias:
+    /// `other::c!` is a different macro that happens to share a leaf name.
+    fn statement_takes_advisory_lock(&self, fingerprint: &str) -> bool {
+        sql_is_advisory_lock(fingerprint, &|name: &str| {
+            self.canonical_names(vec![name.to_owned()]).pop()
+        })
     }
 
     /// The path a name really refers to: a block-local `use` alias first, then
@@ -6560,7 +6572,10 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             return flow;
         };
         let names = path_names(&path.path);
-        let last = names.last().map(String::as_str).unwrap_or_default();
+        // The result of an aliased constructor carries the same flow as the
+        // constructor it names, or a chained `execute` loses its query stage.
+        let canonical = self.canonical_names(names.clone());
+        let last = canonical.last().map(String::as_str).unwrap_or_default();
         if is_standard_replacement(&self.canonical_local_path_names(names.clone()))
             && let Some(binding) = call.args.first().and_then(mutable_storage_receiver_name)
         {
@@ -6576,7 +6591,8 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 .map(|info| info.flow.clone())
                 .unwrap_or_default();
         }
-        let rooted_sqlx = path_is_sqlx(&names, self.symbols);
+        let rooted_sqlx =
+            path_is_sqlx(&names, self.symbols) || path_is_sqlx(&canonical, self.symbols);
         if rooted_sqlx
             && last == "new"
             && let Some(target) = sqlx_pool_options_target(&names)
@@ -6930,8 +6946,12 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
 
     fn flow_of_macro(&self, mac: &syn::Macro) -> Flow {
         let names = path_names(&mac.path);
-        let last = names.last().map(String::as_str).unwrap_or_default();
-        let rooted_sqlx = path_is_sqlx(&names, self.symbols);
+        // The result of an aliased constructor carries the same flow as the
+        // constructor it names, or a chained `execute` loses its query stage.
+        let canonical = self.canonical_names(names.clone());
+        let last = canonical.last().map(String::as_str).unwrap_or_default();
+        let rooted_sqlx =
+            path_is_sqlx(&names, self.symbols) || path_is_sqlx(&canonical, self.symbols);
         if (rooted_sqlx && is_query_name(last))
             || (names.len() == 1 && self.symbols.query_callables.contains(last))
         {
@@ -7120,8 +7140,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             // bound values. `query!("SELECT ?", "GET_LOCK('x', 0)")` executes no
             // lock, so classifying the whole invocation would invent one.
             if query_macro_statement(&canonical_name, &mac.tokens)
-                .as_deref()
-                .is_some_and(sql_is_advisory_lock)
+                .is_some_and(|statement| self.statement_takes_advisory_lock(&statement))
             {
                 self.add_generated(
                     PersistenceTarget::Sqlx,
@@ -7196,7 +7215,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     &cfg,
                     fingerprint.clone(),
                 );
-                if sql_is_advisory_lock(&self.statement_takes_advisory_lock(&fingerprint)) {
+                if self.statement_takes_advisory_lock(&fingerprint) {
                     self.add(
                         target,
                         PersistenceOperation::AdvisoryLock,
@@ -7242,7 +7261,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     &cfg,
                     call_fingerprint.clone(),
                 );
-                if sql_is_advisory_lock(&self.statement_takes_advisory_lock(&call_fingerprint)) {
+                if self.statement_takes_advisory_lock(&call_fingerprint) {
                     self.add(
                         PersistenceTarget::Sqlx,
                         PersistenceOperation::AdvisoryLock,
@@ -7315,7 +7334,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     fingerprint.clone(),
                 );
                 if target == PersistenceTarget::Sqlx
-                    && sql_is_advisory_lock(&self.statement_takes_advisory_lock(&fingerprint))
+                    && self.statement_takes_advisory_lock(&fingerprint)
                 {
                     self.add(
                         target,
@@ -8628,13 +8647,15 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 ),
             };
         let query_builder_constructor = rooted_sqlx
-            && name == "new"
+            && canonical_name == "new"
             && matches!(
                 call.func.as_ref(),
                 Expr::Path(path)
-                    if path.path.segments.iter().nth_back(1).is_some_and(|segment| {
-                        normalized_ident(&segment.ident) == "QueryBuilder"
-                    })
+                    if self
+                        .canonical_names(path_names(&path.path))
+                        .iter()
+                        .nth_back(1)
+                        .is_some_and(|segment| segment == "QueryBuilder")
             );
         let query = (rooted_sqlx && (is_query_name(&name) || is_query_name(&canonical_name)))
             || imported_query
@@ -8652,7 +8673,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 &cfg,
                 fingerprint.clone(),
             );
-            if name == "raw_sql" {
+            if canonical_name == "raw_sql" {
                 self.add(
                     PersistenceTarget::Sqlx,
                     PersistenceOperation::RawSql,
@@ -8661,7 +8682,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                     fingerprint.clone(),
                 );
             }
-            if sql_is_advisory_lock(&self.statement_takes_advisory_lock(&fingerprint)) {
+            if self.statement_takes_advisory_lock(&fingerprint) {
                 self.add(
                     PersistenceTarget::Sqlx,
                     PersistenceOperation::AdvisoryLock,
@@ -8704,7 +8725,8 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                     }
                 }
             }
-        } else if let Some(operation) = PersistenceOperation::from_executor_method(&name).filter(
+        } else if let Some(operation) = PersistenceOperation::from_executor_method(&canonical_name)
+            .filter(
             |_| {
                 rooted_sqlx
                     || has_path_targets
@@ -8777,7 +8799,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                         &cfg,
                         fingerprint.clone(),
                     );
-                    if sql_is_advisory_lock(&self.statement_takes_advisory_lock(&fingerprint)) {
+                    if self.statement_takes_advisory_lock(&fingerprint) {
                         self.add(
                             target,
                             PersistenceOperation::AdvisoryLock,
@@ -9108,7 +9130,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                             | PersistenceOperation::PrepareStatement
                     ) || executor_consumes_raw_sql
                     {
-                        if sql_is_advisory_lock(&self.statement_takes_advisory_lock(&fingerprint)) {
+                        if self.statement_takes_advisory_lock(&fingerprint) {
                             self.add(
                                 target,
                                 PersistenceOperation::AdvisoryLock,
@@ -9123,6 +9145,11 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                         PersistenceOperation::DirectQuery
                             | PersistenceOperation::DirectExecute
                             | PersistenceOperation::RawSql
+                            // A prepared statement is supplied the same way any
+                            // other raw SQL is, so it is classified the same:
+                            // dynamic text is recorded, and text the snapshot
+                            // cannot see is refused.
+                            | PersistenceOperation::PrepareStatement
                     ) || executor_consumes_raw_sql
                     {
                         let Some(argument) = method.args.first() else {
@@ -17787,6 +17814,115 @@ mod tests {
                 "a prepared statement lost its {operation:?} row"
             );
         }
+    }
+
+    #[test]
+    fn persistence_inventory_dispatches_every_alias_to_its_constructor() {
+        let baseline = inventory(
+            r#"
+                use sqlx::QueryBuilder as B;
+                use sqlx::raw_sql as r;
+                fn aliased_builder() {
+                    B::new("SELECT GET_LOCK('builder', 0)");
+                }
+                fn aliased_raw_sql() {
+                    r("SELECT GET_LOCK('raw', 0)");
+                }
+                fn aliased_flow(pool: sqlx::MySqlPool) {
+                    use sqlx::query as q;
+                    q("SELECT 1").execute(&pool);
+                }
+            "#,
+        )
+        .unwrap();
+        // The constructor an alias names decides the operation, not the alias.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn aliased_builder"
+                && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn aliased_raw_sql" && row.operation == PersistenceOperation::RawSql
+        }));
+        // The result of an aliased constructor keeps its query flow, so the
+        // chained executor call is inventoried rather than reduced to an escape.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn aliased_flow" && row.operation == PersistenceOperation::Execute
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_resolves_only_unqualified_macro_aliases() {
+        let baseline = inventory(
+            r#"
+                use std::concat as c;
+                mod other {
+                    macro_rules! c { ($($piece:tt)*) => { "SELECT 1" }; }
+                    pub(crate) use c;
+                }
+                fn qualified_namesake() {
+                    sqlx::query(other::c!("SELECT GET_", "LOCK('x', 0)"));
+                }
+            "#,
+        )
+        .unwrap();
+        // `other::c!` shares a leaf name with the import but is a different
+        // macro, so its arguments must not be joined into a call.
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn qualified_namesake"
+                && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_classifies_nonstatic_prepared_sql() {
+        let dynamic = inventory(
+            r#"
+                fn prepared(pool: sqlx::MySqlPool, sql: String) {
+                    pool.prepare(&sql);
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(dynamic.accesses.iter().any(|row| {
+            row.enclosing == "fn prepared" && row.operation == PersistenceOperation::NonliteralSql
+        }));
+        // SQL the snapshot cannot see is refused wherever it is prepared.
+        let included = inventory(
+            r#"
+                fn prepared(pool: sqlx::MySqlPool) {
+                    pool.prepare(include_str!("query.sql"));
+                }
+            "#,
+        );
+        assert!(
+            included
+                .err()
+                .is_some_and(|error| error.contains("include_str!")),
+            "prepared SQL from an unmounted file was accepted"
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_reads_extended_identifier_characters() {
+        let baseline = inventory(
+            r#"
+                fn middle_dot() {
+                    sqlx::query("SELECT app\u{b7}GET_LOCK('x', 0)");
+                }
+                fn builtin() {
+                    sqlx::query("SELECT GET_LOCK('x', 0)");
+                }
+            "#,
+        )
+        .unwrap();
+        // MySQL admits extended characters in unquoted identifiers, so the
+        // routine is not the built-in.
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn middle_dot" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn builtin" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
     }
 
     #[test]
