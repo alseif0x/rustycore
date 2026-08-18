@@ -1505,18 +1505,18 @@ enum SqlExpressionKind {
 /// standard one would pin a statement that its definition can change.
 fn source_sql_info(
     expression: &Expr,
-    symbols: &ModuleSymbols,
+    resolve_path: &dyn Fn(Vec<String>) -> Vec<String>,
 ) -> (SqlExpressionKind, BTreeSet<String>) {
     match expression {
         Expr::Lit(literal) if matches!(literal.lit, syn::Lit::Str(_)) => (
             SqlExpressionKind::Static,
             BTreeSet::from([normalized_tokens(expression)]),
         ),
-        Expr::Reference(reference) => source_sql_info(&reference.expr, symbols),
-        Expr::Paren(paren) => source_sql_info(&paren.expr, symbols),
-        Expr::Group(group) => source_sql_info(&group.expr, symbols),
+        Expr::Reference(reference) => source_sql_info(&reference.expr, resolve_path),
+        Expr::Paren(paren) => source_sql_info(&paren.expr, resolve_path),
+        Expr::Group(group) => source_sql_info(&group.expr, resolve_path),
         Expr::Macro(mac) => {
-            let resolved = canonical_path_names(path_names(&mac.mac.path), symbols);
+            let resolved = resolve_path(path_names(&mac.mac.path));
             let leaf = resolved.last().cloned().unwrap_or_default();
             // Only the standard compile-time macros pin a statement; a
             // namesake in another module is a nonliteral source.
@@ -1548,7 +1548,7 @@ fn source_sql_info(
                     let kind = arguments
                         .iter()
                         .fold(SqlExpressionKind::Static, |kind, argument| {
-                            kind.max(source_sql_info(argument, symbols).0)
+                            kind.max(source_sql_info(argument, resolve_path).0)
                         });
                     let sources = match kind {
                         SqlExpressionKind::Static => {
@@ -3133,7 +3133,9 @@ fn collect_nested_item_values(
                 let mut path = module_path.to_vec();
                 path.push(normalized_ident(&item_const.ident));
                 let mut info = variable_info_in_type(&item_const.ty, symbols);
-                let (kind, sources) = source_sql_info(&item_const.expr, symbols);
+                let (kind, sources) = source_sql_info(&item_const.expr, &|path| {
+                    canonical_path_names(path, symbols)
+                });
                 info.sql_expression = kind;
                 info.sql_sources = sources;
                 output.entry(path.join("::")).or_default().union(&info);
@@ -3144,7 +3146,9 @@ fn collect_nested_item_values(
                 let mut path = module_path.to_vec();
                 path.push(normalized_ident(&item_static.ident));
                 let mut info = variable_info_in_type(&item_static.ty, symbols);
-                let (kind, sources) = source_sql_info(&item_static.expr, symbols);
+                let (kind, sources) = source_sql_info(&item_static.expr, &|path| {
+                    canonical_path_names(path, symbols)
+                });
                 info.sql_expression = kind;
                 info.sql_sources = sources;
                 output.entry(path.join("::")).or_default().union(&info);
@@ -3318,7 +3322,9 @@ fn collect_module_symbols(
                     ) =>
                 {
                     let mut info = variable_info_in_type(&item_const.ty, &symbols);
-                    let (kind, sources) = source_sql_info(&item_const.expr, &symbols);
+                    let (kind, sources) = source_sql_info(&item_const.expr, &|path| {
+                        canonical_path_names(path, &symbols)
+                    });
                     info.sql_expression = kind;
                     info.sql_sources = sources;
                     let entry = symbols
@@ -3339,7 +3345,9 @@ fn collect_module_symbols(
                     ) =>
                 {
                     let mut info = variable_info_in_type(&item_static.ty, &symbols);
-                    let (kind, sources) = source_sql_info(&item_static.expr, &symbols);
+                    let (kind, sources) = source_sql_info(&item_static.expr, &|path| {
+                        canonical_path_names(path, &symbols)
+                    });
                     info.sql_expression = kind;
                     info.sql_sources = sources;
                     let entry = symbols
@@ -6331,10 +6339,10 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     .unwrap_or(SqlExpressionKind::Nonliteral)
             }
             Expr::Macro(mac)
-                if self
-                    .canonical_local_path_names(path_names(&mac.mac.path))
-                    .last()
-                    .is_some_and(|name| name == "stringify") =>
+                if is_standard_string_macro(
+                    &self.canonical_names(path_names(&mac.mac.path)),
+                    "stringify",
+                ) =>
             {
                 SqlExpressionKind::Static
             }
@@ -7165,7 +7173,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             && (self.symbols.query_callables.contains(&name)
                 || self.symbols.query_callables.contains(&canonical_name));
         let cfg = item_cfg(&self.cfg, attributes);
-        if name == "include" && !is_pinned_wow_proto_include(&self.context, mac) {
+        if canonical_name == "include" && !is_pinned_wow_proto_include(&self.context, mac) {
             self.errors.push(format!(
                 "{} contains include! whose Rust source is outside the persistence AST inventory; mount and parse the included source explicitly",
                 self.enclosing
@@ -8514,7 +8522,8 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 return;
             }
             if let Item::Const(item_const) = item {
-                let (kind, sources) = source_sql_info(&item_const.expr, self.symbols);
+                let (kind, sources) =
+                    source_sql_info(&item_const.expr, &|path| self.canonical_names(path));
                 if kind != SqlExpressionKind::Nonliteral {
                     let mut info = self.info_from_type(&item_const.ty);
                     info.sql_expression = kind;
@@ -8524,7 +8533,8 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 }
             }
             if let Item::Static(item_static) = item {
-                let (kind, sources) = source_sql_info(&item_static.expr, self.symbols);
+                let (kind, sources) =
+                    source_sql_info(&item_static.expr, &|path| self.canonical_names(path));
                 if kind != SqlExpressionKind::Nonliteral {
                     let mut info = self.info_from_type(&item_static.ty);
                     info.sql_expression = kind;
@@ -9558,6 +9568,18 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             return;
         }
         self.visit_expr(&expression.expr);
+        // On `Err`, `?` returns the operand's error from the function, so
+        // persistence carried there leaves by the same door as an explicit
+        // `return` and must be recorded as such.
+        let flow = self.info_from_expr(&expression.expr).flow;
+        let cfg = item_cfg(&self.cfg, &expression.attrs);
+        self.record_pool_escape(
+            &flow,
+            PersistenceOperation::ReturnEscape,
+            "pool",
+            &cfg,
+            normalized_tokens(&expression.expr),
+        );
         // `?` can return from the surrounding closure/async body immediately
         // after evaluating its operand. Preserve that exit state before later
         // statements on the success path can clear the captured binding.
@@ -10392,7 +10414,12 @@ fn analyze_item_macro(
     accumulator: &mut AccessAccumulator,
     errors: &mut Vec<String>,
 ) {
-    let path_name = last_path_name(&item_macro.mac.path).unwrap_or_default();
+    // An alias does not change what the macro brings in, so the guard below
+    // reads the path it resolves to.
+    let path_name = canonical_path_names(path_names(&item_macro.mac.path), symbols)
+        .last()
+        .cloned()
+        .unwrap_or_default();
     let symbol = item_macro
         .ident
         .as_ref()
@@ -18266,6 +18293,80 @@ mod tests {
             error.contains("migrate!") && error.contains("fn migrated"),
             "unexpected rejection: {error}"
         );
+    }
+
+    #[test]
+    fn persistence_inventory_resolves_block_local_and_aliased_macros() {
+        let baseline = inventory(
+            r#"
+                mod other {
+                    macro_rules! concat { ($($piece:tt)*) => { "SELECT 1" }; }
+                    macro_rules! stringify { ($($piece:tt)*) => { "SELECT 1" }; }
+                    pub(crate) use {concat, stringify};
+                }
+                fn block_local_item() {
+                    use other::concat;
+                    const SQL: &str = concat!();
+                    sqlx::query(SQL);
+                }
+                fn namesake_stringify() {
+                    sqlx::query(other::stringify!());
+                }
+            "#,
+        )
+        .unwrap();
+        // A namesake resolved through a block-local import is not the standard
+        // macro, so neither statement is pinned.
+        for enclosing in ["fn block_local_item", "fn namesake_stringify"] {
+            assert!(
+                baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && matches!(
+                            row.operation,
+                            PersistenceOperation::NonliteralSql
+                                | PersistenceOperation::InterpolatedSql
+                        )
+                }),
+                "{enclosing} pinned a statement a macro definition can change"
+            );
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_rejects_aliased_include_mounts() {
+        let baseline = inventory(
+            r#"
+                use std::include as mount;
+                mount!("db_impl.rs");
+            "#,
+        );
+        // An alias does not change what `include!` brings in, and its contents
+        // are outside the inventory.
+        assert!(
+            baseline
+                .err()
+                .is_some_and(|error| error.contains("include!")),
+            "an aliased include! was accepted"
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_records_persistence_returned_through_try() {
+        let baseline = inventory(
+            r#"
+                fn forward(result: Result<(), sqlx::PgPool>) -> Result<(), sqlx::PgPool> {
+                    result?;
+                    Ok(())
+                }
+            "#,
+        )
+        .unwrap();
+        // `?` hands the pool out of the function on the error path.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn forward"
+                && row.operation == PersistenceOperation::ReturnEscape
+                && row.target == PersistenceTarget::PgPool
+        }));
     }
 
     #[test]
