@@ -1025,13 +1025,20 @@ fn collect_string_literal_values(
 /// An unqualified builtin resolves to the enclosing module's path plus its own
 /// name, because that is what resolution does with a name it cannot find — that
 /// is still the prelude macro. A path leading anywhere else is a namesake.
-fn is_standard_string_macro(resolved: &[String], macro_name: &str, module_path: &[String]) -> bool {
+fn is_standard_string_macro(
+    resolved: &[String],
+    macro_name: &str,
+    module_path: &[String],
+    local_definitions: &BTreeSet<String>,
+) -> bool {
     match resolved {
-        [name] => name == macro_name,
+        [name] => name == macro_name && !local_definitions.contains(name),
         [root, name] if matches!(root.as_str(), "std" | "core") => name == macro_name,
-        _ => resolved
-            .split_last()
-            .is_some_and(|(name, prefix)| name == macro_name && prefix == module_path),
+        // A module that defines its own `concat!` shadows the prelude one, and
+        // both resolve to this shape.
+        _ => resolved.split_last().is_some_and(|(name, prefix)| {
+            name == macro_name && prefix == module_path && !local_definitions.contains(name)
+        }),
     }
 }
 
@@ -1040,11 +1047,14 @@ fn standard_string_macro_of(
     written: Vec<String>,
     resolve: &dyn Fn(Vec<String>) -> Vec<String>,
     module_path: &[String],
+    local_definitions: &BTreeSet<String>,
 ) -> Option<String> {
     let resolved = resolve(written);
     ["concat", "stringify"]
         .into_iter()
-        .find(|candidate| is_standard_string_macro(&resolved, candidate, module_path))
+        .find(|candidate| {
+            is_standard_string_macro(&resolved, candidate, module_path, local_definitions)
+        })
         .map(str::to_owned)
 }
 
@@ -1707,6 +1717,9 @@ struct VariableInfo {
     mutable_pointees: BTreeSet<String>,
     mutable_places: BTreeSet<MutablePlace>,
     query_callable: bool,
+    /// The SQLx executor method this value names, when it is one. A stored
+    /// `sqlx::Executor::execute` still executes the SQL it is handed.
+    executor_callable: Option<String>,
 }
 
 impl VariableInfo {
@@ -1741,6 +1754,9 @@ impl VariableInfo {
         self.mutable_places
             .extend(other.mutable_places.iter().cloned());
         self.query_callable |= other.query_callable;
+        if self.executor_callable.is_none() {
+            self.executor_callable = other.executor_callable.clone();
+        }
         if self.tuple_items.len() < other.tuple_items.len() {
             self.tuple_items
                 .resize_with(other.tuple_items.len(), VariableInfo::default);
@@ -1826,6 +1842,9 @@ fn flatten_reachable_variable_info(root: &VariableInfo) -> VariableInfo {
             .callable_signatures
             .extend(info.callable_signatures.iter().cloned());
         flattened.query_callable |= info.query_callable;
+        if flattened.executor_callable.is_none() {
+            flattened.executor_callable = info.executor_callable.clone();
+        }
         flattened.sql_expression = flattened.sql_expression.max(info.sql_expression);
         pending.extend(info.tuple_items.iter());
         pending.extend(info.field_items.values());
@@ -1998,6 +2017,10 @@ struct ModuleSymbols {
     workspace_sqlx_namespaces: std::sync::Arc<BTreeSet<String>>,
     database_namespaces: BTreeSet<String>,
     query_callables: BTreeSet<String>,
+    /// Names this module defines with `macro_rules!`. An unqualified builtin
+    /// resolves to the same `module_path + name` shape as one of these, so the
+    /// definitions have to be known to tell them apart.
+    local_macro_definitions: BTreeSet<String>,
     // `macro_rules!` definitions whose body already reaches concrete
     // persistence: the definition is baselined once, and this registry makes
     // every later invocation leave its own row too.
@@ -2063,6 +2086,7 @@ impl Default for ModuleSymbols {
             workspace_sqlx_namespaces: std::sync::Arc::new(BTreeSet::new()),
             database_namespaces: BTreeSet::from(["wow_database".to_owned()]),
             query_callables: BTreeSet::new(),
+            local_macro_definitions: BTreeSet::new(),
             persistence_macros: BTreeMap::new(),
             package_persistence_macros: std::sync::Arc::new(BTreeMap::new()),
         }
@@ -2171,8 +2195,10 @@ fn is_flow_passthrough_call(names: &[String]) -> bool {
                     // An error payload carries persistence out of a function
                     // exactly as a success payload does, and `?` returns it.
                     | ("Result", "Err")
+                    | ("ControlFlow", "Break")
+                    | ("ControlFlow", "Continue")
             )
-    ) || matches!(names, [name] if matches!(name.as_str(), "Some" | "Ok" | "Err"))
+    ) || matches!(names, [name] if matches!(name.as_str(), "Some" | "Ok" | "Err" | "Break" | "Continue"))
         || is_standard_identity(names)
 }
 
@@ -2378,6 +2404,7 @@ fn tuple_items_in_type(ty: &Type, symbols: &ModuleSymbols) -> Vec<VariableInfo> 
                 mutable_pointees: BTreeSet::new(),
                 mutable_places: BTreeSet::new(),
                 query_callable: false,
+                executor_callable: None,
             })
             .collect(),
         Type::Reference(reference) => tuple_items_in_type(&reference.elem, symbols),
@@ -2449,6 +2476,7 @@ fn variable_info_in_type(ty: &Type, symbols: &ModuleSymbols) -> VariableInfo {
         mutable_pointees: BTreeSet::new(),
         mutable_places: BTreeSet::new(),
         query_callable: false,
+        executor_callable: None,
     };
     if let Type::Path(path) = ty
         && let Some(alias) = path.path.segments.last().and_then(|segment| {
@@ -3158,6 +3186,7 @@ fn collect_nested_item_values(
                         path,
                         &|path| canonical_path_names(path, symbols),
                         &symbols.module_path,
+                        &symbols.local_macro_definitions,
                     )
                 });
                 info.sql_expression = kind;
@@ -3175,6 +3204,7 @@ fn collect_nested_item_values(
                         path,
                         &|path| canonical_path_names(path, symbols),
                         &symbols.module_path,
+                        &symbols.local_macro_definitions,
                     )
                 });
                 info.sql_expression = kind;
@@ -3231,6 +3261,14 @@ fn collect_module_symbols(
     let mut symbols = parent
         .cloned()
         .unwrap_or_else(|| ModuleSymbols::for_package(package));
+    // A module's own `macro_rules!` shadow the prelude, and an initializer
+    // classified before they are known would be read against the wrong macro.
+    symbols
+        .local_macro_definitions
+        .extend(items.iter().filter_map(|item| match item {
+            Item::Macro(item_macro) => item_macro.ident.as_ref().map(normalized_ident),
+            _ => None,
+        }));
     symbols.module_path = module
         .split("::")
         .filter(|segment| *segment != "crate")
@@ -3355,6 +3393,7 @@ fn collect_module_symbols(
                             path,
                             &|path| canonical_path_names(path, &symbols),
                             &symbols.module_path,
+                            &symbols.local_macro_definitions,
                         )
                     });
                     info.sql_expression = kind;
@@ -3382,6 +3421,7 @@ fn collect_module_symbols(
                             path,
                             &|path| canonical_path_names(path, &symbols),
                             &symbols.module_path,
+                            &symbols.local_macro_definitions,
                         )
                     });
                     info.sql_expression = kind;
@@ -3562,6 +3602,9 @@ fn collect_module_symbols(
                 // inventories every later invocation instead of letting a new
                 // call site slip past both ratchets unannotated.
                 if let Some(name) = &item_macro.ident {
+                    symbols
+                        .local_macro_definitions
+                        .insert(normalized_ident(name));
                     let targets = targets_in_tokens(item_macro.mac.tokens.clone(), &symbols);
                     if !targets.is_empty() {
                         symbols
@@ -5467,6 +5510,21 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     ..VariableInfo::default()
                 };
             }
+            // `let run = sqlx::Executor::execute;` names an executor; the call
+            // through `run` sends whatever SQL it is handed.
+            if path_is_sqlx(&names, self.symbols)
+                && names
+                    .iter()
+                    .nth_back(1)
+                    .is_some_and(|owner| owner == "Executor")
+                && let Some(method) = names.last()
+                && PersistenceOperation::from_executor_method(method).is_some()
+            {
+                return VariableInfo {
+                    executor_callable: Some(method.clone()),
+                    ..VariableInfo::default()
+                };
+            }
         }
         if let Expr::Path(path) = expression {
             let key = self.package_function_key(path_names(&path.path));
@@ -5705,6 +5763,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 mutable_pointees: BTreeSet::new(),
                 mutable_places: BTreeSet::new(),
                 query_callable: false,
+                executor_callable: None,
             };
         }
         if let Expr::Field(field) = expression {
@@ -5790,6 +5849,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 mutable_pointees: BTreeSet::new(),
                 mutable_places: BTreeSet::new(),
                 query_callable: false,
+                executor_callable: None,
             };
             let mut names = path_names(&path.path);
             if is_constructor_method {
@@ -5834,6 +5894,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             mutable_pointees: BTreeSet::new(),
             mutable_places: BTreeSet::new(),
             query_callable: false,
+            executor_callable: None,
         }
     }
 
@@ -6497,6 +6558,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             written,
             &|path| self.canonical_names(path),
             &self.symbols.module_path,
+            &self.symbols.local_macro_definitions,
         )
     }
 
@@ -8798,42 +8860,70 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             }
         }
         let cfg = item_cfg(&self.cfg, &call.attrs);
-        let (name, canonical_name, rooted_sqlx, imported_query, path_targets, flow_passthrough) =
-            match call.func.as_ref() {
-                Expr::Path(path) => {
-                    let names = path_names(&path.path);
-                    // A block-local `use sqlx::query as q` renames the callee
-                    // without changing what it constructs, so the decision has
-                    // to be made on the path it resolves to.
-                    let canonical = self.canonical_names(names.clone());
-                    let canonical_name = canonical.last().cloned().unwrap_or_default();
-                    // The row keeps the name the source writes; only the
-                    // dispatch below follows the alias to what it constructs.
-                    let name = names.last().cloned().unwrap_or_default();
-                    let rooted_sqlx = path_is_sqlx(&names, self.symbols)
-                        || path_is_sqlx(&canonical, self.symbols);
-                    let imported_query = names.len() == 1
-                        && (self.symbols.query_callables.contains(&name)
-                            || self.symbols.query_callables.contains(&canonical_name)
-                            || self.lookup(&name).is_some_and(|info| info.query_callable));
-                    (
-                        name,
-                        canonical_name,
-                        rooted_sqlx,
-                        imported_query,
-                        targets_for_names(&canonical, self.symbols),
-                        is_flow_passthrough_call(&names),
-                    )
-                }
-                _ => (
-                    String::new(),
-                    String::new(),
-                    false,
-                    false,
-                    TargetSet::new(),
-                    false,
-                ),
-            };
+        let (
+            name,
+            canonical_name,
+            executor_owner,
+            rooted_sqlx,
+            imported_query,
+            path_targets,
+            flow_passthrough,
+        ) = match call.func.as_ref() {
+            Expr::Path(path) => {
+                let names = path_names(&path.path);
+                // A block-local `use sqlx::query as q` renames the callee
+                // without changing what it constructs, so the decision has
+                // to be made on the path it resolves to.
+                let canonical = self.canonical_names(names.clone());
+                let canonical_name = canonical.last().cloned().unwrap_or_default();
+                // The row keeps the name the source writes; only the
+                // dispatch below follows the alias to what it constructs.
+                let name = names.last().cloned().unwrap_or_default();
+                // A local binding can name an executor, and the call
+                // through it is that executor.
+                let stored_executor = (names.len() == 1)
+                    .then(|| {
+                        self.lookup(&names[0])
+                            .and_then(|info| info.executor_callable.clone())
+                    })
+                    .flatten();
+                let canonical_name = stored_executor.clone().unwrap_or(canonical_name);
+                let canonical = match &stored_executor {
+                    Some(method) => {
+                        vec!["sqlx".to_owned(), "Executor".to_owned(), method.clone()]
+                    }
+                    None => canonical,
+                };
+                let rooted_sqlx = path_is_sqlx(&names, self.symbols)
+                    || path_is_sqlx(&canonical, self.symbols)
+                    || stored_executor.is_some();
+                let imported_query = names.len() == 1
+                    && (self.symbols.query_callables.contains(&name)
+                        || self.symbols.query_callables.contains(&canonical_name)
+                        || self.lookup(&name).is_some_and(|info| info.query_callable));
+                (
+                    name,
+                    canonical_name,
+                    canonical
+                        .iter()
+                        .nth_back(1)
+                        .is_some_and(|segment| segment == "Executor"),
+                    rooted_sqlx,
+                    imported_query,
+                    targets_for_names(&canonical, self.symbols),
+                    is_flow_passthrough_call(&names),
+                )
+            }
+            _ => (
+                String::new(),
+                String::new(),
+                false,
+                false,
+                false,
+                TargetSet::new(),
+                false,
+            ),
+        };
         let query_builder_constructor = rooted_sqlx
             && canonical_name == "new"
             && matches!(
@@ -8937,13 +9027,8 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                     | PersistenceOperation::FetchOne
                     | PersistenceOperation::FetchOptional
                     | PersistenceOperation::PrepareStatement
-            ) && matches!(call.func.as_ref(), Expr::Path(path)
-                if rooted_sqlx
-                    && self
-                        .canonical_names(path_names(&path.path))
-                        .iter()
-                        .nth_back(1)
-                        .is_some_and(|segment| segment == "Executor"))
+            ) && rooted_sqlx
+                && executor_owner
                 && call.args.first().is_some_and(|receiver| {
                     let flow = self.flow_of_expr(receiver);
                     !flow.is_empty() && !flow.has_stage(FlowStage::Query)
@@ -18521,6 +18606,81 @@ mod tests {
         // `try_map` returns the query it maps, so the chained executor stays.
         assert!(baseline.accesses.iter().any(|row| {
             row.enclosing == "fn mapped" && row.operation == PersistenceOperation::Execute
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_treats_a_local_namesake_macro_as_opaque() {
+        let baseline = inventory(
+            r#"
+                macro_rules! concat { () => { "SELECT GET_LOCK('shadow', 0)" }; }
+                const SQL: &str = concat!();
+                fn shadowed() {
+                    sqlx::query(SQL);
+                }
+            "#,
+        )
+        .unwrap();
+        // A module that defines its own `concat!` shadows the prelude one, and
+        // the invocation shows none of what it expands to.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn shadowed"
+                && matches!(
+                    row.operation,
+                    PersistenceOperation::NonliteralSql | PersistenceOperation::InterpolatedSql
+                )
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_keeps_executor_identity_in_a_local() {
+        let baseline = inventory(
+            r#"
+                fn stored(pool: sqlx::MySqlPool) {
+                    let run = sqlx::Executor::execute;
+                    run(&pool, "SELECT GET_LOCK('stored', 0)");
+                }
+            "#,
+        )
+        .unwrap();
+        // The call through the binding sends the SQL it is handed.
+        for operation in [
+            PersistenceOperation::Execute,
+            PersistenceOperation::AdvisoryLock,
+        ] {
+            assert!(
+                baseline
+                    .accesses
+                    .iter()
+                    .any(|row| row.enclosing == "fn stored" && row.operation == operation),
+                "a stored executor lost its {operation:?} row"
+            );
+        }
+    }
+
+    /// Characterizes the `ControlFlow` escape rather than witnessing a fix: the
+    /// payload rule was added for consistency with `Ok`/`Err`, and no shape was
+    /// found where the row depends on it.
+    #[test]
+    fn persistence_inventory_records_control_flow_payloads_through_try() {
+        let baseline = inventory(
+            r#"
+                use std::ops::ControlFlow;
+                fn broken(database: wow_database::CharacterDatabase)
+                    -> ControlFlow<wow_database::CharacterDatabase, ()>
+                {
+                    let broken = ControlFlow::Break(database);
+                    broken?;
+                    ControlFlow::Continue(())
+                }
+            "#,
+        )
+        .unwrap();
+        // The database leaves the function through `?` just as an `Err` would.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn broken"
+                && row.operation == PersistenceOperation::ReturnEscape
+                && row.target == PersistenceTarget::CharacterDatabase
         }));
     }
 
