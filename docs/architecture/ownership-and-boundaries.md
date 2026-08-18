@@ -123,7 +123,7 @@ last-writer-wins policy.
 | Canonical map runtime | `wow_map::MapManager` | canonical global map loop, grid/spawn/respawn paths, explicit selected legacy-result adapters | world-server orchestration and session map/player bridges | process lifetime; canonical loop uses the configured map interval; preserves the C++ `Map::Update` phase order represented by the ADR | #188 records the current phase trace. It becomes the sole map/entity authority only after each later method cut has parity tests and removes the corresponding legacy writer. |
 | Creature legacy/canonical mirror | canonical loaded-grid records are mirrored into `wow_world::MapManager`; selected lifecycle, movement, aggro, attack-stop, melee, health, and respawn outcomes are explicitly bridged back to canonical state | named bridge functions in `world-server`, including `mirror_loaded_grid_creature_to_legacy_like_cpp` and the `run_legacy_creature_*_and_deliver_once_like_cpp` family | both runtimes and post-lock packet/command delivery | load/respawn synchronization begins canonical → legacy; only explicitly modelled runtime outcomes travel legacy → canonical; delivery occurs after map locks are released | #181 inventories every bridge and #188 freezes its phase trace. Remove one bridge only when its destination runtime becomes authoritative for that whole transition; never add generic bidirectional sync. |
 | Represented player gameplay state | mostly fields on `wow_world::WorldSession`; canonical value types and partial state also exist in `wow_entities::Player` | session handlers and session update code | packet builders, persistence helpers, `PlayerRegistry` summaries, canonical snapshot bridges | connection/selected-character lifetime; `canonical_player_entity_snapshot_*_like_cpp` currently rebuilds a `Player` snapshot from represented session fields | #181 records field families, writers, mirrors, and cutover owners. After the Session shell lands, #153 materializes one-responsibility cuts until `Player` is the mutable gameplay owner and `WorldSession` is only the connection/session bridge. |
-| Concrete persistence access | SQLx/MySQL pools, rows, transactions, prepared statements, and raw SQL currently leak through `wow-world`, data loaders, instances, handlers, and Session resources | application/gameplay code and concrete `wow-database` adapters both assemble durable work | handlers, lifecycle, runtime recovery, and publication paths consume concrete outcomes | statement order, connection affinity, commit/rollback/unknown-commit classification, fences, and publication order are observable | #186 inventories and ratchets leaks; #187 freezes ordered behavior; #200 earns the SQLx-free `wow-persistence` boundary with Player lifecycle; #189 moves durable loot coordination. Epic #169 and post-shell gate #153 own the remaining vertical cuts. |
+| Concrete persistence access | `persistence-access-snapshot.json` inventories exact SQLx and concrete `wow-database` syntax across application, data, instance, composition and adapter code; `persistence-boundary-policy.json` assigns every row exactly once | `wow-database` is the stable concrete adapter; each remaining group names its current capability owner, logical database(s), affinity and open removal/decision issue | handlers, lifecycle, bootstrap/loaders, runtime recovery, tests and publication paths consume concrete outcomes | statement order, connection affinity, commit/rollback/unknown-commit classification, fences, and publication order are observable; cross-database groups explicitly use independent connections and never imply distributed ACID | #186 installed the exact non-growth/stale-exception guard; #187 freezes ordered behavior; #200 earns the SQLx-free Player lifecycle port; #189 moves durable loot coordination; #153 materializes the remaining measured capability/data/auth/instance children. |
 | Effective skill metadata | `wow_data::SkillLineStore` owns final `SkillLine` identity/acquisition fields; `wow_data::SkillStore` owns final `SkillLineAbility` and `SkillRaceClassInfo` rows plus their derived indexes | `world-server` bootstrap composes WDC4 → official SQL → custom SQL → final removals once; no runtime writer | spell loaders and gameplay validation read immutable stores shared with sessions | process lifetime; `SkillLine` is composed first, then dependent rows are filtered and every index is rebuilt from final records in ascending ID order | Retire the specialized acquisition projections only when the general effective DB2 authority carries the same checked payload and coverage states. Never reactivate the raw WDC-only `SkillStore::load` path in production. |
 | Effective spell-acquisition metadata | `wow_data::SpellAcquisitionCatalogLikeCpp`, a compact immutable projection of the seven acquisition source families | `world-server` bootstrap composes and publishes one `Arc`; no handler or session mutates it | derived spell-learning loaders now; trainer planning in #164; sessions receive the same `Arc`, not the seven raw stores | process lifetime; exact regular SpellInfo keys seed covered/zero distinction, while server-side keys without validated acquisition payload are explicitly indeterminate | Remove the specialized catalog, or feed it from the general store, once full effective `SpellInfo` payload authority exists. This row does not authorize packet, persistence, spell, skill, money, or battle-pet mutation. |
 | Immutable spell-acquisition projection and application | `wow_world::spell_acquisition` owns the pure fixed-point plan plus its validation/transaction/publication boundary; the live player and Character DB remain the runtime/durable owners | planning mutates only a private ordered copy; #158 locks one character row and commits the complete durable result; #159 extends that same transaction with guarded money and keeps the exclusion through runtime/packet publication | #157 consumes ordered primary-profession outcomes; #158 consumes the exact source/result plan and generic player `EffectLearnSpell`; #159 consumes a startup-audited cast/craft authority plus a fresh player effect mask and owns trainer charge/wrapper/visual orchestration | one acquisition operation; complete spell/skill/trait/override authority, exact slot occupancy and wrapper static/live proofs are mandatory. Unknown COMMIT outcomes reconcile money plus all spell/favorite/skill rows before publication; see [the detailed contract](spell-acquisition-plan.md) | Retire the specialized seam only when canonical `Player` methods expose the same atomic dry-run/apply contract. Never reconstruct capacity or criteria from a flat trigger list, sort profession outcomes, infer “no immunity” from missing runtime state, or publish before the durable boundary. |
@@ -277,13 +277,13 @@ progress:
 
 | Hotspot | Production | Tests | Total |
 |---|---:|---:|---:|
-| `crates/wow-world/src/session.rs` | 71,997 | 94,772 | 166,769 |
-| `crates/wow-map/src/map.rs` | 15,247 | 18,413 | 33,660 |
-| `crates/wow-world/src/handlers/character.rs` | 20,235 | 10,618 | 30,853 |
-| `crates/wow-world/src/handlers/loot.rs` | 13,660 | 16,193 | 29,853 |
-| `crates/world-server/src/main.rs` | 15,380 | 12,795 | 28,175 |
+| `crates/wow-world/src/session.rs` | 71,881 | 94,888 | 166,769 |
+| `crates/wow-map/src/map.rs` | 15,245 | 18,415 | 33,660 |
+| `crates/wow-world/src/handlers/character.rs` | 20,200 | 10,653 | 30,853 |
+| `crates/wow-world/src/handlers/loot.rs` | 13,619 | 16,234 | 29,853 |
+| `crates/world-server/src/main.rs` | 15,370 | 12,805 | 28,175 |
 | `crates/wow-world/src/handlers/misc.rs` | 7,315 | 11,473 | 18,788 |
-| `crates/wow-world/src/handlers/quest.rs` | 8,231 | 10,241 | 18,472 |
+| `crates/wow-world/src/handlers/quest.rs` | 8,255 | 10,217 | 18,472 |
 | `crates/wow-entities/src/player.rs` | 9,265 | 8,907 | 18,172 |
 
 At the same HEAD, the syntax-aware ratchet records 738 `WorldSession` fields: 727 production and
@@ -294,21 +294,47 @@ composition-side `SessionResources` has 243 fields, of which 186 are optional;
 reachable payload types. The factory has 247 `set_*` and one `install_*` call: two setters are
 multiline calls that the earlier text-only count missed. The generated-input surface has 44 exact
 records, and direct access to `PlayerRegistry`, `GroupRegistry`, or `PendingInvites` is frozen as
-685 exact AST rows with multiplicity 705. The workspace-wide persistence inventory adds 309 exact
-rows—278 production and 31 test-fixture rows—with multiplicity 366 (326 production and 40 test)
-for concrete types, queries, transactions, pool escapes and macro boundaries. The
-legacy/canonical inventory contains 71 definition/seam rows, including eight
+685 exact AST rows with multiplicity 705. The workspace-wide persistence inventory contains 21,818
+exact rows—11,327 production and 10,491 test-fixture—with multiplicity 23,975 (12,792 production and
+11,183 test). Six generated-source inputs are an orthogonal subset, not a third source class. Schema
+v3 covers SQLx and concrete `wow_database` types/imports, typed statements/results/errors,
+prepare/query/execute/direct/raw/nonliteral/interpolated SQL, pool access, transaction construction/append/commit,
+database opening, advisory locks, value flow and escapes. Statement text is read only where it is
+pinned—a literal, a `concat!`, or a name bound to one of those. SQL assembled at run time (`+`
+chains, `format!` templates, branches, helper returns, projections) is deliberately recorded as
+interpolated or nonliteral without a content claim: deciding which string an expression produces
+has no natural stopping point, so the connection-affinity and ordering facts for those call sites
+come from the reviewed workflow annotation covering them. The 905 semantic groups classify every
+row exactly once by logical database,
+capability owner, connection/transaction affinity, current order, failure/unknown-commit behavior
+and open removal/decision issue; unmatched, overlapping or stale groups fail. The legacy/canonical
+inventory contains 71 definition/seam rows, including eight
 curated anchors; it deliberately avoids duplicating every caller of an already inventoried typed
 helper. `#134` already moved `SessionResources` out of `wow-network`; #136 extracts the factory
 without turning the aggregate into another public dependency bag.
 
-The reproducible syntax snapshot is
-`tools/architecture/session-ownership-policy.json`; the curated owner/writer/mirror and retirement
-mapping is `tools/architecture/runtime-ownership-ledger.json`. The Python guard cross-checks their
+The reproducible Session syntax snapshot is
+`tools/architecture/session-ownership-policy.json`; persistence identities live in
+`tools/architecture/persistence-access-snapshot.json`, reviewed workflow annotations in
+`tools/architecture/persistence-boundary-workflows.json`, and their canonically derived policy in
+`tools/architecture/persistence-boundary-policy.json`; the remaining curated owner/writer/mirror
+and retirement mapping is `tools/architecture/runtime-ownership-ledger.json`. The Python guard cross-checks their
 exact field/variant memberships, while `session-ownership-check` rejects added, removed, retyped,
 re-visibility-scoped, re-owned, generated, factory-wiring, command-payload, broadcast, and direct
 registry, persistence, and bridge surfaces. `print-baseline` only writes reviewed JSON to stdout;
-it never updates either baseline automatically.
+`print-persistence-baseline` independently reproduces the dedicated persistence snapshot and
+`print-persistence-policy` derives the policy from the reviewed workflow annotations. Because the
+policy is a pure function of those annotations and the exact inventory,
+`print-persistence-policy --from-snapshot PATH` derives it from an already computed snapshot
+instead of scanning the workspace again: CI publishes both files as the `persistence-access-snapshot`
+artifact when the ratchet moves, and a repository test rejects a checked-in snapshot and policy that
+disagree, so the pair can never be updated by halves. None of these
+commands updates a checked-in artifact automatically.
+
+Workflow annotation schema v2 is the reviewed source of truth for each workflow's logical
+databases, capability boundary, connection affinity, current order, and failure/unknown-commit
+behavior. Policy generation copies those semantic fields exactly; it does not synthesize them
+from transaction-shaped syntax.
 
 These numbers are diagnostics, not completion criteria. #181 owns reproducible counters and
 non-growth rules; each later slice must reduce or retire a named ownership smell rather than
