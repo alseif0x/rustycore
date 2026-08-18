@@ -1025,6 +1025,34 @@ fn collect_string_literal_values(
 /// An unqualified builtin resolves to the enclosing module's path plus its own
 /// name, because that is what resolution does with a name it cannot find — that
 /// is still the prelude macro. A path leading anywhere else is a namesake.
+/// Whether `path` names the standard `String::from`.
+///
+/// A type of one's own called `String` may return whatever it likes, so the
+/// conversion only preserves a pinned source when it is the real one.
+fn is_standard_string_conversion(
+    path: &syn::Path,
+    resolve_path: &dyn Fn(Vec<String>) -> Vec<String>,
+    local_types: &BTreeSet<String>,
+) -> bool {
+    let names = path_names(path);
+    if names.last().map(String::as_str) != Some("from") {
+        return false;
+    }
+    let owner = names[..names.len() - 1].to_vec();
+    if owner.last().map(String::as_str) != Some("String") {
+        return false;
+    }
+    let resolved = resolve_path(owner);
+    match resolved.as_slice() {
+        [name] => name == "String" && !local_types.contains(name),
+        [root, .., name] if matches!(root.as_str(), "std" | "alloc" | "core") => name == "String",
+        // An unqualified name resolves to the module's own path; that is the
+        // prelude type unless the module declares one of its own.
+        [.., name] => name == "String" && !local_types.contains(name),
+        [] => false,
+    }
+}
+
 fn is_standard_string_macro(
     resolved: &[String],
     macro_name: &str,
@@ -2037,6 +2065,9 @@ struct ModuleSymbols {
     /// resolves to the same `module_path + name` shape as one of these, so the
     /// definitions have to be known to tell them apart.
     local_macro_definitions: BTreeSet<String>,
+    /// Types this module declares. A `struct String` of one's own shadows the
+    /// prelude type, and path resolution alone cannot tell them apart.
+    local_type_definitions: BTreeSet<String>,
     // `macro_rules!` definitions whose body already reaches concrete
     // persistence: the definition is baselined once, and this registry makes
     // every later invocation leave its own row too.
@@ -2103,6 +2134,7 @@ impl Default for ModuleSymbols {
             database_namespaces: BTreeSet::from(["wow_database".to_owned()]),
             query_callables: BTreeSet::new(),
             local_macro_definitions: BTreeSet::new(),
+            local_type_definitions: BTreeSet::new(),
             persistence_macros: BTreeMap::new(),
             package_persistence_macros: std::sync::Arc::new(BTreeMap::new()),
         }
@@ -3224,6 +3256,12 @@ fn collect_nested_item_values(
                     let mut info = variable_info_in_type(&associated.ty, symbols);
                     info.sql_expression = kind;
                     info.sql_sources = sources;
+                    // Two traits may each define `SQL` for the same type with
+                    // different values, so the key records which impl the value
+                    // belongs to. An inherent impl keeps the bare name.
+                    let qualifier = item_impl.trait_.as_ref().map(|(_, path, _)| {
+                        canonical_path_names(path_names(path), symbols).join("::")
+                    });
                     // The impl may target a type of another module, so the key
                     // comes from the self type's own path rather than from
                     // where the impl happens to be written.
@@ -3240,9 +3278,19 @@ fn collect_nested_item_values(
                             })
                             .collect(),
                     };
-                    for mut owner in owners {
-                        owner.push(normalized_ident(&associated.ident));
-                        output.entry(owner.join("::")).or_default().union(&info);
+                    for owner in owners {
+                        let member = normalized_ident(&associated.ident);
+                        let key = match &qualifier {
+                            Some(trait_path) => {
+                                format!("<{} as {trait_path}>::{member}", owner.join("::"))
+                            }
+                            None => {
+                                let mut path = owner.clone();
+                                path.push(member.clone());
+                                path.join("::")
+                            }
+                        };
+                        output.entry(key).or_default().union(&info);
                     }
                 }
             }
@@ -3332,6 +3380,14 @@ fn collect_module_symbols(
     let mut symbols = parent
         .cloned()
         .unwrap_or_else(|| ModuleSymbols::for_package(package));
+    symbols
+        .local_type_definitions
+        .extend(items.iter().filter_map(|item| match item {
+            Item::Struct(item_struct) => Some(normalized_ident(&item_struct.ident)),
+            Item::Enum(item_enum) => Some(normalized_ident(&item_enum.ident)),
+            Item::Type(item_type) => Some(normalized_ident(&item_type.ident)),
+            _ => None,
+        }));
 
     symbols.module_path = module
         .split("::")
@@ -6659,14 +6715,24 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         // `<Statements as Sql>::SQL` names the same constant as
         // `Statements::SQL`; the qualification says which impl, not which value.
         if let Some(qself) = &path.qself {
+            // `<Statements as Sql>::SQL` names the value that `Sql` defines,
+            // which another trait's impl for the same type may not share.
             let member = last_path_name(&path.path)?;
+            let trait_path = (path.path.segments.len() > 1).then(|| {
+                let names = path_names(&path.path);
+                self.canonical_names(names[..names.len() - 1].to_vec())
+                    .join("::")
+            });
             return nominal_types_in_type(&qself.ty)
                 .into_iter()
                 .chain(receiver_nominal_types_in_type(&qself.ty))
                 .find_map(|owner| {
-                    self.symbols
-                        .package_item_values
-                        .get(&self.package_function_key(vec![owner, member.clone()]))
+                    let owner = self.package_function_key(vec![owner]);
+                    let key = match &trait_path {
+                        Some(trait_path) => format!("<{owner} as {trait_path}>::{member}"),
+                        None => format!("{owner}::{member}"),
+                    };
+                    self.symbols.package_item_values.get(&key)
                 });
         }
         let names = path_names(&path.path);
@@ -6780,17 +6846,24 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         let Some(argument) = argument else {
             return base;
         };
-        fn is_indirect(expression: &Expr) -> bool {
+        fn is_indirect_with(
+            expression: &Expr,
+            resolve_path: &dyn Fn(Vec<String>) -> Vec<String>,
+            local_types: &BTreeSet<String>,
+        ) -> bool {
+            let is_indirect =
+                |expression: &Expr| is_indirect_with(expression, resolve_path, local_types);
             match expression {
                 Expr::Path(_) => true,
                 Expr::Reference(reference) => is_indirect(&reference.expr),
                 Expr::Paren(paren) => is_indirect(&paren.expr),
                 Expr::Group(group) => is_indirect(&group.expr),
-                // `String::from(SQL)` is the same conversion in call form.
+                // `String::from(SQL)` is the same conversion in call form —
+                // but only the standard one. A local type named `String` can
+                // return anything.
                 Expr::Call(call)
                     if matches!(call.func.as_ref(), Expr::Path(path)
-                        if path.path.segments.iter().rev().take(2).map(|segment| normalized_ident(&segment.ident)).collect::<Vec<_>>()
-                            == ["from", "String"]) =>
+                        if is_standard_string_conversion(&path.path, resolve_path, local_types)) =>
                 {
                     call.args.first().is_some_and(is_indirect)
                 }
@@ -6807,7 +6880,12 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 _ => false,
             }
         }
-        if !is_indirect(argument) {
+        let resolve_path = |path: Vec<String>| self.canonical_names(path);
+        if !is_indirect_with(
+            argument,
+            &resolve_path,
+            &self.symbols.local_type_definitions,
+        ) {
             return base;
         }
         let sources = self.sql_sources(argument);
@@ -10582,6 +10660,7 @@ fn analyze_impl(
     item_impl: &ItemImpl,
     context: RecordContext<'_>,
     symbols: &ModuleSymbols,
+    visible_macro_shadows: BTreeSet<String>,
     cfg: Vec<String>,
     accumulator: &mut AccessAccumulator,
     errors: &mut Vec<String>,
@@ -10723,6 +10802,7 @@ fn analyze_impl(
             visibility,
             method_cfg.clone(),
         );
+        analyzer.visible_macro_shadows = visible_macro_shadows.clone();
         analyzer.register_local_uses(&method.block.stmts);
         analyzer.register_local_callables(&method.block.stmts);
         analyzer.register_local_constants(&method.block.stmts);
@@ -11012,6 +11092,7 @@ fn analyze_module_items(
                         source: context.source,
                     },
                     &symbols,
+                    macro_shadows_before(items, item_index),
                     item_cfg(&cfg, &item_impl.attrs),
                     accumulator,
                     errors,
@@ -19083,41 +19164,44 @@ mod tests {
 
     #[test]
     fn persistence_inventory_resolves_qualified_and_converted_constants() {
-        let collect = |sql: &str| {
-            inventory(&format!(
-                r#"
-                    trait Sql {{ const SQL: &'static str; }}
-                    struct Statements;
-                    impl Statements {{
-                        const SQL: &str = {sql:?};
-                    }}
-                    fn qualified() {{
-                        sqlx::query(<Statements as Sql>::SQL);
-                    }}
-                    fn converted() {{
-                        sqlx::query(String::from(Statements::SQL).as_str());
-                    }}
-                "#
-            ))
-            .unwrap()
-        };
-        let fingerprint = |baseline: &PersistenceAccessBaseline, enclosing: &str| {
-            baseline
-                .accesses
-                .iter()
-                .find(|row| {
-                    row.enclosing == enclosing && row.operation == PersistenceOperation::Query
-                })
-                .map(|row| row.fingerprint.clone())
-                .unwrap()
-        };
-        let locked = collect("SELECT GET_LOCK('qualified', 0)");
-        let clean = collect("SELECT 1");
-        for enclosing in ["fn qualified", "fn converted"] {
-            assert_ne!(
-                fingerprint(&locked, enclosing),
-                fingerprint(&clean, enclosing),
-                "{enclosing} did not follow the constant it names"
+        let baseline = inventory(
+            r#"
+                trait CleanSql { const SQL: &'static str; }
+                trait LockingSql { const SQL: &'static str; }
+                struct Statements;
+                impl CleanSql for Statements {
+                    const SQL: &'static str = "SELECT 1";
+                }
+                impl LockingSql for Statements {
+                    const SQL: &'static str = "SELECT GET_LOCK('locking', 0)";
+                }
+                impl Statements {
+                    const INHERENT: &str = "SELECT GET_LOCK('inherent', 0)";
+                }
+                fn clean() {
+                    sqlx::query(<Statements as CleanSql>::SQL);
+                }
+                fn locking() {
+                    sqlx::query(<Statements as LockingSql>::SQL);
+                }
+                fn converted() {
+                    sqlx::query(String::from(Statements::INHERENT).as_str());
+                }
+            "#,
+        )
+        .unwrap();
+        // The qualification selects which impl's value is used, so a lock
+        // defined by one trait must not reach a query naming the other.
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn clean" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+        for enclosing in ["fn locking", "fn converted"] {
+            assert!(
+                baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.operation == PersistenceOperation::AdvisoryLock
+                }),
+                "{enclosing} lost the constant it names"
             );
         }
     }
@@ -19149,6 +19233,56 @@ mod tests {
                 "a bound parameter was classified as {operation:?}"
             );
         }
+    }
+
+    #[test]
+    fn persistence_inventory_shadows_macros_inside_impl_methods() {
+        let baseline = inventory(
+            r#"
+                macro_rules! concat { () => { "SELECT GET_LOCK('shadow', 0)" }; }
+                struct Statements;
+                impl Statements {
+                    fn run(&self) {
+                        sqlx::query(concat!());
+                    }
+                }
+            "#,
+        )
+        .unwrap();
+        // A method body sees the module's shadow like any other body does.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing.contains("run")
+                && matches!(
+                    row.operation,
+                    PersistenceOperation::NonliteralSql | PersistenceOperation::InterpolatedSql
+                )
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_requires_the_standard_string_conversion() {
+        let baseline = inventory(
+            r#"
+                const SAFE_SQL: &str = "SELECT 1";
+                struct String;
+                impl String {
+                    fn from(_ignored: &str) -> &'static str {
+                        "SELECT GET_LOCK('substituted', 0)"
+                    }
+                }
+                fn shadowed_conversion() {
+                    sqlx::query(String::from(SAFE_SQL));
+                }
+            "#,
+        )
+        .unwrap();
+        // A type of one's own named `String` returns whatever it likes, so the
+        // argument's source must not be carried through it.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn shadowed_conversion"
+                && row.operation == PersistenceOperation::Query
+                && !row.fingerprint.contains("sql-source")
+        }));
     }
 
     #[test]
