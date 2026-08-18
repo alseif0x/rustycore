@@ -783,7 +783,7 @@ const ADVISORY_LOCK_FUNCTIONS: &[&str] = &[
 fn executable_sql_text(
     fingerprint: &str,
     backslash_escapes: bool,
-    resolve_path: &dyn Fn(Vec<String>) -> Vec<String>,
+    resolve_path: &dyn Fn(Vec<String>) -> Option<String>,
 ) -> String {
     // A fingerprint is Rust token text whose statements live inside string
     // literals. Read those out first: the double quotes around them belong to
@@ -922,7 +922,7 @@ fn calls_sql_function(executable: &str, function: &str) -> bool {
 /// (`SELECT get_lock(...)`), so the comparison is case-insensitive.
 fn sql_is_advisory_lock(
     fingerprint: &str,
-    resolve_path: &dyn Fn(Vec<String>) -> Vec<String>,
+    resolve_path: &dyn Fn(Vec<String>) -> Option<String>,
 ) -> bool {
     // The repository pins no `sql_mode`, and `NO_BACKSLASH_ESCAPES` decides
     // where a quoted token ends. Read the statement under both meanings and
@@ -946,7 +946,7 @@ fn sql_is_advisory_lock(
 /// The statement a source pins, when it pins exactly one.
 fn string_literal_values(
     tokens: TokenStream,
-    resolve_path: &dyn Fn(Vec<String>) -> Vec<String>,
+    resolve_path: &dyn Fn(Vec<String>) -> Option<String>,
 ) -> Vec<String> {
     let mut values = Vec::new();
     collect_string_literal_values(tokens, resolve_path, &mut values);
@@ -981,7 +981,7 @@ fn rendered_literal(literal: &proc_macro2::Literal) -> Option<String> {
 
 fn collect_string_literal_values(
     tokens: TokenStream,
-    resolve_path: &dyn Fn(Vec<String>) -> Vec<String>,
+    resolve_path: &dyn Fn(Vec<String>) -> Option<String>,
     values: &mut Vec<String>,
 ) {
     let trees = tokens.into_iter().collect::<Vec<_>>();
@@ -1021,18 +1021,37 @@ fn collect_string_literal_values(
 /// at `index`, both of which build a string at compile time.
 /// Whether a resolved path names the standard `concat!`/`stringify!` rather
 /// than somebody's macro of the same leaf name.
-fn is_standard_string_macro(resolved: &[String], macro_name: &str) -> bool {
+///
+/// An unqualified builtin resolves to the enclosing module's path plus its own
+/// name, because that is what resolution does with a name it cannot find — that
+/// is still the prelude macro. A path leading anywhere else is a namesake.
+fn is_standard_string_macro(resolved: &[String], macro_name: &str, module_path: &[String]) -> bool {
     match resolved {
         [name] => name == macro_name,
         [root, name] if matches!(root.as_str(), "std" | "core") => name == macro_name,
-        _ => false,
+        _ => resolved
+            .split_last()
+            .is_some_and(|(name, prefix)| name == macro_name && prefix == module_path),
     }
+}
+
+/// The standard compile-time string macro `written` names, if it names one.
+fn standard_string_macro_of(
+    written: Vec<String>,
+    resolve: &dyn Fn(Vec<String>) -> Vec<String>,
+    module_path: &[String],
+) -> Option<String> {
+    let resolved = resolve(written);
+    ["concat", "stringify"]
+        .into_iter()
+        .find(|candidate| is_standard_string_macro(&resolved, candidate, module_path))
+        .map(str::to_owned)
 }
 
 fn compile_time_string_macro(
     trees: &[TokenTree],
     index: usize,
-    resolve_path: &dyn Fn(Vec<String>) -> Vec<String>,
+    resolve_path: &dyn Fn(Vec<String>) -> Option<String>,
 ) -> Option<(String, proc_macro2::Group)> {
     let TokenTree::Ident(ident) = trees.get(index)? else {
         return None;
@@ -1050,11 +1069,7 @@ fn compile_time_string_macro(
         written.insert(0, normalized_ident(owner));
         segment -= 3;
     }
-    let resolved = resolve_path(written);
-    let name = ["concat", "stringify"]
-        .into_iter()
-        .find(|candidate| is_standard_string_macro(&resolved, candidate))?
-        .to_owned();
+    let name = resolve_path(written)?;
     match (trees.get(index + 1), trees.get(index + 2)) {
         (Some(TokenTree::Punct(punct)), Some(TokenTree::Group(group)))
             if punct.as_char() == '!' =>
@@ -1073,7 +1088,7 @@ fn compile_time_string_macro(
 /// expands to `SELECT GETtrue_LOCK(…)`, which calls nothing.
 fn collect_concat_pieces(
     tokens: TokenStream,
-    resolve_path: &dyn Fn(Vec<String>) -> Vec<String>,
+    resolve_path: &dyn Fn(Vec<String>) -> Option<String>,
     pieces: &mut Vec<String>,
 ) {
     let trees = tokens.into_iter().collect::<Vec<_>>();
@@ -1505,23 +1520,24 @@ enum SqlExpressionKind {
 /// standard one would pin a statement that its definition can change.
 fn source_sql_info(
     expression: &Expr,
-    resolve_path: &dyn Fn(Vec<String>) -> Vec<String>,
+    resolve_standard_macro: &dyn Fn(Vec<String>) -> Option<String>,
 ) -> (SqlExpressionKind, BTreeSet<String>) {
     match expression {
         Expr::Lit(literal) if matches!(literal.lit, syn::Lit::Str(_)) => (
             SqlExpressionKind::Static,
             BTreeSet::from([normalized_tokens(expression)]),
         ),
-        Expr::Reference(reference) => source_sql_info(&reference.expr, resolve_path),
-        Expr::Paren(paren) => source_sql_info(&paren.expr, resolve_path),
-        Expr::Group(group) => source_sql_info(&group.expr, resolve_path),
+        Expr::Reference(reference) => source_sql_info(&reference.expr, resolve_standard_macro),
+        Expr::Paren(paren) => source_sql_info(&paren.expr, resolve_standard_macro),
+        Expr::Group(group) => source_sql_info(&group.expr, resolve_standard_macro),
         Expr::Macro(mac) => {
-            let resolved = resolve_path(path_names(&mac.mac.path));
-            let leaf = resolved.last().cloned().unwrap_or_default();
+            let leaf = last_path_name(&mac.mac.path).unwrap_or_default();
             // Only the standard compile-time macros pin a statement; a
             // namesake in another module is a nonliteral source.
             let name = match leaf.as_str() {
-                "concat" | "stringify" if !is_standard_string_macro(&resolved, &leaf) => {
+                "concat" | "stringify"
+                    if resolve_standard_macro(path_names(&mac.mac.path)).is_none() =>
+                {
                     String::new()
                 }
                 _ => leaf,
@@ -1545,11 +1561,12 @@ fn source_sql_info(
                     else {
                         return (SqlExpressionKind::Nonliteral, BTreeSet::new());
                     };
-                    let kind = arguments
-                        .iter()
-                        .fold(SqlExpressionKind::Static, |kind, argument| {
-                            kind.max(source_sql_info(argument, resolve_path).0)
-                        });
+                    let kind =
+                        arguments
+                            .iter()
+                            .fold(SqlExpressionKind::Static, |kind, argument| {
+                                kind.max(source_sql_info(argument, resolve_standard_macro).0)
+                            });
                     let sources = match kind {
                         SqlExpressionKind::Static => {
                             BTreeSet::from([normalized_tokens(expression)])
@@ -2151,8 +2168,11 @@ fn is_flow_passthrough_call(names: &[String]) -> bool {
                     | ("Pin", "new")
                     | ("Option", "Some")
                     | ("Result", "Ok")
+                    // An error payload carries persistence out of a function
+                    // exactly as a success payload does, and `?` returns it.
+                    | ("Result", "Err")
             )
-    ) || matches!(names, [name] if matches!(name.as_str(), "Some" | "Ok"))
+    ) || matches!(names, [name] if matches!(name.as_str(), "Some" | "Ok" | "Err"))
         || is_standard_identity(names)
 }
 
@@ -3134,7 +3154,11 @@ fn collect_nested_item_values(
                 path.push(normalized_ident(&item_const.ident));
                 let mut info = variable_info_in_type(&item_const.ty, symbols);
                 let (kind, sources) = source_sql_info(&item_const.expr, &|path| {
-                    canonical_path_names(path, symbols)
+                    standard_string_macro_of(
+                        path,
+                        &|path| canonical_path_names(path, symbols),
+                        &symbols.module_path,
+                    )
                 });
                 info.sql_expression = kind;
                 info.sql_sources = sources;
@@ -3147,7 +3171,11 @@ fn collect_nested_item_values(
                 path.push(normalized_ident(&item_static.ident));
                 let mut info = variable_info_in_type(&item_static.ty, symbols);
                 let (kind, sources) = source_sql_info(&item_static.expr, &|path| {
-                    canonical_path_names(path, symbols)
+                    standard_string_macro_of(
+                        path,
+                        &|path| canonical_path_names(path, symbols),
+                        &symbols.module_path,
+                    )
                 });
                 info.sql_expression = kind;
                 info.sql_sources = sources;
@@ -3323,7 +3351,11 @@ fn collect_module_symbols(
                 {
                     let mut info = variable_info_in_type(&item_const.ty, &symbols);
                     let (kind, sources) = source_sql_info(&item_const.expr, &|path| {
-                        canonical_path_names(path, &symbols)
+                        standard_string_macro_of(
+                            path,
+                            &|path| canonical_path_names(path, &symbols),
+                            &symbols.module_path,
+                        )
                     });
                     info.sql_expression = kind;
                     info.sql_sources = sources;
@@ -3346,7 +3378,11 @@ fn collect_module_symbols(
                 {
                     let mut info = variable_info_in_type(&item_static.ty, &symbols);
                     let (kind, sources) = source_sql_info(&item_static.expr, &|path| {
-                        canonical_path_names(path, &symbols)
+                        standard_string_macro_of(
+                            path,
+                            &|path| canonical_path_names(path, &symbols),
+                            &symbols.module_path,
+                        )
                     });
                     info.sql_expression = kind;
                     info.sql_sources = sources;
@@ -4635,7 +4671,45 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         names.join("::")
     }
 
+    /// Register the block's imports, then let them resolve through each other.
+    ///
+    /// Rust does not order imports, so `use mount as alias;` may precede
+    /// `use std::include as mount;`. Resolving once would leave `alias`
+    /// pointing at a name that is itself an alias, and a guard reading the
+    /// resolved path would miss what the invocation really is.
     fn register_local_uses(&mut self, statements: &[Stmt]) {
+        self.register_local_use_items(statements);
+        // Chain the block's own aliases through each other. Only local entries
+        // are substituted: rewriting them with module resolution would change
+        // the written form that other lookups depend on.
+        for _ in 0..8 {
+            let Some(scope) = self.local_path_alias_scopes.last().cloned() else {
+                break;
+            };
+            let expanded = scope
+                .iter()
+                .map(|(alias, source)| {
+                    let mut names = source.clone();
+                    if let Some(first) = names.first().cloned()
+                        && first != *alias
+                        && let Some(target) = scope.get(&first)
+                        && target.first() != Some(&first)
+                    {
+                        names.splice(0..1, target.clone());
+                    }
+                    (alias.clone(), names)
+                })
+                .collect::<BTreeMap<_, _>>();
+            if expanded == scope {
+                break;
+            }
+            if let Some(scope) = self.local_path_alias_scopes.last_mut() {
+                *scope = expanded;
+            }
+        }
+    }
+
+    fn register_local_use_items(&mut self, statements: &[Stmt]) {
         self.bump_context();
         let uses = statements.iter().filter_map(|statement| match statement {
             Stmt::Item(Item::Use(item_use)) => Some(item_use),
@@ -6321,10 +6395,9 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 SqlExpressionKind::Environment
             }
             Expr::Macro(mac)
-                if is_standard_string_macro(
-                    &self.canonical_names(path_names(&mac.mac.path)),
-                    "concat",
-                ) =>
+                if self
+                    .standard_string_macro(path_names(&mac.mac.path))
+                    .is_some_and(|name| name == "concat") =>
             {
                 syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated
                     .parse2(mac.mac.tokens.clone())
@@ -6339,10 +6412,9 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     .unwrap_or(SqlExpressionKind::Nonliteral)
             }
             Expr::Macro(mac)
-                if is_standard_string_macro(
-                    &self.canonical_names(path_names(&mac.mac.path)),
-                    "stringify",
-                ) =>
+                if self
+                    .standard_string_macro(path_names(&mac.mac.path))
+                    .is_some_and(|name| name == "stringify") =>
             {
                 SqlExpressionKind::Static
             }
@@ -6419,8 +6491,19 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     /// A compile-time string macro can be invoked under an alias
     /// (`use std::concat as c`), and only an *unqualified* name is the alias:
     /// `other::c!` is a different macro that happens to share a leaf name.
+    /// The standard compile-time string macro a path names, if it names one.
+    fn standard_string_macro(&self, written: Vec<String>) -> Option<String> {
+        standard_string_macro_of(
+            written,
+            &|path| self.canonical_names(path),
+            &self.symbols.module_path,
+        )
+    }
+
     fn statement_takes_advisory_lock(&self, fingerprint: &str) -> bool {
-        sql_is_advisory_lock(fingerprint, &|path: Vec<String>| self.canonical_names(path))
+        sql_is_advisory_lock(fingerprint, &|path: Vec<String>| {
+            self.standard_string_macro(path)
+        })
     }
 
     /// The path a name really refers to: a block-local `use` alias first, then
@@ -6466,13 +6549,9 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             // `concat!` and `stringify!` are pinned by their own tokens, which
             // already carry their arguments in order.
             Expr::Macro(mac)
-                if is_standard_string_macro(
-                    &self.canonical_names(path_names(&mac.mac.path)),
-                    "concat",
-                ) || is_standard_string_macro(
-                    &self.canonical_names(path_names(&mac.mac.path)),
-                    "stringify",
-                ) =>
+                if self
+                    .standard_string_macro(path_names(&mac.mac.path))
+                    .is_some() =>
             {
                 BTreeSet::from([normalized_tokens(expression)])
             }
@@ -6814,7 +6893,9 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             "bind" if receiver.has_stage(FlowStage::Query) => receiver,
             // A modifier returns the query it was called on, so the executor
             // chained after it is still executing that query.
-            "persistent" | "fetch_last_insert_id" if receiver.has_stage(FlowStage::Query) => {
+            "persistent" | "fetch_last_insert_id" | "try_map" | "map"
+                if receiver.has_stage(FlowStage::Query) =>
+            {
                 receiver
             }
             name if FLOW_TRANSFORMING_METHODS.contains(&name) => {
@@ -8523,7 +8604,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             }
             if let Item::Const(item_const) = item {
                 let (kind, sources) =
-                    source_sql_info(&item_const.expr, &|path| self.canonical_names(path));
+                    source_sql_info(&item_const.expr, &|path| self.standard_string_macro(path));
                 if kind != SqlExpressionKind::Nonliteral {
                     let mut info = self.info_from_type(&item_const.ty);
                     info.sql_expression = kind;
@@ -8534,7 +8615,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             }
             if let Item::Static(item_static) = item {
                 let (kind, sources) =
-                    source_sql_info(&item_static.expr, &|path| self.canonical_names(path));
+                    source_sql_info(&item_static.expr, &|path| self.standard_string_macro(path));
                 if kind != SqlExpressionKind::Nonliteral {
                     let mut info = self.info_from_type(&item_static.ty);
                     info.sql_expression = kind;
@@ -18366,6 +18447,80 @@ mod tests {
             row.enclosing == "fn forward"
                 && row.operation == PersistenceOperation::ReturnEscape
                 && row.target == PersistenceTarget::PgPool
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_reads_prelude_macros_inside_modules() {
+        let source = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "nested-a",
+            module: "crate::legacy",
+            source_path: "src/legacy.rs",
+            inherited_cfg: &[],
+            source: r#"
+                const SQL: &str = concat!("SELECT GET_LOCK('", "nested', 0)");
+                fn nested() {
+                    sqlx::query(SQL);
+                }
+            "#,
+        };
+        let baseline = inventory_persistence_accesses(&[source]).unwrap();
+        // Inside a module an unqualified builtin resolves to the module's own
+        // path; that is still the prelude macro, and its statement is pinned.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn nested" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn nested" && row.operation == PersistenceOperation::NonliteralSql
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_resolves_chained_local_import_aliases() {
+        let baseline = inventory(
+            r#"
+                fn chained() {
+                    use mount as alias;
+                    use std::include as mount;
+                    alias!("db_impl.rs");
+                }
+            "#,
+        );
+        // Imports are not ordered, so an alias of an alias still names
+        // `include!` and its contents remain outside the inventory.
+        assert!(
+            baseline
+                .err()
+                .is_some_and(|error| error.contains("include!")),
+            "a chained alias hid an include! mount"
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_records_error_payloads_returned_through_try() {
+        let baseline = inventory(
+            r#"
+                fn forward(pool: sqlx::PgPool) -> Result<(), sqlx::PgPool> {
+                    let result = Err(pool);
+                    result?;
+                    Ok(())
+                }
+                fn mapped(pool: sqlx::PgPool) {
+                    sqlx::query("SELECT 1").try_map(|row| Ok(row)).execute(&pool);
+                }
+            "#,
+        )
+        .unwrap();
+        // The pool leaves the function as the error of `?`.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn forward"
+                && row.operation == PersistenceOperation::ReturnEscape
+                && row.target == PersistenceTarget::PgPool
+        }));
+        // `try_map` returns the query it maps, so the chained executor stays.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn mapped" && row.operation == PersistenceOperation::Execute
         }));
     }
 
