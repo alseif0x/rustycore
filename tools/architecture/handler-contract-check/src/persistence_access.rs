@@ -1025,6 +1025,21 @@ fn collect_string_literal_values(
 /// An unqualified builtin resolves to the enclosing module's path plus its own
 /// name, because that is what resolution does with a name it cannot find — that
 /// is still the prelude macro. A path leading anywhere else is a namesake.
+/// Whether a resolved prefix is the enclosing module itself.
+///
+/// Resolution may or may not carry a leading `crate`, and the recorded module
+/// path may or may not either, so both are compared without it.
+fn prefix_is_enclosing_module(prefix: &[String], module_path: &[String]) -> bool {
+    let strip = |names: &[String]| -> Vec<String> {
+        names
+            .iter()
+            .skip_while(|name| *name == "crate")
+            .cloned()
+            .collect()
+    };
+    strip(prefix) == strip(module_path)
+}
+
 /// Whether `path` names the standard `String::from`.
 ///
 /// A type of one's own called `String` may return whatever it likes, so the
@@ -1042,15 +1057,19 @@ fn is_standard_string_conversion(
     if owner.last().map(String::as_str) != Some("String") {
         return false;
     }
-    let resolved = resolve_path(owner);
-    match resolved.as_slice() {
-        [name] => name == "String" && !local_types.contains(name),
-        [root, .., name] if matches!(root.as_str(), "std" | "alloc" | "core") => name == "String",
-        // An unqualified name resolves to the module's own path; that is the
-        // prelude type unless the module declares one of its own.
-        [.., name] => name == "String" && !local_types.contains(name),
-        [] => false,
+    // Spelled out — `custom::String::from`, `crate::custom::String::from` — only
+    // the standard type qualifies, and it has to resolve into `std`/`alloc`.
+    if owner.len() > 1 {
+        return matches!(
+            resolve_path(owner).as_slice(),
+            [root, .., name] if matches!(root.as_str(), "std" | "alloc") && name == "String"
+        );
     }
+    // Written bare it is the prelude type, unless this scope declares one of
+    // its own or imports somebody else's under that name. Both are recorded as
+    // shadows, because resolution alone reports the enclosing module's path for
+    // a prelude name and cannot tell the two apart.
+    !local_types.contains("String")
 }
 
 fn is_standard_string_macro(
@@ -1065,7 +1084,9 @@ fn is_standard_string_macro(
         // A module that defines its own `concat!` shadows the prelude one, and
         // both resolve to this shape.
         _ => resolved.split_last().is_some_and(|(name, prefix)| {
-            name == macro_name && prefix == module_path && !local_definitions.contains(name)
+            name == macro_name
+                && prefix_is_enclosing_module(prefix, module_path)
+                && !local_definitions.contains(name)
         }),
     }
 }
@@ -3223,6 +3244,38 @@ fn collect_nested_item_values(
 ) {
     for (item_index, item) in items.iter().enumerate() {
         match item {
+            // A trait's default associated constant is the value every impl
+            // inherits unless it overrides it, so it is pinned under the trait.
+            Item::Trait(item_trait)
+                if source_class_allows(source_class, cfg, &item_trait.attrs, errors, "trait") =>
+            {
+                for associated in &item_trait.items {
+                    let TraitItem::Const(associated) = associated else {
+                        continue;
+                    };
+                    let Some((_, default)) = &associated.default else {
+                        continue;
+                    };
+                    let (kind, sources) = source_sql_info(default, &|path| {
+                        standard_string_macro_of(
+                            path,
+                            &|path| canonical_path_names(path, symbols),
+                            &symbols.module_path,
+                            &macro_shadows_before(items, item_index),
+                        )
+                    });
+                    if sources.is_empty() {
+                        continue;
+                    }
+                    let mut info = variable_info_in_type(&associated.ty, symbols);
+                    info.sql_expression = kind;
+                    info.sql_sources = sources;
+                    let mut path = module_path.to_vec();
+                    path.push(normalized_ident(&item_trait.ident));
+                    path.push(normalized_ident(&associated.ident));
+                    output.entry(path.join("::")).or_default().union(&info);
+                }
+            }
             // `impl Statements { const SQL: &str = "…" }` pins a statement
             // exactly like a module constant, and the call site can only see
             // `Statements::SQL` unless it is registered under that name.
@@ -3380,6 +3433,10 @@ fn collect_module_symbols(
     let mut symbols = parent
         .cloned()
         .unwrap_or_else(|| ModuleSymbols::for_package(package));
+    // A child module does not see the parent's items under their bare names,
+    // so these sets are rebuilt for each module's own scope.
+    symbols.local_type_definitions.clear();
+    symbols.local_macro_definitions.clear();
     symbols
         .local_type_definitions
         .extend(items.iter().filter_map(|item| match item {
@@ -3388,6 +3445,24 @@ fn collect_module_symbols(
             Item::Type(item_type) => Some(normalized_ident(&item_type.ident)),
             _ => None,
         }));
+    // An import shadows a prelude name as surely as a declaration does, unless
+    // it is the standard item itself.
+    for item in items {
+        let Item::Use(item_use) = item else {
+            continue;
+        };
+        let (leaves, _) = use_leaves(item_use);
+        for leaf in leaves {
+            if leaf
+                .source
+                .first()
+                .is_some_and(|root| matches!(root.as_str(), "std" | "alloc" | "core"))
+            {
+                continue;
+            }
+            symbols.local_type_definitions.insert(leaf.local);
+        }
+    }
 
     symbols.module_path = module
         .split("::")
@@ -6714,6 +6789,23 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     fn pinned_path_info(&self, path: &syn::ExprPath) -> Option<&VariableInfo> {
         // `<Statements as Sql>::SQL` names the same constant as
         // `Statements::SQL`; the qualification says which impl, not which value.
+        // `Self::SQL` inside an impl names that impl's type.
+        let names = path_names(&path.path);
+        if path.qself.is_none()
+            && names.len() == 2
+            && names[0] == "Self"
+            && let Some(info) = self.lookup("Self")
+        {
+            let member = names[1].clone();
+            if let Some(found) = info.nominal_types.iter().find_map(|owner| {
+                let owner = self.package_function_key(vec![owner.clone()]);
+                self.symbols
+                    .package_item_values
+                    .get(&format!("{owner}::{member}"))
+            }) {
+                return Some(found);
+            }
+        }
         if let Some(qself) = &path.qself {
             // `<Statements as Sql>::SQL` names the value that `Sql` defines,
             // which another trait's impl for the same type may not share.
@@ -6732,10 +6824,20 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                         Some(trait_path) => format!("<{owner} as {trait_path}>::{member}"),
                         None => format!("{owner}::{member}"),
                     };
-                    self.symbols.package_item_values.get(&key)
+                    self.symbols
+                        .package_item_values
+                        .get(&key)
+                        // An impl that does not override the constant inherits
+                        // the trait's default.
+                        .or_else(|| {
+                            trait_path.as_ref().and_then(|trait_path| {
+                                self.symbols
+                                    .package_item_values
+                                    .get(&format!("{trait_path}::{member}"))
+                            })
+                        })
                 });
         }
-        let names = path_names(&path.path);
         if names.len() == 1
             && let Some(name) = names.first()
             && let Some(info) = self
@@ -6863,7 +6965,11 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 // return anything.
                 Expr::Call(call)
                     if matches!(call.func.as_ref(), Expr::Path(path)
-                        if is_standard_string_conversion(&path.path, resolve_path, local_types)) =>
+                    if is_standard_string_conversion(
+                        &path.path,
+                        resolve_path,
+                        local_types,
+                    )) =>
                 {
                     call.args.first().is_some_and(is_indirect)
                 }
@@ -10229,6 +10335,7 @@ fn analyze_trait_default_bodies(
     item_trait: &ItemTrait,
     context: &RecordContext<'_>,
     symbols: &ModuleSymbols,
+    visible_macro_shadows: BTreeSet<String>,
     cfg: &[String],
     accumulator: &mut AccessAccumulator,
     errors: &mut Vec<String>,
@@ -10282,6 +10389,7 @@ fn analyze_trait_default_bodies(
                 ..VariableInfo::default()
             },
         );
+        analyzer.visible_macro_shadows = visible_macro_shadows.clone();
         analyzer.visit_block(default_body);
     }
 }
@@ -11224,6 +11332,7 @@ fn analyze_module_items(
                         item_trait,
                         &context,
                         &symbols,
+                        macro_shadows_before(items, item_index),
                         &cfg,
                         accumulator,
                         errors,
@@ -19283,6 +19392,99 @@ mod tests {
                 && row.operation == PersistenceOperation::Query
                 && !row.fingerprint.contains("sql-source")
         }));
+    }
+
+    #[test]
+    fn persistence_inventory_refuses_qualified_custom_string_conversions() {
+        let baseline = inventory(
+            r#"
+                const SAFE_SQL: &str = "SELECT 1";
+                mod custom {
+                    pub struct String;
+                    impl String {
+                        pub fn from(_ignored: &str) -> &'static str {
+                            "SELECT GET_LOCK('substituted', 0)"
+                        }
+                    }
+                }
+                fn qualified_custom() {
+                    sqlx::query(custom::String::from(SAFE_SQL));
+                }
+            "#,
+        )
+        .unwrap();
+        // A `from` of somebody's own type returns whatever it likes.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn qualified_custom"
+                && row.operation == PersistenceOperation::Query
+                && !row.fingerprint.contains("sql-source")
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_scopes_type_shadows_to_their_module() {
+        let baseline = inventory(
+            r#"
+                struct String;
+                mod child {
+                    pub(crate) const SQL: &str = "SELECT GET_LOCK('child', 0)";
+                    pub(crate) fn run() {
+                        sqlx::query(String::from(SQL).as_str());
+                    }
+                }
+            "#,
+        )
+        .unwrap();
+        // The parent's `struct String` is not in scope under the bare name in
+        // the child, so the conversion there is the standard one.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn run" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_pins_trait_default_and_self_constants() {
+        let collect = |sql: &str| {
+            inventory(&format!(
+                r#"
+                    trait Sql {{
+                        const SQL: &'static str = {sql:?};
+                    }}
+                    struct Statements;
+                    impl Statements {{
+                        const OWN: &str = {sql:?};
+                        fn run(&self) {{
+                            sqlx::query(Self::OWN);
+                        }}
+                    }}
+                    fn from_default() {{
+                        sqlx::query(<Statements as Sql>::SQL);
+                    }}
+                "#
+            ))
+            .unwrap()
+        };
+        let locked = collect("SELECT GET_LOCK('default', 0)");
+        let clean = collect("SELECT 1");
+        let fingerprint = |baseline: &PersistenceAccessBaseline, needle: &str| {
+            baseline
+                .accesses
+                .iter()
+                .find(|row| {
+                    row.enclosing.contains(needle) && row.operation == PersistenceOperation::Query
+                })
+                .map(|row| row.fingerprint.clone())
+                .unwrap()
+        };
+        // `Self::OWN` names the impl's own constant, and a trait's default is
+        // the value an impl inherits.
+        for needle in ["run", "from_default"] {
+            assert_ne!(
+                fingerprint(&locked, needle),
+                fingerprint(&clean, needle),
+                "{needle} did not follow the constant it names"
+            );
+        }
     }
 
     #[test]
