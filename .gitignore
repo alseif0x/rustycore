@@ -70,3 +70,7 @@ TOOLS.md
 world-server-rust
 world-server-rust.old
 world-server-bin
+
+# Python bytecode from the tools/ scripts (check_architecture.py, codex_review_gate.py)
+__pycache__/
+*.pyc
