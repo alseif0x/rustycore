@@ -27,15 +27,17 @@
 //! worse than none, because absence of events reads as absence of persistence.
 //! Three paths are currently invisible, all tracked in issue #213:
 //!
-//! * **Generated hotfix statements.** `HotfixStatements::GENERATED_BASE`
-//!   still derives its identity from `Debug`, which embeds the SQL.
 //! * **Nine indirect statement builders** that do not name their variant
 //!   inline, so `for_statement` could not be applied mechanically.
 //! * **Raw pooled SQL**, which carries no logical database and is skipped
 //!   rather than attributed to a guessed one.
+//! * **Parameter redaction is not proof against a dictionary.** Length plus an
+//!   unsalted digest can be matched for a low-entropy value, so a trace is
+//!   safe to read but should not be treated as safe to publish.
 //!
-//! The two paths that hid whole durable operations — explicit `pool().begin()`
-//! transactions and manually built statements — are now recorded.
+//! The paths that hid whole durable operations are now recorded: explicit
+//! `pool().begin()` transactions, manually built statements, generated hotfix
+//! statements, and the advisory-lock lifetime.
 //!
 //! Until those are closed, a golden built from this recorder can approve a
 //! refactor that breaks the very persistence it claims to protect.
@@ -266,6 +268,15 @@ pub enum PersistenceEvent {
     DeadlockRetry {
         database: LogicalDatabase,
         attempt: u32,
+    },
+    /// Two logical databases appeared in one transaction.
+    ///
+    /// They can never be one atomic unit, so a trace that recorded a single
+    /// boundary here would describe a guarantee the server cannot make. The
+    /// contradiction is recorded rather than smoothed over.
+    MixedLogicalDatabases {
+        opened: LogicalDatabase,
+        appended: LogicalDatabase,
     },
     /// A point the plan must not cross until prior work is durable.
     Fence {
@@ -768,6 +779,31 @@ mod tests {
             "CHAR_SEL_CHARACTER_NAME",
             "SELECT name FROM characters WHERE guid = ?",
         );
+        assert_ne!(statement.trace_identity(), other.trace_identity());
+    }
+
+    #[test]
+    fn a_generated_hotfix_statement_is_identified_by_its_table() {
+        use crate::statements::{HotfixStatements, StatementDef};
+
+        // Same defect as `GENERATED_CPP`, in the variant I did not check the
+        // first time: `GENERATED_BASE` carries its SQL.
+        let statement = HotfixStatements::base("SELECT ID, Field FROM area_table WHERE ID = ?");
+        assert_eq!(statement.trace_identity(), "GENERATED_BASE:area_table");
+        assert!(
+            !statement.trace_identity().contains("SELECT"),
+            "a generated hotfix statement must not be identified by its SQL"
+        );
+
+        let reformatted =
+            HotfixStatements::base("SELECT  ID, Field\n  FROM area_table\n  WHERE ID = ?");
+        assert_eq!(
+            statement.trace_identity(),
+            reformatted.trace_identity(),
+            "identity must survive a formatting-only change"
+        );
+
+        let other = HotfixStatements::base("SELECT ID FROM spell_name WHERE ID = ?");
         assert_ne!(statement.trace_identity(), other.trace_identity());
     }
 

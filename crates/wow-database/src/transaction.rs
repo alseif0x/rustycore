@@ -122,6 +122,10 @@ impl ItemGuidAllocatorAdvisoryLockLikeCpp {
             .fetch_one(&mut *connection)
             .await
             .map_err(DatabaseError::from)?;
+        // The lock lives on its own dedicated connection for the life of the
+        // process, so it is neither pooled nor part of any transaction, and
+        // whether it was taken is an observable persistence fact.
+        crate::persistence_trace::record_advisory_lock(&lock_name, acquired == Some(1));
         if acquired != Some(1) {
             return Err(DatabaseError::Transaction(format!(
                 "another world-server owns the {allocator_label} GUID allocator lock for {database_label} database {database_name}"
@@ -245,6 +249,9 @@ async fn release_item_guid_allocator_lock_like_cpp(
         .fetch_one(&mut **connection)
         .await
         .map_err(DatabaseError::from)?;
+    // Releasing is the other half of the lifetime: a trace that showed the
+    // acquisition and never its release would describe a lock still held.
+    crate::persistence_trace::record_advisory_lock(lock_name, false);
     if released != Some(1) {
         return Err(DatabaseError::Transaction(format!(
             "{allocator_label} GUID allocator advisory lock {lock_name} was not owned at shutdown"
@@ -369,6 +376,17 @@ impl SqlTransaction {
         // is called in seventy-five places that do not know it, and a raw-SQL
         // append cannot supply it at all.
         let database = match (self.trace_database, stmt.trace_database()) {
+            (Some(known), Some(appended)) if appended != known => {
+                // Two logical databases can never be one atomic unit, so a
+                // trace that recorded a single boundary here would describe a
+                // guarantee the server cannot make. Record the contradiction
+                // instead of smoothing it over.
+                recorder.record(PersistenceEvent::MixedLogicalDatabases {
+                    opened: known,
+                    appended,
+                });
+                known
+            }
             (Some(known), _) => known,
             (None, Some(first)) => {
                 recorder.record(PersistenceEvent::TransactionBegin { database: first });
@@ -988,6 +1006,36 @@ mod trace_tests {
             }
             other => panic!("expected an identified statement, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn two_logical_databases_in_one_transaction_are_flagged() {
+        use crate::persistence_trace::RecordingSession;
+        use crate::statements::LoginStatements;
+
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        let mut trans = SqlTransaction::new();
+        trans.append(PreparedStatement::for_statement(
+            CharStatements::DEL_POOL_QUEST_SAVE,
+        ));
+        trans.append(PreparedStatement::for_statement(
+            LoginStatements::SEL_REALMLIST,
+        ));
+
+        let events = recorder.take().events;
+        assert!(
+            events.iter().any(|event| matches!(
+                event,
+                PersistenceEvent::MixedLogicalDatabases {
+                    opened: LogicalDatabase::Character,
+                    appended: LogicalDatabase::Login,
+                }
+            )),
+            "a transaction spanning two databases must say so: {events:?}"
+        );
     }
 
     #[test]

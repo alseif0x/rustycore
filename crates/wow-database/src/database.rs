@@ -191,7 +191,7 @@ impl<S: StatementDef> Database<S> {
     /// whether it shared the writer's transaction or took its own connection
     /// is precisely the fact a port extraction can change without moving a
     /// row. `Pooled` is that distinction.
-    fn record_pooled_statement(stmt: &PreparedStatement) {
+    fn record_pooled_statement(stmt: &PreparedStatement, succeeded: bool) {
         let Some(recorder) = crate::persistence_trace::ambient_recorder() else {
             return;
         };
@@ -215,6 +215,13 @@ impl<S: StatementDef> Database<S> {
                     params,
                     expected_rows_affected: None,
                 });
+                if !succeeded {
+                    // A statement that never reached the server is not the
+                    // same event as one that ran; without this a failed read
+                    // is indistinguishable from a successful one in the trace.
+                    recorder
+                        .record(crate::persistence_trace::PersistenceEvent::Rollback { database });
+                }
             }
             None => {
                 recorder.record(crate::persistence_trace::PersistenceEvent::RawStatement {
@@ -229,7 +236,6 @@ impl<S: StatementDef> Database<S> {
     /// Execute a query and return the result rows.
     pub async fn query(&self, stmt: &PreparedStatement) -> Result<SqlResult, DatabaseError> {
         warn_if_sync_query_like_cpp("query");
-        Self::record_pooled_statement(stmt);
         let sql = stmt.sql();
         if sql.is_empty() {
             return Err(DatabaseError::UnregisteredStatement(0));
@@ -240,8 +246,10 @@ impl<S: StatementDef> Database<S> {
             query = bind_param(query, param);
         }
 
-        let rows = query.fetch_all(&self.pool).await?;
-        Ok(SqlResult::new(rows))
+        // Recorded after the call so the trace carries whether it ran.
+        let rows = query.fetch_all(&self.pool).await;
+        Self::record_pooled_statement(stmt, rows.is_ok());
+        Ok(SqlResult::new(rows?))
     }
 
     /// Execute a statement that does not return rows (INSERT, UPDATE, DELETE).
@@ -249,7 +257,6 @@ impl<S: StatementDef> Database<S> {
     /// Returns the number of affected rows.
     pub async fn execute(&self, stmt: &PreparedStatement) -> Result<u64, DatabaseError> {
         warn_if_sync_query_like_cpp("execute");
-        Self::record_pooled_statement(stmt);
         let sql = stmt.sql();
         if sql.is_empty() {
             return Err(DatabaseError::UnregisteredStatement(0));
@@ -260,8 +267,10 @@ impl<S: StatementDef> Database<S> {
             query = bind_param(query, param);
         }
 
-        let result = query.execute(&self.pool).await?;
-        Ok(result.rows_affected())
+        // Recorded after the call so the trace carries whether it ran.
+        let result = query.execute(&self.pool).await;
+        Self::record_pooled_statement(stmt, result.is_ok());
+        Ok(result?.rows_affected())
     }
 
     /// Execute a raw SQL string directly (no prepared statement).
@@ -570,18 +579,24 @@ mod tests {
 
         assert_eq!(
             recorder.take().events,
-            vec![PersistenceEvent::Statement {
-                database: LogicalDatabase::Character,
-                connection: ConnectionAffinity::Pooled,
-                statement: "SEL_ENUM".to_owned(),
-                // C++ `PreparedStatementBase(index, capacity)` pre-allocates
-                // one slot per `?`, and this statement was never bound, so the
-                // trace faithfully shows the unbound placeholder rather than
-                // an empty parameter list.
-                params: vec![crate::persistence_trace::TracedParam::Bool { value: false }],
-                expected_rows_affected: None,
-            }],
-            "a read on its own connection must not look like part of a transaction"
+            vec![
+                PersistenceEvent::Statement {
+                    database: LogicalDatabase::Character,
+                    connection: ConnectionAffinity::Pooled,
+                    statement: "SEL_ENUM".to_owned(),
+                    // C++ `PreparedStatementBase(index, capacity)` pre-allocates
+                    // one slot per `?`, and this statement was never bound, so the
+                    // trace faithfully shows the unbound placeholder rather than
+                    // an empty parameter list.
+                    params: vec![crate::persistence_trace::TracedParam::Bool { value: false }],
+                    expected_rows_affected: None,
+                },
+                PersistenceEvent::Rollback {
+                    database: LogicalDatabase::Character,
+                }
+            ],
+            "a read on its own connection must not look like part of a transaction, \
+             and one that never reached the server must not look like one that ran"
         );
     }
 
