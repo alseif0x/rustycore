@@ -151,6 +151,10 @@ pub enum LoginStatements {
 }
 
 impl StatementDef for LoginStatements {
+    fn logical_database(self) -> crate::persistence_trace::LogicalDatabase {
+        crate::persistence_trace::LogicalDatabase::Login
+    }
+
     #[allow(clippy::too_many_lines)]
     fn sql(self) -> &'static str {
         match self {

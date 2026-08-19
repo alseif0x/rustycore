@@ -174,7 +174,13 @@ impl<S: StatementDef> Database<S> {
     /// values before executing.
     pub fn prepare(&self, stmt: S) -> PreparedStatement {
         let sql = stmt.sql();
-        PreparedStatement::new(sql)
+        let prepared = PreparedStatement::new(sql);
+        // Deriving the identity allocates, and this is on every query path, so
+        // production pays one relaxed load instead.
+        if crate::persistence_trace::recording_enabled() {
+            return prepared.with_trace_identity(stmt.trace_identity());
+        }
+        prepared
     }
 
     /// Execute a query and return the result rows.

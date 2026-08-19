@@ -36,6 +36,10 @@ pub enum SqlParam {
 pub struct PreparedStatement {
     sql: Cow<'static, str>,
     params: Vec<SqlParam>,
+    /// Statement-enum variant this was prepared from, captured only while
+    /// persistence tracing is enabled. `None` for raw SQL and for every
+    /// statement prepared with tracing off, which is the production default.
+    trace_identity: Option<String>,
 }
 
 impl PreparedStatement {
@@ -52,12 +56,25 @@ impl PreparedStatement {
         Self {
             sql: Cow::Borrowed(sql),
             params: vec![SqlParam::Bool(false); capacity],
+            trace_identity: None,
         }
+    }
+
+    /// Statement-enum variant this was prepared from, when tracing captured it.
+    pub fn trace_identity(&self) -> Option<&str> {
+        self.trace_identity.as_deref()
+    }
+
+    /// Attach the semantic identity of the statement enum this came from.
+    pub fn with_trace_identity(mut self, identity: String) -> Self {
+        self.trace_identity = Some(identity);
+        self
     }
 
     /// Create a statement from owned raw SQL, mirroring TC raw transaction appends.
     pub fn raw_sql_like_cpp(sql: impl Into<String>) -> Self {
         Self {
+            trace_identity: None,
             sql: Cow::Owned(sql.into()),
             params: Vec::new(),
         }

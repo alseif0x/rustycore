@@ -22,6 +22,7 @@
 
 use crate::params::SqlParam;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 /// Logical database a step ran against.
@@ -255,6 +256,42 @@ impl PersistenceTrace {
     }
 }
 
+/// Whether statement identities are being captured.
+///
+/// Deriving a statement's identity costs an allocation, and prepare sits on
+/// every query path, so production does not pay for it. Recording is a test and
+/// QA facility: enable it with [`RecordingGuard`], which restores the previous
+/// state on drop so one test cannot leave it on for another.
+static RECORDING: AtomicBool = AtomicBool::new(false);
+
+/// Whether persistence tracing is currently capturing statement identities.
+pub fn recording_enabled() -> bool {
+    RECORDING.load(Ordering::Relaxed)
+}
+
+/// Enables identity capture for as long as it is held.
+///
+/// The flag is process-wide, so a test that needs it must also serialize
+/// against other tests that read traces.
+#[derive(Debug)]
+pub struct RecordingGuard {
+    previous: bool,
+}
+
+impl RecordingGuard {
+    pub fn enable() -> Self {
+        Self {
+            previous: RECORDING.swap(true, Ordering::Relaxed),
+        }
+    }
+}
+
+impl Drop for RecordingGuard {
+    fn drop(&mut self) {
+        RECORDING.store(self.previous, Ordering::Relaxed);
+    }
+}
+
 /// Handle used by production code to append events.
 ///
 /// Cloning shares one recording. The mutex is taken only to push an event and
@@ -456,6 +493,68 @@ mod tests {
 
         assert_eq!(recorder.take(), money_plan());
         assert!(recorder.take().events.is_empty(), "take must drain");
+    }
+
+    /// Serializes every test that reads or writes the process-wide capture
+    /// flag. Rust runs tests in parallel, so without this a test asserting the
+    /// flag is off would fail whenever another test happened to hold a guard.
+    static CAPTURE_FLAG_TESTS: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn the_recording_guard_restores_the_previous_state() {
+        let _serialized = CAPTURE_FLAG_TESTS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        // Nested guards must not leave capture on for unrelated tests.
+        assert!(!recording_enabled(), "capture is off by default");
+        {
+            let _outer = RecordingGuard::enable();
+            assert!(recording_enabled());
+            {
+                let _inner = RecordingGuard::enable();
+                assert!(recording_enabled());
+            }
+            assert!(recording_enabled(), "the outer guard still holds it");
+        }
+        assert!(
+            !recording_enabled(),
+            "dropping the outer guard restores off"
+        );
+    }
+
+    #[test]
+    fn prepare_captures_the_variant_name_only_while_recording() {
+        use crate::statements::{CharStatements, StatementDef};
+
+        let _serialized = CAPTURE_FLAG_TESTS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+        // The identity is the variant, not the SQL: that is what survives a
+        // reformat of the query or a rename of the file holding it.
+        assert_eq!(
+            CharStatements::SEL_ENUM.trace_identity(),
+            "SEL_ENUM",
+            "identity must be the statement-enum variant"
+        );
+        assert_eq!(
+            CharStatements::SEL_ENUM.logical_database(),
+            LogicalDatabase::Character
+        );
+        assert!(
+            !CharStatements::SEL_ENUM.trace_identity().contains("SELECT"),
+            "identity must not embed SQL text"
+        );
+
+        // Production default: no capture, no allocation.
+        assert!(!recording_enabled());
+        let untraced = crate::params::PreparedStatement::new(CharStatements::SEL_ENUM.sql());
+        assert_eq!(untraced.trace_identity(), None);
+
+        let _capture = RecordingGuard::enable();
+        let traced = crate::params::PreparedStatement::new(CharStatements::SEL_ENUM.sql())
+            .with_trace_identity(CharStatements::SEL_ENUM.trace_identity());
+        assert_eq!(traced.trace_identity(), Some("SEL_ENUM"));
     }
 
     #[test]

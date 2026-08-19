@@ -139,6 +139,10 @@ impl HotfixStatements {
 }
 
 impl StatementDef for HotfixStatements {
+    fn logical_database(self) -> crate::persistence_trace::LogicalDatabase {
+        crate::persistence_trace::LogicalDatabase::Hotfix
+    }
+
     fn sql(self) -> &'static str {
         match self {
             Self::SEL_AREA_TABLE => concat!(

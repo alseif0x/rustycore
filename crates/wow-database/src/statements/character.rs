@@ -1784,6 +1784,10 @@ impl CharStatements {
 }
 
 impl StatementDef for CharStatements {
+    fn logical_database(self) -> crate::persistence_trace::LogicalDatabase {
+        crate::persistence_trace::LogicalDatabase::Character
+    }
+
     fn sql(self) -> &'static str {
         match self {
             Self::DEL_POOL_QUEST_SAVE => "DELETE FROM pool_quest_save WHERE pool_id = ?",
