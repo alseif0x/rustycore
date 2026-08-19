@@ -261,6 +261,11 @@ impl<S: StatementDef> Database<S> {
                     database,
                     connection: crate::persistence_trace::ConnectionAffinity::Pooled,
                     digest: crate::persistence_trace::raw_statement_digest(stmt.sql()),
+                    params: stmt
+                        .params()
+                        .iter()
+                        .map(crate::persistence_trace::TracedParam::from_param)
+                        .collect(),
                 });
             }
         }

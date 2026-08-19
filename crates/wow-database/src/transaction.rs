@@ -425,6 +425,7 @@ impl SqlTransaction {
                 recorder.record(PersistenceEvent::UnattributedRawStatement {
                     connection: ConnectionAffinity::Transaction,
                     digest: raw_statement_digest(stmt.sql()),
+                    params: stmt.params().iter().map(TracedParam::from_param).collect(),
                 });
                 return;
             }
@@ -447,6 +448,7 @@ impl SqlTransaction {
                 database,
                 connection: ConnectionAffinity::Transaction,
                 digest: raw_statement_digest(stmt.sql()),
+                params,
             }),
         }
     }
@@ -1168,6 +1170,44 @@ mod trace_tests {
                 .iter()
                 .any(|event| matches!(event, PersistenceEvent::Rollback { .. })),
             "nothing was sent, so nothing was rolled back: {events:?}"
+        );
+    }
+
+    #[test]
+    fn raw_statements_that_differ_only_in_their_bound_values_differ_in_the_trace() {
+        use crate::persistence_trace::RecordingSession;
+
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+
+        // The bank-slot purchase binds new money, slot count and character GUID
+        // into one constant SQL string. Digesting only the text made every
+        // purchase look identical, so a golden could not tell a change in the
+        // amount from no change at all.
+        let trace_of = |money: u64| {
+            let recorder = PersistenceRecorder::new();
+            let session = RecordingSession::install(recorder.clone());
+            {
+                let mut trans = SqlTransaction::new();
+                let mut stmt =
+                    PreparedStatement::new("UPDATE characters SET money = ? WHERE guid = ?");
+                stmt.set_u64(0, money);
+                stmt.set_u64(1, 42);
+                trans.append(stmt);
+            }
+            drop(session);
+            recorder.take().events
+        };
+
+        let cheap = trace_of(100);
+        let dear = trace_of(999_999);
+        assert_ne!(
+            cheap, dear,
+            "a different bound amount must produce a different trace"
+        );
+        assert_eq!(
+            trace_of(100),
+            cheap,
+            "the same bound amount must produce the same trace"
         );
     }
 

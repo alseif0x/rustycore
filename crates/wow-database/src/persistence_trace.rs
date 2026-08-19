@@ -280,6 +280,13 @@ pub enum PersistenceEvent {
         database: LogicalDatabase,
         connection: ConnectionAffinity,
         digest: u64,
+        /// Bound values, projected exactly as a semantic statement's are.
+        ///
+        /// The digest covers the SQL text, which for a raw statement is a
+        /// constant: the bank-slot purchase binds new money, slot count and
+        /// character GUID into the same string every time, so a trace carrying
+        /// only the digest is identical whatever those values are.
+        params: Vec<TracedParam>,
     },
     /// Raw SQL that arrived before anything identified the transaction's
     /// database, so the trace cannot say which one it ran against.
@@ -292,6 +299,7 @@ pub enum PersistenceEvent {
     UnattributedRawStatement {
         connection: ConnectionAffinity,
         digest: u64,
+        params: Vec<TracedParam>,
     },
     /// An advisory lock was taken or released on its own dedicated connection.
     AdvisoryLock {
