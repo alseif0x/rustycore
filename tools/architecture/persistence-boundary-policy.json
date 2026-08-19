@@ -29575,7 +29575,6 @@
       "sources": [
         "crates/wow-world/src/battle_pet_purchase.rs",
         "crates/wow-world/src/handlers/character.rs",
-        "crates/wow-world/src/handlers/character_vendor_atomicity_tests.rs",
         "crates/wow-world/src/handlers/chat.rs",
         "crates/wow-world/src/handlers/group.rs",
         "crates/wow-world/src/handlers/loot.rs",
@@ -29585,7 +29584,7 @@
         "crates/wow-world/src/handlers/spell.rs",
         "crates/wow-world/src/handlers/talent.rs",
         "crates/wow-world/src/handlers/trainer.rs",
-        "crates/wow-world/src/handlers/void_storage_tests.rs",
+        "crates/wow-world/src/handlers/void_storage.rs",
         "crates/wow-world/src/map_manager.rs",
         "crates/wow-world/src/reputation/mgr.rs",
         "crates/wow-world/src/session.rs"
