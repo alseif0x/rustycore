@@ -3,8 +3,8 @@
 use crate::error::DatabaseError;
 use crate::params::{PreparedStatement, SqlParam};
 use crate::persistence_trace::{
-    ConnectionAffinity, LogicalDatabase, PersistenceEvent, PersistenceRecorder, TracedParam,
-    raw_statement_digest,
+    CommitOutcome, ConnectionAffinity, LogicalDatabase, PersistenceEvent, PersistenceRecorder,
+    TracedParam, raw_statement_digest,
 };
 use sqlx::{MySql, MySqlPool, pool::PoolConnection};
 use std::future::Future;
@@ -380,6 +380,24 @@ impl SqlTransaction {
         }
     }
 
+    fn record_commit(&self, result: &Result<(), SqlTransactionCommitError>) {
+        if let Some((recorder, database)) = &self.trace {
+            recorder.record(PersistenceEvent::Commit {
+                database: *database,
+                outcome: commit_outcome_like_cpp(result),
+            });
+        }
+    }
+
+    fn record_deadlock_retry(&self, attempt: u32) {
+        if let Some((recorder, database)) = &self.trace {
+            recorder.record(PersistenceEvent::DeadlockRetry {
+                database: *database,
+                attempt,
+            });
+        }
+    }
+
     /// Append a prepared statement to this transaction.
     pub fn append(&mut self, stmt: PreparedStatement) {
         self.record_statement(&stmt, None);
@@ -464,11 +482,13 @@ impl SqlTransaction {
         let result = self.try_commit(pool).await;
 
         if !is_outcome_deadlock_like_cpp(&result) {
+            self.record_commit(&result);
             return result;
         }
 
         let _deadlock_guard = DEADLOCK_RETRY_LOCK_LIKE_CPP.lock().await;
         let start = Instant::now();
+        let mut attempt = 0_u32;
 
         loop {
             if start.elapsed() > DEADLOCK_MAX_RETRY_TIME_LIKE_CPP {
@@ -476,14 +496,19 @@ impl SqlTransaction {
                     target: "sql.sql",
                     "Fatal deadlocked SQL Transaction, it will not be retried anymore"
                 );
+                self.record_commit(&result);
                 return result;
             }
 
+            attempt += 1;
+            self.record_deadlock_retry(attempt);
             let retry = self.try_commit_inner(pool).await;
             if retry.is_ok() {
+                self.record_commit(&retry);
                 return retry;
             }
             if !is_outcome_deadlock_like_cpp(&retry) {
+                self.record_commit(&retry);
                 return retry;
             }
 
@@ -581,6 +606,24 @@ fn validate_rows_affected(
     Err(DatabaseError::Transaction(format!(
         "statement {statement_index} affected {actual} rows; expected exactly {expected}"
     )))
+}
+
+/// Classify a finished commit attempt for a persistence trace.
+///
+/// The three outcomes are not interchangeable and the distinction is the whole
+/// reason this contract exists. A definite rollback means the work is gone and
+/// may be replayed; an unknown outcome means the server cannot tell whether it
+/// landed, and C++ reconciles that with a durable token rather than guessing.
+/// Collapsing `Unknown` into either neighbour is the silent data-loss bug this
+/// golden has to be able to see.
+pub(crate) fn commit_outcome_like_cpp(
+    result: &Result<(), SqlTransactionCommitError>,
+) -> CommitOutcome {
+    match result {
+        Ok(()) => CommitOutcome::Committed,
+        Err(SqlTransactionCommitError::DefinitelyRolledBack(_)) => CommitOutcome::RolledBack,
+        Err(SqlTransactionCommitError::CommitOutcomeUnknown(_)) => CommitOutcome::Unknown,
+    }
 }
 
 fn is_outcome_deadlock_like_cpp(result: &Result<(), SqlTransactionCommitError>) -> bool {
@@ -732,6 +775,42 @@ mod trace_tests {
             !rendered.contains("character_pet"),
             "raw SQL text must not reach the trace: {rendered}"
         );
+    }
+
+    fn commit_error(unknown: bool) -> SqlTransactionCommitError {
+        let error = DatabaseError::Transaction("transport reset".to_owned());
+        if unknown {
+            SqlTransactionCommitError::CommitOutcomeUnknown(error)
+        } else {
+            SqlTransactionCommitError::DefinitelyRolledBack(error)
+        }
+    }
+
+    #[test]
+    fn the_three_commit_outcomes_stay_distinct() {
+        // Collapsing `Unknown` into either neighbour is the silent data-loss
+        // bug this contract exists to make visible: a definite rollback may be
+        // replayed, an unknown outcome may not.
+        assert_eq!(commit_outcome_like_cpp(&Ok(())), CommitOutcome::Committed);
+        assert_eq!(
+            commit_outcome_like_cpp(&Err(commit_error(false))),
+            CommitOutcome::RolledBack
+        );
+        assert_eq!(
+            commit_outcome_like_cpp(&Err(commit_error(true))),
+            CommitOutcome::Unknown
+        );
+        assert_ne!(
+            commit_outcome_like_cpp(&Err(commit_error(true))),
+            commit_outcome_like_cpp(&Err(commit_error(false)))
+        );
+    }
+
+    #[test]
+    fn an_unknown_commit_is_never_treated_as_a_deadlock_retry() {
+        // A deadlock is a definite rollback, so it may be retried; an ambiguous
+        // COMMIT must not be, or the retry would double-apply the work.
+        assert!(!is_outcome_deadlock_like_cpp(&Err(commit_error(true))));
     }
 
     #[test]
