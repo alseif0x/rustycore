@@ -185,9 +185,51 @@ impl<S: StatementDef> Database<S> {
         prepared
     }
 
+    /// Record a statement that runs on its own pooled connection.
+    ///
+    /// Single statements are not incidental: a read can gate a write, and
+    /// whether it shared the writer's transaction or took its own connection
+    /// is precisely the fact a port extraction can change without moving a
+    /// row. `Pooled` is that distinction.
+    fn record_pooled_statement(stmt: &PreparedStatement) {
+        let Some(recorder) = crate::persistence_trace::ambient_recorder() else {
+            return;
+        };
+        let Some(database) = stmt.trace_database() else {
+            // Raw SQL executed outside a transaction carries no statement enum
+            // and therefore no database; guessing one would be worse than a
+            // gap the reader can see.
+            return;
+        };
+        let params = stmt
+            .params()
+            .iter()
+            .map(crate::persistence_trace::TracedParam::from_param)
+            .collect();
+        match stmt.trace_identity() {
+            Some(statement) => {
+                recorder.record(crate::persistence_trace::PersistenceEvent::Statement {
+                    database,
+                    connection: crate::persistence_trace::ConnectionAffinity::Pooled,
+                    statement: statement.to_owned(),
+                    params,
+                    expected_rows_affected: None,
+                });
+            }
+            None => {
+                recorder.record(crate::persistence_trace::PersistenceEvent::RawStatement {
+                    database,
+                    connection: crate::persistence_trace::ConnectionAffinity::Pooled,
+                    digest: crate::persistence_trace::raw_statement_digest(stmt.sql()),
+                });
+            }
+        }
+    }
+
     /// Execute a query and return the result rows.
     pub async fn query(&self, stmt: &PreparedStatement) -> Result<SqlResult, DatabaseError> {
         warn_if_sync_query_like_cpp("query");
+        Self::record_pooled_statement(stmt);
         let sql = stmt.sql();
         if sql.is_empty() {
             return Err(DatabaseError::UnregisteredStatement(0));
@@ -207,6 +249,7 @@ impl<S: StatementDef> Database<S> {
     /// Returns the number of affected rows.
     pub async fn execute(&self, stmt: &PreparedStatement) -> Result<u64, DatabaseError> {
         warn_if_sync_query_like_cpp("execute");
+        Self::record_pooled_statement(stmt);
         let sql = stmt.sql();
         if sql.is_empty() {
             return Err(DatabaseError::UnregisteredStatement(0));
@@ -496,6 +539,67 @@ fn percent_encode_query(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::persistence_trace::{
+        ConnectionAffinity, LogicalDatabase, PersistenceEvent, PersistenceRecorder,
+        RecordingSession,
+    };
+    use crate::statements::CharStatements;
+
+    /// The pool is deliberately unreachable. Recording happens before the
+    /// connection attempt, so a statement's identity and affinity are
+    /// observable without a database — which is the only way these paths can
+    /// be covered outside a MariaDB fixture.
+    fn unreachable_pool() -> MySqlPool {
+        sqlx::mysql::MySqlPoolOptions::new()
+            .max_connections(1)
+            .acquire_timeout(std::time::Duration::from_millis(1))
+            .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
+            .expect("syntactically valid lazy pool")
+    }
+
+    #[tokio::test]
+    async fn a_statement_outside_a_transaction_is_recorded_as_pooled() {
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        let db: Database<CharStatements> = Database::from_pool(unreachable_pool());
+        let stmt = db.prepare(CharStatements::SEL_ENUM);
+        let _ = db.query(&stmt).await;
+
+        assert_eq!(
+            recorder.take().events,
+            vec![PersistenceEvent::Statement {
+                database: LogicalDatabase::Character,
+                connection: ConnectionAffinity::Pooled,
+                statement: "SEL_ENUM".to_owned(),
+                // C++ `PreparedStatementBase(index, capacity)` pre-allocates
+                // one slot per `?`, and this statement was never bound, so the
+                // trace faithfully shows the unbound placeholder rather than
+                // an empty parameter list.
+                params: vec![crate::persistence_trace::TracedParam::Bool { value: false }],
+                expected_rows_affected: None,
+            }],
+            "a read on its own connection must not look like part of a transaction"
+        );
+    }
+
+    #[tokio::test]
+    async fn nothing_is_recorded_without_an_installed_recording() {
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+
+        let db: Database<CharStatements> = Database::from_pool(unreachable_pool());
+        let stmt = db.prepare(CharStatements::SEL_ENUM);
+        let _ = db.query(&stmt).await;
+
+        assert!(
+            recorder.take().events.is_empty(),
+            "production must not pay for tracing it did not ask for"
+        );
+    }
+
     use super::{
         build_connection_string, build_connection_string_with_ssl_like_cpp,
         build_server_connection_string_like_cpp, escape_mysql_identifier_like_cpp,
