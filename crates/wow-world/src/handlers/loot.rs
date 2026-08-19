@@ -13429,6 +13429,14 @@ async fn attempt_stored_item_money_transaction_like_cpp(
     };
     // Global order shared with group payouts: character mutation mutex, then
     // character row, then the stored Item source row.
+    wow_database::persistence_trace::record_explicit_statement(
+        traced_db,
+        &CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.trace_identity(),
+        vec![wow_database::persistence_trace::TracedParam::Uint {
+            value: player_guid.counter() as u64,
+            width_bits: 64,
+        }],
+    );
     let before = sqlx::query_scalar::<_, u64>(CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.sql())
         .bind(player_guid.counter() as u64)
         .fetch_optional(&mut *transaction)
@@ -13439,6 +13447,14 @@ async fn attempt_stored_item_money_transaction_like_cpp(
                 LootMoneyPersistenceErrorLikeCpp::MissingPlayer,
             )
         })?;
+    wow_database::persistence_trace::record_explicit_statement(
+        traced_db,
+        &CharStatements::SEL_ITEMCONTAINER_MONEY_FOR_UPDATE.trace_identity(),
+        vec![wow_database::persistence_trace::TracedParam::Uint {
+            value: item_guid.counter() as u64,
+            width_bits: 64,
+        }],
+    );
     let source_money =
         sqlx::query_scalar::<_, u64>(CharStatements::SEL_ITEMCONTAINER_MONEY_FOR_UPDATE.sql())
             .bind(item_guid.counter() as u64)
@@ -13449,7 +13465,13 @@ async fn attempt_stored_item_money_transaction_like_cpp(
         if let Some(outcome) =
             stored_item_money_zero_without_source_outcome_like_cpp(before, cached_notified_amount)
         {
-            transaction.rollback().await.map_err(definitely)?;
+            {
+                wow_database::persistence_trace::record_explicit_rollback(traced_db);
+                transaction
+            }
+            .rollback()
+            .await
+            .map_err(definitely)?;
             return Ok(outcome);
         }
         return Err(StoredItemMoneyAttemptErrorLikeCpp::DefinitelyRolledBack(
@@ -13546,6 +13568,14 @@ async fn reconcile_stored_item_money_commit_like_cpp(
     // Read and lock both facts in the same order as the original mutation.
     // The per-character mutation mutex is still held, so a later local payout
     // cannot manufacture a mixed observation while COMMIT is reconciled.
+    wow_database::persistence_trace::record_explicit_statement(
+        traced_db,
+        &CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.trace_identity(),
+        vec![wow_database::persistence_trace::TracedParam::Uint {
+            value: player_guid.counter() as u64,
+            width_bits: 64,
+        }],
+    );
     let observed_money =
         sqlx::query_scalar::<_, u64>(CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.sql())
             .bind(player_guid.counter() as u64)
@@ -13555,6 +13585,14 @@ async fn reconcile_stored_item_money_commit_like_cpp(
             .ok_or_else(|| {
                 DatabaseError::Transaction("stored-money character vanished".to_string())
             })?;
+    wow_database::persistence_trace::record_explicit_statement(
+        traced_db,
+        &CharStatements::SEL_ITEMCONTAINER_MONEY_FOR_UPDATE.trace_identity(),
+        vec![wow_database::persistence_trace::TracedParam::Uint {
+            value: item_guid.counter() as u64,
+            width_bits: 64,
+        }],
+    );
     let observed_source_money =
         sqlx::query_scalar::<_, u64>(CharStatements::SEL_ITEMCONTAINER_MONEY_FOR_UPDATE.sql())
             .bind(item_guid.counter() as u64)
@@ -13566,7 +13604,13 @@ async fn reconcile_stored_item_money_commit_like_cpp(
         observed_money,
         observed_source_money,
     );
-    transaction.rollback().await.map_err(DatabaseError::from)?;
+    {
+        wow_database::persistence_trace::record_explicit_rollback(traced_db);
+        transaction
+    }
+    .rollback()
+    .await
+    .map_err(DatabaseError::from)?;
     Ok(classification)
 }
 

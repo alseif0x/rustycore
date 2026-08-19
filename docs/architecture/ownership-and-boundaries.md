@@ -280,7 +280,7 @@ progress:
 | `crates/wow-world/src/session.rs` | 71,933 | 94,888 | 166,821 |
 | `crates/wow-map/src/map.rs` | 15,245 | 18,415 | 33,660 |
 | `crates/wow-world/src/handlers/character.rs` | 20,200 | 10,653 | 30,853 |
-| `crates/wow-world/src/handlers/loot.rs` | 13,655 | 16,234 | 29,889 |
+| `crates/wow-world/src/handlers/loot.rs` | 13,699 | 16,234 | 29,933 |
 | `crates/world-server/src/main.rs` | 15,370 | 12,805 | 28,175 |
 | `crates/wow-world/src/handlers/misc.rs` | 7,315 | 11,473 | 18,788 |
 | `crates/wow-world/src/handlers/quest.rs` | 8,255 | 10,217 | 18,472 |
@@ -295,7 +295,7 @@ reachable payload types. The factory has 247 `set_*` and one `install_*` call: t
 multiline calls that the earlier text-only count missed. The generated-input surface has 44 exact
 records, and direct access to `PlayerRegistry`, `GroupRegistry`, or `PendingInvites` is frozen as
 685 exact AST rows with multiplicity 705. The workspace-wide persistence inventory contains 23,437
-exact rows—12,955 production and 10,482 test-fixture—with multiplicity 25,655 (14,449 production and
+exact rows—12,955 production and 10,482 test-fixture—with multiplicity 25,659 (14,453 production and
 11,206 test). Six generated-source inputs are an orthogonal subset, not a third source class. Schema
 v3 covers SQLx and concrete `wow_database` types/imports, typed statements/results/errors,
 prepare/query/execute/direct/raw/nonliteral/interpolated SQL, pool access, transaction construction/append/commit,
