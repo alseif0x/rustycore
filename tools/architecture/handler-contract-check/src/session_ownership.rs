@@ -1674,7 +1674,16 @@ fn collect_units(
     let bridge_sources: Vec<_> = units
         .iter()
         .filter(|unit| {
-            unit.availability.production
+            // Test-available units are scanned too, not just production ones: 29
+            // of the baseline's bridge rows are cfg(test), so bridges are audited
+            // in test code by design, and the persistence scan already accepts
+            // `production_possible || test_possible` for the same reason. While a
+            // module's tests sat inline the whole file was one production unit and
+            // its `mod tests` was walked as a side effect; extracting that module
+            // to a `#![cfg(test)]` sibling makes it its own non-production unit,
+            // and a production-only filter would then drop its rows silently --
+            // hiding audited bridges rather than reporting them.
+            (unit.availability.production || unit.availability.test)
                 && matches!(unit.role, PackageRole::World | PackageRole::Server)
         })
         .map(|unit| BridgeSource {

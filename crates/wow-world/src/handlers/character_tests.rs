@@ -1,7 +1,11 @@
 //! Behaviour tests for [`super`].
 //!
-//! Extracted verbatim from `character.rs`. Moving tests moves no invariant: the
+//! Extracted from `character.rs`. Moving tests moves no invariant: the
 //! production module boundary, its visibility and its owners are untouched.
+//!
+//! Dedenting by one level lets rustfmt collapse some argument lists onto a single
+//! line, which drops their trailing commas; that is the only difference from the
+//! original text.
 
 #![cfg(test)]
 

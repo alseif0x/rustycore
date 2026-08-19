@@ -1,9 +1,13 @@
 //! Behaviour tests for [`super`].
 //!
-//! Extracted verbatim from `session.rs`, which was 166,815 lines of which 94,772
+//! Extracted from `session.rs`, which was 166,815 lines of which 94,772
 //! — 57% — were this one `mod tests`. The production code and its module
 //! boundaries are untouched: moving tests moves no invariant, so this is the one
 //! reduction available before #133's encapsulation work begins.
+//!
+//! Dedenting by one level lets rustfmt collapse some argument lists onto a single
+//! line, which drops their trailing commas; that is the only difference from the
+//! original text.
 
 #![cfg(test)]
 

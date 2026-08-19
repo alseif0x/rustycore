@@ -1,8 +1,10 @@
 //! Behaviour tests for [`super`].
 //!
-//! Extracted verbatim from `spell.rs`, which was 13,736 lines of which
+//! Extracted from `spell.rs`, which was 13,736 lines of which
 //! 6,177 — 45% — were this one `mod tests`. The production code and its
-//! module boundaries are untouched: moving tests moves no invariant.
+//! module boundaries are untouched: moving tests moves no invariant. Dedenting by
+//! one level lets rustfmt collapse some argument lists onto a single line, which
+//! drops their trailing commas; that is the only difference from the original text.
 
 #![cfg(test)]
 
