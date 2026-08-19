@@ -11,6 +11,9 @@ on:
       - ready_for_review
 
 permissions:
+  # actions: read is what lets the gate ask when this run was created, which is
+  # the only server-observed boundary that a thumbs-up can be measured against.
+  actions: read
   contents: read
   issues: read
   pull-requests: read

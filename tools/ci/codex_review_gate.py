@@ -179,24 +179,32 @@ def classify_codex_item(kind, body, inline_comments):
         return "pass"
     return None
 
-def head_sha_first_seen_at():
-    """When GitHub first saw the current HEAD, as an ISO-8601 string.
+def head_transition_boundary():
+    """When this pull request took the current HEAD, as an ISO-8601 string.
 
-    Deliberately not the commit's committer date: that is metadata the author
-    controls and it records when the commit was *written*, not when it reached
-    the server. A commit created locally before Codex reacted and pushed after
-    it would look newer than the reaction, and force-pushing any back-dated
-    commit does the same. GitHub creates a check suite when a SHA arrives, so
-    the earliest suite for this SHA is a server-observed lower bound on when it
-    became reviewable.
+    Three weaker boundaries were tried and are wrong:
+
+      - the commit's committer date is author-controlled and records when the
+        commit was *written*, so a commit created at 10:00, thumbs-upped at
+        10:30 and pushed at 11:00 looks reviewed, and back-dating a force-push
+        does the same;
+      - the earliest check suite for the SHA is server-observed but belongs to
+        the SHA, not to this pull request, so a SHA already pushed to another
+        ref carries an old suite and force-pushing it here reuses that older
+        boundary;
+      - this process's own start time moves on every re-run, which would reject
+        a reaction that was valid when the run was first created -- and a re-run
+        is exactly how a timed-out gate is retried.
+
+    This run was created by the event that made this SHA the pull request's
+    head, and a re-run keeps the original creation time, so the run's own
+    created_at is both server-observed and scoped to this pull request.
     """
-    suites = gh_json_object(f"repos/{repo}/commits/{head_sha}/check-suites")
-    created = [
-        suite.get("created_at")
-        for suite in suites.get("check_suites", [])
-        if suite.get("created_at")
-    ]
-    return min(created) if created else ""
+    run_id = os.environ.get("GITHUB_RUN_ID", "")
+    if not run_id:
+        return ""
+    run = gh_json_object(f"repos/{repo}/actions/runs/{run_id}")
+    return run.get("created_at") or ""
 
 
 def reaction_is_current(reaction_created_at, head_seen_at):
@@ -228,7 +236,7 @@ def codex_thumbs_up_for_current_head():
     will react with a thumbs up", so a gate that only reads comments and reviews
     times out on exactly the clean case it is meant to let through.
     """
-    head_seen_at = head_sha_first_seen_at()
+    head_seen_at = head_transition_boundary()
     for reaction in gh_json_pages(f"repos/{repo}/issues/{pr_number}/reactions"):
         if reaction.get("user", {}).get("login") not in codex_logins:
             continue
