@@ -334,6 +334,15 @@ impl std::error::Error for SqlTransactionCommitError {
 ///
 /// Matches the TC `TransactionBase` / `Transaction<T>` pattern: collect
 /// prepared statements or raw SQL strings, then commit them all at once.
+/// Nothing was sent.
+const TRACE_PLANNED: u8 = 0;
+/// `pool.begin()` succeeded; statements are going out.
+const TRACE_EXECUTING: u8 = 1;
+/// COMMIT was issued and its result has not come back.
+const TRACE_COMMITTING: u8 = 2;
+/// A terminal event was already recorded.
+const TRACE_RESOLVED: u8 = 3;
+
 #[derive(Debug, Default)]
 pub struct SqlTransaction {
     statements: Vec<TransactionStatement>,
@@ -345,9 +354,10 @@ pub struct SqlTransaction {
     /// Set by the first appended statement. A transaction that never receives
     /// one never opened, and its trace says so.
     trace_database: Option<LogicalDatabase>,
-    /// Whether a terminal event was recorded. A batch dropped without one was
-    /// planned and abandoned, which is not the same as one that rolled back.
-    trace_resolved: std::sync::atomic::AtomicBool,
+    /// How far the batch got. A drop has to say which of three different
+    /// things happened, and they are not interchangeable: whether a retry is
+    /// safe depends on the answer.
+    trace_progress: std::sync::atomic::AtomicU8,
 }
 
 #[derive(Debug)]
@@ -362,7 +372,7 @@ impl SqlTransaction {
         Self {
             statements: Vec::new(),
             cleaned_up_like_cpp: false,
-            trace_resolved: std::sync::atomic::AtomicBool::new(false),
+            trace_progress: std::sync::atomic::AtomicU8::new(TRACE_PLANNED),
             trace: crate::persistence_trace::ambient_recorder(),
             trace_database: None,
         }
@@ -445,16 +455,16 @@ impl SqlTransaction {
         if let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) {
             recorder.record(PersistenceEvent::Commit { database, outcome });
         }
-        self.trace_resolved
-            .store(true, std::sync::atomic::Ordering::Relaxed);
+        self.trace_progress
+            .store(TRACE_RESOLVED, std::sync::atomic::Ordering::Relaxed);
     }
 
     fn record_rollback(&self) {
         if let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) {
             recorder.record(PersistenceEvent::Rollback { database });
         }
-        self.trace_resolved
-            .store(true, std::sync::atomic::Ordering::Relaxed);
+        self.trace_progress
+            .store(TRACE_RESOLVED, std::sync::atomic::Ordering::Relaxed);
     }
 
     fn record_deadlock_retry(&self, attempt: u32) {
@@ -465,22 +475,41 @@ impl SqlTransaction {
 }
 
 impl Drop for SqlTransaction {
-    /// Mark a planned batch that never executed.
+    /// Say how far the batch got, because the three answers are not the same
+    /// fact and a retry decision hangs on which one it is.
     ///
     /// Statements are recorded as they are appended, so a caller that builds a
     /// transaction and then returns -- the vendor-currency turn-in does exactly
     /// this when it cannot take the money lock -- left a trace showing writes
-    /// that never reached the database. `Rollback` would be the wrong word for
-    /// it: nothing was sent, so nothing was undone.
+    /// that never reached the database.
+    ///
+    /// Cancellation makes that insufficient on its own. A task dropped while
+    /// awaiting COMMIT has already sent it, and the server may have applied it;
+    /// calling that abandoned would let a golden approve a retry that
+    /// duplicates the write.
     fn drop(&mut self) {
-        if self
-            .trace_resolved
+        let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) else {
+            return;
+        };
+        match self
+            .trace_progress
             .load(std::sync::atomic::Ordering::Relaxed)
         {
-            return;
-        }
-        if let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) {
-            recorder.record(PersistenceEvent::BatchAbandoned { database });
+            // Nothing was sent: the plan was built and abandoned. Deliberately
+            // not `Rollback`, which would claim work was undone that was never
+            // issued.
+            TRACE_PLANNED => recorder.record(PersistenceEvent::BatchAbandoned { database }),
+            // `pool.begin()` succeeded and statements went out. Dropping the
+            // sqlx transaction rolls them back, so that is what happened.
+            TRACE_EXECUTING => recorder.record(PersistenceEvent::Rollback { database }),
+            // COMMIT was issued and its result never came back. Nothing here
+            // can find out, and `Unknown` is the only honest answer -- it is
+            // also the one that stops a retry being assumed safe.
+            TRACE_COMMITTING => recorder.record(PersistenceEvent::Commit {
+                database,
+                outcome: CommitOutcome::Unknown,
+            }),
+            _ => {}
         }
     }
 }
@@ -660,6 +689,9 @@ impl SqlTransaction {
             }
         };
 
+        self.trace_progress
+            .store(TRACE_EXECUTING, std::sync::atomic::Ordering::Relaxed);
+
         for (statement_index, transaction_statement) in self.statements.iter().enumerate() {
             let stmt = &transaction_statement.statement;
             let mut query = sqlx::query(stmt.sql());
@@ -688,6 +720,8 @@ impl SqlTransaction {
             }
         }
 
+        self.trace_progress
+            .store(TRACE_COMMITTING, std::sync::atomic::Ordering::Relaxed);
         if let Err(error) = tx.commit().await {
             let error = DatabaseError::from(error);
             let outcome = if is_database_deadlock_like_cpp(&error) {
@@ -1023,6 +1057,84 @@ mod trace_tests {
                 .iter()
                 .any(|event| matches!(event, PersistenceEvent::Commit { .. })),
             "no commit was attempted, so none may be recorded: {events:?}"
+        );
+    }
+
+    #[test]
+    fn a_batch_cancelled_while_committing_reports_an_unknown_outcome() {
+        use crate::persistence_trace::RecordingSession;
+
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        // Cancellation after COMMIT went out. The server may have applied it and
+        // nothing here can find out, so `BatchAbandoned` -- "nothing reached the
+        // database" -- would be a false statement that lets a golden approve a
+        // retry which duplicates the write. `Unknown` is the only answer that
+        // does not.
+        {
+            let mut trans = SqlTransaction::new();
+            trans.append(PreparedStatement::for_statement(
+                CharStatements::UPD_CHAR_MONEY,
+            ));
+            trans
+                .trace_progress
+                .store(TRACE_COMMITTING, std::sync::atomic::Ordering::Relaxed);
+        }
+
+        let events = recorder.take().events;
+        assert!(
+            events.iter().any(|event| matches!(
+                event,
+                PersistenceEvent::Commit {
+                    outcome: CommitOutcome::Unknown,
+                    ..
+                }
+            )),
+            "a cancelled commit must be recorded as unknown: {events:?}"
+        );
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, PersistenceEvent::BatchAbandoned { .. })),
+            "it did reach the database, so it was not abandoned: {events:?}"
+        );
+    }
+
+    #[test]
+    fn a_batch_cancelled_while_executing_reports_a_rollback() {
+        use crate::persistence_trace::RecordingSession;
+
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        // Statements went out but COMMIT never did. Dropping the sqlx
+        // transaction rolls them back, which is a different fact again from
+        // both of the other two.
+        {
+            let mut trans = SqlTransaction::new();
+            trans.append(PreparedStatement::for_statement(
+                CharStatements::UPD_CHAR_MONEY,
+            ));
+            trans
+                .trace_progress
+                .store(TRACE_EXECUTING, std::sync::atomic::Ordering::Relaxed);
+        }
+
+        let events = recorder.take().events;
+        assert!(
+            events
+                .iter()
+                .any(|event| matches!(event, PersistenceEvent::Rollback { .. })),
+            "an executed-but-uncommitted batch rolls back: {events:?}"
+        );
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, PersistenceEvent::BatchAbandoned { .. })),
+            "statements were sent, so it was not abandoned: {events:?}"
         );
     }
 
