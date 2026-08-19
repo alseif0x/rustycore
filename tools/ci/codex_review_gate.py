@@ -179,24 +179,46 @@ def classify_codex_item(kind, body, inline_comments):
         return "pass"
     return None
 
-def head_commit_timestamp():
-    """When the current HEAD commit was committed, as an ISO-8601 string."""
-    commit = gh_json_object(f"repos/{repo}/commits/{head_sha}")
-    return (commit.get("commit") or {}).get("committer", {}).get("date") or ""
+def head_sha_first_seen_at():
+    """When GitHub first saw the current HEAD, as an ISO-8601 string.
+
+    Deliberately not the commit's committer date: that is metadata the author
+    controls and it records when the commit was *written*, not when it reached
+    the server. A commit created locally before Codex reacted and pushed after
+    it would look newer than the reaction, and force-pushing any back-dated
+    commit does the same. GitHub creates a check suite when a SHA arrives, so
+    the earliest suite for this SHA is a server-observed lower bound on when it
+    became reviewable.
+    """
+    suites = gh_json_object(f"repos/{repo}/commits/{head_sha}/check-suites")
+    created = [
+        suite.get("created_at")
+        for suite in suites.get("check_suites", [])
+        if suite.get("created_at")
+    ]
+    return min(created) if created else ""
 
 
-def reaction_is_current(reaction_created_at, head_committed_at):
+def reaction_is_current(reaction_created_at, head_seen_at):
     """Whether a thumbs-up can be about the current HEAD rather than an older one.
 
-    A reaction carries no commit reference, so the only thing tying it to a
-    revision is that Codex reacts *after* reviewing. A thumbs-up older than the
-    HEAD commit therefore cannot be about it and must not pass the gate; without
-    this the check would go green on unreviewed code every time someone pushed a
-    fix on top of an approved commit.
+    A reaction carries no commit reference at all -- unlike a review, whose body
+    states "Reviewed commit: <sha>" -- so the only thing tying it to a revision
+    is that Codex reacts after reviewing. Requiring it to postdate the moment
+    the server first saw this SHA keeps the gate from going green on unreviewed
+    code when someone pushes a fix on top of an approved commit.
+
+    The residual gap is narrow and worth stating: if Codex began reviewing the
+    previous HEAD, a push landed mid-review, and Codex then reacted, the
+    reaction postdates this SHA while describing the previous one. Nothing in
+    the reactions API can distinguish that, and Codex re-reviews on every
+    synchronize, so the next review or reaction settles it. A finding always
+    outranks a reaction, so the failure mode is a delayed pass, never a
+    suppressed finding.
     """
-    if not reaction_created_at or not head_committed_at:
+    if not reaction_created_at or not head_seen_at:
         return False
-    return reaction_created_at > head_committed_at
+    return reaction_created_at > head_seen_at
 
 
 def codex_thumbs_up_for_current_head():
@@ -206,13 +228,13 @@ def codex_thumbs_up_for_current_head():
     will react with a thumbs up", so a gate that only reads comments and reviews
     times out on exactly the clean case it is meant to let through.
     """
-    head_committed_at = head_commit_timestamp()
+    head_seen_at = head_sha_first_seen_at()
     for reaction in gh_json_pages(f"repos/{repo}/issues/{pr_number}/reactions"):
         if reaction.get("user", {}).get("login") not in codex_logins:
             continue
         if reaction.get("content") != "+1":
             continue
-        if reaction_is_current(reaction.get("created_at", ""), head_committed_at):
+        if reaction_is_current(reaction.get("created_at", ""), head_seen_at):
             return reaction.get("created_at", "")
     return None
 
@@ -337,22 +359,35 @@ def self_test():
         ),
     ]
 
+    # The boundary is when the server first saw the HEAD, never the commit's own
+    # date: a commit written locally at 10:00, thumbs-upped at 10:30 and pushed
+    # at 11:00 would otherwise look reviewed, and a back-dated force-push would
+    # too, because committer dates are author-controlled.
     reaction_cases = [
         (
-            "a thumbs-up added after the HEAD commit is about that commit",
+            "a thumbs-up after the SHA reached the server is about that SHA",
             "2026-08-19T11:20:00Z", "2026-08-19T11:00:00Z", True,
         ),
         (
-            "a thumbs-up predating the HEAD commit cannot be about it, so pushing "
-            "a fix on top of an approved commit must not stay green",
-            "2026-08-19T10:00:00Z", "2026-08-19T11:00:00Z", False,
+            "a thumbs-up predating the push cannot be about the pushed SHA, so "
+            "pushing a fix on top of an approved commit must not stay green",
+            "2026-08-19T10:30:00Z", "2026-08-19T11:00:00Z", False,
+        ),
+        (
+            "a back-dated commit does not backdate the boundary: written 10:00, "
+            "reacted 10:30, pushed 11:00 is still unreviewed",
+            "2026-08-19T10:30:00Z", "2026-08-19T11:00:00Z", False,
+        ),
+        (
+            "a reaction exactly at the boundary is not after it",
+            "2026-08-19T11:00:00Z", "2026-08-19T11:00:00Z", False,
         ),
         (
             "a missing reaction timestamp is not evidence of anything",
             "", "2026-08-19T11:00:00Z", False,
         ),
         (
-            "an unknown HEAD commit date fails closed rather than passing",
+            "an unknown boundary fails closed rather than passing",
             "2026-08-19T11:20:00Z", "", False,
         ),
     ]
