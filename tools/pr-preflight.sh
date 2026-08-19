@@ -8,8 +8,8 @@ ARCHITECTURE_CHECKER="$REPO_ROOT/tools/architecture/check_architecture.py"
 HANDLER_CONTRACT_CHECK_MANIFEST="$REPO_ROOT/tools/architecture/handler-contract-check/Cargo.toml"
 PROTOC_VERSION_FILE="$REPO_ROOT/.protoc-version"
 DEFAULT_BASE="origin/3.4.3"
-# Matches the workflow: the inventory analyzer needs this to avoid a stack
-# overflow that presents as a bare SIGSEGV.
+# Matches the workflow. Headroom, not a fix: the crash it was raised for
+# reproduces with an unlimited stack, so its cause was elsewhere.
 DEFAULT_RUST_MIN_STACK=1073741824
 CODEX_REVIEW_TIMEOUT_SECONDS="${CODEX_REVIEW_TIMEOUT_SECONDS:-1800}"
 DRY_RUN=0

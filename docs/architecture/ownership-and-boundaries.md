@@ -280,7 +280,7 @@ progress:
 | `crates/wow-world/src/session.rs` | 71,933 | 94,888 | 166,821 |
 | `crates/wow-map/src/map.rs` | 15,245 | 18,415 | 33,660 |
 | `crates/wow-world/src/handlers/character.rs` | 20,200 | 10,653 | 30,853 |
-| `crates/wow-world/src/handlers/loot.rs` | 13,716 | 16,234 | 29,950 |
+| `crates/wow-world/src/handlers/loot.rs` | 13,732 | 16,234 | 29,966 |
 | `crates/world-server/src/main.rs` | 15,370 | 12,805 | 28,175 |
 | `crates/wow-world/src/handlers/misc.rs` | 7,315 | 11,473 | 18,788 |
 | `crates/wow-world/src/handlers/quest.rs` | 8,255 | 10,217 | 18,472 |
