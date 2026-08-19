@@ -116,9 +116,11 @@ pub enum TracedParam {
     },
     Int {
         value: i64,
+        width_bits: u8,
     },
     Uint {
         value: u64,
+        width_bits: u8,
     },
     /// Floats are recorded by bit pattern: a golden must not depend on decimal
     /// formatting, and `NaN` has to compare equal to itself here.
@@ -166,24 +168,36 @@ impl TracedParam {
             SqlParam::Bool(value) => Self::Bool { value: *value },
             SqlParam::I8(value) => Self::Int {
                 value: i64::from(*value),
+                width_bits: 8,
             },
             SqlParam::I16(value) => Self::Int {
                 value: i64::from(*value),
+                width_bits: 16,
             },
             SqlParam::I32(value) => Self::Int {
                 value: i64::from(*value),
+                width_bits: 32,
             },
-            SqlParam::I64(value) => Self::Int { value: *value },
+            SqlParam::I64(value) => Self::Int {
+                value: *value,
+                width_bits: 64,
+            },
             SqlParam::U8(value) => Self::Uint {
                 value: u64::from(*value),
+                width_bits: 8,
             },
             SqlParam::U16(value) => Self::Uint {
                 value: u64::from(*value),
+                width_bits: 16,
             },
             SqlParam::U32(value) => Self::Uint {
                 value: u64::from(*value),
+                width_bits: 32,
             },
-            SqlParam::U64(value) => Self::Uint { value: *value },
+            SqlParam::U64(value) => Self::Uint {
+                value: *value,
+                width_bits: 64,
+            },
             SqlParam::F32(value) => Self::Float {
                 bits: u64::from(value.to_bits()),
                 width_bits: 32,
@@ -463,11 +477,27 @@ mod tests {
     fn numeric_parameters_keep_their_value_and_signedness() {
         assert_eq!(
             TracedParam::from_param(&SqlParam::I32(-7)),
-            TracedParam::Int { value: -7 }
+            TracedParam::Int {
+                value: -7,
+                width_bits: 32
+            }
         );
         assert_eq!(
             TracedParam::from_param(&SqlParam::U32(7)),
-            TracedParam::Uint { value: 7 }
+            TracedParam::Uint {
+                value: 7,
+                width_bits: 32
+            }
+        );
+        // A widening bind is a different bound parameter, exactly as with
+        // floats: sqlx sends different MySQL type metadata for each width.
+        assert_ne!(
+            TracedParam::from_param(&SqlParam::I32(7)),
+            TracedParam::from_param(&SqlParam::I64(7))
+        );
+        assert_ne!(
+            TracedParam::from_param(&SqlParam::U8(7)),
+            TracedParam::from_param(&SqlParam::U64(7))
         );
         // A signed -1 and an unsigned u64::MAX share a bit pattern but are not
         // the same bound parameter.
@@ -510,7 +540,10 @@ mod tests {
                     database: LogicalDatabase::Character,
                     connection: ConnectionAffinity::Transaction,
                     statement: "UPD_CHARACTER_MONEY".to_owned(),
-                    params: vec![TracedParam::Uint { value: 100 }],
+                    params: vec![TracedParam::Uint {
+                        value: 100,
+                        width_bits: 64,
+                    }],
                     expected_rows_affected: Some(1),
                 },
                 PersistenceEvent::Commit {
@@ -638,11 +671,11 @@ mod tests {
 
         // Production default: no capture, no allocation.
         assert!(!recording_enabled());
-        let untraced = crate::params::PreparedStatement::new(CharStatements::SEL_ENUM.sql());
+        let untraced = crate::params::PreparedStatement::for_statement(CharStatements::SEL_ENUM);
         assert_eq!(untraced.trace_identity(), None);
 
         let _capture = RecordingGuard::enable();
-        let traced = crate::params::PreparedStatement::new(CharStatements::SEL_ENUM.sql())
+        let traced = crate::params::PreparedStatement::for_statement(CharStatements::SEL_ENUM)
             .with_trace_identity(CharStatements::SEL_ENUM.trace_identity());
         assert_eq!(traced.trace_identity(), Some("SEL_ENUM"));
     }

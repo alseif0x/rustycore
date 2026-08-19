@@ -206,7 +206,7 @@ pub fn instant_from_respawn_time_like_cpp(
 }
 
 pub fn respawn_replace_statement_like_cpp(row: &PersistedRespawnRowLikeCpp) -> PreparedStatement {
-    let mut stmt = PreparedStatement::new(CharStatements::REP_RESPAWN.sql());
+    let mut stmt = PreparedStatement::for_statement(CharStatements::REP_RESPAWN);
     // C++ `Map::SaveRespawnInfoDB`: type, spawnId, respawnTime, mapId, instanceId.
     stmt.set_u16(0, spawn_object_type_raw_like_cpp(row.object_type));
     stmt.set_u64(1, row.spawn_id);
@@ -222,7 +222,7 @@ pub fn respawn_delete_statement_like_cpp(
     map_id: u16,
     instance_id: u32,
 ) -> PreparedStatement {
-    let mut stmt = PreparedStatement::new(CharStatements::DEL_RESPAWN.sql());
+    let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_RESPAWN);
     // C++ `Map::DeleteRespawnInfoFromDB`: type, spawnId, mapId, instanceId.
     stmt.set_u16(0, spawn_object_type_raw_like_cpp(object_type));
     stmt.set_u64(1, spawn_id);

@@ -65,6 +65,23 @@ impl PreparedStatement {
         }
     }
 
+    /// Build a statement from its enum variant, keeping its trace identity.
+    ///
+    /// Prefer this over `new(X.sql())`. That form throws the variant away, and
+    /// a statement with no identity is dropped from a persistence trace
+    /// entirely — silently, so the trace looks complete while omitting real
+    /// database work.
+    pub fn for_statement<S: crate::statements::StatementDef>(stmt: S) -> Self {
+        let prepared = Self::new(stmt.sql());
+        // Deriving the identity allocates; production pays one relaxed load.
+        if crate::persistence_trace::recording_enabled() {
+            return prepared
+                .with_trace_identity(stmt.trace_identity())
+                .with_trace_database(stmt.logical_database());
+        }
+        prepared
+    }
+
     /// Statement-enum variant this was prepared from, when tracing captured it.
     pub fn trace_identity(&self) -> Option<&str> {
         self.trace_identity.as_deref()

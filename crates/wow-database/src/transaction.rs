@@ -738,10 +738,10 @@ mod trace_tests {
     #[test]
     fn appends_are_recorded_in_plan_order_with_their_identity() {
         let (mut trans, recorder) = traced();
-        let mut first = PreparedStatement::new(CharStatements::DEL_POOL_QUEST_SAVE.sql())
+        let mut first = PreparedStatement::for_statement(CharStatements::DEL_POOL_QUEST_SAVE)
             .with_trace_identity(CharStatements::DEL_POOL_QUEST_SAVE.trace_identity());
         first.set_u32(0, 7);
-        let second = PreparedStatement::new(CharStatements::INS_POOL_QUEST_SAVE.sql())
+        let second = PreparedStatement::for_statement(CharStatements::INS_POOL_QUEST_SAVE)
             .with_trace_identity(CharStatements::INS_POOL_QUEST_SAVE.trace_identity());
 
         trans.append(first);
@@ -759,7 +759,13 @@ mod trace_tests {
             } => {
                 assert_eq!(statement, "DEL_POOL_QUEST_SAVE");
                 assert_eq!(*connection, ConnectionAffinity::Transaction);
-                assert_eq!(params.first(), Some(&TracedParam::Uint { value: 7 }));
+                assert_eq!(
+                    params.first(),
+                    Some(&TracedParam::Uint {
+                        value: 7,
+                        width_bits: 32
+                    })
+                );
                 assert_eq!(*expected_rows_affected, None);
             }
             other => panic!("expected a statement, got {other:?}"),
@@ -786,9 +792,9 @@ mod trace_tests {
         // Statement order is the contract this golden exists to freeze.
         let build = |reversed: bool| {
             let (mut trans, recorder) = traced();
-            let del = PreparedStatement::new(CharStatements::DEL_POOL_QUEST_SAVE.sql())
+            let del = PreparedStatement::for_statement(CharStatements::DEL_POOL_QUEST_SAVE)
                 .with_trace_identity(CharStatements::DEL_POOL_QUEST_SAVE.trace_identity());
-            let ins = PreparedStatement::new(CharStatements::INS_POOL_QUEST_SAVE.sql())
+            let ins = PreparedStatement::for_statement(CharStatements::INS_POOL_QUEST_SAVE)
                 .with_trace_identity(CharStatements::INS_POOL_QUEST_SAVE.trace_identity());
             if reversed {
                 trans.append(ins);
@@ -867,7 +873,7 @@ mod trace_tests {
 
         // Exactly what the seventy-five untouched call sites do.
         let mut trans = SqlTransaction::new();
-        let stmt = PreparedStatement::new(CharStatements::DEL_POOL_QUEST_SAVE.sql())
+        let stmt = PreparedStatement::for_statement(CharStatements::DEL_POOL_QUEST_SAVE)
             .with_trace_identity(CharStatements::DEL_POOL_QUEST_SAVE.trace_identity())
             .with_trace_database(CharStatements::DEL_POOL_QUEST_SAVE.logical_database());
         trans.append(stmt);
@@ -927,7 +933,7 @@ mod trace_tests {
 
         let mut trans = SqlTransaction::new();
         trans.append(
-            PreparedStatement::new(CharStatements::DEL_POOL_QUEST_SAVE.sql())
+            PreparedStatement::for_statement(CharStatements::DEL_POOL_QUEST_SAVE)
                 .with_trace_identity(CharStatements::DEL_POOL_QUEST_SAVE.trace_identity())
                 .with_trace_database(CharStatements::DEL_POOL_QUEST_SAVE.logical_database()),
         );
@@ -952,11 +958,44 @@ mod trace_tests {
     }
 
     #[test]
+    fn a_statement_built_from_its_variant_is_never_dropped() {
+        use crate::persistence_trace::RecordingSession;
+
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        // `PreparedStatement::new(X.sql())` throws the variant away, and a
+        // statement with no identity used to be dropped silently — so a
+        // transaction whose first statement was manual never opened at all.
+        // `for_statement` is the form that keeps it.
+        let mut trans = SqlTransaction::new();
+        trans.append(PreparedStatement::for_statement(
+            CharStatements::DEL_POOL_QUEST_SAVE,
+        ));
+
+        let events = recorder.take().events;
+        assert_eq!(events.len(), 2, "begin + statement: {events:?}");
+        assert!(matches!(
+            events[0],
+            PersistenceEvent::TransactionBegin {
+                database: LogicalDatabase::Character
+            }
+        ));
+        match &events[1] {
+            PersistenceEvent::Statement { statement, .. } => {
+                assert_eq!(statement, "DEL_POOL_QUEST_SAVE");
+            }
+            other => panic!("expected an identified statement, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn an_untraced_transaction_records_nothing() {
         // The recorder is opt-in; production builds the same transactions.
         let recorder = PersistenceRecorder::new();
         let mut trans = SqlTransaction::new();
-        trans.append(PreparedStatement::new(CharStatements::SEL_ENUM.sql()));
+        trans.append(PreparedStatement::for_statement(CharStatements::SEL_ENUM));
         assert!(recorder.take().events.is_empty());
     }
 }
