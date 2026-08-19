@@ -2025,13 +2025,55 @@ fn load_policy(path: &Path) -> Result<PolicyEnvelope, String> {
 
 /// Check the repository against the exact AST surface checked into the policy.
 pub fn check_repository(policy_path: Option<&Path>) -> Result<String, String> {
+    check_repository_scoped(policy_path, true)
+}
+
+/// Check the session syntax surface without the exact persistence comparison.
+///
+/// The persistence scan is minutes; the session surface is seconds. Pull
+/// requests run this so the ownership ratchet still guards every change,
+/// while the exact inventory is compared on push and on the weekly cron —
+/// detected at merge rather than at review time, not detected less.
+pub fn check_repository_syntax_only(policy_path: Option<&Path>) -> Result<String, String> {
+    check_repository_scoped(policy_path, false)
+}
+
+fn check_repository_scoped(
+    policy_path: Option<&Path>,
+    with_persistence: bool,
+) -> Result<String, String> {
     let repository_root = crate::repository_root()?;
     let policy_path = policy_path
         .map(Path::to_owned)
         .unwrap_or_else(|| repository_root.join(POLICY_RELATIVE_PATH));
     let policy = load_policy(&policy_path)?;
-    let actual = collect_repository_baseline(&repository_root)?;
+    let actual = collect_repository_baseline_with_persistence(&repository_root, with_persistence)?;
     compare_baseline(&policy.syntax_baseline, &actual)?;
+    if !with_persistence {
+        return Ok(format!(
+            "session ownership: PASS (syntax only; {} production + {} test-fixture WorldSession \
+             fields; {} impl owners / {} exact associated items; {} SessionResources fields; {} \
+             SessionCommand variants; {} exact direct-registry rows; exact persistence inventory \
+             deferred to push and cron)",
+            actual
+                .world_session
+                .fields
+                .iter()
+                .filter(|field| field.cfg.is_empty())
+                .count(),
+            actual
+                .world_session
+                .fields
+                .iter()
+                .filter(|field| !field.cfg.is_empty())
+                .count(),
+            actual.world_session.impls.len(),
+            actual.world_session.impl_items.len(),
+            actual.session_resources.fields.len(),
+            actual.session_command.variants.len(),
+            actual.registry_accesses.accesses.len(),
+        ));
+    }
     let persistence_snapshot_path = repository_root.join(&policy.persistence_access_snapshot);
     let persistence_snapshot_source =
         fs::read_to_string(&persistence_snapshot_path).map_err(|error| {

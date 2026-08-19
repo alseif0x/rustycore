@@ -469,6 +469,12 @@ run_architecture() {
   cargo_cmd test --release --locked --manifest-path "$HANDLER_CONTRACT_CHECK_MANIFEST" \
     -- --skip repository_surface_can_be_collected
   cargo_cmd run --release --locked --manifest-path "$HANDLER_CONTRACT_CHECK_MANIFEST" -- check
+  # Both, because the local gate stands in for a PR *and* for what the push to
+  # 3.4.3 will run: the syntax ratchet a PR is gated on, then the exact
+  # inventory that only runs post-merge in CI. Catching an inventory move here
+  # is the difference between fixing it now and reddening the branch.
+  cargo_cmd run --release --locked --manifest-path "$HANDLER_CONTRACT_CHECK_MANIFEST" \
+    --bin session-ownership-check -- check --syntax-only
   cargo_cmd run --release --locked --manifest-path "$HANDLER_CONTRACT_CHECK_MANIFEST" \
     --bin session-ownership-check -- check
 }
@@ -1001,8 +1007,11 @@ run_self_test() {
     "run --release --locked --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST -- check" 1 \
     "local CI handler-contract repository check"
   require_exact_occurrences "$ci_dry_run_output" \
-    "run --release --locked --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST --bin session-ownership-check -- check" 1 \
-    "local CI session-ownership repository check"
+    "--bin session-ownership-check -- check --syntax-only" 1 \
+    "local CI session-ownership syntax ratchet"
+  require_exact_occurrences "$ci_dry_run_output" \
+    "run --release --locked --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST --bin session-ownership-check -- check" 2 \
+    "local CI session-ownership repository checks"
   require_exact_occurrences "$ci_dry_run_output" \
     "fmt --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST -- --check" 1 \
     "local CI handler-contract checker formatting"
@@ -1056,6 +1065,15 @@ run_self_test() {
   require_exact_occurrences "$github_workflow_text" \
     "cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check" 1 \
     "GitHub workflow handler-contract repository check"
+  require_exact_occurrences "$github_workflow_text" \
+    "--bin session-ownership-check -- check --syntax-only" 1 \
+    "GitHub workflow session-ownership syntax ratchet"
+  # The exact inventory must stay off the pull-request path; if this guard is
+  # the only thing standing between a 5-minute PR and a 16-minute one, it
+  # should say so when someone removes it.
+  require_exact_occurrences "$github_workflow_text" \
+    "if: github.event_name != 'pull_request'" 1 \
+    "GitHub workflow post-merge-only exact persistence scan"
   require_exact_occurrences "$github_workflow_text" \
     "cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check" 1 \
     "GitHub workflow session-ownership repository check"
