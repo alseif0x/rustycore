@@ -40,6 +40,10 @@ pub struct PreparedStatement {
     /// persistence tracing is enabled. `None` for raw SQL and for every
     /// statement prepared with tracing off, which is the production default.
     trace_identity: Option<String>,
+    /// Logical database of the statement enum this came from, captured with
+    /// the identity. A transaction learns which database it is on from its
+    /// first statement rather than being told twice.
+    trace_database: Option<crate::persistence_trace::LogicalDatabase>,
 }
 
 impl PreparedStatement {
@@ -57,6 +61,7 @@ impl PreparedStatement {
             sql: Cow::Borrowed(sql),
             params: vec![SqlParam::Bool(false); capacity],
             trace_identity: None,
+            trace_database: None,
         }
     }
 
@@ -65,9 +70,23 @@ impl PreparedStatement {
         self.trace_identity.as_deref()
     }
 
+    /// Logical database this statement belongs to, when tracing captured it.
+    pub fn trace_database(&self) -> Option<crate::persistence_trace::LogicalDatabase> {
+        self.trace_database
+    }
+
     /// Attach the semantic identity of the statement enum this came from.
     pub fn with_trace_identity(mut self, identity: String) -> Self {
         self.trace_identity = Some(identity);
+        self
+    }
+
+    /// Attach the logical database of the statement enum this came from.
+    pub fn with_trace_database(
+        mut self,
+        database: crate::persistence_trace::LogicalDatabase,
+    ) -> Self {
+        self.trace_database = Some(database);
         self
     }
 
@@ -75,6 +94,7 @@ impl PreparedStatement {
     pub fn raw_sql_like_cpp(sql: impl Into<String>) -> Self {
         Self {
             trace_identity: None,
+            trace_database: None,
             sql: Cow::Owned(sql.into()),
             params: Vec::new(),
         }

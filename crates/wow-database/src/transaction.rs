@@ -326,7 +326,10 @@ pub struct SqlTransaction {
     /// Set only when a trace is being recorded. Statements are appended here
     /// in order, so the recording reflects the plan the caller built rather
     /// than the order MySQL happened to execute.
-    trace: Option<(PersistenceRecorder, LogicalDatabase)>,
+    trace: Option<PersistenceRecorder>,
+    /// Set by the first appended statement. A transaction that never receives
+    /// one never opened, and its trace says so.
+    trace_database: Option<LogicalDatabase>,
 }
 
 #[derive(Debug)]
@@ -341,7 +344,8 @@ impl SqlTransaction {
         Self {
             statements: Vec::new(),
             cleaned_up_like_cpp: false,
-            trace: None,
+            trace: crate::persistence_trace::ambient_recorder(),
+            trace_database: None,
         }
     }
 
@@ -352,18 +356,34 @@ impl SqlTransaction {
     /// together, and that grouping is the fact a port extraction can lose.
     pub fn with_trace(mut self, recorder: PersistenceRecorder, database: LogicalDatabase) -> Self {
         recorder.record(PersistenceEvent::TransactionBegin { database });
-        self.trace = Some((recorder, database));
+        self.trace = Some(recorder);
+        self.trace_database = Some(database);
         self
     }
 
-    fn record_statement(&self, stmt: &PreparedStatement, expected_rows_affected: Option<u64>) {
-        let Some((recorder, database)) = &self.trace else {
+    fn record_statement(&mut self, stmt: &PreparedStatement, expected_rows_affected: Option<u64>) {
+        let Some(recorder) = self.trace.clone() else {
             return;
         };
+        // The database comes from the first statement: `SqlTransaction::new`
+        // is called in seventy-five places that do not know it, and a raw-SQL
+        // append cannot supply it at all.
+        let database = match (self.trace_database, stmt.trace_database()) {
+            (Some(known), _) => known,
+            (None, Some(first)) => {
+                recorder.record(PersistenceEvent::TransactionBegin { database: first });
+                self.trace_database = Some(first);
+                first
+            }
+            // Raw SQL before any identified statement: nothing reliable to
+            // attribute it to, so it is not recorded rather than guessed.
+            (None, None) => return,
+        };
+        let recorder = &recorder;
         let params = stmt.params().iter().map(TracedParam::from_param).collect();
         match stmt.trace_identity() {
             Some(statement) => recorder.record(PersistenceEvent::Statement {
-                database: *database,
+                database,
                 connection: ConnectionAffinity::Transaction,
                 statement: statement.to_owned(),
                 params,
@@ -373,7 +393,7 @@ impl SqlTransaction {
             // built at run time, so the trace keeps its shape and not its
             // formatting.
             None => recorder.record(PersistenceEvent::RawStatement {
-                database: *database,
+                database,
                 connection: ConnectionAffinity::Transaction,
                 digest: raw_statement_digest(stmt.sql()),
             }),
@@ -381,20 +401,17 @@ impl SqlTransaction {
     }
 
     fn record_commit(&self, result: &Result<(), SqlTransactionCommitError>) {
-        if let Some((recorder, database)) = &self.trace {
+        if let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) {
             recorder.record(PersistenceEvent::Commit {
-                database: *database,
+                database,
                 outcome: commit_outcome_like_cpp(result),
             });
         }
     }
 
     fn record_deadlock_retry(&self, attempt: u32) {
-        if let Some((recorder, database)) = &self.trace {
-            recorder.record(PersistenceEvent::DeadlockRetry {
-                database: *database,
-                attempt,
-            });
+        if let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) {
+            recorder.record(PersistenceEvent::DeadlockRetry { database, attempt });
         }
     }
 
@@ -811,6 +828,56 @@ mod trace_tests {
         // A deadlock is a definite rollback, so it may be retried; an ambiguous
         // COMMIT must not be, or the retry would double-apply the work.
         assert!(!is_outcome_deadlock_like_cpp(&Err(commit_error(true))));
+    }
+
+    #[test]
+    fn an_installed_recording_traces_transactions_nobody_wired_up() {
+        use crate::persistence_trace::RecordingSession;
+
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _session = RecordingSession::install(recorder.clone());
+
+        // Exactly what the seventy-five untouched call sites do.
+        let mut trans = SqlTransaction::new();
+        let stmt = PreparedStatement::new(CharStatements::DEL_POOL_QUEST_SAVE.sql())
+            .with_trace_identity(CharStatements::DEL_POOL_QUEST_SAVE.trace_identity())
+            .with_trace_database(CharStatements::DEL_POOL_QUEST_SAVE.logical_database());
+        trans.append(stmt);
+
+        let events = recorder.take().events;
+        assert_eq!(
+            events,
+            vec![
+                PersistenceEvent::TransactionBegin {
+                    database: LogicalDatabase::Character
+                },
+                PersistenceEvent::Statement {
+                    database: LogicalDatabase::Character,
+                    connection: ConnectionAffinity::Transaction,
+                    statement: "DEL_POOL_QUEST_SAVE".to_owned(),
+                    params: vec![TracedParam::Bool { value: false }],
+                    expected_rows_affected: None,
+                },
+            ],
+            "the boundary must open on the first statement, not at construction"
+        );
+    }
+
+    #[test]
+    fn a_transaction_that_never_receives_a_statement_never_opened() {
+        use crate::persistence_trace::RecordingSession;
+
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _session = RecordingSession::install(recorder.clone());
+
+        let trans = SqlTransaction::new();
+        drop(trans);
+        assert!(
+            recorder.take().events.is_empty(),
+            "an empty transaction sends nothing, so it must record nothing"
+        );
     }
 
     #[test]

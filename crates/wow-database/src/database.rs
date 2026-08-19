@@ -178,7 +178,9 @@ impl<S: StatementDef> Database<S> {
         // Deriving the identity allocates, and this is on every query path, so
         // production pays one relaxed load instead.
         if crate::persistence_trace::recording_enabled() {
-            return prepared.with_trace_identity(stmt.trace_identity());
+            return prepared
+                .with_trace_identity(stmt.trace_identity())
+                .with_trace_database(stmt.logical_database());
         }
         prepared
     }

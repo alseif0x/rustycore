@@ -261,6 +261,60 @@ impl PersistenceTrace {
     }
 }
 
+/// Serializes tests that install a recording. Capture and the ambient
+/// recorder are both process-wide, so two recording tests running in parallel
+/// would see each other's events.
+#[cfg(test)]
+pub(crate) fn capture_flag_test_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: Mutex<()> = Mutex::new(());
+    LOCK.lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// The recorder every transaction picks up while a recording is installed.
+///
+/// Seventy-five call sites build transactions across the server. Threading a
+/// recorder through all of them would be a far larger change than the contract
+/// it serves, and would leave the ones nobody updated silently untraced — so
+/// the recorder is ambient and `SqlTransaction::new` finds it.
+static AMBIENT: Mutex<Option<PersistenceRecorder>> = Mutex::new(None);
+
+/// The installed recorder, if a recording is in progress.
+pub fn ambient_recorder() -> Option<PersistenceRecorder> {
+    AMBIENT
+        .lock()
+        .ok()
+        .and_then(|recorder| recorder.as_ref().cloned())
+}
+
+/// Installs `recorder` as ambient and enables capture until dropped.
+///
+/// Both pieces of state are process-wide, so tests that record must serialize
+/// against each other.
+#[derive(Debug)]
+pub struct RecordingSession {
+    _capture: RecordingGuard,
+}
+
+impl RecordingSession {
+    pub fn install(recorder: PersistenceRecorder) -> Self {
+        if let Ok(mut ambient) = AMBIENT.lock() {
+            *ambient = Some(recorder);
+        }
+        Self {
+            _capture: RecordingGuard::enable(),
+        }
+    }
+}
+
+impl Drop for RecordingSession {
+    fn drop(&mut self) {
+        if let Ok(mut ambient) = AMBIENT.lock() {
+            *ambient = None;
+        }
+    }
+}
+
 /// Whether statement identities are being captured.
 ///
 /// Deriving a statement's identity costs an allocation, and prepare sits on
@@ -500,16 +554,9 @@ mod tests {
         assert!(recorder.take().events.is_empty(), "take must drain");
     }
 
-    /// Serializes every test that reads or writes the process-wide capture
-    /// flag. Rust runs tests in parallel, so without this a test asserting the
-    /// flag is off would fail whenever another test happened to hold a guard.
-    static CAPTURE_FLAG_TESTS: Mutex<()> = Mutex::new(());
-
     #[test]
     fn the_recording_guard_restores_the_previous_state() {
-        let _serialized = CAPTURE_FLAG_TESTS
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _serialized = capture_flag_test_lock();
         // Nested guards must not leave capture on for unrelated tests.
         assert!(!recording_enabled(), "capture is off by default");
         {
@@ -531,9 +578,7 @@ mod tests {
     fn prepare_captures_the_variant_name_only_while_recording() {
         use crate::statements::{CharStatements, StatementDef};
 
-        let _serialized = CAPTURE_FLAG_TESTS
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _serialized = capture_flag_test_lock();
 
         // The identity is the variant, not the SQL: that is what survives a
         // reformat of the query or a rename of the file holding it.
