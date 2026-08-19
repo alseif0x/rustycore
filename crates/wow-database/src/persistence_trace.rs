@@ -19,6 +19,29 @@
 //!
 //! The recorder never holds its lock across I/O: every event is appended and
 //! the guard dropped before the caller awaits anything.
+//!
+//! # Coverage is incomplete — do not freeze a golden on this yet
+//!
+//! The vocabulary and the mechanism are in place; the *coverage* of real
+//! persistence paths is not, and an incomplete trace that looks complete is
+//! worse than none, because absence of events reads as absence of persistence.
+//! Three paths are currently invisible, all tracked in issue #213:
+//!
+//! * **Explicit SQLx transactions.** Code that opens `pool().begin()` instead
+//!   of building an [`SqlTransaction`] never reaches the ambient hook, so its
+//!   boundaries, statements, commit outcome and retries are all omitted. This
+//!   includes production money workflows —
+//!   `attempt_group_loot_money_transaction_like_cpp` and
+//!   `attempt_stored_item_money_transaction_like_cpp`.
+//! * **Manually built statements.** `PreparedStatement::new(X.sql())` carries
+//!   no identity, so those statements are dropped, and a transaction whose
+//!   first statement is manual never opens in the trace. Player money saving
+//!   builds `UPD_CHAR_MONEY` this way.
+//! * **Generated hotfix statements.** `HotfixStatements::GENERATED_BASE`
+//!   still derives its identity from `Debug`, which embeds the SQL.
+//!
+//! Until those are closed, a golden built from this recorder can approve a
+//! refactor that breaks the very persistence it claims to protect.
 
 use crate::params::SqlParam;
 use serde::{Deserialize, Serialize};
