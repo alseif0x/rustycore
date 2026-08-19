@@ -34,6 +34,10 @@
 //! * **Parameter redaction is not proof against a dictionary.** Length plus an
 //!   unsalted digest can be matched for a low-entropy value, so a trace is
 //!   safe to read but should not be treated as safe to publish.
+//! * **Concurrent transactions cannot be correlated.** Events carry their
+//!   logical database but no transaction id, so two transactions on one
+//!   database interleave indistinguishably, and the ambient recorder is
+//!   process-wide rather than scoped to the traced task.
 //!
 //! The paths that hid whole durable operations are now recorded: explicit
 //! `pool().begin()` transactions, manually built statements, generated hotfix

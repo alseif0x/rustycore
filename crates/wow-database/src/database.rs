@@ -191,7 +191,27 @@ impl<S: StatementDef> Database<S> {
     /// whether it shared the writer's transaction or took its own connection
     /// is precisely the fact a port extraction can change without moving a
     /// row. `Pooled` is that distinction.
-    fn record_pooled_statement(stmt: &PreparedStatement, observed_rows_affected: Option<u64>) {
+    /// Whether a pooled failure happened before MySQL could receive the
+    /// statement.
+    ///
+    /// Acquiring a connection fails without sending anything, so that outcome is
+    /// definite: the statement did not run. Everything else — a protocol error,
+    /// an I/O error, a server error — may have been received and applied, and
+    /// only those are genuinely ambiguous. Collapsing the two directions loses
+    /// the crash semantics this contract exists to freeze, in one direction or
+    /// the other.
+    fn pooled_failure_is_definite(error: &sqlx::Error) -> bool {
+        matches!(
+            error,
+            sqlx::Error::PoolTimedOut | sqlx::Error::PoolClosed | sqlx::Error::Configuration(_)
+        )
+    }
+
+    fn record_pooled_statement(
+        stmt: &PreparedStatement,
+        observed_rows_affected: Option<u64>,
+        definitely_not_run: bool,
+    ) {
         let succeeded = observed_rows_affected.is_some();
         let Some(recorder) = crate::persistence_trace::ambient_recorder() else {
             return;
@@ -217,7 +237,13 @@ impl<S: StatementDef> Database<S> {
                     expected_rows_affected: None,
                     observed_rows_affected,
                 });
-                if !succeeded {
+                if !succeeded && definitely_not_run {
+                    // Never reached the server, so the statement definitely did
+                    // not run — a rollback in the only sense available without a
+                    // transaction.
+                    recorder
+                        .record(crate::persistence_trace::PersistenceEvent::Rollback { database });
+                } else if !succeeded {
                     // Deliberately not a `Rollback`: there is no transaction
                     // here, and a transport error on an autocommit write may
                     // have applied it, so the outcome is unknown rather than
@@ -256,7 +282,13 @@ impl<S: StatementDef> Database<S> {
         // Recorded after the call so the trace carries whether it ran.
         let rows = query.fetch_all(&self.pool).await;
         // A read has no affected-row count; `Some(0)` marks "it ran".
-        Self::record_pooled_statement(stmt, rows.as_ref().ok().map(|_| 0));
+        Self::record_pooled_statement(
+            stmt,
+            rows.as_ref().ok().map(|_| 0),
+            rows.as_ref()
+                .err()
+                .is_some_and(Self::pooled_failure_is_definite),
+        );
         Ok(SqlResult::new(rows?))
     }
 
@@ -279,7 +311,14 @@ impl<S: StatementDef> Database<S> {
         let result = query.execute(&self.pool).await;
         // Callers branch on this count — a save matching no character row is a
         // different outcome from one that matched — so the trace carries it.
-        Self::record_pooled_statement(stmt, result.as_ref().ok().map(|r| r.rows_affected()));
+        Self::record_pooled_statement(
+            stmt,
+            result.as_ref().ok().map(|r| r.rows_affected()),
+            result
+                .as_ref()
+                .err()
+                .is_some_and(Self::pooled_failure_is_definite),
+        );
         Ok(result?.rows_affected())
     }
 
@@ -602,13 +641,13 @@ mod tests {
                     expected_rows_affected: None,
                     observed_rows_affected: None,
                 },
-                PersistenceEvent::Fence {
-                    label: "pooled-statement-outcome-unknown:character".to_owned(),
+                PersistenceEvent::Rollback {
+                    database: LogicalDatabase::Character,
                 }
             ],
             "a read on its own connection must not look like part of a transaction, \
-             and a failed autocommit statement must not claim a rollback that may not \
-             have happened"
+             and a pool-acquisition failure is a definite non-execution rather than \
+             an ambiguous outcome"
         );
     }
 
@@ -633,6 +672,26 @@ mod tests {
             }) => assert_eq!(*observed_rows_affected, None),
             other => panic!("expected a pooled statement, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn only_pool_acquisition_failures_are_definite() {
+        // A statement that never left the process definitely did not run. One
+        // that failed after being sent may have been applied, and calling that a
+        // rollback would assert a revert that never happened — the two must not
+        // collapse in either direction.
+        assert!(Database::<CharStatements>::pooled_failure_is_definite(
+            &sqlx::Error::PoolTimedOut
+        ));
+        assert!(Database::<CharStatements>::pooled_failure_is_definite(
+            &sqlx::Error::PoolClosed
+        ));
+        assert!(!Database::<CharStatements>::pooled_failure_is_definite(
+            &sqlx::Error::Protocol("server hung up mid-statement".to_owned())
+        ));
+        assert!(!Database::<CharStatements>::pooled_failure_is_definite(
+            &sqlx::Error::WorkerCrashed
+        ));
     }
 
     #[tokio::test]
