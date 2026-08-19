@@ -723,19 +723,19 @@ async fn attempt_group_loot_money_transaction_like_cpp(
     // cannot be an `SqlTransaction` and the ambient hook never sees it. Without
     // these explicit records its entire durable operation is invisible while a
     // trace of the flow still looks complete.
-    let traced_db = wow_database::persistence_trace::LogicalDatabase::Character;
-    let transaction = match char_db.pool().begin().await {
-        Ok(transaction) => {
-            wow_database::persistence_trace::record_explicit_transaction_begin(traced_db);
-            transaction
-        }
+    let mut transaction = match char_db.pool().begin().await {
+        Ok(transaction) => transaction,
         Err(error) => return Err(definitely(error)),
     };
-    let mut transaction = transaction;
+    // Guarded for its whole lifetime: every early return through `?` drops the
+    // transaction, SQLx rolls it back, and the guard records that end — including
+    // for returns added later, which a per-site hook would miss.
+    let trace = wow_database::persistence_trace::ExplicitTransactionTrace::open(
+        wow_database::persistence_trace::LogicalDatabase::Character,
+    );
     let mut outcomes = HashMap::with_capacity(payouts.len());
     for (recipient, amount) in payouts {
-        wow_database::persistence_trace::record_explicit_statement(
-            traced_db,
+        trace.statement(
             &CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.trace_identity(),
             vec![wow_database::persistence_trace::TracedParam::Uint {
                 value: recipient.counter() as u64,
@@ -756,8 +756,7 @@ async fn attempt_group_loot_money_transaction_like_cpp(
         let (new_money, applied_delta) =
             loot_money_durable_outcome_like_cpp(current_money, *amount);
         if applied_delta != 0 {
-            wow_database::persistence_trace::record_explicit_statement(
-                traced_db,
+            trace.statement(
                 &CharStatements::UPD_CHAR_MONEY.trace_identity(),
                 vec![
                     wow_database::persistence_trace::TracedParam::Uint {
@@ -799,22 +798,16 @@ async fn attempt_group_loot_money_transaction_like_cpp(
     }
     match transaction.commit().await {
         Ok(()) => {
-            wow_database::persistence_trace::record_explicit_commit(
-                traced_db,
-                wow_database::persistence_trace::CommitOutcome::Committed,
-            );
+            trace.committed(wow_database::persistence_trace::CommitOutcome::Committed);
             Ok(outcomes)
         }
         Err(error) => {
             let error = DatabaseError::from(error);
-            wow_database::persistence_trace::record_explicit_commit(
-                traced_db,
-                if is_database_deadlock_like_cpp(&error) {
-                    wow_database::persistence_trace::CommitOutcome::RolledBack
-                } else {
-                    wow_database::persistence_trace::CommitOutcome::Unknown
-                },
-            );
+            trace.committed(if is_database_deadlock_like_cpp(&error) {
+                wow_database::persistence_trace::CommitOutcome::RolledBack
+            } else {
+                wow_database::persistence_trace::CommitOutcome::Unknown
+            });
             if is_database_deadlock_like_cpp(&error) {
                 Err(GroupLootMoneyAttemptErrorLikeCpp::DefinitelyRolledBack(
                     LootMoneyPersistenceErrorLikeCpp::Database(error),

@@ -13419,18 +13419,19 @@ async fn attempt_stored_item_money_transaction_like_cpp(
     // `SqlTransaction`, so the ambient hook never sees it. Recorded explicitly
     // or the whole durable operation is missing from a trace that still looks
     // complete.
-    let traced_db = wow_database::persistence_trace::LogicalDatabase::Character;
     let mut transaction = match char_db.pool().begin().await {
-        Ok(transaction) => {
-            wow_database::persistence_trace::record_explicit_transaction_begin(traced_db);
-            transaction
-        }
+        Ok(transaction) => transaction,
         Err(error) => return Err(definitely(error)),
     };
+    // Guarded for its whole lifetime: every early return through `?` drops the
+    // transaction, SQLx rolls it back, and the guard records that end — including
+    // for returns added later, which a per-site hook would miss.
+    let trace = wow_database::persistence_trace::ExplicitTransactionTrace::open(
+        wow_database::persistence_trace::LogicalDatabase::Character,
+    );
     // Global order shared with group payouts: character mutation mutex, then
     // character row, then the stored Item source row.
-    wow_database::persistence_trace::record_explicit_statement(
-        traced_db,
+    trace.statement(
         &CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.trace_identity(),
         vec![wow_database::persistence_trace::TracedParam::Uint {
             value: player_guid.counter() as u64,
@@ -13447,8 +13448,7 @@ async fn attempt_stored_item_money_transaction_like_cpp(
                 LootMoneyPersistenceErrorLikeCpp::MissingPlayer,
             )
         })?;
-    wow_database::persistence_trace::record_explicit_statement(
-        traced_db,
+    trace.statement(
         &CharStatements::SEL_ITEMCONTAINER_MONEY_FOR_UPDATE.trace_identity(),
         vec![wow_database::persistence_trace::TracedParam::Uint {
             value: item_guid.counter() as u64,
@@ -13466,7 +13466,7 @@ async fn attempt_stored_item_money_transaction_like_cpp(
             stored_item_money_zero_without_source_outcome_like_cpp(before, cached_notified_amount)
         {
             {
-                wow_database::persistence_trace::record_explicit_rollback(traced_db);
+                trace.rolled_back();
                 transaction
             }
             .rollback()
@@ -13492,8 +13492,7 @@ async fn attempt_stored_item_money_transaction_like_cpp(
         // The durable credit itself. Recording only the preceding SELECTs left
         // the mutation invisible, so removing or reordering it would not have
         // moved the trace at all.
-        wow_database::persistence_trace::record_explicit_statement(
-            traced_db,
+        trace.statement(
             &CharStatements::UPD_CHAR_MONEY.trace_identity(),
             vec![
                 wow_database::persistence_trace::TracedParam::Uint {
@@ -13522,8 +13521,7 @@ async fn attempt_stored_item_money_transaction_like_cpp(
         }
     }
     // Consuming the source is the other half of the durable operation.
-    wow_database::persistence_trace::record_explicit_statement(
-        traced_db,
+    trace.statement(
         &CharStatements::DEL_ITEMCONTAINER_MONEY.trace_identity(),
         vec![wow_database::persistence_trace::TracedParam::Uint {
             value: item_guid.counter() as u64,
@@ -13546,22 +13544,16 @@ async fn attempt_stored_item_money_transaction_like_cpp(
 
     match transaction.commit().await {
         Ok(()) => {
-            wow_database::persistence_trace::record_explicit_commit(
-                traced_db,
-                wow_database::persistence_trace::CommitOutcome::Committed,
-            );
+            trace.committed(wow_database::persistence_trace::CommitOutcome::Committed);
             Ok(outcome)
         }
         Err(error) => {
             let error = DatabaseError::from(error);
-            wow_database::persistence_trace::record_explicit_commit(
-                traced_db,
-                if is_database_deadlock_like_cpp(&error) {
-                    wow_database::persistence_trace::CommitOutcome::RolledBack
-                } else {
-                    wow_database::persistence_trace::CommitOutcome::Unknown
-                },
-            );
+            trace.committed(if is_database_deadlock_like_cpp(&error) {
+                wow_database::persistence_trace::CommitOutcome::RolledBack
+            } else {
+                wow_database::persistence_trace::CommitOutcome::Unknown
+            });
             if is_database_deadlock_like_cpp(&error) {
                 Err(StoredItemMoneyAttemptErrorLikeCpp::DefinitelyRolledBack(
                     LootMoneyPersistenceErrorLikeCpp::Database(error),
@@ -13583,19 +13575,20 @@ async fn reconcile_stored_item_money_commit_like_cpp(
     // `SqlTransaction`, so the ambient hook never sees it. Recorded explicitly
     // or the whole durable operation is missing from a trace that still looks
     // complete.
-    let traced_db = wow_database::persistence_trace::LogicalDatabase::Character;
     let mut transaction = match char_db.pool().begin().await {
-        Ok(transaction) => {
-            wow_database::persistence_trace::record_explicit_transaction_begin(traced_db);
-            transaction
-        }
+        Ok(transaction) => transaction,
         Err(error) => return Err(DatabaseError::from(error)),
     };
+    // Guarded for its whole lifetime: every early return through `?` drops the
+    // transaction, SQLx rolls it back, and the guard records that end — including
+    // for returns added later, which a per-site hook would miss.
+    let trace = wow_database::persistence_trace::ExplicitTransactionTrace::open(
+        wow_database::persistence_trace::LogicalDatabase::Character,
+    );
     // Read and lock both facts in the same order as the original mutation.
     // The per-character mutation mutex is still held, so a later local payout
     // cannot manufacture a mixed observation while COMMIT is reconciled.
-    wow_database::persistence_trace::record_explicit_statement(
-        traced_db,
+    trace.statement(
         &CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.trace_identity(),
         vec![wow_database::persistence_trace::TracedParam::Uint {
             value: player_guid.counter() as u64,
@@ -13611,8 +13604,7 @@ async fn reconcile_stored_item_money_commit_like_cpp(
             .ok_or_else(|| {
                 DatabaseError::Transaction("stored-money character vanished".to_string())
             })?;
-    wow_database::persistence_trace::record_explicit_statement(
-        traced_db,
+    trace.statement(
         &CharStatements::SEL_ITEMCONTAINER_MONEY_FOR_UPDATE.trace_identity(),
         vec![wow_database::persistence_trace::TracedParam::Uint {
             value: item_guid.counter() as u64,
@@ -13630,13 +13622,10 @@ async fn reconcile_stored_item_money_commit_like_cpp(
         observed_money,
         observed_source_money,
     );
-    {
-        wow_database::persistence_trace::record_explicit_rollback(traced_db);
-        transaction
-    }
-    .rollback()
-    .await
-    .map_err(DatabaseError::from)?;
+    // A read-only reconciliation ends in a rollback by design, so this is its
+    // normal termination rather than a failure.
+    trace.rolled_back();
+    transaction.rollback().await.map_err(DatabaseError::from)?;
     Ok(classification)
 }
 
