@@ -8679,24 +8679,6 @@
       "package": "wow-database",
       "module": "crate::transaction",
       "source": "crates/wow-database/src/transaction.rs",
-      "enclosing": "impl SqlTransaction::record_commit",
-      "logical_databases": [
-        "characters",
-        "hotfix",
-        "login",
-        "world"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Observation only: records how the commit attempt resolved, after it resolves and before the caller sees the result, so the trace cannot claim an outcome the caller did not receive. It does not decide the outcome and cannot change it.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::transaction",
-      "source": "crates/wow-database/src/transaction.rs",
       "enclosing": "impl SqlTransaction::record_statement",
       "logical_databases": [
         "characters",

@@ -16240,39 +16240,6 @@
       "stable_boundary": true
     },
     {
-      "id": "workflow:wow-database:crate::transaction:crates/wow-database/src/transaction.rs::impl SqlTransaction::record_commit",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/transaction.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::transaction"
-      ],
-      "enclosings": [
-        "impl SqlTransaction::record_commit"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters",
-        "hotfix",
-        "login",
-        "world"
-      ],
-      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl SqlTransaction::record_commit in crates/wow-database/src/transaction.rs.",
-      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Observation only: records how the commit attempt resolved, after it resolves and before the caller sees the result, so the trace cannot claim an outcome the caller did not receive. It does not decide the outcome and cannot change it.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
       "id": "workflow:wow-database:crate::transaction:crates/wow-database/src/transaction.rs::impl SqlTransaction::record_statement",
       "source_class": "production",
       "packages": [
