@@ -3,74 +3,6 @@
   "workflows": [
     {
       "package": "bnet-server",
-      "module": "crate::legacy_password",
-      "source": "crates/bnet-server/src/legacy_password.rs",
-      "enclosing": "fn legacy_sha_pass_hash_column_exists_like_cpp",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "BNet authentication capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "bnet-server",
-      "module": "crate::legacy_password",
-      "source": "crates/bnet-server/src/legacy_password.rs",
-      "enclosing": "fn migrate_legacy_password_hashes_like_cpp",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "BNet authentication capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit login connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "bnet-server",
-      "module": "crate::legacy_password",
-      "source": "crates/bnet-server/src/legacy_password.rs",
-      "enclosing": "fn read_should_warn_like_cpp",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "BNet authentication capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "bnet-server",
-      "module": "crate::legacy_password",
-      "source": "crates/bnet-server/src/legacy_password.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "BNet authentication capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for login; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "bnet-server",
       "module": "crate",
       "source": "crates/bnet-server/src/main.rs",
       "enclosing": "fn main",
@@ -139,6 +71,74 @@
     },
     {
       "package": "bnet-server",
+      "module": "crate::legacy_password",
+      "source": "crates/bnet-server/src/legacy_password.rs",
+      "enclosing": "fn legacy_sha_pass_hash_column_exists_like_cpp",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "BNet authentication capability",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "bnet-server",
+      "module": "crate::legacy_password",
+      "source": "crates/bnet-server/src/legacy_password.rs",
+      "enclosing": "fn migrate_legacy_password_hashes_like_cpp",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "BNet authentication capability",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow preserves one explicit login connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
+    },
+    {
+      "package": "bnet-server",
+      "module": "crate::legacy_password",
+      "source": "crates/bnet-server/src/legacy_password.rs",
+      "enclosing": "fn read_should_warn_like_cpp",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "BNet authentication capability",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "bnet-server",
+      "module": "crate::legacy_password",
+      "source": "crates/bnet-server/src/legacy_password.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "BNet authentication capability",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "This is a shared dependency/type surface for login; it does not itself imply a runtime transaction.",
+      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
+      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
+    },
+    {
+      "package": "bnet-server",
       "module": "crate::realm",
       "source": "crates/bnet-server/src/realm/mod.rs",
       "enclosing": "fn load_build_info",
@@ -204,6 +204,23 @@
       "connection_affinity": "The workflow preserves one explicit login connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
+    },
+    {
+      "package": "bnet-server",
+      "module": "crate::rest::handlers",
+      "source": "crates/bnet-server/src/rest/handlers.rs",
+      "enclosing": "fn create_login_ticket",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "BNet authentication capability",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
     {
       "package": "bnet-server",
@@ -294,6 +311,23 @@
       "package": "bnet-server",
       "module": "crate::rest::handlers",
       "source": "crates/bnet-server/src/rest/handlers.rs",
+      "enclosing": "fn route",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "BNet authentication capability",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "bnet-server",
+      "module": "crate::rest::handlers",
+      "source": "crates/bnet-server/src/rest/handlers.rs",
       "enclosing": "fn store_login_ticket",
       "logical_databases": [
         "login"
@@ -329,6 +363,23 @@
       "module": "crate::rpc::services::authentication",
       "source": "crates/bnet-server/src/rpc/services/authentication.rs",
       "enclosing": "fn handle_generate_web_credentials",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "BNet authentication capability",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "bnet-server",
+      "module": "crate::rpc::services::authentication",
+      "source": "crates/bnet-server/src/rpc/services/authentication.rs",
+      "enclosing": "fn handle_logon",
       "logical_databases": [
         "login"
       ],
@@ -618,6 +669,23 @@
       "module": "crate",
       "source": "crates/world-server/src/main.rs",
       "enclosing": "const ITEM_GUID_DANGLING_REFERENCE_CLEANUP_STATEMENTS_LIKE_CPP",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "world-server bootstrap/data-source boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "world-server",
+      "module": "crate",
+      "source": "crates/world-server/src/main.rs",
+      "enclosing": "fn canonical_map_update_tick_set_inactive_like_cpp",
       "logical_databases": [
         "characters"
       ],
@@ -1204,6 +1272,23 @@
       "package": "world-server",
       "module": "crate",
       "source": "crates/world-server/src/main.rs",
+      "enclosing": "fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "world-server bootstrap/data-source boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "world-server",
+      "module": "crate",
+      "source": "crates/world-server/src/main.rs",
       "enclosing": "fn run_world_session_until_disconnect_like_cpp",
       "logical_databases": [
         "characters",
@@ -1395,16 +1480,16 @@
       "package": "world-server",
       "module": "crate",
       "source": "crates/world-server/src/main.rs",
-      "enclosing": "impl wow_network::world_socket::AccountLookup for DbAccountLookup::lookup_account",
+      "enclosing": "impl RespawnDbRetryQueueLikeCpp::enqueue_latest",
       "logical_databases": [
-        "login"
+        "characters"
       ],
       "boundary": "world-server bootstrap/data-source boundary",
       "target_issues": [
         153
       ],
       "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
@@ -1412,7 +1497,7 @@
       "package": "world-server",
       "module": "crate",
       "source": "crates/world-server/src/main.rs",
-      "enclosing": "impl RespawnDbRetryQueueLikeCpp::enqueue_latest",
+      "enclosing": "impl RespawnDbRetryQueueLikeCpp::retry_failed",
       "logical_databases": [
         "characters"
       ],
@@ -1439,6 +1524,23 @@
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "world-server",
+      "module": "crate",
+      "source": "crates/world-server/src/main.rs",
+      "enclosing": "impl wow_network::world_socket::AccountLookup for DbAccountLookup::lookup_account",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "world-server bootstrap/data-source boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
@@ -6466,6 +6568,24 @@
     },
     {
       "package": "wow-database",
+      "module": "crate",
+      "source": "crates/wow-database/src/lib.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
+    },
+    {
+      "package": "wow-database",
       "module": "crate::database",
       "source": "crates/wow-database/src/database.rs",
       "enclosing": "fn connect_pool_like_cpp",
@@ -6684,24 +6804,6 @@
       "package": "wow-database",
       "module": "crate::database",
       "source": "crates/wow-database/src/database.rs",
-      "enclosing": "impl database::std::fmt::Debug for Database < S >::fmt",
-      "logical_databases": [
-        "characters",
-        "hotfix",
-        "login",
-        "world"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::database",
-      "source": "crates/wow-database/src/database.rs",
       "enclosing": "impl Database < S >::from_pool",
       "logical_databases": [
         "characters",
@@ -6846,6 +6948,60 @@
       "package": "wow-database",
       "module": "crate::database",
       "source": "crates/wow-database/src/database.rs",
+      "enclosing": "impl Database < S >::record_pooled_statement",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Observation only: files a statement running on its own pooled connection into the trace recorder. It issues no statement of its own and runs before the query it describes, so the recorded order is the order the adapter was asked for, not the order MySQL served.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::database",
+      "source": "crates/wow-database/src/database.rs",
+      "enclosing": "impl database::std::fmt::Debug for Database < S >",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::database",
+      "source": "crates/wow-database/src/database.rs",
+      "enclosing": "impl database::std::fmt::Debug for Database < S >::fmt",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::database",
+      "source": "crates/wow-database/src/database.rs",
       "enclosing": "module",
       "logical_databases": [
         "characters",
@@ -6936,7 +7092,7 @@
       "package": "wow-database",
       "module": "crate::error",
       "source": "crates/wow-database/src/error.rs",
-      "enclosing": "impl error::From for DatabaseError::from",
+      "enclosing": "impl DatabaseError::from_sqlx_like_cpp",
       "logical_databases": [
         "characters",
         "hotfix",
@@ -6954,7 +7110,7 @@
       "package": "wow-database",
       "module": "crate::error",
       "source": "crates/wow-database/src/error.rs",
-      "enclosing": "impl DatabaseError::from_sqlx_like_cpp",
+      "enclosing": "impl error::From for DatabaseError",
       "logical_databases": [
         "characters",
         "hotfix",
@@ -6970,9 +7126,9 @@
     },
     {
       "package": "wow-database",
-      "module": "crate",
-      "source": "crates/wow-database/src/lib.rs",
-      "enclosing": "module",
+      "module": "crate::error",
+      "source": "crates/wow-database/src/error.rs",
+      "enclosing": "impl error::From for DatabaseError::from",
       "logical_databases": [
         "characters",
         "hotfix",
@@ -6983,8 +7139,8 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
     {
       "package": "wow-database",
@@ -7327,6 +7483,42 @@
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::persistence_trace",
+      "source": "crates/wow-database/src/persistence_trace.rs",
+      "enclosing": "impl TracedParam::from_param",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Pure projection of an already bound parameter into its redacted trace form; it imposes no order. Numbers keep their value, text and blobs keep only length and digest, because these plans bind account names, session keys and password verifiers.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::persistence_trace",
+      "source": "crates/wow-database/src/persistence_trace.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Defines the order contract rather than executing one: logical database, connection affinity, commit outcome and the ordered event list that freezes a plan's observable behaviour before persistence ports are extracted.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path."
     },
     {
       "package": "wow-database",
@@ -7890,6 +8082,24 @@
       "package": "wow-database",
       "module": "crate::result",
       "source": "crates/wow-database/src/result.rs",
+      "enclosing": "impl result::std::fmt::Debug for SqlResult",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::result",
+      "source": "crates/wow-database/src/result.rs",
       "enclosing": "module",
       "logical_databases": [
         "characters",
@@ -7942,9 +8152,60 @@
     },
     {
       "package": "wow-database",
+      "module": "crate::statements",
+      "source": "crates/wow-database/src/statements/mod.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::statements",
+      "source": "crates/wow-database/src/statements/mod.rs",
+      "enclosing": "trait StatementDef",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
       "module": "crate::statements::character",
       "source": "crates/wow-database/src/statements/character.rs",
       "enclosing": "impl CharStatements",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::statements::character",
+      "source": "crates/wow-database/src/statements/character.rs",
+      "enclosing": "impl statements::StatementDef for CharStatements",
       "logical_databases": [
         "characters"
       ],
@@ -7975,6 +8236,21 @@
       "module": "crate::statements::hotfix",
       "source": "crates/wow-database/src/statements/hotfix.rs",
       "enclosing": "impl HotfixStatements",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of hotfix per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::statements::hotfix",
+      "source": "crates/wow-database/src/statements/hotfix.rs",
+      "enclosing": "impl statements::StatementDef for HotfixStatements",
       "logical_databases": [
         "hotfix"
       ],
@@ -8027,42 +8303,6 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The typed adapter is instantiated against exactly one of login per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::statements",
-      "source": "crates/wow-database/src/statements/mod.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "characters",
-        "hotfix",
-        "login",
-        "world"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::statements",
-      "source": "crates/wow-database/src/statements/mod.rs",
-      "enclosing": "trait StatementDef",
-      "logical_databases": [
-        "characters",
-        "hotfix",
-        "login",
-        "world"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
@@ -8149,6 +8389,24 @@
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::transaction",
+      "source": "crates/wow-database/src/transaction.rs",
+      "enclosing": "fn commit_outcome_like_cpp",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Reads a completed commit result and classifies it as committed, definitely rolled back or unknown; it neither commits nor retries. The third case is the one that matters: an ambiguous COMMIT must be reconciled by the caller, never assumed either way.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path."
     },
     {
       "package": "wow-database",
@@ -8421,6 +8679,42 @@
       "package": "wow-database",
       "module": "crate::transaction",
       "source": "crates/wow-database/src/transaction.rs",
+      "enclosing": "impl SqlTransaction::record_commit",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Observation only: records how the commit attempt resolved, after it resolves and before the caller sees the result, so the trace cannot claim an outcome the caller did not receive. It does not decide the outcome and cannot change it.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::transaction",
+      "source": "crates/wow-database/src/transaction.rs",
+      "enclosing": "impl SqlTransaction::record_statement",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Observation only: files an appended statement, its redacted parameters and its transaction connection affinity. Records at append time, so the trace reflects the plan the caller built rather than execution order.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::transaction",
+      "source": "crates/wow-database/src/transaction.rs",
       "enclosing": "impl SqlTransaction::try_commit",
       "logical_databases": [
         "characters",
@@ -8488,6 +8782,42 @@
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::transaction",
+      "source": "crates/wow-database/src/transaction.rs",
+      "enclosing": "impl transaction::std::error::Error for SqlTransactionCommitError",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::transaction",
+      "source": "crates/wow-database/src/transaction.rs",
+      "enclosing": "impl transaction::std::fmt::Display for SqlTransactionCommitError",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
     },
     {
       "package": "wow-database",
@@ -9269,42 +9599,6 @@
       "package": "wow-world",
       "module": "crate::battle_pet_account",
       "source": "crates/wow-world/src/battle_pet_account.rs",
-      "enclosing": "impl battle_pet_account::BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp::allocate_guid_counter_like_cpp",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit login connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::battle_pet_account",
-      "source": "crates/wow-world/src/battle_pet_account.rs",
-      "enclosing": "impl battle_pet_account::BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp::delete_pet",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit login connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::battle_pet_account",
-      "source": "crates/wow-world/src/battle_pet_account.rs",
       "enclosing": "impl LoginBattlePetPersistenceLikeCpp::find_live_pet_like_cpp",
       "logical_databases": [
         "login"
@@ -9336,6 +9630,78 @@
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::battle_pet_account",
+      "source": "crates/wow-world/src/battle_pet_account.rs",
+      "enclosing": "impl LoginBattlePetPersistenceLikeCpp::new",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::battle_pet_account",
+      "source": "crates/wow-world/src/battle_pet_account.rs",
+      "enclosing": "impl LoginBattlePetPersistenceLikeCpp::slots_match_like_cpp",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow preserves one explicit login connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::battle_pet_account",
+      "source": "crates/wow-world/src/battle_pet_account.rs",
+      "enclosing": "impl battle_pet_account::BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp::allocate_guid_counter_like_cpp",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow preserves one explicit login connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::battle_pet_account",
+      "source": "crates/wow-world/src/battle_pet_account.rs",
+      "enclosing": "impl battle_pet_account::BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp::delete_pet",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow preserves one explicit login connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
     },
     {
       "package": "wow-world",
@@ -9377,24 +9743,6 @@
       "package": "wow-world",
       "module": "crate::battle_pet_account",
       "source": "crates/wow-world/src/battle_pet_account.rs",
-      "enclosing": "impl LoginBattlePetPersistenceLikeCpp::new",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::battle_pet_account",
-      "source": "crates/wow-world/src/battle_pet_account.rs",
       "enclosing": "impl battle_pet_account::BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp::replace_slots",
       "logical_databases": [
         "login"
@@ -9408,24 +9756,6 @@
       "connection_affinity": "The workflow preserves one explicit login connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
       "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::battle_pet_account",
-      "source": "crates/wow-world/src/battle_pet_account.rs",
-      "enclosing": "impl LoginBattlePetPersistenceLikeCpp::slots_match_like_cpp",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit login connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
     },
     {
       "package": "wow-world",
@@ -9503,42 +9833,6 @@
       "package": "wow-world",
       "module": "crate::battle_pet_purchase",
       "source": "crates/wow-world/src/battle_pet_purchase.rs",
-      "enclosing": "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::charge_and_insert_command",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::battle_pet_purchase",
-      "source": "crates/wow-world/src/battle_pet_purchase.rs",
-      "enclosing": "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::compensate",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::battle_pet_purchase",
-      "source": "crates/wow-world/src/battle_pet_purchase.rs",
       "enclosing": "impl CharacterBattlePetPurchaseStoreLikeCpp::load_character_money_impl",
       "logical_databases": [
         "characters"
@@ -9570,6 +9864,96 @@
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::battle_pet_purchase",
+      "source": "crates/wow-world/src/battle_pet_purchase.rs",
+      "enclosing": "impl CharacterBattlePetPurchaseStoreLikeCpp::mark_statement_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::battle_pet_purchase",
+      "source": "crates/wow-world/src/battle_pet_purchase.rs",
+      "enclosing": "impl CharacterBattlePetPurchaseStoreLikeCpp::new",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::battle_pet_purchase",
+      "source": "crates/wow-world/src/battle_pet_purchase.rs",
+      "enclosing": "impl CharacterBattlePetPurchaseStoreLikeCpp::read_command_row_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::battle_pet_purchase",
+      "source": "crates/wow-world/src/battle_pet_purchase.rs",
+      "enclosing": "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::charge_and_insert_command",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::battle_pet_purchase",
+      "source": "crates/wow-world/src/battle_pet_purchase.rs",
+      "enclosing": "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::compensate",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
     },
     {
       "package": "wow-world",
@@ -9647,24 +10031,6 @@
       "package": "wow-world",
       "module": "crate::battle_pet_purchase",
       "source": "crates/wow-world/src/battle_pet_purchase.rs",
-      "enclosing": "impl CharacterBattlePetPurchaseStoreLikeCpp::mark_statement_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::battle_pet_purchase",
-      "source": "crates/wow-world/src/battle_pet_purchase.rs",
       "enclosing": "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::mark_terminal_failure",
       "logical_databases": [
         "characters"
@@ -9678,42 +10044,6 @@
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
       "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::battle_pet_purchase",
-      "source": "crates/wow-world/src/battle_pet_purchase.rs",
-      "enclosing": "impl CharacterBattlePetPurchaseStoreLikeCpp::new",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::battle_pet_purchase",
-      "source": "crates/wow-world/src/battle_pet_purchase.rs",
-      "enclosing": "impl CharacterBattlePetPurchaseStoreLikeCpp::read_command_row_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
     {
       "package": "wow-world",
@@ -10981,6 +11311,26 @@
       "package": "wow-world",
       "module": "crate::handlers::group",
       "source": "crates/wow-world/src/handlers/group.rs",
+      "enclosing": "fn current_player_party_invite_map_instance_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "group persistence/publication capability",
+      "target_issues": [
+        187,
+        199
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::handlers::group",
+      "source": "crates/wow-world/src/handlers/group.rs",
       "enclosing": "fn group_delete_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -11154,6 +11504,26 @@
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::handlers::group",
+      "source": "crates/wow-world/src/handlers/group.rs",
+      "enclosing": "fn send_party_uninvite_result_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "group persistence/publication capability",
+      "target_issues": [
+        187,
+        199
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
@@ -11944,6 +12314,25 @@
       "package": "wow-world",
       "module": "crate::handlers::quest",
       "source": "crates/wow-world/src/handlers/quest.rs",
+      "enclosing": "impl WorldSession::handle_quest_confirm_accept",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-world residual persistence boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::handlers::quest",
+      "source": "crates/wow-world/src/handlers/quest.rs",
       "enclosing": "impl WorldSession::handle_quest_giver_hello",
       "logical_databases": [
         "world"
@@ -12415,6 +12804,44 @@
       "package": "wow-world",
       "module": "crate::handlers::trainer",
       "source": "crates/wow-world/src/handlers/trainer.rs",
+      "enclosing": "fn trainer_spell_class_race_fit_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-world residual persistence boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::handlers::trainer",
+      "source": "crates/wow-world/src/handlers/trainer.rs",
+      "enclosing": "fn trainer_spell_product_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-world residual persistence boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::handlers::trainer",
+      "source": "crates/wow-world/src/handlers/trainer.rs",
       "enclosing": "impl WorldSession::handle_trainer_buy_spell",
       "logical_databases": [
         "characters"
@@ -12823,6 +13250,25 @@
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::session",
+      "source": "crates/wow-world/src/session.rs",
+      "enclosing": "impl RepresentedPlayerConditionContextLikeCpp::as_context",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "Session residual persistence boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
@@ -14903,387 +15349,6 @@
       "package": "wow-world",
       "module": "crate::spell_acquisition::application",
       "source": "crates/wow-world/src/spell_acquisition/application.rs",
-      "enclosing": "fn execute_player_spell_acquisition_operation_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::spell_acquisition::application",
-      "source": "crates/wow-world/src/spell_acquisition/application.rs",
-      "enclosing": "fn persist_prepared_player_spell_acquisition_and_money_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::spell_acquisition::application",
-      "source": "crates/wow-world/src/spell_acquisition/application.rs",
-      "enclosing": "fn persist_prepared_player_spell_acquisition_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::spell_acquisition::application",
-      "source": "crates/wow-world/src/spell_acquisition/application.rs",
-      "enclosing": "fn persist_prepared_player_spell_acquisition_with_fault_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::spell_acquisition::application",
-      "source": "crates/wow-world/src/spell_acquisition/application.rs",
-      "enclosing": "fn read_durable_authority_in_transaction_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::spell_acquisition::application",
-      "source": "crates/wow-world/src/spell_acquisition/application.rs",
-      "enclosing": "fn reconcile_prepared_player_spell_acquisition_and_money_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::spell_acquisition::application",
-      "source": "crates/wow-world/src/spell_acquisition/application.rs",
-      "enclosing": "fn reconcile_prepared_player_spell_acquisition_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::spell_acquisition::application",
-      "source": "crates/wow-world/src/spell_acquisition/application.rs",
-      "enclosing": "fn rollback_player_spell_acquisition_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::spell_acquisition::application",
-      "source": "crates/wow-world/src/spell_acquisition/application.rs",
-      "enclosing": "fn validate_prepared_character_counter_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::spell_acquisition::application",
-      "source": "crates/wow-world/src/spell_acquisition/application.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "durable player progression capability",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
-    },
-    {
-      "package": "bnet-server",
-      "module": "crate::rest::handlers",
-      "source": "crates/bnet-server/src/rest/handlers.rs",
-      "enclosing": "fn create_login_ticket",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "BNet authentication capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "bnet-server",
-      "module": "crate::rest::handlers",
-      "source": "crates/bnet-server/src/rest/handlers.rs",
-      "enclosing": "fn route",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "BNet authentication capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "bnet-server",
-      "module": "crate::rpc::services::authentication",
-      "source": "crates/bnet-server/src/rpc/services/authentication.rs",
-      "enclosing": "fn handle_logon",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "BNet authentication capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn canonical_map_update_tick_set_inactive_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "impl RespawnDbRetryQueueLikeCpp::retry_failed",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::group",
-      "source": "crates/wow-world/src/handlers/group.rs",
-      "enclosing": "fn current_player_party_invite_map_instance_like_cpp",
-      "logical_databases": [
-        "characters",
-        "login",
-        "world"
-      ],
-      "boundary": "group persistence/publication capability",
-      "target_issues": [
-        187,
-        199
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::group",
-      "source": "crates/wow-world/src/handlers/group.rs",
-      "enclosing": "fn send_party_uninvite_result_like_cpp",
-      "logical_databases": [
-        "characters",
-        "login",
-        "world"
-      ],
-      "boundary": "group persistence/publication capability",
-      "target_issues": [
-        187,
-        199
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::quest",
-      "source": "crates/wow-world/src/handlers/quest.rs",
-      "enclosing": "impl WorldSession::handle_quest_confirm_accept",
-      "logical_databases": [
-        "characters",
-        "login",
-        "world"
-      ],
-      "boundary": "wow-world residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::trainer",
-      "source": "crates/wow-world/src/handlers/trainer.rs",
-      "enclosing": "fn trainer_spell_class_race_fit_like_cpp",
-      "logical_databases": [
-        "characters",
-        "login",
-        "world"
-      ],
-      "boundary": "wow-world residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::trainer",
-      "source": "crates/wow-world/src/handlers/trainer.rs",
-      "enclosing": "fn trainer_spell_product_like_cpp",
-      "logical_databases": [
-        "characters",
-        "login",
-        "world"
-      ],
-      "boundary": "wow-world residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
-      "enclosing": "impl RepresentedPlayerConditionContextLikeCpp::as_context",
-      "logical_databases": [
-        "characters",
-        "login",
-        "world"
-      ],
-      "boundary": "Session residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::spell_acquisition::application",
-      "source": "crates/wow-world/src/spell_acquisition/application.rs",
       "enclosing": "fn apply_player_spell_acquisition_non_packet_runtime_actions_like_cpp",
       "logical_databases": [
         "characters",
@@ -15444,6 +15509,24 @@
       "package": "wow-world",
       "module": "crate::spell_acquisition::application",
       "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn execute_player_spell_acquisition_operation_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
       "enclosing": "fn install_prepared_player_spell_acquisition_actions_runtime_like_cpp",
       "logical_databases": [
         "characters",
@@ -15479,6 +15562,60 @@
       "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn persist_prepared_player_spell_acquisition_and_money_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn persist_prepared_player_spell_acquisition_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn persist_prepared_player_spell_acquisition_with_fault_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
     },
     {
       "package": "wow-world",
@@ -15524,6 +15661,60 @@
       "package": "wow-world",
       "module": "crate::spell_acquisition::application",
       "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn read_durable_authority_in_transaction_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn reconcile_prepared_player_spell_acquisition_and_money_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn reconcile_prepared_player_spell_acquisition_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
       "enclosing": "fn require_prepared_session_character_like_cpp",
       "logical_databases": [
         "characters",
@@ -15537,6 +15728,42 @@
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn rollback_player_spell_acquisition_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn validate_prepared_character_counter_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
@@ -15581,140 +15808,21 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
     {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp",
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "module",
       "logical_databases": [
         "characters"
       ],
-      "boundary": "world-server bootstrap/data-source boundary",
+      "boundary": "durable player progression capability",
       "target_issues": [
-        153
+        153,
+        187
       ],
       "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::database",
-      "source": "crates/wow-database/src/database.rs",
-      "enclosing": "impl database::std::fmt::Debug for Database < S >",
-      "logical_databases": [
-        "characters",
-        "hotfix",
-        "login",
-        "world"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::error",
-      "source": "crates/wow-database/src/error.rs",
-      "enclosing": "impl error::From for DatabaseError",
-      "logical_databases": [
-        "characters",
-        "hotfix",
-        "login",
-        "world"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::result",
-      "source": "crates/wow-database/src/result.rs",
-      "enclosing": "impl result::std::fmt::Debug for SqlResult",
-      "logical_databases": [
-        "characters",
-        "hotfix",
-        "login",
-        "world"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::statements::character",
-      "source": "crates/wow-database/src/statements/character.rs",
-      "enclosing": "impl statements::StatementDef for CharStatements",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of characters per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::statements::hotfix",
-      "source": "crates/wow-database/src/statements/hotfix.rs",
-      "enclosing": "impl statements::StatementDef for HotfixStatements",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of hotfix per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::transaction",
-      "source": "crates/wow-database/src/transaction.rs",
-      "enclosing": "impl transaction::std::error::Error for SqlTransactionCommitError",
-      "logical_databases": [
-        "characters",
-        "hotfix",
-        "login",
-        "world"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::transaction",
-      "source": "crates/wow-database/src/transaction.rs",
-      "enclosing": "impl transaction::std::fmt::Display for SqlTransactionCommitError",
-      "logical_databases": [
-        "characters",
-        "hotfix",
-        "login",
-        "world"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
+      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
     }
   ]

@@ -294,9 +294,9 @@ composition-side `SessionResources` has 243 fields, of which 186 are optional;
 reachable payload types. The factory has 247 `set_*` and one `install_*` call: two setters are
 multiline calls that the earlier text-only count missed. The generated-input surface has 44 exact
 records, and direct access to `PlayerRegistry`, `GroupRegistry`, or `PendingInvites` is frozen as
-685 exact AST rows with multiplicity 705. The workspace-wide persistence inventory contains 23,404
-exact rows—13,048 production and 10,356 test-fixture—with multiplicity 25,587 (14,531 production and
-11,056 test). Six generated-source inputs are an orthogonal subset, not a third source class. Schema
+685 exact AST rows with multiplicity 705. The workspace-wide persistence inventory contains 23,554
+exact rows—13,099 production and 10,455 test-fixture—with multiplicity 25,756 (14,584 production and
+11,172 test). Six generated-source inputs are an orthogonal subset, not a third source class. Schema
 v3 covers SQLx and concrete `wow_database` types/imports, typed statements/results/errors,
 prepare/query/execute/direct/raw/nonliteral/interpolated SQL, pool access, transaction construction/append/commit,
 database opening, advisory locks, value flow and escapes. Statement text is read only where it is
@@ -304,7 +304,7 @@ pinned—a literal, a `concat!`, or a name bound to one of those. SQL assembled 
 chains, `format!` templates, branches, helper returns, projections) is deliberately recorded as
 interpolated or nonliteral without a content claim: deciding which string an expression produces
 has no natural stopping point, so the connection-affinity and ordering facts for those call sites
-come from the reviewed workflow annotation covering them. The 905 semantic groups classify every
+come from the reviewed workflow annotation covering them. The 911 semantic groups classify every
 row exactly once by logical database,
 capability owner, connection/transaction affinity, current order, failure/unknown-commit behavior
 and open removal/decision issue; unmatched, overlapping or stale groups fail. The legacy/canonical

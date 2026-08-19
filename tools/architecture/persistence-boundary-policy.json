@@ -13024,6 +13024,39 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::database:crates/wow-database/src/database.rs::impl Database < S >::record_pooled_statement",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/database.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::database"
+      ],
+      "enclosings": [
+        "impl Database < S >::record_pooled_statement"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl Database < S >::record_pooled_statement in crates/wow-database/src/database.rs.",
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Observation only: files a statement running on its own pooled connection into the trace recorder. It issues no statement of its own and runs before the query it describes, so the recorded order is the order the adapter was asked for, not the order MySQL served.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::database:crates/wow-database/src/database.rs::impl database::std::fmt::Debug for Database < S >",
       "source_class": "production",
       "packages": [
@@ -13976,6 +14009,72 @@
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::persistence_trace:crates/wow-database/src/persistence_trace.rs::impl TracedParam::from_param",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/persistence_trace.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::persistence_trace"
+      ],
+      "enclosings": [
+        "impl TracedParam::from_param"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl TracedParam::from_param in crates/wow-database/src/persistence_trace.rs.",
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Pure projection of an already bound parameter into its redacted trace form; it imposes no order. Numbers keep their value, text and blobs keep only length and digest, because these plans bind account names, session keys and password verifiers.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::persistence_trace:crates/wow-database/src/persistence_trace.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/persistence_trace.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::persistence_trace"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow module in crates/wow-database/src/persistence_trace.rs.",
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Defines the order contract rather than executing one: logical database, connection affinity, commit outcome and the ordered event list that freezes a plan's observable behaviour before persistence ports are extracted.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -15601,6 +15700,39 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::transaction:crates/wow-database/src/transaction.rs::fn commit_outcome_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/transaction.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::transaction"
+      ],
+      "enclosings": [
+        "fn commit_outcome_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow fn commit_outcome_like_cpp in crates/wow-database/src/transaction.rs.",
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Reads a completed commit result and classifies it as committed, definitely rolled back or unknown; it neither commits nor retries. The third case is the one that matters: an ambiguous COMMIT must be reconciled by the caller, never assumed either way.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::transaction:crates/wow-database/src/transaction.rs::fn is_database_deadlock_like_cpp",
       "source_class": "production",
       "packages": [
@@ -16103,6 +16235,72 @@
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::transaction:crates/wow-database/src/transaction.rs::impl SqlTransaction::record_commit",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/transaction.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::transaction"
+      ],
+      "enclosings": [
+        "impl SqlTransaction::record_commit"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl SqlTransaction::record_commit in crates/wow-database/src/transaction.rs.",
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Observation only: records how the commit attempt resolved, after it resolves and before the caller sees the result, so the trace cannot claim an outcome the caller did not receive. It does not decide the outcome and cannot change it.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::transaction:crates/wow-database/src/transaction.rs::impl SqlTransaction::record_statement",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/transaction.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::transaction"
+      ],
+      "enclosings": [
+        "impl SqlTransaction::record_statement"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl SqlTransaction::record_statement in crates/wow-database/src/transaction.rs.",
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Observation only: files an appended statement, its redacted parameters and its transaction connection affinity. Records at append time, so the trace reflects the plan the caller built rather than execution order.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -29283,6 +29481,7 @@
       "sources": [
         "crates/wow-database/src/database.rs",
         "crates/wow-database/src/params.rs",
+        "crates/wow-database/src/persistence_trace.rs",
         "crates/wow-database/src/query_holder.rs",
         "crates/wow-database/src/statements/character.rs",
         "crates/wow-database/src/statements/hotfix.rs",
