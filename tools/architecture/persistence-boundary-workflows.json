@@ -6912,6 +6912,24 @@
       "package": "wow-database",
       "module": "crate::database",
       "source": "crates/wow-database/src/database.rs",
+      "enclosing": "impl Database < S >::pooled_failure_is_definite",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Pure classification of a finished sqlx error; it issues nothing and imposes no order. Separates a failure to acquire a connection \u2014 which never reached the server, so the statement definitely did not run \u2014 from a failure after the statement was sent, whose outcome is ambiguous and must not be recorded as a revert.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::database",
+      "source": "crates/wow-database/src/database.rs",
       "enclosing": "impl Database < S >::prepare",
       "logical_databases": [
         "characters",

@@ -12958,6 +12958,39 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::database:crates/wow-database/src/database.rs::impl Database < S >::pooled_failure_is_definite",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/database.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::database"
+      ],
+      "enclosings": [
+        "impl Database < S >::pooled_failure_is_definite"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl Database < S >::pooled_failure_is_definite in crates/wow-database/src/database.rs.",
+      "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Pure classification of a finished sqlx error; it issues nothing and imposes no order. Separates a failure to acquire a connection — which never reached the server, so the statement definitely did not run — from a failure after the statement was sent, whose outcome is ambiguous and must not be recorded as a revert.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::database:crates/wow-database/src/database.rs::impl Database < S >::prepare",
       "source_class": "production",
       "packages": [
