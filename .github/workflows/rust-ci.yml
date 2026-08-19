@@ -99,12 +99,26 @@ jobs:
             -- --skip repository_surface_can_be_collected
           cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check
 
+      # Pull requests ratchet the session surface only — seconds. The exact
+      # persistence inventory is an 11-minute scan that was 72% of this job,
+      # and it is a change detector on source text: on a branch where 55% of
+      # commits touch session.rs, most of what it reports mid-development is
+      # regeneration churn. It still runs below on every push to 3.4.3 and on
+      # the cron, so a leak is caught at merge rather than at review time —
+      # deferred, not dropped.
+      - name: Ratchet the session ownership surface
+        if: github.event_name == 'pull_request'
+        run: |
+          cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
+            --bin session-ownership-check -- check --syntax-only
+
       # The combined check compares the session surface before the persistence
       # snapshot, so a session-only mismatch must not launch the long scan
       # below. Publish the baseline only when the persistence comparison is
       # what failed.
       - name: Check persistence and session ownership ratchets
         id: ratchets
+        if: github.event_name != 'pull_request'
         run: |
           set +e
           report="$(cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check 2>&1)"

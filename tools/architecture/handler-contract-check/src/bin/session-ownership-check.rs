@@ -8,6 +8,7 @@ use std::process::ExitCode;
 fn usage() -> ExitCode {
     eprintln!(
         "usage: session-ownership-check check [--policy PATH]\n       \
+         session-ownership-check check --syntax-only\n       \
          session-ownership-check print-baseline\n       \
          session-ownership-check print-persistence-baseline\n       \
          session-ownership-check print-persistence-policy [--from-snapshot PATH]"
@@ -20,6 +21,9 @@ fn main() -> ExitCode {
     let result = match arguments.as_slice() {
         [command] if command == "check" => {
             handler_contract_check::check_session_ownership_repository(None)
+        }
+        [command, flag] if command == "check" && flag == "--syntax-only" => {
+            handler_contract_check::check_session_ownership_repository_syntax_only(None)
         }
         [command, flag, policy] if command == "check" && flag == "--policy" => {
             let policy = PathBuf::from(policy);
