@@ -294,9 +294,9 @@ composition-side `SessionResources` has 243 fields, of which 186 are optional;
 reachable payload types. The factory has 247 `set_*` and one `install_*` call: two setters are
 multiline calls that the earlier text-only count missed. The generated-input surface has 44 exact
 records, and direct access to `PlayerRegistry`, `GroupRegistry`, or `PendingInvites` is frozen as
-685 exact AST rows with multiplicity 705. The workspace-wide persistence inventory contains 23,568
-exact rows—13,097 production and 10,471 test-fixture—with multiplicity 25,775 (14,583 production and
-11,192 test). Six generated-source inputs are an orthogonal subset, not a third source class. Schema
+685 exact AST rows with multiplicity 705. The workspace-wide persistence inventory contains 23,437
+exact rows—12,955 production and 10,482 test-fixture—with multiplicity 25,655 (14,449 production and
+11,206 test). Six generated-source inputs are an orthogonal subset, not a third source class. Schema
 v3 covers SQLx and concrete `wow_database` types/imports, typed statements/results/errors,
 prepare/query/execute/direct/raw/nonliteral/interpolated SQL, pool access, transaction construction/append/commit,
 database opening, advisory locks, value flow and escapes. Statement text is read only where it is
