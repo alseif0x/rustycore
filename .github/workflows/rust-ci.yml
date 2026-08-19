@@ -205,6 +205,49 @@ jobs:
           cargo +1.88.0 run --locked -p capture-diff -- verify-required loot-single-item-claim
           cargo +1.88.0 run --locked -p capture-diff -- verify-required creature-spell-casting
 
+  clippy:
+    name: Clippy advisory sweep
+    # Neither pass can fail a build: no crate sets `lints.workspace = true`, so
+    # the workspace lint table is inherited by nothing; no crate denies a lint
+    # in source; there is no `-D warnings`; and the world pass caps lints to
+    # warnings outright. That cost every PR 1.1 minutes to print advice which
+    # gated nothing, so the signal lives here instead — visible and free.
+    # Making it enforcing means clearing wow-world's lint debt first.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.88.0
+        with:
+          components: clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: clippy
+
+      - name: Install protoc
+        run: |
+          protoc_version="$(tr -d '[:space:]' < .protoc-version)"
+          curl --fail --show-error --location --retry 3 --retry-all-errors \
+            -o /tmp/protoc.zip \
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${protoc_version}/protoc-${protoc_version}-linux-x86_64.zip"
+          python3 -m zipfile -e /tmp/protoc.zip "$HOME/.local"
+          chmod +x "$HOME/.local/bin/protoc"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Clippy loot authority boundary
+        run: cargo +1.88.0 clippy --locked --no-deps --message-format short -p wow-loot -p wow-entities -p wow-map -p wow-network --lib
+
+      - name: Clippy world target with inherited debt capped
+        run: cargo +1.88.0 clippy --locked --no-deps --message-format short -p wow-world --lib -- --cap-lints warn
+
   latest-stable:
     name: Latest stable compatibility
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -238,13 +281,3 @@ jobs:
         run: |
           cargo +stable check --locked -p bnet-server -p world-server
           cargo +stable build --locked -p bnet-server -p world-server
-
-      # Neither pass can fail: no crate sets `lints.workspace = true`, none
-      # denies a lint in source, there is no `-D warnings`, and the world
-      # target caps lints to warnings outright. They were costing every PR
-      # 1.1 minutes to print advice nobody was gated on. Keep the signal
-      # where it is free, and make it enforcing in its own change.
-      - name: Clippy advisory sweep
-        run: |
-          cargo +1.88.0 clippy --locked --no-deps --message-format short -p wow-loot -p wow-entities -p wow-map -p wow-network --lib
-          cargo +1.88.0 clippy --locked --no-deps --message-format short -p wow-world --lib -- --cap-lints warn

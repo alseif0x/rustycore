@@ -1063,7 +1063,7 @@ run_self_test() {
     "cargo +1.88.0 fmt --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- --check" 1 \
     "GitHub workflow handler-contract checker formatting"
   require_exact_occurrences "$github_workflow_text" \
-    'CARGO_INCREMENTAL: "0"' 2 \
+    'CARGO_INCREMENTAL: "0"' 3 \
     "GitHub workflow non-incremental Rust 1.88 contract"
   require_exact_occurrences "$github_workflow_text" \
     "cargo +1.88.0 build --locked -j4 -p bnet-server" 1 \
