@@ -1962,6 +1962,10 @@ impl WorldSession {
         if !learned_enqueued {
             warn!("Send channel closed for account {}", self.account_id);
         }
+        // Where this lands relative to the commit is the crash window, so the
+        // trace has to see it. Without the hook, moving the publication before
+        // the commit -- or dropping it -- produced an identical trace.
+        wow_database::persistence_trace::record_publication("battle_pet_trainer_purchase.client");
         journal_enqueued && learned_enqueued
     }
 }

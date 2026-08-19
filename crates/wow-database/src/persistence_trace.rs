@@ -602,6 +602,29 @@ pub fn record_advisory_lock(label: &str, acquired: bool) {
     }
 }
 
+/// Records a point the plan must not cross until prior work is durable.
+pub fn record_fence(label: &str) {
+    if let Some(recorder) = ambient_recorder() {
+        recorder.record(PersistenceEvent::Fence {
+            label: label.to_owned(),
+        });
+    }
+}
+
+/// Records state being made visible to clients or other sessions.
+///
+/// The event's whole purpose is its position relative to `Commit`: that
+/// ordering is the crash window. Until production called this, moving,
+/// removing or duplicating a publication produced an identical trace, so a
+/// golden could approve exactly the change it exists to catch.
+pub fn record_publication(label: &str) {
+    if let Some(recorder) = ambient_recorder() {
+        recorder.record(PersistenceEvent::Publication {
+            label: label.to_owned(),
+        });
+    }
+}
+
 /// Handle used by production code to append events.
 ///
 /// Cloning shares one recording. The mutex is taken only to push an event and
@@ -833,6 +856,69 @@ mod tests {
 
         assert_eq!(recorder.take(), money_plan());
         assert!(recorder.take().events.is_empty(), "take must drain");
+    }
+
+    #[test]
+    fn moving_a_publication_before_its_commit_changes_the_trace() {
+        // The issue's acceptance criterion: "a fixture that reorders
+        // commit/publication ... fails". C++ gates publication on the commit
+        // callback -- `CharacterHandler.cpp:907` sends the packet and inserts
+        // the character-cache entry only inside `AfterComplete(success)` -- so
+        // publishing first is a different durability contract, not a cosmetic
+        // reordering, and the trace has to be able to tell them apart.
+        let durable_then_visible = PersistenceTrace {
+            events: vec![
+                PersistenceEvent::Commit {
+                    database: LogicalDatabase::Character,
+                    outcome: CommitOutcome::Committed,
+                },
+                PersistenceEvent::Publication {
+                    label: "flow.client".to_owned(),
+                },
+            ],
+        };
+        let visible_then_durable = PersistenceTrace {
+            events: vec![
+                PersistenceEvent::Publication {
+                    label: "flow.client".to_owned(),
+                },
+                PersistenceEvent::Commit {
+                    database: LogicalDatabase::Character,
+                    outcome: CommitOutcome::Committed,
+                },
+            ],
+        };
+
+        assert_ne!(
+            durable_then_visible, visible_then_durable,
+            "publishing before the commit must not compare equal to publishing after it"
+        );
+        assert_ne!(
+            durable_then_visible.to_golden().expect("render"),
+            visible_then_durable.to_golden().expect("render"),
+            "the rendered golden must distinguish them too, since that is what is committed"
+        );
+    }
+
+    #[test]
+    fn a_publication_reaches_the_trace_from_production() {
+        // record_publication is what production calls; before it existed the
+        // variant was built only in this module's tests, so no production
+        // publication could appear in any trace.
+        let _serialized = capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        record_publication("flow.client");
+
+        let trace = recorder.snapshot();
+        assert_eq!(
+            trace.events,
+            vec![PersistenceEvent::Publication {
+                label: "flow.client".to_owned()
+            }],
+            "the publication must be the recorded event: {trace:?}"
+        );
     }
 
     #[test]
