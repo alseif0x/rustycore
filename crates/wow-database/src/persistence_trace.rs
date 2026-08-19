@@ -403,6 +403,67 @@ impl Drop for RecordingGuard {
     }
 }
 
+/// Traces an explicitly opened transaction for its whole lifetime.
+///
+/// SQLx rolls an unfinished transaction back when it drops, so *every* early
+/// return ends the transaction — including ones added later. Annotating each
+/// return site records the ones someone remembered and silently omits the
+/// rest, which is how a trace ends up showing a transaction that opened and
+/// never closed. A guard cannot be forgotten: if it drops without being
+/// resolved, the rollback is recorded.
+#[derive(Debug)]
+pub struct ExplicitTransactionTrace {
+    database: LogicalDatabase,
+    resolved: bool,
+}
+
+impl ExplicitTransactionTrace {
+    /// Record the boundary and start guarding it.
+    pub fn open(database: LogicalDatabase) -> Self {
+        record_explicit_transaction_begin(database);
+        Self {
+            database,
+            resolved: true,
+        }
+        .armed()
+    }
+
+    fn armed(mut self) -> Self {
+        self.resolved = false;
+        self
+    }
+
+    /// The logical database this transaction runs on.
+    pub fn database(&self) -> LogicalDatabase {
+        self.database
+    }
+
+    /// Record a statement inside this transaction.
+    pub fn statement(&self, statement: &str, params: Vec<TracedParam>) {
+        record_explicit_statement(self.database, statement, params);
+    }
+
+    /// Record how the commit attempt resolved.
+    pub fn committed(mut self, outcome: CommitOutcome) {
+        record_explicit_commit(self.database, outcome);
+        self.resolved = true;
+    }
+
+    /// Record a deliberate rollback.
+    pub fn rolled_back(mut self) {
+        record_explicit_rollback(self.database);
+        self.resolved = true;
+    }
+}
+
+impl Drop for ExplicitTransactionTrace {
+    fn drop(&mut self) {
+        if !self.resolved {
+            record_explicit_rollback(self.database);
+        }
+    }
+}
+
 /// Record the boundary of a transaction opened directly on a pool.
 ///
 /// Some durable workflows need `SELECT ... FOR UPDATE` inside the transaction
@@ -805,6 +866,57 @@ mod tests {
 
         let other = HotfixStatements::base("SELECT ID FROM spell_name WHERE ID = ?");
         assert_ne!(statement.trace_identity(), other.trace_identity());
+    }
+
+    #[test]
+    fn an_abandoned_explicit_transaction_still_records_its_end() {
+        let _serialized = capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        // The whole point of the guard: an early return through `?` drops the
+        // transaction, SQLx rolls it back, and no hand-written hook runs. A
+        // trace that ended with an open transaction would misrepresent the
+        // retry boundary.
+        {
+            let _trace = ExplicitTransactionTrace::open(LogicalDatabase::Character);
+        }
+
+        assert_eq!(
+            recorder.take().events,
+            vec![
+                PersistenceEvent::TransactionBegin {
+                    database: LogicalDatabase::Character
+                },
+                PersistenceEvent::Rollback {
+                    database: LogicalDatabase::Character
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn a_resolved_explicit_transaction_records_its_outcome_once() {
+        let _serialized = capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        let trace = ExplicitTransactionTrace::open(LogicalDatabase::Character);
+        trace.committed(CommitOutcome::Unknown);
+
+        assert_eq!(
+            recorder.take().events,
+            vec![
+                PersistenceEvent::TransactionBegin {
+                    database: LogicalDatabase::Character
+                },
+                PersistenceEvent::Commit {
+                    database: LogicalDatabase::Character,
+                    outcome: CommitOutcome::Unknown
+                },
+            ],
+            "a resolved transaction must not also record a dropped rollback"
+        );
     }
 
     #[test]

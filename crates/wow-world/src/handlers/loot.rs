@@ -13489,6 +13489,23 @@ async fn attempt_stored_item_money_transaction_like_cpp(
     };
 
     if applied_delta != 0 {
+        // The durable credit itself. Recording only the preceding SELECTs left
+        // the mutation invisible, so removing or reordering it would not have
+        // moved the trace at all.
+        wow_database::persistence_trace::record_explicit_statement(
+            traced_db,
+            &CharStatements::UPD_CHAR_MONEY.trace_identity(),
+            vec![
+                wow_database::persistence_trace::TracedParam::Uint {
+                    value: after,
+                    width_bits: 64,
+                },
+                wow_database::persistence_trace::TracedParam::Uint {
+                    value: player_guid.counter() as u64,
+                    width_bits: 64,
+                },
+            ],
+        );
         let result = sqlx::query(CharStatements::UPD_CHAR_MONEY.sql())
             .bind(after)
             .bind(player_guid.counter() as u64)
@@ -13504,6 +13521,15 @@ async fn attempt_stored_item_money_transaction_like_cpp(
             ));
         }
     }
+    // Consuming the source is the other half of the durable operation.
+    wow_database::persistence_trace::record_explicit_statement(
+        traced_db,
+        &CharStatements::DEL_ITEMCONTAINER_MONEY.trace_identity(),
+        vec![wow_database::persistence_trace::TracedParam::Uint {
+            value: item_guid.counter() as u64,
+            width_bits: 64,
+        }],
+    );
     let delete = sqlx::query(CharStatements::DEL_ITEMCONTAINER_MONEY.sql())
         .bind(item_guid.counter() as u64)
         .execute(&mut *transaction)
