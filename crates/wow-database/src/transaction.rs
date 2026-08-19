@@ -401,9 +401,19 @@ impl SqlTransaction {
                 self.trace_database = Some(first);
                 first
             }
-            // Raw SQL before any identified statement: nothing reliable to
-            // attribute it to, so it is not recorded rather than guessed.
-            (None, None) => return,
+            // Raw SQL before anything identified the transaction's database.
+            // The database is not guessed, but the statement is still recorded:
+            // dropping it made a transaction built entirely from raw SQL absent
+            // from its own trace, and a golden that says a flow persists nothing
+            // is wrong, where one that admits it could not attribute a statement
+            // is merely incomplete about it.
+            (None, None) => {
+                recorder.record(PersistenceEvent::UnattributedRawStatement {
+                    connection: ConnectionAffinity::Transaction,
+                    digest: raw_statement_digest(stmt.sql()),
+                });
+                return;
+            }
         };
         let recorder = &recorder;
         let params = stmt.params().iter().map(TracedParam::from_param).collect();
@@ -982,6 +992,39 @@ mod trace_tests {
                 .iter()
                 .any(|event| matches!(event, PersistenceEvent::Commit { .. })),
             "no commit was attempted, so none may be recorded: {events:?}"
+        );
+    }
+
+    #[test]
+    fn a_transaction_of_only_raw_sql_still_appears_in_its_own_trace() {
+        use crate::persistence_trace::RecordingSession;
+
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        // Nothing here identifies a database, so the transaction's database
+        // genuinely cannot be attributed. It is still recorded: dropping it
+        // produced an empty trace for a flow that does persist, and a golden
+        // asserting "persists nothing" is wrong, where one admitting it could
+        // not attribute a statement is incomplete and says so.
+        let mut trans = SqlTransaction::new();
+        trans.append_raw_sql_like_cpp("DELETE FROM something WHERE id = 1");
+        trans.append_raw_sql_like_cpp("DELETE FROM something_else WHERE id = 2");
+
+        let trace = recorder.snapshot();
+        let unattributed = trace
+            .events
+            .iter()
+            .filter(|event| matches!(event, PersistenceEvent::UnattributedRawStatement { .. }))
+            .count();
+        assert_eq!(
+            unattributed, 2,
+            "both raw statements belong in the trace: {trace:?}"
+        );
+        assert!(
+            !trace.events.is_empty(),
+            "an all-raw transaction must not be invisible to its own trace"
         );
     }
 

@@ -266,6 +266,18 @@ pub enum PersistenceEvent {
         connection: ConnectionAffinity,
         digest: u64,
     },
+    /// Raw SQL that arrived before anything identified the transaction's
+    /// database, so the trace cannot say which one it ran against.
+    ///
+    /// Recorded rather than dropped. A transaction built entirely from raw SQL
+    /// would otherwise be absent from its own trace, and a golden asserting
+    /// "this flow persists nothing" is worse than one admitting it could not
+    /// attribute a statement: the first is wrong, the second is incomplete and
+    /// says so.
+    UnattributedRawStatement {
+        connection: ConnectionAffinity,
+        digest: u64,
+    },
     /// An advisory lock was taken or released on its own dedicated connection.
     AdvisoryLock {
         label: String,
