@@ -598,14 +598,25 @@ impl SqlTransaction {
             for param in stmt.params() {
                 query = bind_param(query, param);
             }
-            let result = query
-                .execute(&mut *tx)
-                .await
-                .map_err(DatabaseError::from)
-                .map_err(SqlTransactionCommitError::DefinitelyRolledBack)?;
+            // Both of these abandon the transaction before `tx.commit()` is
+            // ever reached, so each is a rollback and not a resolved commit.
+            // The `?` shortcuts made them silent in the first pass at this.
+            let result = match query.execute(&mut *tx).await {
+                Ok(result) => result,
+                Err(error) => {
+                    self.record_rollback();
+                    return Err(SqlTransactionCommitError::DefinitelyRolledBack(
+                        DatabaseError::from(error),
+                    ));
+                }
+            };
             if let Some(expected) = transaction_statement.expected_rows_affected {
-                validate_rows_affected(statement_index, expected, result.rows_affected())
-                    .map_err(SqlTransactionCommitError::DefinitelyRolledBack)?;
+                if let Err(error) =
+                    validate_rows_affected(statement_index, expected, result.rows_affected())
+                {
+                    self.record_rollback();
+                    return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
+                }
             }
         }
 
