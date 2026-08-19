@@ -1953,8 +1953,8 @@
         {
           "path": "crates/wow-world/src/session.rs",
           "production_lines": 71881,
-          "test_lines": 94888,
-          "total_lines": 166769,
+          "test_lines": 119,
+          "total_lines": 72000,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             152,
@@ -1969,8 +1969,8 @@
         {
           "path": "crates/wow-map/src/map.rs",
           "production_lines": 15245,
-          "test_lines": 18415,
-          "total_lines": 33660,
+          "test_lines": 5,
+          "total_lines": 15250,
           "owner": "wow-map canonical MapManager/runtime.",
           "open_retirement_issues": [
             188,
@@ -1982,8 +1982,8 @@
         {
           "path": "crates/wow-world/src/handlers/character.rs",
           "production_lines": 20200,
-          "test_lines": 10653,
-          "total_lines": 30853,
+          "test_lines": 38,
+          "total_lines": 20238,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "open_retirement_issues": [
             192,
@@ -1996,8 +1996,8 @@
         {
           "path": "crates/wow-world/src/handlers/loot.rs",
           "production_lines": 13619,
-          "test_lines": 16234,
-          "total_lines": 29853,
+          "test_lines": 44,
+          "total_lines": 13663,
           "owner": "wow-world loot handler plus transitional loot/map/persistence coordination.",
           "open_retirement_issues": [
             187,
@@ -2010,8 +2010,8 @@
         {
           "path": "crates/world-server/src/main.rs",
           "production_lines": 15370,
-          "test_lines": 12805,
-          "total_lines": 28175,
+          "test_lines": 13,
+          "total_lines": 15383,
           "owner": "world-server composition root mixed with bootstrap and runtime orchestration.",
           "open_retirement_issues": [
             136,
@@ -2024,8 +2024,8 @@
         {
           "path": "crates/wow-world/src/handlers/misc.rs",
           "production_lines": 7315,
-          "test_lines": 11473,
-          "total_lines": 18788,
+          "test_lines": 3,
+          "total_lines": 7318,
           "owner": "wow-world misc handler dumping ground.",
           "open_retirement_issues": [
             139,
@@ -2036,8 +2036,8 @@
         {
           "path": "crates/wow-world/src/handlers/quest.rs",
           "production_lines": 8255,
-          "test_lines": 10217,
-          "total_lines": 18472,
+          "test_lines": 5,
+          "total_lines": 8260,
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
           "open_retirement_issues": [
             194,
@@ -2049,8 +2049,8 @@
         {
           "path": "crates/wow-entities/src/player.rs",
           "production_lines": 9265,
-          "test_lines": 8907,
-          "total_lines": 18172,
+          "test_lines": 3,
+          "total_lines": 9268,
           "owner": "wow-entities partial canonical Player model.",
           "open_retirement_issues": [
             194,
