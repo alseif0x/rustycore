@@ -321,6 +321,16 @@ pub enum PersistenceEvent {
         opened: LogicalDatabase,
         appended: LogicalDatabase,
     },
+    /// A batch that was planned and then dropped without ever executing.
+    ///
+    /// Statements are recorded as they are appended, which is the plan the
+    /// caller built. When the caller then returns without committing -- the
+    /// vendor-currency turn-in does exactly this if it cannot take the money
+    /// lock -- nothing reached the database, and a trace that stopped after the
+    /// statements would describe writes that never happened.
+    BatchAbandoned {
+        database: LogicalDatabase,
+    },
     /// A point the plan must not cross until prior work is durable.
     Fence {
         label: String,

@@ -345,6 +345,9 @@ pub struct SqlTransaction {
     /// Set by the first appended statement. A transaction that never receives
     /// one never opened, and its trace says so.
     trace_database: Option<LogicalDatabase>,
+    /// Whether a terminal event was recorded. A batch dropped without one was
+    /// planned and abandoned, which is not the same as one that rolled back.
+    trace_resolved: std::sync::atomic::AtomicBool,
 }
 
 #[derive(Debug)]
@@ -359,6 +362,7 @@ impl SqlTransaction {
         Self {
             statements: Vec::new(),
             cleaned_up_like_cpp: false,
+            trace_resolved: std::sync::atomic::AtomicBool::new(false),
             trace: crate::persistence_trace::ambient_recorder(),
             trace_database: None,
         }
@@ -441,12 +445,16 @@ impl SqlTransaction {
         if let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) {
             recorder.record(PersistenceEvent::Commit { database, outcome });
         }
+        self.trace_resolved
+            .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
     fn record_rollback(&self) {
         if let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) {
             recorder.record(PersistenceEvent::Rollback { database });
         }
+        self.trace_resolved
+            .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
     fn record_deadlock_retry(&self, attempt: u32) {
@@ -454,7 +462,30 @@ impl SqlTransaction {
             recorder.record(PersistenceEvent::DeadlockRetry { database, attempt });
         }
     }
+}
 
+impl Drop for SqlTransaction {
+    /// Mark a planned batch that never executed.
+    ///
+    /// Statements are recorded as they are appended, so a caller that builds a
+    /// transaction and then returns -- the vendor-currency turn-in does exactly
+    /// this when it cannot take the money lock -- left a trace showing writes
+    /// that never reached the database. `Rollback` would be the wrong word for
+    /// it: nothing was sent, so nothing was undone.
+    fn drop(&mut self) {
+        if self
+            .trace_resolved
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            return;
+        }
+        if let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) {
+            recorder.record(PersistenceEvent::BatchAbandoned { database });
+        }
+    }
+}
+
+impl SqlTransaction {
     /// Append a prepared statement to this transaction.
     pub fn append(&mut self, stmt: PreparedStatement) {
         self.record_statement(&stmt, None);
@@ -992,6 +1023,39 @@ mod trace_tests {
                 .iter()
                 .any(|event| matches!(event, PersistenceEvent::Commit { .. })),
             "no commit was attempted, so none may be recorded: {events:?}"
+        );
+    }
+
+    #[test]
+    fn a_batch_built_and_then_dropped_says_it_never_ran() {
+        use crate::persistence_trace::RecordingSession;
+
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        // The shape of the vendor-currency turn-in: append the statements, then
+        // return because the money lock could not be taken. `pool.begin()` is
+        // never reached, so nothing was sent.
+        {
+            let mut trans = SqlTransaction::new();
+            trans.append(PreparedStatement::for_statement(
+                CharStatements::UPD_CHAR_MONEY,
+            ));
+        }
+
+        let events = recorder.take().events;
+        assert!(
+            events
+                .iter()
+                .any(|event| matches!(event, PersistenceEvent::BatchAbandoned { .. })),
+            "a planned batch that never executed must say so: {events:?}"
+        );
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, PersistenceEvent::Rollback { .. })),
+            "nothing was sent, so nothing was rolled back: {events:?}"
         );
     }
 
