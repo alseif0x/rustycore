@@ -758,7 +758,7 @@ async fn attempt_group_loot_money_transaction_like_cpp(
         if applied_delta != 0 {
             wow_database::persistence_trace::record_explicit_statement(
                 traced_db,
-                "UPD_CHARACTER_MONEY_FOR_UPDATE",
+                &CharStatements::UPD_CHAR_MONEY.trace_identity(),
                 vec![
                     wow_database::persistence_trace::TracedParam::Uint {
                         value: new_money,

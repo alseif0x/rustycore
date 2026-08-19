@@ -216,11 +216,16 @@ impl<S: StatementDef> Database<S> {
                     expected_rows_affected: None,
                 });
                 if !succeeded {
-                    // A statement that never reached the server is not the
-                    // same event as one that ran; without this a failed read
-                    // is indistinguishable from a successful one in the trace.
-                    recorder
-                        .record(crate::persistence_trace::PersistenceEvent::Rollback { database });
+                    // Deliberately not a `Rollback`: there is no transaction
+                    // here, and a transport error on an autocommit write may
+                    // have applied it, so the outcome is unknown rather than
+                    // reverted. A false record is worse than a missing one — a
+                    // golden could approve a refactor on the strength of a
+                    // revert that never happened. Carrying the ambiguity as an
+                    // outcome on the pooled event itself is tracked in #213.
+                    recorder.record(crate::persistence_trace::PersistenceEvent::Fence {
+                        label: format!("pooled-statement-outcome-unknown:{}", database.as_str()),
+                    });
                 }
             }
             None => {
@@ -591,12 +596,13 @@ mod tests {
                     params: vec![crate::persistence_trace::TracedParam::Bool { value: false }],
                     expected_rows_affected: None,
                 },
-                PersistenceEvent::Rollback {
-                    database: LogicalDatabase::Character,
+                PersistenceEvent::Fence {
+                    label: "pooled-statement-outcome-unknown:character".to_owned(),
                 }
             ],
             "a read on its own connection must not look like part of a transaction, \
-             and one that never reached the server must not look like one that ran"
+             and a failed autocommit statement must not claim a rollback that may not \
+             have happened"
         );
     }
 
