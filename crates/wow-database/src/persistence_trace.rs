@@ -227,7 +227,11 @@ impl TracedParam {
 /// are ordered by occurrence in [`PersistenceTrace`], and that order *is* the
 /// contract.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(tag = "event", rename_all = "snake_case")]
+// Without this, dropping a field from an event would let an existing golden
+// still parse — the assertion it carried would be silently discarded and the
+// reduced trace would compare equal, defeating the guard exactly when contract
+// information is being lost.
+#[serde(tag = "event", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PersistenceEvent {
     /// A transaction was opened. Everything until its commit or rollback shares
     /// one connection and lands or fails together.
@@ -303,6 +307,7 @@ pub enum PersistenceEvent {
 
 /// An ordered recording of one persistence plan.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct PersistenceTrace {
     pub events: Vec<PersistenceEvent>,
 }
@@ -432,6 +437,13 @@ pub struct ExplicitTransactionTrace {
 impl ExplicitTransactionTrace {
     /// Record the boundary and start guarding it.
     pub fn open(database: LogicalDatabase) -> Self {
+        if !recording_enabled() {
+            // Inert: nothing to record, and Drop must not record either.
+            return Self {
+                database,
+                resolved: true,
+            };
+        }
         record_explicit_transaction_begin(database);
         Self {
             database,
@@ -451,14 +463,35 @@ impl ExplicitTransactionTrace {
     }
 
     /// Record a statement inside this transaction.
-    pub fn statement(&self, statement: &str, params: Vec<TracedParam>) {
-        record_explicit_statement(self.database, statement, params);
+    ///
+    /// Takes a closure because the arguments are the expensive part: an identity
+    /// is a `String` and the parameters are a `Vec`, and the group payout builds
+    /// both for every recipient. Evaluating them before discovering that no
+    /// recorder is installed would put two allocations and a mutex acquisition
+    /// on a production money path, which is exactly the cost this facility
+    /// promises not to have.
+    pub fn statement<F>(&self, build: F)
+    where
+        F: FnOnce() -> (String, Vec<TracedParam>),
+    {
+        if !recording_enabled() {
+            return;
+        }
+        let (statement, params) = build();
+        record_explicit_statement(self.database, &statement, params);
     }
 
     /// Record a statement whose asserted affected-row count is part of the
     /// contract, so dropping that assertion moves the trace.
-    pub fn statement_expecting(&self, statement: &str, params: Vec<TracedParam>, expected: u64) {
-        record_explicit_statement_expecting(self.database, statement, params, Some(expected));
+    pub fn statement_expecting<F>(&self, build: F, expected: u64)
+    where
+        F: FnOnce() -> (String, Vec<TracedParam>),
+    {
+        if !recording_enabled() {
+            return;
+        }
+        let (statement, params) = build();
+        record_explicit_statement_expecting(self.database, &statement, params, Some(expected));
     }
 
     /// Record how the commit attempt resolved.
@@ -935,6 +968,32 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn an_inert_guard_costs_nothing_and_records_nothing() {
+        let _serialized = capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        // No RecordingSession: this is the production configuration.
+        assert!(!recording_enabled());
+
+        let built = std::cell::Cell::new(false);
+        {
+            let trace = ExplicitTransactionTrace::open(LogicalDatabase::Character);
+            trace.statement(|| {
+                built.set(true);
+                ("UPD_CHAR_MONEY".to_owned(), Vec::new())
+            });
+            trace.committed(CommitOutcome::Committed);
+        }
+
+        assert!(
+            !built.get(),
+            "the closure must not run with capture off: building an identity and a \
+             parameter vector for every payout recipient is the cost this facility \
+             promises not to have"
+        );
+        assert!(recorder.take().events.is_empty());
     }
 
     #[test]

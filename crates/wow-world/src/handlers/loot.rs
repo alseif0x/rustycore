@@ -13431,13 +13431,15 @@ async fn attempt_stored_item_money_transaction_like_cpp(
     );
     // Global order shared with group payouts: character mutation mutex, then
     // character row, then the stored Item source row.
-    trace.statement(
-        &CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.trace_identity(),
-        vec![wow_database::persistence_trace::TracedParam::Uint {
-            value: player_guid.counter() as u64,
-            width_bits: 64,
-        }],
-    );
+    trace.statement(|| {
+        (
+            CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.trace_identity(),
+            vec![wow_database::persistence_trace::TracedParam::Uint {
+                value: player_guid.counter() as u64,
+                width_bits: 64,
+            }],
+        )
+    });
     let before = sqlx::query_scalar::<_, u64>(CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.sql())
         .bind(player_guid.counter() as u64)
         .fetch_optional(&mut *transaction)
@@ -13448,13 +13450,15 @@ async fn attempt_stored_item_money_transaction_like_cpp(
                 LootMoneyPersistenceErrorLikeCpp::MissingPlayer,
             )
         })?;
-    trace.statement(
-        &CharStatements::SEL_ITEMCONTAINER_MONEY_FOR_UPDATE.trace_identity(),
-        vec![wow_database::persistence_trace::TracedParam::Uint {
-            value: item_guid.counter() as u64,
-            width_bits: 64,
-        }],
-    );
+    trace.statement(|| {
+        (
+            CharStatements::SEL_ITEMCONTAINER_MONEY_FOR_UPDATE.trace_identity(),
+            vec![wow_database::persistence_trace::TracedParam::Uint {
+                value: item_guid.counter() as u64,
+                width_bits: 64,
+            }],
+        )
+    });
     let source_money =
         sqlx::query_scalar::<_, u64>(CharStatements::SEL_ITEMCONTAINER_MONEY_FOR_UPDATE.sql())
             .bind(item_guid.counter() as u64)
@@ -13493,17 +13497,21 @@ async fn attempt_stored_item_money_transaction_like_cpp(
         // the mutation invisible, so removing or reordering it would not have
         // moved the trace at all.
         trace.statement_expecting(
-            &CharStatements::UPD_CHAR_MONEY.trace_identity(),
-            vec![
-                wow_database::persistence_trace::TracedParam::Uint {
-                    value: after,
-                    width_bits: 64,
-                },
-                wow_database::persistence_trace::TracedParam::Uint {
-                    value: player_guid.counter() as u64,
-                    width_bits: 64,
-                },
-            ],
+            || {
+                (
+                    CharStatements::UPD_CHAR_MONEY.trace_identity(),
+                    vec![
+                        wow_database::persistence_trace::TracedParam::Uint {
+                            value: after,
+                            width_bits: 64,
+                        },
+                        wow_database::persistence_trace::TracedParam::Uint {
+                            value: player_guid.counter() as u64,
+                            width_bits: 64,
+                        },
+                    ],
+                )
+            },
             1,
         );
         let result = sqlx::query(CharStatements::UPD_CHAR_MONEY.sql())
@@ -13523,11 +13531,15 @@ async fn attempt_stored_item_money_transaction_like_cpp(
     }
     // Consuming the source is the other half of the durable operation.
     trace.statement_expecting(
-        &CharStatements::DEL_ITEMCONTAINER_MONEY.trace_identity(),
-        vec![wow_database::persistence_trace::TracedParam::Uint {
-            value: item_guid.counter() as u64,
-            width_bits: 64,
-        }],
+        || {
+            (
+                CharStatements::DEL_ITEMCONTAINER_MONEY.trace_identity(),
+                vec![wow_database::persistence_trace::TracedParam::Uint {
+                    value: item_guid.counter() as u64,
+                    width_bits: 64,
+                }],
+            )
+        },
         STORED_ITEM_MONEY_SOURCE_ROWS_EXPECTED_LIKE_CPP,
     );
     let delete = sqlx::query(CharStatements::DEL_ITEMCONTAINER_MONEY.sql())
@@ -13590,13 +13602,15 @@ async fn reconcile_stored_item_money_commit_like_cpp(
     // Read and lock both facts in the same order as the original mutation.
     // The per-character mutation mutex is still held, so a later local payout
     // cannot manufacture a mixed observation while COMMIT is reconciled.
-    trace.statement(
-        &CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.trace_identity(),
-        vec![wow_database::persistence_trace::TracedParam::Uint {
-            value: player_guid.counter() as u64,
-            width_bits: 64,
-        }],
-    );
+    trace.statement(|| {
+        (
+            CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.trace_identity(),
+            vec![wow_database::persistence_trace::TracedParam::Uint {
+                value: player_guid.counter() as u64,
+                width_bits: 64,
+            }],
+        )
+    });
     let observed_money =
         sqlx::query_scalar::<_, u64>(CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.sql())
             .bind(player_guid.counter() as u64)
@@ -13606,13 +13620,15 @@ async fn reconcile_stored_item_money_commit_like_cpp(
             .ok_or_else(|| {
                 DatabaseError::Transaction("stored-money character vanished".to_string())
             })?;
-    trace.statement(
-        &CharStatements::SEL_ITEMCONTAINER_MONEY_FOR_UPDATE.trace_identity(),
-        vec![wow_database::persistence_trace::TracedParam::Uint {
-            value: item_guid.counter() as u64,
-            width_bits: 64,
-        }],
-    );
+    trace.statement(|| {
+        (
+            CharStatements::SEL_ITEMCONTAINER_MONEY_FOR_UPDATE.trace_identity(),
+            vec![wow_database::persistence_trace::TracedParam::Uint {
+                value: item_guid.counter() as u64,
+                width_bits: 64,
+            }],
+        )
+    });
     let observed_source_money =
         sqlx::query_scalar::<_, u64>(CharStatements::SEL_ITEMCONTAINER_MONEY_FOR_UPDATE.sql())
             .bind(item_guid.counter() as u64)

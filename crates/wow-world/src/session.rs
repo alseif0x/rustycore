@@ -735,13 +735,15 @@ async fn attempt_group_loot_money_transaction_like_cpp(
     );
     let mut outcomes = HashMap::with_capacity(payouts.len());
     for (recipient, amount) in payouts {
-        trace.statement(
-            &CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.trace_identity(),
-            vec![wow_database::persistence_trace::TracedParam::Uint {
-                value: recipient.counter() as u64,
-                width_bits: 64,
-            }],
-        );
+        trace.statement(|| {
+            (
+                CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.trace_identity(),
+                vec![wow_database::persistence_trace::TracedParam::Uint {
+                    value: recipient.counter() as u64,
+                    width_bits: 64,
+                }],
+            )
+        });
         let row = sqlx::query(CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.sql())
             .bind(recipient.counter() as u64)
             .fetch_optional(&mut *transaction)
@@ -757,17 +759,21 @@ async fn attempt_group_loot_money_transaction_like_cpp(
             loot_money_durable_outcome_like_cpp(current_money, *amount);
         if applied_delta != 0 {
             trace.statement_expecting(
-                &CharStatements::UPD_CHAR_MONEY.trace_identity(),
-                vec![
-                    wow_database::persistence_trace::TracedParam::Uint {
-                        value: new_money,
-                        width_bits: 64,
-                    },
-                    wow_database::persistence_trace::TracedParam::Uint {
-                        value: recipient.counter() as u64,
-                        width_bits: 64,
-                    },
-                ],
+                || {
+                    (
+                        CharStatements::UPD_CHAR_MONEY.trace_identity(),
+                        vec![
+                            wow_database::persistence_trace::TracedParam::Uint {
+                                value: new_money,
+                                width_bits: 64,
+                            },
+                            wow_database::persistence_trace::TracedParam::Uint {
+                                value: recipient.counter() as u64,
+                                width_bits: 64,
+                            },
+                        ],
+                    )
+                },
                 1,
             );
             let update_result = sqlx::query("UPDATE characters SET money = ? WHERE guid = ?")
