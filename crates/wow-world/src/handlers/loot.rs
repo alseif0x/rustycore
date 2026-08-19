@@ -29,6 +29,7 @@ use wow_constants::{
 };
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_data::{ItemRandomEnchantmentTemplateEntry, ItemRandomPropertyTemplateEntry};
+use wow_database::persistence_trace;
 use wow_database::{
     CharStatements, CharacterDatabase, DatabaseError, SqlTransaction, SqlTransactionCommitError,
     StatementDef, WorldStatements, is_database_deadlock_like_cpp,
@@ -13419,10 +13420,10 @@ async fn attempt_stored_item_money_transaction_like_cpp(
     // `SqlTransaction`, so the ambient hook never sees it. Recorded explicitly
     // or the whole durable operation is missing from a trace that still looks
     // complete.
-    let traced_db = wow_database::persistence_trace::LogicalDatabase::Character;
+    let traced_db = persistence_trace::LogicalDatabase::Character;
     let mut transaction = match char_db.pool().begin().await {
         Ok(transaction) => {
-            wow_database::persistence_trace::record_explicit_transaction_begin(traced_db);
+            persistence_trace::record_explicit_transaction_begin(traced_db);
             transaction
         }
         Err(error) => return Err(definitely(error)),
@@ -13498,20 +13499,20 @@ async fn attempt_stored_item_money_transaction_like_cpp(
 
     match transaction.commit().await {
         Ok(()) => {
-            wow_database::persistence_trace::record_explicit_commit(
+            persistence_trace::record_explicit_commit(
                 traced_db,
-                wow_database::persistence_trace::CommitOutcome::Committed,
+                persistence_trace::CommitOutcome::Committed,
             );
             Ok(outcome)
         }
         Err(error) => {
             let error = DatabaseError::from(error);
-            wow_database::persistence_trace::record_explicit_commit(
+            persistence_trace::record_explicit_commit(
                 traced_db,
                 if is_database_deadlock_like_cpp(&error) {
-                    wow_database::persistence_trace::CommitOutcome::RolledBack
+                    persistence_trace::CommitOutcome::RolledBack
                 } else {
-                    wow_database::persistence_trace::CommitOutcome::Unknown
+                    persistence_trace::CommitOutcome::Unknown
                 },
             );
             if is_database_deadlock_like_cpp(&error) {
@@ -13535,10 +13536,10 @@ async fn reconcile_stored_item_money_commit_like_cpp(
     // `SqlTransaction`, so the ambient hook never sees it. Recorded explicitly
     // or the whole durable operation is missing from a trace that still looks
     // complete.
-    let traced_db = wow_database::persistence_trace::LogicalDatabase::Character;
+    let traced_db = persistence_trace::LogicalDatabase::Character;
     let mut transaction = match char_db.pool().begin().await {
         Ok(transaction) => {
-            wow_database::persistence_trace::record_explicit_transaction_begin(traced_db);
+            persistence_trace::record_explicit_transaction_begin(traced_db);
             transaction
         }
         Err(error) => return Err(DatabaseError::from(error)),
