@@ -27,18 +27,15 @@
 //! worse than none, because absence of events reads as absence of persistence.
 //! Three paths are currently invisible, all tracked in issue #213:
 //!
-//! * **Explicit SQLx transactions.** Code that opens `pool().begin()` instead
-//!   of building an [`SqlTransaction`] never reaches the ambient hook, so its
-//!   boundaries, statements, commit outcome and retries are all omitted. This
-//!   includes production money workflows —
-//!   `attempt_group_loot_money_transaction_like_cpp` and
-//!   `attempt_stored_item_money_transaction_like_cpp`.
-//! * **Manually built statements.** `PreparedStatement::new(X.sql())` carries
-//!   no identity, so those statements are dropped, and a transaction whose
-//!   first statement is manual never opens in the trace. Player money saving
-//!   builds `UPD_CHAR_MONEY` this way.
 //! * **Generated hotfix statements.** `HotfixStatements::GENERATED_BASE`
 //!   still derives its identity from `Debug`, which embeds the SQL.
+//! * **Nine indirect statement builders** that do not name their variant
+//!   inline, so `for_statement` could not be applied mechanically.
+//! * **Raw pooled SQL**, which carries no logical database and is skipped
+//!   rather than attributed to a guessed one.
+//!
+//! The two paths that hid whole durable operations — explicit `pool().begin()`
+//! transactions and manually built statements — are now recorded.
 //!
 //! Until those are closed, a golden built from this recorder can approve a
 //! refactor that breaks the very persistence it claims to protect.
@@ -392,6 +389,64 @@ impl RecordingGuard {
 impl Drop for RecordingGuard {
     fn drop(&mut self) {
         RECORDING.store(self.previous, Ordering::Relaxed);
+    }
+}
+
+/// Record the boundary of a transaction opened directly on a pool.
+///
+/// Some durable workflows need `SELECT ... FOR UPDATE` inside the transaction
+/// and therefore cannot be expressed as an [`SqlTransaction`]; they call
+/// `pool().begin()` instead. Without these hooks their entire durable
+/// operation is invisible to a trace, which is worse than not tracing them at
+/// all — the trace would look complete.
+pub fn record_explicit_transaction_begin(database: LogicalDatabase) {
+    if let Some(recorder) = ambient_recorder() {
+        recorder.record(PersistenceEvent::TransactionBegin { database });
+    }
+}
+
+/// Record a statement executed inside an explicitly opened transaction.
+pub fn record_explicit_statement(
+    database: LogicalDatabase,
+    statement: &str,
+    params: Vec<TracedParam>,
+) {
+    if let Some(recorder) = ambient_recorder() {
+        recorder.record(PersistenceEvent::Statement {
+            database,
+            connection: ConnectionAffinity::Transaction,
+            statement: statement.to_owned(),
+            params,
+            expected_rows_affected: None,
+        });
+    }
+}
+
+/// Record how an explicitly opened transaction resolved.
+pub fn record_explicit_commit(database: LogicalDatabase, outcome: CommitOutcome) {
+    if let Some(recorder) = ambient_recorder() {
+        recorder.record(PersistenceEvent::Commit { database, outcome });
+    }
+}
+
+/// Record an explicitly opened transaction abandoned before any commit.
+pub fn record_explicit_rollback(database: LogicalDatabase) {
+    if let Some(recorder) = ambient_recorder() {
+        recorder.record(PersistenceEvent::Rollback { database });
+    }
+}
+
+/// Record the acquisition or release of an advisory lock.
+///
+/// The lock lives on its own dedicated connection for the life of the process,
+/// so it is neither pooled nor part of any transaction, and losing it is an
+/// observable persistence event.
+pub fn record_advisory_lock(label: &str, acquired: bool) {
+    if let Some(recorder) = ambient_recorder() {
+        recorder.record(PersistenceEvent::AdvisoryLock {
+            label: label.to_owned(),
+            acquired,
+        });
     }
 }
 

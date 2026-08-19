@@ -13415,7 +13415,18 @@ async fn attempt_stored_item_money_transaction_like_cpp(
             LootMoneyPersistenceErrorLikeCpp::Database(DatabaseError::from(error)),
         )
     };
-    let mut transaction = char_db.pool().begin().await.map_err(definitely)?;
+    // `SELECT ... FOR UPDATE` inside the transaction means this cannot be an
+    // `SqlTransaction`, so the ambient hook never sees it. Recorded explicitly
+    // or the whole durable operation is missing from a trace that still looks
+    // complete.
+    let traced_db = wow_database::persistence_trace::LogicalDatabase::Character;
+    let mut transaction = match char_db.pool().begin().await {
+        Ok(transaction) => {
+            wow_database::persistence_trace::record_explicit_transaction_begin(traced_db);
+            transaction
+        }
+        Err(error) => return Err(definitely(error)),
+    };
     // Global order shared with group payouts: character mutation mutex, then
     // character row, then the stored Item source row.
     let before = sqlx::query_scalar::<_, u64>(CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.sql())
@@ -13486,9 +13497,23 @@ async fn attempt_stored_item_money_transaction_like_cpp(
     }
 
     match transaction.commit().await {
-        Ok(()) => Ok(outcome),
+        Ok(()) => {
+            wow_database::persistence_trace::record_explicit_commit(
+                traced_db,
+                wow_database::persistence_trace::CommitOutcome::Committed,
+            );
+            Ok(outcome)
+        }
         Err(error) => {
             let error = DatabaseError::from(error);
+            wow_database::persistence_trace::record_explicit_commit(
+                traced_db,
+                if is_database_deadlock_like_cpp(&error) {
+                    wow_database::persistence_trace::CommitOutcome::RolledBack
+                } else {
+                    wow_database::persistence_trace::CommitOutcome::Unknown
+                },
+            );
             if is_database_deadlock_like_cpp(&error) {
                 Err(StoredItemMoneyAttemptErrorLikeCpp::DefinitelyRolledBack(
                     LootMoneyPersistenceErrorLikeCpp::Database(error),
@@ -13506,7 +13531,18 @@ async fn reconcile_stored_item_money_commit_like_cpp(
     item_guid: ObjectGuid,
     outcome: StoredItemMoneyDbOutcomeLikeCpp,
 ) -> Result<StoredItemMoneyCommitReconciliationLikeCpp, DatabaseError> {
-    let mut transaction = char_db.pool().begin().await.map_err(DatabaseError::from)?;
+    // `SELECT ... FOR UPDATE` inside the transaction means this cannot be an
+    // `SqlTransaction`, so the ambient hook never sees it. Recorded explicitly
+    // or the whole durable operation is missing from a trace that still looks
+    // complete.
+    let traced_db = wow_database::persistence_trace::LogicalDatabase::Character;
+    let mut transaction = match char_db.pool().begin().await {
+        Ok(transaction) => {
+            wow_database::persistence_trace::record_explicit_transaction_begin(traced_db);
+            transaction
+        }
+        Err(error) => return Err(DatabaseError::from(error)),
+    };
     // Read and lock both facts in the same order as the original mutation.
     // The per-character mutation mutex is still held, so a later local payout
     // cannot manufacture a mixed observation while COMMIT is reconciled.
