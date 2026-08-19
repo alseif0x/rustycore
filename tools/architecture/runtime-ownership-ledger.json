@@ -1995,9 +1995,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/loot.rs",
-          "production_lines": 13699,
+          "production_lines": 13714,
           "test_lines": 16234,
-          "total_lines": 29933,
+          "total_lines": 29948,
           "owner": "wow-world loot handler plus transitional loot/map/persistence coordination.",
           "open_retirement_issues": [
             187,
