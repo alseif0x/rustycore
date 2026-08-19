@@ -16438,6 +16438,39 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::transaction:crates/wow-database/src/transaction.rs::impl transaction::Drop for SqlTransaction",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/transaction.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::transaction"
+      ],
+      "enclosings": [
+        "impl transaction::Drop for SqlTransaction"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl transaction::Drop for SqlTransaction in crates/wow-database/src/transaction.rs.",
+      "connection_affinity": "None. This runs on drop, on whichever thread owns the batch, and touches no connection: it appends one event to an in-memory recorder. The logical database it names is the one the batch had already established from its first appended statement, not one this path selects.",
+      "current_order": "Last, and only when nothing else resolved the batch. Statements are recorded as they are appended, so a batch that is built and then dropped without reaching `pool.begin()` -- the vendor-currency turn-in does this when it cannot take the money lock -- would otherwise leave a trace ending after writes that never executed. This records `BatchAbandoned` so the trace says the plan was abandoned.",
+      "failure_and_unknown_commit": "Not applicable: no statement is sent, so there is no commit to classify. Deliberately not recorded as `Rollback`, which would claim work was undone when none was ever issued. If a commit or rollback already resolved the batch this path records nothing, so it can never mask a real outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::transaction:crates/wow-database/src/transaction.rs::impl transaction::std::error::Error for SqlTransactionCommitError",
       "source_class": "production",
       "packages": [
