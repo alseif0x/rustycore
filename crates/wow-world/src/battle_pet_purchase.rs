@@ -398,6 +398,7 @@ impl CharacterBattlePetPurchaseStoreLikeCpp {
         character_guid: u64,
     ) -> Result<Option<u64>, BattlePetPurchaseStoreErrorLikeCpp> {
         let mut statement = self.character_db.prepare(CharStatements::cpp(
+            "CHAR_SEL_CHARACTER_MONEY",
             "SELECT money FROM characters WHERE guid = ?",
         ));
         statement.set_u64(0, character_guid);

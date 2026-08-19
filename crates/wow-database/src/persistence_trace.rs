@@ -608,6 +608,42 @@ mod tests {
     }
 
     #[test]
+    fn a_generated_statement_is_identified_by_its_cpp_name_not_its_sql() {
+        use crate::statements::{CharStatements, StatementDef};
+
+        // `GENERATED_CPP` carries its SQL, so the derived `Debug` identity
+        // would embed the whole query and every golden would move on a
+        // reformat — the precise coupling this contract exists to avoid.
+        let statement = CharStatements::cpp(
+            "CHAR_SEL_CHARACTER_MONEY",
+            "SELECT money FROM characters WHERE guid = ?",
+        );
+        assert_eq!(statement.trace_identity(), "CHAR_SEL_CHARACTER_MONEY");
+        assert!(
+            !statement.trace_identity().contains("SELECT"),
+            "a generated statement must not be identified by its SQL"
+        );
+
+        // Reformatting the SQL must not move the identity.
+        let reformatted = CharStatements::cpp(
+            "CHAR_SEL_CHARACTER_MONEY",
+            "SELECT  money\n  FROM characters\n  WHERE guid = ?",
+        );
+        assert_eq!(
+            statement.trace_identity(),
+            reformatted.trace_identity(),
+            "identity must survive a formatting-only change"
+        );
+
+        // Two different generated statements must still be distinguishable.
+        let other = CharStatements::cpp(
+            "CHAR_SEL_CHARACTER_NAME",
+            "SELECT name FROM characters WHERE guid = ?",
+        );
+        assert_ne!(statement.trace_identity(), other.trace_identity());
+    }
+
+    #[test]
     fn recorders_share_one_recording_when_cloned() {
         let recorder = PersistenceRecorder::new();
         let handed_to_a_plan = recorder.clone();
