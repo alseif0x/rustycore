@@ -2159,9 +2159,35 @@ def top_level_cfg_test_line_indexes(source: str) -> set[int]:
     return test_line_indexes
 
 
+def file_is_entirely_cfg_test(source: str) -> bool:
+    """Whether an inner `#![cfg(test)]` makes the whole file test-only.
+
+    A test module extracted to its own file carries its `#[cfg(test)]` on the
+    `mod` declaration in the parent, not inside the file, so the extent scan
+    below finds nothing and counts every line as production. That inverts the
+    metric: moving 94k lines of tests out of a hotspot would report the hotspot
+    unchanged and a new 94k production file appearing.
+
+    Only inner attributes and inner doc comments may precede the first item, so
+    reading until the first other line is enough to decide.
+    """
+    for line in source.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("//"):
+            continue
+        if stripped == "#![cfg(test)]":
+            return True
+        if stripped.startswith("#!["):
+            continue
+        return False
+    return False
+
+
 def hotspot_line_counts(source: str) -> tuple[int, int, int]:
     """Partition physical lines by exact top-level cfg(test) item extents."""
     lines = source.splitlines()
+    if file_is_entirely_cfg_test(source):
+        return len(lines), 0, len(lines)
     test_lines = len(top_level_cfg_test_line_indexes(source))
     production_lines = len(lines) - test_lines
     return len(lines), production_lines, test_lines
