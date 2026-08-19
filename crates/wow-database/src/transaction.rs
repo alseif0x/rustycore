@@ -2,6 +2,10 @@
 
 use crate::error::DatabaseError;
 use crate::params::{PreparedStatement, SqlParam};
+use crate::persistence_trace::{
+    ConnectionAffinity, LogicalDatabase, PersistenceEvent, PersistenceRecorder, TracedParam,
+    raw_statement_digest,
+};
 use sqlx::{MySql, MySqlPool, pool::PoolConnection};
 use std::future::Future;
 use std::sync::LazyLock;
@@ -319,6 +323,10 @@ impl std::error::Error for SqlTransactionCommitError {
 pub struct SqlTransaction {
     statements: Vec<TransactionStatement>,
     cleaned_up_like_cpp: bool,
+    /// Set only when a trace is being recorded. Statements are appended here
+    /// in order, so the recording reflects the plan the caller built rather
+    /// than the order MySQL happened to execute.
+    trace: Option<(PersistenceRecorder, LogicalDatabase)>,
 }
 
 #[derive(Debug)]
@@ -333,11 +341,48 @@ impl SqlTransaction {
         Self {
             statements: Vec::new(),
             cleaned_up_like_cpp: false,
+            trace: None,
+        }
+    }
+
+    /// Record this transaction's steps into `recorder`.
+    ///
+    /// Opening the recording emits the transaction boundary immediately:
+    /// everything appended afterwards shares one connection and lands or fails
+    /// together, and that grouping is the fact a port extraction can lose.
+    pub fn with_trace(mut self, recorder: PersistenceRecorder, database: LogicalDatabase) -> Self {
+        recorder.record(PersistenceEvent::TransactionBegin { database });
+        self.trace = Some((recorder, database));
+        self
+    }
+
+    fn record_statement(&self, stmt: &PreparedStatement, expected_rows_affected: Option<u64>) {
+        let Some((recorder, database)) = &self.trace else {
+            return;
+        };
+        let params = stmt.params().iter().map(TracedParam::from_param).collect();
+        match stmt.trace_identity() {
+            Some(statement) => recorder.record(PersistenceEvent::Statement {
+                database: *database,
+                connection: ConnectionAffinity::Transaction,
+                statement: statement.to_owned(),
+                params,
+                expected_rows_affected,
+            }),
+            // Raw SQL has no statement enum behind it and its text may be
+            // built at run time, so the trace keeps its shape and not its
+            // formatting.
+            None => recorder.record(PersistenceEvent::RawStatement {
+                database: *database,
+                connection: ConnectionAffinity::Transaction,
+                digest: raw_statement_digest(stmt.sql()),
+            }),
         }
     }
 
     /// Append a prepared statement to this transaction.
     pub fn append(&mut self, stmt: PreparedStatement) {
+        self.record_statement(&stmt, None);
         self.statements.push(TransactionStatement {
             statement: stmt,
             expected_rows_affected: None,
@@ -351,6 +396,7 @@ impl SqlTransaction {
     /// operations must not treat an `UPDATE` or `DELETE` that matched no
     /// durable row as a durable gameplay success.
     pub fn append_expect_rows_affected(&mut self, stmt: PreparedStatement, expected: u64) {
+        self.record_statement(&stmt, Some(expected));
         self.statements.push(TransactionStatement {
             statement: stmt,
             expected_rows_affected: Some(expected),
@@ -362,6 +408,8 @@ impl SqlTransaction {
     /// Prefer prepared statements for user input. This is for C++ parity with
     /// existing raw-SQL transaction call sites and test fixtures.
     pub fn append_raw_sql_like_cpp(&mut self, sql: impl Into<String>) {
+        // Recording happens in `append`: raw SQL carries no statement enum, so
+        // `record_statement` already files it by shape.
         self.append(PreparedStatement::raw_sql_like_cpp(sql));
     }
 
@@ -575,6 +623,124 @@ pub(crate) fn bind_param<'q>(
         SqlParam::F64(v) => query.bind(*v),
         SqlParam::String(v) => query.bind(v.as_str()),
         SqlParam::Bytes(v) => query.bind(v.as_slice()),
+    }
+}
+
+#[cfg(test)]
+mod trace_tests {
+    use super::*;
+    use crate::statements::{CharStatements, StatementDef};
+
+    fn traced() -> (SqlTransaction, PersistenceRecorder) {
+        let recorder = PersistenceRecorder::new();
+        let trans = SqlTransaction::new().with_trace(recorder.clone(), LogicalDatabase::Character);
+        (trans, recorder)
+    }
+
+    #[test]
+    fn opening_a_trace_records_the_transaction_boundary() {
+        let (_trans, recorder) = traced();
+        assert_eq!(
+            recorder.take().events,
+            vec![PersistenceEvent::TransactionBegin {
+                database: LogicalDatabase::Character
+            }]
+        );
+    }
+
+    #[test]
+    fn appends_are_recorded_in_plan_order_with_their_identity() {
+        let (mut trans, recorder) = traced();
+        let mut first = PreparedStatement::new(CharStatements::DEL_POOL_QUEST_SAVE.sql())
+            .with_trace_identity(CharStatements::DEL_POOL_QUEST_SAVE.trace_identity());
+        first.set_u32(0, 7);
+        let second = PreparedStatement::new(CharStatements::INS_POOL_QUEST_SAVE.sql())
+            .with_trace_identity(CharStatements::INS_POOL_QUEST_SAVE.trace_identity());
+
+        trans.append(first);
+        trans.append_expect_rows_affected(second, 1);
+
+        let events = recorder.take().events;
+        assert_eq!(events.len(), 3, "begin + two statements: {events:?}");
+        match &events[1] {
+            PersistenceEvent::Statement {
+                statement,
+                connection,
+                params,
+                expected_rows_affected,
+                ..
+            } => {
+                assert_eq!(statement, "DEL_POOL_QUEST_SAVE");
+                assert_eq!(*connection, ConnectionAffinity::Transaction);
+                assert_eq!(params.first(), Some(&TracedParam::Uint { value: 7 }));
+                assert_eq!(*expected_rows_affected, None);
+            }
+            other => panic!("expected a statement, got {other:?}"),
+        }
+        match &events[2] {
+            PersistenceEvent::Statement {
+                statement,
+                expected_rows_affected,
+                ..
+            } => {
+                assert_eq!(statement, "INS_POOL_QUEST_SAVE");
+                assert_eq!(
+                    *expected_rows_affected,
+                    Some(1),
+                    "an asserted row count is part of the contract"
+                );
+            }
+            other => panic!("expected a statement, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn swapping_two_appends_produces_a_different_trace() {
+        // Statement order is the contract this golden exists to freeze.
+        let build = |reversed: bool| {
+            let (mut trans, recorder) = traced();
+            let del = PreparedStatement::new(CharStatements::DEL_POOL_QUEST_SAVE.sql())
+                .with_trace_identity(CharStatements::DEL_POOL_QUEST_SAVE.trace_identity());
+            let ins = PreparedStatement::new(CharStatements::INS_POOL_QUEST_SAVE.sql())
+                .with_trace_identity(CharStatements::INS_POOL_QUEST_SAVE.trace_identity());
+            if reversed {
+                trans.append(ins);
+                trans.append(del);
+            } else {
+                trans.append(del);
+                trans.append(ins);
+            }
+            recorder.take()
+        };
+        assert_ne!(build(false), build(true));
+    }
+
+    #[test]
+    fn raw_sql_is_recorded_by_shape_not_text() {
+        let (mut trans, recorder) = traced();
+        trans.append_raw_sql_like_cpp("DELETE FROM character_pet WHERE guid = 4");
+        let events = recorder.take().events;
+        assert_eq!(events.len(), 2, "begin + one raw statement: {events:?}");
+        match &events[1] {
+            PersistenceEvent::RawStatement { digest, .. } => {
+                assert_ne!(*digest, 0);
+            }
+            other => panic!("expected raw statement, got {other:?}"),
+        }
+        let rendered = serde_json::to_string(&events).expect("serialize");
+        assert!(
+            !rendered.contains("character_pet"),
+            "raw SQL text must not reach the trace: {rendered}"
+        );
+    }
+
+    #[test]
+    fn an_untraced_transaction_records_nothing() {
+        // The recorder is opt-in; production builds the same transactions.
+        let recorder = PersistenceRecorder::new();
+        let mut trans = SqlTransaction::new();
+        trans.append(PreparedStatement::new(CharStatements::SEL_ENUM.sql()));
+        assert!(recorder.take().events.is_empty());
     }
 }
 

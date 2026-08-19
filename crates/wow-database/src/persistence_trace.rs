@@ -116,13 +116,18 @@ pub enum TracedParam {
 /// which is all a golden needs. It is not a security primitive and is not used
 /// as one: it exists so a changed secret moves the trace without appearing in
 /// it.
-fn digest(bytes: &[u8]) -> u64 {
+pub(crate) fn digest(bytes: &[u8]) -> u64 {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in bytes {
         hash ^= u64::from(*byte);
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
     hash
+}
+
+/// Shape of a raw SQL statement, for traces that must not pin its formatting.
+pub fn raw_statement_digest(sql: &str) -> u64 {
+    digest(sql.as_bytes())
 }
 
 impl TracedParam {
