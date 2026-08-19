@@ -20,7 +20,11 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_MIN_STACK: "268435456"
+  # 1 GiB. The exact-inventory analyzer walks the workspace AST recursively and
+  # segfaults on a 256 MiB stack — fifteen consecutive times before the cause was
+  # found, because a raw SIGSEGV looks exactly like the memory fault this machine
+  # also has. The post-merge scan runs with this budget or it does not run.
+  RUST_MIN_STACK: "1073741824"
 
 jobs:
   fmt:

@@ -8,7 +8,9 @@ ARCHITECTURE_CHECKER="$REPO_ROOT/tools/architecture/check_architecture.py"
 HANDLER_CONTRACT_CHECK_MANIFEST="$REPO_ROOT/tools/architecture/handler-contract-check/Cargo.toml"
 PROTOC_VERSION_FILE="$REPO_ROOT/.protoc-version"
 DEFAULT_BASE="origin/3.4.3"
-DEFAULT_RUST_MIN_STACK=268435456
+# Matches the workflow: the inventory analyzer needs this to avoid a stack
+# overflow that presents as a bare SIGSEGV.
+DEFAULT_RUST_MIN_STACK=1073741824
 CODEX_REVIEW_TIMEOUT_SECONDS="${CODEX_REVIEW_TIMEOUT_SECONDS:-1800}"
 DRY_RUN=0
 ALLOW_RUNTIME_QA=0
