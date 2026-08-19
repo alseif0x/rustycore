@@ -58,19 +58,43 @@ def gh_json_pages(path):
         text=True,
         capture_output=True,
     )
-    if result.returncode:
-        error = result.stderr.strip() or result.stdout.strip()
-        if (
-            re.search(r"\(HTTP (?:404|5\d\d)\)", error)
-            or "unexpected end of JSON input" in error
-        ):
-            raise TransientGitHubApiError(error)
-        raise RuntimeError(f"gh api {path} failed: {error}")
+    raise_for_gh_failure(result, path)
     try:
         return [json.loads(line) for line in result.stdout.splitlines() if line]
     except json.JSONDecodeError as error:
         raise TransientGitHubApiError(
             f"gh api {path} returned invalid paginated JSON: {error}"
+        ) from error
+
+
+def raise_for_gh_failure(result, path):
+    if not result.returncode:
+        return
+    error = result.stderr.strip() or result.stdout.strip()
+    if (
+        re.search(r"\(HTTP (?:404|5\d\d)\)", error)
+        or "unexpected end of JSON input" in error
+    ):
+        raise TransientGitHubApiError(error)
+    raise RuntimeError(f"gh api {path} failed: {error}")
+
+
+def gh_json_object(path):
+    """Fetch one JSON object.
+
+    Not gh_json_pages: that passes `--jq .[]`, which on an object iterates its
+    values instead of yielding the object, so a single-resource endpoint such as
+    a commit would come back shredded into unrelated fragments.
+    """
+    result = subprocess.run(
+        ["gh", "api", path], text=True, capture_output=True
+    )
+    raise_for_gh_failure(result, path)
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise TransientGitHubApiError(
+            f"gh api {path} returned invalid JSON: {error}"
         ) from error
 
 def review_inline_comment_count(review_id):
@@ -155,6 +179,44 @@ def classify_codex_item(kind, body, inline_comments):
         return "pass"
     return None
 
+def head_commit_timestamp():
+    """When the current HEAD commit was committed, as an ISO-8601 string."""
+    commit = gh_json_object(f"repos/{repo}/commits/{head_sha}")
+    return (commit.get("commit") or {}).get("committer", {}).get("date") or ""
+
+
+def reaction_is_current(reaction_created_at, head_committed_at):
+    """Whether a thumbs-up can be about the current HEAD rather than an older one.
+
+    A reaction carries no commit reference, so the only thing tying it to a
+    revision is that Codex reacts *after* reviewing. A thumbs-up older than the
+    HEAD commit therefore cannot be about it and must not pass the gate; without
+    this the check would go green on unreviewed code every time someone pushed a
+    fix on top of an approved commit.
+    """
+    if not reaction_created_at or not head_committed_at:
+        return False
+    return reaction_created_at > head_committed_at
+
+
+def codex_thumbs_up_for_current_head():
+    """Codex's other way of saying it found nothing: a thumbs-up, with no review.
+
+    Its own note reads "If Codex has suggestions, it will comment; otherwise it
+    will react with a thumbs up", so a gate that only reads comments and reviews
+    times out on exactly the clean case it is meant to let through.
+    """
+    head_committed_at = head_commit_timestamp()
+    for reaction in gh_json_pages(f"repos/{repo}/issues/{pr_number}/reactions"):
+        if reaction.get("user", {}).get("login") not in codex_logins:
+            continue
+        if reaction.get("content") != "+1":
+            continue
+        if reaction_is_current(reaction.get("created_at", ""), head_committed_at):
+            return reaction.get("created_at", "")
+    return None
+
+
 def verdict():
     items = codex_items_for_current_head()
     classified = []
@@ -167,6 +229,13 @@ def verdict():
     if classified:
         timestamp, state, kind, url = max(classified, key=lambda item: item[0])
         return state, [(kind, url)]
+
+    # Checked only when nothing was written about this HEAD, so a real finding
+    # always outranks a thumbs-up.
+    reacted_at = codex_thumbs_up_for_current_head()
+    if reacted_at:
+        return "pass", [("thumbs-up reaction", f"reacted at {reacted_at}")]
+
     return "wait", items
 
 
@@ -268,6 +337,26 @@ def self_test():
         ),
     ]
 
+    reaction_cases = [
+        (
+            "a thumbs-up added after the HEAD commit is about that commit",
+            "2026-08-19T11:20:00Z", "2026-08-19T11:00:00Z", True,
+        ),
+        (
+            "a thumbs-up predating the HEAD commit cannot be about it, so pushing "
+            "a fix on top of an approved commit must not stay green",
+            "2026-08-19T10:00:00Z", "2026-08-19T11:00:00Z", False,
+        ),
+        (
+            "a missing reaction timestamp is not evidence of anything",
+            "", "2026-08-19T11:00:00Z", False,
+        ),
+        (
+            "an unknown HEAD commit date fails closed rather than passing",
+            "2026-08-19T11:20:00Z", "", False,
+        ),
+    ]
+
     failures = 0
     for name, kind, body, inline, expected in cases:
         got = classify_codex_item(kind, body, inline)
@@ -276,10 +365,20 @@ def self_test():
             print(f"FAIL expected={expected!r} got={got!r}: {name}")
         else:
             print(f"ok   {expected!r:6} {name}")
+
+    for name, reacted_at, committed_at, expected in reaction_cases:
+        got = reaction_is_current(reacted_at, committed_at)
+        if got != expected:
+            failures += 1
+            print(f"FAIL expected={expected!r} got={got!r}: {name}")
+        else:
+            print(f"ok   {expected!r:6} {name}")
+
+    total = len(cases) + len(reaction_cases)
     if failures:
-        print(f"{failures} of {len(cases)} self-test cases failed")
+        print(f"{failures} of {total} self-test cases failed")
         return 1
-    print(f"codex_review_gate self-test: {len(cases)} cases OK")
+    print(f"codex_review_gate self-test: {total} cases OK")
     return 0
 
 
