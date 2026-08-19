@@ -1,0 +1,470 @@
+//! Executable record of a persistence plan's observable behaviour.
+//!
+//! Rows are not the contract. Crash and retry semantics are decided by
+//! *statement order*, transaction boundaries, which logical database and
+//! connection a step ran on, how a failed `COMMIT` was classified, and what was
+//! published after it. Moving persistence behind ports can preserve every final
+//! row and still break all of that, so the order has to be frozen before the
+//! move rather than reconstructed afterwards.
+//!
+//! What is recorded is deliberately *semantic*:
+//!
+//! * Statements are identified by their statement-enum variant — the analogue
+//!   of C++'s `CharacterDatabaseStatements` — never by SQL text. Reformatting a
+//!   query, or renaming the file it lives in, must not move a trace.
+//! * Parameters are recorded by type. Numbers keep their value because that is
+//!   what distinguishes one plan from another; strings and blobs keep only
+//!   their length and a digest, so a golden can detect a changed value without
+//!   ever storing an account name, a token or a password hash.
+//!
+//! The recorder never holds its lock across I/O: every event is appended and
+//! the guard dropped before the caller awaits anything.
+
+use crate::params::SqlParam;
+use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex};
+
+/// Logical database a step ran against.
+///
+/// This is the ownership fact the ports must preserve; two steps on different
+/// logical databases can never be made one atomic unit later.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LogicalDatabase {
+    Login,
+    Character,
+    World,
+    Hotfix,
+}
+
+impl LogicalDatabase {
+    /// Stable wire name used in goldens.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Login => "login",
+            Self::Character => "character",
+            Self::World => "world",
+            Self::Hotfix => "hotfix",
+        }
+    }
+}
+
+/// Which connection carried a step.
+///
+/// Independent connections cannot share a transaction, so collapsing these is
+/// the exact mistake a port extraction can make invisibly.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConnectionAffinity {
+    /// Taken from the pool for this step alone.
+    Pooled,
+    /// The connection owned by the enclosing transaction.
+    Transaction,
+    /// A connection held for the lifetime of a lock, outside any pool.
+    DedicatedLock,
+}
+
+/// How a commit attempt ended.
+///
+/// `Unknown` is the one that matters: a transport error on `COMMIT` leaves the
+/// server unable to say whether the work landed, and C++ reconciles that with a
+/// durable token rather than assuming either outcome.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CommitOutcome {
+    Committed,
+    RolledBack,
+    Unknown,
+}
+
+/// A parameter as it appears in a trace.
+///
+/// Numeric parameters keep their value; text and blobs do not. A golden must be
+/// able to prove that a plan bound a different value without the repository
+/// storing that value, because these plans carry account names, session keys
+/// and password verifiers.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TracedParam {
+    Null,
+    Bool {
+        value: bool,
+    },
+    Int {
+        value: i64,
+    },
+    Uint {
+        value: u64,
+    },
+    /// Floats are recorded by bit pattern: a golden must not depend on decimal
+    /// formatting, and `NaN` has to compare equal to itself here.
+    Float {
+        bits: u64,
+    },
+    Text {
+        len: usize,
+        digest: u64,
+    },
+    Bytes {
+        len: usize,
+        digest: u64,
+    },
+}
+
+/// FNV-1a. Small, dependency-free, and stable across runs and platforms —
+/// which is all a golden needs. It is not a security primitive and is not used
+/// as one: it exists so a changed secret moves the trace without appearing in
+/// it.
+fn digest(bytes: &[u8]) -> u64 {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    hash
+}
+
+impl TracedParam {
+    /// Project a bound parameter into its redacted trace form.
+    pub fn from_param(param: &SqlParam) -> Self {
+        match param {
+            SqlParam::Null => Self::Null,
+            SqlParam::Bool(value) => Self::Bool { value: *value },
+            SqlParam::I8(value) => Self::Int {
+                value: i64::from(*value),
+            },
+            SqlParam::I16(value) => Self::Int {
+                value: i64::from(*value),
+            },
+            SqlParam::I32(value) => Self::Int {
+                value: i64::from(*value),
+            },
+            SqlParam::I64(value) => Self::Int { value: *value },
+            SqlParam::U8(value) => Self::Uint {
+                value: u64::from(*value),
+            },
+            SqlParam::U16(value) => Self::Uint {
+                value: u64::from(*value),
+            },
+            SqlParam::U32(value) => Self::Uint {
+                value: u64::from(*value),
+            },
+            SqlParam::U64(value) => Self::Uint { value: *value },
+            SqlParam::F32(value) => Self::Float {
+                bits: u64::from(value.to_bits()),
+            },
+            SqlParam::F64(value) => Self::Float {
+                bits: value.to_bits(),
+            },
+            SqlParam::String(value) => Self::Text {
+                len: value.len(),
+                digest: digest(value.as_bytes()),
+            },
+            SqlParam::Bytes(value) => Self::Bytes {
+                len: value.len(),
+                digest: digest(value),
+            },
+        }
+    }
+}
+
+/// One observable step of a persistence plan.
+///
+/// The variants are the facts a port extraction must not silently change. They
+/// are ordered by occurrence in [`PersistenceTrace`], and that order *is* the
+/// contract.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "event", rename_all = "snake_case")]
+pub enum PersistenceEvent {
+    /// A transaction was opened. Everything until its commit or rollback shares
+    /// one connection and lands or fails together.
+    TransactionBegin {
+        database: LogicalDatabase,
+    },
+    /// A statement was appended or executed.
+    Statement {
+        database: LogicalDatabase,
+        connection: ConnectionAffinity,
+        /// Statement-enum variant, e.g. `UPD_CHARACTER_MONEY`.
+        statement: String,
+        params: Vec<TracedParam>,
+        /// Present when the affected-row count is part of the correctness
+        /// contract rather than incidental.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        expected_rows_affected: Option<u64>,
+    },
+    /// Raw SQL appended without a statement enum. Recorded by shape only: the
+    /// text may be dynamic, and a golden that pinned it would break on
+    /// reformatting.
+    RawStatement {
+        database: LogicalDatabase,
+        connection: ConnectionAffinity,
+        digest: u64,
+    },
+    /// An advisory lock was taken or released on its own dedicated connection.
+    AdvisoryLock {
+        label: String,
+        acquired: bool,
+    },
+    /// A commit attempt resolved. `Unknown` must be reconciled by the caller.
+    Commit {
+        database: LogicalDatabase,
+        outcome: CommitOutcome,
+    },
+    Rollback {
+        database: LogicalDatabase,
+    },
+    /// A commit was retried after a deadlock. C++ serializes these under one
+    /// process-wide lock, so their presence and count are observable.
+    DeadlockRetry {
+        database: LogicalDatabase,
+        attempt: u32,
+    },
+    /// A point the plan must not cross until prior work is durable.
+    Fence {
+        label: String,
+    },
+    /// State made visible to clients or other sessions after a commit. Its
+    /// position relative to `Commit` is the crash-window contract.
+    Publication {
+        label: String,
+    },
+}
+
+/// An ordered recording of one persistence plan.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct PersistenceTrace {
+    pub events: Vec<PersistenceEvent>,
+}
+
+impl PersistenceTrace {
+    /// Render the trace as the golden's canonical pretty JSON.
+    pub fn to_golden(&self) -> Result<String, String> {
+        serde_json::to_string_pretty(self)
+            .map(|mut rendered| {
+                rendered.push('\n');
+                rendered
+            })
+            .map_err(|error| format!("cannot serialize persistence trace: {error}"))
+    }
+
+    /// Parse a golden previously produced by [`Self::to_golden`].
+    pub fn from_golden(source: &str) -> Result<Self, String> {
+        serde_json::from_str(source)
+            .map_err(|error| format!("cannot parse persistence trace golden: {error}"))
+    }
+}
+
+/// Handle used by production code to append events.
+///
+/// Cloning shares one recording. The mutex is taken only to push an event and
+/// is always released before the caller awaits, so no lock is ever held across
+/// database I/O.
+#[derive(Clone, Debug, Default)]
+pub struct PersistenceRecorder {
+    events: Arc<Mutex<Vec<PersistenceEvent>>>,
+}
+
+impl PersistenceRecorder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Append one event. Never awaits, never blocks on I/O.
+    pub fn record(&self, event: PersistenceEvent) {
+        // A poisoned recorder must not take the server down: it is an
+        // observation facility, and losing a trace is preferable to
+        // propagating a panic through a persistence path.
+        if let Ok(mut events) = self.events.lock() {
+            events.push(event);
+        }
+    }
+
+    /// Take the recording so far, leaving the recorder empty.
+    pub fn take(&self) -> PersistenceTrace {
+        let events = self
+            .events
+            .lock()
+            .map(|mut events| std::mem::take(&mut *events))
+            .unwrap_or_default();
+        PersistenceTrace { events }
+    }
+
+    /// Read the recording without consuming it.
+    pub fn snapshot(&self) -> PersistenceTrace {
+        let events = self
+            .events
+            .lock()
+            .map(|events| events.clone())
+            .unwrap_or_default();
+        PersistenceTrace { events }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn text_and_bytes_are_recorded_without_their_content() {
+        let secret = SqlParam::String("hunter2-session-key".to_owned());
+        let traced = TracedParam::from_param(&secret);
+        let rendered = serde_json::to_string(&traced).expect("serialize");
+
+        assert!(
+            !rendered.contains("hunter2"),
+            "a traced parameter must never carry its text: {rendered}"
+        );
+        match traced {
+            TracedParam::Text { len, .. } => assert_eq!(len, "hunter2-session-key".len()),
+            other => panic!("expected redacted text, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_changed_secret_still_moves_the_trace() {
+        // Redaction is worthless for a golden if two different values look the
+        // same, so the digest has to separate them.
+        let first = TracedParam::from_param(&SqlParam::String("account-a".to_owned()));
+        let second = TracedParam::from_param(&SqlParam::String("account-b".to_owned()));
+        assert_ne!(first, second);
+
+        let same = TracedParam::from_param(&SqlParam::String("account-a".to_owned()));
+        assert_eq!(first, same, "the digest must be stable across calls");
+    }
+
+    #[test]
+    fn numeric_parameters_keep_their_value_and_signedness() {
+        assert_eq!(
+            TracedParam::from_param(&SqlParam::I32(-7)),
+            TracedParam::Int { value: -7 }
+        );
+        assert_eq!(
+            TracedParam::from_param(&SqlParam::U32(7)),
+            TracedParam::Uint { value: 7 }
+        );
+        // A signed -1 and an unsigned u64::MAX share a bit pattern but are not
+        // the same bound parameter.
+        assert_ne!(
+            TracedParam::from_param(&SqlParam::I64(-1)),
+            TracedParam::from_param(&SqlParam::U64(u64::MAX))
+        );
+    }
+
+    #[test]
+    fn floats_compare_by_bits_so_a_golden_survives_formatting() {
+        assert_eq!(
+            TracedParam::from_param(&SqlParam::F64(f64::NAN)),
+            TracedParam::from_param(&SqlParam::F64(f64::NAN))
+        );
+        assert_ne!(
+            TracedParam::from_param(&SqlParam::F64(0.0)),
+            TracedParam::from_param(&SqlParam::F64(-0.0)),
+            "positive and negative zero are different bound values"
+        );
+    }
+
+    fn money_plan() -> PersistenceTrace {
+        PersistenceTrace {
+            events: vec![
+                PersistenceEvent::TransactionBegin {
+                    database: LogicalDatabase::Character,
+                },
+                PersistenceEvent::Statement {
+                    database: LogicalDatabase::Character,
+                    connection: ConnectionAffinity::Transaction,
+                    statement: "UPD_CHARACTER_MONEY".to_owned(),
+                    params: vec![TracedParam::Uint { value: 100 }],
+                    expected_rows_affected: Some(1),
+                },
+                PersistenceEvent::Commit {
+                    database: LogicalDatabase::Character,
+                    outcome: CommitOutcome::Committed,
+                },
+                PersistenceEvent::Publication {
+                    label: "money".to_owned(),
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn a_golden_round_trips() {
+        let trace = money_plan();
+        let golden = trace.to_golden().expect("render");
+        assert!(golden.ends_with('\n'), "goldens are newline terminated");
+        assert_eq!(
+            PersistenceTrace::from_golden(&golden).expect("parse"),
+            trace
+        );
+    }
+
+    #[test]
+    fn publishing_before_the_commit_is_a_different_trace() {
+        // The whole point of freezing order: these two plans write identical
+        // rows and differ only in what a crash between the steps would leave
+        // behind.
+        let expected = money_plan();
+        let mut reordered = expected.clone();
+        reordered.events.swap(2, 3);
+        assert_ne!(expected, reordered);
+    }
+
+    #[test]
+    fn changing_connection_affinity_is_a_different_trace() {
+        let expected = money_plan();
+        let mut escaped = expected.clone();
+        if let Some(PersistenceEvent::Statement { connection, .. }) = escaped.events.get_mut(1) {
+            *connection = ConnectionAffinity::Pooled;
+        }
+        assert_ne!(
+            expected, escaped,
+            "a statement leaving the transaction's connection must not compare equal"
+        );
+    }
+
+    #[test]
+    fn an_unknown_commit_is_not_a_rollback() {
+        let expected = money_plan();
+        let mut unknown = expected.clone();
+        if let Some(PersistenceEvent::Commit { outcome, .. }) = unknown.events.get_mut(2) {
+            *outcome = CommitOutcome::Unknown;
+        }
+        assert_ne!(expected, unknown);
+
+        let mut rolled_back = expected.clone();
+        if let Some(PersistenceEvent::Commit { outcome, .. }) = rolled_back.events.get_mut(2) {
+            *outcome = CommitOutcome::RolledBack;
+        }
+        assert_ne!(unknown, rolled_back);
+    }
+
+    #[test]
+    fn the_recorder_preserves_order_and_can_be_drained() {
+        let recorder = PersistenceRecorder::new();
+        for event in money_plan().events {
+            recorder.record(event);
+        }
+
+        let snapshot = recorder.snapshot();
+        assert_eq!(snapshot, money_plan());
+        assert_eq!(
+            recorder.snapshot(),
+            money_plan(),
+            "snapshot must not consume"
+        );
+
+        assert_eq!(recorder.take(), money_plan());
+        assert!(recorder.take().events.is_empty(), "take must drain");
+    }
+
+    #[test]
+    fn recorders_share_one_recording_when_cloned() {
+        let recorder = PersistenceRecorder::new();
+        let handed_to_a_plan = recorder.clone();
+        handed_to_a_plan.record(PersistenceEvent::Fence {
+            label: "character-save".to_owned(),
+        });
+        assert_eq!(recorder.snapshot().events.len(), 1);
+    }
+}

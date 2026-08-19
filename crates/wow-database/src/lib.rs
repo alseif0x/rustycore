@@ -37,6 +37,7 @@ pub mod database;
 pub mod error;
 pub mod loader;
 pub mod params;
+pub mod persistence_trace;
 pub mod query_holder;
 pub mod result;
 pub mod statements;

@@ -3209,6 +3209,8 @@ name = "wow-database"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "serde",
+ "serde_json",
  "sha1",
  "sqlx",
  "thiserror",
