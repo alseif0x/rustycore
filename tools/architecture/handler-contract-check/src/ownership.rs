@@ -896,6 +896,37 @@ fn child_module_directory(source: &Path) -> Result<PathBuf, String> {
 /// Splicing removes the indirection before anything is analyzed, so the audit
 /// sees the module tree the compiler sees and the extraction is invisible to
 /// every ratchet at once, rather than each analyzer needing its own repair.
+/// Files reachable only as `#[path]` children of `source`.
+///
+/// A consumer that reads sources through [`read_spliced_source`] already has
+/// these inside their parent, so analysing them again would double-count them
+/// and reintroduce the separate-unit provenance loss the splice exists to
+/// remove. The mount graph still records them, which is where the `#[path]`
+/// count and the duplicate-owner rejection live.
+pub(crate) fn path_module_children(source_path: &Path, source: &str) -> Vec<PathBuf> {
+    let Ok(syntax) = syn::parse_file(source) else {
+        return Vec::new();
+    };
+    let mut children = Vec::new();
+    for item in &syntax.items {
+        let Item::Mod(module) = item else { continue };
+        if module.content.is_some() {
+            continue;
+        }
+        let Ok(Some(relative)) = explicit_path(&module.attrs) else {
+            continue;
+        };
+        let child = source_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(relative);
+        if let Ok(resolved) = child.canonicalize() {
+            children.push(resolved);
+        }
+    }
+    children
+}
+
 pub(crate) fn read_spliced_source(source_path: &Path, package_root: &Path) -> Result<String, String> {
     read_spliced_source_at_depth(source_path, package_root, 0)
 }
@@ -1225,7 +1256,8 @@ fn walk_source_file(
             resolved.display()
         ));
     }
-    let source = read_spliced_source(&resolved, package_root)?;
+    let source = fs::read_to_string(&resolved)
+        .map_err(|error| format!("cannot read {}: {error}", resolved.display()))?;
     let syntax = syn::parse_file(&source)
         .map_err(|error| format!("cannot parse {}: {error}", resolved.display()))?;
     let cfg = extend_cfg_context(inherited_cfg, &syntax.attrs);
@@ -1387,7 +1419,17 @@ pub(crate) fn workspace_source_mounts(
                     scope.name
                 )
             })?;
+        let mut mounted_children: BTreeSet<PathBuf> = BTreeSet::new();
+        for source_path in mounts.keys() {
+            let raw = fs::read_to_string(source_path)
+                .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
+            mounted_children.extend(path_module_children(source_path, &raw));
+        }
         for (source_path, contexts) in mounts {
+            // Already inside the parent that mounts it.
+            if mounted_children.contains(&source_path) {
+                continue;
+            }
             let source = read_spliced_source(&source_path, &scope.root)?;
             result.push(WorkspaceSourceMount {
                 package: scope.name.clone(),
