@@ -79,24 +79,6 @@ def raise_for_gh_failure(result, path):
     raise RuntimeError(f"gh api {path} failed: {error}")
 
 
-def gh_json_object(path):
-    """Fetch one JSON object.
-
-    Not gh_json_pages: that passes `--jq .[]`, which on an object iterates its
-    values instead of yielding the object, so a single-resource endpoint such as
-    a commit would come back shredded into unrelated fragments.
-    """
-    result = subprocess.run(
-        ["gh", "api", path], text=True, capture_output=True
-    )
-    raise_for_gh_failure(result, path)
-    try:
-        return json.loads(result.stdout)
-    except json.JSONDecodeError as error:
-        raise TransientGitHubApiError(
-            f"gh api {path} returned invalid JSON: {error}"
-        ) from error
-
 def review_inline_comment_count(review_id):
     return len(
         gh_json_pages(
@@ -179,74 +161,6 @@ def classify_codex_item(kind, body, inline_comments):
         return "pass"
     return None
 
-def head_transition_boundary():
-    """When this pull request took the current HEAD, as an ISO-8601 string.
-
-    Three weaker boundaries were tried and are wrong:
-
-      - the commit's committer date is author-controlled and records when the
-        commit was *written*, so a commit created at 10:00, thumbs-upped at
-        10:30 and pushed at 11:00 looks reviewed, and back-dating a force-push
-        does the same;
-      - the earliest check suite for the SHA is server-observed but belongs to
-        the SHA, not to this pull request, so a SHA already pushed to another
-        ref carries an old suite and force-pushing it here reuses that older
-        boundary;
-      - this process's own start time moves on every re-run, which would reject
-        a reaction that was valid when the run was first created -- and a re-run
-        is exactly how a timed-out gate is retried.
-
-    This run was created by the event that made this SHA the pull request's
-    head, and a re-run keeps the original creation time, so the run's own
-    created_at is both server-observed and scoped to this pull request.
-    """
-    run_id = os.environ.get("GITHUB_RUN_ID", "")
-    if not run_id:
-        return ""
-    run = gh_json_object(f"repos/{repo}/actions/runs/{run_id}")
-    return run.get("created_at") or ""
-
-
-def reaction_is_current(reaction_created_at, head_seen_at):
-    """Whether a thumbs-up can be about the current HEAD rather than an older one.
-
-    A reaction carries no commit reference at all -- unlike a review, whose body
-    states "Reviewed commit: <sha>" -- so the only thing tying it to a revision
-    is that Codex reacts after reviewing. Requiring it to postdate the moment
-    the server first saw this SHA keeps the gate from going green on unreviewed
-    code when someone pushes a fix on top of an approved commit.
-
-    The residual gap is narrow and worth stating: if Codex began reviewing the
-    previous HEAD, a push landed mid-review, and Codex then reacted, the
-    reaction postdates this SHA while describing the previous one. Nothing in
-    the reactions API can distinguish that, and Codex re-reviews on every
-    synchronize, so the next review or reaction settles it. A finding always
-    outranks a reaction, so the failure mode is a delayed pass, never a
-    suppressed finding.
-    """
-    if not reaction_created_at or not head_seen_at:
-        return False
-    return reaction_created_at > head_seen_at
-
-
-def codex_thumbs_up_for_current_head():
-    """Codex's other way of saying it found nothing: a thumbs-up, with no review.
-
-    Its own note reads "If Codex has suggestions, it will comment; otherwise it
-    will react with a thumbs up", so a gate that only reads comments and reviews
-    times out on exactly the clean case it is meant to let through.
-    """
-    head_seen_at = head_transition_boundary()
-    for reaction in gh_json_pages(f"repos/{repo}/issues/{pr_number}/reactions"):
-        if reaction.get("user", {}).get("login") not in codex_logins:
-            continue
-        if reaction.get("content") != "+1":
-            continue
-        if reaction_is_current(reaction.get("created_at", ""), head_seen_at):
-            return reaction.get("created_at", "")
-    return None
-
-
 def verdict():
     items = codex_items_for_current_head()
     classified = []
@@ -259,13 +173,6 @@ def verdict():
     if classified:
         timestamp, state, kind, url = max(classified, key=lambda item: item[0])
         return state, [(kind, url)]
-
-    # Checked only when nothing was written about this HEAD, so a real finding
-    # always outranks a thumbs-up.
-    reacted_at = codex_thumbs_up_for_current_head()
-    if reacted_at:
-        return "pass", [("thumbs-up reaction", f"reacted at {reacted_at}")]
-
     return "wait", items
 
 
@@ -367,39 +274,6 @@ def self_test():
         ),
     ]
 
-    # The boundary is when the server first saw the HEAD, never the commit's own
-    # date: a commit written locally at 10:00, thumbs-upped at 10:30 and pushed
-    # at 11:00 would otherwise look reviewed, and a back-dated force-push would
-    # too, because committer dates are author-controlled.
-    reaction_cases = [
-        (
-            "a thumbs-up after the SHA reached the server is about that SHA",
-            "2026-08-19T11:20:00Z", "2026-08-19T11:00:00Z", True,
-        ),
-        (
-            "a thumbs-up predating the push cannot be about the pushed SHA, so "
-            "pushing a fix on top of an approved commit must not stay green",
-            "2026-08-19T10:30:00Z", "2026-08-19T11:00:00Z", False,
-        ),
-        (
-            "a back-dated commit does not backdate the boundary: written 10:00, "
-            "reacted 10:30, pushed 11:00 is still unreviewed",
-            "2026-08-19T10:30:00Z", "2026-08-19T11:00:00Z", False,
-        ),
-        (
-            "a reaction exactly at the boundary is not after it",
-            "2026-08-19T11:00:00Z", "2026-08-19T11:00:00Z", False,
-        ),
-        (
-            "a missing reaction timestamp is not evidence of anything",
-            "", "2026-08-19T11:00:00Z", False,
-        ),
-        (
-            "an unknown boundary fails closed rather than passing",
-            "2026-08-19T11:20:00Z", "", False,
-        ),
-    ]
-
     failures = 0
     for name, kind, body, inline, expected in cases:
         got = classify_codex_item(kind, body, inline)
@@ -409,15 +283,7 @@ def self_test():
         else:
             print(f"ok   {expected!r:6} {name}")
 
-    for name, reacted_at, committed_at, expected in reaction_cases:
-        got = reaction_is_current(reacted_at, committed_at)
-        if got != expected:
-            failures += 1
-            print(f"FAIL expected={expected!r} got={got!r}: {name}")
-        else:
-            print(f"ok   {expected!r:6} {name}")
-
-    total = len(cases) + len(reaction_cases)
+    total = len(cases)
     if failures:
         print(f"{failures} of {total} self-test cases failed")
         return 1
