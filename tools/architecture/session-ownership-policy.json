@@ -66464,7 +66464,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::game_event_spawn_non_pool_creature_and_gameobject_loaded_grid_adds_records_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -66620,7 +66620,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_melee_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -67000,7 +67000,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::legacy_creature_global_tick_task_delivers_movement_plan_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -67310,7 +67310,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::legacy_creature_lifecycle_tick_refreshes_sessions_after_ready_respawn_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -67515,7 +67515,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::legacy_creature_melee_tick_delivers_compatibility_creature_plan_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -67643,7 +67643,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::legacy_creature_melee_tick_delivers_compatibility_victim_command_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -67820,7 +67820,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -68025,7 +68025,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::legacy_creature_runtime_loop_smoke_delivers_visible_work_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -68335,7 +68335,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::legacy_respawn_producer_stop_runs_final_lifecycle_flush_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -68491,7 +68491,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::login_grid_load_accepts_authoritative_garrison_world_map_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -68591,7 +68591,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::login_grid_load_can_materialize_missing_common_world_map_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -68670,7 +68670,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::login_grid_load_does_not_fabricate_missing_instanceable_map_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -68749,7 +68749,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::login_grid_load_does_not_guess_missing_faction_split_world_map_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -68828,7 +68828,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::login_grid_load_materializes_area_triggers_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -68963,7 +68963,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::login_grid_load_materializes_visible_adjacent_ngrid_creature_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -69105,7 +69105,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::login_grid_load_mirrors_already_loaded_canonical_creature_to_legacy_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -69310,7 +69310,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::login_grid_load_preserves_precreated_dungeon_kind_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -69410,7 +69410,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::login_grid_load_rejects_stale_dungeon_zero_world_map_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -69510,7 +69510,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::mirror_canonical_melee_test_creature_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -69708,7 +69708,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::persisted_restart_timer_respawns_once_through_canonical_owner_and_mirrors_legacy_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -69850,7 +69850,7 @@
         {
           "package": "world-server",
           "module": "crate::tests",
-          "path": "crates/world-server/src/main_tests.rs",
+          "path": "crates/world-server/src/main.rs",
           "enclosing": "fn::spawn_group_condition_update_tick_mirrors_loaded_grid_creature_to_legacy_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -71532,7 +71532,7 @@
         {
           "package": "wow-world",
           "module": "crate::map_manager::tests",
-          "path": "crates/wow-world/src/map_manager_tests.rs",
+          "path": "crates/wow-world/src/map_manager.rs",
           "enclosing": "fn::create_data_from_canonical_clamps_zero_base_attack_time_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -71632,7 +71632,7 @@
         {
           "package": "wow-world",
           "module": "crate::map_manager::tests",
-          "path": "crates/wow-world/src/map_manager_tests.rs",
+          "path": "crates/wow-world/src/map_manager.rs",
           "enclosing": "fn::create_data_from_canonical_keeps_base_mana_distinct_from_non_mana_power_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -71753,7 +71753,7 @@
         {
           "package": "wow-world",
           "module": "crate::map_manager::tests",
-          "path": "crates/wow-world/src/map_manager_tests.rs",
+          "path": "crates/wow-world/src/map_manager.rs",
           "enclosing": "fn::create_data_from_canonical_preserves_nonzero_base_attack_time_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -71853,7 +71853,7 @@
         {
           "package": "wow-world",
           "module": "crate::map_manager::tests",
-          "path": "crates/wow-world/src/map_manager_tests.rs",
+          "path": "crates/wow-world/src/map_manager.rs",
           "enclosing": "fn::loaded_grid_canonical_bridge_only_sets_vehicle_create_flag_for_real_vehicle_kit_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -71925,7 +71925,7 @@
         {
           "package": "wow-world",
           "module": "crate::map_manager::tests",
-          "path": "crates/wow-world/src/map_manager_tests.rs",
+          "path": "crates/wow-world/src/map_manager.rs",
           "enclosing": "fn::loaded_grid_canonical_bridge_preserves_level_and_stats_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -75399,7 +75399,7 @@
         {
           "package": "wow-world",
           "module": "crate::session::tests",
-          "path": "crates/wow-world/src/session_tests.rs",
+          "path": "crates/wow-world/src/session.rs",
           "enclosing": "fn::creature_spell_bound_hook_tick_fixture_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -75429,7 +75429,7 @@
         {
           "package": "wow-world",
           "module": "crate::session::tests",
-          "path": "crates/wow-world/src/session_tests.rs",
+          "path": "crates/wow-world/src/session.rs",
           "enclosing": "fn::legacy_creature_aggro_tick_once_uses_template_required_expansion_cap_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -75543,7 +75543,7 @@
         {
           "package": "wow-world",
           "module": "crate::session::tests",
-          "path": "crates/wow-world/src/session_tests.rs",
+          "path": "crates/wow-world/src/session.rs",
           "enclosing": "fn::register_test_creature_mirrored_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"

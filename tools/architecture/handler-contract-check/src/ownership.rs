@@ -20,7 +20,8 @@ use serde_json::Value;
 use syn::parse::Parser;
 use syn::punctuated::Punctuated;
 use syn::visit::Visit;
-use syn::{Item, ItemMod, Meta, Token};
+use syn::spanned::Spanned;
+use syn::{Attribute, Item, ItemMod, Meta, Token};
 
 use crate::module_policy::CapabilityOwner;
 use crate::registrations::{
@@ -878,6 +879,158 @@ fn child_module_directory(source: &Path) -> Result<PathBuf, String> {
     }
 }
 
+/// Read a source file with every `#[path]` module spliced back in as an inline
+/// module.
+///
+/// `#[path]` does not change the module tree: `#[path = "x_tests.rs"] mod tests;`
+/// declares exactly the module that `mod tests { .. }` would. The analyzers do
+/// not see it that way, because each physical file becomes its own unit with its
+/// own symbol table, and provenance is resolved from a file's own `use` items.
+/// A child that reaches its parent's imports through `use super::*` -- which is
+/// real Rust, the child can name an ancestor's private imports -- loses that
+/// provenance, because resolving a glob is beyond a syntactic analyzer. Moving a
+/// `mod tests` out of its parent then silently deletes rows from the very
+/// inventories that exist to notice deletions: 29 of 71 bridge rows and 1,261 of
+/// 23,404 persistence rows vanished this way.
+///
+/// Splicing removes the indirection before anything is analyzed, so the audit
+/// sees the module tree the compiler sees and the extraction is invisible to
+/// every ratchet at once, rather than each analyzer needing its own repair.
+pub(crate) fn read_spliced_source(source_path: &Path, package_root: &Path) -> Result<String, String> {
+    read_spliced_source_at_depth(source_path, package_root, 0)
+}
+
+/// `#[path]` chains are not expected to nest, but a bound keeps a cycle from
+/// becoming a stack overflow; `walk_source_file` reports the cycle properly.
+const MAX_PATH_MODULE_DEPTH: usize = 8;
+
+fn read_spliced_source_at_depth(
+    source_path: &Path,
+    package_root: &Path,
+    depth: usize,
+) -> Result<String, String> {
+    let source = fs::read_to_string(source_path)
+        .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
+    if depth > MAX_PATH_MODULE_DEPTH {
+        return Err(format!(
+            "#[path] module nesting deeper than {MAX_PATH_MODULE_DEPTH} while splicing {}",
+            source_path.display()
+        ));
+    }
+    if !source.contains("#[path") {
+        return Ok(source);
+    }
+
+    let syntax = syn::parse_file(&source)
+        .map_err(|error| format!("cannot parse {}: {error}", source_path.display()))?;
+
+    // Collected first and applied last-to-first so earlier byte ranges stay valid.
+    let mut replacements: Vec<(std::ops::Range<usize>, String)> = Vec::new();
+    for item in &syntax.items {
+        let Item::Mod(module) = item else { continue };
+        if module.content.is_some() {
+            continue;
+        }
+        let Some(relative) = explicit_path(&module.attrs)? else {
+            continue;
+        };
+        let child_path = source_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(&relative);
+        let context = format!(
+            "#[path] module {} declared in {}",
+            module.ident,
+            source_path.display()
+        );
+        let resolved = validate_source_file(&child_path, package_root, &context)?;
+        let child = read_spliced_source_at_depth(&resolved, package_root, depth + 1)?;
+        let body = strip_inner_cfg_test(&child, &module.attrs, &resolved)?;
+
+        // The declaration is rebuilt by slicing the original bytes rather than by
+        // re-emitting the parsed tokens: `to_token_stream().to_string()` would
+        // print `# [cfg (test)]`, which parses the same but no longer matches
+        // what the file says, and this text is what every later audit reads.
+        let item_range = item.span().byte_range();
+        let item_text = &source[item_range.clone()];
+        let attribute_range = module
+            .attrs
+            .iter()
+            .find(|attribute| attribute.path().is_ident("path"))
+            .map(|attribute| attribute.span().byte_range())
+            .ok_or_else(|| {
+                format!("lost the #[path] attribute of module {}", module.ident)
+            })?;
+        let mut declaration = String::with_capacity(item_text.len());
+        declaration.push_str(&item_text[..attribute_range.start - item_range.start]);
+        // The attribute occupied its own line, so splicing its range out leaves
+        // the newline that followed it and the module's remaining attributes end
+        // up separated from the declaration they apply to.
+        declaration.push_str(
+            item_text[attribute_range.end - item_range.start..].trim_start_matches(['\n', '\r']),
+        );
+        let declaration = declaration
+            .trim_end()
+            .strip_suffix(';')
+            .ok_or_else(|| {
+                format!(
+                    "#[path] module {} in {} is not a `mod name;` declaration",
+                    module.ident,
+                    source_path.display()
+                )
+            })?
+            .trim_end()
+            .to_owned();
+        replacements.push((item_range, format!("{declaration} {{\n{body}\n}}")));
+    }
+
+    if replacements.is_empty() {
+        return Ok(source);
+    }
+    replacements.sort_by_key(|(range, _)| range.start);
+    let mut spliced = source;
+    for (range, text) in replacements.into_iter().rev() {
+        spliced.replace_range(range, &text);
+    }
+    Ok(spliced)
+}
+
+/// Drop a `#![cfg(test)]` that the `mod` declaration already states.
+///
+/// Inlining would otherwise record the module's cfg twice and change its exact
+/// identity in the baseline. Every other inner attribute is carried through
+/// untouched: `mod m { #![doc = ".."] .. }` means exactly what the same
+/// attribute meant at the top of the module's own file, so rewriting it would
+/// change the audited source rather than preserve it.
+fn strip_inner_cfg_test(
+    child: &str,
+    module_attributes: &[Attribute],
+    child_path: &Path,
+) -> Result<String, String> {
+    let syntax = syn::parse_file(child)
+        .map_err(|error| format!("cannot parse {}: {error}", child_path.display()))?;
+    if syntax.attrs.is_empty() {
+        return Ok(child.to_owned());
+    }
+    let module_is_test_only = module_attributes.iter().any(|attribute| {
+        attribute.path().is_ident("cfg")
+            && attribute.to_token_stream().to_string().replace(' ', "") == "#[cfg(test)]"
+    });
+    let mut body = child.to_owned();
+    let mut ranges = Vec::new();
+    for attribute in &syntax.attrs {
+        let text = attribute.to_token_stream().to_string().replace(' ', "");
+        if text == "#![cfg(test)]" && module_is_test_only {
+            ranges.push(attribute.span().byte_range());
+        }
+    }
+    ranges.sort_by_key(|range| range.start);
+    for range in ranges.into_iter().rev() {
+        body.replace_range(range, "");
+    }
+    Ok(body)
+}
+
 fn resolve_module_source(
     module: &ItemMod,
     source_path: &Path,
@@ -1072,8 +1225,7 @@ fn walk_source_file(
             resolved.display()
         ));
     }
-    let source = fs::read_to_string(&resolved)
-        .map_err(|error| format!("cannot read {}: {error}", resolved.display()))?;
+    let source = read_spliced_source(&resolved, package_root)?;
     let syntax = syn::parse_file(&source)
         .map_err(|error| format!("cannot parse {}: {error}", resolved.display()))?;
     let cfg = extend_cfg_context(inherited_cfg, &syntax.attrs);
@@ -1236,8 +1388,7 @@ pub(crate) fn workspace_source_mounts(
                 )
             })?;
         for (source_path, contexts) in mounts {
-            let source = fs::read_to_string(&source_path)
-                .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
+            let source = read_spliced_source(&source_path, &scope.root)?;
             result.push(WorkspaceSourceMount {
                 package: scope.name.clone(),
                 source_path,

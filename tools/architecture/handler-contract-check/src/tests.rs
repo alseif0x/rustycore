@@ -15,7 +15,7 @@ use crate::module_policy::{CapabilityOwner, parse_handler_module_policy};
 use crate::ownership::{
     WorkspaceSourceMount, audit_package_registration_sources,
     audit_package_registration_sources_with_owner, audit_package_source_graph,
-    audit_package_source_mounts, registry_capable_package_ids,
+    audit_package_source_mounts, read_spliced_source, registry_capable_package_ids,
     workspace_dependency_aliases_from_metadata,
 };
 use crate::registrations::{
@@ -1025,6 +1025,98 @@ fn source_graph_fixture(name: &str) -> PathBuf {
         "handler-contract-check-{name}-{}-{unique}",
         std::process::id()
     ))
+}
+
+#[test]
+fn path_module_is_spliced_back_into_its_parent_so_extraction_is_invisible() {
+    let fixture = source_graph_fixture("splice-path");
+    let crate_root = fixture.join("src/lib.rs");
+    let child = fixture.join("src/thing_tests.rs");
+    fs::create_dir_all(crate_root.parent().expect("crate root parent"))
+        .expect("create crate root directory");
+    fs::write(
+        &crate_root,
+        "use wow_entities::Creature;\n\n#[cfg(test)]\n#[path = \"thing_tests.rs\"]\nmod tests;\n",
+    )
+    .expect("write crate root");
+    fs::write(
+        &child,
+        "//! Behaviour tests.\n#![cfg(test)]\n\nuse super::*;\n\nfn helper() -> Creature {\n    Creature::new(false)\n}\n",
+    )
+    .expect("write child");
+
+    let spliced = read_spliced_source(&crate_root, &fixture).expect("splice the path module");
+
+    // The parent's own text is untouched, so nothing outside the module moves.
+    assert!(
+        spliced.starts_with("use wow_entities::Creature;"),
+        "the parent's own source must be preserved verbatim: {spliced}"
+    );
+    // The indirection is gone and the module is inline, which is what makes the
+    // child inherit the parent's imports again instead of losing provenance
+    // through `use super::*`.
+    assert!(
+        !spliced.contains("#[path"),
+        "the #[path] attribute must not survive splicing: {spliced}"
+    );
+    assert!(
+        spliced.contains("#[cfg(test)]"),
+        "the module's own cfg must be preserved exactly as written: {spliced}"
+    );
+    assert!(
+        spliced.contains("mod tests {"),
+        "the module must become inline: {spliced}"
+    );
+    assert!(
+        spliced.contains("Creature::new(false)"),
+        "the child's body must be carried in: {spliced}"
+    );
+    // The duplicate inner cfg is dropped; the outer #[cfg(test)] already says it,
+    // and recording it twice would change the module's exact cfg identity.
+    assert!(
+        !spliced.contains("#![cfg(test)]"),
+        "the redundant inner cfg must be stripped: {spliced}"
+    );
+    // Every other inner attribute is carried through unchanged.
+    assert!(
+        spliced.contains("//! Behaviour tests."),
+        "a module doc comment is part of the audited source: {spliced}"
+    );
+    syn::parse_file(&spliced).expect("the spliced source must still be valid Rust");
+
+    fs::remove_dir_all(&fixture).expect("clean up fixture");
+}
+
+#[test]
+fn splicing_a_path_module_without_the_matching_cfg_keeps_its_inner_attributes() {
+    let fixture = source_graph_fixture("splice-no-cfg");
+    let crate_root = fixture.join("src/lib.rs");
+    let child = fixture.join("src/personal.rs");
+    fs::create_dir_all(crate_root.parent().expect("crate root parent"))
+        .expect("create crate root directory");
+    fs::write(
+        &crate_root,
+        "#[path = \"personal.rs\"]\npub mod personal;\n",
+    )
+    .expect("write crate root");
+    fs::write(&child, "//! Docs.\n#![allow(dead_code)]\n\nfn thing() {}\n")
+        .expect("write child");
+
+    let spliced = read_spliced_source(&crate_root, &fixture).expect("splice the path module");
+
+    // Without a `#[cfg(test)]` on the declaration there is nothing to deduplicate,
+    // so inner attributes are carried in exactly as written rather than rewritten.
+    assert!(
+        spliced.contains("#![allow(dead_code)]"),
+        "inner attributes unrelated to the module's cfg must survive: {spliced}"
+    );
+    assert!(
+        spliced.contains("pub mod personal {"),
+        "visibility must be preserved: {spliced}"
+    );
+    syn::parse_file(&spliced).expect("the spliced source must still be valid Rust");
+
+    fs::remove_dir_all(&fixture).expect("clean up fixture");
 }
 
 #[test]

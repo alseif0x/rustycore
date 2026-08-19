@@ -371,12 +371,6 @@ fn last_path_ident(path: &Path) -> Option<String> {
         .map(|segment| segment.ident.to_string())
 }
 
-fn parent_module_path(module: &str) -> Option<String> {
-    module
-        .rsplit_once("::")
-        .map(|(parent, _)| parent.to_owned())
-}
-
 fn is_legacy_map_module(module: &str) -> bool {
     module == "crate::map_manager" || module.starts_with("crate::map_manager::")
 }
@@ -1418,7 +1412,7 @@ fn analyze_module_items(
     inherited_symbols: &Symbols,
     accumulator: &mut BridgeAccumulator,
     errors: &mut Vec<String>,
-) -> Symbols {
+) {
     let symbols = register_module_symbols(items, context, inherited_symbols, errors);
     for item in items {
         match item {
@@ -1447,13 +1441,11 @@ fn analyze_module_items(
                     path: context.path,
                     cfg: extend_cfg_context(&context.cfg, attrs),
                 };
-                let _child_symbols =
-                    analyze_module_items(child_items, &child, &symbols, accumulator, errors);
+                analyze_module_items(child_items, &child, &symbols, accumulator, errors);
             }
             _ => {}
         }
     }
-    symbols
 }
 
 /// Parse and inventory bridge-bearing items from already resolved world-server
@@ -1480,7 +1472,6 @@ pub(crate) fn inventory_bridge_accesses(
     });
     let mut seen = BTreeSet::new();
     let mut accumulator = BridgeAccumulator::default();
-    let mut module_symbols: BTreeMap<(&str, String), Symbols> = BTreeMap::new();
     let mut errors = Vec::new();
     for source in ordered {
         if source.package.is_empty() || source.module.is_empty() || source.source_path.is_empty() {
@@ -1521,26 +1512,13 @@ pub(crate) fn inventory_bridge_accesses(
             path: source.source_path,
             cfg: extend_cfg_context(source.inherited_cfg, &syntax.attrs),
         };
-        // A `#[path]` child is its own source unit, so it would otherwise start
-        // from an empty table and lose the provenance its parent's imports carry
-        // -- `use wow_entities::{Creature, ..}` is what makes `Creature::new` a
-        // canonical-side reference. While the module was inline it inherited that
-        // table by recursion. `use super::*` genuinely does bring an ancestor's
-        // private imports into scope in Rust, but resolving a glob is beyond this
-        // syntactic analyzer, so the parent's table is inherited directly instead.
-        // Sources are sorted by module path, so a parent is always recorded
-        // before its children.
-        let inherited = parent_module_path(&context.module)
-            .and_then(|parent| module_symbols.get(&(source.package, parent)).cloned())
-            .unwrap_or_else(|| Symbols::for_module(source.package, source.module));
-        let symbols = analyze_module_items(
+        analyze_module_items(
             &syntax.items,
             &context,
-            &inherited,
+            &Symbols::for_module(source.package, source.module),
             &mut accumulator,
             &mut errors,
         );
-        module_symbols.insert((source.package, context.module.clone()), symbols);
     }
     if errors.is_empty() {
         Ok(accumulator.finish())

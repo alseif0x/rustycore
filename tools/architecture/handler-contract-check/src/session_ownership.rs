@@ -27,6 +27,7 @@ use crate::bridge_access::{
 };
 use crate::ownership::{
     SourceMountContext, audit_package_source_mounts, cfg_context_allows_production,
+    read_spliced_source,
     cfg_context_allows_test, extend_cfg_context, workspace_dependency_aliases,
     workspace_source_mounts,
 };
@@ -1674,16 +1675,7 @@ fn collect_units(
     let bridge_sources: Vec<_> = units
         .iter()
         .filter(|unit| {
-            // Test-available units are scanned too, not just production ones: 29
-            // of the baseline's bridge rows are cfg(test), so bridges are audited
-            // in test code by design, and the persistence scan already accepts
-            // `production_possible || test_possible` for the same reason. While a
-            // module's tests sat inline the whole file was one production unit and
-            // its `mod tests` was walked as a side effect; extracting that module
-            // to a `#![cfg(test)]` sibling makes it its own non-production unit,
-            // and a production-only filter would then drop its rows silently --
-            // hiding audited bridges rather than reporting them.
-            (unit.availability.production || unit.availability.test)
+            unit.availability.production
                 && matches!(unit.role, PackageRole::World | PackageRole::Server)
         })
         .map(|unit| BridgeSource {
@@ -1757,8 +1749,7 @@ fn repository_units(
     let (mounts, _) = audit_package_source_mounts(&package_root, &[crate_root])?;
     let mut units = Vec::new();
     for (source_path, contexts) in mounts {
-        let source = fs::read_to_string(&source_path)
-            .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
+        let source = read_spliced_source(&source_path, &package_root)?;
         for SourceMountContext {
             logical_module_path,
             cfg,

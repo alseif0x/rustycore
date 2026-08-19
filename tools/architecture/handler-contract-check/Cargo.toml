@@ -10,7 +10,10 @@ default-run = "handler-contract-check"
 [workspace]
 
 [dependencies]
-proc-macro2 = "1"
+# span-locations gives Span::byte_range(), which lets a `#[path]` module be
+# spliced back into its parent by exact byte range instead of regenerating the
+# parent from its AST and losing the original text.
+proc-macro2 = { version = "1", features = ["span-locations"] }
 quote = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
