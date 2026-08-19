@@ -83,6 +83,29 @@ pub enum HotfixStatements {
     },
 }
 
+/// Shape of a generated hotfix `SELECT`'s projection.
+///
+/// The table alone is too coarse: `spell_db2.rs` loads full rows from the same
+/// tables that `spell_info_keys.rs` queries for keys only, so two statements
+/// with different results would share one identity and swapping them would
+/// leave the trace unchanged. The column count separates them without pinning
+/// the SQL text, so a reformat still cannot move a golden.
+fn hotfix_projection_shape_like_cpp(sql: &str) -> usize {
+    let lowered = sql.to_ascii_lowercase();
+    let Some(start) = lowered.find("select ") else {
+        return 0;
+    };
+    let rest = &sql[start + "select ".len()..];
+    let projection = match rest.to_ascii_lowercase().find(" from ") {
+        Some(end) => &rest[..end],
+        None => rest,
+    };
+    projection
+        .split(',')
+        .filter(|part| !part.trim().is_empty())
+        .count()
+}
+
 /// Table a generated hotfix `SELECT` reads, used as its trace identity.
 ///
 /// Derived from the statement's `FROM` clause rather than from the query text:
@@ -166,9 +189,11 @@ impl StatementDef for HotfixStatements {
         // sibling generated variants carry a table name, which is already a
         // semantic identity, so they need no special case.
         match self {
-            Self::GENERATED_BASE { sql } => {
-                format!("GENERATED_BASE:{}", hotfix_base_table_like_cpp(sql))
-            }
+            Self::GENERATED_BASE { sql } => format!(
+                "GENERATED_BASE:{}:{}",
+                hotfix_base_table_like_cpp(sql),
+                hotfix_projection_shape_like_cpp(sql)
+            ),
             other => format!("{other:?}"),
         }
     }

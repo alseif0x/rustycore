@@ -241,6 +241,14 @@ pub enum PersistenceEvent {
         /// contract rather than incidental.
         #[serde(skip_serializing_if = "Option::is_none")]
         expected_rows_affected: Option<u64>,
+        /// Rows the statement actually affected, when it ran on its own pooled
+        /// connection and the caller can see the number.
+        ///
+        /// Recorded because callers branch on it: a save that matches no
+        /// character row is a different outcome from one that matches a row,
+        /// and without this `Ok(0)` and `Ok(1)` trace identically.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        observed_rows_affected: Option<u64>,
     },
     /// Raw SQL appended without a statement enum. Recorded by shape only: the
     /// text may be dynamic, and a golden that pinned it would break on
@@ -443,6 +451,12 @@ impl ExplicitTransactionTrace {
         record_explicit_statement(self.database, statement, params);
     }
 
+    /// Record a statement whose asserted affected-row count is part of the
+    /// contract, so dropping that assertion moves the trace.
+    pub fn statement_expecting(&self, statement: &str, params: Vec<TracedParam>, expected: u64) {
+        record_explicit_statement_expecting(self.database, statement, params, Some(expected));
+    }
+
     /// Record how the commit attempt resolved.
     pub fn committed(mut self, outcome: CommitOutcome) {
         record_explicit_commit(self.database, outcome);
@@ -483,13 +497,30 @@ pub fn record_explicit_statement(
     statement: &str,
     params: Vec<TracedParam>,
 ) {
+    record_explicit_statement_expecting(database, statement, params, None);
+}
+
+/// Record such a statement together with the affected-row count its caller
+/// asserts.
+///
+/// The count is part of the correctness contract wherever a workflow rejects
+/// anything but an exact match — the money mutations all do. Without it, a
+/// refactor that dropped those guards would leave a successful trace unchanged,
+/// which `SqlTransaction::append_expect_rows_affected` already refuses to allow.
+pub fn record_explicit_statement_expecting(
+    database: LogicalDatabase,
+    statement: &str,
+    params: Vec<TracedParam>,
+    expected_rows_affected: Option<u64>,
+) {
     if let Some(recorder) = ambient_recorder() {
         recorder.record(PersistenceEvent::Statement {
             database,
             connection: ConnectionAffinity::Transaction,
             statement: statement.to_owned(),
             params,
-            expected_rows_affected: None,
+            expected_rows_affected,
+            observed_rows_affected: None,
         });
     }
 }
@@ -672,6 +703,7 @@ mod tests {
                         width_bits: 64,
                     }],
                     expected_rows_affected: Some(1),
+                    observed_rows_affected: None,
                 },
                 PersistenceEvent::Commit {
                     database: LogicalDatabase::Character,
@@ -850,7 +882,7 @@ mod tests {
         // Same defect as `GENERATED_CPP`, in the variant I did not check the
         // first time: `GENERATED_BASE` carries its SQL.
         let statement = HotfixStatements::base("SELECT ID, Field FROM area_table WHERE ID = ?");
-        assert_eq!(statement.trace_identity(), "GENERATED_BASE:area_table");
+        assert_eq!(statement.trace_identity(), "GENERATED_BASE:area_table:2");
         assert!(
             !statement.trace_identity().contains("SELECT"),
             "a generated hotfix statement must not be identified by its SQL"
@@ -866,6 +898,12 @@ mod tests {
 
         let other = HotfixStatements::base("SELECT ID FROM spell_name WHERE ID = ?");
         assert_ne!(statement.trace_identity(), other.trace_identity());
+
+        // The table alone is too coarse: a key-only query and a full-row query
+        // against the same table produce different results, so swapping them
+        // must move the trace.
+        let keys_only = HotfixStatements::base("SELECT ID FROM area_table WHERE ID = ?");
+        assert_ne!(statement.trace_identity(), keys_only.trace_identity());
     }
 
     #[test]

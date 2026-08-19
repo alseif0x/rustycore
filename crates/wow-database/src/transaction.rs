@@ -222,6 +222,10 @@ async fn run_item_guid_allocator_lock_monitor_like_cpp(
                         let message = format!(
                             "dedicated MySQL session lost {allocator_label} GUID allocator advisory lock {lock_name}"
                         );
+                        // The lock's lifetime ends here as surely as at an
+                        // orderly release. Recording only the orderly path left
+                        // an unexpected loss looking like a lock still held.
+                        crate::persistence_trace::record_advisory_lock(&lock_name, false);
                         let _ = loss_tx.send(Some(message.clone()));
                         return Err(DatabaseError::Transaction(message));
                     }
@@ -230,6 +234,10 @@ async fn run_item_guid_allocator_lock_monitor_like_cpp(
                         let message = format!(
                             "could not verify {allocator_label} GUID allocator advisory lock {lock_name}: {error}"
                         );
+                        // Verification failed and the dedicated connection is
+                        // closing, so ownership is over whether or not MySQL
+                        // still thinks otherwise.
+                        crate::persistence_trace::record_advisory_lock(&lock_name, false);
                         let _ = loss_tx.send(Some(message));
                         return Err(error);
                     }
@@ -406,6 +414,7 @@ impl SqlTransaction {
                 statement: statement.to_owned(),
                 params,
                 expected_rows_affected,
+                observed_rows_affected: None,
             }),
             // Raw SQL has no statement enum behind it and its text may be
             // built at run time, so the trace keeps its shape and not its
@@ -909,6 +918,7 @@ mod trace_tests {
                     statement: "DEL_POOL_QUEST_SAVE".to_owned(),
                     params: vec![TracedParam::Bool { value: false }],
                     expected_rows_affected: None,
+                    observed_rows_affected: None,
                 },
             ],
             "the boundary must open on the first statement, not at construction"

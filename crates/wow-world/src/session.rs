@@ -756,7 +756,7 @@ async fn attempt_group_loot_money_transaction_like_cpp(
         let (new_money, applied_delta) =
             loot_money_durable_outcome_like_cpp(current_money, *amount);
         if applied_delta != 0 {
-            trace.statement(
+            trace.statement_expecting(
                 &CharStatements::UPD_CHAR_MONEY.trace_identity(),
                 vec![
                     wow_database::persistence_trace::TracedParam::Uint {
@@ -768,6 +768,7 @@ async fn attempt_group_loot_money_transaction_like_cpp(
                         width_bits: 64,
                     },
                 ],
+                1,
             );
             let update_result = sqlx::query("UPDATE characters SET money = ? WHERE guid = ?")
                 .bind(new_money)

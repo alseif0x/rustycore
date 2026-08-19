@@ -191,7 +191,8 @@ impl<S: StatementDef> Database<S> {
     /// whether it shared the writer's transaction or took its own connection
     /// is precisely the fact a port extraction can change without moving a
     /// row. `Pooled` is that distinction.
-    fn record_pooled_statement(stmt: &PreparedStatement, succeeded: bool) {
+    fn record_pooled_statement(stmt: &PreparedStatement, observed_rows_affected: Option<u64>) {
+        let succeeded = observed_rows_affected.is_some();
         let Some(recorder) = crate::persistence_trace::ambient_recorder() else {
             return;
         };
@@ -214,6 +215,7 @@ impl<S: StatementDef> Database<S> {
                     statement: statement.to_owned(),
                     params,
                     expected_rows_affected: None,
+                    observed_rows_affected,
                 });
                 if !succeeded {
                     // Deliberately not a `Rollback`: there is no transaction
@@ -253,7 +255,8 @@ impl<S: StatementDef> Database<S> {
 
         // Recorded after the call so the trace carries whether it ran.
         let rows = query.fetch_all(&self.pool).await;
-        Self::record_pooled_statement(stmt, rows.is_ok());
+        // A read has no affected-row count; `Some(0)` marks "it ran".
+        Self::record_pooled_statement(stmt, rows.as_ref().ok().map(|_| 0));
         Ok(SqlResult::new(rows?))
     }
 
@@ -274,7 +277,9 @@ impl<S: StatementDef> Database<S> {
 
         // Recorded after the call so the trace carries whether it ran.
         let result = query.execute(&self.pool).await;
-        Self::record_pooled_statement(stmt, result.is_ok());
+        // Callers branch on this count — a save matching no character row is a
+        // different outcome from one that matched — so the trace carries it.
+        Self::record_pooled_statement(stmt, result.as_ref().ok().map(|r| r.rows_affected()));
         Ok(result?.rows_affected())
     }
 
@@ -595,6 +600,7 @@ mod tests {
                     // an empty parameter list.
                     params: vec![crate::persistence_trace::TracedParam::Bool { value: false }],
                     expected_rows_affected: None,
+                    observed_rows_affected: None,
                 },
                 PersistenceEvent::Fence {
                     label: "pooled-statement-outcome-unknown:character".to_owned(),
@@ -604,6 +610,29 @@ mod tests {
              and a failed autocommit statement must not claim a rollback that may not \
              have happened"
         );
+    }
+
+    #[tokio::test]
+    async fn a_failed_pooled_statement_carries_no_observed_row_count() {
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        let db: Database<CharStatements> = Database::from_pool(unreachable_pool());
+        let stmt = db.prepare(CharStatements::UPD_CHAR_MONEY);
+        let _ = db.execute(&stmt).await;
+
+        // A statement that never reached the server has no count to report, and
+        // `None` has to stay distinguishable from a successful `Some(0)` — the
+        // difference between "did not run" and "matched no row", which callers
+        // such as `save_player_position_like_cpp` branch on.
+        match recorder.take().events.first() {
+            Some(PersistenceEvent::Statement {
+                observed_rows_affected,
+                ..
+            }) => assert_eq!(*observed_rows_affected, None),
+            other => panic!("expected a pooled statement, got {other:?}"),
+        }
     }
 
     #[tokio::test]

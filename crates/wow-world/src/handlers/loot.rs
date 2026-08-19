@@ -13492,7 +13492,7 @@ async fn attempt_stored_item_money_transaction_like_cpp(
         // The durable credit itself. Recording only the preceding SELECTs left
         // the mutation invisible, so removing or reordering it would not have
         // moved the trace at all.
-        trace.statement(
+        trace.statement_expecting(
             &CharStatements::UPD_CHAR_MONEY.trace_identity(),
             vec![
                 wow_database::persistence_trace::TracedParam::Uint {
@@ -13504,6 +13504,7 @@ async fn attempt_stored_item_money_transaction_like_cpp(
                     width_bits: 64,
                 },
             ],
+            1,
         );
         let result = sqlx::query(CharStatements::UPD_CHAR_MONEY.sql())
             .bind(after)
@@ -13521,12 +13522,13 @@ async fn attempt_stored_item_money_transaction_like_cpp(
         }
     }
     // Consuming the source is the other half of the durable operation.
-    trace.statement(
+    trace.statement_expecting(
         &CharStatements::DEL_ITEMCONTAINER_MONEY.trace_identity(),
         vec![wow_database::persistence_trace::TracedParam::Uint {
             value: item_guid.counter() as u64,
             width_bits: 64,
         }],
+        STORED_ITEM_MONEY_SOURCE_ROWS_EXPECTED_LIKE_CPP,
     );
     let delete = sqlx::query(CharStatements::DEL_ITEMCONTAINER_MONEY.sql())
         .bind(item_guid.counter() as u64)
