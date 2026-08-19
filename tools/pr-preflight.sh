@@ -476,27 +476,16 @@ run_architecture() {
 run_check() {
   log "Core checks and linked server builds (same commands as GitHub Actions)"
   resolve_protoc
-  cargo_cmd check --locked \
-    -p wow-data \
-    -p wow-database \
-    -p wow-network \
-    -p wow-world \
-    -p bnet-server \
-    -p world-server
+  # The builds below already type-check the four libraries: world-server
+  # depends on all of them and bnet-server on wow-database. Only wow-test-bot
+  # needs its own check — it lives outside the workspace.
   cargo_cmd check --locked --manifest-path tools/wow-test-bot/Cargo.toml
   cargo_cmd build --locked -j4 -p bnet-server
   cargo_cmd build --locked -j4 -p world-server
-  cargo_cmd clippy --locked --no-deps --message-format short \
-    -p wow-loot \
-    -p wow-entities \
-    -p wow-map \
-    -p wow-network \
-    --lib
-  cargo_cmd clippy --locked --no-deps --message-format short \
-    -p wow-world \
-    --lib \
-    -- \
-    --cap-lints warn
+  # Clippy moved to the scheduled job: neither pass could fail (no crate sets
+  # `lints.workspace = true`, none denies in source, no `-D warnings`, and the
+  # world pass caps lints outright), so it cost PR time to print advice that
+  # gated nothing.
 }
 
 run_test() {
@@ -1017,10 +1006,8 @@ run_self_test() {
   require_exact_occurrences "$ci_dry_run_output" \
     "fmt --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST -- --check" 1 \
     "local CI handler-contract checker formatting"
-  [[ "$ci_dry_run_output" == *"clippy --locked --no-deps --message-format short -p wow-loot"* ]] || die \
-    "CI profile did not print the loot-authority clippy command"
-  [[ "$ci_dry_run_output" == *"clippy --locked --no-deps --message-format short -p wow-world --lib -- --cap-lints warn"* ]] || die \
-    "CI profile did not print the capped wow-world clippy command"
+  [[ "$ci_dry_run_output" != *"clippy --locked"* ]] || die \
+    "CI profile must not spend PR time on clippy passes that cannot fail"
   require_exact_occurrences "$ci_dry_run_output" \
     "build --locked -j4 -p bnet-server" 1 \
     "local CI bnet-server linked build"
@@ -1076,7 +1063,7 @@ run_self_test() {
     "cargo +1.88.0 fmt --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- --check" 1 \
     "GitHub workflow handler-contract checker formatting"
   require_exact_occurrences "$github_workflow_text" \
-    'CARGO_INCREMENTAL: "0"' 2 \
+    'CARGO_INCREMENTAL: "0"' 3 \
     "GitHub workflow non-incremental Rust 1.88 contract"
   require_exact_occurrences "$github_workflow_text" \
     "cargo +1.88.0 build --locked -j4 -p bnet-server" 1 \
