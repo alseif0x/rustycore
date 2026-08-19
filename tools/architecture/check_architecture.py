@@ -2254,6 +2254,44 @@ def run_hotspot_classifier_self_tests() -> int:
 HOTSPOT_ROW_CACHE: dict[pathlib.Path, tuple[int, int, int, str]] = {}
 
 
+PATH_MODULE_DECLARATION = re.compile(r'#\[path\s*=\s*"([^"]+)"\]')
+
+
+def path_module_children(path: pathlib.Path, source: str) -> list[tuple[pathlib.Path, bool]]:
+    """Files this one mounts with `#[path]`, and whether the mount is test-only.
+
+    `#[path]` does not change the module tree, so the child is part of this
+    module and not a file of its own. Counting it separately would let a
+    module's ceiling be evaded by moving code across the boundary, which is
+    exactly what extracting a `mod tests` does.
+
+    The cfg can sit on the declaration rather than inside the child --
+    `character_vendor_atomicity_tests.rs` has no inner attribute because its
+    parent's `#[cfg(test)]` already supplies one -- so test-only-ness is read
+    from the mount, not only from the file.
+    """
+    children = []
+    lines = source.splitlines()
+    for index, line in enumerate(lines):
+        match = PATH_MODULE_DECLARATION.search(line)
+        if not match:
+            continue
+        child = (path.parent / match.group(1)).resolve()
+        if not (child.is_file() and child.suffix == ".rs"):
+            continue
+        # Attributes preceding the #[path] on the same declaration.
+        test_only = False
+        for previous in reversed(lines[max(0, index - 4) : index]):
+            stripped = previous.strip()
+            if not stripped.startswith("#["):
+                break
+            if stripped.replace(" ", "") == "#[cfg(test)]":
+                test_only = True
+                break
+        children.append((child, test_only))
+    return children
+
+
 def hotspot_row(path: pathlib.Path) -> tuple[int, int, int, str]:
     cached = HOTSPOT_ROW_CACHE.get(path)
     if cached is not None:
@@ -2263,6 +2301,21 @@ def hotspot_row(path: pathlib.Path) -> tuple[int, int, int, str]:
     except OSError as exc:
         raise ArchitectureError(f"cannot read Rust source {path}: {exc}") from exc
     total_lines, production_lines, test_lines = hotspot_line_counts(source)
+    # A `#[path]` child counts against the module that mounts it. Without this
+    # the ceiling applies to whatever stayed behind: moving 94,000 test lines
+    # into a sibling would leave the parent capped at what remains and the
+    # sibling capped by nothing, so the extraction would silently retire the
+    # ratchet it was supposed to leave intact.
+    for child, mounted_under_cfg_test in path_module_children(path, source):
+        child_total, child_production, child_tests = hotspot_row(child)[:3]
+        total_lines += child_total
+        if mounted_under_cfg_test:
+            # The mount supplies the cfg, so none of the child is production
+            # however the file itself reads.
+            test_lines += child_total
+        else:
+            production_lines += child_production
+            test_lines += child_tests
     row = (
         total_lines,
         production_lines,
@@ -2275,7 +2328,17 @@ def hotspot_row(path: pathlib.Path) -> tuple[int, int, int, str]:
 
 def hotspot_rows(limit: int | None = 10) -> list[tuple[int, int, int, str]]:
     crates_root = REPO_ROOT / "crates"
-    rows = [hotspot_row(path) for path in crates_root.glob("*/src/**/*.rs")]
+    sources = sorted(crates_root.glob("*/src/**/*.rs"))
+    mounted: set[pathlib.Path] = set()
+    for path in sources:
+        try:
+            source = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ArchitectureError(f"cannot read Rust source {path}: {exc}") from exc
+        mounted.update(child for child, _ in path_module_children(path, source))
+    # Mounted children are already inside their parent's row; listing them again
+    # would double-count them in the report.
+    rows = [hotspot_row(path) for path in sources if path.resolve() not in mounted]
     rows.sort(key=lambda row: (-row[0], row[3]))
     return rows if limit is None else rows[:limit]
 

@@ -275,16 +275,26 @@ The current baseline was audited on branch `3.4.3` at HEAD `002d3d87`. Productio
 are reported separately because moving an inline test module must not masquerade as ownership
 progress:
 
-| Hotspot | Production | Tests | Total | Extracted test sibling |
+| Hotspot | Production | Tests | Total | Tests live in |
 |---|---:|---:|---:|---|
-| `crates/wow-world/src/session.rs` | 71,881 | 119 | 72,000 | `session_tests.rs` (94,042) |
-| `crates/wow-world/src/handlers/character.rs` | 20,200 | 38 | 20,238 | `character_tests.rs` (10,480) |
-| `crates/world-server/src/main.rs` | 15,370 | 13 | 15,383 | `main_tests.rs` (12,516) |
-| `crates/wow-map/src/map.rs` | 15,245 | 5 | 15,250 | `map_tests.rs` (18,264) |
-| `crates/wow-world/src/handlers/loot.rs` | 13,619 | 44 | 13,663 | `loot_tests.rs` (16,033) |
-| `crates/wow-entities/src/player.rs` | 9,265 | 3 | 9,268 | `player_tests.rs` (8,884) |
-| `crates/wow-world/src/handlers/quest.rs` | 8,255 | 5 | 8,260 | `quest_tests.rs` (10,163) |
-| `crates/wow-world/src/handlers/misc.rs` | 7,315 | 3 | 7,318 | `misc_tests.rs` (11,315) |
+| `crates/wow-world/src/session.rs` | 71,881 | 94,165 | 166,046 | `session_tests.rs` |
+| `crates/wow-world/src/handlers/character.rs` | 20,200 | 10,691 | 30,891 | `character_tests.rs` |
+| `crates/world-server/src/main.rs` | 15,370 | 12,533 | 27,903 | `main_tests.rs` |
+| `crates/wow-map/src/map.rs` | 15,245 | 18,273 | 33,518 | `map_tests.rs` |
+| `crates/wow-world/src/handlers/loot.rs` | 13,619 | 16,081 | 29,700 | `loot_tests.rs` |
+| `crates/wow-entities/src/player.rs` | 9,265 | 8,891 | 18,156 | `player_tests.rs` |
+| `crates/wow-world/src/handlers/quest.rs` | 8,255 | 10,172 | 18,427 | `quest_tests.rs` |
+| `crates/wow-world/src/handlers/misc.rs` | 7,315 | 11,322 | 18,637 | `misc_tests.rs` |
+
+Counts are per **module**, not per file: a `#[path]` child is part of the module
+that mounts it, so its lines are added to the parent's row and it does not get a
+row of its own. Extracting a `mod tests` into a sibling therefore moves nothing
+the ratchet can see, which is the point — capping only what stayed behind would
+have left 94,042 lines of `session.rs` tests uncapped and retired the protection
+the extraction was supposed to preserve. Where the `#[cfg(test)]` sits on the
+mount rather than inside the child, as it does for
+`character_vendor_atomicity_tests.rs`, the child counts as test lines regardless
+of how the file itself reads.
 
 Every root `mod tests` above was moved to a sibling `#[cfg(test)] #[path = "..._tests.rs"]` file.
 The `Production` column is byte-for-byte unchanged from the pre-extraction audit for all eight
