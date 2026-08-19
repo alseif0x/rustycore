@@ -19,8 +19,8 @@ use quote::ToTokens;
 use serde_json::Value;
 use syn::parse::Parser;
 use syn::punctuated::Punctuated;
-use syn::visit::Visit;
 use syn::spanned::Spanned;
+use syn::visit::Visit;
 use syn::{Attribute, Item, ItemMod, Meta, Token};
 
 use crate::module_policy::CapabilityOwner;
@@ -927,7 +927,10 @@ pub(crate) fn path_module_children(source_path: &Path, source: &str) -> Vec<Path
     children
 }
 
-pub(crate) fn read_spliced_source(source_path: &Path, package_root: &Path) -> Result<String, String> {
+pub(crate) fn read_spliced_source(
+    source_path: &Path,
+    package_root: &Path,
+) -> Result<String, String> {
     read_spliced_source_at_depth(source_path, package_root, 0)
 }
 
@@ -989,9 +992,7 @@ fn read_spliced_source_at_depth(
             .iter()
             .find(|attribute| attribute.path().is_ident("path"))
             .map(|attribute| attribute.span().byte_range())
-            .ok_or_else(|| {
-                format!("lost the #[path] attribute of module {}", module.ident)
-            })?;
+            .ok_or_else(|| format!("lost the #[path] attribute of module {}", module.ident))?;
         let mut declaration = String::with_capacity(item_text.len());
         declaration.push_str(&item_text[..attribute_range.start - item_range.start]);
         // The attribute occupied its own line, so splicing its range out leaves

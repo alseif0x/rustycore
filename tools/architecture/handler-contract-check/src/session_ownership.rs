@@ -27,8 +27,7 @@ use crate::bridge_access::{
 };
 use crate::ownership::{
     SourceMountContext, audit_package_source_mounts, cfg_context_allows_production,
-    read_spliced_source,
-    cfg_context_allows_test, extend_cfg_context, workspace_dependency_aliases,
+    cfg_context_allows_test, extend_cfg_context, read_spliced_source, workspace_dependency_aliases,
     workspace_source_mounts,
 };
 use crate::persistence_access::{

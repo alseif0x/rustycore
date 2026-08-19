@@ -1099,8 +1099,7 @@ fn splicing_a_path_module_without_the_matching_cfg_keeps_its_inner_attributes() 
         "#[path = \"personal.rs\"]\npub mod personal;\n",
     )
     .expect("write crate root");
-    fs::write(&child, "//! Docs.\n#![allow(dead_code)]\n\nfn thing() {}\n")
-        .expect("write child");
+    fs::write(&child, "//! Docs.\n#![allow(dead_code)]\n\nfn thing() {}\n").expect("write child");
 
     let spliced = read_spliced_source(&crate_root, &fixture).expect("splice the path module");
 
