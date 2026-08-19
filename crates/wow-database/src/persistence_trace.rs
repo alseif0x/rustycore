@@ -99,8 +99,13 @@ pub enum TracedParam {
     },
     /// Floats are recorded by bit pattern: a golden must not depend on decimal
     /// formatting, and `NaN` has to compare equal to itself here.
+    ///
+    /// The width is part of the record because sqlx sends different MySQL type
+    /// metadata for a 4-byte and an 8-byte bind, so `F32(0.0)` and `F64(0.0)`
+    /// are not the same bound parameter even though both are zero.
     Float {
         bits: u64,
+        width_bits: u8,
     },
     Text {
         len: usize,
@@ -158,9 +163,11 @@ impl TracedParam {
             SqlParam::U64(value) => Self::Uint { value: *value },
             SqlParam::F32(value) => Self::Float {
                 bits: u64::from(value.to_bits()),
+                width_bits: 32,
             },
             SqlParam::F64(value) => Self::Float {
                 bits: value.to_bits(),
+                width_bits: 64,
             },
             SqlParam::String(value) => Self::Text {
                 len: value.len(),
@@ -444,6 +451,16 @@ mod tests {
         assert_ne!(
             TracedParam::from_param(&SqlParam::I64(-1)),
             TracedParam::from_param(&SqlParam::U64(u64::MAX))
+        );
+    }
+
+    #[test]
+    fn a_float_bind_keeps_its_width() {
+        // sqlx sends different MySQL type metadata for a 4-byte and an 8-byte
+        // bind, so a zero is not simply a zero.
+        assert_ne!(
+            TracedParam::from_param(&SqlParam::F32(0.0)),
+            TracedParam::from_param(&SqlParam::F64(0.0))
         );
     }
 

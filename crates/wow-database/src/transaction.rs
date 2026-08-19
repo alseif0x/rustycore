@@ -400,12 +400,15 @@ impl SqlTransaction {
         }
     }
 
-    fn record_commit(&self, result: &Result<(), SqlTransactionCommitError>) {
+    fn record_commit_outcome(&self, outcome: CommitOutcome) {
         if let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) {
-            recorder.record(PersistenceEvent::Commit {
-                database,
-                outcome: commit_outcome_like_cpp(result),
-            });
+            recorder.record(PersistenceEvent::Commit { database, outcome });
+        }
+    }
+
+    fn record_rollback(&self) {
+        if let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) {
+            recorder.record(PersistenceEvent::Rollback { database });
         }
     }
 
@@ -499,7 +502,6 @@ impl SqlTransaction {
         let result = self.try_commit(pool).await;
 
         if !is_outcome_deadlock_like_cpp(&result) {
-            self.record_commit(&result);
             return result;
         }
 
@@ -513,7 +515,6 @@ impl SqlTransaction {
                     target: "sql.sql",
                     "Fatal deadlocked SQL Transaction, it will not be retried anymore"
                 );
-                self.record_commit(&result);
                 return result;
             }
 
@@ -521,11 +522,9 @@ impl SqlTransaction {
             self.record_deadlock_retry(attempt);
             let retry = self.try_commit_inner(pool).await;
             if retry.is_ok() {
-                self.record_commit(&retry);
                 return retry;
             }
             if !is_outcome_deadlock_like_cpp(&retry) {
-                self.record_commit(&retry);
                 return retry;
             }
 
@@ -577,11 +576,21 @@ impl SqlTransaction {
     }
 
     async fn try_commit_inner(&self, pool: &MySqlPool) -> Result<(), SqlTransactionCommitError> {
-        let mut tx = pool
-            .begin()
-            .await
-            .map_err(DatabaseError::from)
-            .map_err(SqlTransactionCommitError::DefinitelyRolledBack)?;
+        // Recording happens here rather than at the caller because only this
+        // scope knows whether `tx.commit()` was ever reached. A failure to
+        // acquire a connection, to execute a statement, or to validate an
+        // affected-row count is a rollback that never attempted a commit, and
+        // conflating it with a resolved COMMIT would freeze the wrong crash
+        // boundary — the one thing this contract exists to get right.
+        let mut tx = match pool.begin().await {
+            Ok(tx) => tx,
+            Err(error) => {
+                self.record_rollback();
+                return Err(SqlTransactionCommitError::DefinitelyRolledBack(
+                    DatabaseError::from(error),
+                ));
+            }
+        };
 
         for (statement_index, transaction_statement) in self.statements.iter().enumerate() {
             let stmt = &transaction_statement.statement;
@@ -602,11 +611,18 @@ impl SqlTransaction {
 
         if let Err(error) = tx.commit().await {
             let error = DatabaseError::from(error);
-            if is_database_deadlock_like_cpp(&error) {
-                return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
-            }
-            return Err(SqlTransactionCommitError::CommitOutcomeUnknown(error));
+            let outcome = if is_database_deadlock_like_cpp(&error) {
+                SqlTransactionCommitError::DefinitelyRolledBack(error)
+            } else {
+                SqlTransactionCommitError::CommitOutcomeUnknown(error)
+            };
+            self.record_commit_outcome(match &outcome {
+                SqlTransactionCommitError::DefinitelyRolledBack(_) => CommitOutcome::RolledBack,
+                SqlTransactionCommitError::CommitOutcomeUnknown(_) => CommitOutcome::Unknown,
+            });
+            return Err(outcome);
         }
+        self.record_commit_outcome(CommitOutcome::Committed);
         Ok(())
     }
 }
@@ -877,6 +893,50 @@ mod trace_tests {
         assert!(
             recorder.take().events.is_empty(),
             "an empty transaction sends nothing, so it must record nothing"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failure_before_commit_records_a_rollback_not_a_commit() {
+        use crate::persistence_trace::RecordingSession;
+
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        // Unreachable pool: `pool.begin()` fails, so `tx.commit()` is never
+        // attempted. Reporting that as a resolved COMMIT would freeze the
+        // wrong crash boundary — a rollback that never tried is not the same
+        // event as a commit that was tried and rolled back.
+        let pool = sqlx::mysql::MySqlPoolOptions::new()
+            .max_connections(1)
+            .acquire_timeout(std::time::Duration::from_millis(1))
+            .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
+            .expect("syntactically valid lazy pool");
+
+        let mut trans = SqlTransaction::new();
+        trans.append(
+            PreparedStatement::new(CharStatements::DEL_POOL_QUEST_SAVE.sql())
+                .with_trace_identity(CharStatements::DEL_POOL_QUEST_SAVE.trace_identity())
+                .with_trace_database(CharStatements::DEL_POOL_QUEST_SAVE.logical_database()),
+        );
+        let _ = trans.commit_with_outcome_like_cpp(&pool).await;
+
+        let events = recorder.take().events;
+        assert!(
+            events.iter().any(|event| matches!(
+                event,
+                PersistenceEvent::Rollback {
+                    database: LogicalDatabase::Character
+                }
+            )),
+            "a pre-COMMIT failure must record a rollback: {events:?}"
+        );
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, PersistenceEvent::Commit { .. })),
+            "no commit was attempted, so none may be recorded: {events:?}"
         );
     }
 
