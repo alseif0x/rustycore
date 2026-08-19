@@ -146,9 +146,20 @@ pub enum TracedParam {
 }
 
 /// FNV-1a. Small, dependency-free, and stable across runs and platforms —
-/// which is all a golden needs. It is not a security primitive and is not used
-/// as one: it exists so a changed secret moves the trace without appearing in
-/// it.
+/// which is all a golden needs.
+///
+/// This detects change; it does not withstand an adversary, and the difference
+/// matters enough to state plainly. A golden has to be deterministic, so the
+/// same input must always produce the same digest — which means a low-entropy
+/// value such as an account name can be recovered by hashing a dictionary and
+/// comparing, and the recorded length narrows the search first. Salting would
+/// close that and destroy determinism with it; the two properties are not
+/// simultaneously available.
+///
+/// So the guarantee is narrower than "redacted": a value does not appear in the
+/// trace, and changing it moves the trace. Traces must therefore be recorded
+/// from fixtures rather than from production credentials, which is a constraint
+/// on how goldens are produced, not a property this function provides.
 pub(crate) fn digest(bytes: &[u8]) -> u64 {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in bytes {
@@ -164,7 +175,11 @@ pub fn raw_statement_digest(sql: &str) -> u64 {
 }
 
 impl TracedParam {
-    /// Project a bound parameter into its redacted trace form.
+    /// Project a bound parameter into its trace form.
+    ///
+    /// Values are replaced by shape: numerics by value and width, text and
+    /// blobs by length and digest. See [`digest`] for what that does and does
+    /// not protect against.
     pub fn from_param(param: &SqlParam) -> Self {
         match param {
             SqlParam::Null => Self::Null,
