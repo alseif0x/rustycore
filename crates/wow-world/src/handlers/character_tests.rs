@@ -3087,7 +3087,7 @@ fn logout_marks_all_account_characters_offline_like_cpp() {
 
 #[test]
 fn create_character_binds_cpp_default_difficulties() {
-    let mut stmt = PreparedStatement::new(CharStatements::INS_CHARACTER.sql());
+    let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHARACTER);
 
     bind_create_character_difficulties_like_cpp(&mut stmt);
 

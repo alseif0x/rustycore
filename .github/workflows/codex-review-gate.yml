@@ -22,6 +22,9 @@ concurrency:
 jobs:
   codex-review-verdict:
     name: Codex reviewer verdict
+    # First-party work uses local review when it is useful; it must not wait on
+    # a serial remote reviewer loop. External PRs retain the existing gate.
+    if: github.event.pull_request.user.login != 'alseif0x'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:

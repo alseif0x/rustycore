@@ -17,7 +17,40 @@ fn usage() -> ExitCode {
     ExitCode::FAILURE
 }
 
+/// Stack for the scan thread.
+///
+/// The scan recurses over every item of every module in the workspace, and
+/// `session.rs` alone is a six-figure line count, so the depth is a property of
+/// the repository rather than of any one input. `RUST_MIN_STACK` cannot supply
+/// it: that variable sizes stacks for threads Rust spawns, and this analyzer
+/// spawned none -- it called the scan straight from `main`, whose stack the
+/// process inherits from the OS. Setting it in CI documented a budget that was
+/// never applied, which is consistent with the scan still dying on a stack the
+/// variable never touched.
+const SCAN_STACK_BYTES: usize = 1 << 30;
+
 fn main() -> ExitCode {
+    // Sized here, on a thread that actually gets the size.
+    match std::thread::Builder::new()
+        .name("session-ownership-scan".to_owned())
+        .stack_size(SCAN_STACK_BYTES)
+        .spawn(run)
+    {
+        Ok(handle) => match handle.join() {
+            Ok(code) => code,
+            Err(_) => {
+                eprintln!("session ownership check panicked");
+                ExitCode::FAILURE
+            }
+        },
+        Err(error) => {
+            eprintln!("cannot start the session ownership scan thread: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run() -> ExitCode {
     let arguments: Vec<_> = std::env::args_os().skip(1).collect();
     let result = match arguments.as_slice() {
         [command] if command == "check" => {

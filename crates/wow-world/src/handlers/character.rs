@@ -5196,7 +5196,7 @@ impl WorldSession {
     pub(crate) fn build_character_account_offline_statement_like_cpp(
         account_id: u32,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::UPD_ACCOUNT_ONLINE.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_ACCOUNT_ONLINE);
         stmt.set_u32(0, account_id);
         stmt
     }

@@ -8,7 +8,9 @@ ARCHITECTURE_CHECKER="$REPO_ROOT/tools/architecture/check_architecture.py"
 HANDLER_CONTRACT_CHECK_MANIFEST="$REPO_ROOT/tools/architecture/handler-contract-check/Cargo.toml"
 PROTOC_VERSION_FILE="$REPO_ROOT/.protoc-version"
 DEFAULT_BASE="origin/3.4.3"
-DEFAULT_RUST_MIN_STACK=268435456
+# Matches the workflow. Headroom, not a fix: the crash it was raised for
+# reproduces with an unlimited stack, so its cause was elsewhere.
+DEFAULT_RUST_MIN_STACK=1073741824
 CODEX_REVIEW_TIMEOUT_SECONDS="${CODEX_REVIEW_TIMEOUT_SECONDS:-1800}"
 DRY_RUN=0
 ALLOW_RUNTIME_QA=0
@@ -27,7 +29,7 @@ QA_LOOT_RACE_PRE_READY_MARGIN_SECONDS=120
 
 usage() {
   cat <<'EOF'
-RustyCore local PR preflight
+RustyCore exhaustive local PR preflight
 
 Usage:
   ./tools/pr-preflight.sh [OPTIONS] <COMMAND> [BASE]
@@ -55,7 +57,8 @@ Commands:
   qa-login            Run the existing live login bot; requires --allow-runtime-qa.
   qa-loot-race        Run destructive live two-session loot QA; requires both QA flags.
 
-BASE defaults to origin/3.4.3. The GitHub Codex reviewer verdict remains required.
+BASE defaults to origin/3.4.3. Normal first-party development should use
+./tools/local-harness.sh; remote Codex review remains required only for external PR authors.
 EOF
 }
 

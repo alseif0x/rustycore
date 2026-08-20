@@ -36,6 +36,14 @@ pub enum SqlParam {
 pub struct PreparedStatement {
     sql: Cow<'static, str>,
     params: Vec<SqlParam>,
+    /// Statement-enum variant this was prepared from, captured only while
+    /// persistence tracing is enabled. `None` for raw SQL and for every
+    /// statement prepared with tracing off, which is the production default.
+    trace_identity: Option<String>,
+    /// Logical database of the statement enum this came from, captured with
+    /// the identity. A transaction learns which database it is on from its
+    /// first statement rather than being told twice.
+    trace_database: Option<crate::persistence_trace::LogicalDatabase>,
 }
 
 impl PreparedStatement {
@@ -52,12 +60,58 @@ impl PreparedStatement {
         Self {
             sql: Cow::Borrowed(sql),
             params: vec![SqlParam::Bool(false); capacity],
+            trace_identity: None,
+            trace_database: None,
         }
+    }
+
+    /// Build a statement from its enum variant, keeping its trace identity.
+    ///
+    /// Prefer this over `new(X.sql())`. That form throws the variant away, and
+    /// a statement with no identity is dropped from a persistence trace
+    /// entirely — silently, so the trace looks complete while omitting real
+    /// database work.
+    pub fn for_statement<S: crate::statements::StatementDef>(stmt: S) -> Self {
+        let prepared = Self::new(stmt.sql());
+        // Deriving the identity allocates; production pays one relaxed load.
+        if crate::persistence_trace::recording_enabled() {
+            return prepared
+                .with_trace_identity(stmt.trace_identity())
+                .with_trace_database(stmt.logical_database());
+        }
+        prepared
+    }
+
+    /// Statement-enum variant this was prepared from, when tracing captured it.
+    pub fn trace_identity(&self) -> Option<&str> {
+        self.trace_identity.as_deref()
+    }
+
+    /// Logical database this statement belongs to, when tracing captured it.
+    pub fn trace_database(&self) -> Option<crate::persistence_trace::LogicalDatabase> {
+        self.trace_database
+    }
+
+    /// Attach the semantic identity of the statement enum this came from.
+    pub fn with_trace_identity(mut self, identity: String) -> Self {
+        self.trace_identity = Some(identity);
+        self
+    }
+
+    /// Attach the logical database of the statement enum this came from.
+    pub fn with_trace_database(
+        mut self,
+        database: crate::persistence_trace::LogicalDatabase,
+    ) -> Self {
+        self.trace_database = Some(database);
+        self
     }
 
     /// Create a statement from owned raw SQL, mirroring TC raw transaction appends.
     pub fn raw_sql_like_cpp(sql: impl Into<String>) -> Self {
         Self {
+            trace_identity: None,
+            trace_database: None,
             sql: Cow::Owned(sql.into()),
             params: Vec::new(),
         }

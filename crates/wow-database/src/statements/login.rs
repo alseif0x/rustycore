@@ -1,6 +1,10 @@
 //! Login database prepared statement definitions.
 //!
-//! These correspond to the `auth` database and the C# `LoginStatements` enum.
+//! These correspond to the `auth` database and the C++ `LoginDatabaseStatements`
+//! enum (`src/server/database/Database/Implementation/LoginDatabase.h:23`).
+//!
+//! The header used to cite the C# `LoginStatements` enum; see the note in
+//! `character.rs` for why that citation is not an authority.
 
 use super::StatementDef;
 
@@ -151,6 +155,10 @@ pub enum LoginStatements {
 }
 
 impl StatementDef for LoginStatements {
+    fn database() -> crate::persistence_trace::LogicalDatabase {
+        crate::persistence_trace::LogicalDatabase::Login
+    }
+
     #[allow(clippy::too_many_lines)]
     fn sql(self) -> &'static str {
         match self {

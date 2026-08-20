@@ -90,7 +90,7 @@ fn generated_cpp_statements_cover_character_database() {
 
     for cpp_sql in statements {
         let sql: &'static str = Box::leak(cpp_sql.into_boxed_str());
-        assert_eq!(CharStatements::cpp(sql).sql(), sql);
+        assert_eq!(CharStatements::cpp("CHAR_TEST", sql).sql(), sql);
         assert!(!sql.is_empty());
     }
 }

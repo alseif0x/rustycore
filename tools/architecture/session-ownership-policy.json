@@ -39224,7 +39224,7 @@
           "kind": "method",
           "name": "send_packet",
           "visibility": "pub",
-          "signature": "fn send_packet < P : wow_packet :: ServerPacket > (& self , pkt : & P)",
+          "signature": "fn send_packet < P : wow_packet :: ServerPacket > (& self , pkt : & P) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -39322,7 +39322,7 @@
           "kind": "method",
           "name": "send_player_values_update_from_entity_bridge",
           "visibility": "pub (crate)",
-          "signature": "fn send_player_values_update_from_entity_bridge (& self , inv_slot_changes : & [(u8 , ObjectGuid)] , visible_item_changes : & [(u8 , i32 , u16 , u16)] , virtual_item_changes : & [(u8 , i32 , u16 , u16)] , buyback_changes : & [(u8 , u32 , i64)] , coinage : Option < u64 > ,)",
+          "signature": "fn send_player_values_update_from_entity_bridge (& self , inv_slot_changes : & [(u8 , ObjectGuid)] , visible_item_changes : & [(u8 , i32 , u16 , u16)] , virtual_item_changes : & [(u8 , i32 , u16 , u16)] , buyback_changes : & [(u8 , u32 , i64)] , coinage : Option < u64 > ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
