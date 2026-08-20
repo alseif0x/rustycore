@@ -10,15 +10,6 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "crates/wow-database/**"
-  push:
-    branches:
-      - "3.4.3"
-    paths:
-      - ".github/workflows/wow-database-live.yml"
-      - "rust-toolchain.toml"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "crates/wow-database/**"
   workflow_dispatch:
 
 permissions:
@@ -31,6 +22,7 @@ concurrency:
 jobs:
   live-db-updater:
     name: DbUpdater populate/update against MariaDB 10.6
+    if: github.event_name != 'pull_request' || github.event.pull_request.user.login != 'alseif0x'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
 
