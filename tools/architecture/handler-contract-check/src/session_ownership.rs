@@ -1755,8 +1755,11 @@ fn repository_units(
         let contexts: std::collections::BTreeSet<_> = contexts
             .into_iter()
             .filter(|context| {
-                !spliced_contexts
-                    .contains(&(source_path.clone(), context.logical_module_path.clone()))
+                !spliced_contexts.contains(&(
+                    source_path.clone(),
+                    context.logical_module_path.clone(),
+                    context.cfg.clone(),
+                ))
             })
             .collect();
         if contexts.is_empty() {

@@ -2206,6 +2206,10 @@ def run_path_module_scanner_self_tests() -> int:
             "mod tests;",
             '#[path = "plain.rs"]',
             "mod plain;",
+            '#[path = r"rawly.rs"]',
+            "mod rawly;",
+            '#[path = r#"hashed.rs"#]',
+            "mod hashed;",
         ]
     )
     is_code = rust_code_offsets(source)
@@ -2217,9 +2221,9 @@ def run_path_module_scanner_self_tests() -> int:
     for match in re.finditer(r"#\[path", source):
         if not is_code[match.start()]:
             continue
-        name = re.search(r'"((?:[^"\\]|\\.)*)"', source[match.start() :])
-        found.add(name.group(1) if name else "?")
-    expected = {"real_tests.rs", "plain.rs"}
+        declaration = PATH_MODULE_DECLARATION.search(source[match.start() :])
+        found.add(path_module_target(declaration) if declaration else "?")
+    expected = {"real_tests.rs", "plain.rs", "rawly.rs", "hashed.rs"}
     if found != expected:
         raise ArchitectureError(
             "path scanner self-test failed: declarations counted as code were "
@@ -2289,7 +2293,19 @@ def run_hotspot_classifier_self_tests() -> int:
 HOTSPOT_ROW_CACHE: dict[pathlib.Path, tuple[int, int, int, str]] = {}
 
 
-PATH_MODULE_DECLARATION = re.compile(r'#\[path\s*=\s*"([^"]+)"\]')
+# Both string forms Rust accepts here. `#[path = r"child.rs"]` is valid and
+# rustfmt-stable, and a pattern that only knew ordinary literals left that child
+# as a row of its own -- its lines uncharged to the hotspot that mounts it, which
+# is the ceiling bypass this aggregation exists to close.
+PATH_MODULE_DECLARATION = re.compile(
+    r'#\[path\s*=\s*(?:r(?P<hashes>\#*)"(?P<raw>.*?)"(?P=hashes)|"(?P<plain>[^"]*)")\s*\]'
+)
+
+
+def path_module_target(match: re.Match[str]) -> str:
+    """The file a `#[path]` match names, whichever string form it used."""
+    raw = match.group("raw")
+    return raw if raw is not None else match.group("plain")
 
 
 def rust_code_offsets(source: str) -> list[bool]:
@@ -2378,7 +2394,7 @@ def path_module_children(path: pathlib.Path, source: str) -> list[tuple[pathlib.
         # Accepted only if the declaration begins in code.
         if not is_code[line_starts[index] + match.start()]:
             continue
-        child = (path.parent / match.group(1)).resolve()
+        child = (path.parent / path_module_target(match)).resolve()
         if not (child.is_file() and child.suffix == ".rs"):
             continue
         # Attributes preceding the #[path] on the same declaration.

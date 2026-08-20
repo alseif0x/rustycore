@@ -903,16 +903,23 @@ fn child_module_directory(source: &Path) -> Result<PathBuf, String> {
 /// context from the analysis without saying so.
 pub(crate) fn spliced_child_contexts(
     mounts: &BTreeMap<PathBuf, BTreeSet<SourceMountContext>>,
-) -> Result<BTreeSet<(PathBuf, String)>, String> {
+) -> Result<BTreeSet<(PathBuf, String, Vec<String>)>, String> {
     let mut spliced = BTreeSet::new();
     for (parent_path, parent_contexts) in mounts {
         let raw = fs::read_to_string(parent_path)
             .map_err(|error| format!("cannot read {}: {error}", parent_path.display()))?;
-        for (child, ident) in path_module_children(parent_path, &raw) {
+        for (child, ident, attributes) in path_module_children(parent_path, &raw) {
             for parent_context in parent_contexts {
+                // Keyed by cfg as well as name. One file can be mounted under
+                // the same logical name through mutually exclusive
+                // declarations -- `#[cfg(not(test))] mod foo;` beside
+                // `#[cfg(test)] #[path = "foo.rs"] mod foo;` -- and a
+                // name-only key matched both, filtering out the production
+                // context that no splice represents.
                 spliced.insert((
                     child.clone(),
                     format!("{}::{ident}", parent_context.logical_module_path),
+                    extend_cfg_context(&parent_context.cfg, &attributes),
                 ));
             }
         }
@@ -927,7 +934,10 @@ pub(crate) fn spliced_child_contexts(
 /// and reintroduce the separate-unit provenance loss the splice exists to
 /// remove. The mount graph still records them, which is where the `#[path]`
 /// count and the duplicate-owner rejection live.
-pub(crate) fn path_module_children(source_path: &Path, source: &str) -> Vec<(PathBuf, String)> {
+pub(crate) fn path_module_children(
+    source_path: &Path,
+    source: &str,
+) -> Vec<(PathBuf, String, Vec<syn::Attribute>)> {
     let Ok(syntax) = syn::parse_file(source) else {
         return Vec::new();
     };
@@ -945,7 +955,7 @@ pub(crate) fn path_module_children(source_path: &Path, source: &str) -> Vec<(Pat
             .unwrap_or_else(|| Path::new("."))
             .join(relative);
         if let Ok(resolved) = child.canonicalize() {
-            children.push((resolved, module.ident.to_string()));
+            children.push((resolved, module.ident.to_string(), module.attrs.clone()));
         }
     }
     children
@@ -1455,8 +1465,11 @@ pub(crate) fn workspace_source_mounts(
             let remaining: BTreeSet<SourceMountContext> = contexts
                 .into_iter()
                 .filter(|context| {
-                    !spliced_contexts
-                        .contains(&(source_path.clone(), context.logical_module_path.clone()))
+                    !spliced_contexts.contains(&(
+                        source_path.clone(),
+                        context.logical_module_path.clone(),
+                        context.cfg.clone(),
+                    ))
                 })
                 .collect();
             if remaining.is_empty() {
