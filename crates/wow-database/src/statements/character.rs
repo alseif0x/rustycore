@@ -1793,9 +1793,8 @@ impl CharStatements {
 }
 
 impl StatementDef for CharStatements {
-    fn logical_database(self) -> crate::persistence_trace::LogicalDatabase {
-        crate::persistence_trace::LogicalDatabase::Character
-    }
+    const DATABASE: crate::persistence_trace::LogicalDatabase =
+        crate::persistence_trace::LogicalDatabase::Character;
 
     fn trace_identity(self) -> String {
         // The default derives identity from `Debug`, which for this data

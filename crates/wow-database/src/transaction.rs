@@ -358,6 +358,15 @@ pub struct SqlTransaction {
     /// things happened, and they are not interchangeable: whether a retry is
     /// safe depends on the answer.
     trace_progress: std::sync::atomic::AtomicU8,
+    /// Raw statements appended before any database was known.
+    pending_raw: Vec<PendingRawStatement>,
+}
+
+/// A raw statement held until the transaction's database is known.
+#[derive(Debug)]
+struct PendingRawStatement {
+    digest: u64,
+    params: Vec<TracedParam>,
 }
 
 #[derive(Debug)]
@@ -373,6 +382,7 @@ impl SqlTransaction {
             statements: Vec::new(),
             cleaned_up_like_cpp: false,
             trace_progress: std::sync::atomic::AtomicU8::new(TRACE_PLANNED),
+            pending_raw: Vec::new(),
             trace: crate::persistence_trace::ambient_recorder(),
             trace_database: None,
         }
@@ -411,8 +421,7 @@ impl SqlTransaction {
             }
             (Some(known), _) => known,
             (None, Some(first)) => {
-                recorder.record(PersistenceEvent::TransactionBegin { database: first });
-                self.trace_database = Some(first);
+                self.open_trace_with(&recorder, first);
                 first
             }
             // Raw SQL before anything identified the transaction's database.
@@ -421,9 +430,15 @@ impl SqlTransaction {
             // from its own trace, and a golden that says a flow persists nothing
             // is wrong, where one that admits it could not attribute a statement
             // is merely incomplete about it.
+            // Raw SQL before anything identified the transaction's database.
+            // Held rather than emitted: the database may still arrive -- from a
+            // later typed statement, or from the adapter that commits -- and a
+            // `TransactionBegin` recorded after the statements it opens would be
+            // an out-of-order trace of an in-order plan. If it never arrives,
+            // `Drop` emits these unattributed, which is incomplete but true;
+            // emitting nothing was the bug this replaced.
             (None, None) => {
-                recorder.record(PersistenceEvent::UnattributedRawStatement {
-                    connection: ConnectionAffinity::Transaction,
+                self.pending_raw.push(PendingRawStatement {
                     digest: raw_statement_digest(stmt.sql()),
                     params: stmt.params().iter().map(TracedParam::from_param).collect(),
                 });
@@ -451,6 +466,42 @@ impl SqlTransaction {
                 params,
             }),
         }
+    }
+
+    /// Open the trace on `database`, flushing anything held before it was known.
+    ///
+    /// The held statements go out after the begin and in the order they were
+    /// appended, so attribution arriving late does not reorder the plan.
+    fn open_trace_with(&mut self, recorder: &PersistenceRecorder, database: LogicalDatabase) {
+        recorder.record(PersistenceEvent::TransactionBegin { database });
+        self.trace_database = Some(database);
+        for held in std::mem::take(&mut self.pending_raw) {
+            recorder.record(PersistenceEvent::RawStatement {
+                database,
+                connection: ConnectionAffinity::Transaction,
+                digest: held.digest,
+                params: held.params,
+            });
+        }
+    }
+
+    /// Attribute a batch that never named a database, from the adapter
+    /// committing it.
+    ///
+    /// `Database<S>` knows its logical database from `S::DATABASE` even when
+    /// every statement in the batch was built raw, which is the only way those
+    /// transactions get a boundary at all.
+    pub(crate) fn attribute_to_like_cpp(&mut self, database: LogicalDatabase) {
+        if self.trace_database.is_some() {
+            return;
+        }
+        let Some(recorder) = self.trace.clone() else {
+            return;
+        };
+        if self.pending_raw.is_empty() {
+            return;
+        }
+        self.open_trace_with(&recorder, database);
     }
 
     fn record_commit_outcome(&self, outcome: CommitOutcome) {
@@ -490,9 +541,22 @@ impl Drop for SqlTransaction {
     /// calling that abandoned would let a golden approve a retry that
     /// duplicates the write.
     fn drop(&mut self) {
-        let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) else {
+        let Some(recorder) = self.trace.clone() else {
             return;
         };
+        // Nothing ever named a database. The held statements still happened as
+        // a plan, so they go out unattributed rather than vanishing.
+        let Some(database) = self.trace_database else {
+            for held in std::mem::take(&mut self.pending_raw) {
+                recorder.record(PersistenceEvent::UnattributedRawStatement {
+                    connection: ConnectionAffinity::Transaction,
+                    digest: held.digest,
+                    params: held.params,
+                });
+            }
+            return;
+        };
+        let recorder = &recorder;
         match self
             .trace_progress
             .load(std::sync::atomic::Ordering::Relaxed)
@@ -1212,6 +1276,60 @@ mod trace_tests {
     }
 
     #[test]
+    fn a_raw_only_batch_attributed_by_its_adapter_gets_a_full_boundary() {
+        use crate::persistence_trace::RecordingSession;
+
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        // The bank-slot purchase and the tutorial save are built entirely from
+        // `PreparedStatement::new`, so nothing in the batch names a database.
+        // The committing `Database<S>` does, through `S::DATABASE`, and without
+        // it these traces carried a statement with no begin, commit, rollback or
+        // unknown around it -- the crash boundary this recorder exists to hold.
+        let mut trans = SqlTransaction::new();
+        trans.append_raw_sql_like_cpp("UPDATE characters SET money = 1 WHERE guid = 2");
+        trans.attribute_to_like_cpp(LogicalDatabase::Character);
+
+        let events = recorder.snapshot().events;
+        assert!(
+            matches!(
+                events.first(),
+                Some(PersistenceEvent::TransactionBegin {
+                    database: LogicalDatabase::Character
+                })
+            ),
+            "the begin must come first, not after the statements it opens: {events:?}"
+        );
+        assert!(
+            events.iter().any(|event| matches!(
+                event,
+                PersistenceEvent::RawStatement {
+                    database: LogicalDatabase::Character,
+                    ..
+                }
+            )),
+            "the held statement must be attributed once the database is known: {events:?}"
+        );
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, PersistenceEvent::UnattributedRawStatement { .. })),
+            "nothing should remain unattributed once the adapter supplied it: {events:?}"
+        );
+
+        drop(trans);
+        let events = recorder.take().events;
+        assert!(
+            events
+                .iter()
+                .any(|event| matches!(event, PersistenceEvent::BatchAbandoned { .. })),
+            "and the batch still reports how it ended: {events:?}"
+        );
+    }
+
+    #[test]
     fn a_transaction_of_only_raw_sql_still_appears_in_its_own_trace() {
         use crate::persistence_trace::RecordingSession;
 
@@ -1224,9 +1342,16 @@ mod trace_tests {
         // produced an empty trace for a flow that does persist, and a golden
         // asserting "persists nothing" is wrong, where one admitting it could
         // not attribute a statement is incomplete and says so.
-        let mut trans = SqlTransaction::new();
-        trans.append_raw_sql_like_cpp("DELETE FROM something WHERE id = 1");
-        trans.append_raw_sql_like_cpp("DELETE FROM something_else WHERE id = 2");
+        // Scoped: with no database to attribute them to, raw statements are
+        // held until the batch resolves, so they reach the trace when it drops
+        // rather than as each one is appended. The alternative was emitting a
+        // `TransactionBegin` after the statements it opens if attribution
+        // arrived late.
+        {
+            let mut trans = SqlTransaction::new();
+            trans.append_raw_sql_like_cpp("DELETE FROM something WHERE id = 1");
+            trans.append_raw_sql_like_cpp("DELETE FROM something_else WHERE id = 2");
+        }
 
         let trace = recorder.snapshot();
         let unattributed = trace

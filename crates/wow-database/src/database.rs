@@ -407,8 +407,14 @@ impl<S: StatementDef> Database<S> {
     }
 
     /// Commit a transaction batch atomically.
-    pub async fn commit_transaction(&self, trans: SqlTransaction) -> Result<(), DatabaseError> {
+    pub async fn commit_transaction(&self, mut trans: SqlTransaction) -> Result<(), DatabaseError> {
         warn_if_sync_query_like_cpp("commit_transaction");
+        // A batch built entirely from raw SQL never names a database, so this
+        // adapter is the only thing that can say which one it committed
+        // against. Without it the boundary and outcome events were dropped and
+        // flows like the bank-slot purchase left a statement with no begin,
+        // commit or rollback around it.
+        trans.attribute_to_like_cpp(S::DATABASE);
         trans.commit(&self.pool).await
     }
 

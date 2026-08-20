@@ -178,9 +178,8 @@ impl HotfixStatements {
 }
 
 impl StatementDef for HotfixStatements {
-    fn logical_database(self) -> crate::persistence_trace::LogicalDatabase {
-        crate::persistence_trace::LogicalDatabase::Hotfix
-    }
+    const DATABASE: crate::persistence_trace::LogicalDatabase =
+        crate::persistence_trace::LogicalDatabase::Hotfix;
 
     fn trace_identity(self) -> String {
         // `GENERATED_BASE` carries its SQL, so the derived `Debug` identity
