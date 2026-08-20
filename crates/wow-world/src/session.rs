@@ -730,7 +730,7 @@ async fn attempt_group_loot_money_transaction_like_cpp(
     // Guarded for its whole lifetime: every early return through `?` drops the
     // transaction, SQLx rolls it back, and the guard records that end — including
     // for returns added later, which a per-site hook would miss.
-    let trace = wow_database::persistence_trace::ExplicitTransactionTrace::open(
+    let mut trace = wow_database::persistence_trace::ExplicitTransactionTrace::open(
         wow_database::persistence_trace::LogicalDatabase::Character,
     );
     let mut outcomes = HashMap::with_capacity(payouts.len());
@@ -803,6 +803,9 @@ async fn attempt_group_loot_money_transaction_like_cpp(
             },
         );
     }
+    // Announced before the await: a cancellation in this window means COMMIT
+    // was issued and its answer never came, which is not a rollback.
+    trace.committing();
     match transaction.commit().await {
         Ok(()) => {
             trace.committed(wow_database::persistence_trace::CommitOutcome::Committed);

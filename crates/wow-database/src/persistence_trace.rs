@@ -501,6 +501,8 @@ impl Drop for RecordingGuard {
 pub struct ExplicitTransactionTrace {
     database: LogicalDatabase,
     resolved: bool,
+    /// Whether COMMIT has been issued and its answer not yet seen.
+    committing: bool,
 }
 
 impl ExplicitTransactionTrace {
@@ -511,14 +513,26 @@ impl ExplicitTransactionTrace {
             return Self {
                 database,
                 resolved: true,
+                committing: false,
             };
         }
         record_explicit_transaction_begin(database);
         Self {
             database,
             resolved: true,
+            committing: false,
         }
         .armed()
+    }
+
+    /// Mark that COMMIT has been issued and its answer is outstanding.
+    ///
+    /// Called immediately before awaiting the commit, so a cancellation in that
+    /// window is recorded as an unknown outcome rather than a rollback: the
+    /// server may have applied it, and a trace claiming otherwise would let a
+    /// retry duplicate the write.
+    pub fn committing(&mut self) {
+        self.committing = true;
     }
 
     fn armed(mut self) -> Self {
@@ -578,9 +592,19 @@ impl ExplicitTransactionTrace {
 
 impl Drop for ExplicitTransactionTrace {
     fn drop(&mut self) {
-        if !self.resolved {
-            record_explicit_rollback(self.database);
+        if self.resolved {
+            return;
         }
+        if self.committing {
+            // Cancelled while awaiting COMMIT. The server may have applied it,
+            // so `Rollback` would state that work was undone when it may have
+            // been kept -- and a golden carrying that would approve a retry
+            // which duplicates it. Same distinction `SqlTransaction` makes; this
+            // guard is the other half of it.
+            record_explicit_commit(self.database, CommitOutcome::Unknown);
+            return;
+        }
+        record_explicit_rollback(self.database);
     }
 }
 
@@ -975,6 +999,64 @@ mod tests {
                 label: "flow.client".to_owned()
             }],
             "the publication must be the recorded event: {trace:?}"
+        );
+    }
+
+    #[test]
+    fn an_explicit_guard_cancelled_while_committing_reports_unknown() {
+        let _serialized = capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        // The money paths open a transaction directly on the pool and guard it
+        // with this type. Dropping it unresolved meant `Rollback`, which is
+        // right up to the moment COMMIT goes out and wrong after it: the server
+        // may have applied it, and a golden saying otherwise would approve a
+        // retry that duplicates the write. `SqlTransaction` already made this
+        // distinction; this guard is the other half.
+        {
+            let mut trace = ExplicitTransactionTrace::open(LogicalDatabase::Character);
+            trace.committing();
+        }
+
+        let events = recorder.take().events;
+        assert!(
+            events.iter().any(|event| matches!(
+                event,
+                PersistenceEvent::Commit {
+                    outcome: CommitOutcome::Unknown,
+                    ..
+                }
+            )),
+            "a cancelled commit is unknown, not rolled back: {events:?}"
+        );
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, PersistenceEvent::Rollback { .. })),
+            "and must not also claim a rollback: {events:?}"
+        );
+    }
+
+    #[test]
+    fn an_explicit_guard_cancelled_before_committing_still_reports_rollback() {
+        let _serialized = capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        // Nothing was committed, so the transaction really did roll back. The
+        // other direction matters as much: widening `Unknown` to cover this
+        // would lose a fact the trace had.
+        {
+            let _trace = ExplicitTransactionTrace::open(LogicalDatabase::Character);
+        }
+
+        let events = recorder.take().events;
+        assert!(
+            events
+                .iter()
+                .any(|event| matches!(event, PersistenceEvent::Rollback { .. })),
+            "an abandoned guard before COMMIT is a rollback: {events:?}"
         );
     }
 

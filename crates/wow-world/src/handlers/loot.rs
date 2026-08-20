@@ -13426,7 +13426,7 @@ async fn attempt_stored_item_money_transaction_like_cpp(
     // Guarded for its whole lifetime: every early return through `?` drops the
     // transaction, SQLx rolls it back, and the guard records that end — including
     // for returns added later, which a per-site hook would miss.
-    let trace = wow_database::persistence_trace::ExplicitTransactionTrace::open(
+    let mut trace = wow_database::persistence_trace::ExplicitTransactionTrace::open(
         wow_database::persistence_trace::LogicalDatabase::Character,
     );
     // Global order shared with group payouts: character mutation mutex, then
@@ -13556,6 +13556,9 @@ async fn attempt_stored_item_money_transaction_like_cpp(
         ));
     }
 
+    // Announced before the await: a cancellation in this window means COMMIT
+    // was issued and its answer never came, which is not a rollback.
+    trace.committing();
     match transaction.commit().await {
         Ok(()) => {
             trace.committed(wow_database::persistence_trace::CommitOutcome::Committed);
@@ -13596,7 +13599,7 @@ async fn reconcile_stored_item_money_commit_like_cpp(
     // Guarded for its whole lifetime: every early return through `?` drops the
     // transaction, SQLx rolls it back, and the guard records that end — including
     // for returns added later, which a per-site hook would miss.
-    let trace = wow_database::persistence_trace::ExplicitTransactionTrace::open(
+    let mut trace = wow_database::persistence_trace::ExplicitTransactionTrace::open(
         wow_database::persistence_trace::LogicalDatabase::Character,
     );
     // Read and lock both facts in the same order as the original mutation.
