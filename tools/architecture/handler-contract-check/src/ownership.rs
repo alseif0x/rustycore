@@ -1099,17 +1099,38 @@ fn cfg_predicate_is_test_only(predicate: &str) -> bool {
     if predicate == "test" {
         return true;
     }
-    let Some(inner) = predicate
+    if let Some(inner) = predicate
         .strip_prefix("all(")
         .and_then(|rest| rest.strip_suffix(')'))
-    else {
-        // `any(..)` can hold without `test`, and `not(..)` inverts it: neither
-        // guarantees test-only, so both fall through as production-capable.
-        return false;
-    };
-    split_top_level_predicates(inner)
-        .iter()
-        .any(|term| cfg_predicate_is_test_only(term))
+    {
+        // `all(..)` holds only if every term does, so one test-only term makes
+        // the whole thing test-only.
+        return split_top_level_predicates(inner)
+            .iter()
+            .any(|term| cfg_predicate_is_test_only(term));
+    }
+    if let Some(inner) = predicate
+        .strip_prefix("any(")
+        .and_then(|rest| rest.strip_suffix(')'))
+    {
+        // `any(..)` holds if any term does, so it is test-only only when every
+        // term is.
+        let terms = split_top_level_predicates(inner);
+        return !terms.is_empty() && terms.iter().all(|term| cfg_predicate_is_test_only(term));
+    }
+    if let Some(inner) = predicate
+        .strip_prefix("not(")
+        .and_then(|rest| rest.strip_suffix(')'))
+    {
+        // Double negation is the only shape that survives: `not(not(test))` is
+        // `test`. A single `not(test)` is the opposite of test-only.
+        return inner
+            .strip_prefix("not(")
+            .and_then(|rest| rest.strip_suffix(')'))
+            .is_some_and(cfg_predicate_is_test_only);
+    }
+    // Anything else -- a bare feature, a target predicate -- is not test-only.
+    false
 }
 
 fn split_top_level_predicates(inner: &str) -> Vec<&str> {
@@ -1139,26 +1160,27 @@ fn strip_rust_trivia_prefix(text: &str) -> &str {
         if let Some(after) = rest.strip_prefix("/*") {
             // Rust block comments nest, so the first `*/` is not necessarily
             // the end: `/* outer /* inner */ end */` closes at the second.
+            // Walked by char boundary, not by byte: a comment may hold
+            // non-ASCII text, and slicing `&after[index..index + 2]` inside a
+            // multi-byte character panics -- taking the whole mandatory check
+            // down with it.
             let mut depth = 1usize;
-            let bytes = after.as_bytes();
-            let mut index = 0usize;
-            while index + 1 < bytes.len() && depth > 0 {
-                match &after[index..index + 2] {
-                    "/*" => {
-                        depth += 1;
-                        index += 2;
+            let mut cursor = after;
+            while depth > 0 {
+                if let Some(next) = cursor.strip_prefix("/*") {
+                    depth += 1;
+                    cursor = next;
+                } else if let Some(next) = cursor.strip_prefix("*/") {
+                    depth -= 1;
+                    cursor = next;
+                } else {
+                    match cursor.chars().next() {
+                        Some(character) => cursor = &cursor[character.len_utf8()..],
+                        None => return "",
                     }
-                    "*/" => {
-                        depth -= 1;
-                        index += 2;
-                    }
-                    _ => index += 1,
                 }
             }
-            if depth > 0 {
-                return "";
-            }
-            rest = after[index..].trim_start();
+            rest = cursor.trim_start();
         } else if let Some(after) = rest.strip_prefix("//") {
             rest = after.find('\n').map_or("", |end| after[end..].trim_start());
         } else {
