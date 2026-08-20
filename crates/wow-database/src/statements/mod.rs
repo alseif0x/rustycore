@@ -29,20 +29,24 @@ pub trait StatementDef: Copy + Send + Sync + std::fmt::Debug + 'static {
 
     /// Which logical database this statement family belongs to.
     ///
-    /// An associated constant, not only a method, because the adapter that
-    /// commits a transaction is `Database<S>` and holds no `S` value to ask.
-    /// A transaction built entirely from raw SQL has no statement to carry the
-    /// attribution, so without this its boundary and outcome events had no
+    /// Takes no `self`, because the adapter that commits a transaction is
+    /// `Database<S>` and holds no `S` value to ask. A transaction built
+    /// entirely from raw SQL has no statement to carry the attribution, so
+    /// without a type-level answer its boundary and outcome events had no
     /// database and were dropped -- leaving the crash boundary unrecorded for
     /// exactly the flows that never mention a statement enum.
-    const DATABASE: crate::persistence_trace::LogicalDatabase;
+    ///
+    /// An associated function rather than an associated constant: the audit
+    /// grammar refuses a `const` in this impl and asks for an ordinary method
+    /// surface, which this is.
+    fn database() -> crate::persistence_trace::LogicalDatabase;
 
     /// Which logical database this statement belongs to.
     ///
     /// Two statements on different logical databases can never be made one
     /// atomic unit, so a persistence trace has to carry the distinction.
     fn logical_database(self) -> crate::persistence_trace::LogicalDatabase {
-        Self::DATABASE
+        Self::database()
     }
 
     /// Stable identity of this statement for persistence traces.

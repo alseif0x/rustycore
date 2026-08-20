@@ -155,8 +155,9 @@ pub enum LoginStatements {
 }
 
 impl StatementDef for LoginStatements {
-    const DATABASE: crate::persistence_trace::LogicalDatabase =
-        crate::persistence_trace::LogicalDatabase::Login;
+    fn database() -> crate::persistence_trace::LogicalDatabase {
+        crate::persistence_trace::LogicalDatabase::Login
+    }
 
     #[allow(clippy::too_many_lines)]
     fn sql(self) -> &'static str {

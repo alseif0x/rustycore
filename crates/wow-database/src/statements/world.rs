@@ -444,8 +444,9 @@ pub enum WorldStatements {
 }
 
 impl StatementDef for WorldStatements {
-    const DATABASE: crate::persistence_trace::LogicalDatabase =
-        crate::persistence_trace::LogicalDatabase::World;
+    fn database() -> crate::persistence_trace::LogicalDatabase {
+        crate::persistence_trace::LogicalDatabase::World
+    }
 
     fn sql(self) -> &'static str {
         match self {

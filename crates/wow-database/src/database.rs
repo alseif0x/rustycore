@@ -414,7 +414,7 @@ impl<S: StatementDef> Database<S> {
         // against. Without it the boundary and outcome events were dropped and
         // flows like the bank-slot purchase left a statement with no begin,
         // commit or rollback around it.
-        trans.attribute_to_like_cpp(S::DATABASE);
+        trans.attribute_to_like_cpp(S::database());
         trans.commit(&self.pool).await
     }
 
