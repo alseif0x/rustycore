@@ -529,6 +529,14 @@ impl SqlTransaction {
             .store(TRACE_RESOLVED, std::sync::atomic::Ordering::Relaxed);
     }
 
+    fn record_batch_abandoned(&self) {
+        if let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) {
+            recorder.record(PersistenceEvent::BatchAbandoned { database });
+        }
+        self.trace_progress
+            .store(TRACE_RESOLVED, std::sync::atomic::Ordering::Relaxed);
+    }
+
     fn record_rollback(&self) {
         if let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) {
             recorder.record(PersistenceEvent::Rollback { database });
@@ -802,7 +810,13 @@ impl SqlTransaction {
         let mut tx = match pool.begin().await {
             Ok(tx) => tx,
             Err(error) => {
-                self.record_rollback();
+                // No transaction was opened and no statement reached MySQL, so
+                // this is the batch never running -- not a rollback, which says
+                // work was issued and undone. Both produced the same
+                // begin/statements/rollback shape, and a golden cannot tell a
+                // connection that was never acquired from a transaction that
+                // executed and failed.
+                self.record_batch_abandoned();
                 return Err(SqlTransactionCommitError::DefinitelyRolledBack(
                     DatabaseError::from(error),
                 ));
@@ -1163,14 +1177,23 @@ mod trace_tests {
         let _ = trans.commit_with_outcome_like_cpp(&pool).await;
 
         let events = recorder.take().events;
+        // The pool is unreachable, so `pool.begin()` fails and nothing is sent:
+        // the batch never ran. `Rollback` would say work was issued and undone,
+        // which is a different fact and the one a retry decision turns on.
         assert!(
             events.iter().any(|event| matches!(
                 event,
-                PersistenceEvent::Rollback {
+                PersistenceEvent::BatchAbandoned {
                     database: LogicalDatabase::Character
                 }
             )),
-            "a pre-COMMIT failure must record a rollback: {events:?}"
+            "a batch whose connection never opened must say it never ran: {events:?}"
+        );
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, PersistenceEvent::Rollback { .. })),
+            "and must not claim a rollback it never performed: {events:?}"
         );
         assert!(
             !events

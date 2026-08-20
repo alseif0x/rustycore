@@ -1963,13 +1963,19 @@ impl WorldSession {
             warn!("Send channel closed for account {}", self.account_id);
         }
         // Where this lands relative to the commit is the crash window, so the
-        // trace has to see it. Recorded only when both packets were actually
-        // enqueued: an unconditional hook made a half-delivered publication --
-        // or one whose channel had closed -- indistinguishable from a complete
-        // one, which is the case a crash-window golden most needs to tell apart.
-        if journal_enqueued && learned_enqueued {
+        // trace has to see it -- and each packet separately, because the client
+        // observes them separately. Recording one event for the pair made a
+        // partial delivery look like a closed channel when it was gated on
+        // both, and like a complete delivery when it was not. Recovery has to
+        // know which packets the client actually saw.
+        if journal_enqueued {
             wow_database::persistence_trace::record_publication(
-                "battle_pet_trainer_purchase.client",
+                "battle_pet_trainer_purchase.journal",
+            );
+        }
+        if learned_enqueued {
+            wow_database::persistence_trace::record_publication(
+                "battle_pet_trainer_purchase.learned_spell",
             );
         }
         journal_enqueued && learned_enqueued
