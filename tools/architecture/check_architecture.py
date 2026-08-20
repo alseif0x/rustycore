@@ -2210,6 +2210,8 @@ def run_path_module_scanner_self_tests() -> int:
             "mod rawly;",
             '#[path = r#"hashed.rs"#]',
             "mod hashed;",
+            '#[path = "escaped\\x2ers"]',
+            "mod escaped;",
         ]
     )
     is_code = rust_code_offsets(source)
@@ -2223,7 +2225,7 @@ def run_path_module_scanner_self_tests() -> int:
             continue
         declaration = PATH_MODULE_DECLARATION.search(source[match.start() :])
         found.add(path_module_target(declaration) if declaration else "?")
-    expected = {"real_tests.rs", "plain.rs", "rawly.rs", "hashed.rs"}
+    expected = {"real_tests.rs", "plain.rs", "rawly.rs", "hashed.rs", "escaped.rs"}
     if found != expected:
         raise ArchitectureError(
             "path scanner self-test failed: declarations counted as code were "
@@ -2298,14 +2300,54 @@ HOTSPOT_ROW_CACHE: dict[pathlib.Path, tuple[int, int, int, str]] = {}
 # as a row of its own -- its lines uncharged to the hotspot that mounts it, which
 # is the ceiling bypass this aggregation exists to close.
 PATH_MODULE_DECLARATION = re.compile(
-    r'#\[path\s*=\s*(?:r(?P<hashes>\#*)"(?P<raw>.*?)"(?P=hashes)|"(?P<plain>[^"]*)")\s*\]'
+    r'#\[path\s*=\s*(?:r(?P<hashes>\#*)"(?P<raw>.*?)"(?P=hashes)'
+    r'|"(?P<plain>(?:[^"\\]|\\.)*)")\s*\]'
 )
+
+RUST_STRING_ESCAPE = re.compile(r"\\(x[0-9A-Fa-f]{2}|u\{[0-9A-Fa-f]{1,6}\}|.)", re.DOTALL)
+
+RUST_SIMPLE_ESCAPES = {
+    "n": "\n",
+    "r": "\r",
+    "t": "\t",
+    "0": "\0",
+    "\\": "\\",
+    '"': '"',
+    "'": "'",
+}
+
+
+def decode_rust_string(literal: str) -> str:
+    """Resolve the escapes in an ordinary Rust string literal.
+
+    `#[path = "foo\\x2ers"]` is a valid spelling of `foo.rs` and rustc mounts
+    the same file either way. Returning the undecoded text meant the child was
+    never found, so its lines went uncharged to the hotspot that mounts it --
+    the same ceiling bypass as the raw-string form, in a different disguise.
+    """
+
+    def replace(match: re.Match[str]) -> str:
+        body = match.group(1)
+        if body.startswith("x"):
+            return chr(int(body[1:], 16))
+        if body.startswith("u{"):
+            return chr(int(body[2:-1], 16))
+        # A line continuation swallows the newline and the indent after it.
+        if body == "\n":
+            return ""
+        return RUST_SIMPLE_ESCAPES.get(body, body)
+
+    return RUST_STRING_ESCAPE.sub(replace, literal)
 
 
 def path_module_target(match: re.Match[str]) -> str:
-    """The file a `#[path]` match names, whichever string form it used."""
+    """The file a `#[path]` match names, whichever string form it used.
+
+    Raw strings have no escapes by definition, so only the ordinary form is
+    decoded.
+    """
     raw = match.group("raw")
-    return raw if raw is not None else match.group("plain")
+    return raw if raw is not None else decode_rust_string(match.group("plain"))
 
 
 def rust_code_offsets(source: str) -> list[bool]:
