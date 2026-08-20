@@ -398,6 +398,7 @@ impl CharacterBattlePetPurchaseStoreLikeCpp {
         character_guid: u64,
     ) -> Result<Option<u64>, BattlePetPurchaseStoreErrorLikeCpp> {
         let mut statement = self.character_db.prepare(CharStatements::cpp(
+            "CHAR_SEL_CHARACTER_MONEY",
             "SELECT money FROM characters WHERE guid = ?",
         ));
         statement.set_u64(0, character_guid);
@@ -1184,7 +1185,24 @@ impl WorldSession {
         // then release it before draining criteria, matching the #159 order.
         self.stage_player_money_change_like_cpp(old_money, new_money);
         if old_money != new_money {
-            self.send_player_values_update_from_entity_bridge(&[], &[], &[], &[], Some(new_money));
+            // The client sees the charge before the pet, and this packet goes
+            // out *after* the Character transaction commits -- the charge is
+            // awaited and matched before reaching here. Leaving it out made
+            // moving it across the commit -- or after the pet packets --
+            // invisible, which is the ordering the crash window is defined by.
+            // Recorded only when it was actually enqueued: the bridge returns
+            // early with no player GUID or snapshot and sends nothing.
+            if self.send_player_values_update_from_entity_bridge(
+                &[],
+                &[],
+                &[],
+                &[],
+                Some(new_money),
+            ) {
+                wow_database::persistence_trace::record_publication(
+                    "battle_pet_trainer_purchase.money",
+                );
+            }
         }
         drop(money_persistence);
         self.drain_represented_quest_objective_progress_like_cpp()
@@ -1960,6 +1978,22 @@ impl WorldSession {
             .is_ok();
         if !learned_enqueued {
             warn!("Send channel closed for account {}", self.account_id);
+        }
+        // Where this lands relative to the commit is the crash window, so the
+        // trace has to see it -- and each packet separately, because the client
+        // observes them separately. Recording one event for the pair made a
+        // partial delivery look like a closed channel when it was gated on
+        // both, and like a complete delivery when it was not. Recovery has to
+        // know which packets the client actually saw.
+        if journal_enqueued {
+            wow_database::persistence_trace::record_publication(
+                "battle_pet_trainer_purchase.journal",
+            );
+        }
+        if learned_enqueued {
+            wow_database::persistence_trace::record_publication(
+                "battle_pet_trainer_purchase.learned_spell",
+            );
         }
         journal_enqueued && learned_enqueued
     }

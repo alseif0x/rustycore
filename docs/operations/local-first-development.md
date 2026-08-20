@@ -58,7 +58,8 @@ LOCAL_HARNESS_DRY_RUN=1 ./tools/local-harness.sh quick origin/3.4.3
 
 It does not require an agent SDK, a model-specific CLI, prompts, or interactive input. Agents can
 inspect the stable command interface with `./tools/local-harness.sh --help` and must treat a
-non-zero exit status as a failed local gate.
+non-zero exit status as a failed local gate. The harness also exports the repository's required
+minimum `RUST_MIN_STACK` so large Rust 1.88 test binaries behave the same for every agent.
 
 ## What remains exhaustive
 

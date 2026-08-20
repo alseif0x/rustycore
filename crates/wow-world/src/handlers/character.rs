@@ -5196,7 +5196,7 @@ impl WorldSession {
     pub(crate) fn build_character_account_offline_statement_like_cpp(
         account_id: u32,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::UPD_ACCOUNT_ONLINE.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_ACCOUNT_ONLINE);
         stmt.set_u32(0, account_id);
         stmt
     }
@@ -23378,7 +23378,7 @@ mod tests {
 
     #[test]
     fn create_character_binds_cpp_default_difficulties() {
-        let mut stmt = PreparedStatement::new(CharStatements::INS_CHARACTER.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHARACTER);
 
         bind_create_character_difficulties_like_cpp(&mut stmt);
 

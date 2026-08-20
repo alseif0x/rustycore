@@ -10617,7 +10617,7 @@ fn queue_respawn_db_delete_like_cpp(
         return RespawnDbDeleteQueueOutcomeLikeCpp::SkippedInvalidMapId;
     };
 
-    let mut statement = PreparedStatement::new(CharStatements::DEL_RESPAWN.sql());
+    let mut statement = PreparedStatement::for_statement(CharStatements::DEL_RESPAWN);
     statement.set_u16(0, u16::from(object_type as u8));
     statement.set_u64(1, spawn_id);
     statement.set_u16(2, map_id);
@@ -10649,7 +10649,7 @@ fn queue_respawn_db_save_like_cpp(
         return RespawnDbSaveQueueOutcomeLikeCpp::SkippedInvalidMapId;
     };
 
-    let mut statement = PreparedStatement::new(CharStatements::REP_RESPAWN.sql());
+    let mut statement = PreparedStatement::for_statement(CharStatements::REP_RESPAWN);
     statement.set_u16(0, u16::from(info.object_type as u8));
     statement.set_u64(1, info.spawn_id);
     statement.set_i64(2, info.respawn_time);
@@ -11004,9 +11004,9 @@ fn game_event_world_event_state_db_save_operation_like_cpp(
         return;
     };
 
-    let mut delete = PreparedStatement::new(CharStatements::DEL_GAME_EVENT_SAVE.sql());
+    let mut delete = PreparedStatement::for_statement(CharStatements::DEL_GAME_EVENT_SAVE);
     delete.set_u8(0, event_id_u8);
-    let mut insert = PreparedStatement::new(CharStatements::INS_GAME_EVENT_SAVE.sql());
+    let mut insert = PreparedStatement::for_statement(CharStatements::INS_GAME_EVENT_SAVE);
     insert.set_u8(0, event_id_u8);
     insert.set_u8(1, event.state_raw);
     insert.set_i64(2, next_start);
@@ -11047,7 +11047,7 @@ fn game_event_world_event_state_db_delete_operation_like_cpp(
     let mut statements = Vec::new();
     if delete_condition_saves_requested {
         let mut delete_conditions =
-            PreparedStatement::new(CharStatements::DEL_ALL_GAME_EVENT_CONDITION_SAVE.sql());
+            PreparedStatement::for_statement(CharStatements::DEL_ALL_GAME_EVENT_CONDITION_SAVE);
         delete_conditions.set_u8(0, event_id_u8);
         statements.push(GameEventWorldEventStateDbStatementLikeCpp {
             kind: GameEventWorldEventStateDbStatementKindLikeCpp::DelAllGameEventConditionSave,
@@ -11056,7 +11056,7 @@ fn game_event_world_event_state_db_delete_operation_like_cpp(
         summary.condition_delete_rows_queued += 1;
     }
     if delete_world_event_state_requested {
-        let mut delete_save = PreparedStatement::new(CharStatements::DEL_GAME_EVENT_SAVE.sql());
+        let mut delete_save = PreparedStatement::for_statement(CharStatements::DEL_GAME_EVENT_SAVE);
         delete_save.set_u8(0, event_id_u8);
         statements.push(GameEventWorldEventStateDbStatementLikeCpp {
             kind: GameEventWorldEventStateDbStatementKindLikeCpp::DelGameEventSave,

@@ -719,9 +719,40 @@ async fn attempt_group_loot_money_transaction_like_cpp(
             LootMoneyPersistenceErrorLikeCpp::Database(DatabaseError::from(error)),
         )
     };
-    let mut transaction = char_db.pool().begin().await.map_err(definitely)?;
+    // This workflow needs `SELECT ... FOR UPDATE` inside the transaction, so it
+    // cannot be an `SqlTransaction` and the ambient hook never sees it. Without
+    // these explicit records its entire durable operation is invisible while a
+    // trace of the flow still looks complete.
+    let mut transaction = match char_db.pool().begin().await {
+        Ok(transaction) => transaction,
+        Err(error) => {
+            // No connection, so nothing was attempted. Recorded rather than
+            // returning silently: an empty trace makes a definite
+            // non-execution indistinguishable from the workflow never being
+            // reached, and only one of those is safe to retry.
+            wow_database::persistence_trace::record_batch_not_started(
+                wow_database::persistence_trace::LogicalDatabase::Character,
+            );
+            return Err(definitely(error));
+        }
+    };
+    // Guarded for its whole lifetime: every early return through `?` drops the
+    // transaction, SQLx rolls it back, and the guard records that end — including
+    // for returns added later, which a per-site hook would miss.
+    let mut trace = wow_database::persistence_trace::ExplicitTransactionTrace::open(
+        wow_database::persistence_trace::LogicalDatabase::Character,
+    );
     let mut outcomes = HashMap::with_capacity(payouts.len());
     for (recipient, amount) in payouts {
+        trace.statement(|| {
+            (
+                CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.trace_identity(),
+                vec![wow_database::persistence_trace::TracedParam::Uint {
+                    value: recipient.counter() as u64,
+                    width_bits: 64,
+                }],
+            )
+        });
         let row = sqlx::query(CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.sql())
             .bind(recipient.counter() as u64)
             .fetch_optional(&mut *transaction)
@@ -736,6 +767,24 @@ async fn attempt_group_loot_money_transaction_like_cpp(
         let (new_money, applied_delta) =
             loot_money_durable_outcome_like_cpp(current_money, *amount);
         if applied_delta != 0 {
+            trace.statement_expecting(
+                || {
+                    (
+                        CharStatements::UPD_CHAR_MONEY.trace_identity(),
+                        vec![
+                            wow_database::persistence_trace::TracedParam::Uint {
+                                value: new_money,
+                                width_bits: 64,
+                            },
+                            wow_database::persistence_trace::TracedParam::Uint {
+                                value: recipient.counter() as u64,
+                                width_bits: 64,
+                            },
+                        ],
+                    )
+                },
+                1,
+            );
             let update_result = sqlx::query("UPDATE characters SET money = ? WHERE guid = ?")
                 .bind(new_money)
                 .bind(recipient.counter() as u64)
@@ -763,10 +812,21 @@ async fn attempt_group_loot_money_transaction_like_cpp(
             },
         );
     }
+    // Announced before the await: a cancellation in this window means COMMIT
+    // was issued and its answer never came, which is not a rollback.
+    trace.committing();
     match transaction.commit().await {
-        Ok(()) => Ok(outcomes),
+        Ok(()) => {
+            trace.committed(wow_database::persistence_trace::CommitOutcome::Committed);
+            Ok(outcomes)
+        }
         Err(error) => {
             let error = DatabaseError::from(error);
+            trace.committed(if is_database_deadlock_like_cpp(&error) {
+                wow_database::persistence_trace::CommitOutcome::RolledBack
+            } else {
+                wow_database::persistence_trace::CommitOutcome::Unknown
+            });
             if is_database_deadlock_like_cpp(&error) {
                 Err(GroupLootMoneyAttemptErrorLikeCpp::DefinitelyRolledBack(
                     LootMoneyPersistenceErrorLikeCpp::Database(error),
@@ -17574,7 +17634,7 @@ impl WorldSession {
             match currency.state {
                 PlayerCurrencyState::New => {
                     let mut stmt =
-                        PreparedStatement::new(CharStatements::REP_PLAYER_CURRENCY.sql());
+                        PreparedStatement::for_statement(CharStatements::REP_PLAYER_CURRENCY);
                     stmt.set_u64(0, character_guid);
                     stmt.set_u16(1, currency_db_id);
                     stmt.set_u32(2, currency.quantity);
@@ -17588,7 +17648,7 @@ impl WorldSession {
                 }
                 PlayerCurrencyState::Changed => {
                     let mut stmt =
-                        PreparedStatement::new(CharStatements::UPD_PLAYER_CURRENCY.sql());
+                        PreparedStatement::for_statement(CharStatements::UPD_PLAYER_CURRENCY);
                     stmt.set_u32(0, currency.quantity);
                     stmt.set_u32(1, currency.weekly_quantity);
                     stmt.set_u32(2, currency.tracked_quantity);
@@ -23237,12 +23297,16 @@ impl WorldSession {
         virtual_item_changes: &[(u8, i32, u16, u16)],
         buyback_changes: &[(u8, u32, i64)],
         coinage: Option<u64>,
-    ) {
+    ) -> bool {
+        // Reports whether a packet was enqueued. Callers that record a
+        // publication need to know: this returns early when there is no player
+        // GUID or snapshot, and the trace must not claim the client saw
+        // something that was never sent.
         let Some(guid) = self.player_guid() else {
-            return;
+            return false;
         };
         let Some(mut player) = self.player_values_update_snapshot() else {
-            return;
+            return false;
         };
 
         if let Some(coinage) = coinage {
@@ -23294,8 +23358,13 @@ impl WorldSession {
         if let Some(packet) =
             player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
         {
-            self.send_packet(&packet);
+            // Reaching the send is not the same as the send being accepted:
+            // the channel can be closed, and a publication recorded on the
+            // strength of getting this far would claim a packet the client
+            // never received.
+            return self.send_packet(&packet);
         }
+        false
     }
 
     /// Publish the canonical `ActivePlayerData::Skill` image after a durable
@@ -29243,7 +29312,7 @@ impl WorldSession {
         money: u64,
         guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_MONEY.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_MONEY);
         stmt.set_u64(0, money);
         stmt.set_u64(1, guid_counter);
         stmt
@@ -29900,7 +29969,7 @@ impl WorldSession {
         is_logout_resting: bool,
         guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_REST_STATE.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_REST_STATE);
         stmt.set_u8(0, rest_state);
         stmt.set_u32(1, player_flags);
         stmt.set_f32(2, Self::sanitize_rest_bonus_like_cpp(rest_bonus));
@@ -29916,7 +29985,7 @@ impl WorldSession {
         rest_bonus: f32,
         guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_ONLINE_REST_STATE.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_ONLINE_REST_STATE);
         stmt.set_u8(0, rest_state);
         stmt.set_u32(1, player_flags);
         stmt.set_f32(2, Self::sanitize_rest_bonus_like_cpp(rest_bonus));
@@ -29970,13 +30039,13 @@ impl WorldSession {
     ) -> Vec<PreparedStatement> {
         let mut plan = Vec::with_capacity(2);
         if level_changed {
-            let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_LEVEL.sql());
+            let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_LEVEL);
             stmt.set_u8(0, self.player_level_like_cpp());
             stmt.set_u32(1, self.player_xp_like_cpp());
             stmt.set_u64(2, guid_counter);
             plan.push(stmt);
         } else {
-            let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_XP.sql());
+            let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_XP);
             stmt.set_u32(0, self.player_xp_like_cpp());
             stmt.set_u64(1, guid_counter);
             plan.push(stmt);
@@ -30008,7 +30077,7 @@ impl WorldSession {
         health: u32,
         guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_HEALTH.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_HEALTH);
         stmt.set_u32(0, health);
         stmt.set_u64(1, guid_counter);
         stmt
@@ -30040,7 +30109,7 @@ impl WorldSession {
         powers: [i32; 10],
         guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_POWERS.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_POWERS);
         for (index, power) in powers.into_iter().enumerate() {
             stmt.set_i32(index, power.max(0));
         }
@@ -30096,7 +30165,7 @@ impl WorldSession {
         xp: u32,
         guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_LEVEL.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_LEVEL);
         stmt.set_u8(0, level);
         stmt.set_u32(1, xp);
         stmt.set_u64(2, guid_counter);
@@ -30123,7 +30192,8 @@ impl WorldSession {
         reset_time_secs: u64,
         guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_TALENT_RESET_STATE.sql());
+        let mut stmt =
+            PreparedStatement::for_statement(CharStatements::UPD_CHAR_TALENT_RESET_STATE);
         stmt.set_u32(0, reset_cost);
         stmt.set_u64(1, reset_time_secs);
         stmt.set_u64(2, guid_counter);
@@ -30152,7 +30222,7 @@ impl WorldSession {
         explored_zones: String,
         guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_EXPLORED_ZONES.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_EXPLORED_ZONES);
         stmt.set_string(0, explored_zones);
         stmt.set_u64(1, guid_counter);
         stmt
@@ -30188,8 +30258,9 @@ impl WorldSession {
         // destination path. C++ Player::SaveToDB writes those fields from the live Player; until
         // Rust can do the same, preserve the DB values instead of using the teleport helper that
         // clears them.
-        let mut stmt =
-            PreparedStatement::new(CharStatements::UPD_CHARACTER_POSITION_PRESERVE_TRAVEL.sql());
+        let mut stmt = PreparedStatement::for_statement(
+            CharStatements::UPD_CHARACTER_POSITION_PRESERVE_TRAVEL,
+        );
         stmt.set_f32(0, position.x);
         stmt.set_f32(1, position.y);
         stmt.set_f32(2, position.z);
@@ -30220,7 +30291,7 @@ impl WorldSession {
         legacy_raid_difficulty_id: u32,
         guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_DIFFICULTIES.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_DIFFICULTIES);
         stmt.set_u32(0, dungeon_difficulty_id);
         stmt.set_u32(1, raid_difficulty_id);
         stmt.set_u32(2, legacy_raid_difficulty_id);
@@ -30244,7 +30315,7 @@ impl WorldSession {
         level_time: u32,
         guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_PLAYED_TIME.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_PLAYED_TIME);
         stmt.set_u32(0, total_time);
         stmt.set_u32(1, level_time);
         stmt.set_u64(2, guid_counter);
@@ -31988,7 +32059,7 @@ impl WorldSession {
     pub(crate) fn build_character_talent_delete_statement_like_cpp(
         guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_TALENT.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_CHAR_TALENT);
         stmt.set_u64(0, guid_counter);
         stmt
     }
@@ -31999,7 +32070,7 @@ impl WorldSession {
         rank: u8,
         talent_group: u8,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_TALENT.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHAR_TALENT);
         stmt.set_u64(0, guid_counter);
         stmt.set_u32(1, talent_id);
         stmt.set_u8(2, rank);
@@ -32117,7 +32188,7 @@ impl WorldSession {
     pub(crate) fn build_character_glyph_delete_statement_like_cpp(
         guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_GLYPHS.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_CHAR_GLYPHS);
         stmt.set_u64(0, guid_counter);
         stmt
     }
@@ -32128,7 +32199,7 @@ impl WorldSession {
         glyph_slot: u8,
         glyph_id: u16,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_GLYPHS.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHAR_GLYPHS);
         stmt.set_u64(0, guid_counter);
         stmt.set_u8(1, talent_group);
         stmt.set_u8(2, glyph_slot);
@@ -32163,7 +32234,7 @@ impl WorldSession {
     pub(crate) fn build_character_spell_cooldown_delete_statement_like_cpp(
         guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_SPELL_COOLDOWNS.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_CHAR_SPELL_COOLDOWNS);
         stmt.set_u64(0, guid_counter);
         stmt
     }
@@ -32173,7 +32244,7 @@ impl WorldSession {
         guid_counter: u64,
         spell_id: i32,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_CHAR_SPELL_BY_SPELL);
         stmt.set_i32(0, spell_id);
         stmt.set_u64(1, guid_counter);
         stmt
@@ -32184,7 +32255,7 @@ impl WorldSession {
         guid_counter: u64,
         spell: RepresentedPlayerSpellLikeCpp,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_SPELL.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHAR_SPELL);
         stmt.set_u64(0, guid_counter);
         stmt.set_i32(1, spell.spell_id);
         stmt.set_bool(2, spell.active);
@@ -32197,7 +32268,7 @@ impl WorldSession {
         spell: RepresentedPlayerSpellLikeCpp,
     ) -> PreparedStatement {
         let mut stmt =
-            PreparedStatement::new(CharStatements::UPSERT_CHAR_SPELL_LEARN_FALLBACK.sql());
+            PreparedStatement::for_statement(CharStatements::UPSERT_CHAR_SPELL_LEARN_FALLBACK);
         stmt.set_u64(0, guid_counter);
         stmt.set_i32(1, spell.spell_id);
         stmt.set_bool(2, spell.active);
@@ -32210,7 +32281,7 @@ impl WorldSession {
         guid_counter: u64,
         spell_id: i32,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_SPELL_FAVORITE.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_CHAR_SPELL_FAVORITE);
         stmt.set_u64(0, guid_counter);
         stmt.set_i32(1, spell_id);
         stmt
@@ -32221,7 +32292,7 @@ impl WorldSession {
         guid_counter: u64,
         spell_id: i32,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_SPELL_FAVORITE.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHAR_SPELL_FAVORITE);
         stmt.set_u64(0, guid_counter);
         stmt.set_i32(1, spell_id);
         stmt
@@ -32323,7 +32394,7 @@ impl WorldSession {
         guid_counter: u64,
         cooldown: RepresentedCharacterSpellCooldownLikeCpp,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_SPELL_COOLDOWN.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHAR_SPELL_COOLDOWN);
         stmt.set_u64(0, guid_counter);
         stmt.set_u32(1, cooldown.spell_id);
         stmt.set_u32(2, cooldown.item_id);
@@ -32360,7 +32431,7 @@ impl WorldSession {
     pub(crate) fn build_character_spell_charge_delete_statement_like_cpp(
         guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_SPELL_CHARGES.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_CHAR_SPELL_CHARGES);
         stmt.set_u64(0, guid_counter);
         stmt
     }
@@ -32369,7 +32440,7 @@ impl WorldSession {
         guid_counter: u64,
         charge: RepresentedCharacterSpellChargeLikeCpp,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_SPELL_CHARGES.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHAR_SPELL_CHARGES);
         stmt.set_u64(0, guid_counter);
         stmt.set_u32(1, charge.category_id);
         stmt.set_i64(2, charge.recharge_start_unix_secs);
@@ -32408,7 +32479,7 @@ impl WorldSession {
     pub(crate) fn build_character_skill_delete_all_statement_like_cpp(
         guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_SKILLS.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_CHAR_SKILLS);
         stmt.set_u64(0, guid_counter);
         stmt
     }
@@ -32417,7 +32488,7 @@ impl WorldSession {
         guid_counter: u64,
         skill: RepresentedPlayerSkillLikeCpp,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_SKILLS.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHAR_SKILLS);
         stmt.set_u64(0, guid_counter);
         stmt.set_u16(1, skill.skill_id);
         stmt.set_u16(2, skill.value);
@@ -32456,7 +32527,7 @@ impl WorldSession {
         spec: u8,
         trait_config_id: i32,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_ACTION_BY_SPEC.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_CHAR_ACTION_BY_SPEC);
         stmt.set_u64(0, guid_counter);
         stmt.set_u8(1, spec);
         stmt.set_i32(2, trait_config_id);
@@ -32474,7 +32545,7 @@ impl WorldSession {
             return None;
         }
 
-        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_ACTION.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHAR_ACTION);
         stmt.set_u64(0, guid_counter);
         stmt.set_u8(1, spec);
         stmt.set_i32(2, trait_config_id);
@@ -32522,7 +32593,7 @@ impl WorldSession {
         player_guid_counter: u64,
         equipment_set: &RepresentedEquipmentSetLikeCpp,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::INS_EQUIP_SET.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::INS_EQUIP_SET);
         stmt.set_u64(0, player_guid_counter);
         stmt.set_u64(1, equipment_set.guid);
         stmt.set_u32(2, equipment_set.set_id);
@@ -32541,7 +32612,7 @@ impl WorldSession {
         slot: u8,
         item: &RepresentedVoidStorageItemLikeCpp,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::REP_CHAR_VOID_STORAGE_ITEM.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::REP_CHAR_VOID_STORAGE_ITEM);
         stmt.set_u64(0, item.item_id);
         stmt.set_u64(1, player_guid_counter);
         stmt.set_u32(2, item.item_entry);
@@ -32559,7 +32630,7 @@ impl WorldSession {
         slot: u8,
     ) -> PreparedStatement {
         let mut stmt =
-            PreparedStatement::new(CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_SLOT.sql());
+            PreparedStatement::for_statement(CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_SLOT);
         stmt.set_u8(0, slot);
         stmt.set_u64(1, player_guid_counter);
         stmt
@@ -32568,8 +32639,9 @@ impl WorldSession {
     pub(crate) fn build_void_storage_delete_all_statement_like_cpp(
         player_guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt =
-            PreparedStatement::new(CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_CHAR_GUID.sql());
+        let mut stmt = PreparedStatement::for_statement(
+            CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_CHAR_GUID,
+        );
         stmt.set_u64(0, player_guid_counter);
         stmt
     }
@@ -32586,7 +32658,7 @@ impl WorldSession {
         item_flags: u32,
         enchantments: &str,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::INS_ITEM_INSTANCE_CLONE.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::INS_ITEM_INSTANCE_CLONE);
         stmt.set_u64(0, db_guid);
         stmt.set_u32(1, item.item_entry);
         stmt.set_u64(2, player_guid_counter);
@@ -32639,7 +32711,7 @@ impl WorldSession {
         player_guid_counter: u64,
         equipment_set: &RepresentedEquipmentSetLikeCpp,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::UPD_EQUIP_SET.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_EQUIP_SET);
         stmt.set_string(0, equipment_set.set_name.clone());
         stmt.set_string(1, equipment_set.set_icon.clone());
         stmt.set_u32(2, equipment_set.ignore_mask);
@@ -32657,7 +32729,7 @@ impl WorldSession {
         player_guid_counter: u64,
         equipment_set: &RepresentedEquipmentSetLikeCpp,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::INS_TRANSMOG_OUTFIT.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::INS_TRANSMOG_OUTFIT);
         stmt.set_u64(0, player_guid_counter);
         stmt.set_u64(1, equipment_set.guid);
         stmt.set_u32(2, equipment_set.set_id);
@@ -32676,7 +32748,7 @@ impl WorldSession {
         player_guid_counter: u64,
         equipment_set: &RepresentedEquipmentSetLikeCpp,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::UPD_TRANSMOG_OUTFIT.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_TRANSMOG_OUTFIT);
         stmt.set_string(0, equipment_set.set_name.clone());
         stmt.set_string(1, equipment_set.set_icon.clone());
         stmt.set_u32(2, equipment_set.ignore_mask);
@@ -41403,7 +41475,12 @@ impl WorldSession {
     }
 
     /// Send a server packet back to the client via the instance (default) channel.
-    pub fn send_packet<P: wow_packet::ServerPacket>(&self, pkt: &P) {
+    /// Enqueue one packet, reporting whether it was accepted.
+    ///
+    /// The channel can be closed, and swallowing that made every caller unable
+    /// to tell a delivered packet from a discarded one. Callers that record a
+    /// publication need the difference; the rest ignore the value as before.
+    pub fn send_packet<P: wow_packet::ServerPacket>(&self, pkt: &P) -> bool {
         let data = pkt.to_bytes();
         if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
             info!(
@@ -41415,7 +41492,9 @@ impl WorldSession {
         }
         if self.send_tx.send(data).is_err() {
             warn!("Send channel closed for account {}", self.account_id);
+            return false;
         }
+        true
     }
 
     /// Attempts to enqueue one instance-channel packet without waiting for
@@ -56200,7 +56279,7 @@ impl WorldSession {
         id: u8,
         profile: &wow_packet::packets::misc::CufProfile,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::REP_CHAR_CUF_PROFILES.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::REP_CHAR_CUF_PROFILES);
         stmt.set_u64(0, guid_counter);
         stmt.set_u8(1, id);
         stmt.set_string(2, profile.profile_name.clone());
@@ -56222,7 +56301,8 @@ impl WorldSession {
         guid_counter: u64,
         id: u8,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_CUF_PROFILES_BY_ID.sql());
+        let mut stmt =
+            PreparedStatement::for_statement(CharStatements::DEL_CHAR_CUF_PROFILES_BY_ID);
         stmt.set_u64(0, guid_counter);
         stmt.set_u8(1, id);
         stmt
@@ -68028,7 +68108,7 @@ impl WorldSession {
         homebind: RepresentedHomebindLikeCpp,
         guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::UPD_PLAYER_HOMEBIND.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_PLAYER_HOMEBIND);
         // C++ PreparedStatement::setUInt16 receives these uint32 fields and
         // narrows modulo 2^16 at the call boundary.
         stmt.set_u16(0, homebind.map_id as u16);

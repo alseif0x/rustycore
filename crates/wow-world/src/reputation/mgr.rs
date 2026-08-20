@@ -595,13 +595,13 @@ impl ReputationMgrLikeCpp {
             }
 
             let mut delete =
-                PreparedStatement::new(CharStatements::DEL_CHAR_REPUTATION_BY_FACTION.sql());
+                PreparedStatement::for_statement(CharStatements::DEL_CHAR_REPUTATION_BY_FACTION);
             delete.set_u64(0, player_guid_counter);
             delete.set_u16(1, faction.id as u16);
             statements.push(delete);
 
             let mut insert =
-                PreparedStatement::new(CharStatements::INS_CHAR_REPUTATION_BY_FACTION.sql());
+                PreparedStatement::for_statement(CharStatements::INS_CHAR_REPUTATION_BY_FACTION);
             insert.set_u64(0, player_guid_counter);
             insert.set_u16(1, faction.id as u16);
             insert.set_i32(2, faction.standing);

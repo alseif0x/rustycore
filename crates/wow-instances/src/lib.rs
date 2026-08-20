@@ -1017,7 +1017,8 @@ impl InstanceLockMgr {
         player_guid: ObjectGuid,
         entries: &MapDb2Entries,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHARACTER_INSTANCE_LOCK.sql());
+        let mut stmt =
+            PreparedStatement::for_statement(CharStatements::DEL_CHARACTER_INSTANCE_LOCK);
         stmt.set_u64(0, player_guid.counter() as u64);
         stmt.set_u32(1, entries.map_id);
         stmt.set_u32(2, entries.lock_id);
@@ -1028,7 +1029,7 @@ impl InstanceLockMgr {
         player_guid: ObjectGuid,
     ) -> PreparedStatement {
         let mut stmt =
-            PreparedStatement::new(CharStatements::DEL_CHARACTER_INSTANCE_LOCK_BY_GUID.sql());
+            PreparedStatement::for_statement(CharStatements::DEL_CHARACTER_INSTANCE_LOCK_BY_GUID);
         stmt.set_u64(0, player_guid.counter() as u64);
         stmt
     }
@@ -1038,7 +1039,8 @@ impl InstanceLockMgr {
         entries: &MapDb2Entries,
         lock: &InstanceLock,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::INS_CHARACTER_INSTANCE_LOCK.sql());
+        let mut stmt =
+            PreparedStatement::for_statement(CharStatements::INS_CHARACTER_INSTANCE_LOCK);
         stmt.set_u64(0, player_guid.counter() as u64);
         stmt.set_u32(1, entries.map_id);
         stmt.set_u32(2, entries.lock_id);
@@ -1058,7 +1060,7 @@ impl InstanceLockMgr {
         extended: bool,
     ) -> PreparedStatement {
         let mut stmt =
-            PreparedStatement::new(CharStatements::UPD_CHARACTER_INSTANCE_LOCK_EXTENSION.sql());
+            PreparedStatement::for_statement(CharStatements::UPD_CHARACTER_INSTANCE_LOCK_EXTENSION);
         stmt.set_u8(0, u8::from(extended));
         stmt.set_u64(1, player_guid.counter() as u64);
         stmt.set_u32(2, entries.map_id);
@@ -1071,8 +1073,9 @@ impl InstanceLockMgr {
         entries: &MapDb2Entries,
         expiry_time: InstanceResetTime,
     ) -> PreparedStatement {
-        let mut stmt =
-            PreparedStatement::new(CharStatements::UPD_CHARACTER_INSTANCE_LOCK_FORCE_EXPIRE.sql());
+        let mut stmt = PreparedStatement::for_statement(
+            CharStatements::UPD_CHARACTER_INSTANCE_LOCK_FORCE_EXPIRE,
+        );
         stmt.set_u64(0, expiry_time);
         stmt.set_u64(1, player_guid.counter() as u64);
         stmt.set_u32(2, entries.map_id);
@@ -1081,13 +1084,13 @@ impl InstanceLockMgr {
     }
 
     pub fn delete_instance_statement(instance_id: u32) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::DEL_INSTANCE.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_INSTANCE);
         stmt.set_u32(0, instance_id);
         stmt
     }
 
     pub fn insert_instance_statement(shared_data: &SharedInstanceLockData) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::INS_INSTANCE.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::INS_INSTANCE);
         stmt.set_u32(0, shared_data.instance_id);
         stmt.set_string(1, &shared_data.data.data);
         stmt.set_u32(2, shared_data.data.completed_encounters_mask);
@@ -1096,7 +1099,7 @@ impl InstanceLockMgr {
     }
 
     pub fn delete_all_respawns_statement(map_id: u32, instance_id: u32) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::DEL_ALL_RESPAWNS.sql());
+        let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_ALL_RESPAWNS);
         stmt.set_u32(0, map_id);
         stmt.set_u32(1, instance_id);
         stmt
@@ -1104,7 +1107,7 @@ impl InstanceLockMgr {
 
     pub fn delete_account_instance_lock_times_statement(account_id: u32) -> PreparedStatement {
         let mut stmt =
-            PreparedStatement::new(CharStatements::DEL_ACCOUNT_INSTANCE_LOCK_TIMES.sql());
+            PreparedStatement::for_statement(CharStatements::DEL_ACCOUNT_INSTANCE_LOCK_TIMES);
         stmt.set_u32(0, account_id);
         stmt
     }
@@ -1115,7 +1118,7 @@ impl InstanceLockMgr {
         release_time: InstanceResetTime,
     ) -> PreparedStatement {
         let mut stmt =
-            PreparedStatement::new(CharStatements::INS_ACCOUNT_INSTANCE_LOCK_TIMES.sql());
+            PreparedStatement::for_statement(CharStatements::INS_ACCOUNT_INSTANCE_LOCK_TIMES);
         stmt.set_u32(0, account_id);
         stmt.set_u32(1, instance_id);
         stmt.set_u64(2, release_time);

@@ -2028,7 +2028,7 @@ pub(crate) fn item_purchase_contents_from_extended_cost(
 }
 
 pub fn bug_report_insert_statement_like_cpp(report: &BugReport) -> PreparedStatement {
-    let mut stmt = PreparedStatement::new(CharStatements::INS_BUG_REPORT.sql());
+    let mut stmt = PreparedStatement::for_statement(CharStatements::INS_BUG_REPORT);
     // C++ parses `Type` but binds Text and DiagInfo to the `(type, content)`
     // SQL columns in that order.
     stmt.set_string(0, report.text.clone());

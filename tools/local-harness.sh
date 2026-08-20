@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEFAULT_BASE="origin/3.4.3"
+DEFAULT_RUST_MIN_STACK=1073741824
 MODE="${1:-}"
 BASE="${2:-$DEFAULT_BASE}"
 DRY_RUN="${LOCAL_HARNESS_DRY_RUN:-0}"
@@ -112,6 +113,13 @@ fi
   exit 64
 }
 (($# <= 2)) || die "too many arguments"
+
+RUST_MIN_STACK="${RUST_MIN_STACK:-$DEFAULT_RUST_MIN_STACK}"
+[[ "$RUST_MIN_STACK" =~ ^[1-9][0-9]*$ ]] || die \
+  "RUST_MIN_STACK must be a positive integer"
+((RUST_MIN_STACK >= DEFAULT_RUST_MIN_STACK)) || die \
+  "RUST_MIN_STACK must be at least $DEFAULT_RUST_MIN_STACK bytes for Rust 1.88"
+export RUST_MIN_STACK
 
 cd "$REPO_ROOT"
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "not inside a git worktree"
