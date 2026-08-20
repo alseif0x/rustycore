@@ -1952,9 +1952,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session.rs",
-          "production_lines": 71936,
+          "production_lines": 71945,
           "test_lines": 94888,
-          "total_lines": 166824,
+          "total_lines": 166833,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             152,
@@ -1995,9 +1995,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/loot.rs",
-          "production_lines": 13735,
+          "production_lines": 13744,
           "test_lines": 16234,
-          "total_lines": 29969,
+          "total_lines": 29978,
           "owner": "wow-world loot handler plus transitional loot/map/persistence coordination.",
           "open_retirement_issues": [
             187,
