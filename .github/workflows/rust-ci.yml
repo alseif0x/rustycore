@@ -17,7 +17,14 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_MIN_STACK: "268435456"
+  # 1 GiB, kept as headroom rather than as a diagnosis. The exact-inventory
+  # analyzer was crashing locally and a single run at this budget succeeded,
+  # which looked like a stack overflow; it was not. The same crash reproduces
+  # with an unlimited stack and with the triggering changes reverted, so the
+  # cause was the authoring machine's memory fault and that one success was
+  # luck. The budget is harmless and this note exists so the next reader does
+  # not inherit the wrong conclusion.
+  RUST_MIN_STACK: "1073741824"
 
 jobs:
   fmt:

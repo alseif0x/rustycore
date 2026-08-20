@@ -1020,14 +1020,14 @@ async fn queue_visible_gameobjects_or_spellclicks_refresh_like_cpp(
 }
 
 fn group_type_update_statement_like_cpp(group_flags: u16, db_store_id: u32) -> PreparedStatement {
-    let mut stmt = PreparedStatement::new(CharStatements::UPD_GROUP_TYPE.sql());
+    let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_GROUP_TYPE);
     stmt.set_u16(0, group_flags);
     stmt.set_u32(1, db_store_id);
     stmt
 }
 
 fn group_insert_statement_like_cpp(group: &GroupInfo, db_store_id: u32) -> PreparedStatement {
-    let mut stmt = PreparedStatement::new(CharStatements::INS_GROUP.sql());
+    let mut stmt = PreparedStatement::for_statement(CharStatements::INS_GROUP);
     stmt.set_u32(0, db_store_id);
     stmt.set_u64(1, group.leader_guid.counter() as u64);
     stmt.set_u8(2, group.loot_method);
@@ -1054,7 +1054,7 @@ fn group_member_insert_statement_like_cpp(
     subgroup: u8,
     roles: u8,
 ) -> PreparedStatement {
-    let mut stmt = PreparedStatement::new(CharStatements::INS_GROUP_MEMBER.sql());
+    let mut stmt = PreparedStatement::for_statement(CharStatements::INS_GROUP_MEMBER);
     stmt.set_u32(0, db_store_id);
     stmt.set_u64(1, member_guid.counter() as u64);
     stmt.set_u8(2, member_flags);
@@ -1067,7 +1067,7 @@ fn group_member_subgroup_update_statement_like_cpp(
     member_guid: ObjectGuid,
     subgroup: u8,
 ) -> PreparedStatement {
-    let mut stmt = PreparedStatement::new(CharStatements::UPD_GROUP_MEMBER_SUBGROUP.sql());
+    let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_GROUP_MEMBER_SUBGROUP);
     stmt.set_u8(0, subgroup);
     stmt.set_u64(1, member_guid.counter() as u64);
     stmt
@@ -1077,14 +1077,14 @@ fn group_member_flag_update_statement_like_cpp(
     member_guid: ObjectGuid,
     member_flags: u8,
 ) -> PreparedStatement {
-    let mut stmt = PreparedStatement::new(CharStatements::UPD_GROUP_MEMBER_FLAG.sql());
+    let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_GROUP_MEMBER_FLAG);
     stmt.set_u8(0, member_flags);
     stmt.set_u64(1, member_guid.counter() as u64);
     stmt
 }
 
 fn group_member_delete_statement_like_cpp(member_guid: ObjectGuid) -> PreparedStatement {
-    let mut stmt = PreparedStatement::new(CharStatements::DEL_GROUP_MEMBER.sql());
+    let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_GROUP_MEMBER);
     stmt.set_u64(0, member_guid.counter() as u64);
     stmt
 }
@@ -1093,26 +1093,26 @@ fn group_leader_update_statement_like_cpp(
     new_leader_guid: ObjectGuid,
     db_store_id: u32,
 ) -> PreparedStatement {
-    let mut stmt = PreparedStatement::new(CharStatements::UPD_GROUP_LEADER.sql());
+    let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_GROUP_LEADER);
     stmt.set_u64(0, new_leader_guid.counter() as u64);
     stmt.set_u32(1, db_store_id);
     stmt
 }
 
 fn group_delete_statement_like_cpp(db_store_id: u32) -> PreparedStatement {
-    let mut stmt = PreparedStatement::new(CharStatements::DEL_GROUP.sql());
+    let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_GROUP);
     stmt.set_u32(0, db_store_id);
     stmt
 }
 
 fn group_member_delete_all_statement_like_cpp(db_store_id: u32) -> PreparedStatement {
-    let mut stmt = PreparedStatement::new(CharStatements::DEL_GROUP_MEMBER_ALL.sql());
+    let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_GROUP_MEMBER_ALL);
     stmt.set_u32(0, db_store_id);
     stmt
 }
 
 fn group_lfg_data_delete_statement_like_cpp(db_store_id: u32) -> PreparedStatement {
-    let mut stmt = PreparedStatement::new(CharStatements::DEL_LFG_DATA.sql());
+    let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_LFG_DATA);
     stmt.set_u32(0, db_store_id);
     stmt
 }

@@ -174,7 +174,104 @@ impl<S: StatementDef> Database<S> {
     /// values before executing.
     pub fn prepare(&self, stmt: S) -> PreparedStatement {
         let sql = stmt.sql();
-        PreparedStatement::new(sql)
+        let prepared = PreparedStatement::new(sql);
+        // Deriving the identity allocates, and this is on every query path, so
+        // production pays one relaxed load instead.
+        if crate::persistence_trace::recording_enabled() {
+            return prepared
+                .with_trace_identity(stmt.trace_identity())
+                .with_trace_database(stmt.logical_database());
+        }
+        prepared
+    }
+
+    /// Record a statement that runs on its own pooled connection.
+    ///
+    /// Single statements are not incidental: a read can gate a write, and
+    /// whether it shared the writer's transaction or took its own connection
+    /// is precisely the fact a port extraction can change without moving a
+    /// row. `Pooled` is that distinction.
+    /// Whether a pooled failure happened before MySQL could receive the
+    /// statement.
+    ///
+    /// Acquiring a connection fails without sending anything, so that outcome is
+    /// definite: the statement did not run. Everything else — a protocol error,
+    /// an I/O error, a server error — may have been received and applied, and
+    /// only those are genuinely ambiguous. Collapsing the two directions loses
+    /// the crash semantics this contract exists to freeze, in one direction or
+    /// the other.
+    fn pooled_failure_is_definite(error: &sqlx::Error) -> bool {
+        matches!(
+            error,
+            sqlx::Error::PoolTimedOut | sqlx::Error::PoolClosed | sqlx::Error::Configuration(_)
+        )
+    }
+
+    fn record_pooled_statement(
+        stmt: &PreparedStatement,
+        observed_rows_affected: Option<u64>,
+        definitely_not_run: bool,
+    ) {
+        let succeeded = observed_rows_affected.is_some();
+        let Some(recorder) = crate::persistence_trace::ambient_recorder() else {
+            return;
+        };
+        let Some(database) = stmt.trace_database() else {
+            // Raw SQL executed outside a transaction carries no statement enum
+            // and therefore no database; guessing one would be worse than a
+            // gap the reader can see.
+            return;
+        };
+        let params = stmt
+            .params()
+            .iter()
+            .map(crate::persistence_trace::TracedParam::from_param)
+            .collect();
+        match stmt.trace_identity() {
+            Some(statement) => {
+                recorder.record(crate::persistence_trace::PersistenceEvent::Statement {
+                    database,
+                    connection: crate::persistence_trace::ConnectionAffinity::Pooled,
+                    statement: statement.to_owned(),
+                    params,
+                    expected_rows_affected: None,
+                    observed_rows_affected,
+                });
+                if !succeeded && definitely_not_run {
+                    // Never reached the server, so the statement definitely did
+                    // not run. Deliberately not `Rollback`: that is a
+                    // transaction event, and emitting it after a `Pooled`
+                    // statement with no `TransactionBegin` describes a
+                    // transaction that was never opened being undone.
+                    recorder.record(crate::persistence_trace::PersistenceEvent::Fence {
+                        label: format!("pooled-statement-not-run:{}", database.as_str()),
+                    });
+                } else if !succeeded {
+                    // Deliberately not a `Rollback`: there is no transaction
+                    // here, and a transport error on an autocommit write may
+                    // have applied it, so the outcome is unknown rather than
+                    // reverted. A false record is worse than a missing one — a
+                    // golden could approve a refactor on the strength of a
+                    // revert that never happened. Carrying the ambiguity as an
+                    // outcome on the pooled event itself is tracked in #213.
+                    recorder.record(crate::persistence_trace::PersistenceEvent::Fence {
+                        label: format!("pooled-statement-outcome-unknown:{}", database.as_str()),
+                    });
+                }
+            }
+            None => {
+                recorder.record(crate::persistence_trace::PersistenceEvent::RawStatement {
+                    database,
+                    connection: crate::persistence_trace::ConnectionAffinity::Pooled,
+                    digest: crate::persistence_trace::raw_statement_digest(stmt.sql()),
+                    params: stmt
+                        .params()
+                        .iter()
+                        .map(crate::persistence_trace::TracedParam::from_param)
+                        .collect(),
+                });
+            }
+        }
     }
 
     /// Execute a query and return the result rows.
@@ -190,8 +287,17 @@ impl<S: StatementDef> Database<S> {
             query = bind_param(query, param);
         }
 
-        let rows = query.fetch_all(&self.pool).await?;
-        Ok(SqlResult::new(rows))
+        // Recorded after the call so the trace carries whether it ran.
+        let rows = query.fetch_all(&self.pool).await;
+        // A read has no affected-row count; `Some(0)` marks "it ran".
+        Self::record_pooled_statement(
+            stmt,
+            rows.as_ref().ok().map(|_| 0),
+            rows.as_ref()
+                .err()
+                .is_some_and(Self::pooled_failure_is_definite),
+        );
+        Ok(SqlResult::new(rows?))
     }
 
     /// Execute a statement that does not return rows (INSERT, UPDATE, DELETE).
@@ -209,8 +315,19 @@ impl<S: StatementDef> Database<S> {
             query = bind_param(query, param);
         }
 
-        let result = query.execute(&self.pool).await?;
-        Ok(result.rows_affected())
+        // Recorded after the call so the trace carries whether it ran.
+        let result = query.execute(&self.pool).await;
+        // Callers branch on this count — a save matching no character row is a
+        // different outcome from one that matched — so the trace carries it.
+        Self::record_pooled_statement(
+            stmt,
+            result.as_ref().ok().map(|r| r.rows_affected()),
+            result
+                .as_ref()
+                .err()
+                .is_some_and(Self::pooled_failure_is_definite),
+        );
+        Ok(result?.rows_affected())
     }
 
     /// Execute a raw SQL string directly (no prepared statement).
@@ -293,8 +410,14 @@ impl<S: StatementDef> Database<S> {
     }
 
     /// Commit a transaction batch atomically.
-    pub async fn commit_transaction(&self, trans: SqlTransaction) -> Result<(), DatabaseError> {
+    pub async fn commit_transaction(&self, mut trans: SqlTransaction) -> Result<(), DatabaseError> {
         warn_if_sync_query_like_cpp("commit_transaction");
+        // A batch built entirely from raw SQL never names a database, so this
+        // adapter is the only thing that can say which one it committed
+        // against. Without it the boundary and outcome events were dropped and
+        // flows like the bank-slot purchase left a statement with no begin,
+        // commit or rollback around it.
+        trans.attribute_to_like_cpp(S::database());
         trans.commit(&self.pool).await
     }
 
@@ -488,6 +611,118 @@ fn percent_encode_query(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::persistence_trace::{
+        ConnectionAffinity, LogicalDatabase, PersistenceEvent, PersistenceRecorder,
+        RecordingSession,
+    };
+    use crate::statements::CharStatements;
+
+    /// The pool is deliberately unreachable. Recording happens before the
+    /// connection attempt, so a statement's identity and affinity are
+    /// observable without a database — which is the only way these paths can
+    /// be covered outside a MariaDB fixture.
+    fn unreachable_pool() -> MySqlPool {
+        sqlx::mysql::MySqlPoolOptions::new()
+            .max_connections(1)
+            .acquire_timeout(std::time::Duration::from_millis(1))
+            .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
+            .expect("syntactically valid lazy pool")
+    }
+
+    #[tokio::test]
+    async fn a_statement_outside_a_transaction_is_recorded_as_pooled() {
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        let db: Database<CharStatements> = Database::from_pool(unreachable_pool());
+        let stmt = db.prepare(CharStatements::SEL_ENUM);
+        let _ = db.query(&stmt).await;
+
+        assert_eq!(
+            recorder.take().events,
+            vec![
+                PersistenceEvent::Statement {
+                    database: LogicalDatabase::Character,
+                    connection: ConnectionAffinity::Pooled,
+                    statement: "SEL_ENUM".to_owned(),
+                    // C++ `PreparedStatementBase(index, capacity)` pre-allocates
+                    // one slot per `?`, and this statement was never bound, so the
+                    // trace faithfully shows the unbound placeholder rather than
+                    // an empty parameter list.
+                    params: vec![crate::persistence_trace::TracedParam::Bool { value: false }],
+                    expected_rows_affected: None,
+                    observed_rows_affected: None,
+                },
+                PersistenceEvent::Fence {
+                    label: "pooled-statement-not-run:character".to_owned(),
+                }
+            ],
+            "a read on its own connection must not look like part of a transaction; a \
+             pool-acquisition failure is a definite non-execution, and saying so with \
+             `Rollback` would describe undoing a transaction that was never opened"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failed_pooled_statement_carries_no_observed_row_count() {
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        let db: Database<CharStatements> = Database::from_pool(unreachable_pool());
+        let stmt = db.prepare(CharStatements::UPD_CHAR_MONEY);
+        let _ = db.execute(&stmt).await;
+
+        // A statement that never reached the server has no count to report, and
+        // `None` has to stay distinguishable from a successful `Some(0)` — the
+        // difference between "did not run" and "matched no row", which callers
+        // such as `save_player_position_like_cpp` branch on.
+        match recorder.take().events.first() {
+            Some(PersistenceEvent::Statement {
+                observed_rows_affected,
+                ..
+            }) => assert_eq!(*observed_rows_affected, None),
+            other => panic!("expected a pooled statement, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn only_pool_acquisition_failures_are_definite() {
+        // A statement that never left the process definitely did not run. One
+        // that failed after being sent may have been applied, and calling that a
+        // rollback would assert a revert that never happened — the two must not
+        // collapse in either direction.
+        assert!(Database::<CharStatements>::pooled_failure_is_definite(
+            &sqlx::Error::PoolTimedOut
+        ));
+        assert!(Database::<CharStatements>::pooled_failure_is_definite(
+            &sqlx::Error::PoolClosed
+        ));
+        assert!(!Database::<CharStatements>::pooled_failure_is_definite(
+            &sqlx::Error::Protocol("server hung up mid-statement".to_owned())
+        ));
+        assert!(!Database::<CharStatements>::pooled_failure_is_definite(
+            &sqlx::Error::WorkerCrashed
+        ));
+    }
+
+    #[tokio::test]
+    async fn nothing_is_recorded_without_an_installed_recording() {
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+
+        let db: Database<CharStatements> = Database::from_pool(unreachable_pool());
+        let stmt = db.prepare(CharStatements::SEL_ENUM);
+        let _ = db.query(&stmt).await;
+
+        assert!(
+            recorder.take().events.is_empty(),
+            "production must not pay for tracing it did not ask for"
+        );
+    }
+
     use super::{
         build_connection_string, build_connection_string_with_ssl_like_cpp,
         build_server_connection_string_like_cpp, escape_mysql_identifier_like_cpp,

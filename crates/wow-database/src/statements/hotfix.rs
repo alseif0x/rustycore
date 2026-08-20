@@ -83,6 +83,45 @@ pub enum HotfixStatements {
     },
 }
 
+/// Shape of a generated hotfix `SELECT`'s projection.
+///
+/// The table alone is too coarse: `spell_db2.rs` loads full rows from the same
+/// tables that `spell_info_keys.rs` queries for keys only, so two statements
+/// with different results would share one identity and swapping them would
+/// leave the trace unchanged. The column count separates them without pinning
+/// the SQL text, so a reformat still cannot move a golden.
+fn hotfix_projection_shape_like_cpp(sql: &str) -> usize {
+    let lowered = sql.to_ascii_lowercase();
+    let Some(start) = lowered.find("select ") else {
+        return 0;
+    };
+    let rest = &sql[start + "select ".len()..];
+    let projection = match rest.to_ascii_lowercase().find(" from ") {
+        Some(end) => &rest[..end],
+        None => rest,
+    };
+    projection
+        .split(',')
+        .filter(|part| !part.trim().is_empty())
+        .count()
+}
+
+/// Table a generated hotfix `SELECT` reads, used as its trace identity.
+///
+/// Derived from the statement's `FROM` clause rather than from the query text:
+/// the 27 call sites pass their SQL as a constant, and the table is the stable
+/// fact that survives reformatting. Falls back to `unknown` rather than
+/// leaking SQL into an identity.
+fn hotfix_base_table_like_cpp(sql: &str) -> &str {
+    let mut tokens = sql.split_whitespace();
+    while let Some(token) = tokens.next() {
+        if token.eq_ignore_ascii_case("FROM") {
+            return tokens.next().unwrap_or("unknown");
+        }
+    }
+    "unknown"
+}
+
 impl HotfixStatements {
     /// Whether this statement backs C++ `DB2Manager::LoadHotfix*`.
     pub const fn is_control_table_like_cpp(self) -> bool {
@@ -139,6 +178,26 @@ impl HotfixStatements {
 }
 
 impl StatementDef for HotfixStatements {
+    fn database() -> crate::persistence_trace::LogicalDatabase {
+        crate::persistence_trace::LogicalDatabase::Hotfix
+    }
+
+    fn trace_identity(self) -> String {
+        // `GENERATED_BASE` carries its SQL, so the derived `Debug` identity
+        // would embed the whole query and move every golden on a reformat —
+        // the same defect fixed for `CharStatements::GENERATED_CPP`. The
+        // sibling generated variants carry a table name, which is already a
+        // semantic identity, so they need no special case.
+        match self {
+            Self::GENERATED_BASE { sql } => format!(
+                "GENERATED_BASE:{}:{}",
+                hotfix_base_table_like_cpp(sql),
+                hotfix_projection_shape_like_cpp(sql)
+            ),
+            other => format!("{other:?}"),
+        }
+    }
+
     fn sql(self) -> &'static str {
         match self {
             Self::SEL_AREA_TABLE => concat!(

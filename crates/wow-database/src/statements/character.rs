@@ -1,6 +1,14 @@
 //! Character database prepared statement definitions.
 //!
-//! These correspond to the `characters` database and the C# `CharStatements` enum.
+//! These correspond to the `characters` database and the C++
+//! `CharacterDatabaseStatements` enum
+//! (`src/server/database/Database/Implementation/CharacterDatabase.h:23`).
+//!
+//! The header used to cite the C# `CharStatements` enum. Per AGENTS.md the C#
+//! server is a historical reference and not an authority for this port, and a
+//! module that names it as one invites the next reader to check the wrong
+//! source -- which matters more here than elsewhere, because these identities
+//! are what a persistence golden freezes.
 
 use super::StatementDef;
 
@@ -1771,19 +1779,41 @@ pub enum CharStatements {
 
     /// Generated C++ `CharacterDatabase` prepared statement.
     GENERATED_CPP {
+        /// C++ statement identifier, e.g. `CHAR_SEL_CHARACTER_MONEY`.
+        ///
+        /// Carried separately from the SQL so a persistence trace can name the
+        /// statement without embedding its text. `Debug` on this variant would
+        /// otherwise render the whole query, which would identify the
+        /// statement by SQL and move every golden on a reformat — the exact
+        /// coupling the trace contract exists to avoid.
+        name: &'static str,
         /// Exact SQL from C++ `PrepareStatement(CHAR_..., ...)`.
         sql: &'static str,
     },
 }
 
 impl CharStatements {
-    /// Build a generated C++ CharacterDatabase statement from exact SQL.
-    pub const fn cpp(sql: &'static str) -> Self {
-        Self::GENERATED_CPP { sql }
+    /// Build a generated C++ CharacterDatabase statement from its C++
+    /// identifier and exact SQL.
+    pub const fn cpp(name: &'static str, sql: &'static str) -> Self {
+        Self::GENERATED_CPP { name, sql }
     }
 }
 
 impl StatementDef for CharStatements {
+    fn database() -> crate::persistence_trace::LogicalDatabase {
+        crate::persistence_trace::LogicalDatabase::Character
+    }
+
+    fn trace_identity(self) -> String {
+        // The default derives identity from `Debug`, which for this data
+        // carrying variant would embed the SQL text.
+        match self {
+            Self::GENERATED_CPP { name, .. } => name.to_owned(),
+            other => format!("{other:?}"),
+        }
+    }
+
     fn sql(self) -> &'static str {
         match self {
             Self::DEL_POOL_QUEST_SAVE => "DELETE FROM pool_quest_save WHERE pool_id = ?",
@@ -3352,7 +3382,7 @@ impl StatementDef for CharStatements {
             Self::INS_CHARACTER_SPELL => {
                 "INSERT IGNORE INTO character_spell (guid, spell, active, disabled) VALUES (?, ?, 1, 0)"
             }
-            Self::GENERATED_CPP { sql } => sql,
+            Self::GENERATED_CPP { sql, .. } => sql,
             Self::SEL_CHAR_QUEST_STATUS => {
                 "SELECT quest, status, explored, acceptTime, endTime FROM character_queststatus WHERE guid = ? AND status <> 0"
             }
@@ -3474,7 +3504,7 @@ mod tests {
 
         for cpp_sql in statements {
             let sql: &'static str = Box::leak(cpp_sql.into_boxed_str());
-            assert_eq!(CharStatements::cpp(sql).sql(), sql);
+            assert_eq!(CharStatements::cpp("CHAR_TEST", sql).sql(), sql);
             assert!(!sql.is_empty());
         }
     }
