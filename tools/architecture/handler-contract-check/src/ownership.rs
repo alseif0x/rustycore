@@ -1078,16 +1078,87 @@ fn read_spliced_source_at_depth(
     Ok(spliced)
 }
 
+/// Whether a normalized cfg makes its item test-only.
+///
+/// Not a string comparison: `cfg(all(test))` and `cfg(all(test, unix))` are
+/// test-only too, and reading them as production-capable charges an entire
+/// test child against a production ceiling. `any(..)` is not, since one of its
+/// branches can hold without `test`, and a negation is not.
+fn cfg_is_test_only(cfg: &str) -> bool {
+    let compact = cfg.replace(' ', "");
+    let Some(inner) = compact
+        .strip_prefix("cfg(")
+        .and_then(|rest| rest.strip_suffix(')'))
+    else {
+        return false;
+    };
+    cfg_predicate_is_test_only(inner)
+}
+
+fn cfg_predicate_is_test_only(predicate: &str) -> bool {
+    if predicate == "test" {
+        return true;
+    }
+    let Some(inner) = predicate
+        .strip_prefix("all(")
+        .and_then(|rest| rest.strip_suffix(')'))
+    else {
+        // `any(..)` can hold without `test`, and `not(..)` inverts it: neither
+        // guarantees test-only, so both fall through as production-capable.
+        return false;
+    };
+    split_top_level_predicates(inner)
+        .iter()
+        .any(|term| cfg_predicate_is_test_only(term))
+}
+
+fn split_top_level_predicates(inner: &str) -> Vec<&str> {
+    let mut terms = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0usize;
+    for (index, character) in inner.char_indices() {
+        match character {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                terms.push(&inner[start..index]);
+                start = index + 1;
+            }
+            _ => {}
+        }
+    }
+    terms.push(&inner[start..]);
+    terms
+}
+
 /// Skip leading whitespace and comments, so an attribute written with trivia
 /// between its tokens is still recognised as one.
 fn strip_rust_trivia_prefix(text: &str) -> &str {
     let mut rest = text.trim_start();
     loop {
         if let Some(after) = rest.strip_prefix("/*") {
-            match after.find("*/") {
-                Some(end) => rest = after[end + 2..].trim_start(),
-                None => return "",
+            // Rust block comments nest, so the first `*/` is not necessarily
+            // the end: `/* outer /* inner */ end */` closes at the second.
+            let mut depth = 1usize;
+            let bytes = after.as_bytes();
+            let mut index = 0usize;
+            while index + 1 < bytes.len() && depth > 0 {
+                match &after[index..index + 2] {
+                    "/*" => {
+                        depth += 1;
+                        index += 2;
+                    }
+                    "*/" => {
+                        depth -= 1;
+                        index += 2;
+                    }
+                    _ => index += 1,
+                }
             }
+            if depth > 0 {
+                return "";
+            }
+            rest = after[index..].trim_start();
         } else if let Some(after) = rest.strip_prefix("//") {
             rest = after.find('\n').map_or("", |end| after[end..].trim_start());
         } else {
@@ -1531,11 +1602,11 @@ pub(crate) fn workspace_path_module_mounts(
             let _ = ident;
             let declared_test_only = normalized_cfg_attributes(&attributes)
                 .iter()
-                .any(|cfg| cfg.replace(' ', "") == "cfg(test)");
+                .any(|cfg| cfg_is_test_only(cfg));
             let child_inner = child_inner_attributes(&child)?;
             let inner_test_only = normalized_cfg_attributes(&child_inner)
                 .iter()
-                .any(|cfg| cfg.replace(' ', "") == "cfg(test)");
+                .any(|cfg| cfg_is_test_only(cfg));
             mounts.push(PathModuleMount {
                 parent: crate::session_ownership::repository_relative_path(
                     repository_root,
