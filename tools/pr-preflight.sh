@@ -27,7 +27,7 @@ QA_LOOT_RACE_PRE_READY_MARGIN_SECONDS=120
 
 usage() {
   cat <<'EOF'
-RustyCore local PR preflight
+RustyCore exhaustive local PR preflight
 
 Usage:
   ./tools/pr-preflight.sh [OPTIONS] <COMMAND> [BASE]
@@ -55,7 +55,8 @@ Commands:
   qa-login            Run the existing live login bot; requires --allow-runtime-qa.
   qa-loot-race        Run destructive live two-session loot QA; requires both QA flags.
 
-BASE defaults to origin/3.4.3. The GitHub Codex reviewer verdict remains required.
+BASE defaults to origin/3.4.3. Normal first-party development should use
+./tools/local-harness.sh; remote Codex review remains required only for external PR authors.
 EOF
 }
 

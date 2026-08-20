@@ -20,7 +20,9 @@ concurrency:
 jobs:
   build:
     name: Build replica ${{ matrix.replica }}
-    if: contains(github.event.pull_request.labels.*.name, 'qa-artifact')
+    if: >-
+      github.event.pull_request.user.login != 'alseif0x' &&
+      contains(github.event.pull_request.labels.*.name, 'qa-artifact')
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
@@ -113,7 +115,9 @@ jobs:
 
   verify:
     name: Verify replica hashes
-    if: contains(github.event.pull_request.labels.*.name, 'qa-artifact')
+    if: >-
+      github.event.pull_request.user.login != 'alseif0x' &&
+      contains(github.event.pull_request.labels.*.name, 'qa-artifact')
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 5

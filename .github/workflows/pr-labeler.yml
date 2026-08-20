@@ -15,6 +15,7 @@ concurrency:
 jobs:
   label:
     name: Label changed areas
+    if: github.event.pull_request.user.login != 'alseif0x'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

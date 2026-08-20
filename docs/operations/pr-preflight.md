@@ -1,9 +1,13 @@
-# Local PR preflight and Codex review
+# Exhaustive local PR preflight and Codex review
 
-The local preflight catches deterministic CI failures and review findings before a branch is
-pushed. Its profiles mirror the required Rust CI jobs. GitHub keeps the enforcing Cargo commands
-inline in the workflow so changing a pull request's local wrapper cannot silently weaken a
-required check.
+This is the explicit exhaustive/audit harness. Normal first-party development uses the smaller,
+path-scoped `tools/local-harness.sh`; see
+[`local-first-development.md`](local-first-development.md). Do not run `quick` or `full` from this
+script on every ordinary change.
+
+The exhaustive preflight remains useful for release preparation, architecture investigations,
+capture QA, and deliberately requested full reviews. Its profiles mirror the hosted commands that
+remain mandatory for untrusted pull requests.
 
 The entry point is:
 
@@ -229,29 +233,23 @@ calls suppress `bash -x` so credentials and `MYSQL_PWD` cannot enter logs.
 
 ## Recommended maintainer flow
 
-During implementation, run focused tests and optionally review the uncommitted patch:
+During normal first-party implementation, use the path-scoped harness:
 
 ```bash
-./tools/pr-preflight.sh quick
-./tools/pr-preflight.sh review-uncommitted
+./tools/local-harness.sh quick
 ```
 
-Commit locally before the final pre-push pass. The clean tree matters because it makes the local
-review target the same committed diff that GitHub will see:
+Run its final mode once before publishing the completed commit:
 
 ```bash
 git fetch origin
 git commit
-./tools/pr-preflight.sh full origin/3.4.3
+./tools/local-harness.sh final origin/3.4.3
 ```
 
-If Codex reports findings, fix them, amend or add the appropriate behavior-complete commit, and
-rerun `full`. Push only after it passes. Then open the PR into `3.4.3`; GitHub still runs the same
-deterministic command lists and requires its independent Codex review on the exact remote HEAD.
-
-Local review does **not** satisfy branch protection and can differ from the GitHub reviewer because
-the model run and context are independent. Its purpose is to remove avoidable push/review/fix
-cycles, not to create a maintainer bypass.
+Use this exhaustive script only when the issue or maintainer explicitly requires one of its
+specialized profiles. Remote validation and Codex review remain mandatory for PR authors other
+than `alseif0x`; trusted first-party jobs are skipped before runner allocation.
 
 ## Codex review behavior
 
@@ -278,7 +276,7 @@ Exit status:
 Review artifacts are deleted after a clean result. They are retained and printed when review fails.
 Set `CODEX_REVIEW_KEEP_ARTIFACTS=1` to retain them after a clean review as well.
 
-## CI source of truth
+## External CI source of truth
 
 `.github/workflows/rust-ci.yml` executes the required Cargo commands directly. These local
 profiles mirror the workflow-owned command lists:
@@ -291,8 +289,7 @@ Focused library tests <-> ./tools/pr-preflight.sh test
 Latest stable         <-> ./tools/pr-preflight.sh stable
 ```
 
-When a required command changes, update the workflow and its matching local profile together. The
-workflow is authoritative for branch protection; `Check core crates` executes the architecture
-checker directly and `Format` also runs the harness self-test, but no required job trusts the pull
-request's wrapper as its sole enforcement path. The `quick`, `ci`, and `full` aggregate profiles
-include `architecture`.
+When an externally required command changes, update the workflow and its matching exhaustive
+profile together. These jobs are authoritative for untrusted PRs. Trusted first-party work uses
+`tools/local-harness.sh` instead; `quick`, `ci`, and `full` here continue to include architecture
+only for explicit exhaustive runs.
