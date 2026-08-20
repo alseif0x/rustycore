@@ -2413,14 +2413,17 @@ where
             SpellAcquisitionPostCommitActionLikeCpp::SupersededSpell {
                 old_spell_id,
                 new_spell_id,
-            } => session.send_packet(&wow_packet::packets::trainer::SupercededSpells::single(
-                i32::try_from(old_spell_id).expect("validated old spell ID"),
-                i32::try_from(new_spell_id).expect("validated new spell ID"),
-            )),
-            SpellAcquisitionPostCommitActionLikeCpp::UnlearnedSpell { spell_id } => session
-                .send_packet(&wow_packet::packets::trainer::UnlearnedSpells::single(
+            } => {
+                session.send_packet(&wow_packet::packets::trainer::SupercededSpells::single(
+                    i32::try_from(old_spell_id).expect("validated old spell ID"),
+                    i32::try_from(new_spell_id).expect("validated new spell ID"),
+                ));
+            }
+            SpellAcquisitionPostCommitActionLikeCpp::UnlearnedSpell { spell_id } => {
+                session.send_packet(&wow_packet::packets::trainer::UnlearnedSpells::single(
                     spell_id, false,
-                )),
+                ));
+            }
             SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield { .. } => {
                 if !runtime_actions_already_applied
                     && !session.grant_dual_wield_after_spell_acquisition_like_cpp()

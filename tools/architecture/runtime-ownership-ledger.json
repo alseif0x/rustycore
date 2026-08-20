@@ -1952,9 +1952,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session.rs",
-          "production_lines": 71951,
+          "production_lines": 71961,
           "test_lines": 94888,
-          "total_lines": 166839,
+          "total_lines": 166849,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             152,

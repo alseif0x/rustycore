@@ -23358,8 +23358,11 @@ impl WorldSession {
         if let Some(packet) =
             player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
         {
-            self.send_packet(&packet);
-            return true;
+            // Reaching the send is not the same as the send being accepted:
+            // the channel can be closed, and a publication recorded on the
+            // strength of getting this far would claim a packet the client
+            // never received.
+            return self.send_packet(&packet);
         }
         false
     }
@@ -41472,7 +41475,12 @@ impl WorldSession {
     }
 
     /// Send a server packet back to the client via the instance (default) channel.
-    pub fn send_packet<P: wow_packet::ServerPacket>(&self, pkt: &P) {
+    /// Enqueue one packet, reporting whether it was accepted.
+    ///
+    /// The channel can be closed, and swallowing that made every caller unable
+    /// to tell a delivered packet from a discarded one. Callers that record a
+    /// publication need the difference; the rest ignore the value as before.
+    pub fn send_packet<P: wow_packet::ServerPacket>(&self, pkt: &P) -> bool {
         let data = pkt.to_bytes();
         if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
             info!(
@@ -41484,7 +41492,9 @@ impl WorldSession {
         }
         if self.send_tx.send(data).is_err() {
             warn!("Send channel closed for account {}", self.account_id);
+            return false;
         }
+        true
     }
 
     /// Attempts to enqueue one instance-channel packet without waiting for

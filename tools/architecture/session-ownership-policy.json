@@ -39224,7 +39224,7 @@
           "kind": "method",
           "name": "send_packet",
           "visibility": "pub",
-          "signature": "fn send_packet < P : wow_packet :: ServerPacket > (& self , pkt : & P)",
+          "signature": "fn send_packet < P : wow_packet :: ServerPacket > (& self , pkt : & P) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
