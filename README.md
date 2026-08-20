@@ -218,17 +218,23 @@ PROTOC=/path/to/protoc cargo check -p world-server
 git diff --check
 ```
 
-The local preflight mirrors GitHub's required Rust commands and is the recommended gate before
-pushing. Use `quick` while iterating and `full` after committing to a clean HEAD:
+First-party development uses the path-scoped local harness. Use `quick` while iterating and
+`final` once before publishing the completed commit:
 
 ```bash
-./tools/pr-preflight.sh quick
-./tools/pr-preflight.sh full origin/3.4.3
+./tools/local-harness.sh quick
+./tools/local-harness.sh final origin/3.4.3
 ```
 
-`full` reproduces the required Rust CI commands, runs the committed capture-diff gate, and invokes
-a read-only local Codex review. It does not replace the required GitHub reviewer verdict. See
-[`docs/operations/pr-preflight.md`](docs/operations/pr-preflight.md) for profiles and safety bounds.
+The harness is non-interactive and agent-agnostic: humans, Kimi, Codex, Grok, Claude, and other
+agents use the same commands. The remote trust decision depends only on the PR author's exact
+GitHub login.
+
+Pull requests authored by `alseif0x` allocate no remote validation runners; external PRs retain
+the full hosted checks. The exhaustive preflight remains available for explicit audits and live
+QA, not daily iteration. See
+[`docs/operations/local-first-development.md`](docs/operations/local-first-development.md) and
+[`docs/operations/pr-preflight.md`](docs/operations/pr-preflight.md).
 
 Inventory TSV files are part of the migration state. Keep their column counts valid:
 
@@ -250,8 +256,9 @@ Every meaningful gameplay change should follow this shape:
 6. Update migration docs and inventories.
 7. Run checks.
 8. Commit the slice on its issue-linked feature branch.
-9. Run `./tools/pr-preflight.sh full origin/3.4.3` on the clean committed HEAD.
-10. Push and open a PR into `3.4.3`; merge only after every required remote check passes.
+9. Run `./tools/local-harness.sh final origin/3.4.3`.
+10. Push and open a PR into `3.4.3`. First-party remote jobs are intentionally skipped; external
+    contributions must pass every required hosted check.
 
 Do not bulk-close rows. Do not mark a runtime feature complete just because a packet parser exists. Do not trust existing Rust code just because it compiles.
 
