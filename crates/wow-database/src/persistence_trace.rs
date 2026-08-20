@@ -395,6 +395,21 @@ static AMBIENT: Mutex<Option<PersistenceRecorder>> = Mutex::new(None);
 
 /// The installed recorder, if a recording is in progress.
 pub fn ambient_recorder() -> Option<PersistenceRecorder> {
+    // Checked before the lock, not after. Every `Database::query` and
+    // `Database::execute` reaches here, so taking a process-wide mutex to
+    // discover that nothing is being recorded put a global serialization point
+    // on the normal production path -- the one mode where the recorder is
+    // supposed to cost nothing.
+    //
+    // Safe against a session starting or ending concurrently, because of the
+    // order the two pieces of state move in: install sets the recorder and
+    // *then* the flag, so a caller that sees the flag always finds the
+    // recorder; drop restores the recorder and *then* the flag, so a caller in
+    // between sees the flag but reads the restored slot. Neither window
+    // records into a recorder that is going away.
+    if !recording_enabled() {
+        return None;
+    }
     AMBIENT
         .lock()
         .ok()
@@ -407,15 +422,24 @@ pub fn ambient_recorder() -> Option<PersistenceRecorder> {
 /// against each other.
 #[derive(Debug)]
 pub struct RecordingSession {
+    /// Restored on drop, so nesting is transparent to the outer recording.
+    previous: Option<PersistenceRecorder>,
     _capture: RecordingGuard,
 }
 
 impl RecordingSession {
     pub fn install(recorder: PersistenceRecorder) -> Self {
-        if let Ok(mut ambient) = AMBIENT.lock() {
-            *ambient = Some(recorder);
-        }
+        // The previous recorder is kept, not discarded. `RecordingGuard`
+        // already restores the previous *flag* on drop; clearing the recorder
+        // instead of restoring it meant a nested session left the outer one
+        // recording into nothing, so a helper that installs its own session
+        // silently truncated the trace its caller was collecting.
+        let previous = AMBIENT
+            .lock()
+            .ok()
+            .and_then(|mut ambient| ambient.replace(recorder));
         Self {
+            previous,
             _capture: RecordingGuard::enable(),
         }
     }
@@ -424,7 +448,7 @@ impl RecordingSession {
 impl Drop for RecordingSession {
     fn drop(&mut self) {
         if let Ok(mut ambient) = AMBIENT.lock() {
-            *ambient = None;
+            *ambient = self.previous.take();
         }
     }
 }
@@ -952,6 +976,62 @@ mod tests {
             }],
             "the publication must be the recorded event: {trace:?}"
         );
+    }
+
+    #[test]
+    fn a_nested_recording_gives_the_outer_one_back() {
+        let _serialized = capture_flag_test_lock();
+        let outer = PersistenceRecorder::new();
+        let outer_session = RecordingSession::install(outer.clone());
+
+        {
+            // A helper that installs its own session used to clear the ambient
+            // slot on drop instead of restoring it, so everything the caller
+            // recorded afterwards went nowhere and its trace ended early with
+            // nothing to say it had.
+            let inner = PersistenceRecorder::new();
+            let _inner_session = RecordingSession::install(inner.clone());
+            record_publication("inner.only");
+            assert_eq!(inner.snapshot().events.len(), 1, "the inner one records");
+        }
+
+        record_publication("outer.after.nesting");
+        let events = outer.take().events;
+        assert_eq!(
+            events,
+            vec![PersistenceEvent::Publication {
+                label: "outer.after.nesting".to_owned()
+            }],
+            "the outer recording must resume, and must not have the inner event: {events:?}"
+        );
+        drop(outer_session);
+    }
+
+    #[test]
+    fn the_ambient_lookup_is_free_when_nothing_is_recording() {
+        // Every Database::query and execute reaches `ambient_recorder`. Taking
+        // the process-wide mutex to learn there is no recorder put a global
+        // serialization point on the normal production path, so the flag is
+        // checked first. Asserting the answer, since asserting the absence of a
+        // lock is not something a test can see directly.
+        let _serialized = capture_flag_test_lock();
+        assert!(
+            !recording_enabled(),
+            "no recording is installed at the start of this test"
+        );
+        assert!(
+            ambient_recorder().is_none(),
+            "and the lookup answers without one"
+        );
+
+        let recorder = PersistenceRecorder::new();
+        let session = RecordingSession::install(recorder);
+        assert!(
+            ambient_recorder().is_some(),
+            "the fast path must not hide a recorder that is installed"
+        );
+        drop(session);
+        assert!(ambient_recorder().is_none(), "nor keep one that is gone");
     }
 
     #[test]
