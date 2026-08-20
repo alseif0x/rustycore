@@ -2217,6 +2217,12 @@ def run_path_module_scanner_self_tests() -> int:
             "#[path",
             '    = "continued.rs"]',
             "mod continued;",
+            "macro_rules! decoy {",
+            "    () => {",
+            '        #[path = "inmacro.rs"]',
+            "        mod inmacro;",
+            "    };",
+            "}",
         ]
     )
     is_code = rust_code_offsets(source)
@@ -2367,6 +2373,9 @@ def path_module_target(match: re.Match[str]) -> str:
 # at every one made the scan quadratic on a six-figure-line hotspot.
 RAW_STRING_PREFIX = re.compile(r'(?:b?r|rb)(#*)"')
 
+# `macro_rules! name {` — the body is masked wholesale.
+MACRO_RULES_HEAD = re.compile(r"macro_rules!\s*\w+\s*[{(\[]")
+
 
 def rust_code_offsets(source: str) -> list[bool]:
     """Mark which byte offsets are code rather than comment or string interior.
@@ -2399,7 +2408,27 @@ def rust_code_offsets(source: str) -> list[bool]:
 
     while index < length:
         pair = source[index : index + 2]
-        if pair == "//":
+        if macro := MACRO_RULES_HEAD.match(source, index):
+            # A `macro_rules!` body is a token tree, not code: rustc creates no
+            # module for a `#[path]` written inside one unless the macro is
+            # invoked, and charging the child to the macro's file on the
+            # strength of an uninvoked definition moves a ceiling for nothing.
+            opener = macro.end() - 1
+            closer = {"{": "}", "(": ")", "[": "]"}[source[opener]]
+            depth = 0
+            scan = opener
+            while scan < length:
+                if source[scan] == source[opener]:
+                    depth += 1
+                elif source[scan] == closer:
+                    depth -= 1
+                    if depth == 0:
+                        scan += 1
+                        break
+                scan += 1
+            mask(macro.start(), scan)
+            index = scan
+        elif pair == "//":
             stop = source.find("\n", index)
             stop = length if stop == -1 else stop
             mask(index, stop)
