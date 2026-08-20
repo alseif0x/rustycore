@@ -256,10 +256,14 @@ async fn release_item_guid_allocator_lock_like_cpp(
         .bind(lock_name)
         .fetch_one(&mut **connection)
         .await
-        .map_err(DatabaseError::from)?;
+        .map_err(DatabaseError::from);
     // Releasing is the other half of the lifetime: a trace that showed the
     // acquisition and never its release would describe a lock still held.
+    // Recorded even when the statement errored, because the monitor's
+    // close-on-drop connection goes with it and MySQL drops the session lock
+    // regardless -- exiting through `?` first left exactly that false trace.
     crate::persistence_trace::record_advisory_lock(lock_name, false);
+    let released = released?;
     if released != Some(1) {
         return Err(DatabaseError::Transaction(format!(
             "{allocator_label} GUID allocator advisory lock {lock_name} was not owned at shutdown"
@@ -343,7 +347,7 @@ const TRACE_COMMITTING: u8 = 2;
 /// A terminal event was already recorded.
 const TRACE_RESOLVED: u8 = 3;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct SqlTransaction {
     statements: Vec<TransactionStatement>,
     cleaned_up_like_cpp: bool,
@@ -373,6 +377,19 @@ struct PendingRawStatement {
 struct TransactionStatement {
     statement: PreparedStatement,
     expected_rows_affected: Option<u64>,
+}
+
+impl Default for SqlTransaction {
+    /// Same as [`SqlTransaction::new`], deliberately not derived.
+    ///
+    /// A derived `Default` leaves `trace: None`, and the legacy-password
+    /// migration replaces its batch with `std::mem::take` every ten thousand
+    /// accounts: the first batch was traced and every one after it silently was
+    /// not. Anything that can produce a transaction has to pick up the ambient
+    /// recorder the same way.
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SqlTransaction {
@@ -521,8 +538,33 @@ impl SqlTransaction {
     }
 
     fn record_retry_boundary(&self) {
-        if let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) {
-            recorder.record(PersistenceEvent::TransactionBegin { database });
+        let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) else {
+            return;
+        };
+        recorder.record(PersistenceEvent::TransactionBegin { database });
+        // The retry sends every statement again, so the trace has to show them
+        // again. Emitting the boundary alone described an empty transaction
+        // followed by a commit, which is a worse account of the attempt than
+        // the missing boundary it replaced.
+        for transaction_statement in &self.statements {
+            let stmt = &transaction_statement.statement;
+            let params = stmt.params().iter().map(TracedParam::from_param).collect();
+            match stmt.trace_identity() {
+                Some(statement) => recorder.record(PersistenceEvent::Statement {
+                    database,
+                    connection: ConnectionAffinity::Transaction,
+                    statement: statement.to_owned(),
+                    params,
+                    expected_rows_affected: transaction_statement.expected_rows_affected,
+                    observed_rows_affected: None,
+                }),
+                None => recorder.record(PersistenceEvent::RawStatement {
+                    database,
+                    connection: ConnectionAffinity::Transaction,
+                    digest: raw_statement_digest(stmt.sql()),
+                    params,
+                }),
+            }
         }
     }
 
@@ -1213,6 +1255,32 @@ mod trace_tests {
                 .iter()
                 .any(|event| matches!(event, PersistenceEvent::BatchAbandoned { .. })),
             "statements were sent, so it was not abandoned: {events:?}"
+        );
+    }
+
+    #[test]
+    fn a_default_built_transaction_is_traced_like_a_new_one() {
+        use crate::persistence_trace::RecordingSession;
+
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        // The legacy-password migration replaces its batch with
+        // `std::mem::take` every ten thousand accounts. With a derived
+        // `Default` the replacement carried no recorder, so the first batch was
+        // traced and every one after it was not -- a trace that looks complete
+        // and covers a fraction of the work.
+        {
+            let mut trans = SqlTransaction::default();
+            trans.append(PreparedStatement::for_statement(
+                CharStatements::UPD_CHAR_MONEY,
+            ));
+        }
+
+        assert!(
+            !recorder.take().events.is_empty(),
+            "a transaction from Default must pick up the ambient recorder"
         );
     }
 

@@ -239,10 +239,13 @@ impl<S: StatementDef> Database<S> {
                 });
                 if !succeeded && definitely_not_run {
                     // Never reached the server, so the statement definitely did
-                    // not run — a rollback in the only sense available without a
-                    // transaction.
-                    recorder
-                        .record(crate::persistence_trace::PersistenceEvent::Rollback { database });
+                    // not run. Deliberately not `Rollback`: that is a
+                    // transaction event, and emitting it after a `Pooled`
+                    // statement with no `TransactionBegin` describes a
+                    // transaction that was never opened being undone.
+                    recorder.record(crate::persistence_trace::PersistenceEvent::Fence {
+                        label: format!("pooled-statement-not-run:{}", database.as_str()),
+                    });
                 } else if !succeeded {
                     // Deliberately not a `Rollback`: there is no transaction
                     // here, and a transport error on an autocommit write may
@@ -652,13 +655,13 @@ mod tests {
                     expected_rows_affected: None,
                     observed_rows_affected: None,
                 },
-                PersistenceEvent::Rollback {
-                    database: LogicalDatabase::Character,
+                PersistenceEvent::Fence {
+                    label: "pooled-statement-not-run:character".to_owned(),
                 }
             ],
-            "a read on its own connection must not look like part of a transaction, \
-             and a pool-acquisition failure is a definite non-execution rather than \
-             an ambiguous outcome"
+            "a read on its own connection must not look like part of a transaction; a \
+             pool-acquisition failure is a definite non-execution, and saying so with \
+             `Rollback` would describe undoing a transaction that was never opened"
         );
     }
 
