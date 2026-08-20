@@ -6977,7 +6977,7 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Observation only: files a statement running on its own pooled connection into the trace recorder. It issues no statement of its own and runs before the query it describes, so the recorded order is the order the adapter was asked for, not the order MySQL served.",
+      "current_order": "Observation only: files a statement running on its own pooled connection into the trace recorder. It issues no statement of its own and runs *after* the awaited query, not before it, so the event can carry whether the statement ran and how many rows it touched. The cost is that a statement in flight when the process dies leaves no record of having been attempted; recording before the await would invert that trade, and carrying both an attempt and a completion event is tracked in #218 rather than assumed here. The recorded order is still the order the adapter was asked for, not the order MySQL served.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path."
     },
     {

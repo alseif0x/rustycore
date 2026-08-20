@@ -520,6 +520,12 @@ impl SqlTransaction {
             .store(TRACE_RESOLVED, std::sync::atomic::Ordering::Relaxed);
     }
 
+    fn record_retry_boundary(&self) {
+        if let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) {
+            recorder.record(PersistenceEvent::TransactionBegin { database });
+        }
+    }
+
     fn record_deadlock_retry(&self, attempt: u32) {
         if let (Some(recorder), Some(database)) = (&self.trace, self.trace_database) {
             recorder.record(PersistenceEvent::DeadlockRetry { database, attempt });
@@ -683,6 +689,12 @@ impl SqlTransaction {
 
             attempt += 1;
             self.record_deadlock_retry(attempt);
+            // `try_commit_inner` opens a new sqlx transaction, so this attempt
+            // is a new boundary: the previous one rolled back and could have
+            // applied nothing, while this one starts over. A trace showing a
+            // single begin around several attempts describes one transaction
+            // where the server saw more than one.
+            self.record_retry_boundary();
             let retry = self.try_commit_inner(pool).await;
             if retry.is_ok() {
                 return retry;
