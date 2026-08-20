@@ -509,7 +509,20 @@ impl SqlTransaction {
     /// every statement in the batch was built raw, which is the only way those
     /// transactions get a boundary at all.
     pub(crate) fn attribute_to_like_cpp(&mut self, database: LogicalDatabase) {
-        if self.trace_database.is_some() {
+        if let Some(opened) = self.trace_database {
+            // `SqlTransaction` erases the statement family, so a batch of
+            // Character statements compiles when handed to
+            // `Database<LoginStatements>`. The SQL then runs on Login while the
+            // trace says Character, and the contradiction is the whole point of
+            // recording connection affinity -- returning early hid it.
+            if opened != database
+                && let Some(recorder) = &self.trace
+            {
+                recorder.record(PersistenceEvent::MixedLogicalDatabases {
+                    opened,
+                    appended: database,
+                });
+            }
             return;
         }
         let Some(recorder) = self.trace.clone() else {
@@ -1278,6 +1291,37 @@ mod trace_tests {
                 .iter()
                 .any(|event| matches!(event, PersistenceEvent::BatchAbandoned { .. })),
             "statements were sent, so it was not abandoned: {events:?}"
+        );
+    }
+
+    #[test]
+    fn committing_a_typed_batch_through_the_wrong_adapter_is_recorded() {
+        use crate::persistence_trace::RecordingSession;
+
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let recorder = PersistenceRecorder::new();
+        let _recording = RecordingSession::install(recorder.clone());
+
+        // `SqlTransaction` erases the statement family, so a batch of Character
+        // statements compiles when handed to `Database<LoginStatements>`. The
+        // SQL runs on Login while the trace says Character; recording the
+        // contradiction is the point of tracking connection affinity at all.
+        let mut trans = SqlTransaction::new();
+        trans.append(PreparedStatement::for_statement(
+            CharStatements::UPD_CHAR_MONEY,
+        ));
+        trans.attribute_to_like_cpp(LogicalDatabase::Login);
+
+        let events = recorder.take().events;
+        assert!(
+            events.iter().any(|event| matches!(
+                event,
+                PersistenceEvent::MixedLogicalDatabases {
+                    opened: LogicalDatabase::Character,
+                    appended: LogicalDatabase::Login,
+                }
+            )),
+            "a batch committed through another database's adapter must say so: {events:?}"
         );
     }
 

@@ -683,6 +683,20 @@ pub fn record_advisory_lock(label: &str, acquired: bool) {
     }
 }
 
+/// Records a durable workflow that never opened its transaction.
+///
+/// The explicitly traced money paths guard their transaction with
+/// [`ExplicitTransactionTrace`], which is constructed only after
+/// `pool().begin()` succeeds. When the connection cannot be acquired the guard
+/// never exists and the trace stays empty, so a definite non-execution reads
+/// exactly like the workflow never being reached -- and only one of those is
+/// safe to retry.
+pub fn record_batch_not_started(database: LogicalDatabase) {
+    if let Some(recorder) = ambient_recorder() {
+        recorder.record(PersistenceEvent::BatchAbandoned { database });
+    }
+}
+
 /// Records a point the plan must not cross until prior work is durable.
 pub fn record_fence(label: &str) {
     if let Some(recorder) = ambient_recorder() {

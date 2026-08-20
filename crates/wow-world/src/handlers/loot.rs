@@ -13421,7 +13421,16 @@ async fn attempt_stored_item_money_transaction_like_cpp(
     // complete.
     let mut transaction = match char_db.pool().begin().await {
         Ok(transaction) => transaction,
-        Err(error) => return Err(definitely(error)),
+        Err(error) => {
+            // No connection, so nothing was attempted. Recorded rather than
+            // returning silently: an empty trace makes a definite
+            // non-execution indistinguishable from the workflow never being
+            // reached, and only one of those is safe to retry.
+            wow_database::persistence_trace::record_batch_not_started(
+                wow_database::persistence_trace::LogicalDatabase::Character,
+            );
+            return Err(definitely(error));
+        }
     };
     // Guarded for its whole lifetime: every early return through `?` drops the
     // transaction, SQLx rolls it back, and the guard records that end — including
