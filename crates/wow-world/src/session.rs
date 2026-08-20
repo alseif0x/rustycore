@@ -23297,12 +23297,16 @@ impl WorldSession {
         virtual_item_changes: &[(u8, i32, u16, u16)],
         buyback_changes: &[(u8, u32, i64)],
         coinage: Option<u64>,
-    ) {
+    ) -> bool {
+        // Reports whether a packet was enqueued. Callers that record a
+        // publication need to know: this returns early when there is no player
+        // GUID or snapshot, and the trace must not claim the client saw
+        // something that was never sent.
         let Some(guid) = self.player_guid() else {
-            return;
+            return false;
         };
         let Some(mut player) = self.player_values_update_snapshot() else {
-            return;
+            return false;
         };
 
         if let Some(coinage) = coinage {
@@ -23355,7 +23359,9 @@ impl WorldSession {
             player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
         {
             self.send_packet(&packet);
+            return true;
         }
+        false
     }
 
     /// Publish the canonical `ActivePlayerData::Skill` image after a durable

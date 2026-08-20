@@ -1185,14 +1185,23 @@ impl WorldSession {
         // then release it before draining criteria, matching the #159 order.
         self.stage_player_money_change_like_cpp(old_money, new_money);
         if old_money != new_money {
-            self.send_player_values_update_from_entity_bridge(&[], &[], &[], &[], Some(new_money));
             // The client sees the charge before the pet, and this packet goes
             // out before the Character commit. Leaving it out of the trace made
             // moving it across the commit -- or after the pet packets --
             // invisible, which is the ordering the crash window is defined by.
-            wow_database::persistence_trace::record_publication(
-                "battle_pet_trainer_purchase.money",
-            );
+            // Recorded only when it was actually enqueued: the bridge returns
+            // early with no player GUID or snapshot and sends nothing.
+            if self.send_player_values_update_from_entity_bridge(
+                &[],
+                &[],
+                &[],
+                &[],
+                Some(new_money),
+            ) {
+                wow_database::persistence_trace::record_publication(
+                    "battle_pet_trainer_purchase.money",
+                );
+            }
         }
         drop(money_persistence);
         self.drain_represented_quest_objective_progress_like_cpp()
