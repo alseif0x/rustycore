@@ -2212,6 +2212,11 @@ def run_path_module_scanner_self_tests() -> int:
             "mod hashed;",
             '#[path = "escaped\\x2ers"]',
             "mod escaped;",
+            'const DOC: &str = r#"see #[path = "inraw.rs"] for details"#;',
+            "const CH: char = '\\'';",
+            "#[path",
+            '    = "continued.rs"]',
+            "mod continued;",
         ]
     )
     is_code = rust_code_offsets(source)
@@ -2225,7 +2230,14 @@ def run_path_module_scanner_self_tests() -> int:
             continue
         declaration = PATH_MODULE_DECLARATION.search(source[match.start() :])
         found.add(path_module_target(declaration) if declaration else "?")
-    expected = {"real_tests.rs", "plain.rs", "rawly.rs", "hashed.rs", "escaped.rs"}
+    expected = {
+        "real_tests.rs",
+        "plain.rs",
+        "rawly.rs",
+        "hashed.rs",
+        "escaped.rs",
+        "continued.rs",
+    }
     if found != expected:
         raise ArchitectureError(
             "path scanner self-test failed: declarations counted as code were "
@@ -2353,25 +2365,39 @@ def path_module_target(match: re.Match[str]) -> str:
 def rust_code_offsets(source: str) -> list[bool]:
     """Mark which byte offsets are code rather than comment or string interior.
 
-    A `#[path = "x.rs"]` written inside a doc comment or a string literal is not
-    a mount, and matching one would aggregate an unrelated file into a hotspot
-    and drop it from the report -- a sentence about the attribute would move a
-    ceiling. The attribute's own value *is* a string, so the interiors cannot
-    simply be blanked; instead a match is accepted only when it *starts* in
-    code, and then read from the original text. Rust's side of this uses `syn`
-    and is immune; this is the text-scanning half catching up.
+    A `#[path = "x.rs"]` written inside a comment or a string is not a mount,
+    and matching one would aggregate an unrelated file into a hotspot and drop
+    it from the report -- a sentence about the attribute would move a ceiling.
+    The attribute's own value *is* a string, so interiors cannot simply be
+    blanked; a match is accepted only when it *starts* in code and is then read
+    from the original text.
+
+    Covers the four things that can contain a `#` in Rust source: line
+    comments, block comments (which nest), ordinary strings (whose escapes can
+    hide a closing quote), and raw strings (whose delimiter is a variable
+    number of hashes and which have no escapes at all). Character literals are
+    skipped too, and lifetimes -- `'a` -- are not mistaken for the start of
+    one, since an unterminated char literal would mask the rest of the file.
+
+    Rust's side of this uses `syn` and is immune by construction; this is the
+    text-scanning half, and getting it wrong in the permissive direction is
+    what reopens the ceiling bypass.
     """
     is_code = [True] * len(source)
     index = 0
     length = len(source)
+
+    def mask(start: int, stop: int) -> None:
+        for offset in range(max(start, 0), min(stop, length)):
+            is_code[offset] = False
+
     while index < length:
         pair = source[index : index + 2]
         if pair == "//":
-            end = source.find("\n", index)
-            end = length if end == -1 else end
-            for offset in range(index, end):
-                is_code[offset] = False
-            index = end
+            stop = source.find("\n", index)
+            stop = length if stop == -1 else stop
+            mask(index, stop)
+            index = stop
         elif pair == "/*":
             depth = 1
             scan = index + 2
@@ -2384,9 +2410,20 @@ def rust_code_offsets(source: str) -> list[bool]:
                     scan += 2
                 else:
                     scan += 1
-            for offset in range(index, scan):
-                is_code[offset] = False
+            mask(index, scan)
             index = scan
+        elif source[index] in "rb" and (
+            raw := re.match(r'(?:b?r|rb)(#*)"', source[index:])
+        ):
+            # Raw string: closed by a quote followed by the same hash count,
+            # with no escapes to consider.
+            hashes = raw.group(1)
+            body = index + raw.end()
+            terminator = '"' + hashes
+            stop = source.find(terminator, body)
+            stop = length if stop == -1 else stop + len(terminator)
+            mask(body, stop - len(terminator))
+            index = stop
         elif source[index] == '"':
             scan = index + 1
             while scan < length:
@@ -2397,12 +2434,18 @@ def rust_code_offsets(source: str) -> list[bool]:
                     scan += 1
                     break
                 scan += 1
-            # The quotes stay code; only the interior is masked, so an attribute
-            # keeps its own value while a `#[path ..]` written inside a string
-            # starts in masked text and is refused.
-            for offset in range(index + 1, min(scan - 1, length)):
-                is_code[offset] = False
+            mask(index + 1, scan - 1)
             index = scan
+        elif source[index] == "'":
+            # A char literal, or a lifetime. `'a` is a lifetime; `'a'` is a
+            # char. Treating a lifetime as an opening quote would mask
+            # everything after it.
+            char = re.match(r"'(?:\\.|[^\\'])'", source[index:])
+            if char:
+                mask(index + 1, index + char.end() - 1)
+                index += char.end()
+            else:
+                index += 1
         else:
             index += 1
     return is_code
@@ -2423,31 +2466,33 @@ def path_module_children(path: pathlib.Path, source: str) -> list[tuple[pathlib.
     """
     children = []
     is_code = rust_code_offsets(source)
-    line_starts = []
-    offset = 0
-    for line in source.splitlines(keepends=True):
-        line_starts.append(offset)
-        offset += len(line)
-    lines = source.splitlines()
-    for index, line in enumerate(lines):
-        match = PATH_MODULE_DECLARATION.search(line)
-        if not match:
-            continue
+    # Scanned over the whole source rather than line by line: the attribute may
+    # be written across lines, and a line-bounded search silently misses it --
+    # which leaves the child uncharged to the hotspot that mounts it.
+    for match in PATH_MODULE_DECLARATION.finditer(source):
         # Accepted only if the declaration begins in code.
-        if not is_code[line_starts[index] + match.start()]:
+        if not is_code[match.start()]:
             continue
         child = (path.parent / path_module_target(match)).resolve()
         if not (child.is_file() and child.suffix == ".rs"):
             continue
-        # Attributes preceding the #[path] on the same declaration.
+        # The cfg can sit on the declaration rather than inside the child --
+        # `character_vendor_atomicity_tests.rs` has no inner attribute because
+        # its parent's `#[cfg(test)]` supplies one -- so test-only-ness is read
+        # from the attributes attached to this same declaration. Read backwards
+        # from the match over whatever precedes it, stopping at the first thing
+        # that is not another attribute.
+        preceding = source[:match.start()].rstrip()
         test_only = False
-        for previous in reversed(lines[max(0, index - 4) : index]):
-            stripped = previous.strip()
-            if not stripped.startswith("#["):
+        while preceding.endswith("]"):
+            opening = preceding.rfind("#[")
+            if opening == -1 or not is_code[opening]:
                 break
-            if stripped.replace(" ", "") == "#[cfg(test)]":
+            attribute = preceding[opening:]
+            if "".join(attribute.split()) == "#[cfg(test)]":
                 test_only = True
                 break
+            preceding = preceding[:opening].rstrip()
         children.append((child, test_only))
     return children
 
