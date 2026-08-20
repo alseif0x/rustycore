@@ -1716,7 +1716,10 @@ fn collect_units(
     builder.finish(registry_accesses, persistence_accesses, bridge_accesses)
 }
 
-fn repository_relative_path(repository_root: &Path, source_path: &Path) -> Result<String, String> {
+pub(crate) fn repository_relative_path(
+    repository_root: &Path,
+    source_path: &Path,
+) -> Result<String, String> {
     let relative = source_path.strip_prefix(repository_root).map_err(|_| {
         format!(
             "audited source {} is outside repository root {}",
@@ -2169,6 +2172,22 @@ fn check_repository_scoped(
 ///
 /// The command only returns text; callers must review and merge the
 /// `syntax_baseline` object deliberately into the semantic policy.
+/// Print every `#[path]` mount in the workspace, resolved by `syn`.
+///
+/// The Python guard charges a `#[path]` child's lines to the parent that mounts
+/// it, and finding those mounts by scanning text meant reimplementing a Rust
+/// lexer: comments, escapes, raw strings, char literals, macro bodies, trivia
+/// between attribute tokens. Each gap was a way to move a ceiling, and the list
+/// does not end -- an invoked macro can generate a real mount that no scanner
+/// can see without expanding it. There is one parser in this repository that
+/// already gets this right, so the guard asks it instead of growing a second.
+pub fn print_path_module_mounts() -> Result<String, String> {
+    let repository_root = crate::repository_root()?;
+    let mounts = crate::ownership::workspace_path_module_mounts(&repository_root)?;
+    serde_json::to_string_pretty(&mounts)
+        .map_err(|error| format!("cannot serialize path module mounts: {error}"))
+}
+
 pub fn print_repository_baseline() -> Result<String, String> {
     let repository_root = crate::repository_root()?;
     // Without persistence: the envelope skips that field when serializing, so

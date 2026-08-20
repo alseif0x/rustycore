@@ -1028,6 +1028,35 @@ fn source_graph_fixture(name: &str) -> PathBuf {
 }
 
 #[test]
+fn a_child_shebang_does_not_survive_into_the_inline_module() {
+    let fixture = source_graph_fixture("splice-shebang");
+    let crate_root = fixture.join("src/lib.rs");
+    let child = fixture.join("src/child.rs");
+    fs::create_dir_all(crate_root.parent().expect("crate root parent"))
+        .expect("create crate root directory");
+    fs::write(&crate_root, "#[path = \"child.rs\"]\nmod child;\n").expect("write crate root");
+    // rustc and rustfmt accept a shebang atop an external module file. Inside
+    // `mod child { .. }` the same line is an inner attribute and does not
+    // parse, so splicing it through made the whole parent unparseable and every
+    // row it owned vanished from the inventory.
+    fs::write(&child, "#!/usr/bin/env false\npub fn thing() {}\n").expect("write child");
+
+    let spliced = read_spliced_source(&crate_root, &fixture).expect("splice the path module");
+
+    assert!(
+        !spliced.contains("#!/usr/bin/env"),
+        "the shebang must not be carried inside the module: {spliced}"
+    );
+    assert!(
+        spliced.contains("pub fn thing()"),
+        "the child's code must still arrive: {spliced}"
+    );
+    syn::parse_file(&spliced).expect("the spliced source must still be valid Rust");
+
+    fs::remove_dir_all(&fixture).expect("clean up fixture");
+}
+
+#[test]
 fn path_module_is_spliced_back_into_its_parent_so_extraction_is_invisible() {
     let fixture = source_graph_fixture("splice-path");
     let crate_root = fixture.join("src/lib.rs");

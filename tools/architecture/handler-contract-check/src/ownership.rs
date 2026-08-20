@@ -1032,6 +1032,7 @@ fn read_spliced_source_at_depth(
         );
         let resolved = validate_source_file(&child_path, package_root, &context)?;
         let child = read_spliced_source_at_depth(&resolved, package_root, depth + 1)?;
+        let child = strip_shebang(&child);
         let body = strip_inner_cfg_test(&child, &module.attrs, &resolved)?;
 
         // The declaration is rebuilt by slicing the original bytes rather than by
@@ -1078,6 +1079,27 @@ fn read_spliced_source_at_depth(
         spliced.replace_range(range, &text);
     }
     Ok(spliced)
+}
+
+/// Drop a leading `#!` shebang line.
+///
+/// rustc and rustfmt accept a shebang at the top of an external module file,
+/// but inside `mod child { .. }` it is not valid Rust: `#!` there begins an
+/// inner attribute. Splicing it through made the reconstructed parent
+/// unparseable, so the whole file dropped out of the inventory -- a silent loss
+/// of every row it owned.
+///
+/// Only a first line starting `#!` and not `#![`, which is the shebang rather
+/// than an inner attribute.
+fn strip_shebang(source: &str) -> String {
+    if !source.starts_with("#!") || source.starts_with("#![") {
+        return source.to_owned();
+    }
+    match source.find('\n') {
+        // The newline is kept so byte offsets after it do not shift.
+        Some(end) => source[end..].to_owned(),
+        None => String::new(),
+    }
 }
 
 /// Drop a `#![cfg(test)]` that the `mod` declaration already states.
@@ -1450,6 +1472,49 @@ pub(crate) struct WorkspaceSourceMount {
 
 /// Resolve every workspace production lib/bin module graph using the same
 /// locked Cargo metadata and path rules as the handler ownership audit.
+/// Every `#[path]` mount in the workspace, as repository-relative paths.
+///
+/// `parent` mounts `child`, and `test_only` says whether the declaration or the
+/// child itself is `cfg(test)`. Emitted for the Python guard, which charges a
+/// child's lines to its parent and has no business parsing Rust to find them.
+#[derive(Debug, serde::Serialize)]
+pub(crate) struct PathModuleMount {
+    parent: String,
+    child: String,
+    test_only: bool,
+}
+
+pub(crate) fn workspace_path_module_mounts(
+    repository_root: &Path,
+) -> Result<Vec<PathModuleMount>, String> {
+    let mut mounts = Vec::new();
+    for mount in workspace_source_mounts(repository_root)? {
+        let raw = fs::read_to_string(&mount.source_path)
+            .map_err(|error| format!("cannot read {}: {error}", mount.source_path.display()))?;
+        for (child, ident, attributes) in path_module_children(&mount.source_path, &raw) {
+            let _ = ident;
+            let declared_test_only = normalized_cfg_attributes(&attributes)
+                .iter()
+                .any(|cfg| cfg.replace(' ', "") == "cfg(test)");
+            let child_inner = child_inner_attributes(&child)?;
+            let inner_test_only = normalized_cfg_attributes(&child_inner)
+                .iter()
+                .any(|cfg| cfg.replace(' ', "") == "cfg(test)");
+            mounts.push(PathModuleMount {
+                parent: crate::session_ownership::repository_relative_path(
+                    repository_root,
+                    &mount.source_path,
+                )?,
+                child: crate::session_ownership::repository_relative_path(repository_root, &child)?,
+                test_only: declared_test_only || inner_test_only,
+            });
+        }
+    }
+    mounts.sort_by(|left, right| (&left.parent, &left.child).cmp(&(&right.parent, &right.child)));
+    mounts.dedup_by(|left, right| left.parent == right.parent && left.child == right.child);
+    Ok(mounts)
+}
+
 pub(crate) fn workspace_source_mounts(
     repository_root: &Path,
 ) -> Result<Vec<WorkspaceSourceMount>, String> {

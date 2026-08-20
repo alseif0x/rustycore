@@ -2194,62 +2194,29 @@ def hotspot_line_counts(source: str) -> tuple[int, int, int]:
 
 
 def run_path_module_scanner_self_tests() -> int:
-    """Prove a `#[path]` counts as a mount only where it is code."""
-    source = "\n".join(
-        [
-            '/// Uses `#[path = "prose.rs"]` in prose',
-            '// #[path = "commented.rs"]',
-            '/* #[path = "blocked.rs"] */',
-            'const SQL: &str = "#[path = \\"quoted.rs\\"]";',
-            "#[cfg(test)]",
-            '#[path = "real_tests.rs"]',
-            "mod tests;",
-            '#[path = "plain.rs"]',
-            "mod plain;",
-            '#[path = r"rawly.rs"]',
-            "mod rawly;",
-            '#[path = r#"hashed.rs"#]',
-            "mod hashed;",
-            '#[path = "escaped\\x2ers"]',
-            "mod escaped;",
-            'const DOC: &str = r#"see #[path = "inraw.rs"] for details"#;',
-            "const CH: char = '\\'';",
-            "#[path",
-            '    = "continued.rs"]',
-            "mod continued;",
-            "macro_rules! decoy {",
-            "    () => {",
-            '        #[path = "inmacro.rs"]',
-            "        mod inmacro;",
-            "    };",
-            "}",
-        ]
-    )
-    is_code = rust_code_offsets(source)
-    # Every `#[path` in the fixture, classified by whether it starts in code.
-    # Located by scanning rather than by exact-string lookup, because the decoy
-    # inside the string literal is written with escaped quotes and would not
-    # match the plain form.
-    found = set()
-    for match in re.finditer(r"#\[path", source):
-        if not is_code[match.start()]:
-            continue
-        declaration = PATH_MODULE_DECLARATION.search(source[match.start() :])
-        found.add(path_module_target(declaration) if declaration else "?")
-    expected = {
-        "real_tests.rs",
-        "plain.rs",
-        "rawly.rs",
-        "hashed.rs",
-        "escaped.rs",
-        "continued.rs",
-    }
-    if found != expected:
+    """Prove the `#[path]` mapping covers the mounts this repository has.
+
+    The mapping comes from `syn` by way of the Rust analyzer, so the thing worth
+    checking here is not lexing -- it is that the guard is actually consuming it
+    and that every mount it reports resolves to a file whose parent exists. A
+    silent empty mapping would put every `#[path]` child back outside its
+    parent's ceiling, which is the failure this aggregation exists to prevent.
+    """
+    mounts = path_module_mounts()
+    if not mounts:
         raise ArchitectureError(
-            "path scanner self-test failed: declarations counted as code were "
-            f"{sorted(found)}, expected {sorted(expected)}"
+            "path module mapping is empty; this repository mounts #[path] children, "
+            "so an empty result means the analyzer was not consulted"
         )
-    return 1
+    for parent, children in mounts.items():
+        if not parent.is_file():
+            raise ArchitectureError(f"#[path] parent {parent} does not exist")
+        for child, _ in children:
+            if not child.is_file():
+                raise ArchitectureError(f"#[path] child {child} does not exist")
+            if child == parent:
+                raise ArchitectureError(f"{parent} cannot mount itself")
+    return len(mounts)
 
 
 def run_hotspot_classifier_self_tests() -> int:
@@ -2313,223 +2280,66 @@ def run_hotspot_classifier_self_tests() -> int:
 HOTSPOT_ROW_CACHE: dict[pathlib.Path, tuple[int, int, int, str]] = {}
 
 
-# Both string forms Rust accepts here. `#[path = r"child.rs"]` is valid and
-# rustfmt-stable, and a pattern that only knew ordinary literals left that child
-# as a row of its own -- its lines uncharged to the hotspot that mounts it, which
-# is the ceiling bypass this aggregation exists to close.
-PATH_MODULE_DECLARATION = re.compile(
-    r'#\[path\s*=\s*(?:r(?P<hashes>\#*)"(?P<raw>.*?)"(?P=hashes)'
-    r'|"(?P<plain>(?:[^"\\]|\\.)*)")\s*\]'
+PATH_MODULE_MOUNTS_COMMAND = (
+    "cargo",
+    "run",
+    "--quiet",
+    "--release",
+    "--locked",
+    "--manifest-path",
+    "tools/architecture/handler-contract-check/Cargo.toml",
+    "--bin",
+    "session-ownership-check",
+    "--",
+    "print-path-modules",
 )
 
-RUST_STRING_ESCAPE = re.compile(r"\\(x[0-9A-Fa-f]{2}|u\{[0-9A-Fa-f]{1,6}\}|.)", re.DOTALL)
-
-RUST_SIMPLE_ESCAPES = {
-    "n": "\n",
-    "r": "\r",
-    "t": "\t",
-    "0": "\0",
-    "\\": "\\",
-    '"': '"',
-    "'": "'",
-}
+PATH_MODULE_MOUNTS_CACHE: dict[str, dict[pathlib.Path, list[tuple[pathlib.Path, bool]]]] = {}
 
 
-def decode_rust_string(literal: str) -> str:
-    """Resolve the escapes in an ordinary Rust string literal.
+def path_module_mounts() -> dict[pathlib.Path, list[tuple[pathlib.Path, bool]]]:
+    """Which files each source mounts with `#[path]`, resolved by `syn`.
 
-    `#[path = "foo\\x2ers"]` is a valid spelling of `foo.rs` and rustc mounts
-    the same file either way. Returning the undecoded text meant the child was
-    never found, so its lines went uncharged to the hotspot that mounts it --
-    the same ceiling bypass as the raw-string form, in a different disguise.
+    Asked of the Rust analyzer rather than scanned here. Finding these in text
+    means reimplementing a Rust lexer -- comments, escapes, raw strings, char
+    literals versus lifetimes, macro bodies, trivia between attribute tokens --
+    and every gap is a way to move a hotspot ceiling. That list does not end:
+    an invoked `macro_rules!` can generate a mount no scanner can see without
+    expanding it. One parser in this repository already resolves all of it, so
+    this asks that one instead of maintaining a second.
     """
-
-    def replace(match: re.Match[str]) -> str:
-        body = match.group(1)
-        if body.startswith("x"):
-            return chr(int(body[1:], 16))
-        if body.startswith("u{"):
-            return chr(int(body[2:-1], 16))
-        # A line continuation swallows the newline and the indent after it.
-        if body == "\n":
-            return ""
-        return RUST_SIMPLE_ESCAPES.get(body, body)
-
-    return RUST_STRING_ESCAPE.sub(replace, literal)
-
-
-def path_module_target(match: re.Match[str]) -> str:
-    """The file a `#[path]` match names, whichever string form it used.
-
-    Raw strings have no escapes by definition, so only the ordinary form is
-    decoded.
-    """
-    raw = match.group("raw")
-    return raw if raw is not None else decode_rust_string(match.group("plain"))
-
-
-# Matched in place against the source rather than against a slice of it: an
-# `r` or `b` is common in ordinary identifiers, and copying the remaining source
-# at every one made the scan quadratic on a six-figure-line hotspot.
-RAW_STRING_PREFIX = re.compile(r'(?:b?r|rb)(#*)"')
-
-# `macro_rules! name {` — the body is masked wholesale.
-MACRO_RULES_HEAD = re.compile(r"macro_rules!\s*\w+\s*[{(\[]")
-
-
-def rust_code_offsets(source: str) -> list[bool]:
-    """Mark which byte offsets are code rather than comment or string interior.
-
-    A `#[path = "x.rs"]` written inside a comment or a string is not a mount,
-    and matching one would aggregate an unrelated file into a hotspot and drop
-    it from the report -- a sentence about the attribute would move a ceiling.
-    The attribute's own value *is* a string, so interiors cannot simply be
-    blanked; a match is accepted only when it *starts* in code and is then read
-    from the original text.
-
-    Covers the four things that can contain a `#` in Rust source: line
-    comments, block comments (which nest), ordinary strings (whose escapes can
-    hide a closing quote), and raw strings (whose delimiter is a variable
-    number of hashes and which have no escapes at all). Character literals are
-    skipped too, and lifetimes -- `'a` -- are not mistaken for the start of
-    one, since an unterminated char literal would mask the rest of the file.
-
-    Rust's side of this uses `syn` and is immune by construction; this is the
-    text-scanning half, and getting it wrong in the permissive direction is
-    what reopens the ceiling bypass.
-    """
-    is_code = [True] * len(source)
-    index = 0
-    length = len(source)
-
-    def mask(start: int, stop: int) -> None:
-        for offset in range(max(start, 0), min(stop, length)):
-            is_code[offset] = False
-
-    while index < length:
-        pair = source[index : index + 2]
-        if macro := MACRO_RULES_HEAD.match(source, index):
-            # A `macro_rules!` body is a token tree, not code: rustc creates no
-            # module for a `#[path]` written inside one unless the macro is
-            # invoked, and charging the child to the macro's file on the
-            # strength of an uninvoked definition moves a ceiling for nothing.
-            opener = macro.end() - 1
-            closer = {"{": "}", "(": ")", "[": "]"}[source[opener]]
-            depth = 0
-            scan = opener
-            while scan < length:
-                if source[scan] == source[opener]:
-                    depth += 1
-                elif source[scan] == closer:
-                    depth -= 1
-                    if depth == 0:
-                        scan += 1
-                        break
-                scan += 1
-            mask(macro.start(), scan)
-            index = scan
-        elif pair == "//":
-            stop = source.find("\n", index)
-            stop = length if stop == -1 else stop
-            mask(index, stop)
-            index = stop
-        elif pair == "/*":
-            depth = 1
-            scan = index + 2
-            while scan < length and depth:
-                if source[scan : scan + 2] == "/*":
-                    depth += 1
-                    scan += 2
-                elif source[scan : scan + 2] == "*/":
-                    depth -= 1
-                    scan += 2
-                else:
-                    scan += 1
-            mask(index, scan)
-            index = scan
-        elif source[index] in "rb" and (
-            raw := RAW_STRING_PREFIX.match(source, index)
-        ):
-            # Raw string: closed by a quote followed by the same hash count,
-            # with no escapes to consider.
-            hashes = raw.group(1)
-            body = raw.end()
-            terminator = '"' + hashes
-            stop = source.find(terminator, body)
-            stop = length if stop == -1 else stop + len(terminator)
-            mask(body, stop - len(terminator))
-            index = stop
-        elif source[index] == '"':
-            scan = index + 1
-            while scan < length:
-                if source[scan] == "\\":
-                    scan += 2
-                    continue
-                if source[scan] == '"':
-                    scan += 1
-                    break
-                scan += 1
-            mask(index + 1, scan - 1)
-            index = scan
-        elif source[index] == "'":
-            # A char literal, or a lifetime. `'a` is a lifetime; `'a'` is a
-            # char. Treating a lifetime as an opening quote would mask
-            # everything after it.
-            char = re.match(r"'(?:\\.|[^\\'])'", source[index:])
-            if char:
-                mask(index + 1, index + char.end() - 1)
-                index += char.end()
-            else:
-                index += 1
-        else:
-            index += 1
-    return is_code
+    if "mounts" in PATH_MODULE_MOUNTS_CACHE:
+        return PATH_MODULE_MOUNTS_CACHE["mounts"]
+    result = subprocess.run(
+        PATH_MODULE_MOUNTS_COMMAND,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode:
+        raise ArchitectureError(
+            "cannot resolve #[path] module mounts: "
+            f"{result.stderr.strip() or result.stdout.strip()}"
+        )
+    try:
+        rows = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise ArchitectureError(f"#[path] mount output is not JSON: {exc}") from exc
+    mounts: dict[pathlib.Path, list[tuple[pathlib.Path, bool]]] = {}
+    for row in rows:
+        parent = REPO_ROOT / row["parent"]
+        mounts.setdefault(parent, []).append(
+            (REPO_ROOT / row["child"], bool(row["test_only"]))
+        )
+    PATH_MODULE_MOUNTS_CACHE["mounts"] = mounts
+    return mounts
 
 
 def path_module_children(path: pathlib.Path, source: str) -> list[tuple[pathlib.Path, bool]]:
-    """Files this one mounts with `#[path]`, and whether the mount is test-only.
-
-    `#[path]` does not change the module tree, so the child is part of this
-    module and not a file of its own. Counting it separately would let a
-    module's ceiling be evaded by moving code across the boundary, which is
-    exactly what extracting a `mod tests` does.
-
-    The cfg can sit on the declaration rather than inside the child --
-    `character_vendor_atomicity_tests.rs` has no inner attribute because its
-    parent's `#[cfg(test)]` already supplies one -- so test-only-ness is read
-    from the mount, not only from the file.
-    """
-    children = []
-    is_code = rust_code_offsets(source)
-    # Scanned over the whole source rather than line by line: the attribute may
-    # be written across lines, and a line-bounded search silently misses it --
-    # which leaves the child uncharged to the hotspot that mounts it.
-    for match in PATH_MODULE_DECLARATION.finditer(source):
-        # Accepted only if the declaration begins in code.
-        if not is_code[match.start()]:
-            continue
-        child = (path.parent / path_module_target(match)).resolve()
-        if not (child.is_file() and child.suffix == ".rs"):
-            continue
-        # The cfg can sit on the declaration rather than inside the child --
-        # `character_vendor_atomicity_tests.rs` has no inner attribute because
-        # its parent's `#[cfg(test)]` supplies one -- so test-only-ness is read
-        # from the attributes attached to this same declaration. Read backwards
-        # from the match over whatever precedes it, stopping at the first thing
-        # that is not another attribute.
-        preceding = source[:match.start()].rstrip()
-        test_only = False
-        while preceding.endswith("]"):
-            opening = preceding.rfind("#[")
-            if opening == -1 or not is_code[opening]:
-                break
-            attribute = preceding[opening:]
-            if "".join(attribute.split()) == "#[cfg(test)]":
-                test_only = True
-                break
-            preceding = preceding[:opening].rstrip()
-        children.append((child, test_only))
-    return children
+    """Files `path` mounts with `#[path]`, and whether each mount is test-only."""
+    del source
+    return path_module_mounts().get(path, [])
 
 
 def hotspot_row(path: pathlib.Path) -> tuple[int, int, int, str]:

@@ -10,6 +10,7 @@ fn usage() -> ExitCode {
         "usage: session-ownership-check check [--policy PATH]\n       \
          session-ownership-check check --syntax-only\n       \
          session-ownership-check print-baseline\n       \
+         session-ownership-check print-path-modules\n       \
          session-ownership-check print-persistence-baseline\n       \
          session-ownership-check print-persistence-policy [--from-snapshot PATH]"
     );
@@ -28,6 +29,9 @@ fn main() -> ExitCode {
         [command, flag, policy] if command == "check" && flag == "--policy" => {
             let policy = PathBuf::from(policy);
             handler_contract_check::check_session_ownership_repository(Some(&policy))
+        }
+        [command] if command == "print-path-modules" => {
+            handler_contract_check::print_path_module_mounts()
         }
         [command] if command == "print-baseline" => {
             handler_contract_check::print_session_ownership_baseline()
