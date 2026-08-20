@@ -2194,7 +2194,7 @@ def hotspot_line_counts(source: str) -> tuple[int, int, int]:
 
 
 def run_path_module_scanner_self_tests() -> int:
-    """Prove a `#[path]` is only a mount when it is code."""
+    """Prove a `#[path]` counts as a mount only where it is code."""
     source = "\n".join(
         [
             '/// Uses `#[path = "prose.rs"]` in prose',
@@ -2209,19 +2209,22 @@ def run_path_module_scanner_self_tests() -> int:
         ]
     )
     is_code = rust_code_offsets(source)
-    for decoy in ("prose.rs", "commented.rs", "blocked.rs", "quoted.rs"):
-        offset = source.index(f'#[path = "{decoy}"]')
-        if is_code[offset]:
-            raise ArchitectureError(
-                f"path scanner self-test failed: {decoy} declaration must not count as code"
-            )
-    for real, expected_cfg in (("real_tests.rs", True), ("plain.rs", False)):
-        offset = source.index(f'#[path = "{real}"]')
-        if not is_code[offset]:
-            raise ArchitectureError(
-                f"path scanner self-test failed: {real} declaration is code and must count"
-            )
-        del expected_cfg
+    # Every `#[path` in the fixture, classified by whether it starts in code.
+    # Located by scanning rather than by exact-string lookup, because the decoy
+    # inside the string literal is written with escaped quotes and would not
+    # match the plain form.
+    found = set()
+    for match in re.finditer(r"#\[path", source):
+        if not is_code[match.start()]:
+            continue
+        name = re.search(r'"((?:[^"\\]|\\.)*)"', source[match.start() :])
+        found.add(name.group(1) if name else "?")
+    expected = {"real_tests.rs", "plain.rs"}
+    if found != expected:
+        raise ArchitectureError(
+            "path scanner self-test failed: declarations counted as code were "
+            f"{sorted(found)}, expected {sorted(expected)}"
+        )
     return 1
 
 
