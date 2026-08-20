@@ -1186,7 +1186,8 @@ impl WorldSession {
         self.stage_player_money_change_like_cpp(old_money, new_money);
         if old_money != new_money {
             // The client sees the charge before the pet, and this packet goes
-            // out before the Character commit. Leaving it out of the trace made
+            // out *after* the Character transaction commits -- the charge is
+            // awaited and matched before reaching here. Leaving it out made
             // moving it across the commit -- or after the pet packets --
             // invisible, which is the ordering the crash window is defined by.
             // Recorded only when it was actually enqueued: the bridge returns
