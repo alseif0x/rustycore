@@ -8697,6 +8697,24 @@
       "package": "wow-database",
       "module": "crate::transaction",
       "source": "crates/wow-database/src/transaction.rs",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "enclosing": "impl SqlTransaction::record_retry_boundary",
+      "connection_affinity": "None. Observation only: it appends events to an in-memory recorder and touches no connection. The logical database it names is the one the batch established from its first appended statement.",
+      "current_order": "Between a deadlock rollback and the retry that follows it. `try_commit_inner` opens a new sqlx transaction for each attempt, so each attempt is its own boundary: this emits the `TransactionBegin` and then replays the batch's statements, because the retry re-sends every one of them. Emitting the boundary without the statements described an empty transaction followed by a commit.",
+      "failure_and_unknown_commit": "Not applicable: it issues nothing and cannot fail. The outcome of the attempt it opens is recorded by the commit path that follows."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::transaction",
+      "source": "crates/wow-database/src/transaction.rs",
       "enclosing": "impl SqlTransaction::record_statement",
       "logical_databases": [
         "characters",
@@ -8782,6 +8800,24 @@
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::transaction",
+      "source": "crates/wow-database/src/transaction.rs",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "enclosing": "impl transaction::Default for SqlTransaction",
+      "connection_affinity": "None. Constructs an empty batch and picks up the ambient recorder if one is installed; no connection is selected until the batch is committed through a typed adapter.",
+      "current_order": "First, before any statement is appended. Defers to `SqlTransaction::new` rather than being derived: a derived `Default` left `trace: None`, so a batch replaced through `std::mem::take` -- as the legacy-password migration does every ten thousand accounts -- stopped being traced after the first one.",
+      "failure_and_unknown_commit": "Not applicable: nothing is sent and no commit is classified here."
     },
     {
       "package": "wow-database",
