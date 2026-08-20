@@ -2193,6 +2193,38 @@ def hotspot_line_counts(source: str) -> tuple[int, int, int]:
     return len(lines), production_lines, test_lines
 
 
+def run_path_module_scanner_self_tests() -> int:
+    """Prove a `#[path]` is only a mount when it is code."""
+    source = "\n".join(
+        [
+            '/// Uses `#[path = "prose.rs"]` in prose',
+            '// #[path = "commented.rs"]',
+            '/* #[path = "blocked.rs"] */',
+            'const SQL: &str = "#[path = \\"quoted.rs\\"]";',
+            "#[cfg(test)]",
+            '#[path = "real_tests.rs"]',
+            "mod tests;",
+            '#[path = "plain.rs"]',
+            "mod plain;",
+        ]
+    )
+    is_code = rust_code_offsets(source)
+    for decoy in ("prose.rs", "commented.rs", "blocked.rs", "quoted.rs"):
+        offset = source.index(f'#[path = "{decoy}"]')
+        if is_code[offset]:
+            raise ArchitectureError(
+                f"path scanner self-test failed: {decoy} declaration must not count as code"
+            )
+    for real, expected_cfg in (("real_tests.rs", True), ("plain.rs", False)):
+        offset = source.index(f'#[path = "{real}"]')
+        if not is_code[offset]:
+            raise ArchitectureError(
+                f"path scanner self-test failed: {real} declaration is code and must count"
+            )
+        del expected_cfg
+    return 1
+
+
 def run_hotspot_classifier_self_tests() -> int:
     """Prove cfg(test) extents survive lexical traps and stop at item ends."""
     lines = [
@@ -2257,6 +2289,64 @@ HOTSPOT_ROW_CACHE: dict[pathlib.Path, tuple[int, int, int, str]] = {}
 PATH_MODULE_DECLARATION = re.compile(r'#\[path\s*=\s*"([^"]+)"\]')
 
 
+def rust_code_offsets(source: str) -> list[bool]:
+    """Mark which byte offsets are code rather than comment or string interior.
+
+    A `#[path = "x.rs"]` written inside a doc comment or a string literal is not
+    a mount, and matching one would aggregate an unrelated file into a hotspot
+    and drop it from the report -- a sentence about the attribute would move a
+    ceiling. The attribute's own value *is* a string, so the interiors cannot
+    simply be blanked; instead a match is accepted only when it *starts* in
+    code, and then read from the original text. Rust's side of this uses `syn`
+    and is immune; this is the text-scanning half catching up.
+    """
+    is_code = [True] * len(source)
+    index = 0
+    length = len(source)
+    while index < length:
+        pair = source[index : index + 2]
+        if pair == "//":
+            end = source.find("\n", index)
+            end = length if end == -1 else end
+            for offset in range(index, end):
+                is_code[offset] = False
+            index = end
+        elif pair == "/*":
+            depth = 1
+            scan = index + 2
+            while scan < length and depth:
+                if source[scan : scan + 2] == "/*":
+                    depth += 1
+                    scan += 2
+                elif source[scan : scan + 2] == "*/":
+                    depth -= 1
+                    scan += 2
+                else:
+                    scan += 1
+            for offset in range(index, scan):
+                is_code[offset] = False
+            index = scan
+        elif source[index] == '"':
+            scan = index + 1
+            while scan < length:
+                if source[scan] == "\\":
+                    scan += 2
+                    continue
+                if source[scan] == '"':
+                    scan += 1
+                    break
+                scan += 1
+            # The quotes stay code; only the interior is masked, so an attribute
+            # keeps its own value while a `#[path ..]` written inside a string
+            # starts in masked text and is refused.
+            for offset in range(index + 1, min(scan - 1, length)):
+                is_code[offset] = False
+            index = scan
+        else:
+            index += 1
+    return is_code
+
+
 def path_module_children(path: pathlib.Path, source: str) -> list[tuple[pathlib.Path, bool]]:
     """Files this one mounts with `#[path]`, and whether the mount is test-only.
 
@@ -2271,10 +2361,19 @@ def path_module_children(path: pathlib.Path, source: str) -> list[tuple[pathlib.
     from the mount, not only from the file.
     """
     children = []
+    is_code = rust_code_offsets(source)
+    line_starts = []
+    offset = 0
+    for line in source.splitlines(keepends=True):
+        line_starts.append(offset)
+        offset += len(line)
     lines = source.splitlines()
     for index, line in enumerate(lines):
         match = PATH_MODULE_DECLARATION.search(line)
         if not match:
+            continue
+        # Accepted only if the declaration begins in code.
+        if not is_code[line_starts[index] + match.start()]:
             continue
         child = (path.parent / match.group(1)).resolve()
         if not (child.is_file() and child.suffix == ".rs"):
@@ -3412,6 +3511,7 @@ def main() -> int:
             runtime_ownership_rejections = run_runtime_ownership_self_tests(
                 runtime_ledger, ledger
             )
+            run_path_module_scanner_self_tests()
             hotspot_classifier_fixtures = run_hotspot_classifier_self_tests()
             hotspot_ratchet_rejections, hotspot_reduction_acceptances = (
                 run_hotspot_ratchet_self_tests(runtime_ledger)

@@ -1746,17 +1746,20 @@ fn repository_units(
     let package_root = repository_root.join(package_root);
     let crate_root = repository_root.join(crate_root);
     let (mounts, _) = audit_package_source_mounts(&package_root, &[crate_root])?;
-    let mut mounted_children: std::collections::BTreeSet<std::path::PathBuf> =
-        std::collections::BTreeSet::new();
-    for source_path in mounts.keys() {
-        let raw = fs::read_to_string(source_path)
-            .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
-        mounted_children.extend(crate::ownership::path_module_children(source_path, &raw));
-    }
+    let spliced_contexts = crate::ownership::spliced_child_contexts(&mounts)?;
     let mut units = Vec::new();
     for (source_path, contexts) in mounts {
-        // Already inside the parent that mounts it.
-        if mounted_children.contains(&source_path) {
+        // Filtered by context, not by file: see the workspace collector for why
+        // a file reached both through `#[path]` and ordinarily keeps the
+        // ordinary mount.
+        let contexts: std::collections::BTreeSet<_> = contexts
+            .into_iter()
+            .filter(|context| {
+                !spliced_contexts
+                    .contains(&(source_path.clone(), context.logical_module_path.clone()))
+            })
+            .collect();
+        if contexts.is_empty() {
             continue;
         }
         let source = read_spliced_source(&source_path, &package_root)?;

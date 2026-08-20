@@ -896,6 +896,30 @@ fn child_module_directory(source: &Path) -> Result<PathBuf, String> {
 /// Splicing removes the indirection before anything is analyzed, so the audit
 /// sees the module tree the compiler sees and the extraction is invisible to
 /// every ratchet at once, rather than each analyzer needing its own repair.
+/// Which (file, logical module path) pairs are reached through a `#[path]`.
+///
+/// Matched by logical path, not by file, so a file that is also mounted
+/// ordinarily keeps that mount: skipping the whole file would drop the ordinary
+/// context from the analysis without saying so.
+pub(crate) fn spliced_child_contexts(
+    mounts: &BTreeMap<PathBuf, BTreeSet<SourceMountContext>>,
+) -> Result<BTreeSet<(PathBuf, String)>, String> {
+    let mut spliced = BTreeSet::new();
+    for (parent_path, parent_contexts) in mounts {
+        let raw = fs::read_to_string(parent_path)
+            .map_err(|error| format!("cannot read {}: {error}", parent_path.display()))?;
+        for (child, ident) in path_module_children(parent_path, &raw) {
+            for parent_context in parent_contexts {
+                spliced.insert((
+                    child.clone(),
+                    format!("{}::{ident}", parent_context.logical_module_path),
+                ));
+            }
+        }
+    }
+    Ok(spliced)
+}
+
 /// Files reachable only as `#[path]` children of `source`.
 ///
 /// A consumer that reads sources through [`read_spliced_source`] already has
@@ -903,7 +927,7 @@ fn child_module_directory(source: &Path) -> Result<PathBuf, String> {
 /// and reintroduce the separate-unit provenance loss the splice exists to
 /// remove. The mount graph still records them, which is where the `#[path]`
 /// count and the duplicate-owner rejection live.
-pub(crate) fn path_module_children(source_path: &Path, source: &str) -> Vec<PathBuf> {
+pub(crate) fn path_module_children(source_path: &Path, source: &str) -> Vec<(PathBuf, String)> {
     let Ok(syntax) = syn::parse_file(source) else {
         return Vec::new();
     };
@@ -921,7 +945,7 @@ pub(crate) fn path_module_children(source_path: &Path, source: &str) -> Vec<Path
             .unwrap_or_else(|| Path::new("."))
             .join(relative);
         if let Ok(resolved) = child.canonicalize() {
-            children.push(resolved);
+            children.push((resolved, module.ident.to_string()));
         }
     }
     children
@@ -1420,22 +1444,29 @@ pub(crate) fn workspace_source_mounts(
                     scope.name
                 )
             })?;
-        let mut mounted_children: BTreeSet<PathBuf> = BTreeSet::new();
-        for source_path in mounts.keys() {
-            let raw = fs::read_to_string(source_path)
-                .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
-            mounted_children.extend(path_module_children(source_path, &raw));
-        }
+        let spliced_contexts = spliced_child_contexts(&mounts)?;
         for (source_path, contexts) in mounts {
-            // Already inside the parent that mounts it.
-            if mounted_children.contains(&source_path) {
+            // Contexts reached through a `#[path]` arrive inside their parent's
+            // spliced source, so analysing them here too would double-count
+            // them. Any other context for the same file -- `mod foo;
+            // #[path = "foo.rs"] mod alias;` is valid Rust and mounts one file
+            // twice -- still needs analysing, so the contexts are filtered
+            // rather than the file skipped.
+            let remaining: BTreeSet<SourceMountContext> = contexts
+                .into_iter()
+                .filter(|context| {
+                    !spliced_contexts
+                        .contains(&(source_path.clone(), context.logical_module_path.clone()))
+                })
+                .collect();
+            if remaining.is_empty() {
                 continue;
             }
             let source = read_spliced_source(&source_path, &scope.root)?;
             result.push(WorkspaceSourceMount {
                 package: scope.name.clone(),
                 source_path,
-                contexts,
+                contexts: remaining,
                 source,
             });
         }
