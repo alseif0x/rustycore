@@ -896,6 +896,19 @@ fn child_module_directory(source: &Path) -> Result<PathBuf, String> {
 /// Splicing removes the indirection before anything is analyzed, so the audit
 /// sees the module tree the compiler sees and the extraction is invisible to
 /// every ratchet at once, rather than each analyzer needing its own repair.
+/// The inner attributes a `#[path]` child declares on itself.
+///
+/// `walk_source_file` extends a mount's cfg with these, so a key built only
+/// from the parent's context and the declaration would not match the context
+/// the walker actually produced.
+fn child_inner_attributes(child: &Path) -> Result<Vec<syn::Attribute>, String> {
+    let source = fs::read_to_string(child)
+        .map_err(|error| format!("cannot read {}: {error}", child.display()))?;
+    let syntax = syn::parse_file(&source)
+        .map_err(|error| format!("cannot parse {}: {error}", child.display()))?;
+    Ok(syntax.attrs)
+}
+
 /// Which (file, logical module path) pairs are reached through a `#[path]`.
 ///
 /// Matched by logical path, not by file, so a file that is also mounted
@@ -916,10 +929,16 @@ pub(crate) fn spliced_child_contexts(
                 // `#[cfg(test)] #[path = "foo.rs"] mod foo;` -- and a
                 // name-only key matched both, filtering out the production
                 // context that no splice represents.
+                // The child's own inner attributes count too: `walk_source_file`
+                // extends the mount context with them, so a child carrying
+                // `#![cfg(unix)]` has a context this key would otherwise miss --
+                // leaving the spliced context unfiltered and its contents
+                // counted twice.
+                let declared = extend_cfg_context(&parent_context.cfg, &attributes);
                 spliced.insert((
                     child.clone(),
                     format!("{}::{ident}", parent_context.logical_module_path),
-                    extend_cfg_context(&parent_context.cfg, &attributes),
+                    extend_cfg_context(&declared, &child_inner_attributes(&child)?),
                 ));
             }
         }

@@ -2362,6 +2362,12 @@ def path_module_target(match: re.Match[str]) -> str:
     return raw if raw is not None else decode_rust_string(match.group("plain"))
 
 
+# Matched in place against the source rather than against a slice of it: an
+# `r` or `b` is common in ordinary identifiers, and copying the remaining source
+# at every one made the scan quadratic on a six-figure-line hotspot.
+RAW_STRING_PREFIX = re.compile(r'(?:b?r|rb)(#*)"')
+
+
 def rust_code_offsets(source: str) -> list[bool]:
     """Mark which byte offsets are code rather than comment or string interior.
 
@@ -2413,12 +2419,12 @@ def rust_code_offsets(source: str) -> list[bool]:
             mask(index, scan)
             index = scan
         elif source[index] in "rb" and (
-            raw := re.match(r'(?:b?r|rb)(#*)"', source[index:])
+            raw := RAW_STRING_PREFIX.match(source, index)
         ):
             # Raw string: closed by a quote followed by the same hash count,
             # with no escapes to consider.
             hashes = raw.group(1)
-            body = index + raw.end()
+            body = raw.end()
             terminator = '"' + hashes
             stop = source.find(terminator, body)
             stop = length if stop == -1 else stop + len(terminator)
