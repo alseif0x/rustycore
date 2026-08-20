@@ -1028,6 +1028,34 @@ fn source_graph_fixture(name: &str) -> PathBuf {
 }
 
 #[test]
+fn an_inner_attribute_split_by_a_comment_is_not_a_shebang() {
+    let fixture = source_graph_fixture("splice-inner-attr");
+    let crate_root = fixture.join("src/lib.rs");
+    let child = fixture.join("src/child.rs");
+    fs::create_dir_all(crate_root.parent().expect("crate root parent"))
+        .expect("create crate root directory");
+    fs::write(
+        &crate_root,
+        "#[cfg(test)]\n#[path = \"child.rs\"]\nmod child;\n",
+    )
+    .expect("write crate root");
+    // `#!// keep` then `[cfg(test)]` on the next line is one inner attribute,
+    // not a shebang. A first-line rule deleted the `#!//` and left a stray
+    // `[cfg(test)]` behind, which does not parse.
+    fs::write(&child, "#!// keep\n[cfg(test)]\npub fn thing() {}\n").expect("write child");
+
+    let spliced = read_spliced_source(&crate_root, &fixture).expect("splice the path module");
+
+    assert!(
+        spliced.contains("pub fn thing()"),
+        "the child's code must arrive: {spliced}"
+    );
+    syn::parse_file(&spliced).expect("the spliced source must still be valid Rust");
+
+    fs::remove_dir_all(&fixture).expect("clean up fixture");
+}
+
+#[test]
 fn a_child_shebang_does_not_survive_into_the_inline_module() {
     let fixture = source_graph_fixture("splice-shebang");
     let crate_root = fixture.join("src/lib.rs");

@@ -1113,8 +1113,10 @@ fn strip_shebang(source: &str) -> String {
     let Some(rest) = source.strip_prefix("#!") else {
         return source.to_owned();
     };
-    let first_line_end = rest.find('\n').unwrap_or(rest.len());
-    if strip_rust_trivia_prefix(&rest[..first_line_end]).starts_with('[') {
+    // Not bounded to the first line: a line comment between the `#!` and its
+    // bracket puts them on separate lines, and `#!// keep\n[cfg(test)]` is an
+    // inner attribute whose first line a shebang rule would delete.
+    if strip_rust_trivia_prefix(rest).starts_with('[') {
         return source.to_owned();
     }
     match source.find('\n') {
