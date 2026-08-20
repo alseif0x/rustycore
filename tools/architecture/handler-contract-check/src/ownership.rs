@@ -1004,9 +1004,6 @@ fn read_spliced_source_at_depth(
             source_path.display()
         ));
     }
-    if !source.contains("#[path") {
-        return Ok(source);
-    }
 
     let syntax = syn::parse_file(&source)
         .map_err(|error| format!("cannot parse {}: {error}", source_path.display()))?;
@@ -1081,6 +1078,24 @@ fn read_spliced_source_at_depth(
     Ok(spliced)
 }
 
+/// Skip leading whitespace and comments, so an attribute written with trivia
+/// between its tokens is still recognised as one.
+fn strip_rust_trivia_prefix(text: &str) -> &str {
+    let mut rest = text.trim_start();
+    loop {
+        if let Some(after) = rest.strip_prefix("/*") {
+            match after.find("*/") {
+                Some(end) => rest = after[end + 2..].trim_start(),
+                None => return "",
+            }
+        } else if let Some(after) = rest.strip_prefix("//") {
+            rest = after.find('\n').map_or("", |end| after[end..].trim_start());
+        } else {
+            return rest;
+        }
+    }
+}
+
 /// Drop a leading `#!` shebang line.
 ///
 /// rustc and rustfmt accept a shebang at the top of an external module file,
@@ -1092,7 +1107,14 @@ fn read_spliced_source_at_depth(
 /// Only a first line starting `#!` and not `#![`, which is the shebang rather
 /// than an inner attribute.
 fn strip_shebang(source: &str) -> String {
-    if !source.starts_with("#!") || source.starts_with("#![") {
+    // `#! /* keep */ [cfg(test)]` is an inner attribute, not a shebang: the
+    // bracket may be separated from the `#!` by trivia, so a `#![` prefix test
+    // strips a real attribute's first line.
+    let Some(rest) = source.strip_prefix("#!") else {
+        return source.to_owned();
+    };
+    let first_line_end = rest.find('\n').unwrap_or(rest.len());
+    if strip_rust_trivia_prefix(&rest[..first_line_end]).starts_with('[') {
         return source.to_owned();
     }
     match source.find('\n') {
@@ -1488,10 +1510,22 @@ pub(crate) fn workspace_path_module_mounts(
     repository_root: &Path,
 ) -> Result<Vec<PathModuleMount>, String> {
     let mut mounts = Vec::new();
-    for mount in workspace_source_mounts(repository_root)? {
-        let raw = fs::read_to_string(&mount.source_path)
-            .map_err(|error| format!("cannot read {}: {error}", mount.source_path.display()))?;
-        for (child, ident, attributes) in path_module_children(&mount.source_path, &raw) {
+    // Queued rather than iterated: `workspace_source_mounts` omits a spliced
+    // child, so a child that mounts a grandchild would never be read and only
+    // the first level of a chain would be reported.
+    let mut pending: Vec<PathBuf> = workspace_source_mounts(repository_root)?
+        .into_iter()
+        .map(|mount| mount.source_path)
+        .collect();
+    let mut seen: BTreeSet<PathBuf> = BTreeSet::new();
+    while let Some(source_path) = pending.pop() {
+        if !seen.insert(source_path.clone()) {
+            continue;
+        }
+        let raw = fs::read_to_string(&source_path)
+            .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
+        for (child, ident, attributes) in path_module_children(&source_path, &raw) {
+            pending.push(child.clone());
             let _ = ident;
             let declared_test_only = normalized_cfg_attributes(&attributes)
                 .iter()
@@ -1503,7 +1537,7 @@ pub(crate) fn workspace_path_module_mounts(
             mounts.push(PathModuleMount {
                 parent: crate::session_ownership::repository_relative_path(
                     repository_root,
-                    &mount.source_path,
+                    &source_path,
                 )?,
                 child: crate::session_ownership::repository_relative_path(repository_root, &child)?,
                 test_only: declared_test_only || inner_test_only,
@@ -1511,7 +1545,17 @@ pub(crate) fn workspace_path_module_mounts(
         }
     }
     mounts.sort_by(|left, right| (&left.parent, &left.child).cmp(&(&right.parent, &right.child)));
-    mounts.dedup_by(|left, right| left.parent == right.parent && left.child == right.child);
+    // Conservative merge: a pair mounted both test-only and production-capable
+    // is production-capable, because charging its lines as tests would take
+    // them out of the production ceiling they belong to.
+    mounts.dedup_by(|left, right| {
+        if left.parent == right.parent && left.child == right.child {
+            right.test_only = right.test_only && left.test_only;
+            true
+        } else {
+            false
+        }
+    });
     Ok(mounts)
 }
 
