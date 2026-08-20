@@ -1594,6 +1594,14 @@ pub(crate) struct WorkspaceSourceMount {
 /// `parent` mounts `child`, and `test_only` says whether the declaration or the
 /// child itself is `cfg(test)`. Emitted for the Python guard, which charges a
 /// child's lines to its parent and has no business parsing Rust to find them.
+///
+/// Only `#[path]` declarations are reported. A plain `mod foo;` resolving to
+/// `parent/foo.rs` by the ordinary rules is an extraction too, and its lines
+/// currently leave the parent's charged total -- so a hotspot could be split
+/// that way and the ratchet would accept the drop. Nothing in the tree does
+/// this today; closing it means implementing Rust's default path resolution and
+/// re-freezing every ratchet against the wider mount set, tracked as #220 and a
+/// prerequisite for the `session.rs` split.
 #[derive(Debug, serde::Serialize)]
 pub(crate) struct PathModuleMount {
     parent: String,
