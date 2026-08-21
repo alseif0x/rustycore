@@ -224,7 +224,9 @@ mod tests {
 
         let plaintext = b"Hello, World!";
         let (ciphertext, tag) = client_crypt.encrypt_client(plaintext, &[]).unwrap();
-        let decrypted = server_crypt.decrypt_server(&ciphertext, &tag, &[]).unwrap();
+        // Client and server traffic use distinct nonce domains. This fixture
+        // encrypts client-to-server traffic, so decrypt it in that direction.
+        let decrypted = server_crypt.decrypt_client(&ciphertext, &tag, &[]).unwrap();
 
         assert_eq!(plaintext[..], decrypted[..]);
     }
