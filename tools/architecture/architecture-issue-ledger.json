@@ -11,6 +11,7 @@
     }
   ],
   "sequence": [
+    131,
     135,
     143,
     146,
@@ -30,6 +31,16 @@
     181,
     185,
     186,
+    204,
+    205,
+    206,
+    208,
+    210,
+    213,
+    214,
+    218,
+    220,
+    223,
     188,
     136,
     187,
@@ -55,13 +66,29 @@
     182,
     183,
     184,
+    224,
+    225,
+    226,
+    227,
+    228,
+    229,
+    230,
+    231,
     153
   ],
   "issues": [
     {
+      "number": 131,
+      "state": "closed",
+      "title": "[ARCH.1] Add repository-scoped RustyCore architecture skills",
+      "kind": "slice",
+      "parents": [],
+      "depends_on": []
+    },
+    {
       "number": 133,
       "state": "open",
-      "title": "[ARCH.2] Modularize RustyCore around ownership, clocks and stable boundaries",
+      "title": "[ARCH] Modularize RustyCore: physical structure, ownership and extension seams",
       "kind": "epic",
       "parents": [],
       "depends_on": []
@@ -70,6 +97,16 @@
       "number": 169,
       "state": "open",
       "title": "[ARCH.DB] Establish SQLx-free persistence ownership and dialect adapters",
+      "kind": "epic",
+      "parents": [
+        133
+      ],
+      "depends_on": []
+    },
+    {
+      "number": 99,
+      "state": "open",
+      "title": "[ARCH.MODULES] External module ecosystem: linked Rust first, sandboxed Wasm later",
       "kind": "epic",
       "parents": [
         133
@@ -98,8 +135,8 @@
     },
     {
       "number": 136,
-      "state": "open",
-      "title": "[ARCH.2.3] Extract a private world-server session factory",
+      "state": "closed",
+      "title": "[ARCH.MOD.WORLD-SERVER] Split the composition root and extract the session factory",
       "kind": "slice",
       "parents": [
         133
@@ -139,7 +176,7 @@
     {
       "number": 139,
       "state": "open",
-      "title": "[ARCH.2.6] Extract Calendar as the first thin handler capability",
+      "title": "[ARCH.MOD.MISC] Split misc handlers into private capability modules",
       "kind": "slice",
       "parents": [
         133
@@ -151,7 +188,7 @@
     {
       "number": 140,
       "state": "open",
-      "title": "[ARCH.2.7b] Extract the ordinary/durable Session command pump",
+      "title": "[ARCH.MOD.MAILBOX] Extract Session mailbox protocol, durable rails and pump",
       "kind": "slice",
       "parents": [
         133
@@ -241,7 +278,7 @@
     {
       "number": 152,
       "state": "open",
-      "title": "[ARCH.2.7a] Extract WorldSession packet admission and dispatch submodules",
+      "title": "[ARCH.MOD.SESSION] Split WorldSession admission, dispatch and test structure",
       "kind": "slice",
       "parents": [
         133
@@ -254,7 +291,7 @@
     {
       "number": 153,
       "state": "open",
-      "title": "[ARCH.2.8] Re-audit the Session shell and materialize remaining semantic cuts",
+      "title": "[ARCH.CLOSE] Audit the completed modular architecture and retire remaining exceptions",
       "kind": "slice",
       "parents": [
         133
@@ -394,7 +431,7 @@
     {
       "number": 184,
       "state": "open",
-      "title": "[ARCH.2.7e] Extract Session login/logout lifecycle over persistence ports",
+      "title": "[ARCH.MOD.LIFECYCLE] Extract Session login and logout lifecycle modules",
       "kind": "slice",
       "parents": [
         133
@@ -434,7 +471,7 @@
     {
       "number": 187,
       "state": "open",
-      "title": "[ARCH.DB.2] Freeze persistence transaction and publication order before ports",
+      "title": "[ARCH.DB.2] Freeze Player lifecycle persistence order before its port",
       "kind": "slice",
       "parents": [
         133,
@@ -471,28 +508,23 @@
     },
     {
       "number": 190,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.4i] Move durable creature-runtime command storage out of wow-network",
       "kind": "slice",
       "parents": [
         133
       ],
-      "depends_on": [
-        188,
-        191
-      ]
+      "depends_on": []
     },
     {
       "number": 191,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.4h] Relocate the session mailbox protocol out of wow-network",
       "kind": "slice",
       "parents": [
         133
       ],
-      "depends_on": [
-        138
-      ]
+      "depends_on": []
     },
     {
       "number": 192,
@@ -611,6 +643,150 @@
         186,
         187
       ]
+    },
+    {
+      "number": 204,
+      "state": "open",
+      "title": "[ARCH.DB.1a] Resolve Self constants through the active trait impl",
+      "kind": "slice",
+      "parents": [133, 169],
+      "depends_on": [186]
+    },
+    {
+      "number": 205,
+      "state": "closed",
+      "title": "[ARCH.DB.1b] Respect cfg attributes on trait associated constants",
+      "kind": "slice",
+      "parents": [133, 169],
+      "depends_on": [186]
+    },
+    {
+      "number": 206,
+      "state": "closed",
+      "title": "[ARCH.PERF] Make the architecture gate fast: release profile, one scan, incremental caches",
+      "kind": "slice",
+      "parents": [133],
+      "depends_on": [185]
+    },
+    {
+      "number": 208,
+      "state": "closed",
+      "title": "[ARCH.PERF.1] Cut the gate's dead weight: redundant check, decorative clippy, unused scan",
+      "kind": "slice",
+      "parents": [133],
+      "depends_on": [206]
+    },
+    {
+      "number": 210,
+      "state": "closed",
+      "title": "[ARCH.PERF.2] Take the exact persistence scan off the PR path",
+      "kind": "slice",
+      "parents": [133],
+      "depends_on": [208]
+    },
+    {
+      "number": 213,
+      "state": "closed",
+      "title": "[ARCH.DB.2a] Close the persistence-trace gaps Codex found on #212",
+      "kind": "slice",
+      "parents": [133, 169],
+      "depends_on": [186]
+    },
+    {
+      "number": 214,
+      "state": "closed",
+      "title": "[ARCH.2.0] Extract the test modules that make the hotspots monstrous",
+      "kind": "slice",
+      "parents": [133],
+      "depends_on": [181]
+    },
+    {
+      "number": 218,
+      "state": "closed",
+      "title": "[ARCH.DB.2a] Scope the persistence recorder to a workflow and correlate its transactions",
+      "kind": "slice",
+      "parents": [133, 169],
+      "depends_on": [186]
+    },
+    {
+      "number": 220,
+      "state": "closed",
+      "title": "[ARCH] Charge ordinary external modules to their parent in the hotspot ratchet",
+      "kind": "slice",
+      "parents": [133],
+      "depends_on": [214]
+    },
+    {
+      "number": 223,
+      "state": "open",
+      "title": "[ARCH.PLAN] Align the modular roadmap, physical metrics and local-first policy",
+      "kind": "slice",
+      "parents": [133],
+      "depends_on": [220]
+    },
+    {
+      "number": 224,
+      "state": "open",
+      "title": "[ARCH.MOD.HANDLERS] Split character, loot and quest into private feature modules",
+      "kind": "slice",
+      "parents": [133],
+      "depends_on": []
+    },
+    {
+      "number": 225,
+      "state": "open",
+      "title": "[ARCH.MOD.MAP] Split Map and MapManager into private runtime modules",
+      "kind": "slice",
+      "parents": [133],
+      "depends_on": []
+    },
+    {
+      "number": 226,
+      "state": "open",
+      "title": "[ARCH.MOD.ENTITIES] Split Player and Unit subsystems into private domain modules",
+      "kind": "slice",
+      "parents": [133],
+      "depends_on": []
+    },
+    {
+      "number": 227,
+      "state": "open",
+      "title": "[ARCH.MOD.PROTOCOL] Split packet and spell-data hotspots by protocol domain",
+      "kind": "slice",
+      "parents": [133],
+      "depends_on": []
+    },
+    {
+      "number": 228,
+      "state": "open",
+      "title": "[ARCH.MODULES.1] Land the trusted linked module API with player.login to message",
+      "kind": "slice",
+      "parents": [133, 99],
+      "depends_on": []
+    },
+    {
+      "number": 229,
+      "state": "open",
+      "title": "[ARCH.MODULES.2] Compose external Cargo modules deterministically",
+      "kind": "slice",
+      "parents": [133, 99],
+      "depends_on": [228]
+    },
+    {
+      "number": 230,
+      "state": "open",
+      "title": "[ARCH.MODULES.3] Ship the agent-neutral module manager and official skeleton",
+      "kind": "slice",
+      "parents": [133, 99],
+      "depends_on": [229]
+    },
+    {
+      "number": 231,
+      "state": "open",
+      "title": "[ARCH.MODULES.4] Add typed module configuration and compatibility fixtures",
+      "kind": "slice",
+      "parents": [133, 99],
+      "depends_on": [230]
     }
   ]
 }

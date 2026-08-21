@@ -83,9 +83,11 @@ Work issue #<N> (alseif0x/rustycore).
 3. Smallest faithful change + focused tests (positive/negative); validate with PROTOC=... cargo check/test.
 4. Git: create the branch LINKED to the issue with `gh issue develop <N> --base 3.4.3`
    (not a bare `git checkout -b`), 1 issue = 1 PR into `3.4.3` (put `Closes #<N>` in the PR body), commit per gap, NO push unless asked.
-   Once push is approved, open the PR immediately so CI and the configured Codex reviewer can run; creating the PR is not the same as closing/merging it.
-5. Do not mark "done" until capture-clean vs C++ (capture-diff harness = issue [01]/#66)
-   and the required `Codex reviewer verdict` check is green for the PR's current HEAD.
+   Once push is approved, open the PR immediately; creating the PR is not the same as closing/merging it.
+5. For first-party PRs authored by exactly `alseif0x`, use `tools/local-harness.sh final` plus
+   focused evidence. External PRs retain remote CI/review. Require capture-diff only when bytes,
+   metadata, connection choice or observable ordering changed, and runtime QA only for a live
+   lifecycle/runtime change.
 ```
 
 **Linking the branch/PR to the issue:** the repo's **default branch is `3.4.3`** (the version/
@@ -115,7 +117,11 @@ Every implementation slice must follow this sequence:
 7. Update migration docs/checklists with the new `#NEXT.R8.ENTITIES.xxx` item when closing a represented implementation gap.
 8. Recalculate progress honestly.
 9. Run validation.
-10. Commit on the issue's feature branch, push, and open a PR into `3.4.3` (`Closes #<N>`); merge only after CI and the required `Codex reviewer verdict` check are both green on the PR's current HEAD, and every actionable reviewer comment is either fixed or explicitly documented as intentionally deferred. Tag releases on `3.4.3`.
+10. Commit on the issue's feature branch, push, and open a PR into `3.4.3` (`Closes #<N>`).
+    For an `alseif0x` PR, the local final harness and focused evidence are the required gate;
+    hosted checks intentionally skip. For any other author, require the configured remote checks
+    and reviewer verdict. In both cases, fix or explicitly defer actionable review comments and
+    resolve conversations before merge. Tag releases on `3.4.3`.
 
 Do not do "bulk close" inventory edits. A closed `#NEXT` item must correspond to real code and tests, with exact C++ refs, Rust targets, checks run, and remaining boundaries stated. Discovering or documenting a gap is useful, but it is not an implementation closeout.
 
@@ -142,20 +148,19 @@ cargo clippy -p wow-map -p wow-world --all-targets
 git diff --check
 ```
 
-Local preflight commands mirroring GitHub CI:
+Local-first commands for ordinary development:
 
 ```bash
-# During iteration (diff + format + the core check/build job):
-./tools/pr-preflight.sh quick origin/3.4.3
+# During iteration (path-routed lightweight checks):
+./tools/local-harness.sh quick origin/3.4.3
 
-# Before push, after committing to a clean HEAD (exact CI + capture-diff + local Codex review):
-./tools/pr-preflight.sh full origin/3.4.3
+# Before push, after committing to a clean HEAD:
+./tools/local-harness.sh final origin/3.4.3
 ```
 
-`full` is the standard pre-push gate. Its local Codex result reduces remote review cycles but does
-not satisfy branch protection; the GitHub `Codex reviewer verdict` must still be green for the
-current remote HEAD. See `docs/operations/pr-preflight.md` for all profiles. Live bot QA and fresh
-capture recording are explicit operations and never run as part of `full`.
+Run focused tests explicitly when behavior changes. `tools/pr-preflight.sh` remains available for
+an explicitly requested audit, release preparation, capture QA, or architecture investigation; it
+is not the daily pre-push gate. See `docs/operations/local-first-development.md`.
 
 TSV inventory files must keep 9 tab-separated columns:
 
@@ -387,23 +392,19 @@ git status --short --branch
 # focused tests
 git add <changed files>
 git commit -m "<short faithful summary>"
-./tools/pr-preflight.sh full origin/3.4.3
+./tools/local-harness.sh final origin/3.4.3
 git push origin <feature-branch>        # NO push unless asked
-# after push, open the PR into 3.4.3 with `Closes #<N>` in the body so CI and
-# the configured Codex reviewer can run.
-# Do not merge or close the issue until CI is green and the required
-# `Codex reviewer verdict` check is green for the PR's current HEAD.
-# If Codex leaves feedback, fix or explicitly defer every actionable comment,
-# resolve the review threads, push the fix, comment `@codex review`, and wait
-# for `Codex reviewer verdict` to pass again on the new HEAD.
+# after push, open the PR into 3.4.3 with `Closes #<N>` in the body.
+# alseif0x PRs use the local evidence above and allocate no hosted validation runner.
+# External PRs must satisfy the configured remote checks and reviewer verdict.
+# Resolve or explicitly defer every actionable review comment before merge.
 ```
 
 Only do this after the slice is genuinely validated. If the tree contains changes from another agent, audit them before building on top of them.
 
-Branch protection on `3.4.3` requires strict status checks, linear history, conversation
-resolution, and these checks: `Format`, `Check core crates`, `Focused library tests`, and
-`Codex reviewer verdict`. A PR can show normal CI green while still being blocked if Codex has
-not reviewed the current HEAD or has left unresolved feedback.
+Branch protection on `3.4.3` keeps linear history and conversation resolution. Remote validation
+jobs are author-gated: they skip for the exact trusted login `alseif0x` and remain required for
+external authors. Never broaden trust to an author-association role.
 
 ## Local Context Files
 

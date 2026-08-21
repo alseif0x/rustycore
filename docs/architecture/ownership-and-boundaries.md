@@ -6,10 +6,11 @@ machine-readable dependency rules live in
 `tools/architecture/dependency-policy.json`; `tools/architecture/check_architecture.py check`
 enforces them. The checked-in issue ledger
 `tools/architecture/architecture-issue-ledger.json` records every architecture epic and
-implementation slice, its parents, its prerequisites, and one deterministic topological display
-of the audited DAG. External prerequisites such as QA issue #177 are explicit nodes rather than
-implicit prose. The checker keeps this document, the ledger, and the JSON policy in agreement
-without contacting GitHub; independent nodes may still execute in parallel.
+implementation slice, including follow-ups omitted by the previous snapshot. It is organized
+around four lanes: physical modules, encapsulation/ownership, runtime/persistence authority, and
+stable crate/extension seams. External prerequisites such as QA issue #177 are explicit nodes.
+The checker keeps this document, the ledger, and the JSON policy in agreement without contacting
+GitHub; the displayed topological order never serializes independent work.
 
 ## Decision
 
@@ -30,13 +31,15 @@ and files such as `Player.cpp`, `Unit.cpp`, and `Spell.cpp` remain large themsel
 therefore may be smaller and more cohesive while preserving the same semantic owners.
 
 This direction also follows Rust's native boundaries: modules control visibility inside a crate,
-while Cargo packages are separate compilation and public-API boundaries. A line count is a signal
-for review, not a universal size rule. The checker reports the largest production/test hotspots.
-For the explicitly audited paths in `runtime-ownership-ledger.json`, the recorded production,
-test, and total counts are independent non-growth ceilings: extraction and reduction pass without
-a baseline edit, while growth in any one metric requires an explicit reviewed baseline change.
-An audited path cannot disappear or be renamed until its ledger row is explicitly retired or
-replaced.
+while Cargo packages are separate compilation and public-API boundaries. The checker publishes
+two independent measurements. The **physical view** counts every real `.rs` file separately, with
+production and tests split; ordinary `mod` extraction therefore appears immediately. Around 2,000
+productive lines triggers review and above 4,000 requires a split plan or explicit cohesive
+exception, but neither is a daily blocking threshold. The **logical view** counts each curated
+owner root together with its reviewed private descendants, so distributing a God object cannot be
+claimed as ownership reduction. Logical production/test/total counts in
+`runtime-ownership-ledger.json` are independent non-growth ceilings. A logical owner row cannot
+disappear until it is explicitly retired or replaced.
 
 ## Dependency direction
 
@@ -115,9 +118,9 @@ last-writer-wins policy.
 | Concept | Current owner and storage | Writers | Readers / delivery | Clock, lifetime, and synchronization | Retirement |
 |---|---|---|---|---|---|
 | Authenticated world connection | `wow-network::accept` and the connection task | socket/authentication task | `WorldSession` dispatch boundary | one connection; created after authentication and dropped on disconnect | Remains a network responsibility. #134 narrowed the listener to transport-owned configuration and authenticated connection outputs. |
-| Gameplay session construction aggregate | private `SessionResources` in `crates/world-server/src/session_resources.rs` | `world-server` bootstrap constructs it; the outer session callback captures and clones the `Arc` | `world-server::create_session` copies stores, registries, DB adapters, and runtime handles into each `WorldSession`; the aggregate never enters `wow-network` | process lifetime; no independent clock | #134 moved the aggregate to composition code and retired the direct `wow-network → wow-database` / `wow-network → wow-instances` edges. #136 next extracts a private session factory. |
+| Gameplay session construction aggregate | private `SessionResources` in `crates/world-server/src/session_resources.rs` | `world-server` bootstrap constructs it; the outer session callback captures and clones the `Arc` | `world-server::create_session` copies stores, registries, DB adapters, and runtime handles into each `WorldSession`; the aggregate never enters `wow-network` | process lifetime; no independent clock | #134 moved the aggregate to composition code; #136 moved the process into a library-backed composition root and extracted the private factory. Capability-specific dependency reduction remains in the physical and ownership lanes. |
 | Session directory | `wow_network::player_registry::PlayerRegistry`; backing storage is a `DashMap<ObjectGuid, PlayerBroadcastInfo>` | session login/logout and state publication write the directory | global routing, handlers, and gameplay fanout currently read broad snapshots | process lifetime; presence and generation/addressability are Session concerns, while gameplay fields are temporary mirrors | #150 introduces the opaque facade; #192-#195 burn down production consumers; #196 closes storage and fixtures; #138 then relocates the already-opaque directory. |
-| Session mailbox and durable rails | `wow_network::player_registry::SessionCommand` plus ordinary and durable payloads in the same network module | session/global runtime and gameplay producers enqueue commands; one session task consumes them | the owning session consumes FIFO commands and publishes acknowledgements | connection/session lifetime; queue identity, capacity, FIFO, incarnation fences, acknowledgements, and shutdown drain are observable | #189 removes durable loot persistence coordination; after #138, #191 relocates the ordinary mailbox protocol and #190 relocates the durable creature-runtime rail. #140 then extracts the pump without changing queue semantics. |
+| Session mailbox and durable rails | `wow_network::player_registry::SessionCommand` plus ordinary and durable payloads in the same network module | session/global runtime and gameplay producers enqueue commands; one session task consumes them | the owning session consumes FIFO commands and publishes acknowledgements | connection/session lifetime; queue identity, capacity, FIFO, incarnation fences, acknowledgements, and shutdown drain are observable | #191 and #190 completed their bounded protocol/rail relocations. #189 removes durable loot persistence coordination; #138 closes broad directory access; #140 owns the remaining pump and mailbox boundary without changing queue semantics. |
 | Group registry and pending invites | `wow_network::group_registry::{GroupRegistry, PendingInvites}`, currently backed by concurrent maps | group handlers and group timer/ready-check paths | group handlers, connected-player fanout, world-server ready-check loop | process lifetime; timed group work is driven outside the network listener | #151 creates opaque facades; #197 and #198 centralize atomic transitions; #199 separates persistence/publication and closes storage; #195 adapts session addressing; #137 finally moves the owner into `wow-social`. |
 | Legacy creature runtime | shared `wow_world::MapManager` behind `Arc<RwLock<_>>` | production `GlobalLegacy` runtime tick plus explicit spawn/respawn bridges; `Session` writer exists only for tests and the diagnostic config override | world handlers, global runtime bridge, visibility/fanout routing | process lifetime; production startup defaults `RuntimeTickOwner` to `GlobalLegacy` and uses the configured map-update interval; session ticks read the shared owner and must skip to prevent double resolution | #188 freezes clocks, phases, and bridge behavior. #28 may perform one bounded authority cut; later cuts retire legacy behavior method-by-method under `docs/migration/adr-runtime-tick-ownership.md`. |
 | Canonical map runtime | `wow_map::MapManager` | canonical global map loop, grid/spawn/respawn paths, explicit selected legacy-result adapters | world-server orchestration and session map/player bridges | process lifetime; canonical loop uses the configured map interval; preserves the C++ `Map::Update` phase order represented by the ADR | #188 records the current phase trace. It becomes the sole map/entity authority only after each later method cut has parity tests and removes the corresponding legacy writer. |
@@ -267,41 +270,32 @@ Do not regenerate a baseline merely to make CI green.
 5. For a handler snapshot or dispatch-side exception, inspect the exact added/removed/changed row
    or arm, retain the C++ metadata contrast test, and assign any temporary one-sided wiring to a
    concrete removal issue.
-6. Run the architecture self-test, architecture check, focused Rust tests, and full PR preflight.
+6. Run the architecture self-test/check, focused evidence, and
+   `tools/local-harness.sh final`. Reserve full preflight for an explicit audit or release.
 
 ## Audited ownership and hotspot evidence
 
-The current baseline was audited on branch `3.4.3` at HEAD `002d3d87`. Production and test lines
-are reported separately because moving an inline test module must not masquerade as ownership
-progress:
+The logical-owner baseline was refreshed on branch `3.4.3` at `c2bb8a85`, after the world-server
+composition split. Production and test lines remain separate:
 
-| Hotspot | Production | Tests | Total | Tests live in |
-|---|---:|---:|---:|---|
-| `crates/wow-world/src/session.rs` | 71,961 | 94,165 | 166,126 | `session_tests.rs` |
-| `crates/wow-world/src/handlers/character.rs` | 20,200 | 10,691 | 30,891 | `character_tests.rs` |
-| `crates/world-server/src/main.rs` | 15,370 | 12,533 | 27,903 | `main_tests.rs` |
-| `crates/wow-map/src/map.rs` | 15,245 | 18,273 | 33,518 | `map_tests.rs` |
-| `crates/wow-world/src/handlers/loot.rs` | 13,744 | 16,081 | 29,825 | `loot_tests.rs` |
-| `crates/wow-entities/src/player.rs` | 9,265 | 8,891 | 18,156 | `player_tests.rs` |
-| `crates/wow-world/src/handlers/quest.rs` | 8,255 | 10,172 | 18,427 | `quest_tests.rs` |
-| `crates/wow-world/src/handlers/misc.rs` | 7,315 | 11,322 | 18,637 | `misc_tests.rs` |
+| Logical owner root | Production | Tests | Total |
+|---|---:|---:|---:|
+| `crates/wow-world/src/session.rs` | 71,961 | 94,165 | 166,126 |
+| `crates/world-server/src/lib.rs` (crate scope) | 24,985 | 21,491 | 46,476 |
+| `crates/wow-map/src/map.rs` | 15,245 | 18,273 | 33,518 |
+| `crates/wow-world/src/handlers/character.rs` | 20,200 | 10,691 | 30,891 |
+| `crates/wow-world/src/handlers/loot.rs` | 13,744 | 16,081 | 29,825 |
+| `crates/wow-world/src/handlers/misc.rs` | 7,315 | 11,322 | 18,637 |
+| `crates/wow-world/src/handlers/quest.rs` | 8,255 | 10,172 | 18,427 |
+| `crates/wow-entities/src/player.rs` | 9,265 | 8,891 | 18,156 |
 
-Counts are per **module**, not per file: a `#[path]` child is part of the module
-that mounts it, so its lines are added to the parent's row and it does not get a
-row of its own. Extracting a `mod tests` into a sibling therefore moves nothing
-the ratchet can see, which is the point — capping only what stayed behind would
-have left 94,042 lines of `session.rs` tests uncapped and retired the protection
-the extraction was supposed to preserve. Where the `#[cfg(test)]` sits on the
-mount rather than inside the child, as it does for
-`character_vendor_atomicity_tests.rs`, the child counts as test lines regardless
-of how the file itself reads.
-
-Every root `mod tests` above was moved to a sibling `#[cfg(test)] #[path = "..._tests.rs"]` file.
-The `Production` column is byte-for-byte unchanged from the pre-extraction audit for all eight
-files, which is the evidence that the move carried no production code: only the `Tests` and `Total`
-columns fell. This is test *placement*, explicitly not ownership progress — the retirement
-conditions in the ledger are untouched, and the hotspot classifier counts a wholly-`cfg(test)`
-sibling as test lines so the extraction cannot be laundered into a smaller production number.
+The physical table is generated live and gives every source file its own row. At this baseline,
+`world-server/src/main.rs` is 15 lines, while `world-server/src/lib.rs` plus its private crate
+descendants remain a 46,476-line logical composition owner. That is the intended distinction:
+#136 materially improved navigation without claiming that bootstrap/runtime ownership vanished.
+Standard adjacent module directories and transitional `#[path]` descendants remain charged to
+their logical root; `logical_scope: crate` is used only for an explicitly reviewed composition
+root. Extracted `*_tests.rs` and `tests/` descendants remain test lines in the logical view.
 
 At the same HEAD, the syntax-aware ratchet records 738 `WorldSession` fields: 727 production and
 11 `cfg(test)` fixtures. It also records all 20 logical inherent-impl owners and 3,339 exact
@@ -359,88 +353,82 @@ merely moving lines.
 
 ## Refactor sequence
 
-The ledger is the offline source of truth for the dependency DAG. The list below is only one
-deterministic topological display used to detect documentation drift; it does **not** serialize
-independent work. Epics #133 and #169 are parents rather than implementation PRs, and external QA
-prerequisite #177 is represented separately in the ledger.
+The ledger is the offline dependency map, not a serial execution queue. Epics #133, #169 and #99
+are parents rather than PRs; external QA prerequisite #177 is separate. The four active lanes are:
 
-1. #135 — executable boundary guardrails;
-2. #143 — interaction provenance;
-3. #146 — effective SpellInfo authority;
-4. #148 — effective SkillLine authority;
-5. #144 — validated trainer load inputs;
-6. #156 — primary-profession capacity;
-7. #163 — effective spell-acquisition metadata;
-8. #164 — deterministic acquisition outcomes;
-9. #157 — trainer offer and eligibility decisions;
-10. #158 — durable prepared spell learning;
-11. #159 — atomic normal trainer teaching;
-12. #160 — durable account-atomic battle-pet ownership;
-13. #161 — recoverable battle-pet trainer purchase;
-14. #142 — dispatcher/registration reconciliation;
-15. #154 — audited policy alignment;
-16. #134 — listener/SessionResources decoupling;
-17. #181 — ownership baseline and submodule ratchets;
-18. #185 — module-aware architecture and handler guards;
-19. #186 — persistence-leak inventory and ratchet;
-20. #188 — world/map clock and bridge trace;
-21. #136 — private world-server session factory;
-22. #187 — persistence transaction/publication golden;
-23. #150 — opaque PlayerRegistry facade in place;
-24. #151 — opaque GroupRegistry/PendingInvites facades in place;
-25. #139 — Calendar thin-capability pathfinder;
-26. #152 — packet admission and dispatch submodules;
-27. #200 — Player lifecycle persistence port;
-28. #189 — durable loot persistence coordination;
-29. #192 — runtime/fanout directory consumer burn-down;
-30. #193 — combat/loot directory consumer burn-down;
-31. #194 — quest/spell/movement directory consumer burn-down;
-32. #197 — atomic invite/create/capacity transitions;
-33. #198 — atomic membership/leadership/ready transitions;
-34. #199 — Group persistence/publication and storage closure;
-35. #195 — social/group session-addressing adapters;
-36. #196 — PlayerRegistry storage and fixture closure;
-37. #138 — opaque session-directory relocation;
-38. #191 — ordinary mailbox-protocol relocation;
-39. #137 — encapsulated Group owner move;
-40. #190 — durable creature-runtime rail relocation;
-41. #140 — ordinary/durable Session command pump;
-42. #182 — logical realm/instance routing;
-43. #183 — Session-only phase driver;
-44. #184 — login/logout lifecycle over persistence ports;
-45. #153 — post-shell re-audit and remaining semantic cuts.
+- physical modules: #139, #152 and #224–#227;
+- encapsulation/ownership: #150–#153, #137–#140 and #182–#184;
+- runtime/persistence authority: #188–#200 plus open follow-up #204;
+- stable crate/extension seams: #228–#231 under #99.
 
-The open dependency graph is:
+#153 is the terminal audit, not a gate that postpones known work. This deterministic topological
+display is checked against the JSON ledger:
 
-```text
-#134 ─► #181
-#134 + #181 ─► #136
-#181 ─► #185, #186, #188
-#181 + #185 ─► #150, #151, #152
-#185 ─► #139
-#186 ─► #187 ─► #189
-#186 + #187 ─► #200
+1. #131 — repository-scoped architecture skills;
+2. #135 — executable boundary guardrails;
+3. #143 — interaction provenance;
+4. #146 — effective SpellInfo authority;
+5. #148 — effective SkillLine authority;
+6. #144 — validated trainer load inputs;
+7. #156 — primary-profession capacity;
+8. #163 — effective spell-acquisition metadata;
+9. #164 — deterministic acquisition outcomes;
+10. #157 — trainer offer and eligibility decisions;
+11. #158 — durable prepared spell learning;
+12. #159 — atomic normal trainer teaching;
+13. #160 — durable account-atomic battle-pet ownership;
+14. #161 — recoverable battle-pet trainer purchase;
+15. #142 — dispatcher/registration reconciliation;
+16. #154 — audited policy alignment;
+17. #134 — listener/SessionResources decoupling;
+18. #181 — ownership baseline and submodule ratchets;
+19. #185 — module-aware architecture and handler guards;
+20. #186 — persistence-leak inventory and ratchet;
+21. #204 — active-trait `Self` constant resolution;
+22. #205 — cfg-aware associated constants;
+23. #206 — faster architecture gate;
+24. #208 — remove gate dead weight;
+25. #210 — remove persistence scan from the PR path;
+26. #213 — persistence-trace gap closure;
+27. #214 — root test-module extraction;
+28. #218 — workflow-scoped persistence traces;
+29. #220 — transitional child-charging hotspot metric;
+30. #223 — roadmap, metrics and local-first synchronization;
+31. #188 — world/map clock and bridge trace;
+32. #136 — world-server composition split;
+33. #187 — Player lifecycle persistence-order golden;
+34. #150 — opaque PlayerRegistry facade;
+35. #151 — opaque GroupRegistry/PendingInvites facades;
+36. #139 — private misc capabilities;
+37. #152 — Session admission/dispatch modules;
+38. #200 — Player lifecycle persistence port;
+39. #189 — durable loot persistence coordination;
+40. #192 — runtime/fanout directory consumers;
+41. #193 — combat/loot directory consumers;
+42. #194 — quest/spell/movement directory consumers;
+43. #197 — atomic group invite/create transitions;
+44. #198 — atomic group membership/leadership transitions;
+45. #199 — Group persistence/publication closure;
+46. #195 — social/group session addressing;
+47. #196 — PlayerRegistry storage closure;
+48. #138 — opaque session-directory relocation;
+49. #191 — mailbox protocol relocation;
+50. #137 — encapsulated Group owner move;
+51. #190 — durable creature-runtime rail relocation;
+52. #140 — Session mailbox pump;
+53. #182 — logical realm/instance routing;
+54. #183 — Session-only phase driver;
+55. #184 — login/logout lifecycle modules;
+56. #224 — character/loot/quest physical modules;
+57. #225 — Map/MapManager physical modules;
+58. #226 — Player/Unit physical modules;
+59. #227 — packet/spell-data physical modules;
+60. #228 — trusted linked external module API;
+61. #229 — deterministic external Cargo composition;
+62. #230 — agent-neutral module CLI and skeleton;
+63. #231 — typed module configuration/fixtures;
+64. #153 — terminal architecture audit.
 
-#150 + #188 ─► #192
-#150 + #187 ─► #193
-#150 + #188 ─► #194
-#151 ─► #197 ─► #198
-#187 + #198 ─► #199
-#150 + #199 ─► #195
-#192 + #193 + #194 + #195 ─► #196
-#136 + #196 ─► #138 ─► #191
-#195 + #199 + #191 ─► #137
-#188 + #191 ─► #190
-
-#152 + #191 + #190 ─► #140
-#140 + external #177 ─► #182
-#182 + #188 ─► #183
-#183 + #187 + #200 + external #177 ─► #184
-#184 ─► #153
-```
-
-Some direct dependencies repeat a transitive evidence gate deliberately; for example #184 names
-#187 even though #200 also depends on it. A slice may start when every declared prerequisite is
-merged and its own branch is current. Unrelated branches may proceed in parallel, but each issue
-still maps to one reviewable PR with focused validation and no behavior-changing extraction hidden
-inside a mechanical move.
+A slice may start once its declared prerequisites are merged and its branch is current. Independent
+physical work remains parallel to semantic authority cuts. Mechanical moves use focused compile and
+contract evidence; they do not acquire gameplay-parity claims merely by reducing a file.

@@ -3186,11 +3186,10 @@
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
-        136,
         153,
         200
       ],
-      "retirement_condition": "The annotated issues [136, 153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {

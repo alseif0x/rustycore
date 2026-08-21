@@ -144,8 +144,8 @@
     {
       "from": "wow-network",
       "to": "wow-loot",
-      "tracking_issue": 191,
-      "reason": "PlayerBroadcastInfo, durable coordination, and SessionCommand payloads still carry wow-loot values. #189 removes the durable persistence tracker, #138 relocates the opaque directory after its consumers are closed, and #191 relocates the remaining ordinary application mailbox payloads and removes the final direct edge."
+      "tracking_issue": 140,
+      "reason": "PlayerBroadcastInfo and SessionCommand payloads still carry wow-loot values after the completed protocol/rail relocations #191/#190. #189 removes durable persistence coordination, #138 closes the directory path, and #140 owns the remaining mailbox-pump boundary and final direct edge decision."
     },
     {
       "from": "wow-packet",
