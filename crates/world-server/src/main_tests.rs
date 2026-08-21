@@ -3420,9 +3420,52 @@ Expansion = 9
 }
 
 #[test]
+fn world_server_binary_delegates_to_the_library_composition_root() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let binary_source = fs::read_to_string(manifest_dir.join("src/main.rs"))
+        .expect("world-server binary source should be readable");
+    let library_source = fs::read_to_string(manifest_dir.join("src/lib.rs"))
+        .expect("world-server library source should be readable");
+
+    assert!(binary_source.contains("world_server::run("));
+    assert!(library_source.contains("pub use app::run;"));
+    assert!(!binary_source.contains("start_world_listener"));
+    assert!(!binary_source.contains("create_session"));
+}
+
+#[test]
+fn library_composition_preserves_cpp_startup_and_shutdown_order() {
+    let source = fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app.rs"))
+        .expect("world-server composition source should be readable");
+
+    let mut cursor = 0;
+    for stage in [
+        "let config_report = load_world_config(&cli)?;",
+        "LoginDatabase::open_with_pool_size_and_auto_create_like_cpp(",
+        "CharacterDatabase::open_with_pool_size_and_auto_create_like_cpp(",
+        "WorldDatabase::open_with_pool_size_and_auto_create_like_cpp(",
+        "HotfixDatabase::open_with_pool_size_and_auto_create_like_cpp(",
+        "set_realm_offline(&login_db, realm_id).await?;",
+        "load_realm_info_from_snapshot_like_cpp(&realm_list, realm_id)?;",
+        "wow_network::start_world_listener(",
+        "set_realm_online(&login_db, realm_id).await",
+        "shutdown_signal()",
+        "active_session_registry.begin_shutdown_like_cpp();",
+        "stop_world_network_like_cpp([",
+        "drain_respawn_db_writer_like_cpp(",
+        "set_realm_offline(&login_db, realm_id).await",
+    ] {
+        let offset = source[cursor..]
+            .find(stage)
+            .unwrap_or_else(|| panic!("missing or reordered composition stage: {stage}"));
+        cursor += offset + stage.len();
+    }
+}
+
+#[test]
 fn world_listener_captures_application_resources_outside_transport_boundary() {
-    let source = fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/main.rs"))
-        .expect("world-server source should be readable");
+    let source = fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app.rs"))
+        .expect("world-server composition source should be readable");
     let listener_start = source
         .find("wow_network::start_world_listener(")
         .expect("world listener call must exist");
@@ -3471,8 +3514,13 @@ fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
         );
     }
 
-    let source = fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/main.rs"))
-        .expect("world-server source should be readable");
+    let composition_source =
+        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app.rs"))
+            .expect("world-server composition source should be readable");
+    let session_factory_source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_factory.rs"),
+    )
+    .expect("world-server session factory source should be readable");
     let materialization_needle = [
         "max_primary_trade_skills:",
         " max_primary_trade_skills_like_cpp(&world_configs),",
@@ -3484,11 +3532,11 @@ fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
     ]
     .concat();
     assert!(
-        source.contains(&materialization_needle),
+        composition_source.contains(&materialization_needle),
         "SessionResources must materialize the validated configuration"
     );
     assert!(
-        source.contains(&propagation_needle),
+        session_factory_source.contains(&propagation_needle),
         "create_session must propagate SessionResources into WorldSession"
     );
 }
