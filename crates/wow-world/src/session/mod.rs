@@ -35211,7 +35211,7 @@ impl WorldSession {
             return party_type;
         };
 
-        for group in group_registry.iter() {
+        for group in group_registry.snapshots() {
             let category = group.group_category_like_cpp();
             if category < wow_network::group_registry::MAX_GROUP_CATEGORY_LIKE_CPP
                 && group.members.contains(&player_guid)
@@ -45971,14 +45971,15 @@ impl WorldSession {
         let player_group_size = player_group.members.len();
         drop(player_group);
 
-        let Some(inviter_group_entry) = group_registry
-            .iter()
-            .find(|entry| entry.value().members.contains(&inviter_guid))
+        let Some(inviter_group) = group_registry
+            .snapshots()
+            .into_iter()
+            .find(|group| group.members.contains(&inviter_guid))
         else {
             return;
         };
-        let inviter_group_guid = *inviter_group_entry.key();
-        let inviter_group_size = inviter_group_entry.value().members.len();
+        let inviter_group_guid = inviter_group.group_guid;
+        let inviter_group_size = inviter_group.members.len();
 
         if player_group_size != inviter_group_size {
             return;
