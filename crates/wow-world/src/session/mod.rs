@@ -7,6 +7,7 @@
 //! [`WorldSocket`](wow_network::WorldSocket) and dispatches them to handlers.
 
 mod admission;
+pub mod directory;
 mod dispatch;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
@@ -42,6 +43,9 @@ use crate::phasing::{
     party_member_phase_states_like_cpp,
 };
 use crate::reputation::{ReputationMgrLikeCpp, reputation_to_rank_like_cpp};
+use crate::session::directory::{
+    PlayerBroadcastInfo, PlayerRegistry, PlayerVisibilityCreateSnapshot,
+};
 use crate::session_policy::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
     LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, ReputationRatesLikeCpp,
@@ -209,9 +213,8 @@ use wow_network::{
     GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp, GroupInfo,
     GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
     KickLikeCppCommand, LootRollCommandIdentityLikeCpp, NotifyLootMoneyRemovedLikeCppCommand,
-    PendingInvites, PlayerBroadcastInfo, PlayerRegistry, SessionCommand,
-    SharedClientVisibleGuidsLikeCpp, SocketTimeoutsLikeCpp, SocketWriteFenceLikeCpp,
-    SocketWriteFenceWaitResultLikeCpp, group_guid_by_db_store_id_like_cpp,
+    PendingInvites, SessionCommand, SharedClientVisibleGuidsLikeCpp, SocketTimeoutsLikeCpp,
+    SocketWriteFenceLikeCpp, SocketWriteFenceWaitResultLikeCpp, group_guid_by_db_store_id_like_cpp,
 };
 use wow_packet::packets::chat::{ChatMsg, ChatPkt, PrintNotification};
 use wow_packet::packets::gossip::ClientGossipText;
@@ -449,7 +452,7 @@ pub(crate) enum LootMoneyDeliveryAddressLikeCpp {
     /// A remote session is addressed by its directory incarnation.
     Directory {
         registry: Arc<PlayerRegistry>,
-        registration: wow_network::PlayerRegistration,
+        registration: crate::session::directory::PlayerRegistration,
     },
 }
 
@@ -16531,7 +16534,7 @@ impl WorldSession {
         map_id: u16,
         position: &Position,
         visibility_radius: f32,
-    ) -> Vec<(ObjectGuid, wow_network::PlayerVisibilityCreateSnapshot)> {
+    ) -> Vec<(ObjectGuid, PlayerVisibilityCreateSnapshot)> {
         let Some(player_guid) = self.player_guid() else {
             return Vec::new();
         };
@@ -35716,7 +35719,7 @@ impl WorldSession {
         let _ = reg.publish_movement_for_control_channel(
             guid,
             &self.session_command_tx,
-            wow_network::PlayerMovementDirectoryUpdate {
+            crate::session::directory::PlayerMovementDirectoryUpdate {
                 position: pos,
                 map_id,
                 instance_id,

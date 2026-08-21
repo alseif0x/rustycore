@@ -11,6 +11,7 @@
 
 use super::*;
 use crate::session::InventoryItem;
+use crate::session::directory::PlayerRegistry;
 use wow_constants::{
     ComparisonType, ConditionSourceType, ConditionType, InventoryType, ItemBondingType, ItemClass,
     ItemContext,
@@ -37,7 +38,7 @@ use wow_data::{
 };
 use wow_database::{PreparedStatement, SqlParam, StatementDef};
 use wow_entities::{ITEM_LIMIT_CATEGORY_MODE_HAVE, Player, PlayerReputationRecord};
-use wow_network::{GroupInfo, GroupRegistry, PendingInvites, PlayerRegistry};
+use wow_network::{GroupInfo, GroupRegistry, PendingInvites};
 use wow_packet::WorldPacket;
 use wow_packet::packets::item::InventoryChangeFailure;
 use wow_packet::packets::quest::QuestGiverQuestFailed;

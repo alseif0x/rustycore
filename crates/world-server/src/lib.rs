@@ -51,9 +51,9 @@ use wow_network::world_socket::{AccountInfo, AccountLookup};
 use wow_network::{
     GameEventQuestCompleteCommandLikeCpp, GameEventQuestCompleteResponseLikeCpp, GroupDbRowLikeCpp,
     GroupLoadSummaryLikeCpp, GroupMemberCharacterLikeCpp, GroupMemberDbRowLikeCpp, GroupRegistry,
-    KickLikeCppCommand, PendingInvites, PlayerRegistry, ReadyCheckEventLikeCpp,
-    ResetSeasonalQuestStatusCommand, SendVisibleObjectValuesUpdateCommand, SessionCommand,
-    SocketTimeoutsLikeCpp, WorldListenerPolicyLikeCpp, WorldSessionShutdownFlushLikeCppCommand,
+    KickLikeCppCommand, PendingInvites, ReadyCheckEventLikeCpp, ResetSeasonalQuestStatusCommand,
+    SendVisibleObjectValuesUpdateCommand, SessionCommand, SocketTimeoutsLikeCpp,
+    WorldListenerPolicyLikeCpp, WorldSessionShutdownFlushLikeCppCommand,
     WorldSessionShutdownFlushResultLikeCpp, load_groups_from_db_rows_like_cpp,
     tick_all_group_ready_checks_like_cpp,
 };
@@ -61,6 +61,7 @@ use wow_packet::{
     ServerPacket,
     packets::chat::{ChatMsg, ChatPkt},
 };
+use wow_world::session::directory::PlayerRegistry;
 use wow_world::{
     BattlePetAccountRegistryLikeCpp, ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp,
     ChatListenRangesLikeCpp, LoginBattlePetPersistenceLikeCpp, LootDropRatesLikeCpp,

@@ -7,9 +7,8 @@
 
 use std::sync::Arc;
 
-use wow_network::{
-    GameEventQuestCompleteCommandLikeCpp, GroupRegistry, PendingInvites, PlayerRegistry,
-};
+use wow_network::{GameEventQuestCompleteCommandLikeCpp, GroupRegistry, PendingInvites};
+use wow_world::session::directory::PlayerRegistry;
 use wow_world::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
     LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, ReputationRatesLikeCpp,

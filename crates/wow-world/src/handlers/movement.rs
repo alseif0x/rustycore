@@ -2013,7 +2013,7 @@ mod tests {
         let mut session = make_session();
         let guid = ObjectGuid::create_player(1, 42);
         let other_guid = ObjectGuid::create_player(1, 43);
-        let registry = std::sync::Arc::new(wow_network::PlayerRegistry::default());
+        let registry = std::sync::Arc::new(crate::session::directory::PlayerRegistry::default());
         let (self_tx, self_rx) = flume::bounded(1);
         let (other_tx, other_rx) = flume::bounded(1);
         let (self_command_tx, self_command_rx) = flume::bounded(1);
@@ -2076,7 +2076,7 @@ mod tests {
     fn movement_directory_rejects_replaced_recipient_generation_like_cpp() {
         let source_guid = ObjectGuid::create_player(1, 44);
         let recipient_guid = ObjectGuid::create_player(1, 45);
-        let registry = wow_network::PlayerRegistry::default();
+        let registry = crate::session::directory::PlayerRegistry::default();
         let (old_send_tx, _old_send_rx) = flume::bounded(1);
         let (old_command_tx, old_command_rx) = flume::bounded(1);
         registry.register_or_replace(
@@ -2112,7 +2112,7 @@ mod tests {
         );
         assert_eq!(
             result,
-            Err(wow_network::PlayerDirectorySendError::StaleRegistration)
+            Err(crate::session::directory::PlayerDirectorySendError::StaleRegistration)
         );
         assert!(old_command_rx.try_recv().is_err());
         assert!(replacement_command_rx.try_recv().is_err());
@@ -2129,7 +2129,7 @@ mod tests {
         let mover_start = Position::new(10.0, 10.0, 0.0, 0.0);
         let moved_position = Position::new(12.0, 13.0, 1.0, 1.25);
         let manager = Arc::new(RwLock::new(crate::map_manager::MapManager::new()));
-        let registry = Arc::new(wow_network::PlayerRegistry::default());
+        let registry = Arc::new(crate::session::directory::PlayerRegistry::default());
         let (self_tx, _self_rx) = flume::bounded(1);
         let (other_tx, other_rx) = flume::bounded(1);
         let (self_command_tx, self_command_rx) = flume::bounded(1);
@@ -2232,7 +2232,7 @@ mod tests {
         let mut session = make_session();
         let guid = ObjectGuid::create_player(1, 42);
         let far_guid = ObjectGuid::create_player(1, 44);
-        let registry = std::sync::Arc::new(wow_network::PlayerRegistry::default());
+        let registry = std::sync::Arc::new(crate::session::directory::PlayerRegistry::default());
         let (self_tx, _self_rx) = flume::bounded(1);
         let (far_tx, far_rx) = flume::bounded(1);
         let (self_command_tx, self_command_rx) = flume::bounded(1);
@@ -2577,7 +2577,7 @@ mod tests {
         let spoofed_guid = ObjectGuid::create_player(1, 99);
         let other_guid = ObjectGuid::create_player(1, 43);
         let original_position = wow_core::Position::new(1.0, 2.0, 3.0, 0.5);
-        let registry = std::sync::Arc::new(wow_network::PlayerRegistry::default());
+        let registry = std::sync::Arc::new(crate::session::directory::PlayerRegistry::default());
         let (other_tx, other_rx) = flume::bounded(1);
 
         session.set_player_guid(Some(guid));
@@ -2612,7 +2612,7 @@ mod tests {
         let guid = ObjectGuid::create_player(1, 42);
         let other_guid = ObjectGuid::create_player(1, 43);
         let original_position = wow_core::Position::new(1.0, 2.0, 3.0, 0.5);
-        let registry = std::sync::Arc::new(wow_network::PlayerRegistry::default());
+        let registry = std::sync::Arc::new(crate::session::directory::PlayerRegistry::default());
         let (other_tx, other_rx) = flume::bounded(1);
 
         session.set_player_guid(Some(guid));
@@ -2720,7 +2720,7 @@ mod tests {
     fn broadcast_info(
         guid: ObjectGuid,
         send_tx: flume::Sender<Vec<u8>>,
-    ) -> wow_network::PlayerBroadcastInfo {
+    ) -> crate::session::directory::PlayerBroadcastInfo {
         let (command_tx, _command_rx) = flume::bounded(1);
         broadcast_info_with_command(guid, send_tx, command_tx)
     }
@@ -2729,8 +2729,8 @@ mod tests {
         guid: ObjectGuid,
         send_tx: flume::Sender<Vec<u8>>,
         command_tx: flume::Sender<wow_network::SessionCommand>,
-    ) -> wow_network::PlayerBroadcastInfo {
-        wow_network::PlayerBroadcastInfo {
+    ) -> crate::session::directory::PlayerBroadcastInfo {
+        crate::session::directory::PlayerBroadcastInfo {
             map_id: 0,
             instance_id: 0,
             position: wow_core::Position::ZERO,
@@ -2819,7 +2819,7 @@ mod tests {
         let mut session = make_session();
         let guid = ObjectGuid::create_player(1, 42);
         let other_guid = ObjectGuid::create_player(1, 43);
-        let registry = std::sync::Arc::new(wow_network::PlayerRegistry::default());
+        let registry = std::sync::Arc::new(crate::session::directory::PlayerRegistry::default());
         let (self_tx, self_rx) = flume::bounded(1);
         let (other_tx, other_rx) = flume::bounded(1);
         let (self_command_tx, self_command_rx) = flume::bounded(1);

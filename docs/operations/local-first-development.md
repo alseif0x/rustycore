@@ -60,6 +60,48 @@ Broad test execution remains available through `tools/pr-preflight.sh` for expli
 through scheduled CI. Local harness success is evidence for the maintainer, not a status published
 back to GitHub.
 
+### Architecture and module changes
+
+An architecture PR may need focused ownership evidence in addition to the path-routed harness. The
+ordinary Session ownership command is the syntax-only ratchet:
+
+```bash
+cargo run --release --locked \
+  --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
+  --bin session-ownership-check -- check --syntax-only
+```
+
+When architecture policies, ledgers, boundary documentation, or checker behavior change, also run:
+
+```bash
+python3 tools/architecture/check_architecture.py check
+python3 tools/architecture/check_architecture.py self-test
+```
+
+If an exact syntax surface moved intentionally, first run `check --syntax-only` against the old
+snapshot and inspect its reported additions/removals. Generate `print-baseline` into a temporary
+file, compare the complete semantic delta, install the snapshot only after that review, and rerun
+`check --syntax-only`. Baseline regeneration never authorizes a new owner, public API, mirror,
+dependency, or direct storage operation by itself.
+
+The command below is deliberately **not** part of normal local development:
+
+```bash
+cargo run --release --locked \
+  --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
+  --bin session-ownership-check -- check
+```
+
+Without `--syntax-only`, the checker also recomputes the exhaustive workspace persistence
+inventory. That can take many minutes and is reserved for a requested persistence audit,
+release/scheduled audit, or a change that actually owns that inventory. Do not run it merely
+because files or modules moved.
+
+Validation commands must expose their real exit status. Do not append `| head`, `| grep`,
+`; echo EXIT=$?`, or another pipeline/trailing command that can turn a failed checker into a
+reported success. If output must be retained, redirect it to a log and check the validator's own
+exit code; use `set -o pipefail` for any unavoidable pipeline.
+
 The harness supports a routing-only dry run:
 
 ```bash

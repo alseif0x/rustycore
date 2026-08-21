@@ -1347,7 +1347,7 @@ struct InitTransportsPlanLikeCpp {
 #[cfg(test)]
 pub(crate) fn player_visibility_create_update_like_cpp(
     guid: ObjectGuid,
-    player: &wow_network::PlayerBroadcastInfo,
+    player: &crate::session::directory::PlayerBroadcastInfo,
     map_id: u16,
 ) -> UpdateObject {
     let max_mana = if player.power_type == PowerType::Mana as u8 {
@@ -1390,7 +1390,7 @@ pub(crate) fn player_visibility_create_update_like_cpp(
 }
 
 pub(crate) fn player_visibility_create_update_from_snapshot_like_cpp(
-    player: &wow_network::PlayerVisibilityCreateSnapshot,
+    player: &crate::session::directory::PlayerVisibilityCreateSnapshot,
     map_id: u16,
 ) -> UpdateObject {
     let max_mana = if player.power_type == PowerType::Mana as u8 {

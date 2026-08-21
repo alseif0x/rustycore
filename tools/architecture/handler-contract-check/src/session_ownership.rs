@@ -60,6 +60,10 @@ const SESSION_RESOURCES_NAME: &str = "SessionResources";
 const SESSION_FACTORY_MODULE: &str = "crate::session_factory";
 const SESSION_FACTORY_NAME: &str = "create_session";
 const PRIVATE_WORLD_SESSION_OWNER_ROOTS: &[&str] = &["crate::handlers::misc", WORLD_SESSION_MODULE];
+/// Issue #138 relocated the opaque connected-session directory here. Its
+/// `PlayerBroadcastInfo` surface is still an ownership target, so the session
+/// contract scan must reach this module as well as the `wow-network` mailbox.
+const WORLD_SESSION_DIRECTORY_MODULE: &str = "crate::session::directory";
 const SESSION_COMMAND_NAME: &str = "SessionCommand";
 const PLAYER_BROADCAST_INFO_NAME: &str = "PlayerBroadcastInfo";
 const FNV1A_64_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -303,11 +307,11 @@ struct BaselineBuilder {
     world_session_new_calls: BTreeMap<(String, String, usize, Vec<String>, String), usize>,
     session_factory_setter_calls: BTreeMap<(String, String, usize, Vec<String>, String), usize>,
     generated_surface_inputs: BTreeSet<GeneratedSurfaceInput>,
-    network_types: BTreeMap<String, Vec<NetworkTypeDefinition>>,
+    contract_types: BTreeMap<String, Vec<SessionContractTypeDefinition>>,
 }
 
 #[derive(Clone, Debug)]
-struct NetworkTypeDefinition {
+struct SessionContractTypeDefinition {
     surface: TypeSurface,
     referenced_types: BTreeSet<String>,
     generated_surface_inputs: BTreeSet<GeneratedSurfaceInput>,
@@ -596,7 +600,7 @@ fn collect_type_references(type_expression: &Type, names: &mut BTreeSet<String>)
     names.extend(collector.names);
 }
 
-fn network_field_surfaces(
+fn contract_field_surfaces(
     fields: &syn::Fields,
     module: &str,
     parent_cfg: &[String],
@@ -643,7 +647,7 @@ fn network_field_surfaces(
     surfaces
 }
 
-fn collect_network_type(
+fn collect_contract_type(
     item: &Item,
     module: &str,
     cfg: &[String],
@@ -661,7 +665,7 @@ fn collect_network_type(
                 cfg,
                 availability,
             ));
-            let fields = network_field_surfaces(
+            let fields = contract_field_surfaces(
                 &item_struct.fields,
                 module,
                 cfg,
@@ -713,7 +717,7 @@ fn collect_network_type(
                     &variant_cfg,
                     variant_availability,
                 ));
-                let fields = network_field_surfaces(
+                let fields = contract_field_surfaces(
                     &variant.fields,
                     module,
                     &variant_cfg,
@@ -780,7 +784,7 @@ fn collect_network_type(
                 cfg,
                 availability,
             ));
-            let fields = network_field_surfaces(
+            let fields = contract_field_surfaces(
                 &syn::Fields::Named(item_union.fields.clone()),
                 module,
                 cfg,
@@ -807,10 +811,10 @@ fn collect_network_type(
         _ => return,
     };
     builder
-        .network_types
+        .contract_types
         .entry(surface.definition.name.clone())
         .or_default()
-        .push(NetworkTypeDefinition {
+        .push(SessionContractTypeDefinition {
             surface,
             referenced_types,
             generated_surface_inputs,
@@ -1310,8 +1314,10 @@ fn collect_items(
             ));
         }
 
-        if role == PackageRole::Network {
-            collect_network_type(item, module, &item_cfg, item_availability, builder);
+        if role == PackageRole::Network
+            || (role == PackageRole::World && module == WORLD_SESSION_DIRECTORY_MODULE)
+        {
+            collect_contract_type(item, module, &item_cfg, item_availability, builder);
         }
 
         match (role, module, item) {
@@ -1421,27 +1427,27 @@ fn call_surfaces(
         .collect()
 }
 
-fn unique_network_type<'a>(
-    types: &'a BTreeMap<String, Vec<NetworkTypeDefinition>>,
+fn unique_contract_type<'a>(
+    types: &'a BTreeMap<String, Vec<SessionContractTypeDefinition>>,
     name: &str,
-) -> Result<&'a NetworkTypeDefinition, String> {
+) -> Result<&'a SessionContractTypeDefinition, String> {
     let definitions = types
         .get(name)
-        .ok_or_else(|| format!("missing wow-network type {name}"))?;
+        .ok_or_else(|| format!("missing session contract type {name}"))?;
     let [definition] = definitions.as_slice() else {
         let modules: Vec<_> = definitions
             .iter()
             .map(|definition| definition.surface.definition.module.as_str())
             .collect();
         return Err(format!(
-            "wow-network type {name} is ambiguous across logical modules {modules:?}"
+            "session contract type {name} is ambiguous across logical modules {modules:?}"
         ));
     };
     Ok(definition)
 }
 
 fn network_contract(
-    types: &BTreeMap<String, Vec<NetworkTypeDefinition>>,
+    types: &BTreeMap<String, Vec<SessionContractTypeDefinition>>,
 ) -> Result<
     (
         TypeSurface,
@@ -1451,11 +1457,11 @@ fn network_contract(
     ),
     String,
 > {
-    let session_command = unique_network_type(types, SESSION_COMMAND_NAME)?;
+    let session_command = unique_contract_type(types, SESSION_COMMAND_NAME)?;
     if session_command.surface.kind != "enum" {
         return Err(format!("{SESSION_COMMAND_NAME} must remain an enum"));
     }
-    let player_broadcast_info = unique_network_type(types, PLAYER_BROADCAST_INFO_NAME)?;
+    let player_broadcast_info = unique_contract_type(types, PLAYER_BROADCAST_INFO_NAME)?;
     if player_broadcast_info.surface.kind != "struct" {
         return Err(format!("{PLAYER_BROADCAST_INFO_NAME} must remain a struct"));
     }
@@ -1583,7 +1589,7 @@ impl BaselineBuilder {
         bridge_accesses: BridgeAccessBaseline,
     ) -> Result<SessionSyntaxBaseline, String> {
         let session_helper_bodies = self.session_helper_bodies();
-        let network_contract = network_contract(&self.network_types);
+        let network_contract = network_contract(&self.contract_types);
         let mut errors = self.errors;
         let world_session_definition = self.world_session_definition.ok_or_else(|| {
             format!("missing {WORLD_SESSION_MODULE}::{WORLD_SESSION_NAME} definition")

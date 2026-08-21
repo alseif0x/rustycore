@@ -48570,7 +48570,7 @@
           "kind": "method",
           "name": "visible_other_players_from_registry_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn visible_other_players_from_registry_like_cpp (& self , map_id : u16 , position : & Position , visibility_radius : f32 ,) -> Vec < (ObjectGuid , wow_network :: PlayerVisibilityCreateSnapshot) >",
+          "signature": "fn visible_other_players_from_registry_like_cpp (& self , map_id : u16 , position : & Position , visibility_radius : f32 ,) -> Vec < (ObjectGuid , PlayerVisibilityCreateSnapshot) >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -55260,7 +55260,7 @@
     ],
     "player_broadcast_info": {
       "definition": {
-        "module": "crate::player_registry",
+        "module": "crate::session::directory",
         "name": "PlayerBroadcastInfo",
         "visibility": "pub",
         "cfg": [],
@@ -55995,14 +55995,6 @@
       },
       {
         "module": "crate::player_registry",
-        "target": "PlayerBroadcastInfo",
-        "kind": "derive",
-        "fingerprint": "derive (Clone)",
-        "cfg": [],
-        "source_class": "production"
-      },
-      {
-        "module": "crate::player_registry",
         "target": "ReconcilePvpCombatExpiryLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56184,6 +56176,14 @@
         "fingerprint": "derive (Clone , Debug , PartialEq , Eq)",
         "cfg": [],
         "source_class": "production"
+      },
+      {
+        "module": "crate::session::directory",
+        "target": "PlayerBroadcastInfo",
+        "kind": "derive",
+        "fingerprint": "derive (Clone)",
+        "cfg": [],
+        "source_class": "production"
       }
     ],
     "registry_accesses": {
@@ -56199,7 +56199,7 @@
           "symbol": "PlayerRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{GameEventQuestCompleteCommandLikeCpp,GameEventQuestCompleteResponseLikeCpp,GroupDbRowLikeCpp,GroupLoadSummaryLikeCpp,GroupMemberCharacterLikeCpp,GroupMemberDbRowLikeCpp,GroupRegistry,KickLikeCppCommand,PendingInvites,PlayerRegistry,ReadyCheckEventLikeCpp,ResetSeasonalQuestStatusCommand,SendVisibleObjectValuesUpdateCommand,SessionCommand,SocketTimeoutsLikeCpp,WorldListenerPolicyLikeCpp,WorldSessionShutdownFlushLikeCppCommand,WorldSessionShutdownFlushResultLikeCpp,load_groups_from_db_rows_like_cpp,tick_all_group_ready_checks_like_cpp}",
+          "fingerprint": "wow_world::session::directory::PlayerRegistry",
           "count": 1
         },
         {
@@ -56212,7 +56212,7 @@
           "symbol": "GroupRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{GameEventQuestCompleteCommandLikeCpp,GameEventQuestCompleteResponseLikeCpp,GroupDbRowLikeCpp,GroupLoadSummaryLikeCpp,GroupMemberCharacterLikeCpp,GroupMemberDbRowLikeCpp,GroupRegistry,KickLikeCppCommand,PendingInvites,PlayerRegistry,ReadyCheckEventLikeCpp,ResetSeasonalQuestStatusCommand,SendVisibleObjectValuesUpdateCommand,SessionCommand,SocketTimeoutsLikeCpp,WorldListenerPolicyLikeCpp,WorldSessionShutdownFlushLikeCppCommand,WorldSessionShutdownFlushResultLikeCpp,load_groups_from_db_rows_like_cpp,tick_all_group_ready_checks_like_cpp}",
+          "fingerprint": "wow_network::{GameEventQuestCompleteCommandLikeCpp,GameEventQuestCompleteResponseLikeCpp,GroupDbRowLikeCpp,GroupLoadSummaryLikeCpp,GroupMemberCharacterLikeCpp,GroupMemberDbRowLikeCpp,GroupRegistry,KickLikeCppCommand,PendingInvites,ReadyCheckEventLikeCpp,ResetSeasonalQuestStatusCommand,SendVisibleObjectValuesUpdateCommand,SessionCommand,SocketTimeoutsLikeCpp,WorldListenerPolicyLikeCpp,WorldSessionShutdownFlushLikeCppCommand,WorldSessionShutdownFlushResultLikeCpp,load_groups_from_db_rows_like_cpp,tick_all_group_ready_checks_like_cpp}",
           "count": 1
         },
         {
@@ -56225,7 +56225,7 @@
           "symbol": "PendingInvites",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{GameEventQuestCompleteCommandLikeCpp,GameEventQuestCompleteResponseLikeCpp,GroupDbRowLikeCpp,GroupLoadSummaryLikeCpp,GroupMemberCharacterLikeCpp,GroupMemberDbRowLikeCpp,GroupRegistry,KickLikeCppCommand,PendingInvites,PlayerRegistry,ReadyCheckEventLikeCpp,ResetSeasonalQuestStatusCommand,SendVisibleObjectValuesUpdateCommand,SessionCommand,SocketTimeoutsLikeCpp,WorldListenerPolicyLikeCpp,WorldSessionShutdownFlushLikeCppCommand,WorldSessionShutdownFlushResultLikeCpp,load_groups_from_db_rows_like_cpp,tick_all_group_ready_checks_like_cpp}",
+          "fingerprint": "wow_network::{GameEventQuestCompleteCommandLikeCpp,GameEventQuestCompleteResponseLikeCpp,GroupDbRowLikeCpp,GroupLoadSummaryLikeCpp,GroupMemberCharacterLikeCpp,GroupMemberDbRowLikeCpp,GroupRegistry,KickLikeCppCommand,PendingInvites,ReadyCheckEventLikeCpp,ResetSeasonalQuestStatusCommand,SendVisibleObjectValuesUpdateCommand,SessionCommand,SocketTimeoutsLikeCpp,WorldListenerPolicyLikeCpp,WorldSessionShutdownFlushLikeCppCommand,WorldSessionShutdownFlushResultLikeCpp,load_groups_from_db_rows_like_cpp,tick_all_group_ready_checks_like_cpp}",
           "count": 1
         },
         {
@@ -56537,7 +56537,7 @@
           "symbol": "registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "& wow_network :: PlayerRegistry",
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
           "count": 1
         },
         {
@@ -56550,7 +56550,7 @@
           "symbol": "registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "& wow_network :: PlayerRegistry",
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
           "count": 1
         },
         {
@@ -56563,7 +56563,7 @@
           "symbol": "registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "& wow_network :: PlayerRegistry",
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
           "count": 1
         },
         {
@@ -56576,7 +56576,7 @@
           "symbol": "registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "& wow_network :: PlayerRegistry",
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
           "count": 1
         },
         {
@@ -56589,7 +56589,7 @@
           "symbol": "registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "& wow_network :: PlayerRegistry",
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
           "count": 1
         },
         {
@@ -56602,7 +56602,7 @@
           "symbol": "registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "& wow_network :: PlayerRegistry",
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
           "count": 1
         },
         {
@@ -56615,7 +56615,7 @@
           "symbol": "registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "& wow_network :: PlayerRegistry",
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
           "count": 1
         },
         {
@@ -56641,7 +56641,7 @@
           "symbol": "registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "& wow_network :: PlayerRegistry",
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
           "count": 1
         },
         {
@@ -56654,7 +56654,7 @@
           "symbol": "registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "& wow_network :: PlayerRegistry",
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
           "count": 1
         },
         {
@@ -56719,7 +56719,7 @@
           "symbol": "registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "& wow_network :: PlayerRegistry",
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
           "count": 1
         },
         {
@@ -56745,7 +56745,7 @@
           "symbol": "registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "& wow_network :: PlayerRegistry",
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
           "count": 1
         },
         {
@@ -56784,7 +56784,7 @@
           "symbol": "registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "& wow_network :: PlayerRegistry",
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
           "count": 1
         },
         {
@@ -56823,7 +56823,7 @@
           "symbol": "registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "& wow_network :: PlayerRegistry",
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
           "count": 1
         },
         {
@@ -56901,7 +56901,7 @@
           "symbol": "registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "& wow_network :: PlayerRegistry",
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
           "count": 1
         },
         {
@@ -57460,7 +57460,7 @@
           "symbol": "PlayerRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{GameEventQuestCompleteCommandLikeCpp,GroupRegistry,PendingInvites,PlayerRegistry}",
+          "fingerprint": "wow_world::session::directory::PlayerRegistry",
           "count": 1
         },
         {
@@ -57473,7 +57473,7 @@
           "symbol": "GroupRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{GameEventQuestCompleteCommandLikeCpp,GroupRegistry,PendingInvites,PlayerRegistry}",
+          "fingerprint": "wow_network::{GameEventQuestCompleteCommandLikeCpp,GroupRegistry,PendingInvites}",
           "count": 1
         },
         {
@@ -57486,7 +57486,7 @@
           "symbol": "PendingInvites",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{GameEventQuestCompleteCommandLikeCpp,GroupRegistry,PendingInvites,PlayerRegistry}",
+          "fingerprint": "wow_network::{GameEventQuestCompleteCommandLikeCpp,GroupRegistry,PendingInvites}",
           "count": 1
         },
         {
@@ -57526,19 +57526,6 @@
           "visibility": "pub (super)",
           "cfg": [],
           "fingerprint": "Option < Arc < PendingInvites > >",
-          "count": 1
-        },
-        {
-          "package": "wow-network",
-          "module": "crate",
-          "source": "crates/wow-network/src/lib.rs",
-          "enclosing": "module",
-          "registry": "PlayerRegistry",
-          "operation": "import_alias",
-          "symbol": "PlayerRegistry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry::{ApplyCreatureMeleeDamageLikeCppCommand,ApplyLootMoneyLikeCppCommand,ApplyLootMoneyResultLikeCpp,CreatureAttackStartLikeCppCommand,CreatureAttackStopLikeCppCommand,DurableCreatureRuntimeCommandsLikeCpp,DurableLootMoneyAdmissionClosedLikeCpp,DurableLootMoneyCompletionLikeCpp,DurableLootMoneyPersistenceGuardLikeCpp,DurableLootMoneyPersistenceTrackerLikeCpp,DurableLootMoneySaveFenceLikeCpp,GameEventQuestCompleteClientOutcomeLikeCpp,GameEventQuestCompleteCommandLikeCpp,GameEventQuestCompleteResponseLikeCpp,KickLikeCppCommand,LootRollCommandIdentityLikeCpp,LootRollStoreWinnerCommand,LootRollVoteCommand,MAX_DURABLE_CREATURE_RUNTIME_COMMANDS_LIKE_CPP,MasterLootGiveCommand,MasterLootGiveResult,NotifyLootMoneyRemovedLikeCppCommand,PlayerAggroCandidateSnapshot,PlayerBroadcastInfo,PlayerControlAddress,PlayerDirectoryReliableSendOutcome,PlayerDirectorySendError,PlayerGroupPresenceSnapshot,PlayerGroupRewardSnapshot,PlayerInspectSnapshot,PlayerLootContextSnapshot,PlayerLootPresenceSnapshot,PlayerMovementDirectoryUpdate,PlayerPartyMemberSnapshot,PlayerQuestSharingSnapshot,PlayerRegistration,PlayerRegistry,PlayerRuntimeRecipient,PlayerSocialRecipientSnapshot,PlayerVehicleInteractionSnapshot,PlayerVisibilityCreateSnapshot,PrepareLootMoneyApplicationLikeCpp,PreparedLootMoneyApplicationLikeCpp,RefreshVisibleWorldCreaturesLikeCppCommand,ResetSeasonalQuestStatusCommand,SendAddonIfRegisteredLikeCppCommand,SendCreatureLootReleaseValuesUpdateLikeCppCommand,SendCreatureSpellCastIfVisibleLikeCppCommand,SendIfVisibleLikeCppCommand,SendPartyUpdateLikeCppCommand,SendRealmPacketLikeCppCommand,SendVisibleObjectValuesUpdateCommand,SessionCommand,SharedClientVisibleGuidsLikeCpp,WorldSessionShutdownFlushLikeCppCommand,WorldSessionShutdownFlushResultLikeCpp}",
           "count": 1
         },
         {
@@ -59683,7 +59670,7 @@
           "symbol": "PlayerRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{AcceptGroupInviteResultLikeCpp,CreateGroupInviteResultLikeCpp,GroupAuthorityErrorLikeCpp,GroupInfo,GroupMemberRemovalKindLikeCpp,GroupPersistenceIntentLikeCpp,GroupRegistry,MEMBER_FLAG_ASSISTANT_LIKE_CPP,PlayerRegistration,PlayerRegistry,ReadyCheckEventLikeCpp,SendPartyUpdateLikeCppCommand,SendRealmPacketLikeCppCommand,SessionCommand}",
+          "fingerprint": "crate::session::directory::{PlayerRegistration,PlayerRegistry}",
           "count": 1
         },
         {
@@ -59696,7 +59683,7 @@
           "symbol": "GroupRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{AcceptGroupInviteResultLikeCpp,CreateGroupInviteResultLikeCpp,GroupAuthorityErrorLikeCpp,GroupInfo,GroupMemberRemovalKindLikeCpp,GroupPersistenceIntentLikeCpp,GroupRegistry,MEMBER_FLAG_ASSISTANT_LIKE_CPP,PlayerRegistration,PlayerRegistry,ReadyCheckEventLikeCpp,SendPartyUpdateLikeCppCommand,SendRealmPacketLikeCppCommand,SessionCommand}",
+          "fingerprint": "wow_network::{AcceptGroupInviteResultLikeCpp,CreateGroupInviteResultLikeCpp,GroupAuthorityErrorLikeCpp,GroupInfo,GroupMemberRemovalKindLikeCpp,GroupPersistenceIntentLikeCpp,GroupRegistry,MEMBER_FLAG_ASSISTANT_LIKE_CPP,ReadyCheckEventLikeCpp,SendPartyUpdateLikeCppCommand,SendRealmPacketLikeCppCommand,SessionCommand}",
           "count": 1
         },
         {
@@ -60905,7 +60892,7 @@
           "symbol": "PlayerRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{ApplyLootMoneyLikeCppCommand,ApplyLootMoneyResultLikeCpp,KickLikeCppCommand,LootRollCommandIdentityLikeCpp,LootRollStoreWinnerCommand,LootRollVoteCommand,MasterLootGiveCommand,MasterLootGiveResult,NotifyLootMoneyRemovedLikeCppCommand,PlayerRegistry,PrepareLootMoneyApplicationLikeCpp,SessionCommand}",
+          "fingerprint": "crate::session::directory::{PlayerRegistry,PrepareLootMoneyApplicationLikeCpp}",
           "count": 1
         },
         {
@@ -63518,7 +63505,7 @@
           "symbol": "PlayerRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{DurableLootMoneyCompletionLikeCpp,DurableLootMoneyPersistenceGuardLikeCpp,DurableLootMoneyPersistenceTrackerLikeCpp,DurableLootMoneySaveFenceLikeCpp,GameEventQuestCompleteClientOutcomeLikeCpp,GameEventQuestCompleteCommandLikeCpp,GroupInfo,GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupRegistry,KickLikeCppCommand,LootRollCommandIdentityLikeCpp,NotifyLootMoneyRemovedLikeCppCommand,PendingInvites,PlayerBroadcastInfo,PlayerRegistry,SessionCommand,SharedClientVisibleGuidsLikeCpp,SocketTimeoutsLikeCpp,SocketWriteFenceLikeCpp,SocketWriteFenceWaitResultLikeCpp,group_guid_by_db_store_id_like_cpp}",
+          "fingerprint": "crate::session::directory::{PlayerBroadcastInfo,PlayerRegistry,PlayerVisibilityCreateSnapshot}",
           "count": 1
         },
         {
@@ -63531,7 +63518,7 @@
           "symbol": "GroupRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{DurableLootMoneyCompletionLikeCpp,DurableLootMoneyPersistenceGuardLikeCpp,DurableLootMoneyPersistenceTrackerLikeCpp,DurableLootMoneySaveFenceLikeCpp,GameEventQuestCompleteClientOutcomeLikeCpp,GameEventQuestCompleteCommandLikeCpp,GroupInfo,GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupRegistry,KickLikeCppCommand,LootRollCommandIdentityLikeCpp,NotifyLootMoneyRemovedLikeCppCommand,PendingInvites,PlayerBroadcastInfo,PlayerRegistry,SessionCommand,SharedClientVisibleGuidsLikeCpp,SocketTimeoutsLikeCpp,SocketWriteFenceLikeCpp,SocketWriteFenceWaitResultLikeCpp,group_guid_by_db_store_id_like_cpp}",
+          "fingerprint": "wow_network::{DurableLootMoneyCompletionLikeCpp,DurableLootMoneyPersistenceGuardLikeCpp,DurableLootMoneyPersistenceTrackerLikeCpp,DurableLootMoneySaveFenceLikeCpp,GameEventQuestCompleteClientOutcomeLikeCpp,GameEventQuestCompleteCommandLikeCpp,GroupInfo,GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupRegistry,KickLikeCppCommand,LootRollCommandIdentityLikeCpp,NotifyLootMoneyRemovedLikeCppCommand,PendingInvites,SessionCommand,SharedClientVisibleGuidsLikeCpp,SocketTimeoutsLikeCpp,SocketWriteFenceLikeCpp,SocketWriteFenceWaitResultLikeCpp,group_guid_by_db_store_id_like_cpp}",
           "count": 1
         },
         {
@@ -63544,7 +63531,7 @@
           "symbol": "PendingInvites",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{DurableLootMoneyCompletionLikeCpp,DurableLootMoneyPersistenceGuardLikeCpp,DurableLootMoneyPersistenceTrackerLikeCpp,DurableLootMoneySaveFenceLikeCpp,GameEventQuestCompleteClientOutcomeLikeCpp,GameEventQuestCompleteCommandLikeCpp,GroupInfo,GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupRegistry,KickLikeCppCommand,LootRollCommandIdentityLikeCpp,NotifyLootMoneyRemovedLikeCppCommand,PendingInvites,PlayerBroadcastInfo,PlayerRegistry,SessionCommand,SharedClientVisibleGuidsLikeCpp,SocketTimeoutsLikeCpp,SocketWriteFenceLikeCpp,SocketWriteFenceWaitResultLikeCpp,group_guid_by_db_store_id_like_cpp}",
+          "fingerprint": "wow_network::{DurableLootMoneyCompletionLikeCpp,DurableLootMoneyPersistenceGuardLikeCpp,DurableLootMoneyPersistenceTrackerLikeCpp,DurableLootMoneySaveFenceLikeCpp,GameEventQuestCompleteClientOutcomeLikeCpp,GameEventQuestCompleteCommandLikeCpp,GroupInfo,GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupRegistry,KickLikeCppCommand,LootRollCommandIdentityLikeCpp,NotifyLootMoneyRemovedLikeCppCommand,PendingInvites,SessionCommand,SharedClientVisibleGuidsLikeCpp,SocketTimeoutsLikeCpp,SocketWriteFenceLikeCpp,SocketWriteFenceWaitResultLikeCpp,group_guid_by_db_store_id_like_cpp}",
           "count": 1
         },
         {
@@ -63695,7 +63682,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp (legacy_map_manager : & SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , registry : & wow_network :: PlayerRegistry , aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp ,) -> (wow_world :: session :: LegacyCreatureAggroTickOutcomeLikeCpp , RuntimeCreatureAttackStartDeliverySummaryLikeCpp , RuntimeDeliverySummaryLikeCpp ,)|body=fnv1a64x2:8d7f31b3891c54b6174ad85122a05b95:len=1534|evidence=fnv1a64x2:d2a5399dffa2142e79bbaa29ab680b9d:len=848",
+          "fingerprint": "signature=fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp (legacy_map_manager : & SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , registry : & wow_world :: session :: directory :: PlayerRegistry , aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp ,) -> (wow_world :: session :: LegacyCreatureAggroTickOutcomeLikeCpp , RuntimeCreatureAttackStartDeliverySummaryLikeCpp , RuntimeDeliverySummaryLikeCpp ,)|body=fnv1a64x2:8d7f31b3891c54b6174ad85122a05b95:len=1534|evidence=fnv1a64x2:d2a5399dffa2142e79bbaa29ab680b9d:len=848",
           "cfg": [],
           "multiplicity": 1
         },
@@ -63737,7 +63724,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp (legacy_map_manager : & SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , map_store : & wow_data :: MapStore , now : std :: time :: Instant , registry : & wow_network :: PlayerRegistry ,) -> (wow_world :: session :: LegacyCreatureLifecycleTickOutcomeLikeCpp , RuntimeVisibilityRefreshDeliverySummaryLikeCpp ,)|body=fnv1a64x2:2d6f9d880ae7f413af85e589e6fdf06c:len=433|evidence=fnv1a64x2:144fe3b484ffbb2d92aa2cfef39fecda:len=375",
+          "fingerprint": "signature=fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp (legacy_map_manager : & SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , map_store : & wow_data :: MapStore , now : std :: time :: Instant , registry : & wow_world :: session :: directory :: PlayerRegistry ,) -> (wow_world :: session :: LegacyCreatureLifecycleTickOutcomeLikeCpp , RuntimeVisibilityRefreshDeliverySummaryLikeCpp ,)|body=fnv1a64x2:2d6f9d880ae7f413af85e589e6fdf06c:len=433|evidence=fnv1a64x2:144fe3b484ffbb2d92aa2cfef39fecda:len=375",
           "cfg": [],
           "multiplicity": 1
         },
@@ -63793,7 +63780,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn run_legacy_creature_melee_tick_and_deliver_once_like_cpp (legacy_map_manager : & SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , registry : & wow_network :: PlayerRegistry ,) -> (wow_world :: session :: LegacyCreatureMeleeTickOutcomeLikeCpp , RuntimeCreatureMeleeDeliverySummaryLikeCpp , RuntimeDeliverySummaryLikeCpp ,)|body=fnv1a64x2:e22bdf4a75cb7f5f4d799f18bfd39b28:len=353|evidence=fnv1a64x2:5c16edf1a2598c0cff8432fa88e3c307:len=654",
+          "fingerprint": "signature=fn run_legacy_creature_melee_tick_and_deliver_once_like_cpp (legacy_map_manager : & SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , registry : & wow_world :: session :: directory :: PlayerRegistry ,) -> (wow_world :: session :: LegacyCreatureMeleeTickOutcomeLikeCpp , RuntimeCreatureMeleeDeliverySummaryLikeCpp , RuntimeDeliverySummaryLikeCpp ,)|body=fnv1a64x2:e22bdf4a75cb7f5f4d799f18bfd39b28:len=353|evidence=fnv1a64x2:5c16edf1a2598c0cff8432fa88e3c307:len=654",
           "cfg": [],
           "multiplicity": 1
         },
@@ -63849,7 +63836,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn run_legacy_creature_movement_tick_and_deliver_once_like_cpp (legacy_map_manager : & SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , mmap_config : & MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < & WorldMMapPathfinderWorkerLikeCpp > , diff_ms : u32 , registry : & wow_network :: PlayerRegistry ,) -> (wow_world :: session :: LegacyCreatureMovementTickOutcomeLikeCpp , RuntimeDeliverySummaryLikeCpp ,)|body=fnv1a64x2:d9eba06deacc489108a57a85c8a8758c:len=376|evidence=fnv1a64x2:50979a34cbf455fc16ee279d977c5427:len=660",
+          "fingerprint": "signature=fn run_legacy_creature_movement_tick_and_deliver_once_like_cpp (legacy_map_manager : & SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , mmap_config : & MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < & WorldMMapPathfinderWorkerLikeCpp > , diff_ms : u32 , registry : & wow_world :: session :: directory :: PlayerRegistry ,) -> (wow_world :: session :: LegacyCreatureMovementTickOutcomeLikeCpp , RuntimeDeliverySummaryLikeCpp ,)|body=fnv1a64x2:d9eba06deacc489108a57a85c8a8758c:len=376|evidence=fnv1a64x2:50979a34cbf455fc16ee279d977c5427:len=660",
           "cfg": [],
           "multiplicity": 1
         },
@@ -63905,7 +63892,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp (legacy_map_manager : & SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , map_store : & wow_data :: MapStore , mmap_config : & MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < & WorldMMapPathfinderWorkerLikeCpp > , aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , diff_ms : u32 , now : std :: time :: Instant , registry : & wow_network :: PlayerRegistry , respawn_db_mutation_order : Option < & SharedRespawnDbMutationOrderLikeCpp > , respawn_db_writer_tx : Option < & RespawnDbWriterSenderLikeCpp > ,) -> LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp|body=fnv1a64x2:11f646d0fc4cac90e84a3edeee2b8c33:len=1650|evidence=fnv1a64x2:0b31df77a734870075874f30b6d27af3:len=1410",
+          "fingerprint": "signature=fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp (legacy_map_manager : & SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , map_store : & wow_data :: MapStore , mmap_config : & MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < & WorldMMapPathfinderWorkerLikeCpp > , aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , diff_ms : u32 , now : std :: time :: Instant , registry : & wow_world :: session :: directory :: PlayerRegistry , respawn_db_mutation_order : Option < & SharedRespawnDbMutationOrderLikeCpp > , respawn_db_writer_tx : Option < & RespawnDbWriterSenderLikeCpp > ,) -> LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp|body=fnv1a64x2:11f646d0fc4cac90e84a3edeee2b8c33:len=1650|evidence=fnv1a64x2:0b31df77a734870075874f30b6d27af3:len=1410",
           "cfg": [],
           "multiplicity": 1
         },
@@ -63961,7 +63948,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn run_legacy_creature_spell_tick_and_deliver_once_like_cpp (legacy_map_manager : & SharedMapManager , canonical_map_manager : Option < & wow_world :: session :: SharedCanonicalMapManager > , registry : & wow_network :: PlayerRegistry , config : & wow_world :: session :: LegacyCreatureAggroConfigLikeCpp ,) -> (wow_world :: session :: LegacyCreatureSpellTickOutcomeLikeCpp , RuntimeDeliverySummaryLikeCpp ,)|body=fnv1a64x2:fc8075b9b1f87f55fbe90238c69dab9c:len=252|evidence=fnv1a64x2:65e9c5ef06b0d93b293e032a8d73707e:len=654",
+          "fingerprint": "signature=fn run_legacy_creature_spell_tick_and_deliver_once_like_cpp (legacy_map_manager : & SharedMapManager , canonical_map_manager : Option < & wow_world :: session :: SharedCanonicalMapManager > , registry : & wow_world :: session :: directory :: PlayerRegistry , config : & wow_world :: session :: LegacyCreatureAggroConfigLikeCpp ,) -> (wow_world :: session :: LegacyCreatureSpellTickOutcomeLikeCpp , RuntimeDeliverySummaryLikeCpp ,)|body=fnv1a64x2:fc8075b9b1f87f55fbe90238c69dab9c:len=252|evidence=fnv1a64x2:65e9c5ef06b0d93b293e032a8d73707e:len=654",
           "cfg": [],
           "multiplicity": 1
         },
