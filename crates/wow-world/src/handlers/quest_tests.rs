@@ -42,6 +42,8 @@ use wow_packet::WorldPacket;
 use wow_packet::packets::item::InventoryChangeFailure;
 use wow_packet::packets::quest::QuestGiverQuestFailed;
 
+const SESSION_DISPATCH_SOURCE: &str = include_str!("../session/dispatch.rs");
+
 fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded(8);
     let (send_tx, send_rx) = flume::bounded(8);
@@ -6249,8 +6251,8 @@ fn quest_push_inventory_registration_and_dispatcher_contract_like_cpp() {
     assert_eq!(entry.status, SessionStatus::LoggedIn);
     assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
     assert_eq!(entry.handler_name, "handle_quest_push_result");
-    assert!(include_str!("../session.rs").contains("ClientOpcodes::QuestPushResult =>"));
-    assert!(include_str!("../session.rs").contains("self.handle_quest_push_result(pkt).await"));
+    assert!(SESSION_DISPATCH_SOURCE.contains("ClientOpcodes::QuestPushResult =>"));
+    assert!(SESSION_DISPATCH_SOURCE.contains("self.handle_quest_push_result(pkt).await"));
 }
 
 #[test]
@@ -8508,8 +8510,8 @@ fn push_quest_to_party_registration_and_dispatch_are_wired_like_cpp() {
     assert_eq!(entry.status, SessionStatus::LoggedIn);
     assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
     assert_eq!(entry.handler_name, "handle_push_quest_to_party");
-    assert!(include_str!("../session.rs").contains("ClientOpcodes::PushQuestToParty =>"));
-    assert!(include_str!("../session.rs").contains("self.handle_push_quest_to_party(pkt).await"));
+    assert!(SESSION_DISPATCH_SOURCE.contains("ClientOpcodes::PushQuestToParty =>"));
+    assert!(SESSION_DISPATCH_SOURCE.contains("self.handle_push_quest_to_party(pkt).await"));
 }
 
 #[test]
@@ -8552,7 +8554,7 @@ fn quest_packet_registration_and_dispatch_are_wired_like_cpp() {
             "self.handle_query_quest_info(pkt).await",
         ),
     ];
-    let dispatcher = include_str!("../session.rs");
+    let dispatcher = SESSION_DISPATCH_SOURCE;
 
     for (opcode, handler_name, match_arm, call) in cases {
         let entry = inventory::iter::<PacketHandlerEntry>
@@ -9700,10 +9702,8 @@ fn quest_log_remove_inventory_registration_and_dispatcher_contract_like_cpp() {
     assert_eq!(entry.status, SessionStatus::LoggedIn);
     assert_eq!(entry.processing, PacketProcessing::Inplace);
     assert_eq!(entry.handler_name, "handle_quest_log_remove_quest");
-    assert!(include_str!("../session.rs").contains("ClientOpcodes::QuestLogRemoveQuest =>"));
-    assert!(
-        include_str!("../session.rs").contains("self.handle_quest_log_remove_quest(pkt).await")
-    );
+    assert!(SESSION_DISPATCH_SOURCE.contains("ClientOpcodes::QuestLogRemoveQuest =>"));
+    assert!(SESSION_DISPATCH_SOURCE.contains("self.handle_quest_log_remove_quest(pkt).await"));
 }
 
 #[test]

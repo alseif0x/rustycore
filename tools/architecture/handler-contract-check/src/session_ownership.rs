@@ -2834,7 +2834,7 @@ mod tests {
         let baseline = collect_repository_baseline(&repository_root)
             .unwrap_or_else(|error| panic!("repository baseline must parse:\n{error}"));
         let raw_session_source =
-            fs::read_to_string(repository_root.join("crates/wow-world/src/session.rs"))
+            fs::read_to_string(repository_root.join("crates/wow-world/src/session/mod.rs"))
                 .expect("read session source");
         let raw_session = syn::parse_file(&raw_session_source).expect("parse session source");
         let raw_fields = raw_session
