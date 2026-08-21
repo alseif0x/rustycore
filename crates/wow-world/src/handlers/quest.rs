@@ -289,7 +289,7 @@ fn represented_satisfy_quest_dependent_breadcrumb_quests_failed_like_cpp(
 fn represented_can_take_quest_after_expansion_like_cpp(
     quest_store: &wow_data::quest::QuestStore,
     quest: &wow_data::quest::QuestTemplate,
-    receiver: &wow_network::PlayerBroadcastInfo,
+    receiver: &wow_network::PlayerQuestSharingSnapshot,
 ) -> bool {
     // C++ anchor: `Player::CanTakeQuest`, Player.cpp:14093-14102, after the
     // push handler has already emitted dedicated messages for class/race/level,
@@ -4313,9 +4313,8 @@ impl WorldSession {
             return;
         };
 
-        let Some(sender_snapshot) = player_registry
-            .get(&pending.sender_guid)
-            .map(|entry| entry.clone())
+        let Some(sender_active_status) =
+            player_registry.quest_active_status(pending.sender_guid, parsed_quest_id)
         else {
             record(
                 self,
@@ -4376,10 +4375,6 @@ impl WorldSession {
             return;
         }
 
-        let sender_active_status = sender_snapshot
-            .active_quest_statuses
-            .get(&parsed_quest_id)
-            .copied();
         if !matches!(
             sender_active_status,
             Some(QUEST_STATUS_INCOMPLETE_LIKE_CPP | QUEST_STATUS_COMPLETE_LIKE_CPP)
@@ -4786,8 +4781,8 @@ impl WorldSession {
             .filter(|member_guid| Some(*member_guid) != sender_guid)
             .filter_map(|member_guid| {
                 player_registry
-                    .get(&member_guid)
-                    .map(|receiver| (member_guid, receiver.clone()))
+                    .quest_sharing_snapshot(member_guid)
+                    .map(|receiver| (member_guid, receiver))
             })
             .collect::<Vec<_>>();
 
@@ -4835,7 +4830,8 @@ impl WorldSession {
                     String::new(),
                 );
                 if let Some(sender_guid) = sender_guid {
-                    let _ = receiver.send_tx.send(
+                    let _ = player_registry.send_current_packet(
+                        receiver.registration,
                         QuestPushResultResponse {
                             sender_guid,
                             result: QUEST_PUSH_REASON_DEAD_TO_RECIPIENT_LIKE_CPP,
@@ -4869,7 +4865,8 @@ impl WorldSession {
                     QUEST_PUSH_REASON_ALREADY_DONE_LIKE_CPP,
                     String::new(),
                 );
-                let _ = receiver.send_tx.send(
+                let _ = player_registry.send_current_packet(
+                    receiver.registration,
                     QuestPushResultResponse {
                         sender_guid: sender_guid_for_receiver_packet,
                         result: QUEST_PUSH_REASON_ALREADY_DONE_TO_RECIPIENT_LIKE_CPP,
@@ -4910,7 +4907,8 @@ impl WorldSession {
                         QUEST_PUSH_REASON_ON_QUEST_LIKE_CPP,
                         String::new(),
                     );
-                    let _ = receiver.send_tx.send(
+                    let _ = player_registry.send_current_packet(
+                        receiver.registration,
                         QuestPushResultResponse {
                             sender_guid: sender_guid_for_receiver_packet,
                             result: QUEST_PUSH_REASON_ON_QUEST_TO_RECIPIENT_LIKE_CPP,
@@ -4949,7 +4947,8 @@ impl WorldSession {
                     QUEST_PUSH_REASON_LOG_FULL_LIKE_CPP,
                     String::new(),
                 );
-                let _ = receiver.send_tx.send(
+                let _ = player_registry.send_current_packet(
+                    receiver.registration,
                     QuestPushResultResponse {
                         sender_guid: sender_guid_for_receiver_packet,
                         result: QUEST_PUSH_REASON_LOG_FULL_TO_RECIPIENT_LIKE_CPP,
@@ -4995,7 +4994,8 @@ impl WorldSession {
                     QUEST_PUSH_REASON_ALREADY_DONE_LIKE_CPP,
                     String::new(),
                 );
-                let _ = receiver.send_tx.send(
+                let _ = player_registry.send_current_packet(
+                    receiver.registration,
                     QuestPushResultResponse {
                         sender_guid: sender_guid_for_receiver_packet,
                         result: QUEST_PUSH_REASON_ALREADY_DONE_TO_RECIPIENT_LIKE_CPP,
@@ -5032,7 +5032,8 @@ impl WorldSession {
                     QUEST_PUSH_REASON_LOW_LEVEL_LIKE_CPP,
                     String::new(),
                 );
-                let _ = receiver.send_tx.send(
+                let _ = player_registry.send_current_packet(
+                    receiver.registration,
                     QuestPushResultResponse {
                         sender_guid: sender_guid_for_receiver_packet,
                         result: QUEST_PUSH_REASON_LOW_LEVEL_TO_RECIPIENT_LIKE_CPP,
@@ -5065,7 +5066,8 @@ impl WorldSession {
                     QUEST_PUSH_REASON_HIGH_LEVEL_LIKE_CPP,
                     String::new(),
                 );
-                let _ = receiver.send_tx.send(
+                let _ = player_registry.send_current_packet(
+                    receiver.registration,
                     QuestPushResultResponse {
                         sender_guid: sender_guid_for_receiver_packet,
                         result: QUEST_PUSH_REASON_HIGH_LEVEL_TO_RECIPIENT_LIKE_CPP,
@@ -5104,7 +5106,8 @@ impl WorldSession {
                     QUEST_PUSH_REASON_CLASS_LIKE_CPP,
                     String::new(),
                 );
-                let _ = receiver.send_tx.send(
+                let _ = player_registry.send_current_packet(
+                    receiver.registration,
                     QuestPushResultResponse {
                         sender_guid: sender_guid_for_receiver_packet,
                         result: QUEST_PUSH_REASON_CLASS_TO_RECIPIENT_LIKE_CPP,
@@ -5138,7 +5141,8 @@ impl WorldSession {
                     QUEST_PUSH_REASON_RACE_LIKE_CPP,
                     String::new(),
                 );
-                let _ = receiver.send_tx.send(
+                let _ = player_registry.send_current_packet(
+                    receiver.registration,
                     QuestPushResultResponse {
                         sender_guid: sender_guid_for_receiver_packet,
                         result: QUEST_PUSH_REASON_RACE_TO_RECIPIENT_LIKE_CPP,
@@ -5195,7 +5199,8 @@ impl WorldSession {
                     QUEST_PUSH_REASON_LOW_FACTION_LIKE_CPP,
                     String::new(),
                 );
-                let _ = receiver.send_tx.send(
+                let _ = player_registry.send_current_packet(
+                    receiver.registration,
                     QuestPushResultResponse {
                         sender_guid: sender_guid_for_receiver_packet,
                         result: QUEST_PUSH_REASON_LOW_FACTION_TO_RECIPIENT_LIKE_CPP,
@@ -5294,7 +5299,8 @@ impl WorldSession {
                     QUEST_PUSH_REASON_PREREQUISITE_LIKE_CPP,
                     String::new(),
                 );
-                let _ = receiver.send_tx.send(
+                let _ = player_registry.send_current_packet(
+                    receiver.registration,
                     QuestPushResultResponse {
                         sender_guid: sender_guid_for_receiver_packet,
                         result: QUEST_PUSH_REASON_PREREQUISITE_TO_RECIPIENT_LIKE_CPP,
@@ -5327,7 +5333,8 @@ impl WorldSession {
                     QUEST_PUSH_REASON_EXPANSION_LIKE_CPP,
                     String::new(),
                 );
-                let _ = receiver.send_tx.send(
+                let _ = player_registry.send_current_packet(
+                    receiver.registration,
                     QuestPushResultResponse {
                         sender_guid: sender_guid_for_receiver_packet,
                         result: QUEST_PUSH_REASON_EXPANSION_TO_RECIPIENT_LIKE_CPP,
@@ -5361,7 +5368,8 @@ impl WorldSession {
                     QUEST_PUSH_REASON_INVALID_LIKE_CPP,
                     String::new(),
                 );
-                let _ = receiver.send_tx.send(
+                let _ = player_registry.send_current_packet(
+                    receiver.registration,
                     QuestPushResultResponse {
                         sender_guid: sender_guid_for_receiver_packet,
                         result: QUEST_PUSH_REASON_INVALID_TO_RECIPIENT_LIKE_CPP,
@@ -5410,7 +5418,10 @@ impl WorldSession {
                     },
                 );
 
-                if receiver.command_tx.try_send(command).is_err() {
+                if player_registry
+                    .try_send_current_command(receiver.registration, command)
+                    .is_err()
+                {
                     blocked_by_unsupported_success_path = true;
                     self.record_represented_push_quest_to_party_outcome_like_cpp(
                         RepresentedPushQuestToPartyOutcomeLikeCpp {
@@ -5473,7 +5484,10 @@ impl WorldSession {
                 },
             );
 
-            if receiver.command_tx.try_send(command).is_err() {
+            if player_registry
+                .try_send_current_command(receiver.registration, command)
+                .is_err()
+            {
                 blocked_by_unsupported_success_path = true;
                 self.record_represented_push_quest_to_party_outcome_like_cpp(
                     RepresentedPushQuestToPartyOutcomeLikeCpp {

@@ -13,7 +13,8 @@ The assignment is responsibility-based even when a function lives in the session
   rows were removed from the remaining-direct-access table when the slice landed.
 - #193 closed combat, loot, inventory-reward and durable-loot access through bounded projections,
   incarnation addresses and ordered directory commands; its rows were removed on landing.
-- #194 owns quest, spell, movement, vehicle and movement-visibility consumers.
+- #194 closed quest, spell, movement, vehicle and movement-visibility access through bounded
+  projections, spatial recipient selection and generation-checked commands; its rows were removed.
 - #195 owns group, chat, social, ready-check and group-membership consumers.
 - #196 owns the generic broad-mirror synchronization helper and every test/fixture compatibility
   operation. It must remove the temporary compatibility guards, iterator, `insert`, `remove`,

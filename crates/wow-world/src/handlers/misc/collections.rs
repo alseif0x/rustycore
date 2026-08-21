@@ -154,30 +154,20 @@ impl crate::session::WorldSession {
             .map(|key| key.instance_id)
             .unwrap_or(0);
 
-        let candidates: Vec<_> = registry
-            .iter()
-            .filter_map(|entry| {
-                let (target_guid, info) = entry.pair();
-                if *target_guid == source_guid {
-                    return None;
-                }
-                if !info.is_in_world || info.map_id != map_id || info.instance_id != instance_id {
-                    return None;
-                }
-                Some(info.command_tx.clone())
-            })
-            .collect();
-
-        for command_tx in candidates {
-            let _ = command_tx.try_send(wow_network::SessionCommand::SendIfVisibleLikeCpp(
-                wow_network::player_registry::SendIfVisibleLikeCppCommand {
-                    queued_at: std::time::Instant::now(),
-                    source_guid,
-                    map_id,
-                    instance_id,
-                    packet_bytes: packet_bytes.clone(),
-                },
-            ));
+        for registration in registry.same_map_movement_recipients(source_guid, map_id, instance_id)
+        {
+            let _ = registry.try_send_current_command(
+                registration,
+                wow_network::SessionCommand::SendIfVisibleLikeCpp(
+                    wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                        queued_at: std::time::Instant::now(),
+                        source_guid,
+                        map_id,
+                        instance_id,
+                        packet_bytes: packet_bytes.clone(),
+                    },
+                ),
+            );
         }
     }
 

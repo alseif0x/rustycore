@@ -1463,6 +1463,46 @@ pub struct PlayerGroupRewardSnapshot {
     pub is_alive: bool,
 }
 
+/// Owned receiver facts used by C++ quest-sharing eligibility checks.
+/// The mirrored fields remain temporary and receive canonical-owner cutovers
+/// in the field-by-field retirement ledger required by issue #196.
+#[derive(Clone, Debug)]
+pub struct PlayerQuestSharingSnapshot {
+    pub registration: PlayerRegistration,
+    pub pending_quest_sharing: Option<(ObjectGuid, u32)>,
+    pub is_alive: bool,
+    pub rewarded_quests: HashSet<u32>,
+    pub active_quest_statuses: HashMap<u32, u8>,
+    pub df_quests: HashSet<u32>,
+    pub daily_quests_completed: HashSet<u32>,
+    pub level: u8,
+    pub class: u8,
+    pub race: u8,
+    pub reputation_standings: Vec<(u32, i32)>,
+    pub active_expansion: u8,
+}
+
+/// Owned facts required by C++ player-vehicle interaction checks. The
+/// temporary mirror fields are assigned retirement cutovers by issue #196.
+#[derive(Clone, Copy, Debug)]
+pub struct PlayerVehicleInteractionSnapshot {
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub position: Position,
+    pub has_vehicle_kit: bool,
+}
+
+/// Session-owned directory mirrors refreshed after authoritative movement.
+/// Issue #196 records the canonical owner and retirement cutover for each.
+#[derive(Clone, Debug)]
+pub struct PlayerMovementDirectoryUpdate {
+    pub position: Position,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub liquid_status: u32,
+    pub transport: Option<TransportInfo>,
+}
+
 /// Tracker-free input for preparing one remote durable loot-money command.
 #[derive(Clone, Debug)]
 pub struct PrepareLootMoneyApplicationLikeCpp {
@@ -1939,6 +1979,222 @@ impl PlayerRegistry {
             position: entry.info.position,
             is_alive: entry.info.is_alive,
         })
+    }
+
+    /// Resolve in-world recipients inside one exact map-instance radius.
+    #[must_use]
+    pub fn movement_recipients_within_range(
+        &self,
+        excluded_guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+        source_position: Position,
+        range: f32,
+    ) -> Vec<PlayerRegistration> {
+        let range_sq = range * range;
+        self.entries
+            .iter()
+            .filter_map(|entry| {
+                let guid = *entry.key();
+                let info = &entry.value().info;
+                if guid == excluded_guid
+                    || !info.is_in_world
+                    || info.map_id != map_id
+                    || info.instance_id != instance_id
+                {
+                    return None;
+                }
+                let dx = info.position.x - source_position.x;
+                let dy = info.position.y - source_position.y;
+                (dx * dx + dy * dy <= range_sq).then_some(PlayerRegistration {
+                    guid,
+                    generation: entry.value().generation,
+                })
+            })
+            .collect()
+    }
+
+    /// Resolve every other in-world movement recipient in one map instance.
+    #[must_use]
+    pub fn same_map_movement_recipients(
+        &self,
+        excluded_guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+    ) -> Vec<PlayerRegistration> {
+        self.entries
+            .iter()
+            .filter_map(|entry| {
+                let guid = *entry.key();
+                let info = &entry.value().info;
+                (guid != excluded_guid
+                    && info.is_in_world
+                    && info.map_id == map_id
+                    && info.instance_id == instance_id)
+                    .then_some(PlayerRegistration {
+                        guid,
+                        generation: entry.value().generation,
+                    })
+            })
+            .collect()
+    }
+
+    /// Resolve spell-pull observers using the represented C++ combat-reach radius.
+    #[must_use]
+    pub fn spell_pull_recipients(
+        &self,
+        excluded_guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+        source_position: Position,
+        source_combat_reach: f32,
+        visibility_range: f32,
+    ) -> Vec<PlayerRegistration> {
+        self.entries
+            .iter()
+            .filter_map(|entry| {
+                let guid = *entry.key();
+                let info = &entry.value().info;
+                if guid == excluded_guid
+                    || !info.is_in_world
+                    || info.map_id != map_id
+                    || info.instance_id != instance_id
+                {
+                    return None;
+                }
+                let dx = info.position.x - source_position.x;
+                let dy = info.position.y - source_position.y;
+                let reach =
+                    visibility_range + source_combat_reach.max(0.0) + info.combat_reach.max(0.0);
+                (dx * dx + dy * dy < reach * reach).then_some(PlayerRegistration {
+                    guid,
+                    generation: entry.value().generation,
+                })
+            })
+            .collect()
+    }
+
+    /// Snapshot fellow passengers needed by C++ `Map::SendInitSelf` CREATE blocks.
+    #[must_use]
+    pub fn fellow_transport_passengers(
+        &self,
+        excluded_guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+        transport_guid: ObjectGuid,
+    ) -> Vec<PlayerVisibilityCreateSnapshot> {
+        self.entries
+            .iter()
+            .filter_map(|entry| {
+                let guid = *entry.key();
+                let info = &entry.value().info;
+                if guid == excluded_guid
+                    || !info.is_in_world
+                    || info.map_id != map_id
+                    || info.instance_id != instance_id
+                    || !info
+                        .transport
+                        .as_ref()
+                        .is_some_and(|transport| transport.guid == transport_guid)
+                {
+                    return None;
+                }
+                Some(PlayerVisibilityCreateSnapshot {
+                    guid,
+                    position: info.position,
+                    race: info.race,
+                    class: info.class,
+                    sex: info.sex,
+                    level: info.level,
+                    display_id: info.display_id,
+                    zone_id: info.zone_id,
+                    current_health: info.current_health,
+                    max_health: info.max_health,
+                    power_type: info.power_type,
+                    current_power: info.current_power,
+                    max_power: info.max_power,
+                    base_mana: info.base_mana,
+                    transport: info.transport.clone(),
+                    visible_items: Arc::clone(&info.visible_items),
+                    customizations: Arc::clone(&info.customizations),
+                    party_member_party_type: info.party_member_party_type,
+                })
+            })
+            .collect()
+    }
+
+    /// Read one connected player's active status for an exact shared quest.
+    #[must_use]
+    pub fn quest_active_status(&self, guid: ObjectGuid, quest_id: u32) -> Option<Option<u8>> {
+        let entry = self.entries.get(&guid)?;
+        Some(entry.info.active_quest_statuses.get(&quest_id).copied())
+    }
+
+    /// Snapshot the exact receiver facts used by represented quest sharing.
+    /// The projection cannot grow outside the retirement ledger in issue #196.
+    #[must_use]
+    pub fn quest_sharing_snapshot(&self, guid: ObjectGuid) -> Option<PlayerQuestSharingSnapshot> {
+        let entry = self.entries.get(&guid)?;
+        let info = &entry.info;
+        Some(PlayerQuestSharingSnapshot {
+            registration: PlayerRegistration {
+                guid,
+                generation: entry.generation,
+            },
+            pending_quest_sharing: info.pending_quest_sharing,
+            is_alive: info.is_alive,
+            rewarded_quests: info.rewarded_quests.clone(),
+            active_quest_statuses: info.active_quest_statuses.clone(),
+            df_quests: info.df_quests.clone(),
+            daily_quests_completed: info.daily_quests_completed.clone(),
+            level: info.level,
+            class: info.class,
+            race: info.race,
+            reputation_standings: info.reputation_standings.clone(),
+            active_expansion: info.active_expansion,
+        })
+    }
+
+    /// Read one connected player's race for PvP quest-credit team comparison.
+    #[must_use]
+    pub fn quest_credit_race(&self, guid: ObjectGuid) -> Option<u8> {
+        self.entries.get(&guid).map(|entry| entry.info.race)
+    }
+
+    /// Snapshot one player target for represented vehicle interaction.
+    #[must_use]
+    pub fn vehicle_interaction_snapshot(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<PlayerVehicleInteractionSnapshot> {
+        let entry = self.entries.get(&guid)?;
+        Some(PlayerVehicleInteractionSnapshot {
+            map_id: entry.info.map_id,
+            instance_id: entry.info.instance_id,
+            position: entry.info.position,
+            has_vehicle_kit: entry.info.has_vehicle_kit_like_cpp,
+        })
+    }
+
+    /// Refresh movement mirrors only for the session that owns the control channel.
+    pub fn publish_movement_for_control_channel(
+        &self,
+        guid: ObjectGuid,
+        command_tx: &flume::Sender<SessionCommand>,
+        update: PlayerMovementDirectoryUpdate,
+    ) -> bool {
+        let Some(mut entry) = self.entries.get_mut(&guid) else {
+            return false;
+        };
+        if !entry.info.command_tx.same_channel(command_tx) {
+            return false;
+        }
+        entry.info.position = update.position;
+        entry.info.map_id = update.map_id;
+        entry.info.instance_id = update.instance_id;
+        entry.info.liquid_status = update.liquid_status;
+        entry.info.transport = update.transport;
+        true
     }
 
     /// Find the exact live loot-roll identity owned by another map peer.

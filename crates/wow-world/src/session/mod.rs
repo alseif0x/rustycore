@@ -27622,31 +27622,24 @@ impl WorldSession {
         let Some(registry) = self.player_registry.as_ref() else {
             return;
         };
-        for entry in registry.iter() {
-            let (guid, info) = entry.pair();
-            if *guid == victim_guid
-                || !info.is_in_world
-                || info.map_id != map_id
-                || info.instance_id != instance_id
-                || !Self::visibility_distance_allows_like_cpp(
-                    &source_position,
-                    source_combat_reach,
-                    &info.position,
-                    info.combat_reach,
-                    visibility_range,
-                )
-            {
-                continue;
-            }
-            if let Ok(mut durable) = info.durable_creature_runtime_commands_like_cpp.lock() {
-                let _ = durable.publish_send_if_visible_like_cpp(SendIfVisibleLikeCppCommand {
+        for registration in registry.spell_pull_recipients(
+            victim_guid,
+            map_id,
+            instance_id,
+            source_position,
+            source_combat_reach,
+            visibility_range,
+        ) {
+            let _ = registry.publish_current_send_if_visible(
+                registration,
+                SendIfVisibleLikeCppCommand {
                     queued_at: Instant::now(),
                     source_guid: attacker_guid,
                     map_id,
                     instance_id,
                     packet_bytes: packet_bytes.clone(),
-                });
-            }
+                },
+            );
         }
     }
 
@@ -33539,7 +33532,7 @@ impl WorldSession {
             if objective_type == QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP && !credit_guid.is_empty() {
                 self.player_registry
                     .as_ref()
-                    .and_then(|registry| registry.get(&credit_guid).map(|victim| victim.race))
+                    .and_then(|registry| registry.quest_credit_race(credit_guid))
                     .map(player_team_for_race_cpp)
             } else {
                 None
@@ -34815,33 +34808,13 @@ impl WorldSession {
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
-        let range_sq = range * range;
-
-        let candidates: Vec<_> = registry
-            .iter()
-            .filter_map(|entry| {
-                let (other_guid, other_info): (&ObjectGuid, &PlayerBroadcastInfo) = entry.pair();
-                // C++ `MessageDistDeliverer::SendPacket` never sends to the
-                // source object itself, even for the bool-self overload.
-                if *other_guid == guid {
-                    return None;
-                }
-                if !other_info.is_in_world
-                    || other_info.map_id != map_id
-                    || other_info.instance_id != instance_id
-                {
-                    return None;
-                }
-                let dx = other_info.position.x - source_position.x;
-                let dy = other_info.position.y - source_position.y;
-                if dx * dx + dy * dy > range_sq {
-                    return None;
-                }
-                Some(other_info.command_tx.clone())
-            })
-            .collect();
-
-        for command_tx in candidates {
+        for registration in registry.movement_recipients_within_range(
+            guid,
+            map_id,
+            instance_id,
+            source_position,
+            range,
+        ) {
             let command = SendIfVisibleLikeCppCommand {
                 queued_at: Instant::now(),
                 source_guid: guid,
@@ -34854,7 +34827,7 @@ impl WorldSession {
             } else {
                 SessionCommand::SendIfVisibleLikeCpp(command)
             };
-            let _ = command_tx.try_send(command);
+            let _ = registry.try_send_current_command(registration, command);
         }
     }
 
@@ -35755,13 +35728,17 @@ impl WorldSession {
             .current_canonical_player_map_key_like_cpp()
             .map(|k| k.instance_id)
             .unwrap_or(0);
-        if let Some(mut entry) = reg.get_mut(&guid) {
-            entry.position = pos;
-            entry.map_id = map_id;
-            entry.instance_id = instance_id;
-            entry.liquid_status = self.player_liquid_status_like_cpp();
-            entry.transport = self.player_transport_info_like_cpp();
-        }
+        let _ = reg.publish_movement_for_control_channel(
+            guid,
+            &self.session_command_tx,
+            wow_network::PlayerMovementDirectoryUpdate {
+                position: pos,
+                map_id,
+                instance_id,
+                liquid_status: self.player_liquid_status_like_cpp(),
+                transport: self.player_transport_info_like_cpp(),
+            },
+        );
         if let Some(accessor) = &self.object_accessor {
             if let Some(object) = accessor.write().player_object_mut(guid) {
                 object.world_relocate(u32::from(map_id), pos);
@@ -39090,42 +39067,29 @@ impl WorldSession {
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
-        let range_sq =
-            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
-
         let mut status = self.current_player_movement_info_like_cpp(source_guid);
         status.time = self.player_movement_time_like_cpp();
         let packet_bytes = wow_packet::packets::movement::MoveUpdateTeleport { status }.to_bytes();
 
-        let candidates: Vec<_> = registry
-            .iter()
-            .filter_map(|entry| {
-                let (target_guid, info) = entry.pair();
-                if *target_guid == source_guid {
-                    return None;
-                }
-                if !info.is_in_world || info.map_id != map_id || info.instance_id != instance_id {
-                    return None;
-                }
-                let dx = info.position.x - source_position.x;
-                let dy = info.position.y - source_position.y;
-                if dx * dx + dy * dy > range_sq {
-                    return None;
-                }
-                Some(info.command_tx.clone())
-            })
-            .collect();
-
-        for command_tx in candidates {
-            let _ = command_tx.try_send(wow_network::SessionCommand::SendIfVisibleLikeCpp(
-                wow_network::player_registry::SendIfVisibleLikeCppCommand {
-                    queued_at: Instant::now(),
-                    source_guid,
-                    map_id,
-                    instance_id,
-                    packet_bytes: packet_bytes.clone(),
-                },
-            ));
+        for registration in registry.movement_recipients_within_range(
+            source_guid,
+            map_id,
+            instance_id,
+            source_position,
+            crate::map_manager::VISIBILITY_RADIUS,
+        ) {
+            let _ = registry.try_send_current_command(
+                registration,
+                wow_network::SessionCommand::SendIfVisibleLikeCpp(
+                    wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                        queued_at: Instant::now(),
+                        source_guid,
+                        map_id,
+                        instance_id,
+                        packet_bytes: packet_bytes.clone(),
+                    },
+                ),
+            );
         }
     }
 
@@ -48547,12 +48511,11 @@ impl WorldSession {
         let Some(registry) = self.player_registry() else {
             return false;
         };
-        let Some(target) = registry.get(&vehicle_guid) else {
+        let Some(target) = registry.vehicle_interaction_snapshot(vehicle_guid) else {
             return false;
         };
 
-        let target_is_player_with_vehicle_kit =
-            vehicle_guid.is_player() && target.has_vehicle_kit_like_cpp;
+        let target_is_player_with_vehicle_kit = vehicle_guid.is_player() && target.has_vehicle_kit;
         let target_is_raid_member =
             self.represented_player_is_same_raid_with_like_cpp(player_guid, vehicle_guid);
         let current_map_id = self.player_map_id_like_cpp();
@@ -48580,8 +48543,6 @@ impl WorldSession {
             map_exists,
             map_is_battle_arena,
         );
-        drop(target);
-
         match action {
             crate::handlers::vehicle::VehicleHandlerAction::EnterVehicle { vehicle } => {
                 self.represented_vehicle_enter_requests_like_cpp.push(
@@ -55421,41 +55382,23 @@ impl WorldSession {
         else {
             return;
         };
-        let range_sq =
-            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
-
-        let candidates: Vec<_> = registry
-            .iter()
-            .filter_map(|entry| {
-                let (other_guid, other_info): (&ObjectGuid, &PlayerBroadcastInfo) = entry.pair();
-                if *other_guid == player_guid {
-                    return None;
-                }
-                if !other_info.is_in_world
-                    || other_info.map_id != map_id
-                    || other_info.instance_id != instance_id
-                {
-                    return None;
-                }
-                let dx = other_info.position.x - source_position.x;
-                let dy = other_info.position.y - source_position.y;
-                if dx * dx + dy * dy > range_sq {
-                    return None;
-                }
-                Some(other_info.command_tx.clone())
-            })
-            .collect();
-
-        for command_tx in candidates {
-            let _ = command_tx.try_send(SessionCommand::SendIfVisibleLikeCpp(
-                SendIfVisibleLikeCppCommand {
+        for registration in registry.movement_recipients_within_range(
+            player_guid,
+            map_id,
+            instance_id,
+            source_position,
+            crate::map_manager::VISIBILITY_RADIUS,
+        ) {
+            let _ = registry.try_send_current_command(
+                registration,
+                SessionCommand::SendIfVisibleLikeCpp(SendIfVisibleLikeCppCommand {
                     queued_at: Instant::now(),
                     source_guid: pet_guid,
                     map_id,
                     instance_id,
                     packet_bytes: packet_bytes.clone(),
-                },
-            ));
+                }),
+            );
         }
     }
 
