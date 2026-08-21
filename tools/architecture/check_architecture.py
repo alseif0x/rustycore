@@ -1018,6 +1018,12 @@ def validate_runtime_ownership_ledger(
                 production = entry.get("production_lines")
                 tests = entry.get("test_lines")
                 total = entry.get("total_lines")
+                logical_scope = entry.get("logical_scope", "module")
+                if logical_scope not in {"module", "crate"}:
+                    raise ArchitectureError(
+                        f"runtime ownership hotspot {entry_id} logical_scope must be "
+                        "module or crate"
+                    )
                 if any(type(value) is not int or value < 0 for value in (production, tests, total)):
                     raise ArchitectureError(
                         f"runtime ownership hotspot {entry_id} needs non-negative line counts"
@@ -2277,7 +2283,35 @@ def run_hotspot_classifier_self_tests() -> int:
     return 1
 
 
-HOTSPOT_ROW_CACHE: dict[pathlib.Path, tuple[int, int, int, str]] = {}
+def run_hotspot_view_self_tests(runtime: dict[str, Any]) -> int:
+    """Prove physical files and logical private descendants stay independent."""
+    physical = {row[3]: row for row in physical_hotspot_rows(limit=None)}
+    main_path = "crates/world-server/src/main.rs"
+    if main_path not in physical or physical[main_path][0] >= 100:
+        raise ArchitectureError(
+            "physical hotspot view did not preserve the thin world-server main file"
+        )
+
+    runtime_root = REPO_ROOT / "crates/world-server/src/runtime/mod.rs"
+    runtime_files = logical_hotspot_files(runtime_root, "module")
+    expected_child = REPO_ROOT / "crates/world-server/src/runtime/delivery.rs"
+    if expected_child not in runtime_files:
+        raise ArchitectureError(
+            "logical hotspot view did not include an ordinary adjacent Rust submodule"
+        )
+
+    logical = {row[3]: row for row in logical_hotspot_rows(runtime, limit=None)}
+    composition_root = "crates/world-server/src/lib.rs"
+    if composition_root not in logical:
+        raise ArchitectureError("logical hotspot view omitted the composition owner")
+    if logical[composition_root][0] <= physical[composition_root][0]:
+        raise ArchitectureError(
+            "logical composition owner did not include its private descendants"
+        )
+    return 3
+
+
+HOTSPOT_ROW_CACHE: dict[tuple[pathlib.Path, str], tuple[int, int, int, str]] = {}
 
 
 PATH_MODULE_MOUNTS_COMMAND = (
@@ -2342,26 +2376,73 @@ def path_module_children(path: pathlib.Path, source: str) -> list[tuple[pathlib.
     return path_module_mounts().get(path, [])
 
 
-def hotspot_row(path: pathlib.Path) -> tuple[int, int, int, str]:
-    cached = HOTSPOT_ROW_CACHE.get(path)
-    if cached is not None:
-        return cached
+def physical_hotspot_row(path: pathlib.Path) -> tuple[int, int, int, str]:
+    """Count one real source file without charging any child module to it."""
     try:
         source = path.read_text(encoding="utf-8")
     except OSError as exc:
         raise ArchitectureError(f"cannot read Rust source {path}: {exc}") from exc
-    total_lines, production_lines, test_lines = hotspot_line_counts(source)
-    # A `#[path]` child counts against the module that mounts it. Without this
-    # the ceiling applies to whatever stayed behind: moving 94,000 test lines
-    # into a sibling would leave the parent capped at what remains and the
-    # sibling capped by nothing, so the extraction would silently retire the
-    # ratchet it was supposed to leave intact.
-    for child, mounted_under_cfg_test in path_module_children(path, source):
-        child_total, child_production, child_tests = hotspot_row(child)[:3]
+    total, production, tests = hotspot_line_counts(source)
+    return total, production, tests, path.relative_to(REPO_ROOT).as_posix()
+
+
+def logical_hotspot_files(path: pathlib.Path, scope: str) -> dict[pathlib.Path, bool]:
+    """Resolve the reviewed private descendants of one logical owner.
+
+    A normal multi-file Rust module keeps descendants below the adjacent
+    directory (`session.rs` + `session/` or `session/mod.rs`). Composition roots
+    may explicitly own their full crate source tree. `#[path]` children are
+    followed as well so the logical view remains compatible with transitional
+    mounts while the physical view always reports each real file separately.
+    """
+    if scope not in {"module", "crate"}:
+        raise ArchitectureError(
+            f"logical hotspot {path} has unsupported logical_scope {scope!r}"
+        )
+    files = {path: False}
+    if scope == "crate":
+        candidates = path.parent.glob("**/*.rs")
+    else:
+        module_dir = path.parent if path.name == "mod.rs" else path.with_suffix("")
+        candidates = module_dir.glob("**/*.rs") if module_dir.is_dir() else ()
+    for candidate in candidates:
+        relative_parts = candidate.relative_to(path.parent).parts
+        files[candidate] = (
+            candidate.stem == "tests"
+            or candidate.stem.endswith("_tests")
+            or "tests" in relative_parts
+        )
+
+    pending = list(files)
+    while pending:
+        parent = pending.pop()
+        try:
+            source = parent.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ArchitectureError(f"cannot read Rust source {parent}: {exc}") from exc
+        for child, mounted_under_cfg_test in path_module_children(parent, source):
+            test_only = files[parent] or mounted_under_cfg_test
+            if child not in files or (test_only and not files[child]):
+                files[child] = test_only
+                pending.append(child)
+    return files
+
+
+def logical_hotspot_row(
+    path: pathlib.Path, scope: str = "module"
+) -> tuple[int, int, int, str]:
+    cache_key = (path, scope)
+    cached = HOTSPOT_ROW_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    total_lines = 0
+    production_lines = 0
+    test_lines = 0
+    logical_files = logical_hotspot_files(path, scope)
+    for source_path, mounted_under_cfg_test in logical_files.items():
+        child_total, child_production, child_tests, _ = physical_hotspot_row(source_path)
         total_lines += child_total
         if mounted_under_cfg_test:
-            # The mount supplies the cfg, so none of the child is production
-            # however the file itself reads.
             test_lines += child_total
         else:
             production_lines += child_production
@@ -2372,23 +2453,29 @@ def hotspot_row(path: pathlib.Path) -> tuple[int, int, int, str]:
         test_lines,
         path.relative_to(REPO_ROOT).as_posix(),
     )
-    HOTSPOT_ROW_CACHE[path] = row
+    HOTSPOT_ROW_CACHE[cache_key] = row
     return row
 
 
-def hotspot_rows(limit: int | None = 10) -> list[tuple[int, int, int, str]]:
+def physical_hotspot_rows(
+    limit: int | None = 10,
+) -> list[tuple[int, int, int, str]]:
     crates_root = REPO_ROOT / "crates"
     sources = sorted(crates_root.glob("*/src/**/*.rs"))
-    mounted: set[pathlib.Path] = set()
-    for path in sources:
-        try:
-            source = path.read_text(encoding="utf-8")
-        except OSError as exc:
-            raise ArchitectureError(f"cannot read Rust source {path}: {exc}") from exc
-        mounted.update(child for child, _ in path_module_children(path, source))
-    # Mounted children are already inside their parent's row; listing them again
-    # would double-count them in the report.
-    rows = [hotspot_row(path) for path in sources if path.resolve() not in mounted]
+    rows = [physical_hotspot_row(path) for path in sources]
+    rows.sort(key=lambda row: (-row[0], row[3]))
+    return rows if limit is None else rows[:limit]
+
+
+def logical_hotspot_rows(
+    runtime: dict[str, Any], limit: int | None = 10
+) -> list[tuple[int, int, int, str]]:
+    rows = [
+        logical_hotspot_row(
+            REPO_ROOT / entry["path"], entry.get("logical_scope", "module")
+        )
+        for entry in runtime["inventories"]["hotspots"]["entries"]
+    ]
     rows.sort(key=lambda row: (-row[0], row[3]))
     return rows if limit is None else rows[:limit]
 
@@ -2407,7 +2494,7 @@ def validate_hotspot_non_growth(
     here.
     """
     if live_rows is None:
-        live_rows = hotspot_rows(limit=None)
+        live_rows = logical_hotspot_rows(runtime, limit=None)
 
     live_by_path: dict[str, tuple[int, int, int]] = {}
     for total, production, tests, path in live_rows:
@@ -2521,12 +2608,16 @@ def run_hotspot_ratchet_self_tests(runtime: dict[str, Any]) -> tuple[int, int]:
     return len(growth_cases) + 1, 1
 
 
-def print_hotspots(limit: int = 10) -> None:
+def print_hotspots(runtime: dict[str, Any], limit: int = 10) -> None:
     print(
-        "Architecture hotspots (reporting; exact top-level #[cfg(test)] item extents):"
+        "Physical Rust files (reporting; each real file counted independently):"
     )
     print(f"{'total':>8} {'prod':>8} {'tests':>8}  path")
-    for total, production, tests, path in hotspot_rows(limit):
+    for total, production, tests, path in physical_hotspot_rows(limit):
+        print(f"{total:8d} {production:8d} {tests:8d}  {path}")
+    print("Logical owners (curated roots including reviewed private descendants):")
+    print(f"{'total':>8} {'prod':>8} {'tests':>8}  owner root")
+    for total, production, tests, path in logical_hotspot_rows(runtime, limit):
         print(f"{total:8d} {production:8d} {tests:8d}  {path}")
 
 
@@ -3464,6 +3555,7 @@ def main() -> int:
             )
             run_path_module_scanner_self_tests()
             hotspot_classifier_fixtures = run_hotspot_classifier_self_tests()
+            hotspot_view_assertions = run_hotspot_view_self_tests(runtime_ledger)
             hotspot_ratchet_rejections, hotspot_reduction_acceptances = (
                 run_hotspot_ratchet_self_tests(runtime_ledger)
             )
@@ -3473,6 +3565,7 @@ def main() -> int:
                 f"{debt_ownership_fixtures} debt-ownership rejections, "
                 f"{runtime_ownership_rejections} runtime-ownership rejections, "
                 f"{hotspot_classifier_fixtures} hotspot-classifier fixture, "
+                f"{hotspot_view_assertions} physical/logical view assertions, "
                 f"{hotspot_ratchet_rejections} hotspot-ratchet rejections, "
                 f"{hotspot_reduction_acceptances} hotspot-reduction acceptance, "
                 f"{handler_module_policy_rejections} handler-module-policy rejections)"
@@ -3480,7 +3573,8 @@ def main() -> int:
         elif args.command == "hotspots":
             if args.limit <= 0:
                 raise ArchitectureError("--limit must be positive")
-            print_hotspots(args.limit)
+            runtime_ledger = load_json(args.runtime_ledger)
+            print_hotspots(runtime_ledger, args.limit)
         else:
             (
                 packages,
@@ -3508,10 +3602,10 @@ def main() -> int:
             )
             print(
                 "Architecture hotspot ratchet: PASS "
-                f"({audited_hotspots} audited files; production/test/total "
+                f"({audited_hotspots} audited logical owners; production/test/total "
                 "metrics are at or below baseline)"
             )
-            print_hotspots()
+            print_hotspots(runtime_ledger)
     except ArchitectureError as exc:
         print(f"architecture check failed: {exc}", file=sys.stderr)
         return 1

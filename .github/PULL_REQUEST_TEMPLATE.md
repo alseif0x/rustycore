@@ -15,17 +15,19 @@
 - [ ] Runtime behaviour
 - [ ] Packet / protocol
 - [ ] Database / SQL
+- [ ] Architecture / mechanical module split
 - [ ] Documentation
 - [ ] Tests only
 
 ## Verification
 
-<!-- Check every command that was run. Add extra focused tests when relevant. -->
+<!-- First-party alseif0x PRs use the local harness; external PRs retain remote checks. Add only
+focused tests/evidence required by the behavior actually changed. -->
 
-- [ ] `cargo fmt --all --check`
-- [ ] `cargo check -p wow-data -p wow-database -p wow-network -p wow-world -p world-server`
+- [ ] `./tools/local-harness.sh final origin/3.4.3`
 - [ ] Focused tests:
-- [ ] `git diff --check`
+- [ ] Capture-diff (only packet/metadata/connection/order changes): not needed / result
+- [ ] Runtime QA (only lifecycle/runtime changes): not needed / result
 
 ## Migration notes
 
