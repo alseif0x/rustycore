@@ -57540,7 +57540,7 @@
           "symbol": "GroupRegistry",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "group_registry::{AcceptGroupInviteResultLikeCpp,CreateGroupInviteResultLikeCpp,EMPTY_TARGET_ICON_RAW_LIKE_CPP,GROUP_ASSIGN_MAINASSIST_LIKE_CPP,GROUP_ASSIGN_MAINTANK_LIKE_CPP,GROUP_FLAG_DESTROYED_LIKE_CPP,GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP,GROUP_FLAG_LFG_LIKE_CPP,GROUP_FLAG_RAID_LIKE_CPP,GroupDbRowLikeCpp,GroupInfo,GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupLfgDbStateLikeCpp,GroupLoadSummaryLikeCpp,GroupMemberCharacterLikeCpp,GroupMemberDbRowLikeCpp,GroupMemberSlotLikeCpp,GroupOwnedInstanceLikeCpp,GroupRecentInstanceLikeCpp,GroupRegistry,LFG_GROUP_KICK_VOTES_NEEDED_LIKE_CPP,LFG_GROUP_MAX_KICKS_LIKE_CPP,LFG_STATE_DUNGEON_LIKE_CPP,LFG_STATE_FINISHED_DUNGEON_LIKE_CPP,LOOT_METHOD_PERSONAL_LIKE_CPP,MAX_GROUP_SIZE_LIKE_CPP,MAX_RAID_SIZE_LIKE_CPP,MAX_RAID_SUBGROUPS_LIKE_CPP,MEMBER_FLAG_ASSISTANT_LIKE_CPP,MEMBER_FLAG_MAINASSIST_LIKE_CPP,MEMBER_FLAG_MAINTANK_LIKE_CPP,MISSING_MEMBER_GROUP_LIKE_CPP,PendingInviteLikeCpp,PendingInvites,READYCHECK_DURATION_MS_LIKE_CPP,ReadyCheckEventLikeCpp,TARGET_ICONS_COUNT_LIKE_CPP,free_group_db_store_id_like_cpp,get_group_by_db_store_id_like_cpp,group_guid_by_db_store_id_like_cpp,load_groups_from_db_rows_like_cpp,register_group_db_store_id_like_cpp,tick_all_group_ready_checks_like_cpp}",
+          "fingerprint": "group_registry::{AcceptGroupInviteResultLikeCpp,CreateGroupInviteResultLikeCpp,EMPTY_TARGET_ICON_RAW_LIKE_CPP,GROUP_ASSIGN_MAINASSIST_LIKE_CPP,GROUP_ASSIGN_MAINTANK_LIKE_CPP,GROUP_FLAG_DESTROYED_LIKE_CPP,GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP,GROUP_FLAG_LFG_LIKE_CPP,GROUP_FLAG_RAID_LIKE_CPP,GroupAuthorityErrorLikeCpp,GroupDbRowLikeCpp,GroupInfo,GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupLfgDbStateLikeCpp,GroupLoadSummaryLikeCpp,GroupMemberCharacterLikeCpp,GroupMemberDbRowLikeCpp,GroupMemberRemovalFactsLikeCpp,GroupMemberRemovalKindLikeCpp,GroupMemberSlotLikeCpp,GroupOwnedInstanceLikeCpp,GroupRecentInstanceLikeCpp,GroupRegistry,GroupTransitionOutcomeLikeCpp,LFG_GROUP_KICK_VOTES_NEEDED_LIKE_CPP,LFG_GROUP_MAX_KICKS_LIKE_CPP,LFG_STATE_DUNGEON_LIKE_CPP,LFG_STATE_FINISHED_DUNGEON_LIKE_CPP,LOOT_METHOD_PERSONAL_LIKE_CPP,MAX_GROUP_SIZE_LIKE_CPP,MAX_RAID_SIZE_LIKE_CPP,MAX_RAID_SUBGROUPS_LIKE_CPP,MEMBER_FLAG_ASSISTANT_LIKE_CPP,MEMBER_FLAG_MAINASSIST_LIKE_CPP,MEMBER_FLAG_MAINTANK_LIKE_CPP,MISSING_MEMBER_GROUP_LIKE_CPP,PendingInviteLikeCpp,PendingInvites,READYCHECK_DURATION_MS_LIKE_CPP,ReadyCheckEventLikeCpp,TARGET_ICONS_COUNT_LIKE_CPP,free_group_db_store_id_like_cpp,get_group_by_db_store_id_like_cpp,group_guid_by_db_store_id_like_cpp,load_groups_from_db_rows_like_cpp,register_group_db_store_id_like_cpp,tick_all_group_ready_checks_like_cpp}",
           "count": 1
         },
         {
@@ -57553,7 +57553,7 @@
           "symbol": "PendingInvites",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "group_registry::{AcceptGroupInviteResultLikeCpp,CreateGroupInviteResultLikeCpp,EMPTY_TARGET_ICON_RAW_LIKE_CPP,GROUP_ASSIGN_MAINASSIST_LIKE_CPP,GROUP_ASSIGN_MAINTANK_LIKE_CPP,GROUP_FLAG_DESTROYED_LIKE_CPP,GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP,GROUP_FLAG_LFG_LIKE_CPP,GROUP_FLAG_RAID_LIKE_CPP,GroupDbRowLikeCpp,GroupInfo,GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupLfgDbStateLikeCpp,GroupLoadSummaryLikeCpp,GroupMemberCharacterLikeCpp,GroupMemberDbRowLikeCpp,GroupMemberSlotLikeCpp,GroupOwnedInstanceLikeCpp,GroupRecentInstanceLikeCpp,GroupRegistry,LFG_GROUP_KICK_VOTES_NEEDED_LIKE_CPP,LFG_GROUP_MAX_KICKS_LIKE_CPP,LFG_STATE_DUNGEON_LIKE_CPP,LFG_STATE_FINISHED_DUNGEON_LIKE_CPP,LOOT_METHOD_PERSONAL_LIKE_CPP,MAX_GROUP_SIZE_LIKE_CPP,MAX_RAID_SIZE_LIKE_CPP,MAX_RAID_SUBGROUPS_LIKE_CPP,MEMBER_FLAG_ASSISTANT_LIKE_CPP,MEMBER_FLAG_MAINASSIST_LIKE_CPP,MEMBER_FLAG_MAINTANK_LIKE_CPP,MISSING_MEMBER_GROUP_LIKE_CPP,PendingInviteLikeCpp,PendingInvites,READYCHECK_DURATION_MS_LIKE_CPP,ReadyCheckEventLikeCpp,TARGET_ICONS_COUNT_LIKE_CPP,free_group_db_store_id_like_cpp,get_group_by_db_store_id_like_cpp,group_guid_by_db_store_id_like_cpp,load_groups_from_db_rows_like_cpp,register_group_db_store_id_like_cpp,tick_all_group_ready_checks_like_cpp}",
+          "fingerprint": "group_registry::{AcceptGroupInviteResultLikeCpp,CreateGroupInviteResultLikeCpp,EMPTY_TARGET_ICON_RAW_LIKE_CPP,GROUP_ASSIGN_MAINASSIST_LIKE_CPP,GROUP_ASSIGN_MAINTANK_LIKE_CPP,GROUP_FLAG_DESTROYED_LIKE_CPP,GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP,GROUP_FLAG_LFG_LIKE_CPP,GROUP_FLAG_RAID_LIKE_CPP,GroupAuthorityErrorLikeCpp,GroupDbRowLikeCpp,GroupInfo,GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupLfgDbStateLikeCpp,GroupLoadSummaryLikeCpp,GroupMemberCharacterLikeCpp,GroupMemberDbRowLikeCpp,GroupMemberRemovalFactsLikeCpp,GroupMemberRemovalKindLikeCpp,GroupMemberSlotLikeCpp,GroupOwnedInstanceLikeCpp,GroupRecentInstanceLikeCpp,GroupRegistry,GroupTransitionOutcomeLikeCpp,LFG_GROUP_KICK_VOTES_NEEDED_LIKE_CPP,LFG_GROUP_MAX_KICKS_LIKE_CPP,LFG_STATE_DUNGEON_LIKE_CPP,LFG_STATE_FINISHED_DUNGEON_LIKE_CPP,LOOT_METHOD_PERSONAL_LIKE_CPP,MAX_GROUP_SIZE_LIKE_CPP,MAX_RAID_SIZE_LIKE_CPP,MAX_RAID_SUBGROUPS_LIKE_CPP,MEMBER_FLAG_ASSISTANT_LIKE_CPP,MEMBER_FLAG_MAINASSIST_LIKE_CPP,MEMBER_FLAG_MAINTANK_LIKE_CPP,MISSING_MEMBER_GROUP_LIKE_CPP,PendingInviteLikeCpp,PendingInvites,READYCHECK_DURATION_MS_LIKE_CPP,ReadyCheckEventLikeCpp,TARGET_ICONS_COUNT_LIKE_CPP,free_group_db_store_id_like_cpp,get_group_by_db_store_id_like_cpp,group_guid_by_db_store_id_like_cpp,load_groups_from_db_rows_like_cpp,register_group_db_store_id_like_cpp,tick_all_group_ready_checks_like_cpp}",
           "count": 1
         },
         {
@@ -57632,19 +57632,6 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "& GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
-          "enclosing": "fn tick_all_group_ready_checks_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "get_mut",
-          "symbol": "get_mut",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "get_mut(& group_guid)",
           "count": 1
         },
         {
@@ -59075,7 +59062,7 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "player_registry()",
-          "count": 3
+          "count": 1
         },
         {
           "package": "wow-world",
@@ -59088,32 +59075,6 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_uninvite",
-          "registry": "PlayerRegistry",
-          "operation": "get",
-          "symbol": "get",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "get(& uninvite . target_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "impl WorldSession::handle_party_uninvite",
-          "registry": "PlayerRegistry",
-          "operation": "get",
-          "symbol": "get",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "get(member_guid)",
           "count": 1
         },
         {
@@ -59192,7 +59153,7 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "get(& uninvite . target_guid)",
-          "count": 2
+          "count": 1
         },
         {
           "package": "wow-world",
@@ -59828,7 +59789,7 @@
           "symbol": "PlayerRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{AcceptGroupInviteResultLikeCpp,CreateGroupInviteResultLikeCpp,GROUP_ASSIGN_MAINASSIST_LIKE_CPP,GROUP_ASSIGN_MAINTANK_LIKE_CPP,GroupInfo,GroupRegistry,LFG_GROUP_KICK_VOTES_NEEDED_LIKE_CPP,LFG_STATE_FINISHED_DUNGEON_LIKE_CPP,MEMBER_FLAG_ASSISTANT_LIKE_CPP,MEMBER_FLAG_MAINASSIST_LIKE_CPP,MEMBER_FLAG_MAINTANK_LIKE_CPP,PlayerRegistry,ReadyCheckEventLikeCpp,SendPartyUpdateLikeCppCommand,SendRealmPacketLikeCppCommand,SessionCommand,free_group_db_store_id_like_cpp}",
+          "fingerprint": "wow_network::{AcceptGroupInviteResultLikeCpp,CreateGroupInviteResultLikeCpp,GroupAuthorityErrorLikeCpp,GroupInfo,GroupMemberRemovalKindLikeCpp,GroupRegistry,MEMBER_FLAG_ASSISTANT_LIKE_CPP,PlayerRegistry,ReadyCheckEventLikeCpp,SendPartyUpdateLikeCppCommand,SendRealmPacketLikeCppCommand,SessionCommand,free_group_db_store_id_like_cpp}",
           "count": 1
         },
         {
@@ -59841,7 +59802,7 @@
           "symbol": "GroupRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{AcceptGroupInviteResultLikeCpp,CreateGroupInviteResultLikeCpp,GROUP_ASSIGN_MAINASSIST_LIKE_CPP,GROUP_ASSIGN_MAINTANK_LIKE_CPP,GroupInfo,GroupRegistry,LFG_GROUP_KICK_VOTES_NEEDED_LIKE_CPP,LFG_STATE_FINISHED_DUNGEON_LIKE_CPP,MEMBER_FLAG_ASSISTANT_LIKE_CPP,MEMBER_FLAG_MAINASSIST_LIKE_CPP,MEMBER_FLAG_MAINTANK_LIKE_CPP,PlayerRegistry,ReadyCheckEventLikeCpp,SendPartyUpdateLikeCppCommand,SendRealmPacketLikeCppCommand,SessionCommand,free_group_db_store_id_like_cpp}",
+          "fingerprint": "wow_network::{AcceptGroupInviteResultLikeCpp,CreateGroupInviteResultLikeCpp,GroupAuthorityErrorLikeCpp,GroupInfo,GroupMemberRemovalKindLikeCpp,GroupRegistry,MEMBER_FLAG_ASSISTANT_LIKE_CPP,PlayerRegistry,ReadyCheckEventLikeCpp,SendPartyUpdateLikeCppCommand,SendRealmPacketLikeCppCommand,SessionCommand,free_group_db_store_id_like_cpp}",
           "count": 1
         },
         {
@@ -60011,19 +59972,6 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "registry:GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::loot",
-          "source": "crates/wow-world/src/handlers/loot.rs",
-          "enclosing": "impl WorldSession::advance_represented_dungeon_trash_looter_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "get_mut",
-          "symbol": "get_mut",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "get_mut(& group_guid)",
           "count": 1
         },
         {
@@ -61616,19 +61564,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::apply_change_raid_marker_effect_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "get_mut",
-          "symbol": "get_mut",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "get_mut(& group_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::apply_create_map_side_effects_like_cpp",
           "registry": "GroupRegistry",
           "operation": "member",
@@ -61636,19 +61571,6 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "self . group_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::apply_create_map_side_effects_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "get_mut",
-          "symbol": "get_mut",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "get_mut(& group_guid)",
           "count": 1
         },
         {
@@ -63469,19 +63391,6 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "registry:GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::set_represented_group_difficulty_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "get_mut",
-          "symbol": "get_mut",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "get_mut(& group_guid)",
           "count": 1
         },
         {
