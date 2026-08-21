@@ -903,10 +903,17 @@ fn collect_use_bindings(
             }
         }
         UseTree::Glob(_) => {
+            // `directory` is the relocated player-directory owner module from
+            // issue #138; `player_registry`/`group_registry` remain the
+            // `wow-network` mailbox and group owners.
             let hides_registry = prefix.iter().any(|segment| {
                 matches!(
                     segment.as_str(),
-                    "wow_network" | "player_registry" | "group_registry"
+                    "wow_network"
+                        | "wow_world"
+                        | "player_registry"
+                        | "group_registry"
+                        | "directory"
                 )
             });
             if hides_registry {
@@ -2702,7 +2709,7 @@ mod tests {
             module: "crate::aliases",
             source_path: "src/aliases.rs",
             inherited_cfg: &[],
-            source: "pub use wow_network::PlayerRegistry as Players;",
+            source: "pub use wow_world::session::directory::PlayerRegistry as Players;",
         };
         let consumer = ProductionRegistrySource {
             package: "fixture",
@@ -2848,7 +2855,7 @@ mod tests {
             module: "crate::aliases",
             source_path: "src/aliases.rs",
             inherited_cfg: &[],
-            source: "pub use wow_network::PlayerRegistry as Players;",
+            source: "pub use wow_world::session::directory::PlayerRegistry as Players;",
         };
         let glob_consumer = ProductionRegistrySource {
             package: "fixture",
@@ -2893,6 +2900,29 @@ mod tests {
             macro_definition.contains("hides registry provenance inside item macro"),
             "{macro_definition}"
         );
+    }
+
+    /// Issue #138 moved the player directory to `wow_world::session::directory`.
+    /// The glob guard must fail closed on the relocated owner exactly as it
+    /// already does on the `wow-network` mailbox module, otherwise a single
+    /// `use ...::directory::*;` would silently reintroduce hidden
+    /// `PlayerRegistry` access after the move.
+    #[test]
+    fn registry_inventory_rejects_relocated_directory_glob() {
+        for import in [
+            "use wow_world::session::directory::*;\n",
+            "use crate::session::directory::*;\n",
+        ] {
+            let error = inventory(import)
+                .expect_err("a glob over the relocated directory owner must fail closed");
+            assert!(
+                error.contains("can hide a registry alias"),
+                "{import} -> {error}"
+            );
+        }
+
+        inventory("use crate::session::admission::*;\n")
+            .expect("an unrelated session submodule glob stays allowed");
     }
 
     #[test]

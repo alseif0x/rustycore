@@ -162,6 +162,24 @@ Run focused tests explicitly when behavior changes. `tools/pr-preflight.sh` rema
 an explicitly requested audit, release preparation, capture QA, or architecture investigation; it
 is not the daily pre-push gate. See `docs/operations/local-first-development.md`.
 
+For ordinary architecture/module work, use the syntax-only Session ownership ratchet:
+
+```bash
+cargo run --release --locked \
+  --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
+  --bin session-ownership-check -- check --syntax-only
+python3 tools/architecture/check_architecture.py check
+python3 tools/architecture/check_architecture.py self-test
+```
+
+`session-ownership-check -- check` **without** `--syntax-only` also recomputes the exhaustive
+workspace persistence inventory and can run for many minutes. It is reserved for an explicitly
+requested persistence audit, release/scheduled audit, or investigation that actually changes that
+inventory; it is not an ordinary iteration or pre-push command. Do not pipe validation through
+`head`, `grep`, or a trailing command that can hide its exit status. When an exact syntax baseline
+must move, generate `print-baseline` into a temporary file, review the semantic delta, install it
+only after that review, and rerun `check --syntax-only`.
+
 TSV inventory files must keep 9 tab-separated columns:
 
 ```bash

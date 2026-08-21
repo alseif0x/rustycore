@@ -119,8 +119,8 @@ last-writer-wins policy.
 |---|---|---|---|---|---|
 | Authenticated world connection | `wow-network::accept` and the connection task | socket/authentication task | `WorldSession` dispatch boundary | one connection; created after authentication and dropped on disconnect | Remains a network responsibility. #134 narrowed the listener to transport-owned configuration and authenticated connection outputs. |
 | Gameplay session construction aggregate | private `SessionResources` in `crates/world-server/src/session_resources.rs` | `world-server` bootstrap constructs it; the outer session callback captures and clones the `Arc` | `world-server::create_session` copies stores, registries, DB adapters, and runtime handles into each `WorldSession`; the aggregate never enters `wow-network` | process lifetime; no independent clock | #134 moved the aggregate to composition code; #136 moved the process into a library-backed composition root and extracted the private factory. Capability-specific dependency reduction remains in the physical and ownership lanes. |
-| Session directory | opaque `wow_network::player_registry::PlayerRegistry`; its `DashMap<ObjectGuid, compatibility entry>` storage is private to the owner module | named generation-aware registration/unregistration owns lifecycle; temporary state-publication compatibility methods remain counted | #192 runtime/fanout, #193 combat/loot and #194 quest/spell/movement consumers use owned bounded results and generation-checked delivery; remaining social/group access is assigned exactly in [`player-registry-consumer-map.tsv`](player-registry-consumer-map.tsv) | process lifetime; presence, incarnation and addressability are Session concerns, while gameplay fields are temporary mirrors | #150 installed the opaque lifecycle seam; #192-#194 closed their consumer slices; #195 burns down remaining production consumers; #196 removes compatibility storage APIs and fixtures; #138 then relocates the already-opaque directory. |
-| Session mailbox and durable rails | `wow_network::player_registry::SessionCommand` plus ordinary and durable payloads in the same network module | session/global runtime and gameplay producers enqueue commands; one session task consumes them | the owning session consumes FIFO commands and publishes acknowledgements | connection/session lifetime; queue identity, capacity, FIFO, incarnation fences, acknowledgements, and shutdown drain are observable | #191 and #190 completed their bounded protocol/rail relocations. #189 removes durable loot persistence coordination; #138 closes broad directory access; #140 owns the remaining pump and mailbox boundary without changing queue semantics. |
+| Session directory | opaque `wow_world::session::directory::PlayerRegistry`; its `DashMap<ObjectGuid, compatibility entry>` storage is private to the owner module | named generation-aware registration/unregistration owns lifecycle; temporary state-publication compatibility methods remain counted | #192 runtime/fanout, #193 combat/loot and #194 quest/spell/movement consumers use owned bounded results and generation-checked delivery; remaining social/group access is assigned exactly in [`player-registry-consumer-map.tsv`](player-registry-consumer-map.tsv) | process lifetime; presence, incarnation and addressability are Session concerns, while gameplay fields are temporary mirrors | #150 installed the opaque lifecycle seam; #192-#194 closed their consumer slices; #195 burns down remaining production consumers; #196 removed compatibility storage APIs and fixtures; #138 relocated the already-opaque directory to the transitional `wow-world` owner, leaving the terminal `wow-session::directory` move open. |
+| Session mailbox and durable rails | `wow_network::player_registry::SessionCommand` plus ordinary and durable payloads, `SharedClientVisibleGuidsLikeCpp` and the durable creature-runtime/loot-money rails; #138 left them in that network module when the directory moved out | session/global runtime and gameplay producers enqueue commands; one session task consumes them | the owning session consumes FIFO commands and publishes acknowledgements | connection/session lifetime; queue identity, capacity, FIFO, incarnation fences, acknowledgements, and shutdown drain are observable | #191 and #190 completed their bounded protocol/rail relocations. #189 removes durable loot persistence coordination; #138 closes broad directory access; #140 owns the remaining pump and mailbox boundary without changing queue semantics. |
 | Group registry and pending invites | `wow_network::group_registry::{GroupRegistry, PendingInvites}`, currently backed by concurrent maps | group handlers and group timer/ready-check paths | group handlers, connected-player fanout, world-server ready-check loop | process lifetime; timed group work is driven outside the network listener | #151 creates opaque facades; #197 and #198 centralize atomic transitions; #199 separates persistence/publication and closes storage; #195 adapts session addressing; #137 finally moves the owner into `wow-social`. |
 | Legacy creature runtime | shared `wow_world::MapManager` behind `Arc<RwLock<_>>` | production `GlobalLegacy` runtime tick plus explicit spawn/respawn bridges; `Session` writer exists only for tests and the diagnostic config override | world handlers, global runtime bridge, visibility/fanout routing | process lifetime; production startup defaults `RuntimeTickOwner` to `GlobalLegacy` and uses the configured map-update interval; session ticks read the shared owner and must skip to prevent double resolution | #188 freezes clocks, phases, and bridge behavior. #28 may perform one bounded authority cut; later cuts retire legacy behavior method-by-method under `docs/migration/adr-runtime-tick-ownership.md`. |
 | Canonical map runtime | `wow_map::MapManager` | canonical global map loop, grid/spawn/respawn paths, explicit selected legacy-result adapters | world-server orchestration and session map/player bridges | process lifetime; canonical loop uses the configured map interval; preserves the C++ `Map::Update` phase order represented by the ADR | #188 records the current phase trace. It becomes the sole map/entity authority only after each later method cut has parity tests and removes the corresponding legacy writer. |
@@ -151,13 +151,23 @@ The refactor campaign must preserve:
 
 ## Guardrail commands
 
+Ordinary architecture/module work uses the syntax-only ownership ratchet plus the local-first
+checks:
+
 ```bash
 python3 tools/architecture/check_architecture.py self-test
 python3 tools/architecture/check_architecture.py check
 python3 tools/architecture/check_architecture.py hotspots --limit 20
-cargo run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check
-./tools/pr-preflight.sh architecture
+cargo run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check --syntax-only
+./tools/local-harness.sh final origin/3.4.3
 ```
+
+`session-ownership-check -- check` without `--syntax-only` recomputes the exhaustive persistence
+inventory as well as the syntax surface. Run it, or `./tools/pr-preflight.sh architecture`, only
+for an explicitly requested persistence/architecture audit, a release/scheduled audit, or a change
+that actually owns those exhaustive artifacts. A mechanical module move does not require the full
+persistence scan. Preserve validator exit codes; do not pipe them through output truncation or a
+trailing command that can mask failure.
 
 Ledger schema v2 distinguishes epics from one-PR slices, validates parents and internal/external
 prerequisites, rejects unknown dependencies, self-dependencies and cycles, and proves that the
@@ -280,7 +290,7 @@ composition split. Production and test lines remain separate:
 
 | Logical owner root | Production | Tests | Total |
 |---|---:|---:|---:|
-| `crates/wow-world/src/session/mod.rs` | 71,989 | 94,187 | 166,176 |
+| `crates/wow-world/src/session/mod.rs` | 73,679 | 94,442 | 168,121 |
 | `crates/world-server/src/lib.rs` (crate scope) | 24,985 | 21,491 | 46,476 |
 | `crates/wow-map/src/map.rs` | 15,245 | 18,273 | 33,518 |
 | `crates/wow-world/src/handlers/character.rs` | 20,200 | 10,691 | 30,891 |
@@ -304,15 +314,27 @@ logical monolith: its registrations, behavior, and tests now live in private cap
 under `handlers/misc/`, while `misc/mod.rs` is a 164-line compatibility facade for shared packet
 types, constants, and narrow helpers. Every production capability file is below 700 lines.
 
+Issue #138 raises the same logical Session ceiling by exactly the relocated directory: 1,773
+production and 134 test lines arrive as `session/directory.rs`, which is a reviewed private
+descendant of the `session/mod.rs` owner root. Those lines are not new behavior — they are the
+already-opaque connected-session directory moved verbatim out of `wow_network::player_registry`,
+which stops owning it. The paired `handlers/loot.rs` (+1 production) and `handlers/quest.rs` (+1
+test) increases are the explicit `use crate::session::directory::…` import lines the move
+requires. The physical view records `session/directory.rs` as its own file, so the split is
+visible even though the logical owner still carries it; the terminal `wow-session::directory`
+crate move stays open, as do the mailbox pump (#140) and the `PlayerBroadcastInfo` retirement
+(#252). No public API was added: the crate-root `wow_network::PlayerRegistry` re-export was
+removed, and the exact direct-registry inventory therefore falls from 573 to 572 rows.
+
 At the same HEAD, the syntax-aware ratchet records 738 `WorldSession` fields: 727 production and
-11 `cfg(test)` fixtures. It also records all 20 logical inherent-impl owners and 3,339 exact
+11 `cfg(test)` fixtures. It also records all 20 logical inherent-impl owners and 3,341 exact
 associated-item signatures rather than freezing the number of physical `impl` blocks. Private
 composition-side `SessionResources` has 243 fields, of which 186 are optional;
 `PlayerBroadcastInfo` has 80 fields; and `SessionCommand` has 37 variants plus 42 transitively
 reachable payload types. The factory has 247 `set_*` and one `install_*` call: two setters are
 multiline calls that the earlier text-only count missed. The generated-input surface has 44 exact
 records, and direct access to `PlayerRegistry`, `GroupRegistry`, or `PendingInvites` is frozen as
-600 exact AST rows. The workspace-wide persistence inventory contains 23,510
+572 exact AST rows. The workspace-wide persistence inventory contains 23,510
 exact rows—12,978 production and 10,532 test-fixture—with multiplicity 25,748 (14,490 production and
 11,258 test). Six generated-source inputs are an orthogonal subset, not a third source class. Schema
 v3 covers SQLx and concrete `wow_database` types/imports, typed statements/results/errors,

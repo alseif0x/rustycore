@@ -34,4 +34,4 @@ wow-map = { workspace = true }
 wow-scripts = { workspace = true }
 
 [dev-dependencies]
-wow-network = { workspace = true, features = ["test-fixtures"] }
+wow-world = { workspace = true, features = ["test-fixtures"] }

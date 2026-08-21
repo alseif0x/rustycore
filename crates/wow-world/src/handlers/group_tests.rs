@@ -21,6 +21,7 @@ use super::{
     send_group_new_leader_like_cpp, send_party_update, send_ready_check_events_like_cpp,
     sender_can_start_ready_check_like_cpp,
 };
+use crate::session::directory::{PlayerBroadcastInfo, PlayerRegistry};
 use flume::bounded;
 use std::{sync::Arc, time::Duration};
 use wow_constants::{ClientOpcodes, ServerOpcodes};
@@ -30,8 +31,7 @@ use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP;
 use wow_network::{
     GroupInfo, GroupMemberCharacterLikeCpp, GroupRegistry, PendingInviteLikeCpp, PendingInvites,
-    PlayerBroadcastInfo, PlayerRegistry, ReadyCheckEventLikeCpp, SendRealmPacketLikeCppCommand,
-    SessionCommand,
+    ReadyCheckEventLikeCpp, SendRealmPacketLikeCppCommand, SessionCommand,
 };
 use wow_packet::{ServerPacket, WorldPacket, packets::party::party_result};
 

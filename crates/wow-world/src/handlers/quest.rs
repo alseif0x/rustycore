@@ -289,7 +289,7 @@ fn represented_satisfy_quest_dependent_breadcrumb_quests_failed_like_cpp(
 fn represented_can_take_quest_after_expansion_like_cpp(
     quest_store: &wow_data::quest::QuestStore,
     quest: &wow_data::quest::QuestTemplate,
-    receiver: &wow_network::PlayerQuestSharingSnapshot,
+    receiver: &crate::session::directory::PlayerQuestSharingSnapshot,
 ) -> bool {
     // C++ anchor: `Player::CanTakeQuest`, Player.cpp:14093-14102, after the
     // push handler has already emitted dedicated messages for class/race/level,

@@ -1907,7 +1907,7 @@ fn unavailable_login_grid_cleans_partial_player_and_kicks_without_failure_packet
         let guid = ObjectGuid::create_player(1, 42);
         let canonical: crate::session::SharedCanonicalMapManager =
             Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
-        let registry = Arc::new(wow_network::PlayerRegistry::default());
+        let registry = Arc::new(crate::session::directory::PlayerRegistry::default());
         let accessor = crate::session::new_shared_object_accessor();
         session.set_canonical_map_manager(Arc::clone(&canonical));
         session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
@@ -1978,7 +1978,7 @@ fn login_identity_hydrates_race_faction_into_registry_and_canonical_player_like_
     let guid = ObjectGuid::create_player(1, 42_001);
     let canonical: crate::session::SharedCanonicalMapManager =
         Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
-    let registry = Arc::new(wow_network::PlayerRegistry::default());
+    let registry = Arc::new(crate::session::directory::PlayerRegistry::default());
     let mut race_entry = chr_race_entry(1, 0);
     race_entry.faction_id = 1;
 
@@ -5658,7 +5658,7 @@ fn make_binder_observer(
     position: Position,
     innkeeper: ObjectGuid,
     visible: bool,
-    registry: &Arc<wow_network::PlayerRegistry>,
+    registry: &Arc<crate::session::directory::PlayerRegistry>,
     canonical: &Arc<std::sync::Mutex<wow_map::MapManager>>,
 ) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (mut observer, send_rx) = make_session_with_send_capacity(4);
@@ -6859,7 +6859,7 @@ async fn binder_activate_fans_spell_go_to_visible_nearby_observers_like_cpp() {
     session.set_player_zone_area_like_cpp(12, 34);
     install_bind_spell_fixture(&mut session);
 
-    let registry = Arc::new(wow_network::PlayerRegistry::default());
+    let registry = Arc::new(crate::session::directory::PlayerRegistry::default());
     session.set_player_registry(Arc::clone(&registry));
     let (mut nearby_visible, nearby_visible_rx) = make_binder_observer(
         43,

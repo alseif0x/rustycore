@@ -40,6 +40,7 @@ use super::{
     start_loot_roll_packet_like_cpp, stored_item_money_zero_without_source_outcome_like_cpp,
 };
 use crate::conditions::QUEST_STATUS_REWARDED_LIKE_CPP;
+use crate::session::directory::{PlayerBroadcastInfo, PlayerRegistry};
 use crate::session::{
     DurableItemLootCompletionLikeCpp, LootMoneyDeliveryAddressLikeCpp,
     LootMoneyViewerFanoutLikeCpp, RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
@@ -88,8 +89,7 @@ use wow_loot::{
 use wow_network::{
     ApplyLootMoneyLikeCppCommand, GroupInfo, GroupRegistry, KickLikeCppCommand,
     LootRollCommandIdentityLikeCpp, LootRollVoteCommand, MasterLootGiveResult, PendingInvites,
-    PlayerBroadcastInfo, PlayerRegistry, SendCreatureSpellCastIfVisibleLikeCppCommand,
-    SessionCommand,
+    SendCreatureSpellCastIfVisibleLikeCppCommand, SessionCommand,
 };
 use wow_packet::packets::loot::{
     CreatureLoot, LOOT_ERROR_MASTER_OTHER_LIKE_CPP, LOOT_ERROR_MASTER_UNIQUE_ITEM_LIKE_CPP,
@@ -1443,7 +1443,7 @@ fn loot_directory_delivery_rejects_replaced_session_generation_like_cpp() {
 
     assert_eq!(
         registry.send_current_packet(stale.registration, vec![0xAA]),
-        Err(wow_network::PlayerDirectorySendError::StaleRegistration)
+        Err(crate::session::directory::PlayerDirectorySendError::StaleRegistration)
     );
     assert!(first_rx.try_recv().is_err());
     assert!(replacement_rx.try_recv().is_err());

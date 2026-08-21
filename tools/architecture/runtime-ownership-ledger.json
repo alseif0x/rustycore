@@ -176,7 +176,7 @@
           "represented_group_update_sequences_like_cpp",
           "represented_subgroup_like_cpp"
         ],
-        "current_storage": "WorldSession stores shared handles to network-owned registries plus represented local Group references and publication handles.",
+        "current_storage": "WorldSession stores shared handles to the wow-world session directory and the network-owned Group registries, plus represented local Group references and publication handles.",
         "sole_writer": "The world-server factory writes handles once; underlying directory entries are published by owning sessions, while Group transitions currently span handlers/registry operations.",
         "readers": "Session lifecycle, runtime fanout, group/social/chat handlers, ready-check timers, and world-server delivery adapters.",
         "clock_lifetime": "Directory and Group owners are process-lived; a directory entry is incarnation-bound and Group timed work is driven outside transport.",
@@ -1162,7 +1162,7 @@
             "pending_invites",
             "player_registry"
           ],
-          "owner": "world-server composition holds handles; underlying owners are currently wow-network registries/mailboxes.",
+          "owner": "world-server composition holds handles; the player directory owner is wow_world::session::directory and the Group registries/mailboxes remain in wow-network.",
           "open_retirement_issues": [
             137,
             138,
@@ -1450,7 +1450,7 @@
     },
     "player_broadcast_info": {
       "coverage_source": {
-        "file": "crates/wow-network/src/player_registry.rs",
+        "file": "crates/wow-world/src/session/directory.rs",
         "rust_item": "PlayerBroadcastInfo",
         "parser": "syn::ItemStruct named fields",
         "include_cfg": "all",
@@ -1933,9 +1933,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 71906,
-          "test_lines": 94308,
-          "total_lines": 166214,
+          "production_lines": 73679,
+          "test_lines": 94442,
+          "total_lines": 168121,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             140,
@@ -1978,9 +1978,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/loot.rs",
-          "production_lines": 13673,
+          "production_lines": 13674,
           "test_lines": 16156,
-          "total_lines": 29829,
+          "total_lines": 29830,
           "owner": "wow-world loot handler plus transitional loot/map/persistence coordination.",
           "open_retirement_issues": [
             153,
@@ -2008,8 +2008,8 @@
         {
           "path": "crates/wow-world/src/handlers/quest.rs",
           "production_lines": 8269,
-          "test_lines": 10171,
-          "total_lines": 18440,
+          "test_lines": 10172,
+          "total_lines": 18441,
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
           "open_retirement_issues": [
             153,
