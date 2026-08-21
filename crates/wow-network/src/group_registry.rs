@@ -1277,8 +1277,58 @@ impl GroupInfo {
     }
 }
 
-/// Thread-safe registry of all active groups, keyed by group GUID.
-pub type GroupRegistry = DashMap<u64, GroupInfo>;
+/// Thread-safe owner of all active groups, keyed by group GUID.
+///
+/// Read access returns owned snapshots so callers cannot retain a backing-map
+/// guard. The narrowly retained mutable compatibility methods are removed by
+/// the transition issues named on each method (#197/#198/#199).
+#[derive(Debug, Default)]
+pub struct GroupRegistry {
+    groups: DashMap<u64, GroupInfo>,
+}
+
+impl GroupRegistry {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Return an immutable owned snapshot of one group.
+    pub fn get(&self, group_guid: &u64) -> Option<GroupInfo> {
+        self.groups.get(group_guid).map(|group| group.clone())
+    }
+
+    /// Return whether the identified group currently exists.
+    pub fn contains_key(&self, group_guid: &u64) -> bool {
+        self.groups.contains_key(group_guid)
+    }
+
+    /// Return immutable owned snapshots of every current group.
+    pub fn snapshots(&self) -> Vec<GroupInfo> {
+        self.groups
+            .iter()
+            .map(|group| group.value().clone())
+            .collect()
+    }
+
+    /// Transitional invite/create/join compatibility; owned by #197.
+    pub fn insert(&self, group_guid: u64, group: GroupInfo) -> Option<GroupInfo> {
+        self.groups.insert(group_guid, group)
+    }
+
+    /// Transitional membership/disband compatibility; owned by #198.
+    pub fn remove(&self, group_guid: &u64) -> Option<(u64, GroupInfo)> {
+        self.groups.remove(group_guid)
+    }
+
+    /// Transitional mutation compatibility; all callers are assigned to
+    /// #197 or #198 and the method itself is removed by #199.
+    pub fn get_mut(
+        &self,
+        group_guid: &u64,
+    ) -> Option<dashmap::mapref::one::RefMut<'_, u64, GroupInfo>> {
+        self.groups.get_mut(group_guid)
+    }
+}
 
 /// Result of the existing-group join portion of C++
 /// `WorldSession::HandlePartyInviteResponseOpcode`.
@@ -1346,6 +1396,7 @@ pub fn tick_all_group_ready_checks_like_cpp(
 ) -> Vec<(u64, Vec<ReadyCheckEventLikeCpp>)> {
     // Collect keys first so we don't hold the iter() ref while mutating.
     let active_keys: Vec<u64> = registry
+        .groups
         .iter()
         .filter(|entry| entry.value().ready_check_started)
         .map(|entry| *entry.key())
@@ -1459,12 +1510,84 @@ impl PendingInviteLikeCpp {
     }
 }
 
-/// Pending invites: invited_guid → represented C++ group invite.
-pub type PendingInvites = DashMap<ObjectGuid, PendingInviteLikeCpp>;
+/// Owner of pending invites: invited_guid → represented C++ group invite.
+#[derive(Debug, Default)]
+pub struct PendingInvites {
+    invites: DashMap<ObjectGuid, PendingInviteLikeCpp>,
+}
+
+impl PendingInvites {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Return an immutable owned invite snapshot.
+    pub fn get(&self, invited_guid: &ObjectGuid) -> Option<PendingInviteLikeCpp> {
+        self.invites.get(invited_guid).map(|invite| *invite)
+    }
+
+    pub fn contains_key(&self, invited_guid: &ObjectGuid) -> bool {
+        self.invites.contains_key(invited_guid)
+    }
+
+    pub fn matching_guids(&self, invite: PendingInviteLikeCpp) -> Vec<ObjectGuid> {
+        self.invites
+            .iter()
+            .filter(|entry| *entry.value() == invite)
+            .map(|entry| *entry.key())
+            .collect()
+    }
+
+    /// Transitional invite mutation compatibility; owned by #197.
+    pub fn insert(
+        &self,
+        invited_guid: ObjectGuid,
+        invite: PendingInviteLikeCpp,
+    ) -> Option<PendingInviteLikeCpp> {
+        self.invites.insert(invited_guid, invite)
+    }
+
+    /// Transitional invite mutation compatibility; owned by #197.
+    pub fn remove(&self, invited_guid: &ObjectGuid) -> Option<(ObjectGuid, PendingInviteLikeCpp)> {
+        self.invites.remove(invited_guid)
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn group_registry_reads_are_owned_and_absent_groups_stay_absent() {
+        let registry = GroupRegistry::new();
+        let leader = ObjectGuid::create_player(1, 42);
+        let group = GroupInfo::new(leader);
+        let group_guid = group.group_guid;
+        registry.insert(group_guid, group);
+
+        let mut snapshot = registry.get(&group_guid).expect("group snapshot");
+        snapshot.leader_guid = ObjectGuid::create_player(1, 99);
+
+        assert_eq!(registry.get(&group_guid).unwrap().leader_guid, leader);
+        assert!(registry.get(&u64::MAX).is_none());
+        assert!(!registry.contains_key(&u64::MAX));
+    }
+
+    #[test]
+    fn pending_invite_reads_are_owned_and_absent_invites_stay_absent() {
+        let pending = PendingInvites::new();
+        let leader = ObjectGuid::create_player(1, 42);
+        let invited = ObjectGuid::create_player(1, 43);
+        let invite = PendingInviteLikeCpp::new_pending_group(leader, 0);
+        pending.insert(invited, invite);
+
+        let snapshot = pending.get(&invited).expect("invite snapshot");
+
+        assert_eq!(snapshot, invite);
+        assert_eq!(pending.matching_guids(invite), vec![invited]);
+        assert!(pending.get(&ObjectGuid::create_player(1, 99)).is_none());
+        assert!(!pending.contains_key(&ObjectGuid::create_player(1, 99)));
+    }
 
     #[test]
     fn new_group_uses_cpp_personal_loot_default() {

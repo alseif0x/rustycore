@@ -57674,45 +57674,6 @@
           "count": 1
         },
         {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
-          "enclosing": "fn tick_all_group_ready_checks_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "iter",
-          "symbol": "iter",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "iter()",
-          "count": 1
-        },
-        {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
-          "enclosing": "module",
-          "registry": "GroupRegistry",
-          "operation": "type_alias",
-          "symbol": "GroupRegistry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "DashMap < u64 , GroupInfo >",
-          "count": 1
-        },
-        {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
-          "enclosing": "module",
-          "registry": "PendingInvites",
-          "operation": "type_alias",
-          "symbol": "PendingInvites",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "DashMap < ObjectGuid , PendingInviteLikeCpp >",
-          "count": 1
-        },
-        {
           "package": "wow-world",
           "module": "crate::handlers::character",
           "source": "crates/wow-world/src/handlers/character.rs",
@@ -57892,19 +57853,6 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "get(& group_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat",
-          "source": "crates/wow-world/src/handlers/chat.rs",
-          "enclosing": "impl WorldSession::current_chat_group_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "iter",
-          "symbol": "iter",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "iter()",
           "count": 1
         },
         {
@@ -58171,19 +58119,6 @@
           "package": "wow-world",
           "module": "crate::handlers::group",
           "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn current_group_guid_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "iter",
-          "symbol": "iter",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "iter()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
           "enclosing": "fn current_player_party_invite_map_instance_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
@@ -58301,19 +58236,6 @@
           "package": "wow-world",
           "module": "crate::handlers::group",
           "source": "crates/wow-world/src/handlers/group.rs",
-          "enclosing": "fn pending_group_invite_keys_like_cpp",
-          "registry": "PendingInvites",
-          "operation": "iter",
-          "symbol": "iter",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "iter()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group",
-          "source": "crates/wow-world/src/handlers/group.rs",
           "enclosing": "fn pending_invite_for_new_or_existing_group_like_cpp",
           "registry": "GroupRegistry",
           "operation": "type_reference",
@@ -58347,6 +58269,19 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "& PendingInvites",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::group",
+          "source": "crates/wow-world/src/handlers/group.rs",
+          "enclosing": "fn pending_invite_for_new_or_existing_group_like_cpp",
+          "registry": "PendingInvites",
+          "operation": "return",
+          "symbol": "guard",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "invite",
           "count": 1
         },
         {
@@ -61406,19 +61341,6 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::handlers::quest",
-          "source": "crates/wow-world/src/handlers/quest.rs",
-          "enclosing": "impl WorldSession::handle_quest_confirm_accept",
-          "registry": "GroupRegistry",
-          "operation": "iter",
-          "symbol": "iter",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "iter()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
           "enclosing": "impl WorldSession::friend_status_for_guid_like_cpp",
@@ -61636,19 +61558,6 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "get(& player_group_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::accept_represented_wargame_invite_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "iter",
-          "symbol": "iter",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "iter()",
           "count": 1
         },
         {
@@ -62871,19 +62780,6 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "player_guid:GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::party_member_party_type_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "iter",
-          "symbol": "iter",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "iter()",
           "count": 1
         },
         {

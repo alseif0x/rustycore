@@ -1340,9 +1340,9 @@ impl WorldSession {
         }
 
         registry
-            .iter()
-            .find(|entry| entry.value().members.contains(&sender_guid))
-            .map(|entry| entry.value().clone())
+            .snapshots()
+            .into_iter()
+            .find(|group| group.members.contains(&sender_guid))
     }
 
     fn broadcast_group_chat_packet_like_cpp(

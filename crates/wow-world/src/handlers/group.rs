@@ -82,12 +82,12 @@ fn current_group_guid_like_cpp(
     }
     // 2. Fallback: scan for any group containing sender in the requested category.
     group_reg
-        .iter()
-        .find(|entry| {
-            entry.value().members.contains(&sender_guid)
-                && entry.value().matches_party_index_like_cpp(party_index)
+        .snapshots()
+        .into_iter()
+        .find(|group| {
+            group.members.contains(&sender_guid) && group.matches_party_index_like_cpp(party_index)
         })
-        .map(|entry| *entry.key())
+        .map(|group| group.group_guid)
 }
 
 fn pending_invite_matches_party_index_like_cpp(
@@ -101,11 +101,7 @@ fn pending_group_invite_keys_like_cpp(
     pending: &PendingInvites,
     invite: PendingInviteLikeCpp,
 ) -> Vec<ObjectGuid> {
-    pending
-        .iter()
-        .filter(|entry| *entry.value() == invite)
-        .map(|entry| *entry.key())
-        .collect()
+    pending.matching_guids(invite)
 }
 
 fn remove_all_pending_group_invites_like_cpp(
@@ -160,7 +156,8 @@ fn pending_invite_for_new_or_existing_group_like_cpp(
         ));
     }
 
-    pending.get(&inviter_guid).map(|invite| *invite.value())
+    let invite = pending.get(&inviter_guid);
+    invite
 }
 
 // ── inventory registrations ───────────────────────────────────────────────────
@@ -1445,7 +1442,7 @@ impl WorldSession {
         };
 
         // 1. Must have a pending C++ `GroupInvite`.
-        let invite = match pending.get(&my_guid).map(|e| *e.value()) {
+        let invite = match pending.get(&my_guid) {
             Some(invite) => invite,
             None => return,
         };
@@ -1782,7 +1779,7 @@ impl WorldSession {
                 if let Some(pending_invites) = pending_invites.as_ref() {
                     let invite_belongs_to_group = pending_invites
                         .get(&uninvite.target_guid)
-                        .is_some_and(|invite| invite.value().group_guid == Some(group_guid));
+                        .is_some_and(|invite| invite.group_guid == Some(group_guid));
                     if invite_belongs_to_group {
                         pending_invites.remove(&uninvite.target_guid);
                         return;
@@ -1909,7 +1906,7 @@ impl WorldSession {
             current_group_guid_like_cpp(&group_reg, self.group_guid, my_guid, party_index);
         let pending_invite = pending_invites
             .as_ref()
-            .and_then(|pending| pending.get(&my_guid).map(|invite| *invite.value()));
+            .and_then(|pending| pending.get(&my_guid));
 
         if real_group_guid.is_none() && pending_invite.is_none() {
             return;

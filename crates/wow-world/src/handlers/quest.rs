@@ -4357,8 +4357,8 @@ impl WorldSession {
             return;
         };
 
-        let same_represented_group = group_registry.iter().any(|entry| {
-            let members = &entry.value().members;
+        let same_represented_group = group_registry.snapshots().into_iter().any(|group| {
+            let members = &group.members;
             members.contains(&receiver_guid) && members.contains(&pending.sender_guid)
         });
         if !same_represented_group {
