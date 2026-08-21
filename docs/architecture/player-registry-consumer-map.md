@@ -15,7 +15,8 @@ The assignment is responsibility-based even when a function lives in the session
   incarnation addresses and ordered directory commands; its rows were removed on landing.
 - #194 closed quest, spell, movement, vehicle and movement-visibility access through bounded
   projections, spatial recipient selection and generation-checked commands; its rows were removed.
-- #195 owns group, chat, social, ready-check and group-membership consumers.
+- #195 closed group, chat, social, ready-check and group-membership consumers through owned
+  projections, incarnation-aware addresses and generation-checked delivery; its rows were removed.
 - #196 owns the generic broad-mirror synchronization helper and every test/fixture compatibility
   operation. It must remove the temporary compatibility guards, iterator, `insert`, `remove`,
   metadata helpers and entry representation after #192-#195 close production access.

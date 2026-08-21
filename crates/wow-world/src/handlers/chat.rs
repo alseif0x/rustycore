@@ -470,24 +470,13 @@ impl WorldSession {
         let target_name = msg.target.clone();
 
         // Try to deliver to the target player via the registry.
-        let target_info = self.player_registry().and_then(|reg| {
-            reg.iter()
-                .find(|e| e.value().player_name.eq_ignore_ascii_case(&target_name))
-                .map(|e| {
-                    (
-                        e.value().send_tx.clone(),
-                        e.value().is_game_master,
-                        e.value().is_afk,
-                        e.value().is_dnd,
-                        e.value().auto_reply_msg_like_cpp.clone(),
-                    )
-                })
-        });
+        let player_registry = self.player_registry().cloned();
+        let target_info = player_registry
+            .as_ref()
+            .and_then(|registry| registry.social_recipient_by_name(&target_name));
 
-        if let Some((tx, target_is_game_master, target_is_afk, target_is_dnd, target_auto_reply)) =
-            target_info
-        {
-            if self.has_gm_silence_aura_like_cpp() && !target_is_game_master {
+        if let (Some(registry), Some(target)) = (player_registry, target_info) {
+            if self.has_gm_silence_aura_like_cpp() && !target.is_game_master {
                 self.send_gm_silence_notification_like_cpp();
                 return;
             }
@@ -505,7 +494,7 @@ impl WorldSession {
                 text: msg.text.clone(),
                 virtual_realm,
             };
-            let _ = tx.send(to_target.to_bytes());
+            let _ = registry.send_current_packet(target.registration, to_target.to_bytes());
 
             // Inform sender their whisper was delivered.
             let inform = ChatPkt {
@@ -522,10 +511,18 @@ impl WorldSession {
             };
             self.send_packet(&inform);
 
-            if target_is_afk {
-                self.send_whisper_away_reply_like_cpp(&target_name, &target_auto_reply, true);
-            } else if target_is_dnd {
-                self.send_whisper_away_reply_like_cpp(&target_name, &target_auto_reply, false);
+            if target.is_afk {
+                self.send_whisper_away_reply_like_cpp(
+                    &target_name,
+                    &target.auto_reply_msg_like_cpp,
+                    true,
+                );
+            } else if target.is_dnd {
+                self.send_whisper_away_reply_like_cpp(
+                    &target_name,
+                    &target.auto_reply_msg_like_cpp,
+                    false,
+                );
             }
         } else {
             self.send_packet(&ChatPlayerNotfound { name: target_name });
@@ -708,12 +705,12 @@ impl WorldSession {
         let (reporter_guid, reporter_name) = self.player_name_and_guid();
         let virtual_realm = self.virtual_realm_address();
 
-        let ignored_tx = self.player_registry().and_then(|reg| {
-            reg.get(&report.ignored_guid)
-                .map(|entry| entry.send_tx.clone())
-        });
+        let player_registry = self.player_registry().cloned();
+        let ignored = player_registry
+            .as_ref()
+            .and_then(|registry| registry.social_recipient(report.ignored_guid));
 
-        if let Some(tx) = ignored_tx {
+        if let (Some(registry), Some(ignored_recipient)) = (player_registry, ignored) {
             let ignored = ChatPkt {
                 msg_type: ChatMsg::Ignored,
                 language: 0,
@@ -726,7 +723,8 @@ impl WorldSession {
                 text: reporter_name,
                 virtual_realm,
             };
-            let _ = tx.send(ignored.to_bytes());
+            let _ =
+                registry.send_current_packet(ignored_recipient.registration, ignored.to_bytes());
         }
     }
 
@@ -1128,20 +1126,12 @@ impl WorldSession {
         is_logged: bool,
         notify_missing: bool,
     ) {
-        let target_info = self.player_registry().and_then(|reg| {
-            reg.iter()
-                .find(|e| e.value().player_name.eq_ignore_ascii_case(target_name))
-                .map(|e| {
-                    (
-                        *e.key(),
-                        e.value().command_tx.clone(),
-                        e.value().race,
-                        e.value().player_name.clone(),
-                    )
-                })
-        });
+        let player_registry = self.player_registry().cloned();
+        let target_info = player_registry
+            .as_ref()
+            .and_then(|registry| registry.social_recipient_by_name(target_name));
 
-        let Some((target_guid, command_tx, target_race, target_name)) = target_info else {
+        let (Some(registry), Some(target)) = (player_registry, target_info) else {
             if notify_missing {
                 self.send_packet(&ChatPlayerNotfound {
                     name: target_name.to_string(),
@@ -1151,10 +1141,12 @@ impl WorldSession {
         };
 
         if player_team_for_race_cpp(self.player_race_like_cpp())
-            != player_team_for_race_cpp(target_race)
+            != player_team_for_race_cpp(target.race)
         {
             if notify_missing {
-                self.send_packet(&ChatPlayerNotfound { name: target_name });
+                self.send_packet(&ChatPlayerNotfound {
+                    name: target.player_name,
+                });
             }
             return;
         }
@@ -1169,8 +1161,8 @@ impl WorldSession {
             },
             sender_guid,
             sender_name,
-            target_guid,
-            target_name,
+            target_guid: target.guid,
+            target_name: target.player_name,
             prefix: prefix.clone(),
             channel: String::new(),
             text: message,
@@ -1182,7 +1174,7 @@ impl WorldSession {
                 prefix,
                 packet_bytes: chat.to_bytes(),
             });
-        let _ = command_tx.try_send(command);
+        let _ = registry.try_send_current_command(target.registration, command);
     }
 
     // ── Helpers ──────────────────────────────────────────────────
@@ -1362,8 +1354,8 @@ impl WorldSession {
                 continue;
             }
 
-            if let Some(member) = registry.get(member_guid) {
-                let _ = member.send_tx.send(bytes.clone());
+            if let Some(member) = registry.group_presence(*member_guid) {
+                let _ = registry.send_current_packet(member.registration, bytes.clone());
             }
         }
     }
@@ -1390,14 +1382,14 @@ impl WorldSession {
                 continue;
             }
 
-            if let Some(member) = registry.get(member_guid) {
+            if let Some(member) = registry.group_presence(*member_guid) {
                 let command = SessionCommand::SendAddonIfRegisteredLikeCpp(
                     SendAddonIfRegisteredLikeCppCommand {
                         prefix: prefix.clone(),
                         packet_bytes: bytes.clone(),
                     },
                 );
-                let _ = member.command_tx.try_send(command);
+                let _ = registry.try_send_current_command(member.registration, command);
             }
         }
     }
