@@ -1,6 +1,6 @@
 //! Shared registry of active groups for cross-session party management.
 
-use dashmap::DashMap;
+use dashmap::{DashMap, mapref::entry::Entry};
 use std::{
     collections::BTreeMap,
     sync::{
@@ -1287,6 +1287,54 @@ pub struct GroupRegistry {
     groups: DashMap<u64, GroupInfo>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GroupAuthorityErrorLikeCpp {
+    MissingGroup,
+    MissingMember,
+    NotLeader,
+    NotLeaderOrAssistant,
+    InvalidSubgroup,
+    SubgroupFull,
+    NotRaid,
+    GroupTooLarge,
+    NoChange,
+    LfgGroup,
+    LfgBootLimit,
+    LfgBootTooFewPlayers,
+    LfgBootDungeonComplete,
+    LfgBootLootRolls,
+    LfgBootInCombat,
+    LfgKickOwnedByVote,
+    InviteRestricted,
+    TargetIsLeader,
+}
+
+#[derive(Debug, Clone)]
+pub struct GroupTransitionOutcomeLikeCpp<T> {
+    pub group: GroupInfo,
+    pub facts: T,
+}
+
+#[derive(Debug, Clone)]
+pub struct GroupMemberRemovalFactsLikeCpp {
+    pub removed_guid: ObjectGuid,
+    pub db_store_id: u32,
+    pub disbanded: bool,
+    pub new_leader_guid: Option<ObjectGuid>,
+    pub remaining_members: Vec<ObjectGuid>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GroupMemberRemovalKindLikeCpp {
+    Leave,
+    Kick {
+        actor_guid: ObjectGuid,
+        actor_in_battleground: bool,
+        target_has_loot_rolls: bool,
+        any_member_in_actor_map_combat: bool,
+    },
+}
+
 impl GroupRegistry {
     pub fn new() -> Self {
         Self::default()
@@ -1315,18 +1363,621 @@ impl GroupRegistry {
         self.groups.insert(group_guid, group)
     }
 
-    /// Transitional membership/disband compatibility; owned by #198.
+    /// Transitional test-fixture compatibility; removed by #199.
     pub fn remove(&self, group_guid: &u64) -> Option<(u64, GroupInfo)> {
         self.groups.remove(group_guid)
     }
 
-    /// Transitional mutation compatibility; all callers are assigned to
-    /// #197 or #198 and the method itself is removed by #199.
+    /// Transitional database-load/test-fixture compatibility; removed by #199.
     pub fn get_mut(
         &self,
         group_guid: &u64,
     ) -> Option<dashmap::mapref::one::RefMut<'_, u64, GroupInfo>> {
         self.groups.get_mut(group_guid)
+    }
+
+    pub fn remove_member_like_cpp(
+        &self,
+        group_guid: u64,
+        member_guid: ObjectGuid,
+        kind: GroupMemberRemovalKindLikeCpp,
+        connected_members_in_order: &[ObjectGuid],
+    ) -> Result<
+        GroupTransitionOutcomeLikeCpp<GroupMemberRemovalFactsLikeCpp>,
+        GroupAuthorityErrorLikeCpp,
+    > {
+        let Entry::Occupied(mut entry) = self.groups.entry(group_guid) else {
+            return Err(GroupAuthorityErrorLikeCpp::MissingGroup);
+        };
+        let group = entry.get_mut();
+
+        if let GroupMemberRemovalKindLikeCpp::Kick {
+            actor_guid,
+            actor_in_battleground,
+            target_has_loot_rolls,
+            any_member_in_actor_map_combat,
+        } = kind
+        {
+            if group.is_lfg_group_like_cpp() {
+                if group.lfg_kicks_left_like_cpp == 0 {
+                    return Err(GroupAuthorityErrorLikeCpp::LfgBootLimit);
+                }
+                if group.members.len() <= LFG_GROUP_KICK_VOTES_NEEDED_LIKE_CPP {
+                    return Err(GroupAuthorityErrorLikeCpp::LfgBootTooFewPlayers);
+                }
+                if group.lfg_db_state.as_ref().and_then(|state| state.state)
+                    == Some(LFG_STATE_FINISHED_DUNGEON_LIKE_CPP)
+                {
+                    return Err(GroupAuthorityErrorLikeCpp::LfgBootDungeonComplete);
+                }
+                if target_has_loot_rolls {
+                    return Err(GroupAuthorityErrorLikeCpp::LfgBootLootRolls);
+                }
+                if any_member_in_actor_map_combat {
+                    return Err(GroupAuthorityErrorLikeCpp::LfgBootInCombat);
+                }
+            } else {
+                if !group.is_leader_like_cpp(actor_guid) && !group.is_assistant_like_cpp(actor_guid)
+                {
+                    return Err(GroupAuthorityErrorLikeCpp::NotLeaderOrAssistant);
+                }
+                if actor_in_battleground {
+                    return Err(GroupAuthorityErrorLikeCpp::InviteRestricted);
+                }
+                if group.leader_guid == member_guid {
+                    return Err(GroupAuthorityErrorLikeCpp::TargetIsLeader);
+                }
+            }
+        }
+
+        if !group.members.contains(&member_guid) {
+            return Err(GroupAuthorityErrorLikeCpp::MissingMember);
+        }
+        if matches!(kind, GroupMemberRemovalKindLikeCpp::Kick { .. })
+            && group.is_lfg_group_like_cpp()
+        {
+            return Err(GroupAuthorityErrorLikeCpp::LfgKickOwnedByVote);
+        }
+
+        let previous_leader = group.leader_guid;
+        group.remove_member(&member_guid);
+        let db_store_id = group.db_store_id;
+        let mut new_leader_guid = None;
+        if group.members.len() >= 2 && previous_leader == member_guid {
+            if let Some(successor) = connected_members_in_order
+                .iter()
+                .copied()
+                .find(|candidate| group.members.contains(candidate))
+            {
+                if group.change_leader_like_cpp(successor).is_some() {
+                    new_leader_guid = Some(successor);
+                }
+            }
+        }
+
+        let disbanded = group.members.len() < 2;
+        if disbanded {
+            let group = entry.remove();
+            let remaining_members = group.members.clone();
+            return Ok(GroupTransitionOutcomeLikeCpp {
+                group,
+                facts: GroupMemberRemovalFactsLikeCpp {
+                    removed_guid: member_guid,
+                    db_store_id,
+                    disbanded,
+                    new_leader_guid,
+                    remaining_members,
+                },
+            });
+        }
+
+        let group = group.clone();
+        let remaining_members = group.members.clone();
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group,
+            facts: GroupMemberRemovalFactsLikeCpp {
+                removed_guid: member_guid,
+                db_store_id,
+                disbanded,
+                new_leader_guid,
+                remaining_members,
+            },
+        })
+    }
+
+    pub fn convert_group_like_cpp(
+        &self,
+        group_guid: u64,
+        actor_guid: ObjectGuid,
+        raid: bool,
+    ) -> Result<GroupTransitionOutcomeLikeCpp<(u16, u32)>, GroupAuthorityErrorLikeCpp> {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        if !group.is_leader_like_cpp(actor_guid) {
+            return Err(GroupAuthorityErrorLikeCpp::NotLeader);
+        }
+        if group.members.len() < 2 {
+            return Err(GroupAuthorityErrorLikeCpp::MissingMember);
+        }
+        if raid {
+            group.convert_to_raid_like_cpp();
+        } else if !group.convert_to_group_like_cpp() {
+            return Err(GroupAuthorityErrorLikeCpp::GroupTooLarge);
+        }
+        let facts = (group.group_flags, group.db_store_id);
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group: group.clone(),
+            facts,
+        })
+    }
+
+    pub fn change_member_subgroup_like_cpp(
+        &self,
+        group_guid: u64,
+        actor_guid: ObjectGuid,
+        member_guid: ObjectGuid,
+        subgroup: u8,
+    ) -> Result<GroupTransitionOutcomeLikeCpp<(ObjectGuid, u8)>, GroupAuthorityErrorLikeCpp> {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        if !group.is_leader_like_cpp(actor_guid) && !group.is_assistant_like_cpp(actor_guid) {
+            return Err(GroupAuthorityErrorLikeCpp::NotLeaderOrAssistant);
+        }
+        if !group.is_raid_group() {
+            return Err(GroupAuthorityErrorLikeCpp::NotRaid);
+        }
+        if usize::from(subgroup) >= MAX_RAID_SUBGROUPS_LIKE_CPP {
+            return Err(GroupAuthorityErrorLikeCpp::InvalidSubgroup);
+        }
+        if !group.has_free_slot_sub_group_like_cpp(subgroup) {
+            return Err(GroupAuthorityErrorLikeCpp::SubgroupFull);
+        }
+        if !group.members.contains(&member_guid) {
+            return Err(GroupAuthorityErrorLikeCpp::MissingMember);
+        }
+        if !group.change_member_group_like_cpp(member_guid, subgroup) {
+            return Err(GroupAuthorityErrorLikeCpp::NoChange);
+        }
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group: group.clone(),
+            facts: (member_guid, subgroup),
+        })
+    }
+
+    pub fn swap_member_subgroups_like_cpp(
+        &self,
+        group_guid: u64,
+        actor_guid: ObjectGuid,
+        first: ObjectGuid,
+        second: ObjectGuid,
+    ) -> Result<GroupTransitionOutcomeLikeCpp<Vec<(ObjectGuid, u8)>>, GroupAuthorityErrorLikeCpp>
+    {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        if !group.is_leader_like_cpp(actor_guid) && !group.is_assistant_like_cpp(actor_guid) {
+            return Err(GroupAuthorityErrorLikeCpp::NotLeaderOrAssistant);
+        }
+        let facts = group
+            .swap_members_groups_like_cpp(first, second)
+            .ok_or(GroupAuthorityErrorLikeCpp::NoChange)?;
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group: group.clone(),
+            facts: facts.to_vec(),
+        })
+    }
+
+    pub fn change_leader_transition_like_cpp(
+        &self,
+        group_guid: u64,
+        actor_guid: ObjectGuid,
+        new_leader_guid: ObjectGuid,
+    ) -> Result<GroupTransitionOutcomeLikeCpp<(u32, u8)>, GroupAuthorityErrorLikeCpp> {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        if !group.is_leader_like_cpp(actor_guid) {
+            return Err(GroupAuthorityErrorLikeCpp::NotLeader);
+        }
+        if !group.members.contains(&new_leader_guid) {
+            return Err(GroupAuthorityErrorLikeCpp::MissingMember);
+        }
+        let db_store_id = group.db_store_id;
+        let final_flags = group
+            .change_leader_like_cpp(new_leader_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::NoChange)?;
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group: group.clone(),
+            facts: (db_store_id, final_flags),
+        })
+    }
+
+    pub fn set_member_flag_transition_like_cpp(
+        &self,
+        group_guid: u64,
+        actor_guid: ObjectGuid,
+        member_guid: ObjectGuid,
+        apply: bool,
+        flag: u8,
+    ) -> Result<GroupTransitionOutcomeLikeCpp<u8>, GroupAuthorityErrorLikeCpp> {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        if !group.is_leader_like_cpp(actor_guid) {
+            return Err(GroupAuthorityErrorLikeCpp::NotLeader);
+        }
+        let facts = group
+            .set_group_member_flag_like_cpp(member_guid, apply, flag)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingMember)?;
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group: group.clone(),
+            facts,
+        })
+    }
+
+    pub fn set_everyone_assistant_transition_like_cpp(
+        &self,
+        group_guid: u64,
+        actor_guid: ObjectGuid,
+        apply: bool,
+    ) -> Result<GroupTransitionOutcomeLikeCpp<(u16, u32)>, GroupAuthorityErrorLikeCpp> {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        if !group.is_leader_like_cpp(actor_guid) {
+            return Err(GroupAuthorityErrorLikeCpp::NotLeader);
+        }
+        let facts = group.set_everyone_is_assistant_like_cpp(apply);
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group: group.clone(),
+            facts,
+        })
+    }
+
+    pub fn set_party_assignment_transition_like_cpp(
+        &self,
+        group_guid: u64,
+        actor_guid: ObjectGuid,
+        member_guid: ObjectGuid,
+        assignment: u8,
+        apply: bool,
+    ) -> Result<GroupTransitionOutcomeLikeCpp<Vec<(ObjectGuid, u8)>>, GroupAuthorityErrorLikeCpp>
+    {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        if !group.is_leader_like_cpp(actor_guid) && !group.is_assistant_like_cpp(actor_guid) {
+            return Err(GroupAuthorityErrorLikeCpp::NotLeaderOrAssistant);
+        }
+        let flag = match assignment {
+            GROUP_ASSIGN_MAINASSIST_LIKE_CPP => MEMBER_FLAG_MAINASSIST_LIKE_CPP,
+            GROUP_ASSIGN_MAINTANK_LIKE_CPP => MEMBER_FLAG_MAINTANK_LIKE_CPP,
+            _ => {
+                return Ok(GroupTransitionOutcomeLikeCpp {
+                    group: group.clone(),
+                    facts: Vec::new(),
+                });
+            }
+        };
+        group.remove_unique_group_member_flag_like_cpp(flag);
+        let facts = group
+            .set_group_member_flag_updates_like_cpp(member_guid, apply, flag)
+            .unwrap_or_default();
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group: group.clone(),
+            facts,
+        })
+    }
+
+    pub fn start_ready_check_transition_like_cpp(
+        &self,
+        group_guid: u64,
+        actor_guid: ObjectGuid,
+        connected_members: impl IntoIterator<Item = ObjectGuid>,
+    ) -> Result<
+        GroupTransitionOutcomeLikeCpp<Vec<ReadyCheckEventLikeCpp>>,
+        GroupAuthorityErrorLikeCpp,
+    > {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        if !group.is_leader_like_cpp(actor_guid) && !group.is_assistant_like_cpp(actor_guid) {
+            return Err(GroupAuthorityErrorLikeCpp::NotLeaderOrAssistant);
+        }
+        let facts = group.start_ready_check_like_cpp(actor_guid, connected_members);
+        if facts.is_empty() {
+            return Err(GroupAuthorityErrorLikeCpp::NoChange);
+        }
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group: group.clone(),
+            facts,
+        })
+    }
+
+    pub fn respond_ready_check_transition_like_cpp(
+        &self,
+        group_guid: u64,
+        member_guid: ObjectGuid,
+        ready: bool,
+    ) -> Result<
+        GroupTransitionOutcomeLikeCpp<Vec<ReadyCheckEventLikeCpp>>,
+        GroupAuthorityErrorLikeCpp,
+    > {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        if !group.members.contains(&member_guid) {
+            return Err(GroupAuthorityErrorLikeCpp::MissingMember);
+        }
+        let facts = group.set_member_ready_check_like_cpp(member_guid, ready);
+        if facts.is_empty() {
+            return Err(GroupAuthorityErrorLikeCpp::NoChange);
+        }
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group: group.clone(),
+            facts,
+        })
+    }
+
+    pub fn set_lfg_role_transition_like_cpp(
+        &self,
+        group_guid: u64,
+        member_guid: ObjectGuid,
+        role: u8,
+    ) -> Result<GroupTransitionOutcomeLikeCpp<(u8, bool)>, GroupAuthorityErrorLikeCpp> {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        let old_role = group.get_lfg_roles_like_cpp(member_guid);
+        if old_role == role {
+            return Err(GroupAuthorityErrorLikeCpp::NoChange);
+        }
+        let mutated = group.set_lfg_roles_like_cpp(member_guid, role);
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group: group.clone(),
+            facts: (old_role, mutated),
+        })
+    }
+
+    pub fn set_target_icon_transition_like_cpp(
+        &self,
+        group_guid: u64,
+        actor_guid: ObjectGuid,
+        symbol: u8,
+        target: ObjectGuid,
+    ) -> Result<GroupTransitionOutcomeLikeCpp<Vec<(u8, ObjectGuid)>>, GroupAuthorityErrorLikeCpp>
+    {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        if group.is_raid_group()
+            && !group.is_leader_like_cpp(actor_guid)
+            && !group.is_assistant_like_cpp(actor_guid)
+        {
+            return Err(GroupAuthorityErrorLikeCpp::NotLeaderOrAssistant);
+        }
+        let facts = group
+            .set_target_icon_like_cpp(symbol, target)
+            .ok_or(GroupAuthorityErrorLikeCpp::InvalidSubgroup)?;
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group: group.clone(),
+            facts,
+        })
+    }
+
+    pub fn delete_raid_marker_transition_like_cpp(
+        &self,
+        group_guid: u64,
+        actor_guid: ObjectGuid,
+        marker_id: u8,
+    ) -> Result<GroupTransitionOutcomeLikeCpp<bool>, GroupAuthorityErrorLikeCpp> {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        if group.is_raid_group()
+            && !group.is_leader_like_cpp(actor_guid)
+            && !group.is_assistant_like_cpp(actor_guid)
+        {
+            return Err(GroupAuthorityErrorLikeCpp::NotLeaderOrAssistant);
+        }
+        if usize::from(marker_id) > RAID_MARKERS_COUNT_LIKE_CPP {
+            return Err(GroupAuthorityErrorLikeCpp::InvalidSubgroup);
+        }
+        let facts = group.delete_raid_marker_like_cpp(marker_id);
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group: group.clone(),
+            facts,
+        })
+    }
+
+    pub fn add_raid_marker_transition_like_cpp(
+        &self,
+        group_guid: u64,
+        actor_guid: ObjectGuid,
+        marker_id: u8,
+        map_id: u32,
+        position: Position,
+        transport_guid: ObjectGuid,
+    ) -> Result<GroupTransitionOutcomeLikeCpp<()>, GroupAuthorityErrorLikeCpp> {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        if !group.members.contains(&actor_guid) {
+            return Err(GroupAuthorityErrorLikeCpp::MissingMember);
+        }
+        if group.is_raid_group()
+            && !group.is_leader_like_cpp(actor_guid)
+            && !group.is_assistant_like_cpp(actor_guid)
+        {
+            return Err(GroupAuthorityErrorLikeCpp::NotLeaderOrAssistant);
+        }
+        if !group.add_raid_marker_like_cpp(marker_id, map_id, position, transport_guid) {
+            return Err(GroupAuthorityErrorLikeCpp::NoChange);
+        }
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group: group.clone(),
+            facts: (),
+        })
+    }
+
+    pub fn set_recent_instance_transition_like_cpp(
+        &self,
+        group_guid: u64,
+        map_id: u32,
+        owner_guid: ObjectGuid,
+        instance_id: u32,
+    ) -> Result<GroupTransitionOutcomeLikeCpp<()>, GroupAuthorityErrorLikeCpp> {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        group.set_recent_instance_like_cpp(map_id, owner_guid, instance_id);
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group: group.clone(),
+            facts: (),
+        })
+    }
+
+    pub fn link_owned_instance_transition_like_cpp(
+        &self,
+        group_guid: u64,
+        map_id: u32,
+        instance_id: u32,
+    ) -> Result<GroupTransitionOutcomeLikeCpp<bool>, GroupAuthorityErrorLikeCpp> {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        let facts = group.link_owned_instance_like_cpp(map_id, instance_id);
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group: group.clone(),
+            facts,
+        })
+    }
+
+    pub fn unlink_owned_instance_transition_like_cpp(
+        &self,
+        group_guid: u64,
+        map_id: u32,
+        instance_id: u32,
+    ) -> Result<GroupTransitionOutcomeLikeCpp<bool>, GroupAuthorityErrorLikeCpp> {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        let facts = group.unlink_owned_instance_like_cpp(map_id, instance_id);
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group: group.clone(),
+            facts,
+        })
+    }
+
+    pub fn apply_instance_reset_transition_like_cpp(
+        &self,
+        group_guid: u64,
+        map_id: u32,
+        result: GroupInstanceResetResultLikeCpp,
+        method: GroupInstanceResetMethodLikeCpp,
+    ) -> Result<GroupTransitionOutcomeLikeCpp<bool>, GroupAuthorityErrorLikeCpp> {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        let facts = group.apply_owned_instance_reset_result_like_cpp(map_id, result, method);
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group: group.clone(),
+            facts,
+        })
+    }
+
+    pub fn set_difficulty_transition_like_cpp(
+        &self,
+        group_guid: u64,
+        actor_guid: ObjectGuid,
+        difficulty_id: u32,
+        kind: crate::player_registry::GroupDifficultyKindLikeCpp,
+    ) -> Result<GroupTransitionOutcomeLikeCpp<u32>, GroupAuthorityErrorLikeCpp> {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        if !group.is_leader_like_cpp(actor_guid) {
+            return Err(GroupAuthorityErrorLikeCpp::NotLeader);
+        }
+        if group.is_lfg_group_like_cpp() {
+            return Err(GroupAuthorityErrorLikeCpp::LfgGroup);
+        }
+        let changed = match kind {
+            crate::player_registry::GroupDifficultyKindLikeCpp::Dungeon => {
+                group.set_dungeon_difficulty_id_like_cpp(difficulty_id)
+            }
+            crate::player_registry::GroupDifficultyKindLikeCpp::Raid => {
+                group.set_raid_difficulty_id_like_cpp(difficulty_id)
+            }
+            crate::player_registry::GroupDifficultyKindLikeCpp::LegacyRaid => {
+                group.set_legacy_raid_difficulty_id_like_cpp(difficulty_id)
+            }
+        };
+        if !changed {
+            return Err(GroupAuthorityErrorLikeCpp::NoChange);
+        }
+        Ok(GroupTransitionOutcomeLikeCpp {
+            facts: group.db_store_id,
+            group: group.clone(),
+        })
+    }
+
+    pub fn advance_looter_transition_like_cpp(
+        &self,
+        group_guid: u64,
+        eligible_members: impl IntoIterator<Item = ObjectGuid>,
+    ) -> Result<GroupTransitionOutcomeLikeCpp<bool>, GroupAuthorityErrorLikeCpp> {
+        let mut group = self
+            .groups
+            .get_mut(&group_guid)
+            .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
+        let facts = group.update_looter_guid_like_cpp(eligible_members, false);
+        Ok(GroupTransitionOutcomeLikeCpp {
+            group: group.clone(),
+            facts,
+        })
+    }
+
+    pub fn tick_ready_checks_like_cpp(
+        &self,
+        diff_ms: u32,
+    ) -> Vec<(u64, Vec<ReadyCheckEventLikeCpp>)> {
+        let active_keys: Vec<u64> = self
+            .groups
+            .iter()
+            .filter(|entry| entry.value().ready_check_started)
+            .map(|entry| *entry.key())
+            .collect();
+        let mut results = Vec::new();
+        for group_guid in active_keys {
+            if let Some(mut group) = self.groups.get_mut(&group_guid) {
+                let events = group.update_ready_check_like_cpp(diff_ms);
+                if !events.is_empty() {
+                    results.push((group_guid, events));
+                }
+            }
+        }
+        results
     }
 }
 
@@ -1341,24 +1992,7 @@ pub fn tick_all_group_ready_checks_like_cpp(
     registry: &GroupRegistry,
     diff_ms: u32,
 ) -> Vec<(u64, Vec<ReadyCheckEventLikeCpp>)> {
-    // Collect keys first so we don't hold the iter() ref while mutating.
-    let active_keys: Vec<u64> = registry
-        .groups
-        .iter()
-        .filter(|entry| entry.value().ready_check_started)
-        .map(|entry| *entry.key())
-        .collect();
-
-    let mut results = Vec::new();
-    for group_guid in active_keys {
-        if let Some(mut group) = registry.get_mut(&group_guid) {
-            let events = group.update_ready_check_like_cpp(diff_ms);
-            if !events.is_empty() {
-                results.push((group_guid, events));
-            }
-        }
-    }
-    results
+    registry.tick_ready_checks_like_cpp(diff_ms)
 }
 
 pub fn get_group_by_db_store_id_like_cpp(
@@ -3964,5 +4598,198 @@ mod tests {
         assert_eq!(events.len(), 1);
         assert!(!group.ready_check_started);
         assert_eq!(group.ready_check_timer_ms, 0);
+    }
+
+    #[test]
+    fn registry_invalid_subgroup_transition_has_no_partial_state() {
+        let registry = GroupRegistry::new();
+        let leader = ObjectGuid::create_player(1, 71);
+        let member = ObjectGuid::create_player(1, 72);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        group.convert_to_raid_like_cpp();
+        let group_guid = group.group_guid;
+        let sequence = group.sequence_num;
+        registry.insert(group_guid, group);
+
+        let result = registry.change_member_subgroup_like_cpp(
+            group_guid,
+            leader,
+            member,
+            MAX_RAID_SUBGROUPS_LIKE_CPP as u8,
+        );
+
+        assert!(matches!(
+            result,
+            Err(GroupAuthorityErrorLikeCpp::InvalidSubgroup)
+        ));
+        let group = registry.get(&group_guid).expect("group remains registered");
+        assert_eq!(group.sequence_num, sequence);
+        assert_eq!(group.member_slot_like_cpp(member).unwrap().subgroup, 0);
+    }
+
+    #[test]
+    fn registry_missing_member_flag_transition_has_no_partial_state() {
+        let registry = GroupRegistry::new();
+        let leader = ObjectGuid::create_player(1, 81);
+        let missing = ObjectGuid::create_player(1, 82);
+        let mut group = GroupInfo::new(leader);
+        group.convert_to_raid_like_cpp();
+        let group_guid = group.group_guid;
+        let sequence = group.sequence_num;
+        registry.insert(group_guid, group);
+
+        let result = registry.set_member_flag_transition_like_cpp(
+            group_guid,
+            leader,
+            missing,
+            true,
+            MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+        );
+
+        assert!(matches!(
+            result,
+            Err(GroupAuthorityErrorLikeCpp::MissingMember)
+        ));
+        assert_eq!(registry.get(&group_guid).unwrap().sequence_num, sequence);
+    }
+
+    #[test]
+    fn registry_stale_ready_response_cannot_reopen_completed_check() {
+        let registry = GroupRegistry::new();
+        let leader = ObjectGuid::create_player(1, 91);
+        let member = ObjectGuid::create_player(1, 92);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        let group_guid = group.group_guid;
+        registry.insert(group_guid, group);
+
+        registry
+            .start_ready_check_transition_like_cpp(group_guid, leader, [leader, member])
+            .expect("leader starts ready check");
+        registry
+            .respond_ready_check_transition_like_cpp(group_guid, member, true)
+            .expect("final member completes ready check");
+        let stale = registry.respond_ready_check_transition_like_cpp(group_guid, member, false);
+
+        assert!(matches!(stale, Err(GroupAuthorityErrorLikeCpp::NoChange)));
+        let group = registry.get(&group_guid).unwrap();
+        assert!(!group.ready_check_started);
+        assert_eq!(group.ready_check_timer_ms, 0);
+        assert!(group.member_slots.iter().all(|slot| !slot.ready_checked));
+    }
+
+    #[test]
+    fn concurrent_leader_transfers_allow_only_current_leader_once() {
+        let registry = std::sync::Arc::new(GroupRegistry::new());
+        let leader = ObjectGuid::create_player(1, 101);
+        let first = ObjectGuid::create_player(1, 102);
+        let second = ObjectGuid::create_player(1, 103);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(first);
+        group.add_member(second);
+        let group_guid = group.group_guid;
+        registry.insert(group_guid, group);
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
+
+        let handles = [first, second].map(|candidate| {
+            let registry = std::sync::Arc::clone(&registry);
+            let barrier = std::sync::Arc::clone(&barrier);
+            std::thread::spawn(move || {
+                barrier.wait();
+                registry.change_leader_transition_like_cpp(group_guid, leader, candidate)
+            })
+        });
+        barrier.wait();
+        let results = handles.map(|handle| handle.join().unwrap());
+
+        assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| matches!(result, Err(GroupAuthorityErrorLikeCpp::NotLeader)))
+                .count(),
+            1
+        );
+        assert!([first, second].contains(&registry.get(&group_guid).unwrap().leader_guid));
+    }
+
+    #[test]
+    fn concurrent_kicks_remove_each_member_once_and_disband_once() {
+        let registry = std::sync::Arc::new(GroupRegistry::new());
+        let leader = ObjectGuid::create_player(1, 111);
+        let first = ObjectGuid::create_player(1, 112);
+        let second = ObjectGuid::create_player(1, 113);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(first);
+        group.add_member(second);
+        let group_guid = group.group_guid;
+        registry.insert(group_guid, group);
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
+
+        let handles = [first, second].map(|target| {
+            let registry = std::sync::Arc::clone(&registry);
+            let barrier = std::sync::Arc::clone(&barrier);
+            std::thread::spawn(move || {
+                barrier.wait();
+                registry.remove_member_like_cpp(
+                    group_guid,
+                    target,
+                    GroupMemberRemovalKindLikeCpp::Kick {
+                        actor_guid: leader,
+                        actor_in_battleground: false,
+                        target_has_loot_rolls: false,
+                        any_member_in_actor_map_combat: false,
+                    },
+                    &[],
+                )
+            })
+        });
+        barrier.wait();
+        let results = handles.map(|handle| handle.join().unwrap().unwrap());
+
+        assert_eq!(
+            results
+                .iter()
+                .filter(|outcome| outcome.facts.disbanded)
+                .count(),
+            1
+        );
+        assert!(!registry.contains_key(&group_guid));
+    }
+
+    #[test]
+    fn instance_transition_outcomes_are_owned_and_do_not_hold_group_guard() {
+        let registry = GroupRegistry::new();
+        let leader = ObjectGuid::create_player(1, 121);
+        let group = GroupInfo::new(leader);
+        let group_guid = group.group_guid;
+        registry.insert(group_guid, group);
+
+        let recent = registry
+            .set_recent_instance_transition_like_cpp(group_guid, 631, leader, 9001)
+            .unwrap();
+        let linked = registry
+            .link_owned_instance_transition_like_cpp(group_guid, 631, 9001)
+            .unwrap();
+        let reset = registry
+            .apply_instance_reset_transition_like_cpp(
+                group_guid,
+                631,
+                GroupInstanceResetResultLikeCpp::Success,
+                GroupInstanceResetMethodLikeCpp::Manual,
+            )
+            .unwrap();
+
+        assert_eq!(recent.group.recent_instance_id_like_cpp(631), 9001);
+        assert!(linked.facts);
+        assert!(reset.facts);
+        assert_eq!(reset.group.recent_instance_id_like_cpp(631), 0);
+        assert!(
+            reset
+                .group
+                .owned_instances_like_cpp()
+                .any(|instance| instance.instance_id == 9001)
+        );
     }
 }

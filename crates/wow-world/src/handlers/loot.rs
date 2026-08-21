@@ -8176,9 +8176,8 @@ impl WorldSession {
         let (Some(group_guid), Some(registry)) = (self.group_guid, self.group_registry()) else {
             return;
         };
-        if let Some(mut group) = registry.get_mut(&group_guid) {
-            let _ = group.update_looter_guid_like_cpp(connected_tappers.iter().copied(), false);
-        }
+        let _ = registry
+            .advance_looter_transition_like_cpp(group_guid, connected_tappers.iter().copied());
     }
 
     /// Generate one independently rolled C++ personal `Loot` per supplied

@@ -12561,10 +12561,17 @@ impl WorldSession {
                         .map(|counter| ObjectGuid::create_player(1, counter));
                     let updated = self
                         .group_guid
-                        .and_then(|group_guid| self.group_registry.as_ref()?.get_mut(&group_guid))
                         .zip(owner_guid)
-                        .map(|(mut group, owner_guid)| {
-                            group.set_recent_instance_like_cpp(map_id, owner_guid, instance_id);
+                        .and_then(|(group_guid, owner_guid)| {
+                            self.group_registry
+                                .as_ref()?
+                                .set_recent_instance_transition_like_cpp(
+                                    group_guid,
+                                    map_id,
+                                    owner_guid,
+                                    instance_id,
+                                )
+                                .ok()
                         })
                         .is_some();
                     if updated {
@@ -24407,29 +24414,11 @@ impl WorldSession {
         let group_guid = self.group_guid?;
         let player_guid = self.player_guid()?;
         let registry = self.group_registry.as_ref()?;
-        let mut group = registry.get_mut(&group_guid)?;
-        if !group.is_leader_like_cpp(player_guid) || group.is_lfg_group_like_cpp() {
-            return None;
-        }
-
-        let changed = match kind {
-            wow_network::player_registry::GroupDifficultyKindLikeCpp::Dungeon => {
-                group.set_dungeon_difficulty_id_like_cpp(difficulty_id)
-            }
-            wow_network::player_registry::GroupDifficultyKindLikeCpp::Raid => {
-                group.set_raid_difficulty_id_like_cpp(difficulty_id)
-            }
-            wow_network::player_registry::GroupDifficultyKindLikeCpp::LegacyRaid => {
-                group.set_legacy_raid_difficulty_id_like_cpp(difficulty_id)
-            }
-        };
-        if !changed {
-            return None;
-        }
-
-        let db_store_id = group.db_store_id;
-        let members = group.members.clone();
-        drop(group);
+        let outcome = registry
+            .set_difficulty_transition_like_cpp(group_guid, player_guid, difficulty_id, kind)
+            .ok()?;
+        let db_store_id = outcome.facts;
+        let members = outcome.group.members;
 
         for member_guid in members {
             if member_guid == player_guid {
@@ -68231,30 +68220,19 @@ impl WorldSession {
             return false;
         };
 
+        let outcome = match group_registry.add_raid_marker_transition_like_cpp(
+            group_guid,
+            player_guid,
+            damage as u8,
+            u32::from(self.player_map_id_like_cpp()),
+            destination.position,
+            destination.transport,
+        ) {
+            Ok(outcome) => outcome,
+            Err(_) => return false,
+        };
         let packet_bytes_and_members = {
-            let Some(mut group) = group_registry.get_mut(&group_guid) else {
-                return false;
-            };
-            if !group.members.contains(&player_guid) {
-                return false;
-            }
-            if group.is_raid_group()
-                && !group.is_leader_like_cpp(player_guid)
-                && !group.is_assistant_like_cpp(player_guid)
-            {
-                return false;
-            }
-
-            let marker_id = damage as u8;
-            if !group.add_raid_marker_like_cpp(
-                marker_id,
-                u32::from(self.player_map_id_like_cpp()),
-                destination.position,
-                destination.transport,
-            ) {
-                return false;
-            }
-
+            let group = outcome.group;
             use wow_packet::ServerPacket;
             let packet = wow_packet::packets::party::RaidMarkersChanged {
                 party_index: group.group_category_like_cpp(),
@@ -68270,7 +68248,7 @@ impl WorldSession {
                     .collect(),
             }
             .to_bytes();
-            (packet, group.members.clone())
+            (packet, group.members)
         };
 
         let (packet_bytes, members) = packet_bytes_and_members;

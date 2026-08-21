@@ -1,8 +1,4 @@
 owner_type	consumer_family	current_compatibility	transition_issue	final_shape
-GroupRegistry	member removal leave and disband	get_mut/remove	#198	typed membership outcome
-GroupRegistry	leader subgroup role loot difficulty icon and marker updates	get_mut	#198	typed state-transition outcome
-GroupRegistry	ready-check start response and timer expiry	get_mut	#198	typed ready-check events
-GroupRegistry	instance ownership and recent-instance updates	get_mut	#198	typed instance-state outcome
 GroupRegistry	character-database group load	insert/get_mut	#199	owner-local load and persistence intents
 GroupRegistry	all tests and fixtures	insert/remove/get_mut	#199	test-only invariant-preserving builders
 PendingInvites	all tests and fixtures	insert/remove	#199	test-only invariant-preserving builders
