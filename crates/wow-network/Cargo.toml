@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+test-fixtures = []
+
 [dependencies]
 tokio = { workspace = true }
 bytes = { workspace = true }

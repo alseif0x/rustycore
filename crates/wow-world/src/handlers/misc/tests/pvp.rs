@@ -775,7 +775,7 @@ async fn accept_wargame_invite_records_ready_to_queue_when_groups_match_like_cpp
     let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(4);
     let mut inviter_info = broadcast_info_with_command_tx(command_tx);
     inviter_info.player_name = "Inviter".to_string();
-    player_registry.insert(inviter_guid, inviter_info);
+    player_registry.register_or_replace(inviter_guid, inviter_info);
 
     session.set_player_guid(Some(player_guid));
     session.set_loaded_player_name_like_cpp("Player".to_string());

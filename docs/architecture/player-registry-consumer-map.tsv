@@ -1,2 +1,1 @@
 source	enclosing	direct_operations	issue
-crates/wow-world/src/session/mod.rs	WorldSession::sync_player_registry_state_like_cpp	get_mut	#196

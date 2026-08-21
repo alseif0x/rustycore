@@ -1299,8 +1299,8 @@ fn represented_loot_removed_uses_players_looting_like_cpp() {
     let (open_tx, open_rx) = flume::bounded::<Vec<u8>>(1);
     let (closed_tx, closed_rx) = flume::bounded::<Vec<u8>>(1);
     let player_registry = Arc::new(PlayerRegistry::default());
-    player_registry.insert(open_guid, broadcast_info(open_guid, open_tx));
-    player_registry.insert(closed_guid, broadcast_info(closed_guid, closed_tx));
+    player_registry.register_or_replace(open_guid, broadcast_info(open_guid, open_tx));
+    player_registry.register_or_replace(closed_guid, broadcast_info(closed_guid, closed_tx));
     session.set_player_registry(player_registry);
     session.set_player_guid(Some(player_guid));
     session.loot_table.insert(
@@ -1384,7 +1384,7 @@ fn represented_money_removed_erases_missing_players_looting_like_cpp() {
     let loot_object = represented_loot_object_guid_like_cpp(owner_guid);
     let (open_tx, open_rx) = flume::bounded::<Vec<u8>>(1);
     let player_registry = Arc::new(PlayerRegistry::default());
-    player_registry.insert(open_guid, broadcast_info(open_guid, open_tx));
+    player_registry.register_or_replace(open_guid, broadcast_info(open_guid, open_tx));
     session.set_player_registry(player_registry);
     session.set_player_guid(Some(player_guid));
     session.loot_table.insert(
@@ -2277,10 +2277,10 @@ async fn cancelled_after_runtime_apply_retains_multiviewer_fanout_and_corpse_lif
     let registry = Arc::new(PlayerRegistry::default());
     let mut first_info = broadcast_info(first_guid, first.send_tx().clone());
     first_info.command_tx = first.session_command_tx();
-    registry.insert(first_guid, first_info);
+    registry.register_or_replace(first_guid, first_info);
     let mut second_info = broadcast_info(second_guid, second.send_tx().clone());
     second_info.command_tx = second.session_command_tx();
-    registry.insert(second_guid, second_info);
+    registry.register_or_replace(second_guid, second_info);
     first.set_player_registry(Arc::clone(&registry));
     second.set_player_registry(registry);
 
@@ -2746,7 +2746,7 @@ async fn remote_group_money_is_one_atomic_durable_fanout_like_cpp() {
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     let mut second_info = broadcast_info(second_guid, registry_send_tx);
     second_info.command_tx = second.session_command_tx();
-    player_registry.insert(second_guid, second_info);
+    player_registry.register_or_replace(second_guid, second_info);
     first.set_player_registry(player_registry);
     let authority = first
         .represented_owned_loot_authority_like_cpp(owner)
@@ -2795,7 +2795,7 @@ fn pickpocket_money_is_not_shared_with_the_group_like_cpp() {
     install_group_loot_group(&mut session, player_guid, member_guid);
     let registry = Arc::new(PlayerRegistry::default());
     let (member_tx, _member_rx) = flume::bounded(1);
-    registry.insert(member_guid, broadcast_info(member_guid, member_tx));
+    registry.register_or_replace(member_guid, broadcast_info(member_guid, member_tx));
     session.set_player_registry(registry);
     let mut loot = authoritative_test_loot_like_cpp(8, false);
     loot.loot_type = LOOT_TYPE_PICKPOCKETING_LIKE_CPP;
@@ -2819,7 +2819,7 @@ fn vehicle_corpse_money_shares_and_pool_allowed_looters_control_membership_like_
     install_group_loot_group(&mut session, player_guid, member_guid);
     let registry = Arc::new(PlayerRegistry::default());
     let (member_tx, _member_rx) = flume::bounded(1);
-    registry.insert(member_guid, broadcast_info(member_guid, member_tx));
+    registry.register_or_replace(member_guid, broadcast_info(member_guid, member_tx));
     session.set_player_registry(registry);
 
     let mut loot = authoritative_test_loot_like_cpp(8, false);
@@ -2856,7 +2856,7 @@ fn corpse_money_reward_distance_ignores_range_only_in_same_dungeon_instance_like
     let (member_tx, _member_rx) = flume::bounded(1);
     let mut member = broadcast_info(member_guid, member_tx.clone());
     member.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
-    registry.insert(member_guid, member);
+    registry.register_or_replace(member_guid, member);
     session.set_player_registry(Arc::clone(&registry));
     let mut loot = authoritative_test_loot_like_cpp(8, false);
     loot.allowed_looters = vec![player_guid, member_guid];
@@ -2897,7 +2897,7 @@ fn corpse_money_reward_distance_ignores_range_only_in_same_dungeon_instance_like
     let mut wrong_instance = broadcast_info(member_guid, member_tx);
     wrong_instance.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
     wrong_instance.instance_id = 1;
-    registry.insert(member_guid, wrong_instance);
+    registry.register_or_replace(member_guid, wrong_instance);
     assert_eq!(
         session.represented_loot_money_recipients_like_cpp(owner),
         vec![player_guid]
@@ -2916,7 +2916,7 @@ fn chest_allowed_looters_ignore_range_only_in_same_dungeon_instance_like_cpp() {
     let (member_tx, _member_rx) = flume::bounded(1);
     let mut member = broadcast_info(member_guid, member_tx.clone());
     member.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
-    registry.insert(member_guid, member);
+    registry.register_or_replace(member_guid, member);
     session.set_player_registry(Arc::clone(&registry));
 
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
@@ -2954,7 +2954,7 @@ fn chest_allowed_looters_ignore_range_only_in_same_dungeon_instance_like_cpp() {
     let mut wrong_instance = broadcast_info(member_guid, member_tx);
     wrong_instance.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
     wrong_instance.instance_id = 1;
-    registry.insert(member_guid, wrong_instance);
+    registry.register_or_replace(member_guid, wrong_instance);
     assert_eq!(
         session.represented_group_looters_at_reward_distance_like_cpp(player_guid),
         vec![player_guid]
@@ -2972,7 +2972,7 @@ async fn failed_remote_group_money_transaction_credits_nobody_and_retries_like_c
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     let mut second_info = broadcast_info(second_guid, registry_send_tx);
     second_info.command_tx = second.session_command_tx();
-    player_registry.insert(second_guid, second_info);
+    player_registry.register_or_replace(second_guid, second_info);
     first.set_player_registry(player_registry);
     first.set_loot_money_persistence_test_result_like_cpp(false);
     let authority = first
@@ -3121,7 +3121,7 @@ async fn money_viewer_opened_during_persistence_receives_coin_removed_like_cpp()
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     let mut second_info = broadcast_info(second_guid, registry_send_tx);
     second_info.command_tx = second.session_command_tx();
-    registry.insert(second_guid, second_info);
+    registry.register_or_replace(second_guid, second_info);
     first.set_player_registry(Arc::clone(&registry));
 
     let claim = authority.reserve_money_like_cpp(first_guid).await.unwrap();
@@ -3947,7 +3947,7 @@ async fn remote_master_loot_command_transports_and_commits_claim_like_cpp() {
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     let mut second_info = broadcast_info(second_guid, registry_send_tx);
     second_info.command_tx = second.session_command_tx();
-    player_registry.insert(second_guid, second_info);
+    player_registry.register_or_replace(second_guid, second_info);
     first.set_player_registry(player_registry);
 
     let request = first.request_represented_remote_master_loot_give_like_cpp(
@@ -4016,10 +4016,10 @@ async fn remote_master_timeout_then_release_still_fans_out_and_finalizes_corpse_
     let registry = Arc::new(PlayerRegistry::default());
     let mut first_info = broadcast_info(first_guid, first.send_tx().clone());
     first_info.command_tx = first.session_command_tx();
-    registry.insert(first_guid, first_info);
+    registry.register_or_replace(first_guid, first_info);
     let mut second_info = broadcast_info(second_guid, second.send_tx().clone());
     second_info.command_tx = second.session_command_tx();
-    registry.insert(second_guid, second_info);
+    registry.register_or_replace(second_guid, second_info);
     first.set_player_registry(Arc::clone(&registry));
     second.set_player_registry(registry);
 
@@ -4108,7 +4108,7 @@ async fn remote_roll_winner_command_transports_and_commits_claim_like_cpp() {
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     let mut second_info = broadcast_info(second_guid, registry_send_tx);
     second_info.command_tx = second.session_command_tx();
-    player_registry.insert(second_guid, second_info);
+    player_registry.register_or_replace(second_guid, second_info);
     first.set_player_registry(player_registry);
 
     let request = first.request_represented_remote_loot_roll_winner_store_like_cpp(
@@ -4180,10 +4180,10 @@ async fn detached_remote_claim_waits_for_every_authority_viewer_before_corpse_li
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut first_info = broadcast_info(first_guid, first.send_tx().clone());
     first_info.command_tx = first.session_command_tx();
-    player_registry.insert(first_guid, first_info);
+    player_registry.register_or_replace(first_guid, first_info);
     let mut second_info = broadcast_info(second_guid, second.send_tx().clone());
     second_info.command_tx = second.session_command_tx();
-    player_registry.insert(second_guid, second_info);
+    player_registry.register_or_replace(second_guid, second_info);
     first.set_player_registry(Arc::clone(&player_registry));
     second.set_player_registry(player_registry);
     let grants = Arc::new(AtomicUsize::new(0));
@@ -4283,10 +4283,10 @@ async fn remote_roll_timeout_then_release_fans_out_once_and_finalizes_corpse_lik
     let registry = Arc::new(PlayerRegistry::default());
     let mut first_info = broadcast_info(first_guid, first.send_tx().clone());
     first_info.command_tx = first.session_command_tx();
-    registry.insert(first_guid, first_info);
+    registry.register_or_replace(first_guid, first_info);
     let mut second_info = broadcast_info(second_guid, second.send_tx().clone());
     second_info.command_tx = second.session_command_tx();
-    registry.insert(second_guid, second_info);
+    registry.register_or_replace(second_guid, second_info);
     first.set_player_registry(Arc::clone(&registry));
     second.set_player_registry(registry);
 
@@ -4495,7 +4495,7 @@ async fn remote_disenchant_batch_uses_one_command_and_commits_all_materials_like
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     let mut second_info = broadcast_info(second_guid, registry_send_tx);
     second_info.command_tx = second.session_command_tx();
-    player_registry.insert(second_guid, second_info);
+    player_registry.register_or_replace(second_guid, second_info);
     first.set_player_registry(player_registry);
 
     let request = first.request_represented_remote_loot_roll_winner_store_like_cpp(
@@ -4567,10 +4567,10 @@ async fn remote_disenchant_timeout_then_release_fans_out_once_and_finalizes_corp
     let registry = Arc::new(PlayerRegistry::default());
     let mut first_info = broadcast_info(first_guid, first.send_tx().clone());
     first_info.command_tx = first.session_command_tx();
-    registry.insert(first_guid, first_info);
+    registry.register_or_replace(first_guid, first_info);
     let mut second_info = broadcast_info(second_guid, second.send_tx().clone());
     second_info.command_tx = second.session_command_tx();
-    registry.insert(second_guid, second_info);
+    registry.register_or_replace(second_guid, second_info);
     first.set_player_registry(Arc::clone(&registry));
     second.set_player_registry(registry);
 
@@ -5580,7 +5580,8 @@ async fn open_generation_guarded_group_roll_like_cpp(
     let loot_object = represented_loot_object_guid_like_cpp(owner_guid);
     let (candidate_tx, candidate_rx) = flume::bounded::<Vec<u8>>(16);
     let player_registry = Arc::new(PlayerRegistry::default());
-    player_registry.insert(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
+    player_registry
+        .register_or_replace(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
     session.set_player_registry(player_registry);
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
@@ -6011,11 +6012,11 @@ fn overworld_personal_loot_test_fixture_like_cpp() -> OverworldPersonalLootTestF
     let (second_tx, _second_rx) = flume::bounded(1);
     let mut second = broadcast_info(second_tapper, second_tx);
     second.race = 2;
-    registry.insert(second_tapper, second);
+    registry.register_or_replace(second_tapper, second);
     let (disconnected_tx, _disconnected_rx) = flume::bounded(1);
     let mut disconnected = broadcast_info(disconnected_tapper, disconnected_tx);
     disconnected.is_in_world = false;
-    registry.insert(disconnected_tapper, disconnected);
+    registry.register_or_replace(disconnected_tapper, disconnected);
     session.set_player_registry(registry);
 
     let item_record = |id| ItemRecord {
@@ -7559,11 +7560,11 @@ async fn represented_chest_use_syncs_state_to_same_map_viewers_like_cpp() {
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
     same_info.map_id = 571;
     same_info.command_tx = same_command_tx;
-    player_registry.insert(same_map_guid, same_info);
+    player_registry.register_or_replace(same_map_guid, same_info);
     let mut other_info = broadcast_info(other_map_guid, other_send_tx);
     other_info.map_id = 1;
     other_info.command_tx = other_command_tx;
-    player_registry.insert(other_map_guid, other_info);
+    player_registry.register_or_replace(other_map_guid, other_info);
     let source = GameObjectLootSource {
         loot_id: 190_010,
         personal_loot_id: 190_011,
@@ -7679,11 +7680,11 @@ fn represented_goober_use_syncs_shared_state_to_same_map_viewers_like_cpp() {
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
     same_info.map_id = 571;
     same_info.command_tx = same_command_tx;
-    player_registry.insert(same_map_guid, same_info);
+    player_registry.register_or_replace(same_map_guid, same_info);
     let mut other_info = broadcast_info(other_map_guid, other_send_tx);
     other_info.map_id = 1;
     other_info.command_tx = other_command_tx;
-    player_registry.insert(other_map_guid, other_info);
+    player_registry.register_or_replace(other_map_guid, other_info);
 
     session.set_player_guid(Some(player_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
@@ -8036,11 +8037,11 @@ async fn represented_gathering_node_use_refreshes_same_map_gameobject_viewers_li
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
     same_info.map_id = 571;
     same_info.command_tx = same_command_tx;
-    player_registry.insert(same_map_guid, same_info);
+    player_registry.register_or_replace(same_map_guid, same_info);
     let mut other_info = broadcast_info(other_map_guid, other_send_tx);
     other_info.map_id = 1;
     other_info.command_tx = other_command_tx;
-    player_registry.insert(other_map_guid, other_info);
+    player_registry.register_or_replace(other_map_guid, other_info);
 
     session.set_player_guid(Some(player_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
@@ -9166,7 +9167,8 @@ async fn loot_unit_master_loot_notify_list_fans_out_to_allowed_looters_like_cpp(
     let loot_object = represented_loot_object_guid_like_cpp(owner_guid);
     let (candidate_tx, candidate_rx) = flume::bounded::<Vec<u8>>(2);
     let player_registry = Arc::new(PlayerRegistry::default());
-    player_registry.insert(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
+    player_registry
+        .register_or_replace(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
     session.set_player_registry(player_registry);
     session.set_player_guid(Some(master_guid));
     install_master_loot_group(&mut session, master_guid, candidate_guid);
@@ -9246,7 +9248,8 @@ async fn loot_unit_group_loot_first_open_starts_roll_for_blocked_item_like_cpp()
     let loot_object = represented_loot_object_guid_like_cpp(owner_guid);
     let (candidate_tx, candidate_rx) = flume::bounded::<Vec<u8>>(4);
     let player_registry = Arc::new(PlayerRegistry::default());
-    player_registry.insert(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
+    player_registry
+        .register_or_replace(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
     session.set_player_registry(player_registry);
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
@@ -9374,7 +9377,8 @@ async fn loot_unit_group_loot_can_only_roll_greed_removes_need_from_start_mask_l
     let loot_object = represented_loot_object_guid_like_cpp(owner_guid);
     let (candidate_tx, _candidate_rx) = flume::bounded::<Vec<u8>>(4);
     let player_registry = Arc::new(PlayerRegistry::default());
-    player_registry.insert(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
+    player_registry
+        .register_or_replace(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
     session.set_player_registry(player_registry);
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
@@ -9451,7 +9455,7 @@ async fn loot_unit_group_loot_disenchant_mask_uses_cpp_skill_required_gate() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut candidate_info = broadcast_info(candidate_guid, candidate_tx);
     candidate_info.enchanting_skill = 175;
-    player_registry.insert(candidate_guid, candidate_info);
+    player_registry.register_or_replace(candidate_guid, candidate_info);
     session.set_player_registry(player_registry);
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
@@ -9686,7 +9690,8 @@ async fn loot_unit_group_loot_pass_on_loot_suppresses_current_prompt_like_cpp() 
     let loot_object = represented_loot_object_guid_like_cpp(owner_guid);
     let (candidate_tx, candidate_rx) = flume::bounded::<Vec<u8>>(4);
     let player_registry = Arc::new(PlayerRegistry::default());
-    player_registry.insert(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
+    player_registry
+        .register_or_replace(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
     session.set_player_registry(player_registry);
     session.set_player_guid(Some(player_guid));
     session.pass_on_group_loot = true;
@@ -9782,7 +9787,8 @@ async fn loot_roll_need_vote_broadcasts_immediate_roll_like_cpp() {
     let loot_object = represented_loot_object_guid_like_cpp(owner_guid);
     let (candidate_tx, candidate_rx) = flume::bounded::<Vec<u8>>(5);
     let player_registry = Arc::new(PlayerRegistry::default());
-    player_registry.insert(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
+    player_registry
+        .register_or_replace(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
     session.set_player_registry(player_registry);
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
@@ -9871,8 +9877,9 @@ async fn loot_roll_all_voted_finishes_need_winner_like_cpp() {
     let (player_tx, player_rx) = flume::bounded::<Vec<u8>>(8);
     let (candidate_tx, candidate_rx) = flume::bounded::<Vec<u8>>(8);
     let player_registry = Arc::new(PlayerRegistry::default());
-    player_registry.insert(player_guid, broadcast_info(player_guid, player_tx));
-    player_registry.insert(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
+    player_registry.register_or_replace(player_guid, broadcast_info(player_guid, player_tx));
+    player_registry
+        .register_or_replace(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
     session.set_player_registry(player_registry);
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
@@ -10039,7 +10046,8 @@ async fn loot_roll_timer_expiry_finishes_current_winner_like_cpp() {
     let loot_object = represented_loot_object_guid_like_cpp(owner_guid);
     let (candidate_tx, candidate_rx) = flume::bounded::<Vec<u8>>(8);
     let player_registry = Arc::new(PlayerRegistry::default());
-    player_registry.insert(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
+    player_registry
+        .register_or_replace(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
     session.set_player_registry(player_registry);
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
@@ -10268,8 +10276,9 @@ async fn loot_roll_all_passed_unblocks_without_all_passed_to_valid_voters_like_c
     let (player_tx, player_rx) = flume::bounded::<Vec<u8>>(8);
     let (candidate_tx, candidate_rx) = flume::bounded::<Vec<u8>>(8);
     let player_registry = Arc::new(PlayerRegistry::default());
-    player_registry.insert(player_guid, broadcast_info(player_guid, player_tx));
-    player_registry.insert(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
+    player_registry.register_or_replace(player_guid, broadcast_info(player_guid, player_tx));
+    player_registry
+        .register_or_replace(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
     session.set_player_registry(player_registry);
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
@@ -10391,7 +10400,8 @@ async fn loot_roll_vote_command_updates_owner_session_roll_state_like_cpp() {
     let loot_object = represented_loot_object_guid_like_cpp(owner_guid);
     let (candidate_tx, candidate_rx) = flume::bounded::<Vec<u8>>(8);
     let player_registry = Arc::new(PlayerRegistry::default());
-    player_registry.insert(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
+    player_registry
+        .register_or_replace(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
     session.set_player_registry(player_registry);
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
@@ -10551,8 +10561,9 @@ async fn loot_roll_remote_session_routes_vote_to_owner_session_like_cpp() {
 
     let mut owner_info = broadcast_info(player_guid, owner_registry_tx);
     owner_info.command_tx = owner_session.session_command_tx();
-    player_registry.insert(player_guid, owner_info);
-    player_registry.insert(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
+    player_registry.register_or_replace(player_guid, owner_info);
+    player_registry
+        .register_or_replace(candidate_guid, broadcast_info(candidate_guid, candidate_tx));
 
     owner_session.set_player_registry(Arc::clone(&player_registry));
     owner_session.set_player_guid(Some(player_guid));
@@ -10625,7 +10636,7 @@ async fn loot_roll_remote_session_routes_vote_to_owner_session_like_cpp() {
 
     assert!(
         player_registry
-            .get(&player_guid)
+            .fixture_snapshot(player_guid)
             .unwrap()
             .active_loot_rolls
             .iter()
@@ -11534,7 +11545,7 @@ async fn loot_money_splits_corpse_gold_to_near_group_members_like_cpp() {
     group.add_member(other_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    player_registry.insert(other_guid, broadcast_info(other_guid, other_tx));
+    player_registry.register_or_replace(other_guid, broadcast_info(other_guid, other_tx));
 
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
@@ -11894,7 +11905,7 @@ async fn master_loot_item_uses_group_master_looter_guid_like_cpp() {
     group.master_looter_guid = master_guid;
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    player_registry.insert(leader_guid, broadcast_info(leader_guid, leader_tx));
+    player_registry.register_or_replace(leader_guid, broadcast_info(leader_guid, leader_tx));
     session.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -12043,7 +12054,7 @@ async fn master_loot_item_ineligible_target_sends_master_other_like_cpp() {
     group.master_looter_guid = master_guid;
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    player_registry.insert(target_guid, broadcast_info(target_guid, target_tx));
+    player_registry.register_or_replace(target_guid, broadcast_info(target_guid, target_tx));
     session.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -12366,7 +12377,7 @@ async fn master_loot_item_remote_target_can_store_error_is_reported_by_target_se
     let (target_send_tx, _target_send_rx) = flume::bounded::<Vec<u8>>(2);
     let mut target_info = broadcast_info(target_guid, target_send_tx);
     target_info.command_tx = target_session.session_command_tx();
-    player_registry.insert(target_guid, target_info);
+    player_registry.register_or_replace(target_guid, target_info);
 
     master_session.group_guid = Some(group_guid);
     master_session.set_group_registry(
@@ -12480,7 +12491,7 @@ async fn master_loot_item_remote_target_unavailable_command_reports_player_not_f
     let (command_tx, _command_rx) = flume::bounded(0);
     let mut target_info = broadcast_info(target_guid, target_send_tx);
     target_info.command_tx = command_tx;
-    player_registry.insert(target_guid, target_info);
+    player_registry.register_or_replace(target_guid, target_info);
 
     master_session.group_guid = Some(group_guid);
     master_session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -14457,7 +14468,7 @@ async fn loot_release_partial_chest_syncs_state_to_same_map_viewers_like_cpp() {
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
     same_info.map_id = 571;
     same_info.command_tx = same_command_tx;
-    player_registry.insert(same_map_guid, same_info);
+    player_registry.register_or_replace(same_map_guid, same_info);
 
     session.set_player_registry(player_registry);
     session.set_player_guid(Some(player_guid));
@@ -16002,7 +16013,7 @@ async fn process_pending_shared_chest_restock_syncs_state_to_same_map_viewers_li
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
     same_info.map_id = 571;
     same_info.command_tx = same_command_tx;
-    player_registry.insert(same_map_guid, same_info);
+    player_registry.register_or_replace(same_map_guid, same_info);
 
     session.set_state(SessionState::LoggedIn);
     session.set_player_guid(Some(player_guid));

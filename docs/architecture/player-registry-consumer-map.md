@@ -17,11 +17,16 @@ The assignment is responsibility-based even when a function lives in the session
   projections, spatial recipient selection and generation-checked commands; its rows were removed.
 - #195 closed group, chat, social, ready-check and group-membership consumers through owned
   projections, incarnation-aware addresses and generation-checked delivery; its rows were removed.
-- #196 owns the generic broad-mirror synchronization helper and every test/fixture compatibility
-  operation. It must remove the temporary compatibility guards, iterator, `insert`, `remove`,
-  metadata helpers and entry representation after #192-#195 close production access.
+- #196 closed the generic broad-mirror synchronization helper and every test/fixture compatibility
+  operation. Backing entries are private; tests use an explicitly feature-gated fixture API or the
+  real generation-aware lifecycle API. The remaining-direct-access TSV is therefore empty.
 
 Lifecycle `register_or_replace`, generation-aware `lookup_current`/`unregister`, and owned control
 address resolution are stable directory operations introduced by #150 and are not compatibility
 storage access. Any new direct operation is rejected by the exact syntax baseline rather than
 being assigned implicitly.
+
+The temporary broad mirror is separately tracked field by field in
+[`player-broadcast-info-retirement.tsv`](player-broadcast-info-retirement.tsv). Its exact
+membership is cross-checked against the syntax baseline, so a field cannot be added by merely
+regenerating that baseline.

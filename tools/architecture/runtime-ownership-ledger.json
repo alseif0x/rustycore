@@ -1480,12 +1480,11 @@
             "recruiter_id",
             "send_tx"
           ],
-          "owner": "network-owned PlayerRegistry currently; terminal owner is the opaque Session directory for identity, incarnation and addressing only.",
+          "owner": "Session directory owns incarnation/addressing; canonical Player or admitted Session identity owns identity facts as assigned by the field ledger.",
           "open_retirement_issues": [
             138,
             140,
-            150,
-            196
+            252
           ],
           "retirement_condition": "The directory stores only generation-checked identity/addressing handles; raw senders and broad entries do not escape."
         },
@@ -1504,8 +1503,7 @@
             138,
             140,
             188,
-            192,
-            196
+            252
           ],
           "retirement_condition": "Only bounded generation/versioned delivery handles remain; visibility membership is Player-owned and spatial traversal is Map-owned."
         },
@@ -1519,10 +1517,8 @@
           ],
           "owner": "PlayerRegistry currently exposes loot snapshots and a durable persistence tracker; loot and persistence owners are separate.",
           "open_retirement_issues": [
-            187,
             189,
-            193,
-            196
+            252
           ],
           "retirement_condition": "No durable tracker or mutable loot authority is stored in the directory; addressing consumes typed committed outcomes."
         },
@@ -1563,19 +1559,14 @@
             "rewarded_quests",
             "transport"
           ],
-          "owner": "Temporary PlayerBroadcastInfo projection; canonical owner varies by field and must be recorded field-by-field by #196/#153.",
+          "owner": "Temporary PlayerBroadcastInfo projection; canonical Player/Unit/Map/Group owners are assigned field by field in docs/architecture/player-broadcast-info-retirement.tsv.",
           "open_retirement_issues": [
-            153,
-            192,
-            193,
-            194,
-            195,
-            196
+            252
           ],
           "retirement_condition": "Every field is removed or replaced by the minimum immutable versioned query result from its canonical Player/Map/Group owner."
         },
         {
-          "id": "player_broadcast_unresolved_mirrors",
+          "id": "player_broadcast_remaining_assigned_mirrors",
           "expected_field_count": 34,
           "field_names": [
             "active_expansion",
@@ -1613,12 +1604,11 @@
             "yesterday_honorable_kills",
             "zone_id"
           ],
-          "owner": "Temporary PlayerBroadcastInfo projection; canonical owner is deliberately unresolved rather than inferred from its name.",
+          "owner": "Temporary PlayerBroadcastInfo projection; every canonical owner and cutover condition is assigned explicitly in docs/architecture/player-broadcast-info-retirement.tsv.",
           "open_retirement_issues": [
-            153,
-            196
+            252
           ],
-          "retirement_condition": "The #196 field ledger assigns each residual to a canonical owner and cut; no unclassified broad projection remains."
+          "retirement_condition": "#252 removes every assigned residual through bounded canonical queries and deletes the broad projection without introducing a replacement mirror."
         }
       ],
       "expected_field_count": 80
@@ -1943,9 +1933,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 71989,
-          "test_lines": 94187,
-          "total_lines": 166176,
+          "production_lines": 71906,
+          "test_lines": 94308,
+          "total_lines": 166214,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             140,
@@ -1973,9 +1963,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character.rs",
-          "production_lines": 20200,
-          "test_lines": 10691,
-          "total_lines": 30891,
+          "production_lines": 20190,
+          "test_lines": 10735,
+          "total_lines": 30925,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "open_retirement_issues": [
             153,
@@ -1988,9 +1978,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/loot.rs",
-          "production_lines": 13744,
-          "test_lines": 16081,
-          "total_lines": 29825,
+          "production_lines": 13673,
+          "test_lines": 16156,
+          "total_lines": 29829,
           "owner": "wow-world loot handler plus transitional loot/map/persistence coordination.",
           "open_retirement_issues": [
             153,
@@ -2004,9 +1994,9 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 24985,
-          "test_lines": 21491,
-          "total_lines": 46476,
+          "production_lines": 24956,
+          "test_lines": 21522,
+          "total_lines": 46478,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153,
@@ -2017,9 +2007,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/quest.rs",
-          "production_lines": 8255,
-          "test_lines": 10172,
-          "total_lines": 18427,
+          "production_lines": 8269,
+          "test_lines": 10171,
+          "total_lines": 18440,
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
           "open_retirement_issues": [
             153,

@@ -1406,8 +1406,8 @@ impl WorldSession {
         let sender_pos = self.player_position_like_cpp();
         let sender_map = self.player_map_id_like_cpp();
         let sender_instance = registry
-            .get(&sender_guid)
-            .map(|info| info.instance_id)
+            .runtime_recipient(sender_guid)
+            .map(|recipient| recipient.instance_id)
             .or_else(|| {
                 self.current_canonical_player_map_key_like_cpp()
                     .map(|key| key.instance_id)
@@ -1415,31 +1415,31 @@ impl WorldSession {
             .unwrap_or(0);
         let range_sq = range * range;
 
-        for entry in registry.iter() {
+        for recipient in registry.runtime_recipients() {
             // Skip self.
-            if *entry.key() == sender_guid {
+            if recipient.guid == sender_guid {
                 continue;
             }
 
-            let info = entry.value();
-
             // Must be an in-world player on the same map instance.
-            if !info.is_in_world || info.map_id != sender_map || info.instance_id != sender_instance
+            if !recipient.is_in_world
+                || recipient.map_id != sender_map
+                || recipient.instance_id != sender_instance
             {
                 continue;
             }
 
             // Distance check.
             if let Some(sp) = sender_pos {
-                let dx = sp.x - info.position.x;
-                let dy = sp.y - info.position.y;
-                let dz = sp.z - info.position.z;
+                let dx = sp.x - recipient.position.x;
+                let dy = sp.y - recipient.position.y;
+                let dz = sp.z - recipient.position.z;
                 if dx * dx + dy * dy + dz * dz > range_sq {
                     continue;
                 }
             }
 
-            let _ = info.send_tx.send(bytes.clone());
+            let _ = registry.send_current_packet(recipient.registration, bytes.clone());
         }
     }
 }
@@ -2061,7 +2061,7 @@ mod tests {
         session.set_player_map_position_like_cpp(571, wow_core::Position::ZERO);
 
         let player_registry = Arc::new(PlayerRegistry::default());
-        player_registry.insert(sender_guid, broadcast_info(sender_guid, send_tx));
+        player_registry.register_or_replace(sender_guid, broadcast_info(sender_guid, send_tx));
         session.set_player_registry(Arc::clone(&player_registry));
         (session, player_registry, send_rx)
     }
@@ -2084,7 +2084,7 @@ mod tests {
         let ignored = ObjectGuid::create_player(1, 102);
         let (mut session, registry, reporter_rx) = session_for_chat_routing_like_cpp(reporter);
         let (ignored_tx, ignored_rx) = flume::bounded(8);
-        registry.insert(ignored, broadcast_info(ignored, ignored_tx));
+        registry.register_or_replace(ignored, broadcast_info(ignored, ignored_tx));
 
         let mut writer = wow_packet::WorldPacket::new_empty();
         writer.write_packed_guid(&ignored);
@@ -2133,8 +2133,9 @@ mod tests {
         let (mut session, player_registry, leader_rx) = session_for_chat_routing_like_cpp(leader);
         let (same_tx, same_rx) = flume::bounded(8);
         let (other_tx, other_rx) = flume::bounded(8);
-        player_registry.insert(same_subgroup, broadcast_info(same_subgroup, same_tx));
-        player_registry.insert(other_subgroup, broadcast_info(other_subgroup, other_tx));
+        player_registry.register_or_replace(same_subgroup, broadcast_info(same_subgroup, same_tx));
+        player_registry
+            .register_or_replace(other_subgroup, broadcast_info(other_subgroup, other_tx));
 
         let mut group = GroupInfo::new(leader);
         group.convert_to_raid_like_cpp();
@@ -2171,7 +2172,7 @@ mod tests {
         let member = ObjectGuid::create_player(1, 202);
         let (mut session, player_registry, leader_rx) = session_for_chat_routing_like_cpp(leader);
         let (member_tx, member_rx) = flume::bounded(8);
-        player_registry.insert(member, broadcast_info(member, member_tx));
+        player_registry.register_or_replace(member, broadcast_info(member, member_tx));
 
         let mut group = GroupInfo::new(leader);
         group.convert_to_raid_like_cpp();
@@ -2205,7 +2206,7 @@ mod tests {
         let member = ObjectGuid::create_player(1, 204);
         let (mut session, player_registry, leader_rx) = session_for_chat_routing_like_cpp(leader);
         let (member_tx, member_rx) = flume::bounded(8);
-        player_registry.insert(member, broadcast_info(member, member_tx));
+        player_registry.register_or_replace(member, broadcast_info(member, member_tx));
 
         let mut group = GroupInfo::new(leader);
         group.add_member(member);
@@ -2232,7 +2233,7 @@ mod tests {
         let member = ObjectGuid::create_player(1, 206);
         let (mut session, player_registry, leader_rx) = session_for_chat_routing_like_cpp(leader);
         let (member_tx, member_rx) = flume::bounded(8);
-        player_registry.insert(member, broadcast_info(member, member_tx));
+        player_registry.register_or_replace(member, broadcast_info(member, member_tx));
 
         let mut group = GroupInfo::new(leader);
         group.add_member(member);
@@ -2266,7 +2267,7 @@ mod tests {
         let nearby = ObjectGuid::create_player(1, 302);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
-        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        player_registry.register_or_replace(nearby, broadcast_info(nearby, nearby_tx));
 
         session
             .handle_chat_message(
@@ -2286,7 +2287,7 @@ mod tests {
         let nearby = ObjectGuid::create_player(1, 322);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
-        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        player_registry.register_or_replace(nearby, broadcast_info(nearby, nearby_tx));
 
         session
             .handle_chat_channel_message(chat_channel_message_packet("General", "channel"))
@@ -2333,7 +2334,7 @@ mod tests {
             text_emote: 25.0,
             yell: 300.0,
         });
-        player_registry.insert(
+        player_registry.register_or_replace(
             nearby,
             broadcast_info_at(
                 nearby,
@@ -2341,7 +2342,7 @@ mod tests {
                 wow_core::Position::new(30.0, 0.0, 0.0, 0.0),
             ),
         );
-        player_registry.insert(
+        player_registry.register_or_replace(
             far,
             broadcast_info_at(far, far_tx, wow_core::Position::new(41.0, 0.0, 0.0, 0.0)),
         );
@@ -2375,7 +2376,7 @@ mod tests {
             text_emote: 25.0,
             yell: 20.0,
         });
-        player_registry.insert(
+        player_registry.register_or_replace(
             nearby,
             broadcast_info_at(
                 nearby,
@@ -2411,7 +2412,7 @@ mod tests {
             text_emote: 40.0,
             yell: 300.0,
         });
-        player_registry.insert(
+        player_registry.register_or_replace(
             nearby,
             broadcast_info_at(
                 nearby,
@@ -2419,7 +2420,7 @@ mod tests {
                 wow_core::Position::new(30.0, 0.0, 0.0, 0.0),
             ),
         );
-        player_registry.insert(
+        player_registry.register_or_replace(
             far,
             broadcast_info_at(far, far_tx, wow_core::Position::new(41.0, 0.0, 0.0, 0.0)),
         );
@@ -2454,7 +2455,7 @@ mod tests {
             text_emote: 40.0,
             yell: 300.0,
         });
-        player_registry.insert(
+        player_registry.register_or_replace(
             nearby,
             broadcast_info_at_with_command_tx(
                 nearby,
@@ -2463,7 +2464,7 @@ mod tests {
                 wow_core::Position::new(30.0, 0.0, 0.0, 0.0),
             ),
         );
-        player_registry.insert(
+        player_registry.register_or_replace(
             far,
             broadcast_info_at_with_command_tx(
                 far,
@@ -2510,7 +2511,7 @@ mod tests {
             text_emote: 40.0,
             yell: 300.0,
         });
-        player_registry.insert(
+        player_registry.register_or_replace(
             target,
             broadcast_info_at(
                 target,
@@ -2518,7 +2519,7 @@ mod tests {
                 wow_core::Position::new(60.0, 0.0, 0.0, 0.0),
             ),
         );
-        player_registry.insert(
+        player_registry.register_or_replace(
             nearby,
             broadcast_info_at_with_command_tx(
                 nearby,
@@ -2534,7 +2535,7 @@ mod tests {
             wow_core::Position::new(20.0, 0.0, 0.0, 0.0),
         );
         other_instance_info.instance_id = 1;
-        player_registry.insert(other_instance, other_instance_info);
+        player_registry.register_or_replace(other_instance, other_instance_info);
         let mut not_in_world_info = broadcast_info_at_with_command_tx(
             not_in_world,
             not_in_world_tx,
@@ -2542,7 +2543,7 @@ mod tests {
             wow_core::Position::new(20.0, 0.0, 0.0, 0.0),
         );
         not_in_world_info.is_in_world = false;
-        player_registry.insert(not_in_world, not_in_world_info);
+        player_registry.register_or_replace(not_in_world, not_in_world_info);
         set_emotes_text_entries(
             &mut session,
             [emotes_text_entry(66, EMOTE_STATE_SIT_LIKE_CPP as u16)],
@@ -2576,7 +2577,7 @@ mod tests {
         let nearby = ObjectGuid::create_player(1, 352);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
-        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        player_registry.register_or_replace(nearby, broadcast_info(nearby, nearby_tx));
         set_emotes_text_entries(&mut session, Vec::<wow_data::EmotesTextEntry>::new());
 
         session.handle_text_emote(text_emote_packet(66, 7)).await;
@@ -2613,7 +2614,7 @@ mod tests {
             text_emote: 40.0,
             yell: 300.0,
         });
-        player_registry.insert(
+        player_registry.register_or_replace(
             nearby,
             broadcast_info_at_with_command_tx(
                 nearby,
@@ -2622,7 +2623,7 @@ mod tests {
                 wow_core::Position::new(30.0, 0.0, 0.0, 0.0),
             ),
         );
-        player_registry.insert(
+        player_registry.register_or_replace(
             far,
             broadcast_info_at_with_command_tx(
                 far,
@@ -2694,9 +2695,9 @@ mod tests {
     async fn send_text_emote_fake_death_skips_animation_but_keeps_text_like_cpp() {
         let sender = ObjectGuid::create_player(1, 352);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
-        if let Some(mut info) = player_registry.get_mut(&sender) {
+        player_registry.fixture_update(sender, |info| {
             info.unit_state = UnitState::DIED.bits();
-        }
+        });
         set_emotes_text_entries(&mut session, [emotes_text_entry(66, 3)]);
 
         session.handle_text_emote(text_emote_packet(66, 7)).await;
@@ -2715,7 +2716,7 @@ mod tests {
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
         let (nearby_command_tx, nearby_command_rx) = flume::bounded(8);
-        player_registry.insert(
+        player_registry.register_or_replace(
             nearby,
             broadcast_info_with_command_tx(nearby, nearby_tx, nearby_command_tx),
         );
@@ -2766,7 +2767,7 @@ mod tests {
         let nearby = ObjectGuid::create_player(1, 312);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
-        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        player_registry.register_or_replace(nearby, broadcast_info(nearby, nearby_tx));
 
         session
             .handle_chat_message(
@@ -2786,7 +2787,7 @@ mod tests {
         let nearby = ObjectGuid::create_player(1, 354);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
-        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        player_registry.register_or_replace(nearby, broadcast_info(nearby, nearby_tx));
         session.set_chat_strict_link_checking_kick_like_cpp(true);
 
         session
@@ -2823,7 +2824,7 @@ mod tests {
         let nearby = ObjectGuid::create_player(1, 352);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
-        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        player_registry.register_or_replace(nearby, broadcast_info(nearby, nearby_tx));
 
         session
             .handle_chat_message(
@@ -2842,7 +2843,7 @@ mod tests {
         let nearby = ObjectGuid::create_player(1, 354);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
-        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        player_registry.register_or_replace(nearby, broadcast_info(nearby, nearby_tx));
 
         session
             .handle_chat_message(
@@ -2865,7 +2866,7 @@ mod tests {
         let nearby = ObjectGuid::create_player(1, 371);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
-        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        player_registry.register_or_replace(nearby, broadcast_info(nearby, nearby_tx));
 
         session
             .handle_chat_message(
@@ -2888,7 +2889,7 @@ mod tests {
         let nearby = ObjectGuid::create_player(1, 358);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
-        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        player_registry.register_or_replace(nearby, broadcast_info(nearby, nearby_tx));
         session.set_player_alive_like_cpp(false);
 
         session
@@ -2908,7 +2909,7 @@ mod tests {
         let nearby = ObjectGuid::create_player(1, 376);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
-        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        player_registry.register_or_replace(nearby, broadcast_info(nearby, nearby_tx));
         session.set_player_level_like_cpp(0);
 
         session
@@ -2942,7 +2943,7 @@ mod tests {
         let nearby = ObjectGuid::create_player(1, 386);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
-        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        player_registry.register_or_replace(nearby, broadcast_info(nearby, nearby_tx));
         session.set_player_level_like_cpp(1);
         session.set_chat_level_requirements_like_cpp(ChatLevelRequirementsLikeCpp {
             say: 2,
@@ -3024,7 +3025,7 @@ mod tests {
         let member = ObjectGuid::create_player(1, 360);
         let (mut session, player_registry, leader_rx) = session_for_chat_routing_like_cpp(leader);
         let (member_tx, member_rx) = flume::bounded(8);
-        player_registry.insert(member, broadcast_info(member, member_tx));
+        player_registry.register_or_replace(member, broadcast_info(member, member_tx));
         let mut group = GroupInfo::new(leader);
         group.add_member(member);
         let group_guid = group.group_guid;
@@ -3057,7 +3058,7 @@ mod tests {
         let nearby = ObjectGuid::create_player(1, 369);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
-        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        player_registry.register_or_replace(nearby, broadcast_info(nearby, nearby_tx));
         session.set_player_alive_like_cpp(false);
 
         session
@@ -3074,7 +3075,7 @@ mod tests {
         let nearby = ObjectGuid::create_player(1, 378);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
-        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        player_registry.register_or_replace(nearby, broadcast_info(nearby, nearby_tx));
         session.set_player_level_like_cpp(0);
 
         session
@@ -3097,7 +3098,7 @@ mod tests {
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
         target_info.player_name = "Target".to_string();
-        player_registry.insert(target, target_info);
+        player_registry.register_or_replace(target, target_info);
 
         session
             .handle_chat_whisper(chat_whisper_packet_with_language(
@@ -3119,7 +3120,7 @@ mod tests {
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
         target_info.player_name = "Target".to_string();
-        player_registry.insert(target, target_info);
+        player_registry.register_or_replace(target, target_info);
 
         session
             .handle_chat_whisper(chat_whisper_packet_with_language(
@@ -3161,7 +3162,7 @@ mod tests {
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
         target_info.player_name = "Target".to_string();
-        player_registry.insert(target, target_info);
+        player_registry.register_or_replace(target, target_info);
         session.set_player_level_like_cpp(1);
         session.set_chat_level_requirements_like_cpp(ChatLevelRequirementsLikeCpp {
             whisper: 2,
@@ -3188,7 +3189,7 @@ mod tests {
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
         target_info.player_name = "Target".to_string();
-        player_registry.insert(target, target_info);
+        player_registry.register_or_replace(target, target_info);
         session.set_player_level_like_cpp(1);
         session.set_player_game_master_like_cpp(true);
         session.set_chat_level_requirements_like_cpp(ChatLevelRequirementsLikeCpp {
@@ -3216,7 +3217,7 @@ mod tests {
         let nearby = ObjectGuid::create_player(1, 362);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
-        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        player_registry.register_or_replace(nearby, broadcast_info(nearby, nearby_tx));
         session.visible_auras.insert(1, gm_silence_aura(1));
 
         session
@@ -3240,7 +3241,7 @@ mod tests {
         let nearby = ObjectGuid::create_player(1, 432);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
-        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        player_registry.register_or_replace(nearby, broadcast_info(nearby, nearby_tx));
         mute_session_for_seconds_like_cpp(&mut session, 3_600);
 
         session
@@ -3303,7 +3304,7 @@ mod tests {
         let nearby = ObjectGuid::create_player(1, 436);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
-        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        player_registry.register_or_replace(nearby, broadcast_info(nearby, nearby_tx));
         session.set_chat_flood_config_like_cpp(ChatFloodConfigLikeCpp {
             message_count: 2,
             message_delay_secs: 60,
@@ -3361,7 +3362,7 @@ mod tests {
         let (mut session, player_registry, leader_rx) = session_for_chat_routing_like_cpp(leader);
         let (member_tx, _member_rx) = flume::bounded(8);
         let (member_command_tx, member_command_rx) = flume::bounded(8);
-        player_registry.insert(
+        player_registry.register_or_replace(
             member,
             broadcast_info_with_command_tx(member, member_tx, member_command_tx),
         );
@@ -3451,7 +3452,7 @@ mod tests {
         let nearby = ObjectGuid::create_player(1, 432);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
-        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        player_registry.register_or_replace(nearby, broadcast_info(nearby, nearby_tx));
         session.visible_auras.insert(1, gm_silence_aura(1));
 
         session
@@ -3475,7 +3476,7 @@ mod tests {
         let mut target_info = broadcast_info(target, target_tx);
         target_info.player_name = "Target".to_string();
         target_info.is_game_master = false;
-        player_registry.insert(target, target_info);
+        player_registry.register_or_replace(target, target_info);
         session.visible_auras.insert(1, gm_silence_aura(1));
 
         session
@@ -3499,7 +3500,7 @@ mod tests {
         let mut target_info = broadcast_info(target, target_tx);
         target_info.player_name = "Target".to_string();
         target_info.is_game_master = true;
-        player_registry.insert(target, target_info);
+        player_registry.register_or_replace(target, target_info);
         session.visible_auras.insert(1, gm_silence_aura(1));
 
         session
@@ -3526,7 +3527,7 @@ mod tests {
         target_info.player_name = "Target".to_string();
         target_info.is_afk = true;
         target_info.auto_reply_msg_like_cpp = "back soon".to_string();
-        player_registry.insert(target, target_info);
+        player_registry.register_or_replace(target, target_info);
 
         session
             .handle_chat_whisper(chat_whisper_packet("Target", "hello"))
@@ -3558,7 +3559,7 @@ mod tests {
         target_info.player_name = "Target".to_string();
         target_info.is_dnd = true;
         target_info.auto_reply_msg_like_cpp = "busy".to_string();
-        player_registry.insert(target, target_info);
+        player_registry.register_or_replace(target, target_info);
 
         session
             .handle_chat_whisper(chat_whisper_packet("Target", "hello"))
@@ -3590,11 +3591,11 @@ mod tests {
         let (other_tx, _other_rx) = flume::bounded(8);
         let (same_command_tx, same_command_rx) = flume::bounded(8);
         let (other_command_tx, other_command_rx) = flume::bounded(8);
-        player_registry.insert(
+        player_registry.register_or_replace(
             same_subgroup,
             broadcast_info_with_command_tx(same_subgroup, same_tx, same_command_tx),
         );
-        player_registry.insert(
+        player_registry.register_or_replace(
             other_subgroup,
             broadcast_info_with_command_tx(other_subgroup, other_tx, other_command_tx),
         );
@@ -3628,7 +3629,7 @@ mod tests {
         let (mut session, player_registry, _leader_rx) = session_for_chat_routing_like_cpp(leader);
         let (member_tx, _member_rx) = flume::bounded(8);
         let (member_command_tx, member_command_rx) = flume::bounded(8);
-        player_registry.insert(
+        player_registry.register_or_replace(
             member,
             broadcast_info_with_command_tx(member, member_tx, member_command_tx),
         );
@@ -3658,7 +3659,7 @@ mod tests {
         let (target_command_tx, target_command_rx) = flume::bounded(8);
         let mut target_info = broadcast_info_with_command_tx(target, target_tx, target_command_tx);
         target_info.player_name = "Target".to_string();
-        player_registry.insert(target, target_info);
+        player_registry.register_or_replace(target, target_info);
 
         session
             .handle_chat_addon_message_whisper(chat_addon_whisper_packet(
@@ -3685,7 +3686,7 @@ mod tests {
         let (target_command_tx, target_command_rx) = flume::bounded(8);
         let mut target_info = broadcast_info_with_command_tx(target, target_tx, target_command_tx);
         target_info.player_name = "Target".to_string();
-        player_registry.insert(target, target_info);
+        player_registry.register_or_replace(target, target_info);
 
         session
             .handle_chat_addon_message_targeted(chat_addon_targeted_packet(
@@ -3718,7 +3719,7 @@ mod tests {
         let (mut session, player_registry, _leader_rx) = session_for_chat_routing_like_cpp(leader);
         let (member_tx, _member_rx) = flume::bounded(8);
         let (member_command_tx, member_command_rx) = flume::bounded(8);
-        player_registry.insert(
+        player_registry.register_or_replace(
             member,
             broadcast_info_with_command_tx(member, member_tx, member_command_tx),
         );
@@ -3776,7 +3777,7 @@ mod tests {
         let (target_command_tx, target_command_rx) = flume::bounded(8);
         let mut target_info = broadcast_info_with_command_tx(target, target_tx, target_command_tx);
         target_info.player_name = "Target".to_string();
-        player_registry.insert(target, target_info);
+        player_registry.register_or_replace(target, target_info);
         session.set_player_level_like_cpp(1);
         session.set_chat_level_requirements_like_cpp(ChatLevelRequirementsLikeCpp {
             whisper: 2,

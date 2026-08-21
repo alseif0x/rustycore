@@ -11,12 +11,7 @@
 
 pub use crate::group_registry::GroupDifficultyKindLikeCpp;
 use dashmap::DashMap;
-use dashmap::mapref::{
-    multiple::RefMulti,
-    one::{Ref, RefMut},
-};
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::ops::{Deref, DerefMut};
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -1605,6 +1600,30 @@ pub struct PlayerPartyMemberSnapshot {
     pub party_member_pet_stats: Option<PartyMemberPetStats>,
 }
 
+/// Owned facts required by inspect, honor-inspect and inspect-achievement
+/// handlers. Keeping this projection bounded prevents those handlers from
+/// depending on the session mirror or directory storage.
+#[derive(Clone, Debug)]
+pub struct PlayerInspectSnapshot {
+    pub guid: ObjectGuid,
+    pub map_id: u16,
+    pub position: Position,
+    pub faction_template_id: u32,
+    pub player_name: String,
+    pub race: u8,
+    pub class: u8,
+    pub sex: u8,
+    pub level: u8,
+    pub visible_items: Arc<[(i32, u16, u16); 19]>,
+    pub lifetime_honorable_kills: u32,
+    pub this_week_contribution: u32,
+    pub yesterday_contribution: u32,
+    pub today_honorable_kills: u16,
+    pub yesterday_honorable_kills: u16,
+    pub lifetime_max_rank: u32,
+    pub honor_level: u32,
+}
+
 /// Owned player facts required by the legacy creature aggro compatibility cut.
 #[derive(Clone, Debug)]
 pub struct PlayerAggroCandidateSnapshot {
@@ -1651,131 +1670,29 @@ pub struct PlayerVisibilityCreateSnapshot {
     pub party_member_party_type: [u8; 2],
 }
 
-/// Transitional entry representation used only by the compatibility accessors
-/// scheduled for removal in #192-#196.
-#[doc(hidden)]
-pub struct PlayerRegistryCompatibilityEntry {
+/// Private storage record. Consumers receive only owned projections and
+/// incarnation-aware addresses from [`PlayerRegistry`].
+struct PlayerRegistryEntry {
     generation: u64,
     info: PlayerBroadcastInfo,
-}
-
-/// Transitional immutable guard. New lifecycle code must use owned snapshots.
-#[doc(hidden)]
-pub struct PlayerRegistryCompatibilityRef<'a>(
-    Ref<'a, ObjectGuid, PlayerRegistryCompatibilityEntry>,
-);
-
-impl PlayerRegistryCompatibilityRef<'_> {
-    pub fn key(&self) -> &ObjectGuid {
-        self.0.key()
-    }
-
-    pub fn value(&self) -> &PlayerBroadcastInfo {
-        &self.0.value().info
-    }
-
-    pub fn pair(&self) -> (&ObjectGuid, &PlayerBroadcastInfo) {
-        (self.key(), self.value())
-    }
-}
-
-impl Deref for PlayerRegistryCompatibilityRef<'_> {
-    type Target = PlayerBroadcastInfo;
-
-    fn deref(&self) -> &Self::Target {
-        self.value()
-    }
-}
-
-/// Transitional mutable guard. It is intentionally absent from the named
-/// lifecycle capability and is retired by the consumer slices #192-#196.
-#[doc(hidden)]
-pub struct PlayerRegistryCompatibilityRefMut<'a>(
-    RefMut<'a, ObjectGuid, PlayerRegistryCompatibilityEntry>,
-);
-
-impl PlayerRegistryCompatibilityRefMut<'_> {
-    pub fn key(&self) -> &ObjectGuid {
-        self.0.key()
-    }
-
-    pub fn value(&self) -> &PlayerBroadcastInfo {
-        &self.0.value().info
-    }
-
-    pub fn value_mut(&mut self) -> &mut PlayerBroadcastInfo {
-        &mut self.0.value_mut().info
-    }
-
-    pub fn pair(&self) -> (&ObjectGuid, &PlayerBroadcastInfo) {
-        (self.key(), self.value())
-    }
-}
-
-impl Deref for PlayerRegistryCompatibilityRefMut<'_> {
-    type Target = PlayerBroadcastInfo;
-
-    fn deref(&self) -> &Self::Target {
-        self.value()
-    }
-}
-
-impl DerefMut for PlayerRegistryCompatibilityRefMut<'_> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.value_mut()
-    }
-}
-
-/// Transitional iterator wrapper. It prevents the backing map itself from
-/// escaping while the named consumer capabilities are introduced.
-#[doc(hidden)]
-pub struct PlayerRegistryCompatibilityIter<'a> {
-    inner: dashmap::iter::Iter<'a, ObjectGuid, PlayerRegistryCompatibilityEntry>,
-}
-
-/// One transitional iterator item.
-#[doc(hidden)]
-pub struct PlayerRegistryCompatibilityRefMulti<'a>(
-    RefMulti<'a, ObjectGuid, PlayerRegistryCompatibilityEntry>,
-);
-
-impl PlayerRegistryCompatibilityRefMulti<'_> {
-    pub fn key(&self) -> &ObjectGuid {
-        self.0.key()
-    }
-
-    pub fn value(&self) -> &PlayerBroadcastInfo {
-        &self.0.value().info
-    }
-
-    pub fn pair(&self) -> (&ObjectGuid, &PlayerBroadcastInfo) {
-        (self.key(), self.value())
-    }
-}
-
-impl Deref for PlayerRegistryCompatibilityRefMulti<'_> {
-    type Target = PlayerBroadcastInfo;
-
-    fn deref(&self) -> &Self::Target {
-        self.value()
-    }
-}
-
-impl<'a> Iterator for PlayerRegistryCompatibilityIter<'a> {
-    type Item = PlayerRegistryCompatibilityRefMulti<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(PlayerRegistryCompatibilityRefMulti)
-    }
 }
 
 /// Thread-safe directory of active player sessions, keyed by player GUID.
 ///
 /// Storage is private. The lifecycle API returns only owned registrations,
-/// snapshots and channel addresses. Guard-returning methods remain temporarily
-/// for the final compatibility cleanup assigned to #196.
+/// snapshots and channel addresses.
+///
+/// Generic backing-storage operations are intentionally unavailable outside
+/// this owner module:
+///
+/// ```compile_fail
+/// use wow_network::PlayerRegistry;
+///
+/// let registry = PlayerRegistry::new();
+/// let _entries = registry.iter();
+/// ```
 pub struct PlayerRegistry {
-    entries: DashMap<ObjectGuid, PlayerRegistryCompatibilityEntry>,
+    entries: DashMap<ObjectGuid, PlayerRegistryEntry>,
     next_generation: AtomicU64,
 }
 
@@ -1807,7 +1724,7 @@ impl PlayerRegistry {
     ) -> PlayerRegistration {
         let generation = self.next_generation();
         self.entries
-            .insert(guid, PlayerRegistryCompatibilityEntry { generation, info });
+            .insert(guid, PlayerRegistryEntry { generation, info });
         PlayerRegistration { guid, generation }
     }
 
@@ -1939,7 +1856,7 @@ impl PlayerRegistry {
 
     fn social_snapshot(
         guid: &ObjectGuid,
-        entry: &PlayerRegistryCompatibilityEntry,
+        entry: &PlayerRegistryEntry,
     ) -> PlayerSocialRecipientSnapshot {
         PlayerSocialRecipientSnapshot {
             registration: PlayerRegistration {
@@ -2068,6 +1985,74 @@ impl PlayerRegistry {
         }
         entry.info.party_member_party_type = party_type;
         true
+    }
+
+    /// Replace the published compatibility mirror only for the exact owning
+    /// control channel while retaining its incarnation generation.
+    pub fn publish_broadcast_info_for_control_channel(
+        &self,
+        guid: ObjectGuid,
+        command_tx: &flume::Sender<SessionCommand>,
+        info: PlayerBroadcastInfo,
+    ) -> bool {
+        let Some(mut entry) = self.entries.get_mut(&guid) else {
+            return false;
+        };
+        if !entry.info.command_tx.same_channel(command_tx) {
+            return false;
+        }
+        entry.info = info;
+        true
+    }
+
+    /// Publish the one combat bit required by immediate group combat gates.
+    pub fn publish_in_combat_for_control_channel(
+        &self,
+        guid: ObjectGuid,
+        command_tx: &flume::Sender<SessionCommand>,
+        in_combat: bool,
+    ) -> bool {
+        let Some(mut entry) = self.entries.get_mut(&guid) else {
+            return false;
+        };
+        if !entry.info.command_tx.same_channel(command_tx) {
+            return false;
+        }
+        entry.info.in_combat = in_combat;
+        true
+    }
+
+    /// Read the represented unit-state fallback used only when the canonical
+    /// map Player is unavailable.
+    #[must_use]
+    pub fn represented_unit_state(&self, guid: ObjectGuid) -> Option<u32> {
+        self.entries.get(&guid).map(|entry| entry.info.unit_state)
+    }
+
+    /// Resolve the bounded connected-player view required by inspect handlers.
+    #[must_use]
+    pub fn inspect_snapshot(&self, guid: ObjectGuid) -> Option<PlayerInspectSnapshot> {
+        let entry = self.entries.get(&guid)?;
+        let info = &entry.info;
+        Some(PlayerInspectSnapshot {
+            guid,
+            map_id: info.map_id,
+            position: info.position,
+            faction_template_id: info.faction_template_id,
+            player_name: info.player_name.clone(),
+            race: info.race,
+            class: info.class,
+            sex: info.sex,
+            level: info.level,
+            visible_items: Arc::clone(&info.visible_items),
+            lifetime_honorable_kills: info.lifetime_honorable_kills,
+            this_week_contribution: info.this_week_contribution,
+            yesterday_contribution: info.yesterday_contribution,
+            today_honorable_kills: info.today_honorable_kills,
+            yesterday_honorable_kills: info.yesterday_honorable_kills,
+            lifetime_max_rank: info.lifetime_max_rank,
+            honor_level: info.honor_level,
+        })
     }
 
     /// Snapshot only the presence facts used by loot and group-reward gates.
@@ -2863,68 +2848,40 @@ impl PlayerRegistry {
         }
     }
 
-    /// Temporary compatibility lookup; removed by the final #196 cleanup.
-    #[doc(hidden)]
-    pub fn get(&self, guid: &ObjectGuid) -> Option<PlayerRegistryCompatibilityRef<'_>> {
-        self.entries.get(guid).map(PlayerRegistryCompatibilityRef)
+    /// Clone one fixture entry without exposing a storage guard. Available
+    /// only when a dependent crate explicitly enables test fixtures.
+    #[cfg(feature = "test-fixtures")]
+    #[must_use]
+    pub fn fixture_snapshot(&self, guid: ObjectGuid) -> Option<PlayerBroadcastInfo> {
+        self.entries.get(&guid).map(|entry| entry.info.clone())
     }
 
-    /// Temporary compatibility mutation; removed by the final #196 cleanup.
-    #[doc(hidden)]
-    pub fn get_mut(&self, guid: &ObjectGuid) -> Option<PlayerRegistryCompatibilityRefMut<'_>> {
-        self.entries
-            .get_mut(guid)
-            .map(PlayerRegistryCompatibilityRefMut)
-    }
-
-    /// Temporary compatibility iteration; removed by the final #196 cleanup.
-    #[doc(hidden)]
-    pub fn iter(&self) -> PlayerRegistryCompatibilityIter<'_> {
-        PlayerRegistryCompatibilityIter {
-            inner: self.entries.iter(),
-        }
-    }
-
-    /// Test/fixture compatibility pending #196. Production lifecycle code uses
-    /// [`Self::register_or_replace`].
-    #[doc(hidden)]
-    pub fn insert(
+    /// Mutate one fixture entry while keeping storage and its generation
+    /// private. Production crates cannot enable this capability accidentally.
+    #[cfg(feature = "test-fixtures")]
+    pub fn fixture_update(
         &self,
         guid: ObjectGuid,
-        info: PlayerBroadcastInfo,
-    ) -> Option<PlayerBroadcastInfo> {
-        let generation = self.next_generation();
-        self.entries
-            .insert(guid, PlayerRegistryCompatibilityEntry { generation, info })
-            .map(|previous| previous.info)
+        update: impl FnOnce(&mut PlayerBroadcastInfo),
+    ) -> bool {
+        let Some(mut entry) = self.entries.get_mut(&guid) else {
+            return false;
+        };
+        update(&mut entry.info);
+        true
     }
 
-    /// Test/fixture compatibility pending #196.
-    #[doc(hidden)]
-    pub fn remove(&self, guid: &ObjectGuid) -> Option<(ObjectGuid, PlayerBroadcastInfo)> {
-        self.entries
-            .remove(guid)
-            .map(|(guid, entry)| (guid, entry.info))
+    /// Remove one fixture registration without exporting its storage record.
+    #[cfg(feature = "test-fixtures")]
+    pub fn fixture_remove(&self, guid: ObjectGuid) -> bool {
+        self.entries.remove(&guid).is_some()
     }
 
-    #[doc(hidden)]
-    pub fn contains_key(&self, guid: &ObjectGuid) -> bool {
-        self.entries.contains_key(guid)
-    }
-
-    #[doc(hidden)]
-    pub fn len(&self) -> usize {
+    /// Count connected fixture registrations without exposing iteration.
+    #[cfg(feature = "test-fixtures")]
+    #[must_use]
+    pub fn fixture_count(&self) -> usize {
         self.entries.len()
-    }
-
-    #[doc(hidden)]
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-
-    #[doc(hidden)]
-    pub fn clear(&self) {
-        self.entries.clear();
     }
 }
 

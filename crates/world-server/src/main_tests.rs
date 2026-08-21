@@ -349,7 +349,7 @@ fn drain_durable_creature_runtime_commands_like_cpp(
 ) -> Vec<SessionCommand> {
     let durable = Arc::clone(
         &registry
-            .get(&player_guid)
+            .fixture_snapshot(player_guid)
             .expect("registered player")
             .durable_creature_runtime_commands_like_cpp,
     );
@@ -369,7 +369,7 @@ fn insert_player_broadcast_fixture_with_in_world_like_cpp(
     let mut info =
         player_broadcast_info_fixture_like_cpp(send_tx, command_tx, &format!("Player{counter}"));
     info.is_in_world = is_in_world;
-    registry.insert(ObjectGuid::create_player(1, counter as i64), info);
+    registry.register_or_replace(ObjectGuid::create_player(1, counter as i64), info);
 }
 
 fn insert_player_broadcast_fixture_like_cpp(
@@ -6906,7 +6906,7 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
     let (send_tx, _send_rx) = flume::bounded(1);
     let (command_tx, command_rx) = flume::bounded(1);
     let player_guid = ObjectGuid::create_player(1, 9009);
-    registry.insert(
+    registry.register_or_replace(
         player_guid,
         PlayerBroadcastInfo {
             map_id: 0,
@@ -7240,10 +7240,9 @@ fn game_event_npc_flag_update_queues_visible_session_update_command_like_cpp() {
     let (command_tx, command_rx) = flume::bounded(1);
     insert_player_broadcast_fixture_like_cpp(&registry, 7201, send_tx, command_tx);
     let player_guid = ObjectGuid::create_player(1, 7201);
-    registry
-        .get_mut(&player_guid)
-        .expect("player registry row")
-        .map_id = 1;
+    assert!(registry.fixture_update(player_guid, |player| {
+        player.map_id = 1;
+    }));
 
     let template_store = game_event_npc_flag_template_store_like_cpp();
     let summary = game_event_update_npc_flags_like_cpp(
@@ -10406,7 +10405,7 @@ fn nearby_visible_filters_by_map_id_like_cpp() {
     let registry = PlayerRegistry::default();
     let guid = ObjectGuid::create_player(1, 1);
     let (info, command_rx) = make_registry_player_like_cpp(530, 0, Position::ZERO, true); // wrong map
-    registry.insert(guid, info);
+    registry.register_or_replace(guid, info);
 
     let event = make_nearby_visible_event_like_cpp(571, 0, Position::ZERO, 100.0, false);
     let plan = wow_world::map_manager::RuntimePlan {
@@ -10426,7 +10425,7 @@ fn nearby_visible_filters_by_instance_id_like_cpp() {
     let registry = PlayerRegistry::default();
     let guid = ObjectGuid::create_player(1, 2);
     let (info, command_rx) = make_registry_player_like_cpp(571, 99, Position::ZERO, true); // wrong instance
-    registry.insert(guid, info);
+    registry.register_or_replace(guid, info);
 
     let event = make_nearby_visible_event_like_cpp(571, 0, Position::ZERO, 100.0, false);
     let plan = wow_world::map_manager::RuntimePlan {
@@ -10446,7 +10445,7 @@ fn nearby_visible_filters_is_in_world_like_cpp() {
     let registry = PlayerRegistry::default();
     let guid = ObjectGuid::create_player(1, 3);
     let (info, command_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, false); // not in world
-    registry.insert(guid, info);
+    registry.register_or_replace(guid, info);
 
     let event = make_nearby_visible_event_like_cpp(571, 0, Position::ZERO, 100.0, false);
     let plan = wow_world::map_manager::RuntimePlan {
@@ -10469,13 +10468,13 @@ fn nearby_visible_uses_2d_distance_when_required_3d_false_like_cpp() {
     let near_guid = ObjectGuid::create_player(1, 4);
     let (near_info, near_rx) =
         make_registry_player_like_cpp(571, 0, Position::new(5.0, 0.0, 1000.0, 0.0), true);
-    registry.insert(near_guid, near_info);
+    registry.register_or_replace(near_guid, near_info);
 
     // Player is far in XY — should be EXCLUDED.
     let far_guid = ObjectGuid::create_player(1, 5);
     let (far_info, far_rx) =
         make_registry_player_like_cpp(571, 0, Position::new(200.0, 0.0, 0.0, 0.0), true);
-    registry.insert(far_guid, far_info);
+    registry.register_or_replace(far_guid, far_info);
 
     let source = Position::new(0.0, 0.0, 0.0, 0.0);
     let event = make_nearby_visible_event_like_cpp(571, 0, source, 100.0, false);
@@ -10500,13 +10499,13 @@ fn nearby_visible_uses_3d_distance_when_required_3d_true_like_cpp() {
     let near_xy_guid = ObjectGuid::create_player(1, 6);
     let (near_xy_info, near_xy_rx) =
         make_registry_player_like_cpp(571, 0, Position::new(5.0, 0.0, 200.0, 0.0), true);
-    registry.insert(near_xy_guid, near_xy_info);
+    registry.register_or_replace(near_xy_guid, near_xy_info);
 
     // Player is close in 3D — should be INCLUDED.
     let near_3d_guid = ObjectGuid::create_player(1, 7);
     let (near_3d_info, near_3d_rx) =
         make_registry_player_like_cpp(571, 0, Position::new(3.0, 3.0, 3.0, 0.0), true);
-    registry.insert(near_3d_guid, near_3d_info);
+    registry.register_or_replace(near_3d_guid, near_3d_info);
 
     let source = Position::new(0.0, 0.0, 0.0, 0.0);
     let event = make_nearby_visible_event_like_cpp(571, 0, source, 10.0, true);
@@ -10527,7 +10526,7 @@ fn nearby_visible_durable_uses_committed_fifo_instead_of_bounded_queue() {
     let guid = ObjectGuid::create_player(1, 8);
     let (info, command_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
     let durable = Arc::clone(&info.durable_creature_runtime_commands_like_cpp);
-    registry.insert(guid, info);
+    registry.register_or_replace(guid, info);
 
     let event = wow_world::map_manager::RuntimeEvent {
         source_guid: make_source_guid(),
@@ -10571,8 +10570,8 @@ fn creature_spell_start_go_is_one_atomic_observer_command_without_victim_drain_l
     observer_info
         .client_visible_guids_like_cpp
         .insert(make_source_guid());
-    registry.insert(victim_guid, victim_info);
-    registry.insert(observer_guid, observer_info);
+    registry.register_or_replace(victim_guid, victim_info);
+    registry.register_or_replace(observer_guid, observer_info);
 
     let (plan, start_bytes, basic_go_bytes, full_go_bytes) =
         make_creature_spell_runtime_plan_like_cpp(victim_guid);
@@ -10633,8 +10632,8 @@ fn creature_spell_plan_skips_invisible_observer_but_reaches_victim_like_cpp() {
     invisible_observer_info
         .client_visible_guids_like_cpp
         .insert(make_source_guid());
-    registry.insert(victim_guid, victim_info);
-    registry.insert(invisible_observer_guid, invisible_observer_info);
+    registry.register_or_replace(victim_guid, victim_info);
+    registry.register_or_replace(invisible_observer_guid, invisible_observer_info);
 
     let (plan, start_bytes, basic_go_bytes, full_go_bytes) =
         make_creature_spell_runtime_plan_like_cpp(victim_guid);
@@ -10676,8 +10675,8 @@ fn creature_spell_plan_commits_have_at_client_at_resolution_like_cpp() {
         .client_visible_guids_like_cpp
         .insert(make_source_guid());
     let unaware_visibility = unaware_info.client_visible_guids_like_cpp.clone();
-    registry.insert(victim_guid, victim_info);
-    registry.insert(unaware_guid, unaware_info);
+    registry.register_or_replace(victim_guid, victim_info);
+    registry.register_or_replace(unaware_guid, unaware_info);
 
     let (plan, _start_bytes, _basic_go_bytes, _full_go_bytes) =
         make_creature_spell_runtime_plan_like_cpp(victim_guid);
@@ -10712,18 +10711,18 @@ fn map_broadcast_visible_ignores_distance_but_respects_map_instance_in_world_lik
     let in_guid = ObjectGuid::create_player(1, 10);
     let (in_info, in_rx) =
         make_registry_player_like_cpp(571, 0, Position::new(9999.0, 9999.0, 0.0, 0.0), true);
-    registry.insert(in_guid, in_info);
+    registry.register_or_replace(in_guid, in_info);
 
     // Wrong map.
     let wrong_map_guid = ObjectGuid::create_player(1, 11);
     let (wrong_map_info, wrong_map_rx) =
         make_registry_player_like_cpp(530, 0, Position::ZERO, true);
-    registry.insert(wrong_map_guid, wrong_map_info);
+    registry.register_or_replace(wrong_map_guid, wrong_map_info);
 
     // Not in world.
     let no_world_guid = ObjectGuid::create_player(1, 12);
     let (no_world_info, no_world_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, false);
-    registry.insert(no_world_guid, no_world_info);
+    registry.register_or_replace(no_world_guid, no_world_info);
 
     let event = wow_world::map_manager::RuntimeEvent {
         source_guid: make_source_guid(),
@@ -10753,8 +10752,8 @@ fn explicit_player_routes_only_to_target_guid_like_cpp() {
     let other_guid = ObjectGuid::create_player(1, 21);
     let (target_info, target_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
     let (other_info, other_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
-    registry.insert(target_guid, target_info);
-    registry.insert(other_guid, other_info);
+    registry.register_or_replace(target_guid, target_info);
+    registry.register_or_replace(other_guid, other_info);
 
     let event = wow_world::map_manager::RuntimeEvent {
         source_guid: make_source_guid(),
@@ -10813,7 +10812,7 @@ fn self_only_does_not_broadcast_to_any_session_like_cpp() {
     // Even with a matching player in registry, SelfOnly must NOT deliver.
     let guid = ObjectGuid::create_player(1, 30);
     let (info, command_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
-    registry.insert(guid, info);
+    registry.register_or_replace(guid, info);
 
     let event = wow_world::map_manager::RuntimeEvent {
         source_guid: make_source_guid(),
@@ -10854,7 +10853,7 @@ fn full_command_channel_increments_send_failed_and_does_not_block_like_cpp() {
     info.instance_id = 0;
     info.is_in_world = true;
     info.position = Position::ZERO;
-    registry.insert(guid, info);
+    registry.register_or_replace(guid, info);
 
     let event = make_nearby_visible_event_like_cpp(571, 0, Position::ZERO, 1000.0, false);
     let plan = wow_world::map_manager::RuntimePlan {
@@ -10881,27 +10880,27 @@ fn refresh_visible_world_creatures_routes_by_map_instance_in_world_like_cpp() {
 
     let in_a = ObjectGuid::create_player(1, 50);
     let (in_a_info, in_a_rx) = make_registry_player_like_cpp(571, 7, Position::ZERO, true);
-    registry.insert(in_a, in_a_info);
+    registry.register_or_replace(in_a, in_a_info);
 
     let in_b = ObjectGuid::create_player(1, 51);
     let (in_b_info, in_b_rx) =
         make_registry_player_like_cpp(571, 7, Position::new(9000.0, 0.0, 0.0, 0.0), true);
-    registry.insert(in_b, in_b_info);
+    registry.register_or_replace(in_b, in_b_info);
 
     let wrong_map = ObjectGuid::create_player(1, 52);
     let (wrong_map_info, wrong_map_rx) =
         make_registry_player_like_cpp(530, 7, Position::ZERO, true);
-    registry.insert(wrong_map, wrong_map_info);
+    registry.register_or_replace(wrong_map, wrong_map_info);
 
     let wrong_instance = ObjectGuid::create_player(1, 53);
     let (wrong_instance_info, wrong_instance_rx) =
         make_registry_player_like_cpp(571, 8, Position::ZERO, true);
-    registry.insert(wrong_instance, wrong_instance_info);
+    registry.register_or_replace(wrong_instance, wrong_instance_info);
 
     let not_in_world = ObjectGuid::create_player(1, 54);
     let (not_in_world_info, not_in_world_rx) =
         make_registry_player_like_cpp(571, 7, Position::ZERO, false);
-    registry.insert(not_in_world, not_in_world_info);
+    registry.register_or_replace(not_in_world, not_in_world_info);
 
     let summary = deliver_refresh_visible_world_creatures_like_cpp(571, 7, &registry);
 
@@ -10940,7 +10939,7 @@ fn refresh_visible_world_creatures_full_channel_counts_send_failed_like_cpp() {
     info.map_id = 571;
     info.instance_id = 7;
     info.is_in_world = true;
-    registry.insert(guid, info);
+    registry.register_or_replace(guid, info);
 
     let summary = deliver_refresh_visible_world_creatures_like_cpp(571, 7, &registry);
 
@@ -10973,9 +10972,9 @@ fn collect_legacy_creature_aggro_candidates_uses_living_in_world_players_like_cp
     let (mut dead_in_world_info, _) =
         make_registry_player_like_cpp(571, 2, Position::new(4.0, 4.0, 4.0, 0.0), true);
     dead_in_world_info.is_alive = false;
-    registry.insert(in_world, in_world_info);
-    registry.insert(not_in_world, not_in_world_info);
-    registry.insert(dead_in_world, dead_in_world_info);
+    registry.register_or_replace(in_world, in_world_info);
+    registry.register_or_replace(not_in_world, not_in_world_info);
+    registry.register_or_replace(dead_in_world, dead_in_world_info);
 
     let candidates = collect_legacy_creature_aggro_candidates_like_cpp(&registry);
 
@@ -11019,7 +11018,7 @@ fn collect_legacy_creature_aggro_candidates_hydrates_canonical_visibility_like_c
     let player_guid = ObjectGuid::create_player(1, 68);
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     let (info, _) = make_registry_player_like_cpp(571, 2, position, true);
-    registry.insert(player_guid, info);
+    registry.register_or_replace(player_guid, info);
 
     let canonical: wow_world::SharedCanonicalMapManager =
         Arc::new(Mutex::new(wow_map::MapManager::default()));
@@ -11109,8 +11108,8 @@ fn creature_attack_start_delivery_routes_only_to_victim_like_cpp() {
     let attacker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_060);
     let (victim_info, _victim_rx) = make_registry_player_like_cpp(571, 4, Position::ZERO, true);
     let (other_info, other_rx) = make_registry_player_like_cpp(571, 4, Position::ZERO, true);
-    registry.insert(victim, victim_info);
-    registry.insert(other, other_info);
+    registry.register_or_replace(victim, victim_info);
+    registry.register_or_replace(other, other_info);
 
     let commands = vec![
         wow_network::player_registry::CreatureAttackStartLikeCppCommand {
@@ -11253,10 +11252,10 @@ fn creature_attack_start_delivery_filters_registry_state_like_cpp() {
         make_registry_player_like_cpp(571, 0, Position::ZERO, false);
     let (mut dead_info, dead_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
     dead_info.is_alive = false;
-    registry.insert(wrong_map, wrong_map_info);
-    registry.insert(wrong_instance, wrong_instance_info);
-    registry.insert(not_in_world, not_in_world_info);
-    registry.insert(dead, dead_info);
+    registry.register_or_replace(wrong_map, wrong_map_info);
+    registry.register_or_replace(wrong_instance, wrong_instance_info);
+    registry.register_or_replace(not_in_world, not_in_world_info);
+    registry.register_or_replace(dead, dead_info);
 
     let make_command =
         |victim_guid| wow_network::player_registry::CreatureAttackStartLikeCppCommand {
@@ -11302,7 +11301,7 @@ fn creature_attack_start_delivery_uses_durable_rail_when_general_queue_is_full_l
     info.instance_id = 0;
     info.is_in_world = true;
     info.is_alive = true;
-    registry.insert(victim, info);
+    registry.register_or_replace(victim, info);
     let command = wow_network::player_registry::CreatureAttackStartLikeCppCommand {
         attacker_guid: attacker,
         victim_guid: victim,
@@ -11380,10 +11379,10 @@ fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp() {
     let registry = PlayerRegistry::default();
     let (mut victim_info, victim_rx) = make_registry_player_like_cpp(0, 0, victim_position, true);
     victim_info.faction_template_id = 1;
-    registry.insert(victim, victim_info);
+    registry.register_or_replace(victim, victim_info);
     let wrong_map = ObjectGuid::create_player(1, 93_003);
     let (wrong_map_info, wrong_map_rx) = make_registry_player_like_cpp(1, 0, victim_position, true);
-    registry.insert(wrong_map, wrong_map_info);
+    registry.register_or_replace(wrong_map, wrong_map_info);
 
     let mmap_config = wow_world::MMapRuntimeConfigLikeCpp {
         enabled: false,
@@ -11497,8 +11496,8 @@ fn creature_melee_damage_delivery_routes_only_to_victim_like_cpp() {
     let attacker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_056);
     let (victim_info, _victim_rx) = make_registry_player_like_cpp(571, 3, Position::ZERO, true);
     let (other_info, other_rx) = make_registry_player_like_cpp(571, 3, Position::ZERO, true);
-    registry.insert(victim, victim_info);
-    registry.insert(other, other_info);
+    registry.register_or_replace(victim, victim_info);
+    registry.register_or_replace(other, other_info);
 
     let commands = vec![
         wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand {
@@ -11549,9 +11548,9 @@ fn creature_melee_damage_delivery_filters_registry_state_like_cpp() {
         make_registry_player_like_cpp(571, 9, Position::ZERO, true);
     let (not_in_world_info, not_in_world_rx) =
         make_registry_player_like_cpp(571, 0, Position::ZERO, false);
-    registry.insert(wrong_map, wrong_map_info);
-    registry.insert(wrong_instance, wrong_instance_info);
-    registry.insert(not_in_world, not_in_world_info);
+    registry.register_or_replace(wrong_map, wrong_map_info);
+    registry.register_or_replace(wrong_instance, wrong_instance_info);
+    registry.register_or_replace(not_in_world, not_in_world_info);
 
     let make_command =
         |victim_guid| wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand {
@@ -11602,7 +11601,7 @@ fn creature_melee_damage_delivery_poisoned_durable_rail_counts_send_failed_like_
         panic!("poison durable rail for delivery failure coverage");
     })
     .join();
-    registry.insert(victim, info);
+    registry.register_or_replace(victim, info);
 
     let commands = vec![
         wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand {
@@ -11637,7 +11636,7 @@ fn creature_melee_damage_delivery_preserves_every_swing_when_general_queue_is_fu
     info.map_id = 571;
     info.instance_id = 0;
     info.is_in_world = true;
-    registry.insert(victim, info);
+    registry.register_or_replace(victim, info);
     let command = wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand {
         attacker_guid: attacker,
         victim_guid: victim,
@@ -11715,7 +11714,7 @@ fn legacy_creature_melee_tick_delivers_compatibility_victim_command_like_cpp() {
 
     let registry = PlayerRegistry::default();
     let (victim_info, _victim_rx) = make_registry_player_like_cpp(0, 0, attacker_position, true);
-    registry.insert(victim, victim_info);
+    registry.register_or_replace(victim, victim_info);
 
     let (outcome, delivery, plan_delivery) =
         run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
@@ -11795,7 +11794,7 @@ fn legacy_creature_melee_tick_delivers_compatibility_creature_plan_like_cpp() {
     let registry = PlayerRegistry::default();
     let viewer = ObjectGuid::create_player(1, 91_030);
     let (viewer_info, viewer_rx) = make_registry_player_like_cpp(0, 0, position, true);
-    registry.insert(viewer, viewer_info);
+    registry.register_or_replace(viewer, viewer_info);
 
     let (outcome, delivery, plan_delivery) =
         run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
@@ -11872,14 +11871,14 @@ fn legacy_creature_lifecycle_tick_refreshes_sessions_after_ready_respawn_like_cp
     let registry = PlayerRegistry::default();
     let same_a = ObjectGuid::create_player(1, 91_001);
     let (same_a_info, same_a_rx) = make_registry_player_like_cpp(0, 0, Position::ZERO, true);
-    registry.insert(same_a, same_a_info);
+    registry.register_or_replace(same_a, same_a_info);
     let same_b = ObjectGuid::create_player(1, 91_002);
     let (same_b_info, same_b_rx) =
         make_registry_player_like_cpp(0, 0, Position::new(9000.0, 0.0, 0.0, 0.0), true);
-    registry.insert(same_b, same_b_info);
+    registry.register_or_replace(same_b, same_b_info);
     let wrong_map = ObjectGuid::create_player(1, 91_003);
     let (wrong_map_info, wrong_map_rx) = make_registry_player_like_cpp(1, 0, Position::ZERO, true);
-    registry.insert(wrong_map, wrong_map_info);
+    registry.register_or_replace(wrong_map, wrong_map_info);
 
     let (outcome, delivery) = run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
         &legacy,
@@ -11985,15 +11984,15 @@ async fn legacy_creature_global_tick_task_delivers_movement_plan_like_cpp() {
     let near_a = ObjectGuid::create_player(1, 90_001);
     let (near_a_info, near_a_rx) =
         make_registry_player_like_cpp(0, 0, Position::new(11.0, 10.0, 999.0, 0.0), true);
-    registry.insert(near_a, near_a_info);
+    registry.register_or_replace(near_a, near_a_info);
     let near_b = ObjectGuid::create_player(1, 90_002);
     let (near_b_info, near_b_rx) =
         make_registry_player_like_cpp(0, 0, Position::new(12.0, 10.0, -999.0, 0.0), true);
-    registry.insert(near_b, near_b_info);
+    registry.register_or_replace(near_b, near_b_info);
     let wrong_map = ObjectGuid::create_player(1, 90_003);
     let (wrong_map_info, wrong_map_rx) =
         make_registry_player_like_cpp(1, 0, Position::new(10.0, 10.0, 0.0, 0.0), true);
-    registry.insert(wrong_map, wrong_map_info);
+    registry.register_or_replace(wrong_map, wrong_map_info);
 
     let mmap_config = wow_world::MMapRuntimeConfigLikeCpp {
         enabled: false,
@@ -12179,18 +12178,18 @@ async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_mel
     let near_a = ObjectGuid::create_player(1, 92_001);
     let (near_a_info, near_a_rx) =
         make_registry_player_like_cpp(0, 0, Position::new(11.0, 10.0, 999.0, 0.0), true);
-    registry.insert(near_a, near_a_info);
+    registry.register_or_replace(near_a, near_a_info);
     let near_b = ObjectGuid::create_player(1, 92_002);
     let (near_b_info, near_b_rx) =
         make_registry_player_like_cpp(0, 0, Position::new(12.0, 10.0, -999.0, 0.0), true);
-    registry.insert(near_b, near_b_info);
+    registry.register_or_replace(near_b, near_b_info);
     let wrong_map = ObjectGuid::create_player(1, 92_003);
     let (wrong_map_info, wrong_map_rx) =
         make_registry_player_like_cpp(1, 0, Position::new(10.0, 10.0, 0.0, 0.0), true);
-    registry.insert(wrong_map, wrong_map_info);
+    registry.register_or_replace(wrong_map, wrong_map_info);
     let (mut victim_info, victim_rx) = make_registry_player_like_cpp(0, 0, melee_position, true);
     victim_info.faction_template_id = 1;
-    registry.insert(melee_victim, victim_info);
+    registry.register_or_replace(melee_victim, victim_info);
 
     let mmap_config = wow_world::MMapRuntimeConfigLikeCpp {
         enabled: false,
@@ -12470,7 +12469,7 @@ async fn legacy_creature_runtime_loop_smoke_delivers_visible_work_like_cpp() {
     let player = ObjectGuid::create_player(1, 94_002);
     let (player_info, player_rx) =
         make_registry_player_like_cpp(0, 0, Position::new(11.0, 10.0, 0.0, 0.0), true);
-    registry.insert(player, player_info);
+    registry.register_or_replace(player, player_info);
 
     let handle = spawn_legacy_creature_runtime_update_loop_like_cpp(
         true,

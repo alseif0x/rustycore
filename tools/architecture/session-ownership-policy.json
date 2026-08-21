@@ -47537,6 +47537,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "try_send_connected_player_command_like_cpp",
+          "visibility": "private",
+          "signature": "fn try_send_connected_player_command_like_cpp (& self , target_guid : ObjectGuid , command : SessionCommand ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "try_send_packet",
           "visibility": "pub (crate)",
           "signature": "fn try_send_packet < P : wow_packet :: ServerPacket > (& self , pkt : & P) -> bool",
@@ -57527,7 +57538,7 @@
           "symbol": "PlayerRegistry",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "player_registry::{ApplyCreatureMeleeDamageLikeCppCommand,ApplyLootMoneyLikeCppCommand,ApplyLootMoneyResultLikeCpp,CreatureAttackStartLikeCppCommand,CreatureAttackStopLikeCppCommand,DurableCreatureRuntimeCommandsLikeCpp,DurableLootMoneyAdmissionClosedLikeCpp,DurableLootMoneyCompletionLikeCpp,DurableLootMoneyPersistenceGuardLikeCpp,DurableLootMoneyPersistenceTrackerLikeCpp,DurableLootMoneySaveFenceLikeCpp,GameEventQuestCompleteClientOutcomeLikeCpp,GameEventQuestCompleteCommandLikeCpp,GameEventQuestCompleteResponseLikeCpp,KickLikeCppCommand,LootRollCommandIdentityLikeCpp,LootRollStoreWinnerCommand,LootRollVoteCommand,MAX_DURABLE_CREATURE_RUNTIME_COMMANDS_LIKE_CPP,MasterLootGiveCommand,MasterLootGiveResult,NotifyLootMoneyRemovedLikeCppCommand,PlayerAggroCandidateSnapshot,PlayerBroadcastInfo,PlayerControlAddress,PlayerDirectoryReliableSendOutcome,PlayerDirectorySendError,PlayerGroupPresenceSnapshot,PlayerGroupRewardSnapshot,PlayerLootContextSnapshot,PlayerLootPresenceSnapshot,PlayerMovementDirectoryUpdate,PlayerPartyMemberSnapshot,PlayerQuestSharingSnapshot,PlayerRegistration,PlayerRegistry,PlayerRuntimeRecipient,PlayerSocialRecipientSnapshot,PlayerVehicleInteractionSnapshot,PlayerVisibilityCreateSnapshot,PrepareLootMoneyApplicationLikeCpp,PreparedLootMoneyApplicationLikeCpp,RefreshVisibleWorldCreaturesLikeCppCommand,ResetSeasonalQuestStatusCommand,SendAddonIfRegisteredLikeCppCommand,SendCreatureLootReleaseValuesUpdateLikeCppCommand,SendCreatureSpellCastIfVisibleLikeCppCommand,SendIfVisibleLikeCppCommand,SendPartyUpdateLikeCppCommand,SendRealmPacketLikeCppCommand,SendVisibleObjectValuesUpdateCommand,SessionCommand,SharedClientVisibleGuidsLikeCpp,WorldSessionShutdownFlushLikeCppCommand,WorldSessionShutdownFlushResultLikeCpp}",
+          "fingerprint": "player_registry::{ApplyCreatureMeleeDamageLikeCppCommand,ApplyLootMoneyLikeCppCommand,ApplyLootMoneyResultLikeCpp,CreatureAttackStartLikeCppCommand,CreatureAttackStopLikeCppCommand,DurableCreatureRuntimeCommandsLikeCpp,DurableLootMoneyAdmissionClosedLikeCpp,DurableLootMoneyCompletionLikeCpp,DurableLootMoneyPersistenceGuardLikeCpp,DurableLootMoneyPersistenceTrackerLikeCpp,DurableLootMoneySaveFenceLikeCpp,GameEventQuestCompleteClientOutcomeLikeCpp,GameEventQuestCompleteCommandLikeCpp,GameEventQuestCompleteResponseLikeCpp,KickLikeCppCommand,LootRollCommandIdentityLikeCpp,LootRollStoreWinnerCommand,LootRollVoteCommand,MAX_DURABLE_CREATURE_RUNTIME_COMMANDS_LIKE_CPP,MasterLootGiveCommand,MasterLootGiveResult,NotifyLootMoneyRemovedLikeCppCommand,PlayerAggroCandidateSnapshot,PlayerBroadcastInfo,PlayerControlAddress,PlayerDirectoryReliableSendOutcome,PlayerDirectorySendError,PlayerGroupPresenceSnapshot,PlayerGroupRewardSnapshot,PlayerInspectSnapshot,PlayerLootContextSnapshot,PlayerLootPresenceSnapshot,PlayerMovementDirectoryUpdate,PlayerPartyMemberSnapshot,PlayerQuestSharingSnapshot,PlayerRegistration,PlayerRegistry,PlayerRuntimeRecipient,PlayerSocialRecipientSnapshot,PlayerVehicleInteractionSnapshot,PlayerVisibilityCreateSnapshot,PrepareLootMoneyApplicationLikeCpp,PreparedLootMoneyApplicationLikeCpp,RefreshVisibleWorldCreaturesLikeCppCommand,ResetSeasonalQuestStatusCommand,SendAddonIfRegisteredLikeCppCommand,SendCreatureLootReleaseValuesUpdateLikeCppCommand,SendCreatureSpellCastIfVisibleLikeCppCommand,SendIfVisibleLikeCppCommand,SendPartyUpdateLikeCppCommand,SendRealmPacketLikeCppCommand,SendVisibleObjectValuesUpdateCommand,SessionCommand,SharedClientVisibleGuidsLikeCpp,WorldSessionShutdownFlushLikeCppCommand,WorldSessionShutdownFlushResultLikeCpp}",
           "count": 1
         },
         {
@@ -61135,19 +61146,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::accept_represented_trade_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::accept_represented_wargame_invite_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "member",
@@ -61564,19 +61562,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::begin_represented_trade_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "accessor",
@@ -61753,32 +61738,6 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::cancel_represented_trade_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::clear_represented_trade_item_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
           "count": 1
         },
         {
@@ -62539,6 +62498,19 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
+          "enclosing": "impl WorldSession::player_unit_state_for_registry_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "return",
+          "symbol": "registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "unit_state",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session",
+          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::publish_spell_pull_attack_start_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "member",
@@ -62929,32 +62901,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::send_represented_duel_countdown_to_opponent_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::send_represented_duel_requested_to_opponent_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::send_represented_pet_spline_speed_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "accessor",
@@ -63202,45 +63148,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::set_represented_trade_gold_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::set_represented_trade_item_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::set_represented_trade_spell_state_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::spawn_group_loot_money_persistence_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "member",
@@ -63371,24 +63278,11 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::sync_player_registry_state_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "get_mut",
-          "symbol": "get_mut",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "get_mut(& guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::unaccept_represented_trade_like_cpp",
+          "enclosing": "impl WorldSession::try_send_connected_player_command_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "accessor",
           "symbol": "player_registry",
-          "visibility": "pub (crate)",
+          "visibility": "",
           "cfg": [],
           "fingerprint": "player_registry()",
           "count": 1
@@ -65679,7 +65573,7 @@
               "multiplicity": 3
             }
           ],
-          "fingerprint": "signature=async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_melee_like_cpp ()|body=fnv1a64x2:430e17465e4580ea68bc4ff9a4497a89:len=11413|evidence=fnv1a64x2:46d2670ed02aa533062dda01dd3ba2b4:len=8209",
+          "fingerprint": "signature=async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_melee_like_cpp ()|body=fnv1a64x2:d280ea93f13e1d86a62ab863ca61b175:len=11465|evidence=fnv1a64x2:46d2670ed02aa533062dda01dd3ba2b4:len=8209",
           "cfg": [
             "cfg (test)"
           ],
@@ -65989,7 +65883,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=async fn legacy_creature_global_tick_task_delivers_movement_plan_like_cpp ()|body=fnv1a64x2:3f85d48733915cdd37aa84df739b22d0:len=4586|evidence=fnv1a64x2:417d0312804c0eb119ec078effe7b266:len=5551",
+          "fingerprint": "signature=async fn legacy_creature_global_tick_task_delivers_movement_plan_like_cpp ()|body=fnv1a64x2:94a12a4c1f741d72468e2422c8be615d:len=4625|evidence=fnv1a64x2:417d0312804c0eb119ec078effe7b266:len=5551",
           "cfg": [
             "cfg (test)"
           ],
@@ -66194,7 +66088,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=fn legacy_creature_lifecycle_tick_refreshes_sessions_after_ready_respawn_like_cpp ()|body=fnv1a64x2:75269512c587ce1da542235271596f08:len=3122|evidence=fnv1a64x2:1263466e47dae6aade9efca0601359f1:len=3150",
+          "fingerprint": "signature=fn legacy_creature_lifecycle_tick_refreshes_sessions_after_ready_respawn_like_cpp ()|body=fnv1a64x2:f6a819efeb751e28ee86de33b3c9a7cb:len=3161|evidence=fnv1a64x2:1263466e47dae6aade9efca0601359f1:len=3150",
           "cfg": [
             "cfg (test)"
           ],
@@ -66322,7 +66216,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn legacy_creature_melee_tick_delivers_compatibility_creature_plan_like_cpp ()|body=fnv1a64x2:f77de609e86cb631207025adbcefae8a:len=2491|evidence=fnv1a64x2:e5b6f2f56e1870059b737f0da354896a:len=1791",
+          "fingerprint": "signature=fn legacy_creature_melee_tick_delivers_compatibility_creature_plan_like_cpp ()|body=fnv1a64x2:a60a5c0d9db74440caec2f6665a23f53:len=2504|evidence=fnv1a64x2:e5b6f2f56e1870059b737f0da354896a:len=1791",
           "cfg": [
             "cfg (test)"
           ],
@@ -66499,7 +66393,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn legacy_creature_melee_tick_delivers_compatibility_victim_command_like_cpp ()|body=fnv1a64x2:ac11340b0f51b1889a8bd8ea67e1bc53:len=2993|evidence=fnv1a64x2:d26de1929bbce8eff3de66d40d706b64:len=2831",
+          "fingerprint": "signature=fn legacy_creature_melee_tick_delivers_compatibility_victim_command_like_cpp ()|body=fnv1a64x2:926eca8c2f3bcce3b55ea1cfde20fd52:len=3006|evidence=fnv1a64x2:d26de1929bbce8eff3de66d40d706b64:len=2831",
           "cfg": [
             "cfg (test)"
           ],
@@ -66704,7 +66598,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp ()|body=fnv1a64x2:8a9e35ec078cebefb317dbe61f154e86:len=5024|evidence=fnv1a64x2:ea60d78f4b0d8ba2468430b3bb634361:len=3116",
+          "fingerprint": "signature=fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp ()|body=fnv1a64x2:f07ebbc0dd37c78362ba6e56f507ca76:len=5050|evidence=fnv1a64x2:ea60d78f4b0d8ba2468430b3bb634361:len=3116",
           "cfg": [
             "cfg (test)"
           ],
@@ -67014,7 +66908,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=async fn legacy_creature_runtime_loop_smoke_delivers_visible_work_like_cpp ()|body=fnv1a64x2:c39c3d434be78ec7e3d1683206be9a60:len=3515|evidence=fnv1a64x2:78ca35ecfdef9242c119589582afc691:len=5683",
+          "fingerprint": "signature=async fn legacy_creature_runtime_loop_smoke_delivers_visible_work_like_cpp ()|body=fnv1a64x2:a54aebc938a8158271303b25f897e85d:len=3528|evidence=fnv1a64x2:78ca35ecfdef9242c119589582afc691:len=5683",
           "cfg": [
             "cfg (test)"
           ],

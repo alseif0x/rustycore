@@ -1941,7 +1941,7 @@ fn unavailable_login_grid_cleans_partial_player_and_kicks_without_failure_packet
                 .current_canonical_player_map_key_like_cpp()
                 .is_some()
         );
-        assert!(registry.contains_key(&guid));
+        assert!(registry.runtime_recipient(guid).is_some());
         assert!(accessor.read().find_connected_player_entity(guid).is_some());
 
         assert!(!session.continue_login_after_grid_load_like_cpp(
@@ -1966,7 +1966,7 @@ fn unavailable_login_grid_cleans_partial_player_and_kicks_without_failure_packet
                 .get_typed_player(guid)
                 .is_none()
         );
-        assert!(!registry.contains_key(&guid));
+        assert!(registry.runtime_recipient(guid).is_none());
         assert!(accessor.read().find_connected_player_entity(guid).is_none());
         assert!(send_rx.try_recv().is_err());
     });
@@ -2016,7 +2016,7 @@ fn login_identity_hydrates_race_faction_into_registry_and_canonical_player_like_
 
     assert_eq!(
         registry
-            .get(&guid)
+            .fixture_snapshot(guid)
             .expect("login player registry entry")
             .faction_template_id,
         1,
@@ -5680,12 +5680,12 @@ fn make_binder_observer(
         observer.client_visible_guids_like_cpp.insert(innkeeper);
     }
     observer.register_in_player_registry();
-    let mut info = registry.get_mut(&guid).expect("observer registry entry");
-    info.is_in_world = true;
-    info.map_id = 571;
-    info.instance_id = 0;
-    info.position = position;
-    drop(info);
+    assert!(registry.fixture_update(guid, |info| {
+        info.is_in_world = true;
+        info.map_id = 571;
+        info.instance_id = 0;
+        info.position = position;
+    }));
     (observer, send_rx)
 }
 
