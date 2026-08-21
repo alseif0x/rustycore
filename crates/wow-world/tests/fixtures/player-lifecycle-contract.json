@@ -1,0 +1,66 @@
+[
+  {
+    "name": "load_success",
+    "steps": [
+      { "step": "boundary", "name": "player.login.claimed" },
+      { "step": "read", "database": "character", "connection": "pooled", "name": "player.load.query_holder", "params": ["player_guid", "account_id"] },
+      { "step": "publication", "name": "player.login.runtime_published" }
+    ]
+  },
+  {
+    "name": "periodic_save_success",
+    "steps": [
+      { "step": "boundary", "name": "player.save.periodic" },
+      { "step": "fence", "name": "player.save.mutations_closed" },
+      { "step": "fence", "name": "player.save.pending_durable_work_drained" },
+      { "step": "transaction_begin", "database": "character" },
+      { "step": "write_group", "database": "character", "connection": "transaction", "name": "player.save.represented_snapshot", "params": ["player_guid", "player_snapshot", "wall_clock"] },
+      { "step": "commit", "database": "character", "outcome": "committed" },
+      { "step": "publication", "name": "player.save.dirty_state_clean" }
+    ]
+  },
+  {
+    "name": "manual_save_precommit_failure",
+    "steps": [
+      { "step": "boundary", "name": "player.save.manual" },
+      { "step": "fence", "name": "player.save.mutations_closed" },
+      { "step": "fence", "name": "player.save.pending_durable_work_drained" },
+      { "step": "transaction_begin", "database": "character" },
+      { "step": "write_group", "database": "character", "connection": "transaction", "name": "player.save.represented_snapshot", "params": ["player_guid", "player_snapshot", "wall_clock"] },
+      { "step": "rollback", "database": "character" }
+    ]
+  },
+  {
+    "name": "manual_save_commit_unknown",
+    "steps": [
+      { "step": "boundary", "name": "player.save.manual" },
+      { "step": "fence", "name": "player.save.mutations_closed" },
+      { "step": "fence", "name": "player.save.pending_durable_work_drained" },
+      { "step": "transaction_begin", "database": "character" },
+      { "step": "write_group", "database": "character", "connection": "transaction", "name": "player.save.represented_snapshot", "params": ["player_guid", "player_snapshot", "wall_clock"] },
+      { "step": "commit", "database": "character", "outcome": "unknown" },
+      { "step": "fence", "name": "player.save.relogin_required" }
+    ]
+  },
+  {
+    "name": "logout_success_then_reconnect",
+    "steps": [
+      { "step": "boundary", "name": "player.logout.started" },
+      { "step": "fence", "name": "player.logout.loot_idle" },
+      { "step": "fence", "name": "player.save.mutations_closed" },
+      { "step": "fence", "name": "player.save.pending_durable_work_drained" },
+      { "step": "transaction_begin", "database": "character" },
+      { "step": "write_group", "database": "character", "connection": "transaction", "name": "player.save.represented_snapshot", "params": ["player_guid", "player_snapshot", "wall_clock"] },
+      { "step": "commit", "database": "character", "outcome": "committed" },
+      { "step": "publication", "name": "player.save.dirty_state_clean" },
+      { "step": "transaction_begin", "database": "login" },
+      { "step": "write_group", "database": "login", "connection": "transaction", "name": "player.logout.account_collections", "params": ["account_id"] },
+      { "step": "commit", "database": "login", "outcome": "committed" },
+      { "step": "write_group", "database": "character", "connection": "pooled", "name": "player.logout.offline_state", "params": ["player_guid", "account_id"] },
+      { "step": "publication", "name": "player.logout.runtime_removed" },
+      { "step": "publication", "name": "player.logout.offline_visible" },
+      { "step": "boundary", "name": "player.logout.login_claim_released" },
+      { "step": "boundary", "name": "player.login.reconnect_may_claim" }
+    ]
+  }
+]
