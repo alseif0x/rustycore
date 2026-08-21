@@ -210,11 +210,10 @@ use wow_network::session_mgr::{InstanceLink, SessionManager};
 use wow_network::{
     DurableLootMoneyCompletionLikeCpp, DurableLootMoneyPersistenceGuardLikeCpp,
     DurableLootMoneyPersistenceTrackerLikeCpp, DurableLootMoneySaveFenceLikeCpp,
-    GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp, GroupInfo,
-    GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
+    GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp,
     KickLikeCppCommand, LootRollCommandIdentityLikeCpp, NotifyLootMoneyRemovedLikeCppCommand,
-    PendingInvites, SessionCommand, SharedClientVisibleGuidsLikeCpp, SocketTimeoutsLikeCpp,
-    SocketWriteFenceLikeCpp, SocketWriteFenceWaitResultLikeCpp, group_guid_by_db_store_id_like_cpp,
+    SessionCommand, SharedClientVisibleGuidsLikeCpp, SocketTimeoutsLikeCpp,
+    SocketWriteFenceLikeCpp, SocketWriteFenceWaitResultLikeCpp,
 };
 use wow_packet::packets::chat::{ChatMsg, ChatPkt, PrintNotification};
 use wow_packet::packets::gossip::ClientGossipText;
@@ -238,6 +237,10 @@ use wow_packet::packets::quest::{
     QuestObjectiveSimple, QuestRewardsBlock,
 };
 use wow_packet::packets::spell::SpellTargetData;
+use wow_social::group::{
+    GroupInfo, GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
+    PendingInvites, group_guid_by_db_store_id_like_cpp,
+};
 
 // TrinityCore enqueues cross-connection sends without waiting for physical TCP
 // progress. RustyCore waits briefly to retain the order observed in captures,
@@ -5304,8 +5307,9 @@ pub(crate) struct RepresentedGroupUpdateSequenceLikeCpp {
     pub update_sequence_number: i32,
 }
 
-fn default_group_update_sequences_like_cpp() -> [RepresentedGroupUpdateSequenceLikeCpp;
-    wow_network::group_registry::MAX_GROUP_CATEGORY_LIKE_CPP as usize] {
+fn default_group_update_sequences_like_cpp()
+-> [RepresentedGroupUpdateSequenceLikeCpp; wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP as usize]
+{
     std::array::from_fn(|_| RepresentedGroupUpdateSequenceLikeCpp::default())
 }
 
@@ -5672,7 +5676,7 @@ pub struct WorldSession {
     pub(crate) group_guid: Option<u64>,
     represented_subgroup_like_cpp: Option<u8>,
     represented_group_update_sequences_like_cpp: [RepresentedGroupUpdateSequenceLikeCpp;
-        wow_network::group_registry::MAX_GROUP_CATEGORY_LIKE_CPP as usize],
+        wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP as usize],
     pub(crate) pass_on_group_loot: bool,
     pub(crate) represented_enchanting_skill: u16,
     player_skill_values_like_cpp: HashMap<u16, u16>,
@@ -22859,7 +22863,7 @@ impl WorldSession {
         let Some(guid) = self.player_guid() else {
             return;
         };
-        if category >= wow_network::group_registry::MAX_GROUP_CATEGORY_LIKE_CPP {
+        if category >= wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP {
             return;
         }
 
@@ -24162,7 +24166,7 @@ impl WorldSession {
             return false;
         };
         let category = group.group_category_like_cpp();
-        if category >= wow_network::group_registry::MAX_GROUP_CATEGORY_LIKE_CPP {
+        if category >= wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP {
             return false;
         }
 
@@ -24179,7 +24183,7 @@ impl WorldSession {
     /// C++ `Player::NextGroupUpdateSequenceNumber` returns the current
     /// per-player category sequence and then increments it.
     pub(crate) fn next_group_update_sequence_number_like_cpp(&mut self, category: u8) -> i32 {
-        if category >= wow_network::group_registry::MAX_GROUP_CATEGORY_LIKE_CPP {
+        if category >= wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP {
             return 0;
         }
 
@@ -24201,9 +24205,9 @@ impl WorldSession {
     ) {
         let sequence_num = self.next_group_update_sequence_number_like_cpp(category);
         self.send_packet_realm(&wow_packet::packets::party::PartyUpdate {
-            party_flags: wow_network::group_registry::GROUP_FLAG_DESTROYED_LIKE_CPP,
+            party_flags: wow_social::group::GROUP_FLAG_DESTROYED_LIKE_CPP,
             party_index: category,
-            party_type: wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
+            party_type: wow_social::group::GROUP_TYPE_NONE_LIKE_CPP,
             my_index: -1,
             party_guid: group_guid,
             sequence_num,
@@ -35185,7 +35189,7 @@ impl WorldSession {
     }
 
     pub(crate) fn party_member_party_type_like_cpp(&self) -> [u8; 2] {
-        let mut party_type = [wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP; 2];
+        let mut party_type = [wow_social::group::GROUP_TYPE_NONE_LIKE_CPP; 2];
         let (Some(group_registry), Some(player_guid)) = (&self.group_registry, self.player_guid())
         else {
             return party_type;
@@ -35193,11 +35197,10 @@ impl WorldSession {
 
         for group in group_registry.snapshots() {
             let category = group.group_category_like_cpp();
-            if category < wow_network::group_registry::MAX_GROUP_CATEGORY_LIKE_CPP
+            if category < wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP
                 && group.members.contains(&player_guid)
             {
-                party_type[usize::from(category)] =
-                    wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP;
+                party_type[usize::from(category)] = wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP;
             }
         }
 

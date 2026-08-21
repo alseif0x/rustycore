@@ -6,5 +6,12 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+dashmap = { workspace = true }
 wow-core = { workspace = true }
 wow-constants = { workspace = true }
+
+[dev-dependencies]
+# The Group invariant tests keep exercising the real DB2-backed difficulty
+# validation. Development-only edges are outside the production boundary, so
+# this does not make `wow-social` depend on an adapter at run time.
+wow-data = { workspace = true }
