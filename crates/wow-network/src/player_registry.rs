@@ -1538,6 +1538,73 @@ pub struct PlayerRuntimeRecipient {
     pub committed_visibility: SharedClientVisibleGuidsLikeCpp,
 }
 
+/// Owned online identity used by chat/social lookup. Delivery must use the
+/// included registration so a reconnect cannot receive an older decision.
+#[derive(Clone, Debug)]
+pub struct PlayerSocialRecipientSnapshot {
+    pub registration: PlayerRegistration,
+    pub guid: ObjectGuid,
+    pub player_name: String,
+    pub race: u8,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub dungeon_difficulty_id: u32,
+    pub is_game_master: bool,
+    pub is_afk: bool,
+    pub is_dnd: bool,
+    pub auto_reply_msg_like_cpp: String,
+}
+
+/// Owned presence facts used by Group decisions which depend on a connected
+/// Player rather than on Group membership itself.
+#[derive(Clone, Copy, Debug)]
+pub struct PlayerGroupPresenceSnapshot {
+    pub registration: PlayerRegistration,
+    pub guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub position: Position,
+    pub is_in_world: bool,
+    pub is_alive: bool,
+    pub level: u8,
+    pub account_id: u32,
+    pub recruiter_id: u32,
+    pub in_combat: bool,
+    pub has_active_loot_rolls: bool,
+}
+
+/// Owned connected-player projection required to build C++ PartyUpdate and
+/// PartyMemberFullState payloads outside the session directory.
+#[derive(Clone, Debug)]
+pub struct PlayerPartyMemberSnapshot {
+    pub registration: PlayerRegistration,
+    pub guid: ObjectGuid,
+    pub player_name: String,
+    pub race: u8,
+    pub class: u8,
+    pub position: Position,
+    pub is_pvp: bool,
+    pub is_alive: bool,
+    pub is_ghost: bool,
+    pub is_ffa_pvp: bool,
+    pub is_afk: bool,
+    pub is_dnd: bool,
+    pub in_vehicle: bool,
+    pub power_type: u8,
+    pub current_health: u32,
+    pub max_health: u32,
+    pub current_power: u16,
+    pub max_power: u16,
+    pub level: u8,
+    pub spec_id: u32,
+    pub zone_id: u32,
+    pub party_member_vehicle_seat: i32,
+    pub party_member_party_type: [u8; 2],
+    pub party_member_phase_states: PartyMemberPhaseStates,
+    pub party_member_auras: Vec<PartyMemberAuraState>,
+    pub party_member_pet_stats: Option<PartyMemberPetStats>,
+}
+
 /// Owned player facts required by the legacy creature aggro compatibility cut.
 #[derive(Clone, Debug)]
 pub struct PlayerAggroCandidateSnapshot {
@@ -1706,7 +1773,7 @@ impl<'a> Iterator for PlayerRegistryCompatibilityIter<'a> {
 ///
 /// Storage is private. The lifecycle API returns only owned registrations,
 /// snapshots and channel addresses. Guard-returning methods remain temporarily
-/// for the explicitly inventoried consumers assigned to #192-#196.
+/// for the final compatibility cleanup assigned to #196.
 pub struct PlayerRegistry {
     entries: DashMap<ObjectGuid, PlayerRegistryCompatibilityEntry>,
     next_generation: AtomicU64,
@@ -1845,6 +1912,162 @@ impl PlayerRegistry {
                 .load(Ordering::Relaxed),
             committed_visibility: entry.info.client_visible_guids_like_cpp.clone(),
         })
+    }
+
+    /// Resolve one connected chat/social identity by case-insensitive player
+    /// name without exposing the directory iterator.
+    #[must_use]
+    pub fn social_recipient_by_name(
+        &self,
+        player_name: &str,
+    ) -> Option<PlayerSocialRecipientSnapshot> {
+        self.entries.iter().find_map(|entry| {
+            entry
+                .info
+                .player_name
+                .eq_ignore_ascii_case(player_name)
+                .then(|| Self::social_snapshot(entry.key(), entry.value()))
+        })
+    }
+
+    /// Resolve one connected chat/social identity by GUID.
+    #[must_use]
+    pub fn social_recipient(&self, guid: ObjectGuid) -> Option<PlayerSocialRecipientSnapshot> {
+        let entry = self.entries.get(&guid)?;
+        Some(Self::social_snapshot(&guid, &entry))
+    }
+
+    fn social_snapshot(
+        guid: &ObjectGuid,
+        entry: &PlayerRegistryCompatibilityEntry,
+    ) -> PlayerSocialRecipientSnapshot {
+        PlayerSocialRecipientSnapshot {
+            registration: PlayerRegistration {
+                guid: *guid,
+                generation: entry.generation,
+            },
+            guid: *guid,
+            player_name: entry.info.player_name.clone(),
+            race: entry.info.race,
+            map_id: entry.info.map_id,
+            instance_id: entry.info.instance_id,
+            dungeon_difficulty_id: entry.info.dungeon_difficulty_id,
+            is_game_master: entry.info.is_game_master,
+            is_afk: entry.info.is_afk,
+            is_dnd: entry.info.is_dnd,
+            auto_reply_msg_like_cpp: entry.info.auto_reply_msg_like_cpp.clone(),
+        }
+    }
+
+    /// Resolve connected presence facts for one Group member.
+    #[must_use]
+    pub fn group_presence(&self, guid: ObjectGuid) -> Option<PlayerGroupPresenceSnapshot> {
+        let entry = self.entries.get(&guid)?;
+        Some(PlayerGroupPresenceSnapshot {
+            registration: PlayerRegistration {
+                guid,
+                generation: entry.generation,
+            },
+            guid,
+            map_id: entry.info.map_id,
+            instance_id: entry.info.instance_id,
+            position: entry.info.position,
+            is_in_world: entry.info.is_in_world,
+            is_alive: entry.info.is_alive,
+            level: entry.info.level,
+            account_id: entry.info.account_id,
+            recruiter_id: entry.info.recruiter_id,
+            in_combat: entry.info.in_combat,
+            has_active_loot_rolls: !entry.info.active_loot_rolls.is_empty(),
+        })
+    }
+
+    /// Resolve connected Group members in the authoritative input order.
+    #[must_use]
+    pub fn group_presences_in_order(
+        &self,
+        member_guids: &[ObjectGuid],
+    ) -> Vec<PlayerGroupPresenceSnapshot> {
+        member_guids
+            .iter()
+            .filter_map(|guid| self.group_presence(*guid))
+            .collect()
+    }
+
+    /// Resolve the connected projection used to build PartyUpdate payloads.
+    #[must_use]
+    pub fn party_member(&self, guid: ObjectGuid) -> Option<PlayerPartyMemberSnapshot> {
+        let entry = self.entries.get(&guid)?;
+        Some(PlayerPartyMemberSnapshot {
+            registration: PlayerRegistration {
+                guid,
+                generation: entry.generation,
+            },
+            guid,
+            player_name: entry.info.player_name.clone(),
+            race: entry.info.race,
+            class: entry.info.class,
+            position: entry.info.position,
+            is_pvp: entry.info.is_pvp,
+            is_alive: entry.info.is_alive,
+            is_ghost: entry.info.is_ghost,
+            is_ffa_pvp: entry.info.is_ffa_pvp,
+            is_afk: entry.info.is_afk,
+            is_dnd: entry.info.is_dnd,
+            in_vehicle: entry.info.in_vehicle,
+            power_type: entry.info.power_type,
+            current_health: entry.info.current_health,
+            max_health: entry.info.max_health,
+            current_power: entry.info.current_power,
+            max_power: entry.info.max_power,
+            level: entry.info.level,
+            spec_id: entry.info.spec_id,
+            zone_id: entry.info.zone_id,
+            party_member_vehicle_seat: entry.info.party_member_vehicle_seat,
+            party_member_party_type: entry.info.party_member_party_type,
+            party_member_phase_states: entry.info.party_member_phase_states.clone(),
+            party_member_auras: entry.info.party_member_auras.clone(),
+            party_member_pet_stats: entry.info.party_member_pet_stats.clone(),
+        })
+    }
+
+    /// Resolve connected PartyUpdate projections in authoritative Group order.
+    #[must_use]
+    pub fn party_members_in_order(
+        &self,
+        member_guids: &[ObjectGuid],
+    ) -> Vec<PlayerPartyMemberSnapshot> {
+        member_guids
+            .iter()
+            .filter_map(|guid| self.party_member(*guid))
+            .collect()
+    }
+
+    /// Query the temporary connected-session achievement mirror through a
+    /// bounded semantic operation.
+    #[must_use]
+    pub fn connected_player_has_achievement(&self, guid: ObjectGuid, achievement_id: u32) -> bool {
+        self.entries
+            .get(&guid)
+            .is_some_and(|entry| entry.info.completed_achievements.contains(&achievement_id))
+    }
+
+    /// Publish PartyMemberData::PartyType only for this exact session control
+    /// channel, preventing a stale session from overwriting its replacement.
+    pub fn publish_party_type_for_control_channel(
+        &self,
+        guid: ObjectGuid,
+        command_tx: &flume::Sender<SessionCommand>,
+        party_type: [u8; 2],
+    ) -> bool {
+        let Some(mut entry) = self.entries.get_mut(&guid) else {
+            return false;
+        };
+        if !entry.info.command_tx.same_channel(command_tx) {
+            return false;
+        }
+        entry.info.party_member_party_type = party_type;
+        true
     }
 
     /// Snapshot only the presence facts used by loot and group-reward gates.
@@ -2431,6 +2654,57 @@ impl PlayerRegistry {
             .map_err(|_| PlayerDirectorySendError::Disconnected)
     }
 
+    /// Wait for command-queue capacity for the selected incarnation.
+    pub async fn send_current_command(
+        &self,
+        registration: PlayerRegistration,
+        command: SessionCommand,
+    ) -> Result<(), PlayerDirectorySendError> {
+        let entry = self
+            .entries
+            .get(&registration.guid)
+            .filter(|entry| entry.generation == registration.generation)
+            .ok_or(PlayerDirectorySendError::StaleRegistration)?;
+        let tx = entry.info.command_tx.clone();
+        drop(entry);
+        tx.send_async(command)
+            .await
+            .map_err(|_| PlayerDirectorySendError::Disconnected)
+    }
+
+    /// Wait for command-queue capacity up to the caller's delivery deadline.
+    pub async fn send_current_command_timeout(
+        &self,
+        registration: PlayerRegistration,
+        command: SessionCommand,
+        timeout: std::time::Duration,
+    ) -> Result<(), PlayerDirectorySendError> {
+        tokio::time::timeout(timeout, self.send_current_command(registration, command))
+            .await
+            .map_err(|_| PlayerDirectorySendError::Full)?
+    }
+
+    /// Blocking timeout variant used by synchronous publication adapters.
+    pub fn send_current_command_blocking_timeout(
+        &self,
+        registration: PlayerRegistration,
+        command: SessionCommand,
+        timeout: std::time::Duration,
+    ) -> Result<(), PlayerDirectorySendError> {
+        let entry = self
+            .entries
+            .get(&registration.guid)
+            .filter(|entry| entry.generation == registration.generation)
+            .ok_or(PlayerDirectorySendError::StaleRegistration)?;
+        let tx = entry.info.command_tx.clone();
+        drop(entry);
+        tx.send_timeout(command, timeout)
+            .map_err(|error| match error {
+                flume::SendTimeoutError::Timeout(_) => PlayerDirectorySendError::Full,
+                flume::SendTimeoutError::Disconnected(_) => PlayerDirectorySendError::Disconnected,
+            })
+    }
+
     /// Retain an authoritative command across bounded queue backpressure.
     pub fn queue_current_command_reliably(
         &self,
@@ -2589,13 +2863,13 @@ impl PlayerRegistry {
         }
     }
 
-    /// Temporary compatibility lookup; assigned to #192-#195.
+    /// Temporary compatibility lookup; removed by the final #196 cleanup.
     #[doc(hidden)]
     pub fn get(&self, guid: &ObjectGuid) -> Option<PlayerRegistryCompatibilityRef<'_>> {
         self.entries.get(guid).map(PlayerRegistryCompatibilityRef)
     }
 
-    /// Temporary compatibility mutation; assigned to #193/#194/#196.
+    /// Temporary compatibility mutation; removed by the final #196 cleanup.
     #[doc(hidden)]
     pub fn get_mut(&self, guid: &ObjectGuid) -> Option<PlayerRegistryCompatibilityRefMut<'_>> {
         self.entries
@@ -2603,7 +2877,7 @@ impl PlayerRegistry {
             .map(PlayerRegistryCompatibilityRefMut)
     }
 
-    /// Temporary compatibility iteration; assigned to #192-#195.
+    /// Temporary compatibility iteration; removed by the final #196 cleanup.
     #[doc(hidden)]
     pub fn iter(&self) -> PlayerRegistryCompatibilityIter<'_> {
         PlayerRegistryCompatibilityIter {
@@ -2803,6 +3077,43 @@ mod tests {
         };
         assert_eq!(info.instance_id, 42);
         assert_eq!(info.map_id, 571);
+
+        let registry = PlayerRegistry::new();
+        let alpha = ObjectGuid::create_player(1, 100);
+        let beta = ObjectGuid::create_player(1, 101);
+        let first_alpha = registry.register_or_replace(alpha, info.clone());
+
+        let social = registry
+            .social_recipient_by_name("testplayer")
+            .expect("case-insensitive connected-player lookup");
+        assert_eq!(social.registration, first_alpha);
+        assert_eq!(social.map_id, 571);
+        assert_eq!(social.instance_id, 42);
+        assert_eq!(social.dungeon_difficulty_id, 1);
+
+        let mut replacement = info.clone();
+        replacement.player_name = "Replacement".to_string();
+        let replacement_alpha = registry.register_or_replace(alpha, replacement);
+        assert_eq!(
+            registry.send_current_packet(first_alpha, vec![1]),
+            Err(PlayerDirectorySendError::StaleRegistration),
+            "an older social/group decision must not reach a replacement session"
+        );
+        assert_eq!(
+            registry.social_recipient(alpha).unwrap().registration,
+            replacement_alpha
+        );
+
+        let mut beta_info = info;
+        beta_info.player_name = "Beta".to_string();
+        registry.register_or_replace(beta, beta_info);
+        let ordered =
+            registry.group_presences_in_order(&[beta, ObjectGuid::create_player(1, 999), alpha]);
+        assert_eq!(
+            ordered.iter().map(|member| member.guid).collect::<Vec<_>>(),
+            vec![beta, alpha],
+            "connected Group projections preserve authoritative member order"
+        );
     }
 
     /// Verify that `SendIfVisibleLikeCppCommand` carries both `map_id` and

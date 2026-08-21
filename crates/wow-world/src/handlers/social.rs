@@ -126,11 +126,11 @@ inventory::submit! {
 impl WorldSession {
     fn friend_status_for_guid_like_cpp(&self, guid: ObjectGuid) -> u8 {
         self.player_registry()
-            .and_then(|reg| {
-                reg.get(&guid).map(|entry| {
-                    if entry.is_dnd {
+            .and_then(|registry| {
+                registry.social_recipient(guid).map(|recipient| {
+                    if recipient.is_dnd {
                         FRIEND_STATUS_DND_LIKE_CPP
-                    } else if entry.is_afk {
+                    } else if recipient.is_afk {
                         FRIEND_STATUS_AFK_LIKE_CPP
                     } else {
                         FRIEND_STATUS_ONLINE_LIKE_CPP

@@ -12506,10 +12506,9 @@ impl WorldSession {
                 .contains(&achievement_id);
         }
 
-        self.player_registry
-            .as_ref()
-            .and_then(|registry| registry.get(&leader_guid))
-            .is_some_and(|leader| leader.completed_achievements.contains(&achievement_id))
+        self.player_registry.as_ref().is_some_and(|registry| {
+            registry.connected_player_has_achievement(leader_guid, achievement_id)
+        })
     }
 
     fn cannot_enter_existing_instance_lock_like_cpp(
@@ -24107,9 +24106,7 @@ impl WorldSession {
             return;
         };
         let party_type = self.party_member_party_type_like_cpp();
-        if let Some(mut info) = registry.get_mut(&guid) {
-            info.party_member_party_type = party_type;
-        }
+        registry.publish_party_type_for_control_channel(guid, &self.session_command_tx, party_type);
     }
 
     pub(crate) fn clear_represented_group_subgroup_like_cpp(&mut self) {
@@ -24428,16 +24425,17 @@ impl WorldSession {
             let Some(player_registry) = self.player_registry.as_ref() else {
                 continue;
             };
-            if let Some(member) = player_registry.get(&member_guid) {
-                let _ = member
-                    .command_tx
-                    .try_send(SessionCommand::ApplyGroupDifficultyLikeCpp(
+            if let Some(member) = player_registry.group_presence(member_guid) {
+                let _ = player_registry.try_send_current_command(
+                    member.registration,
+                    SessionCommand::ApplyGroupDifficultyLikeCpp(
                         wow_network::player_registry::ApplyGroupDifficultyLikeCppCommand {
                             group_guid,
                             difficulty_id,
                             kind,
                         },
-                    ));
+                    ),
+                );
             }
         }
 
@@ -33146,7 +33144,7 @@ impl WorldSession {
             if member_guid == player_guid {
                 continue;
             }
-            let Some(member) = player_registry.get(&member_guid) else {
+            let Some(member) = player_registry.group_presence(member_guid) else {
                 continue;
             };
             if member.map_id != player_map_id {
@@ -45932,13 +45930,10 @@ impl WorldSession {
             return;
         };
 
-        let Some(inviter_entry) = player_registry
-            .iter()
-            .find(|entry| entry.value().player_name.eq_ignore_ascii_case(inviter_name))
-        else {
+        let Some(inviter) = player_registry.social_recipient_by_name(inviter_name) else {
             return;
         };
-        let inviter_guid = *inviter_entry.key();
+        let inviter_guid = inviter.guid;
 
         let Some(player_group) = group_registry.get(&player_group_guid) else {
             return;
@@ -52026,7 +52021,7 @@ impl WorldSession {
                 && self
                     .player_registry
                     .as_ref()
-                    .is_some_and(|registry| registry.contains_key(&target_guid))
+                    .is_some_and(|registry| registry.group_presence(target_guid).is_some())
         }) {
             self.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::MeetingStoneTargetRejected {
@@ -52047,7 +52042,11 @@ impl WorldSession {
             let target_level = self
                 .player_registry
                 .as_ref()
-                .and_then(|registry| registry.get(&target_guid).map(|target| target.level))
+                .and_then(|registry| {
+                    registry
+                        .group_presence(target_guid)
+                        .map(|target| target.level)
+                })
                 .unwrap_or(0);
             if i32::from(player_level) < content_tuning.max_level
                 || i32::from(target_level) < content_tuning.max_level
@@ -68244,13 +68243,13 @@ impl WorldSession {
         let mut sent_to_self_via_registry = false;
         if let Some(registry) = self.player_registry().cloned() {
             for member_guid in members {
-                let Some(member) = registry.get(&member_guid) else {
+                let Some(member) = registry.group_presence(member_guid) else {
                     continue;
                 };
                 if member_guid == player_guid {
                     sent_to_self_via_registry = true;
                 }
-                let _ = member.send_tx.try_send(packet_bytes.clone());
+                let _ = registry.try_send_current_packet(member.registration, packet_bytes.clone());
             }
         }
         if !sent_to_self_via_registry {

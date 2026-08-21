@@ -1676,16 +1676,11 @@ pub(crate) fn spawn_group_ready_check_tick_loop(
 
             for (group_guid, events) in expired {
                 // Snapshot member txs outside the group lock.
-                let recipients: Vec<flume::Sender<Vec<u8>>> =
-                    if let Some(group) = group_registry.get(&group_guid) {
-                        group
-                            .members
-                            .iter()
-                            .filter_map(|guid| player_registry.get(guid).map(|e| e.send_tx.clone()))
-                            .collect()
-                    } else {
-                        continue;
-                    };
+                let recipients = if let Some(group) = group_registry.get(&group_guid) {
+                    player_registry.group_presences_in_order(&group.members)
+                } else {
+                    continue;
+                };
 
                 // Drop the DashMap ref before sending.
                 for event in &events {
@@ -1722,8 +1717,9 @@ pub(crate) fn spawn_group_ready_check_tick_loop(
                         .to_bytes(),
                     };
 
-                    for tx in &recipients {
-                        let _ = tx.send(bytes.clone());
+                    for recipient in &recipients {
+                        let _ = player_registry
+                            .send_current_packet(recipient.registration, bytes.clone());
                     }
                 }
             }
