@@ -1344,6 +1344,7 @@ struct InitTransportsPlanLikeCpp {
     skipped_phase: usize,
 }
 
+#[cfg(test)]
 pub(crate) fn player_visibility_create_update_like_cpp(
     guid: ObjectGuid,
     player: &wow_network::PlayerBroadcastInfo,
@@ -8066,26 +8067,15 @@ impl WorldSession {
             .map(|key| key.instance_id)
             .unwrap_or(0);
         let mut passengers: Vec<_> = registry
-            .iter()
-            .filter_map(|entry| {
-                let (guid, info) = entry.pair();
-                (*guid != player_guid
-                    && info.is_in_world
-                    && info.map_id == map_id
-                    && info.instance_id == instance_id
-                    && info
-                        .transport
-                        .as_ref()
-                        .is_some_and(|transport| transport.guid == transport_guid)
-                    && self.client_visible_guids_like_cpp.contains(guid))
-                .then(|| (*guid, info.clone()))
-            })
+            .fellow_transport_passengers(player_guid, map_id, instance_id, transport_guid)
+            .into_iter()
+            .filter(|passenger| self.client_visible_guids_like_cpp.contains(&passenger.guid))
             .collect();
-        passengers.sort_by_key(|(guid, _)| *guid);
+        passengers.sort_by_key(|passenger| passenger.guid);
         passengers
             .into_iter()
-            .filter_map(|(guid, info)| {
-                player_visibility_create_update_like_cpp(guid, &info, map_id)
+            .filter_map(|passenger| {
+                player_visibility_create_update_from_snapshot_like_cpp(&passenger, map_id)
                     .blocks
                     .pop()
             })
