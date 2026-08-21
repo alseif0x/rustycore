@@ -1826,7 +1826,8 @@ pub(crate) fn spawn_canonical_map_update_loop(
                             if !reconciled_players.insert((map_id, instance_id, player_guid)) {
                                 continue;
                             }
-                            let Some(entry) = player_registry.get(&player_guid) else {
+                            let Some(recipient) = player_registry.runtime_recipient(player_guid)
+                            else {
                                 continue;
                             };
                             let command =
@@ -1835,11 +1836,8 @@ pub(crate) fn spawn_canonical_map_update_loop(
                                     map_id,
                                     instance_id,
                                 };
-                            let mut durable = entry
-                                .durable_creature_runtime_commands_like_cpp
-                                .lock()
-                                .unwrap_or_else(|poisoned| poisoned.into_inner());
-                            durable.publish_pvp_combat_expiry_like_cpp(command);
+                            player_registry
+                                .publish_current_pvp_combat_expiry(recipient.registration, command);
                         }
                     }
                     for save in summary.respawn_db_saves.drain(..) {

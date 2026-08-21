@@ -10771,6 +10771,38 @@ fn explicit_player_routes_only_to_target_guid_like_cpp() {
     assert!(other_rx.try_recv().is_err(), "other session NOT notified");
 }
 
+#[test]
+fn runtime_directory_delivery_rejects_replaced_recipient_generation() {
+    let registry = PlayerRegistry::default();
+    let guid = ObjectGuid::create_player(1, 22);
+    let (first_info, first_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
+    registry.register_or_replace(guid, first_info);
+    let stale = registry.runtime_recipient(guid).expect("first recipient");
+
+    let (second_info, second_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
+    let current = registry.register_or_replace(guid, second_info);
+    let command = SessionCommand::KickLikeCpp(wow_network::KickLikeCppCommand {
+        reason: "stale runtime delivery".to_string(),
+    });
+
+    assert_eq!(
+        registry.try_send_current_command(stale.registration, command),
+        Err(wow_network::PlayerDirectorySendError::StaleRegistration)
+    );
+    assert!(first_rx.try_recv().is_err());
+    assert!(second_rx.try_recv().is_err());
+
+    registry
+        .try_send_current_command(
+            current,
+            SessionCommand::KickLikeCpp(wow_network::KickLikeCppCommand {
+                reason: "current runtime delivery".to_string(),
+            }),
+        )
+        .expect("current recipient remains addressable");
+    assert!(second_rx.try_recv().is_ok());
+}
+
 /// (8) SelfOnly: NO broadcast global; increments self_only_skipped counter.
 /// Guarantees SelfOnly events are not distributed to any registry session.
 /// C++ anchor: WorldObject::SendMessageToSet — self-send path bypasses
