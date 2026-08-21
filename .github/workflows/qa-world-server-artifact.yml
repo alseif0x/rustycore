@@ -40,10 +40,12 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust
-        # This is dtolnay/rust-toolchain's generated 1.88.0 commit: its
-        # action.yml embeds `env.toolchain: 1.88.0` and exposes no toolchain
-        # input. The immutable SHA therefore retains the former @1.88.0 pin.
-        uses: dtolnay/rust-toolchain@39b0b3842c7e8bbf6904c0bfc3d9006fdd4dc4e0 # 1.88.0
+        # With no toolchain input this action installs the exact repository
+        # pin from rust-toolchain.toml.
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
+        with:
+          cache: false
+          rustflags: ""
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
@@ -78,14 +80,12 @@ jobs:
       - name: Build no-LTO release artifacts
         env:
           CARGO_BUILD_JOBS: "1"
-          CARGO_INCREMENTAL: "0"
-          RUST_MIN_STACK: "268435456"
           CARGO_PROFILE_RELEASE_INCREMENTAL: "false"
           CARGO_PROFILE_RELEASE_LTO: "false"
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
         run: |
-          cargo +1.88.0 build --locked --release -p world-server --bin world-server
-          cargo +1.88.0 build --locked --release \
+          cargo build --locked --release -p world-server --bin world-server
+          cargo build --locked --release \
             --manifest-path tools/wow-test-bot/Cargo.toml \
             --bin wow-test-bot
 
@@ -100,7 +100,7 @@ jobs:
           install -D -m 0755 tools/wow-test-bot/target/release/wow-test-bot qa-artifact/wow-test-bot
           sha256sum qa-artifact/world-server | awk '{print $1}' > qa-artifact/world-server.sha256
           sha256sum qa-artifact/wow-test-bot | awk '{print $1}' > qa-artifact/wow-test-bot.sha256
-          rustc +1.88.0 --version --verbose > qa-artifact/rustc-version.txt
+          rustc --version --verbose > qa-artifact/rustc-version.txt
           printf '%s\n' "$actual_head" > qa-artifact/git-head.txt
           printf '%s\n' "$REPLICA" > qa-artifact/replica.txt
 

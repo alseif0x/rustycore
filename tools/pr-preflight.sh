@@ -8,15 +8,10 @@ ARCHITECTURE_CHECKER="$REPO_ROOT/tools/architecture/check_architecture.py"
 HANDLER_CONTRACT_CHECK_MANIFEST="$REPO_ROOT/tools/architecture/handler-contract-check/Cargo.toml"
 PROTOC_VERSION_FILE="$REPO_ROOT/.protoc-version"
 DEFAULT_BASE="origin/3.4.3"
-# Matches the workflow. Headroom, not a fix: the crash it was raised for
-# reproduces with an unlimited stack, so its cause was elsewhere.
-DEFAULT_RUST_MIN_STACK=1073741824
 CODEX_REVIEW_TIMEOUT_SECONDS="${CODEX_REVIEW_TIMEOUT_SECONDS:-1800}"
 DRY_RUN=0
 ALLOW_RUNTIME_QA=0
 ACK_DISPOSABLE_OVERWORLD_LOOT_RACE=0
-RUST_MIN_STACK="${RUST_MIN_STACK:-$DEFAULT_RUST_MIN_STACK}"
-export RUST_MIN_STACK
 QA_LOOT_RACE_CAPTURE_SCRIPT="$REPO_ROOT/crates/capture-diff/scripts/capture-rust.sh"
 QA_LOOT_RACE_CAPTURE_PID=""
 QA_LOOT_RACE_CAPTURE_FD=""
@@ -73,13 +68,6 @@ warn() {
 die() {
   printf 'error: %s\n' "$*" >&2
   exit 64
-}
-
-validate_rust_min_stack() {
-  [[ "$RUST_MIN_STACK" =~ ^[1-9][0-9]*$ ]] || die \
-    "RUST_MIN_STACK must be a positive integer"
-  ((RUST_MIN_STACK >= DEFAULT_RUST_MIN_STACK)) || die \
-    "RUST_MIN_STACK must be at least $DEFAULT_RUST_MIN_STACK bytes for Rust 1.88"
 }
 
 print_command() {
@@ -345,17 +333,14 @@ valid_tcp_port() {
 toolchain_channel() {
   local channel
   channel="$(sed -n 's/^channel = "\([^"]*\)"/\1/p' "$REPO_ROOT/rust-toolchain.toml" | head -n 1)"
-  [[ -n "$channel" ]] || die "cannot read toolchain channel from rust-toolchain.toml"
+  [[ "$channel" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die \
+    "cannot read an exact toolchain channel from rust-toolchain.toml"
   printf '%s' "$channel"
 }
 
 cargo_cmd() {
-  local channel
   ((DRY_RUN)) || require_command cargo
-  channel="$(toolchain_channel)"
-  # Rust 1.88 can ICE while reloading a stale incremental dep graph. Keep the
-  # compile/test gate deterministic without leaking this setting into live QA.
-  run_cmd env CARGO_INCREMENTAL=0 cargo "+$channel" "$@"
+  run_cmd cargo "$@"
 }
 
 project_protoc_version() {
@@ -773,6 +758,8 @@ PY
 }
 
 run_self_test() {
+  local active_toolchain
+  local active_workflow_text
   local artifacts
   local capture_output
   local clean_result
@@ -783,6 +770,7 @@ run_self_test() {
   local committed_inspection_result
   local dependency
   local expected_protoc_version
+  local pinned_toolchain
   local echo_inspection_result
   local findings_result
   local full_dry_run_output
@@ -964,8 +952,11 @@ run_self_test() {
   for dependency in awk dirname env git head realpath sed sha256sum tr; do
     ln -s "$(command -v "$dependency")" "$artifacts/bin/$dependency"
   done
-  printf '#!/bin/sh\n[ "${RUST_MIN_STACK:-0}" -ge %s ] || exit 70\n[ "${CARGO_INCREMENTAL:-}" = 0 ] || exit 71\nexit 0\n' \
-    "$DEFAULT_RUST_MIN_STACK" >"$artifacts/bin/cargo"
+  pinned_toolchain="$(toolchain_channel)"
+  active_toolchain="$(rustc --version | awk '{print $2}')"
+  [[ "$active_toolchain" == "$pinned_toolchain" ]] || die \
+    "active Rust $active_toolchain does not match rust-toolchain.toml $pinned_toolchain"
+  printf '#!/bin/sh\nexit 0\n' >"$artifacts/bin/cargo"
   expected_protoc_version="$(project_protoc_version)"
   printf '#!/bin/sh\nprintf "libprotoc %s\\n"\n' \
     "$expected_protoc_version" >"$artifacts/bin/protoc"
@@ -1041,8 +1032,8 @@ run_self_test() {
     "CI profile did not print the production-linked handler registry contract"
   [[ "$ci_dry_run_output" == *"--manifest-path tools/wow-test-bot/Cargo.toml loot_race::tests"* ]] || die \
     "CI profile did not print the focused loot-race harness tests"
-  [[ "$ci_dry_run_output" == *"+ env CARGO_INCREMENTAL=0 cargo +1.88.0 test --locked -p wow-world --lib"* ]] || die \
-    "local CI profile did not disable Rust 1.88 incremental compilation"
+  [[ "$ci_dry_run_output" == *"+ cargo test --locked -p wow-world --lib"* ]] || die \
+    "local CI profile did not use the repository toolchain"
   require_exact_occurrences "$ci_dry_run_output" \
     "test --locked -p capture-diff" 1 \
     "local CI capture-diff test command"
@@ -1056,17 +1047,25 @@ run_self_test() {
     "normal CI profile must never activate destructive live loot-race QA"
 
   github_workflow_text="$(<"$REPO_ROOT/.github/workflows/rust-ci.yml")"
+  active_workflow_text="$github_workflow_text
+$(<"$REPO_ROOT/.github/workflows/qa-world-server-artifact.yml")
+$(<"$REPO_ROOT/.github/workflows/wow-database-live.yml")"
+  require_exact_occurrences "$active_workflow_text" \
+    "uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659" 6 \
+    "GitHub workflows reading rust-toolchain.toml"
+  [[ "$active_workflow_text" != *"1.88"* ]] || die \
+    "an active GitHub workflow retained the obsolete Rust 1.88 pin"
   require_exact_occurrences "$github_workflow_text" \
     "python3 tools/architecture/check_architecture.py check" 1 \
     "GitHub workflow architecture check"
   require_exact_occurrences "$github_workflow_text" \
-    "cargo +1.88.0 test --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml" 1 \
+    "cargo test --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml" 1 \
     "GitHub workflow handler-contract checker tests"
   require_exact_occurrences "$github_workflow_text" \
     "-- --skip repository_surface_can_be_collected" 1 \
     "GitHub workflow single-collection skip"
   require_exact_occurrences "$github_workflow_text" \
-    "cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check" 1 \
+    "cargo run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check" 1 \
     "GitHub workflow handler-contract repository check"
   require_exact_occurrences "$github_workflow_text" \
     "--bin session-ownership-check -- check --syntax-only" 1 \
@@ -1075,37 +1074,36 @@ run_self_test() {
   # the only thing standing between a 5-minute PR and a 16-minute one, it
   # should say so when someone removes it.
   require_exact_occurrences "$github_workflow_text" \
-    "if: github.event_name != 'pull_request'" 1 \
+    "        if: github.event_name != 'pull_request'" 1 \
     "GitHub workflow post-merge-only exact persistence scan"
   require_exact_occurrences "$github_workflow_text" \
-    "cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check" 1 \
+    "cargo run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check" 1 \
     "GitHub workflow session-ownership repository check"
   require_exact_occurrences "$github_workflow_text" \
-    "cargo +1.88.0 fmt --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- --check" 1 \
+    "cargo fmt --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- --check" 1 \
     "GitHub workflow handler-contract checker formatting"
+  [[ "$github_workflow_text" != *'CARGO_INCREMENTAL: "0"'* ]] || die \
+    "GitHub workflow retained the obsolete non-incremental compiler workaround"
   require_exact_occurrences "$github_workflow_text" \
-    'CARGO_INCREMENTAL: "0"' 3 \
-    "GitHub workflow non-incremental Rust 1.88 contract"
-  require_exact_occurrences "$github_workflow_text" \
-    "cargo +1.88.0 build --locked -j4 -p bnet-server" 1 \
+    "cargo build --locked -j4 -p bnet-server" 1 \
     "GitHub workflow bnet-server linked build"
   require_exact_occurrences "$github_workflow_text" \
-    "cargo +1.88.0 build --locked -j4 -p world-server" 1 \
+    "cargo build --locked -j4 -p world-server" 1 \
     "GitHub workflow world-server linked build"
   require_exact_occurrences "$github_workflow_text" \
-    "cargo +1.88.0 test --locked -p capture-diff" 1 \
+    "cargo test --locked -p capture-diff" 1 \
     "GitHub workflow capture-diff test command"
   require_exact_occurrences "$github_workflow_text" \
-    "cargo +1.88.0 test --locked -p wow-world --test production_handler_registry_contract" 1 \
+    "cargo test --locked -p wow-world --test production_handler_registry_contract" 1 \
     "GitHub workflow production-linked handler registry contract"
   require_exact_occurrences "$github_workflow_text" \
-    "cargo +1.88.0 test --locked -p wow-handler --test inventory_registry" 1 \
+    "cargo test --locked -p wow-handler --test inventory_registry" 1 \
     "GitHub workflow wow-handler inventory registry integration tests"
   require_exact_occurrences "$github_workflow_text" \
-    "cargo +1.88.0 run --locked -p capture-diff -- verify-required loot-single-item-claim" 1 \
+    "cargo run --locked -p capture-diff -- verify-required loot-single-item-claim" 1 \
     "GitHub workflow required loot-flow command"
   require_exact_occurrences "$github_workflow_text" \
-    "cargo +1.88.0 run --locked -p capture-diff -- verify-required creature-spell-casting" 1 \
+    "cargo run --locked -p capture-diff -- verify-required creature-spell-casting" 1 \
     "GitHub workflow required creature-spell-flow command"
 
   if qa_loot_race_missing_ack_output="$(PATH="$artifacts/bin" \
@@ -2595,7 +2593,6 @@ run_self_test() {
   qa_common_env=(
     "PATH=$qa_fake_bin"
     "TMPDIR=$artifacts"
-    "RUST_MIN_STACK=$DEFAULT_RUST_MIN_STACK"
     "PM2_RUST_WORLD=self-test-world"
     "WOW_BOT_WORLD_EXEC=$qa_fake_world_other"
     "WOW_BOT_WORLD_EXEC_SHA256=$qa_target_sha"
@@ -3301,7 +3298,6 @@ fi
 
 cd "$REPO_ROOT"
 require_command git
-validate_rust_min_stack
 
 case "$COMMAND" in
   self-test)

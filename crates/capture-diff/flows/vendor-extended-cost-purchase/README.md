@@ -49,6 +49,6 @@ the complete currency, inventory, persistence and restoration behavior.
 Recheck the committed evidence with:
 
 ```bash
-cargo +1.88.0 run -q -p capture-diff -- \
+cargo run -q -p capture-diff -- \
   diff vendor-extended-cost-purchase --strict
 ```

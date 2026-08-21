@@ -58,7 +58,7 @@ the corresponding Rust server port is ready.
   `quest_smoke_passed`, target entry/spawn/map, `quest_ids_seen`,
   `quest_titles_seen`, and `quest_failure`.
 
-The bot crate follows RustyCore's Rust 1.88.0 toolchain. Use `cargo +1.88.0` for
+The bot crate follows RustyCore's pinned `rust-toolchain.toml`. Use `cargo` for
 standalone builds/tests of `tools/wow-test-bot`.
 
 The wrapper normally builds the bot locally. To run a reproducible PR artifact

@@ -17,14 +17,6 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  # 1 GiB, kept as headroom rather than as a diagnosis. The exact-inventory
-  # analyzer was crashing locally and a single run at this budget succeeded,
-  # which looked like a stack overflow; it was not. The same crash reproduces
-  # with an unlimited stack and with the triggering changes reverted, so the
-  # cause was the authoring machine's memory fault and that one success was
-  # luck. The budget is harmless and this note exists so the next reader does
-  # not inherit the wrong conclusion.
-  RUST_MIN_STACK: "1073741824"
 
 jobs:
   fmt:
@@ -42,9 +34,10 @@ jobs:
           fetch-depth: 0
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.88.0
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
         with:
-          components: rustfmt
+          cache: false
+          rustflags: ""
 
       - name: Install preflight dependencies
         run: sudo apt-get update && sudo apt-get install --yes ripgrep
@@ -54,9 +47,9 @@ jobs:
 
       - name: Check formatting
         run: |
-          cargo +1.88.0 fmt --all --check
-          cargo +1.88.0 fmt --manifest-path tools/wow-test-bot/Cargo.toml -- --check
-          cargo +1.88.0 fmt --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- --check
+          cargo fmt --all --check
+          cargo fmt --manifest-path tools/wow-test-bot/Cargo.toml -- --check
+          cargo fmt --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- --check
 
   check:
     name: Check core crates
@@ -68,8 +61,6 @@ jobs:
     # core build and clippy steps exhausted a 60-minute budget exactly; keep
     # every intentional validation and give the job room instead.
     timeout-minutes: 120
-    env:
-      CARGO_INCREMENTAL: "0"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -78,9 +69,10 @@ jobs:
           fetch-depth: 0
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.88.0
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
         with:
-          components: clippy
+          cache: false
+          rustflags: ""
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -103,9 +95,9 @@ jobs:
           # ratchet step below already performs. Skip it here: the ratchet
           # validates the collected surface against the checked snapshot, so
           # running it twice bought no coverage and doubled the wait.
-          cargo +1.88.0 test --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
+          cargo test --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
             -- --skip repository_surface_can_be_collected
-          cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check
+          cargo run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check
 
       # Pull requests ratchet the session surface only — seconds. The exact
       # persistence inventory is an 11-minute scan that was 72% of this job,
@@ -117,7 +109,7 @@ jobs:
       - name: Ratchet the session ownership surface
         if: github.event_name == 'pull_request'
         run: |
-          cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
+          cargo run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
             --bin session-ownership-check -- check --syntax-only
 
       # The combined check compares the session surface before the persistence
@@ -129,7 +121,7 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           set +e
-          report="$(cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check 2>&1)"
+          report="$(cargo run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check 2>&1)"
           status=$?
           printf '%s\n' "$report"
           if [ "$status" -ne 0 ] && printf '%s' "$report" | grep -q "direct persistence"; then
@@ -145,7 +137,7 @@ jobs:
       - name: Publish recomputed persistence baseline
         if: failure() && steps.ratchets.outputs.persistence_mismatch == 'true'
         run: |
-          cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
+          cargo run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
             --bin session-ownership-check -- print-persistence-baseline \
             > "${RUNNER_TEMP}/persistence-access-snapshot.json"
           # The semantic policy is a pure function of the reviewed annotations
@@ -154,7 +146,7 @@ jobs:
           # author a policy that the next run rejects as stale — and a stale
           # policy never reaches this step, because only a persistence
           # mismatch does.
-          cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
+          cargo run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
             --bin session-ownership-check -- print-persistence-policy \
             --from-snapshot "${RUNNER_TEMP}/persistence-access-snapshot.json" \
             > "${RUNNER_TEMP}/persistence-boundary-policy.json"
@@ -176,13 +168,13 @@ jobs:
           # wow-world, and bnet-server on wow-database. Checking them first
           # compiled the same crates twice. wow-test-bot stays: it is outside
           # the workspace and nothing else builds it.
-          cargo +1.88.0 check --locked --manifest-path tools/wow-test-bot/Cargo.toml
+          cargo check --locked --manifest-path tools/wow-test-bot/Cargo.toml
           # `-j1` was introduced to stop two large debug binaries from linking
           # concurrently, but it also serialized every dependency compile in the
           # job. Link one server at a time instead and keep bounded parallelism
           # inside each: same peak-memory protection, without the serial build.
-          cargo +1.88.0 build --locked -j4 -p bnet-server
-          cargo +1.88.0 build --locked -j4 -p world-server
+          cargo build --locked -j4 -p bnet-server
+          cargo build --locked -j4 -p world-server
 
 
   tests:
@@ -190,14 +182,15 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.user.login != 'alseif0x'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    env:
-      CARGO_INCREMENTAL: "0"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.88.0
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+        with:
+          cache: false
+          rustflags: ""
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -214,19 +207,19 @@ jobs:
 
       - name: Run focused library and loot-race harness tests
         run: |
-          cargo +1.88.0 test --locked -p wow-data --lib
-          cargo +1.88.0 test --locked -p wow-handler --test inventory_registry
-          cargo +1.88.0 test --locked -p wow-packet --lib
-          cargo +1.88.0 test --locked -p wow-loot --lib
-          cargo +1.88.0 test --locked -p wow-entities --lib
-          cargo +1.88.0 test --locked -p wow-map --lib
-          cargo +1.88.0 test --locked -p wow-network --lib
-          cargo +1.88.0 test --locked -p wow-world --lib
-          cargo +1.88.0 test --locked -p wow-world --test production_handler_registry_contract
-          cargo +1.88.0 test --locked --manifest-path tools/wow-test-bot/Cargo.toml loot_race::tests
-          cargo +1.88.0 test --locked -p capture-diff
-          cargo +1.88.0 run --locked -p capture-diff -- verify-required loot-single-item-claim
-          cargo +1.88.0 run --locked -p capture-diff -- verify-required creature-spell-casting
+          cargo test --locked -p wow-data --lib
+          cargo test --locked -p wow-handler --test inventory_registry
+          cargo test --locked -p wow-packet --lib
+          cargo test --locked -p wow-loot --lib
+          cargo test --locked -p wow-entities --lib
+          cargo test --locked -p wow-map --lib
+          cargo test --locked -p wow-network --lib
+          cargo test --locked -p wow-world --lib
+          cargo test --locked -p wow-world --test production_handler_registry_contract
+          cargo test --locked --manifest-path tools/wow-test-bot/Cargo.toml loot_race::tests
+          cargo test --locked -p capture-diff
+          cargo run --locked -p capture-diff -- verify-required loot-single-item-claim
+          cargo run --locked -p capture-diff -- verify-required creature-spell-casting
 
   clippy:
     name: Clippy advisory sweep
@@ -239,16 +232,15 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    env:
-      CARGO_INCREMENTAL: "0"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.88.0
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
         with:
-          components: clippy
+          cache: false
+          rustflags: ""
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -266,10 +258,10 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Clippy loot authority boundary
-        run: cargo +1.88.0 clippy --locked --no-deps --message-format short -p wow-loot -p wow-entities -p wow-map -p wow-network --lib
+        run: cargo clippy --locked --no-deps --message-format short -p wow-loot -p wow-entities -p wow-map -p wow-network --lib
 
       - name: Clippy world target with inherited debt capped
-        run: cargo +1.88.0 clippy --locked --no-deps --message-format short -p wow-world --lib -- --cap-lints warn
+        run: cargo clippy --locked --no-deps --message-format short -p wow-world --lib -- --cap-lints warn
 
   latest-stable:
     name: Latest stable compatibility

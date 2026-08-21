@@ -468,7 +468,7 @@ elif [[ -n "${WOW_BOT_EXEC_SHA256:-}" ]]; then
   echo "WOW_BOT_EXEC_SHA256 requires WOW_BOT_EXEC" >&2
   exit 2
 else
-  cargo +1.88.0 build --locked --bin wow-test-bot
+  cargo build --locked --bin wow-test-bot
   bot_exec="$PWD/target/debug/wow-test-bot"
 fi
 

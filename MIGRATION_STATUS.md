@@ -4,7 +4,7 @@
 
 **Proyecto**: rustycore — Migración de RustyCore (WoW 3.4.3.54261) de C# a Rust
 **Dominio**: wowchad.work.gd
-**Rust Version**: 1.88 (edition 2024)
+**Rust Version**: 1.98.0 (edition 2024)
 **Ubicación**: `/home/server/woltk-server-core/rustycore/`
 **Referencia C#**: `/home/server/woltk-server-core/Source/`
 **Estado General**: ~35% — infraestructura lista, jugador en mundo, combat/movement/loot funcional

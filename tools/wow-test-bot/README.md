@@ -368,8 +368,8 @@ Explicit caller environment values always win over `.env.local`, including
 mode/acknowledgement, endpoint, executable/hash, and credential variables; the
 wrapper suppresses xtrace while it loads and restores those values.
 
-Build and test this bot with Rust 1.88.0 (`cargo +1.88.0 ...`), matching the
-RustyCore toolchain.
+Build and test this bot with `cargo ...`; `rust-toolchain.toml` selects the
+same exact compiler as the RustyCore workspace.
 
 For QA on a host that must not compile locally, the wrapper accepts an exact
 prebuilt executable only when both `WOW_BOT_EXEC` (an absolute, canonical,
@@ -377,4 +377,4 @@ non-symlink path) and its `WOW_BOT_EXEC_SHA256` are supplied. The optional
 `qa-artifact` PR workflow builds both `world-server` and `wow-test-bot` twice on
 separate GitHub runners, requires byte-identical replicas, and publishes their
 verified hashes. Without `WOW_BOT_EXEC`, the wrapper keeps the normal local
-Rust 1.88.0 build behavior.
+build behavior.

@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEFAULT_BASE="origin/3.4.3"
-DEFAULT_RUST_MIN_STACK=1073741824
+TOOLCHAIN_FILE="$REPO_ROOT/rust-toolchain.toml"
 MODE="${1:-}"
 BASE="${2:-$DEFAULT_BASE}"
 DRY_RUN="${LOCAL_HARNESS_DRY_RUN:-0}"
@@ -65,6 +65,14 @@ assert_eq() {
     "self-test failed for $label: expected '$expected', got '$actual'"
 }
 
+toolchain_channel() {
+  local channel
+  channel="$(sed -n 's/^channel = "\([^"]*\)"/\1/p' "$TOOLCHAIN_FILE" | head -n 1)"
+  [[ "$channel" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die \
+    "cannot read an exact toolchain channel from $TOOLCHAIN_FILE"
+  printf '%s' "$channel"
+}
+
 path_kind() {
   local path="$1"
   case "$path" in
@@ -82,6 +90,11 @@ path_kind() {
 }
 
 self_test() {
+  local active_toolchain pinned_toolchain
+  pinned_toolchain="$(toolchain_channel)"
+  active_toolchain="$(cd "$REPO_ROOT" && rustc --version | awk '{print $2}')"
+  assert_eq "$active_toolchain" "$pinned_toolchain" \
+    "rust-toolchain.toml active compiler"
   assert_eq "$(path_kind docs/migration/STATE.md)" other "documentation routing"
   assert_eq "$(path_kind crates/wow-world/src/session.rs)" workspace-rust \
     "workspace crate routing"
@@ -113,18 +126,6 @@ fi
   exit 64
 }
 (($# <= 2)) || die "too many arguments"
-
-RUST_MIN_STACK="${RUST_MIN_STACK:-$DEFAULT_RUST_MIN_STACK}"
-[[ "$RUST_MIN_STACK" =~ ^[1-9][0-9]*$ ]] || die \
-  "RUST_MIN_STACK must be a positive integer"
-((RUST_MIN_STACK >= DEFAULT_RUST_MIN_STACK)) || die \
-  "RUST_MIN_STACK must be at least $DEFAULT_RUST_MIN_STACK bytes for Rust 1.88"
-export RUST_MIN_STACK
-# Rust 1.88 has produced stale on-disk query-cache assertions for the giant
-# wow-world test target in this repository. Compile checks value repeatability
-# over incremental reuse, so keep the lightweight harness out of that cache.
-CARGO_INCREMENTAL=0
-export CARGO_INCREMENTAL
 
 cd "$REPO_ROOT"
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "not inside a git worktree"
@@ -226,22 +227,22 @@ fi
 
 if ((workspace_rust == 1)); then
   log "Workspace Rust formatting"
-  run cargo +1.88.0 fmt --all --check
+  run cargo fmt --all --check
 fi
 
 if ((architecture_checker == 1)); then
   log "Architecture checker formatting and fast tests"
-  run cargo +1.88.0 fmt \
+  run cargo fmt \
     --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- --check
-  run cargo +1.88.0 test --locked \
+  run cargo test --locked \
     --manifest-path tools/architecture/handler-contract-check/Cargo.toml --lib -- \
     --skip repository_surface_can_be_collected
 fi
 
 if ((wow_test_bot == 1)); then
   log "QA bot formatting and check"
-  run cargo +1.88.0 fmt --manifest-path tools/wow-test-bot/Cargo.toml -- --check
-  run cargo +1.88.0 check --locked --manifest-path tools/wow-test-bot/Cargo.toml
+  run cargo fmt --manifest-path tools/wow-test-bot/Cargo.toml -- --check
+  run cargo check --locked --manifest-path tools/wow-test-bot/Cargo.toml
 fi
 
 declare -A packages=()
@@ -269,7 +270,7 @@ if ((${#packages[@]} > 0)); then
     cargo_package_args+=(--package "$package")
   done
   log "Compile code and tests for affected packages: ${package_names[*]}"
-  run cargo +1.88.0 check --locked --tests "${cargo_package_args[@]}"
+  run cargo check --locked --tests "${cargo_package_args[@]}"
 fi
 
 if [[ "$MODE" == "final" ]]; then
