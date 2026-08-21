@@ -285,7 +285,6 @@ composition split. Production and test lines remain separate:
 | `crates/wow-map/src/map.rs` | 15,245 | 18,273 | 33,518 |
 | `crates/wow-world/src/handlers/character.rs` | 20,200 | 10,691 | 30,891 |
 | `crates/wow-world/src/handlers/loot.rs` | 13,744 | 16,081 | 29,825 |
-| `crates/wow-world/src/handlers/misc.rs` | 7,315 | 11,322 | 18,637 |
 | `crates/wow-world/src/handlers/quest.rs` | 8,255 | 10,172 | 18,427 |
 | `crates/wow-entities/src/player.rs` | 9,265 | 8,891 | 18,156 |
 
@@ -300,6 +299,10 @@ Issue #152 likewise keeps the complete Session owner charged to `session/mod.rs`
 admission (462 lines), dispatch (1,739 lines), and their focused test modules as real physical
 files. The 50-line logical increase is the reviewed module/header and explicit-import overhead of
 that split, not new runtime behavior.
+Issue #139 retires the former 18,637-line `handlers/misc.rs` hotspot instead of renaming it as one
+logical monolith: its registrations, behavior, and tests now live in private capability modules
+under `handlers/misc/`, while `misc/mod.rs` is a 164-line compatibility facade for shared packet
+types, constants, and narrow helpers. Every production capability file is below 700 lines.
 
 At the same HEAD, the syntax-aware ratchet records 738 `WorldSession` fields: 727 production and
 11 `cfg(test)` fixtures. It also records all 20 logical inherent-impl owners and 3,339 exact
