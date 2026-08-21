@@ -10,10 +10,15 @@
 //! to fan-out packets to nearby players on the same map.
 
 use dashmap::DashMap;
+use dashmap::mapref::{
+    multiple::RefMulti,
+    one::{Ref, RefMut},
+};
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::ops::{Deref, DerefMut};
 use std::sync::{
     Arc, Mutex,
-    atomic::{AtomicBool, AtomicU64},
+    atomic::{AtomicBool, AtomicU64, Ordering},
 };
 use std::time::Instant;
 use wow_core::{ObjectGuid, Position};
@@ -1355,11 +1360,322 @@ pub struct PlayerBroadcastInfo {
     pub honor_level: u32,
 }
 
-/// Thread-safe registry of all active player sessions, keyed by player GUID.
+/// Identity of one concrete connected-session registration.
 ///
-/// Wrap in `Arc` and share between all `WorldSession` instances through the
-/// composition-owned session construction resources.
-pub type PlayerRegistry = DashMap<ObjectGuid, PlayerBroadcastInfo>;
+/// A GUID can be registered again while an older session is still unwinding.
+/// The generation prevents that older session from looking up or removing the
+/// replacement entry.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct PlayerRegistration {
+    guid: ObjectGuid,
+    generation: u64,
+}
+
+impl PlayerRegistration {
+    #[must_use]
+    pub fn guid(self) -> ObjectGuid {
+        self.guid
+    }
+
+    #[must_use]
+    pub fn generation(self) -> u64 {
+        self.generation
+    }
+}
+
+/// Owned control-channel address for one session incarnation.
+///
+/// The sender is cloned from the selected entry. Replacing the GUID cannot
+/// redirect an already-resolved command to the new session.
+#[derive(Clone, Debug)]
+pub struct PlayerControlAddress {
+    registration: PlayerRegistration,
+    command_tx: flume::Sender<SessionCommand>,
+}
+
+impl PlayerControlAddress {
+    #[must_use]
+    pub fn registration(&self) -> PlayerRegistration {
+        self.registration
+    }
+
+    pub fn try_send(
+        &self,
+        command: SessionCommand,
+    ) -> Result<(), flume::TrySendError<SessionCommand>> {
+        self.command_tx.try_send(command)
+    }
+}
+
+/// Transitional entry representation used only by the compatibility accessors
+/// scheduled for removal in #192-#196.
+#[doc(hidden)]
+pub struct PlayerRegistryCompatibilityEntry {
+    generation: u64,
+    info: PlayerBroadcastInfo,
+}
+
+/// Transitional immutable guard. New lifecycle code must use owned snapshots.
+#[doc(hidden)]
+pub struct PlayerRegistryCompatibilityRef<'a>(
+    Ref<'a, ObjectGuid, PlayerRegistryCompatibilityEntry>,
+);
+
+impl PlayerRegistryCompatibilityRef<'_> {
+    pub fn key(&self) -> &ObjectGuid {
+        self.0.key()
+    }
+
+    pub fn value(&self) -> &PlayerBroadcastInfo {
+        &self.0.value().info
+    }
+
+    pub fn pair(&self) -> (&ObjectGuid, &PlayerBroadcastInfo) {
+        (self.key(), self.value())
+    }
+}
+
+impl Deref for PlayerRegistryCompatibilityRef<'_> {
+    type Target = PlayerBroadcastInfo;
+
+    fn deref(&self) -> &Self::Target {
+        self.value()
+    }
+}
+
+/// Transitional mutable guard. It is intentionally absent from the named
+/// lifecycle capability and is retired by the consumer slices #192-#196.
+#[doc(hidden)]
+pub struct PlayerRegistryCompatibilityRefMut<'a>(
+    RefMut<'a, ObjectGuid, PlayerRegistryCompatibilityEntry>,
+);
+
+impl PlayerRegistryCompatibilityRefMut<'_> {
+    pub fn key(&self) -> &ObjectGuid {
+        self.0.key()
+    }
+
+    pub fn value(&self) -> &PlayerBroadcastInfo {
+        &self.0.value().info
+    }
+
+    pub fn value_mut(&mut self) -> &mut PlayerBroadcastInfo {
+        &mut self.0.value_mut().info
+    }
+
+    pub fn pair(&self) -> (&ObjectGuid, &PlayerBroadcastInfo) {
+        (self.key(), self.value())
+    }
+}
+
+impl Deref for PlayerRegistryCompatibilityRefMut<'_> {
+    type Target = PlayerBroadcastInfo;
+
+    fn deref(&self) -> &Self::Target {
+        self.value()
+    }
+}
+
+impl DerefMut for PlayerRegistryCompatibilityRefMut<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.value_mut()
+    }
+}
+
+/// Transitional iterator wrapper. It prevents the backing map itself from
+/// escaping while the named consumer capabilities are introduced.
+#[doc(hidden)]
+pub struct PlayerRegistryCompatibilityIter<'a> {
+    inner: dashmap::iter::Iter<'a, ObjectGuid, PlayerRegistryCompatibilityEntry>,
+}
+
+/// One transitional iterator item.
+#[doc(hidden)]
+pub struct PlayerRegistryCompatibilityRefMulti<'a>(
+    RefMulti<'a, ObjectGuid, PlayerRegistryCompatibilityEntry>,
+);
+
+impl PlayerRegistryCompatibilityRefMulti<'_> {
+    pub fn key(&self) -> &ObjectGuid {
+        self.0.key()
+    }
+
+    pub fn value(&self) -> &PlayerBroadcastInfo {
+        &self.0.value().info
+    }
+
+    pub fn pair(&self) -> (&ObjectGuid, &PlayerBroadcastInfo) {
+        (self.key(), self.value())
+    }
+}
+
+impl Deref for PlayerRegistryCompatibilityRefMulti<'_> {
+    type Target = PlayerBroadcastInfo;
+
+    fn deref(&self) -> &Self::Target {
+        self.value()
+    }
+}
+
+impl<'a> Iterator for PlayerRegistryCompatibilityIter<'a> {
+    type Item = PlayerRegistryCompatibilityRefMulti<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(PlayerRegistryCompatibilityRefMulti)
+    }
+}
+
+/// Thread-safe directory of active player sessions, keyed by player GUID.
+///
+/// Storage is private. The lifecycle API returns only owned registrations,
+/// snapshots and channel addresses. Guard-returning methods remain temporarily
+/// for the explicitly inventoried consumers assigned to #192-#196.
+pub struct PlayerRegistry {
+    entries: DashMap<ObjectGuid, PlayerRegistryCompatibilityEntry>,
+    next_generation: AtomicU64,
+}
+
+impl Default for PlayerRegistry {
+    fn default() -> Self {
+        Self {
+            entries: DashMap::new(),
+            next_generation: AtomicU64::new(1),
+        }
+    }
+}
+
+impl PlayerRegistry {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn next_generation(&self) -> u64 {
+        self.next_generation.fetch_add(1, Ordering::Relaxed)
+    }
+
+    /// Register this connected session, replacing an older incarnation for the
+    /// same GUID and returning the identity required for later lifecycle work.
+    pub fn register_or_replace(
+        &self,
+        guid: ObjectGuid,
+        info: PlayerBroadcastInfo,
+    ) -> PlayerRegistration {
+        let generation = self.next_generation();
+        self.entries
+            .insert(guid, PlayerRegistryCompatibilityEntry { generation, info });
+        PlayerRegistration { guid, generation }
+    }
+
+    /// Clone the entry only when `registration` is still the current session.
+    #[must_use]
+    pub fn lookup_current(&self, registration: PlayerRegistration) -> Option<PlayerBroadcastInfo> {
+        let entry = self.entries.get(&registration.guid)?;
+        (entry.generation == registration.generation).then(|| entry.info.clone())
+    }
+
+    /// Resolve an owned command address for the current incarnation of `guid`.
+    #[must_use]
+    pub fn control_address(&self, guid: ObjectGuid) -> Option<PlayerControlAddress> {
+        let entry = self.entries.get(&guid)?;
+        Some(PlayerControlAddress {
+            registration: PlayerRegistration {
+                guid,
+                generation: entry.generation,
+            },
+            command_tx: entry.info.command_tx.clone(),
+        })
+    }
+
+    /// Remove only the exact registration supplied by its owning session.
+    /// Returns `true` when that incarnation was still current.
+    pub fn unregister(&self, registration: PlayerRegistration) -> bool {
+        self.entries
+            .remove_if(&registration.guid, |_, entry| {
+                entry.generation == registration.generation
+            })
+            .is_some()
+    }
+
+    /// Remove the entry only when it still belongs to this exact control
+    /// channel. Session lifecycle uses this when it does not retain the owned
+    /// registration token; a replacement always owns a different channel.
+    pub fn unregister_control_channel(
+        &self,
+        guid: ObjectGuid,
+        command_tx: &flume::Sender<SessionCommand>,
+    ) -> bool {
+        self.entries
+            .remove_if(&guid, |_, entry| {
+                entry.info.command_tx.same_channel(command_tx)
+            })
+            .is_some()
+    }
+
+    /// Temporary compatibility lookup; assigned to #192-#195.
+    #[doc(hidden)]
+    pub fn get(&self, guid: &ObjectGuid) -> Option<PlayerRegistryCompatibilityRef<'_>> {
+        self.entries.get(guid).map(PlayerRegistryCompatibilityRef)
+    }
+
+    /// Temporary compatibility mutation; assigned to #193/#194/#196.
+    #[doc(hidden)]
+    pub fn get_mut(&self, guid: &ObjectGuid) -> Option<PlayerRegistryCompatibilityRefMut<'_>> {
+        self.entries
+            .get_mut(guid)
+            .map(PlayerRegistryCompatibilityRefMut)
+    }
+
+    /// Temporary compatibility iteration; assigned to #192-#195.
+    #[doc(hidden)]
+    pub fn iter(&self) -> PlayerRegistryCompatibilityIter<'_> {
+        PlayerRegistryCompatibilityIter {
+            inner: self.entries.iter(),
+        }
+    }
+
+    /// Test/fixture compatibility pending #196. Production lifecycle code uses
+    /// [`Self::register_or_replace`].
+    #[doc(hidden)]
+    pub fn insert(
+        &self,
+        guid: ObjectGuid,
+        info: PlayerBroadcastInfo,
+    ) -> Option<PlayerBroadcastInfo> {
+        let generation = self.next_generation();
+        self.entries
+            .insert(guid, PlayerRegistryCompatibilityEntry { generation, info })
+            .map(|previous| previous.info)
+    }
+
+    /// Test/fixture compatibility pending #196.
+    #[doc(hidden)]
+    pub fn remove(&self, guid: &ObjectGuid) -> Option<(ObjectGuid, PlayerBroadcastInfo)> {
+        self.entries
+            .remove(guid)
+            .map(|(guid, entry)| (guid, entry.info))
+    }
+
+    #[doc(hidden)]
+    pub fn contains_key(&self, guid: &ObjectGuid) -> bool {
+        self.entries.contains_key(guid)
+    }
+
+    #[doc(hidden)]
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    #[doc(hidden)]
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    #[doc(hidden)]
+    pub fn clear(&self) {
+        self.entries.clear();
+    }
+}
 
 #[cfg(test)]
 mod tests {
