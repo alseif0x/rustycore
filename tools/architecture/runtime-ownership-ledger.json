@@ -2016,18 +2016,6 @@
           "retirement_condition": "The crate keeps main as a thin entry point and distributes bootstrap/loaders/runtime by cohesive private modules; gameplay algorithms and hidden mutable clocks are absent."
         },
         {
-          "path": "crates/wow-world/src/handlers/misc.rs",
-          "production_lines": 7315,
-          "test_lines": 11322,
-          "total_lines": 18637,
-          "owner": "wow-world misc handler dumping ground.",
-          "open_retirement_issues": [
-            139,
-            153
-          ],
-          "retirement_condition": "Calendar and every remaining cohesive family are owned by module-aware thin capabilities; misc contains no unclassified registrations."
-        },
-        {
           "path": "crates/wow-world/src/handlers/quest.rs",
           "production_lines": 8255,
           "test_lines": 10172,
