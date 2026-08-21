@@ -280,7 +280,7 @@ composition split. Production and test lines remain separate:
 
 | Logical owner root | Production | Tests | Total |
 |---|---:|---:|---:|
-| `crates/wow-world/src/session.rs` | 71,961 | 94,165 | 166,126 |
+| `crates/wow-world/src/session/mod.rs` | 71,989 | 94,187 | 166,176 |
 | `crates/world-server/src/lib.rs` (crate scope) | 24,985 | 21,491 | 46,476 |
 | `crates/wow-map/src/map.rs` | 15,245 | 18,273 | 33,518 |
 | `crates/wow-world/src/handlers/character.rs` | 20,200 | 10,691 | 30,891 |
@@ -296,6 +296,10 @@ descendants remain a 46,476-line logical composition owner. That is the intended
 Standard adjacent module directories and transitional `#[path]` descendants remain charged to
 their logical root; `logical_scope: crate` is used only for an explicitly reviewed composition
 root. Extracted `*_tests.rs` and `tests/` descendants remain test lines in the logical view.
+Issue #152 likewise keeps the complete Session owner charged to `session/mod.rs` while exposing
+admission (462 lines), dispatch (1,739 lines), and their focused test modules as real physical
+files. The 50-line logical increase is the reviewed module/header and explicit-import overhead of
+that split, not new runtime behavior.
 
 At the same HEAD, the syntax-aware ratchet records 738 `WorldSession` fields: 727 production and
 11 `cfg(test)` fixtures. It also records all 20 logical inherent-impl owners and 3,339 exact
