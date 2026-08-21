@@ -1418,6 +1418,75 @@ pub enum PlayerDirectorySendError {
     Disconnected,
 }
 
+/// Result of retaining an authoritative command across bounded backpressure.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PlayerDirectoryReliableSendOutcome {
+    /// The command entered the selected session queue immediately.
+    Queued,
+    /// The queue was full and an owned retry now retains the command.
+    Retrying,
+    /// The selected incarnation is stale or its queue disconnected.
+    StaleOrDisconnected,
+}
+
+/// Owned presence facts used by C++ loot recipient and reward-distance gates.
+#[derive(Clone, Copy, Debug)]
+pub struct PlayerLootPresenceSnapshot {
+    pub registration: PlayerRegistration,
+    pub guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub position: Position,
+    pub is_in_world: bool,
+}
+
+/// Owned remote-Player facts required by represented C++ loot conditions.
+#[derive(Clone, Debug)]
+pub struct PlayerLootContextSnapshot {
+    pub race: u8,
+    pub class: u8,
+    pub sex: u8,
+    pub level: u8,
+    pub known_spells: Vec<i32>,
+    pub active_quest_statuses: HashMap<u32, u8>,
+    pub active_quest_objective_counts: HashMap<u32, Vec<i32>>,
+    pub rewarded_quests: HashSet<u32>,
+    pub inventory_item_counts: HashMap<u32, u32>,
+}
+
+/// Owned Player facts used by C++ group reward calculations.
+#[derive(Clone, Copy, Debug)]
+pub struct PlayerGroupRewardSnapshot {
+    pub level: u8,
+    pub map_id: u16,
+    pub position: Position,
+    pub is_alive: bool,
+}
+
+/// Tracker-free input for preparing one remote durable loot-money command.
+#[derive(Clone, Debug)]
+pub struct PrepareLootMoneyApplicationLikeCpp {
+    pub recipient: ObjectGuid,
+    pub loot_owner: ObjectGuid,
+    pub loot_obj: ObjectGuid,
+    pub amount: u64,
+    pub durable_applied_amount: Arc<AtomicU64>,
+    pub sole_looter: bool,
+    pub authority: OwnedLootAuthority,
+    pub authority_generation: u64,
+    pub authority_committed: Arc<AtomicBool>,
+    pub send_coin_removed: Arc<AtomicBool>,
+    pub applied: Arc<AtomicBool>,
+    pub published: Arc<AtomicBool>,
+}
+
+/// Generation-bound durable loot-money command prepared by the directory.
+#[derive(Clone, Debug)]
+pub struct PreparedLootMoneyApplicationLikeCpp {
+    pub registration: PlayerRegistration,
+    pub command: ApplyLootMoneyLikeCppCommand,
+}
+
 /// Owned facts used only for runtime recipient selection.
 #[derive(Clone, Debug)]
 pub struct PlayerRuntimeRecipient {
@@ -1744,6 +1813,214 @@ impl PlayerRegistry {
         })
     }
 
+    /// Snapshot only the presence facts used by loot and group-reward gates.
+    #[must_use]
+    pub fn loot_presence(&self, guid: ObjectGuid) -> Option<PlayerLootPresenceSnapshot> {
+        let entry = self.entries.get(&guid)?;
+        Some(PlayerLootPresenceSnapshot {
+            registration: PlayerRegistration {
+                guid,
+                generation: entry.generation,
+            },
+            guid,
+            map_id: entry.info.map_id,
+            instance_id: entry.info.instance_id,
+            position: entry.info.position,
+            is_in_world: entry.info.is_in_world,
+        })
+    }
+
+    /// Resolve current in-world recipients in one exact map instance.
+    #[must_use]
+    pub fn same_map_loot_recipients(
+        &self,
+        excluded_guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+    ) -> Vec<PlayerRegistration> {
+        self.entries
+            .iter()
+            .filter_map(|entry| {
+                let guid = *entry.key();
+                let info = &entry.value().info;
+                (guid != excluded_guid
+                    && info.is_in_world
+                    && info.map_id == map_id
+                    && info.instance_id == instance_id)
+                    .then_some(PlayerRegistration {
+                        guid,
+                        generation: entry.value().generation,
+                    })
+            })
+            .collect()
+    }
+
+    /// Resolve one current recipient only when it is in the requested map instance.
+    #[must_use]
+    pub fn loot_delivery_recipient(
+        &self,
+        guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+    ) -> Option<PlayerRegistration> {
+        let entry = self.entries.get(&guid)?;
+        (entry.info.map_id == map_id && entry.info.instance_id == instance_id).then_some(
+            PlayerRegistration {
+                guid,
+                generation: entry.generation,
+            },
+        )
+    }
+
+    /// Resolve one current in-world recipient in the requested map instance.
+    #[must_use]
+    pub fn in_world_loot_delivery_recipient(
+        &self,
+        guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+    ) -> Option<PlayerRegistration> {
+        let entry = self.entries.get(&guid)?;
+        (entry.info.is_in_world
+            && entry.info.map_id == map_id
+            && entry.info.instance_id == instance_id)
+            .then_some(PlayerRegistration {
+                guid,
+                generation: entry.generation,
+            })
+    }
+
+    /// Read one remote enchanting skill without exposing the Player mirror.
+    #[must_use]
+    pub fn loot_enchanting_skill(&self, guid: ObjectGuid) -> Option<u16> {
+        self.entries
+            .get(&guid)
+            .map(|entry| entry.info.enchanting_skill)
+    }
+
+    /// Read one connected peer's C++ `Player::GetPassOnGroupLoot()` state.
+    #[must_use]
+    pub fn loot_pass_on_group_loot(
+        &self,
+        guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+    ) -> Option<bool> {
+        let entry = self.entries.get(&guid)?;
+        (entry.info.map_id == map_id && entry.info.instance_id == instance_id)
+            .then_some(entry.info.pass_on_group_loot)
+    }
+
+    /// Snapshot the exact remote facts used by represented loot conditions.
+    #[must_use]
+    pub fn loot_player_context(&self, guid: ObjectGuid) -> Option<PlayerLootContextSnapshot> {
+        let entry = self.entries.get(&guid)?;
+        let info = &entry.info;
+        Some(PlayerLootContextSnapshot {
+            race: info.race,
+            class: info.class,
+            sex: info.sex,
+            level: info.level,
+            known_spells: info.known_spells.clone(),
+            active_quest_statuses: info.active_quest_statuses.clone(),
+            active_quest_objective_counts: info.active_quest_objective_counts.clone(),
+            rewarded_quests: info.rewarded_quests.clone(),
+            inventory_item_counts: info.inventory_item_counts.clone(),
+        })
+    }
+
+    /// Snapshot the exact remote facts used by C++ group reward calculations.
+    #[must_use]
+    pub fn group_reward_snapshot(&self, guid: ObjectGuid) -> Option<PlayerGroupRewardSnapshot> {
+        let entry = self.entries.get(&guid)?;
+        Some(PlayerGroupRewardSnapshot {
+            level: entry.info.level,
+            map_id: entry.info.map_id,
+            position: entry.info.position,
+            is_alive: entry.info.is_alive,
+        })
+    }
+
+    /// Find the exact live loot-roll identity owned by another map peer.
+    #[must_use]
+    pub fn loot_roll_owner(
+        &self,
+        excluded_guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+        loot_obj: ObjectGuid,
+        loot_list_id: u8,
+    ) -> Option<(PlayerRegistration, LootRollCommandIdentityLikeCpp)> {
+        self.entries.iter().find_map(|entry| {
+            let guid = *entry.key();
+            let info = &entry.value().info;
+            if guid == excluded_guid || info.map_id != map_id || info.instance_id != instance_id {
+                return None;
+            }
+            let identity = info
+                .active_loot_rolls
+                .iter()
+                .find(|identity| identity.matches_key_like_cpp(loot_obj, loot_list_id))?
+                .clone();
+            Some((
+                PlayerRegistration {
+                    guid,
+                    generation: entry.value().generation,
+                },
+                identity,
+            ))
+        })
+    }
+
+    /// Publish the current session's represented C++ `Player::m_lootRolls` identities.
+    pub fn replace_loot_rolls_for_control_channel(
+        &self,
+        guid: ObjectGuid,
+        command_tx: &flume::Sender<SessionCommand>,
+        identities: Vec<LootRollCommandIdentityLikeCpp>,
+    ) -> bool {
+        let Some(mut entry) = self.entries.get_mut(&guid) else {
+            return false;
+        };
+        if !entry.info.command_tx.same_channel(command_tx) {
+            return false;
+        }
+        entry.info.active_loot_rolls = identities;
+        true
+    }
+
+    /// Prepare a remote loot-money application without exposing its persistence tracker.
+    #[must_use]
+    pub fn prepare_loot_money_application(
+        &self,
+        input: PrepareLootMoneyApplicationLikeCpp,
+    ) -> Option<PreparedLootMoneyApplicationLikeCpp> {
+        let entry = self.entries.get(&input.recipient)?;
+        Some(PreparedLootMoneyApplicationLikeCpp {
+            registration: PlayerRegistration {
+                guid: input.recipient,
+                generation: entry.generation,
+            },
+            command: ApplyLootMoneyLikeCppCommand {
+                recipient: input.recipient,
+                loot_owner: input.loot_owner,
+                loot_obj: input.loot_obj,
+                amount: input.amount,
+                durable_applied_amount: input.durable_applied_amount,
+                durable_persistence_tracker: Arc::clone(
+                    &entry.info.durable_loot_money_tracker_like_cpp,
+                ),
+                sole_looter: input.sole_looter,
+                authority: input.authority,
+                authority_generation: input.authority_generation,
+                authority_committed: input.authority_committed,
+                send_coin_removed: input.send_coin_removed,
+                applied: input.applied,
+                published: input.published,
+            },
+        })
+    }
+
     /// Snapshot only live player facts needed by the legacy aggro compatibility cut.
     #[must_use]
     pub fn legacy_aggro_candidates(&self) -> Vec<PlayerAggroCandidateSnapshot> {
@@ -1868,6 +2145,69 @@ impl PlayerRegistry {
             flume::TrySendError::Full(_) => PlayerDirectorySendError::Full,
             flume::TrySendError::Disconnected(_) => PlayerDirectorySendError::Disconnected,
         })
+    }
+
+    /// Send packet bytes on the normal socket for the selected incarnation.
+    pub fn send_current_packet(
+        &self,
+        registration: PlayerRegistration,
+        packet: Vec<u8>,
+    ) -> Result<(), PlayerDirectorySendError> {
+        let entry = self
+            .entries
+            .get(&registration.guid)
+            .filter(|entry| entry.generation == registration.generation)
+            .ok_or(PlayerDirectorySendError::StaleRegistration)?;
+        let tx = entry.info.send_tx.clone();
+        drop(entry);
+        tx.send(packet)
+            .map_err(|_| PlayerDirectorySendError::Disconnected)
+    }
+
+    /// Send packet bytes on the realm socket for the selected incarnation.
+    pub fn send_current_realm_packet(
+        &self,
+        registration: PlayerRegistration,
+        packet: Vec<u8>,
+    ) -> Result<(), PlayerDirectorySendError> {
+        let entry = self
+            .entries
+            .get(&registration.guid)
+            .filter(|entry| entry.generation == registration.generation)
+            .ok_or(PlayerDirectorySendError::StaleRegistration)?;
+        let tx = entry.info.realm_send_tx.clone();
+        drop(entry);
+        tx.send(packet)
+            .map_err(|_| PlayerDirectorySendError::Disconnected)
+    }
+
+    /// Retain an authoritative command across bounded queue backpressure.
+    pub fn queue_current_command_reliably(
+        &self,
+        registration: PlayerRegistration,
+        command: SessionCommand,
+    ) -> PlayerDirectoryReliableSendOutcome {
+        let Some(entry) = self
+            .entries
+            .get(&registration.guid)
+            .filter(|entry| entry.generation == registration.generation)
+        else {
+            return PlayerDirectoryReliableSendOutcome::StaleOrDisconnected;
+        };
+        let tx = entry.info.command_tx.clone();
+        drop(entry);
+        match tx.try_send(command) {
+            Ok(()) => PlayerDirectoryReliableSendOutcome::Queued,
+            Err(flume::TrySendError::Disconnected(_)) => {
+                PlayerDirectoryReliableSendOutcome::StaleOrDisconnected
+            }
+            Err(flume::TrySendError::Full(command)) => {
+                tokio::spawn(async move {
+                    let _ = tx.send_async(command).await;
+                });
+                PlayerDirectoryReliableSendOutcome::Retrying
+            }
+        }
     }
 
     fn with_current_durable_runtime(
