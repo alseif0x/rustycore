@@ -125,7 +125,7 @@ impl RuntimeVisibilityRefreshDeliverySummaryLikeCpp {
 /// `Vec` first, then commands are sent outside the DashMap iteration.
 pub(crate) fn resolve_runtime_event_candidates_like_cpp(
     event: &wow_world::map_manager::RuntimeEvent,
-    registry: &wow_network::PlayerRegistry,
+    registry: &wow_world::session::directory::PlayerRegistry,
     summary: &mut RuntimeDeliverySummaryLikeCpp,
 ) {
     use wow_world::map_manager::RecipientRule;
@@ -178,7 +178,7 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
             // DashMap iteration (no guards held during try_send).
             // Mirrors the NearbyVisible pattern above.
             struct Candidate {
-                registration: wow_network::PlayerRegistration,
+                registration: wow_world::session::directory::PlayerRegistration,
                 skip_reason: Option<BroadcastSkipReason>,
             }
             enum BroadcastSkipReason {
@@ -260,7 +260,7 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
             let range_sq = range * range;
             // Collect candidates first (avoid holding guards during try_send).
             struct Candidate {
-                registration: wow_network::PlayerRegistration,
+                registration: wow_world::session::directory::PlayerRegistration,
                 skip_reason: Option<SkipReason>,
             }
             enum SkipReason {
@@ -363,7 +363,7 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
         } => {
             let range_sq = range * range;
             struct Candidate {
-                registration: wow_network::PlayerRegistration,
+                registration: wow_world::session::directory::PlayerRegistration,
                 committed_visibility_like_cpp: wow_network::SharedClientVisibleGuidsLikeCpp,
                 advanced_combat_logging_like_cpp: bool,
                 skip_reason: Option<DurableSpellCastSkipReason>,
@@ -471,7 +471,7 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
         } => {
             let range_sq = range * range;
             struct Candidate {
-                registration: wow_network::PlayerRegistration,
+                registration: wow_world::session::directory::PlayerRegistration,
                 eligible: bool,
             }
             let candidates: Vec<Candidate> = registry
@@ -524,7 +524,7 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
 /// No blocking sends — backpressure via `try_send` only.
 pub(crate) fn deliver_runtime_plan_like_cpp(
     plan: &wow_world::map_manager::RuntimePlan,
-    registry: &wow_network::PlayerRegistry,
+    registry: &wow_world::session::directory::PlayerRegistry,
 ) -> RuntimeDeliverySummaryLikeCpp {
     let mut summary = RuntimeDeliverySummaryLikeCpp::default();
     for event in &plan.events {
@@ -546,10 +546,10 @@ pub(crate) fn deliver_runtime_plan_like_cpp(
 pub(crate) fn deliver_refresh_visible_world_creatures_like_cpp(
     map_id: u16,
     instance_id: u32,
-    registry: &wow_network::PlayerRegistry,
+    registry: &wow_world::session::directory::PlayerRegistry,
 ) -> RuntimeVisibilityRefreshDeliverySummaryLikeCpp {
     struct Candidate {
-        registration: wow_network::PlayerRegistration,
+        registration: wow_world::session::directory::PlayerRegistration,
         skip_reason: Option<RefreshSkipReason>,
     }
     enum RefreshSkipReason {
@@ -628,13 +628,13 @@ pub(crate) fn deliver_refresh_visible_world_creatures_like_cpp(
 /// DashMap guards before the legacy map lock is taken.
 #[cfg(test)]
 pub(crate) fn collect_legacy_creature_aggro_candidates_like_cpp(
-    registry: &wow_network::PlayerRegistry,
+    registry: &wow_world::session::directory::PlayerRegistry,
 ) -> Vec<wow_world::session::LegacyCreatureAggroCandidateLikeCpp> {
     collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(registry, None)
 }
 
 pub(crate) fn collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
-    registry: &wow_network::PlayerRegistry,
+    registry: &wow_world::session::directory::PlayerRegistry,
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
 ) -> Vec<wow_world::session::LegacyCreatureAggroCandidateLikeCpp> {
     let mut candidates: Vec<_> = registry
@@ -811,10 +811,10 @@ pub(crate) fn legacy_visibility_distance_like_cpp(
 /// FIFO rail without waiting on its bounded visual-command queue.
 pub(crate) fn deliver_creature_attack_start_commands_like_cpp(
     commands: &[wow_network::player_registry::CreatureAttackStartLikeCppCommand],
-    registry: &wow_network::PlayerRegistry,
+    registry: &wow_world::session::directory::PlayerRegistry,
 ) -> RuntimeCreatureAttackStartDeliverySummaryLikeCpp {
     struct Candidate {
-        registration: wow_network::PlayerRegistration,
+        registration: wow_world::session::directory::PlayerRegistration,
         map_id: u16,
         instance_id: u32,
         is_in_world: bool,
@@ -984,7 +984,7 @@ pub(crate) fn apply_canonical_creature_attack_stops_like_cpp(
 
 pub(crate) fn deliver_creature_attack_stop_commands_like_cpp(
     commands: &[wow_network::player_registry::CreatureAttackStopLikeCppCommand],
-    registry: &wow_network::PlayerRegistry,
+    registry: &wow_world::session::directory::PlayerRegistry,
 ) -> RuntimeCreatureAttackStartDeliverySummaryLikeCpp {
     let mut summary = RuntimeCreatureAttackStartDeliverySummaryLikeCpp::default();
     for command in commands {
@@ -1024,10 +1024,10 @@ pub(crate) fn deliver_creature_attack_stop_commands_like_cpp(
 /// rail rather than dropping it or blocking the world tick.
 pub(crate) fn deliver_creature_melee_damage_commands_like_cpp(
     commands: &[wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand],
-    registry: &wow_network::PlayerRegistry,
+    registry: &wow_world::session::directory::PlayerRegistry,
 ) -> RuntimeCreatureMeleeDeliverySummaryLikeCpp {
     struct Candidate {
-        registration: wow_network::PlayerRegistration,
+        registration: wow_world::session::directory::PlayerRegistration,
         map_id: u16,
         instance_id: u32,
         is_in_world: bool,
@@ -1080,7 +1080,7 @@ pub(crate) fn deliver_creature_melee_damage_commands_like_cpp(
 /// [`PlayerRegistry`] and every DashMap guard is dropped before the legacy map
 /// lock is taken — the pattern the aggro scan already uses.
 pub(crate) fn collect_legacy_chase_target_snapshots_like_cpp(
-    registry: &wow_network::PlayerRegistry,
+    registry: &wow_world::session::directory::PlayerRegistry,
 ) -> std::collections::HashMap<
     (u16, u32, wow_core::ObjectGuid),
     wow_world::ChaseTargetSnapshotLikeCpp,
@@ -1123,7 +1123,7 @@ pub(crate) fn run_legacy_creature_movement_tick_and_deliver_once_like_cpp(
     mmap_config: &MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<&WorldMMapPathfinderWorkerLikeCpp>,
     diff_ms: u32,
-    registry: &wow_network::PlayerRegistry,
+    registry: &wow_world::session::directory::PlayerRegistry,
 ) -> (
     wow_world::session::LegacyCreatureMovementTickOutcomeLikeCpp,
     RuntimeDeliverySummaryLikeCpp,
@@ -1153,7 +1153,7 @@ pub(crate) fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
     map_store: &wow_data::MapStore,
     now: std::time::Instant,
-    registry: &wow_network::PlayerRegistry,
+    registry: &wow_world::session::directory::PlayerRegistry,
 ) -> (
     wow_world::session::LegacyCreatureLifecycleTickOutcomeLikeCpp,
     RuntimeVisibilityRefreshDeliverySummaryLikeCpp,
@@ -1184,7 +1184,7 @@ pub(crate) fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
 pub(crate) fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
     legacy_map_manager: &SharedMapManager,
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
-    registry: &wow_network::PlayerRegistry,
+    registry: &wow_world::session::directory::PlayerRegistry,
     aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
 ) -> (
     wow_world::session::LegacyCreatureAggroTickOutcomeLikeCpp,
@@ -1231,7 +1231,7 @@ pub(crate) fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
 pub(crate) fn run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
     legacy_map_manager: &SharedMapManager,
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
-    registry: &wow_network::PlayerRegistry,
+    registry: &wow_world::session::directory::PlayerRegistry,
 ) -> (
     wow_world::session::LegacyCreatureMeleeTickOutcomeLikeCpp,
     RuntimeCreatureMeleeDeliverySummaryLikeCpp,
@@ -1249,7 +1249,7 @@ pub(crate) fn run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
 pub(crate) fn run_legacy_creature_spell_tick_and_deliver_once_like_cpp(
     legacy_map_manager: &SharedMapManager,
     canonical_map_manager: Option<&wow_world::session::SharedCanonicalMapManager>,
-    registry: &wow_network::PlayerRegistry,
+    registry: &wow_world::session::directory::PlayerRegistry,
     config: &wow_world::session::LegacyCreatureAggroConfigLikeCpp,
 ) -> (
     wow_world::session::LegacyCreatureSpellTickOutcomeLikeCpp,
@@ -1298,7 +1298,7 @@ pub(crate) fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
     aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
     diff_ms: u32,
     now: std::time::Instant,
-    registry: &wow_network::PlayerRegistry,
+    registry: &wow_world::session::directory::PlayerRegistry,
     respawn_db_mutation_order: Option<&SharedRespawnDbMutationOrderLikeCpp>,
     respawn_db_writer_tx: Option<&RespawnDbWriterSenderLikeCpp>,
 ) -> LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {

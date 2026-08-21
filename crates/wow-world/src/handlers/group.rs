@@ -5,6 +5,7 @@
 
 //! Handlers for Group/Party opcodes: PartyInvite, PartyInviteResponse, LeaveGroup.
 
+use crate::session::directory::{PlayerRegistration, PlayerRegistry};
 use rand::Rng;
 use std::time::Duration;
 use tracing::{info, warn};
@@ -17,8 +18,8 @@ use wow_network::player_registry::{ApplyGroupJoinLikeCppCommand, ApplyGroupRemov
 use wow_network::{
     AcceptGroupInviteResultLikeCpp, CreateGroupInviteResultLikeCpp, GroupAuthorityErrorLikeCpp,
     GroupInfo, GroupMemberRemovalKindLikeCpp, GroupPersistenceIntentLikeCpp, GroupRegistry,
-    MEMBER_FLAG_ASSISTANT_LIKE_CPP, PlayerRegistration, PlayerRegistry, ReadyCheckEventLikeCpp,
-    SendPartyUpdateLikeCppCommand, SendRealmPacketLikeCppCommand, SessionCommand,
+    MEMBER_FLAG_ASSISTANT_LIKE_CPP, ReadyCheckEventLikeCpp, SendPartyUpdateLikeCppCommand,
+    SendRealmPacketLikeCppCommand, SessionCommand,
 };
 use wow_packet::packets::misc::{RandomRoll, RandomRollClient};
 use wow_packet::packets::party::{
@@ -797,13 +798,13 @@ async fn send_realm_packet_to_player_like_cpp(
             true
         }
         Err(
-            error @ (wow_network::PlayerDirectorySendError::Disconnected
-            | wow_network::PlayerDirectorySendError::StaleRegistration),
+            error @ (crate::session::directory::PlayerDirectorySendError::Disconnected
+            | crate::session::directory::PlayerDirectorySendError::StaleRegistration),
         ) => {
             warn!(recipient = %recipient, ?error, "realm-routed party command target stale or closed");
             false
         }
-        Err(wow_network::PlayerDirectorySendError::Full) => {
+        Err(crate::session::directory::PlayerDirectorySendError::Full) => {
             warn!(recipient = %recipient, "timed out queueing realm-routed party packet");
             false
         }

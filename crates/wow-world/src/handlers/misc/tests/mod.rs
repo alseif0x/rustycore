@@ -30,6 +30,7 @@ mod trade;
 mod travel;
 
 use super::*;
+use crate::session::directory::{PlayerBroadcastInfo, PlayerRegistry};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, RwLock};
 use wow_constants::{
@@ -52,7 +53,7 @@ use wow_data::{
 };
 use wow_database::SqlParam;
 use wow_network::{
-    GroupInfo, GroupRegistry, PendingInvites, PlayerBroadcastInfo, PlayerRegistry, SessionCommand,
+    GroupInfo, GroupRegistry, PendingInvites, SessionCommand,
     group_registry::{DIFFICULTY_NORMAL_LIKE_CPP, GROUP_FLAG_LFG_LIKE_CPP},
 };
 use wow_packet::ServerPacket;

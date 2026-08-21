@@ -5,6 +5,10 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+# Directory fixture helpers for cross-crate tests; never enabled in production.
+test-fixtures = []
+
 [dependencies]
 tokio = { workspace = true }
 dashmap = { workspace = true }
@@ -40,6 +44,5 @@ sqlx = { workspace = true }
 [dev-dependencies]
 # Real Detour navmesh fixtures for the live creature-pathfinding regressions.
 wow-recastdetour = { workspace = true, features = ["test-fixtures"] }
-wow-network = { workspace = true, features = ["test-fixtures"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

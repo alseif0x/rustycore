@@ -111,13 +111,12 @@ use wow_map::{
     PoolObjectLikeCpp, PoolTemplateDataLikeCpp, RespawnInfoLikeCpp, SpawnData, SpawnGroupFlags,
     SpawnGroupTemplateData, SpawnObjectType, SpawnPosition, SpawnStore, spawn::SpawnGroupMemberRow,
 };
-use wow_network::{
-    PlayerBroadcastInfo, PlayerRegistry, SessionCommand, WorldSessionShutdownFlushResultLikeCpp,
-};
+use wow_network::{SessionCommand, WorldSessionShutdownFlushResultLikeCpp};
 use wow_packet::{
     ServerPacket,
     packets::chat::{ChatMsg, ChatPkt},
 };
+use wow_world::session::directory::{PlayerBroadcastInfo, PlayerRegistry};
 
 #[test]
 fn signed_tinyint_quest_required_preserves_cpp_boolean_semantics() {
@@ -10786,7 +10785,7 @@ fn runtime_directory_delivery_rejects_replaced_recipient_generation() {
 
     assert_eq!(
         registry.try_send_current_command(stale.registration, command),
-        Err(wow_network::PlayerDirectorySendError::StaleRegistration)
+        Err(wow_world::session::directory::PlayerDirectorySendError::StaleRegistration)
     );
     assert!(first_rx.try_recv().is_err());
     assert!(second_rx.try_recv().is_err());

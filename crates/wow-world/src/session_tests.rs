@@ -21,6 +21,7 @@ mod routing;
 use routing::assert_destroyed_party_update_like_cpp;
 
 use super::*;
+use crate::session::directory::PlayerBroadcastInfo;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering as AtomicOrdering};
 use wow_constants::ItemModType;
 use wow_constants::{
@@ -78,10 +79,9 @@ use wow_network::{
     CreatureAttackStartLikeCppCommand, GameEventQuestCompleteClientOutcomeLikeCpp,
     GameEventQuestCompleteResponseLikeCpp, GroupInfo, GroupInstanceResetMethodLikeCpp,
     GroupInstanceResetResultLikeCpp, GroupRegistry, KickLikeCppCommand, PendingInviteLikeCpp,
-    PendingInvites, PlayerBroadcastInfo, RefreshVisibleWorldCreaturesLikeCppCommand,
-    ResetSeasonalQuestStatusCommand, SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand,
-    SendRealmPacketLikeCppCommand, SendVisibleObjectValuesUpdateCommand, SessionCommand,
-    WorldSessionShutdownFlushLikeCppCommand,
+    PendingInvites, RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
+    SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand, SendRealmPacketLikeCppCommand,
+    SendVisibleObjectValuesUpdateCommand, SessionCommand, WorldSessionShutdownFlushLikeCppCommand,
 };
 use wow_packet::ServerPacket;
 use wow_packet::packets::loot::{
@@ -8878,7 +8878,7 @@ async fn group_removal_command_clears_remote_party_type_like_cpp() {
     session.install_realm_send_channel_for_test(realm_tx);
     let player_guid = ObjectGuid::create_player(1, 42);
     let group_guid = 0xABCDEF;
-    let player_registry = Arc::new(wow_network::PlayerRegistry::default());
+    let player_registry = Arc::new(crate::session::directory::PlayerRegistry::default());
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(player_guid);
@@ -8972,7 +8972,7 @@ async fn group_removal_command_can_send_group_uninvite_like_cpp() {
     session.install_realm_send_channel_for_test(realm_tx);
     let player_guid = ObjectGuid::create_player(1, 42);
     let group_guid = 0xBCDEF0;
-    let player_registry = Arc::new(wow_network::PlayerRegistry::default());
+    let player_registry = Arc::new(crate::session::directory::PlayerRegistry::default());
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(player_guid);
@@ -12734,7 +12734,7 @@ async fn accept_invite_to_raid_group_triggers_visible_gameobject_refresh_like_cp
     group.convert_to_raid_like_cpp();
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    let player_registry = Arc::new(wow_network::PlayerRegistry::default());
+    let player_registry = Arc::new(crate::session::directory::PlayerRegistry::default());
     let (inviter_tx, _inviter_rx) = flume::bounded(8);
     let (player_tx, _player_rx) = flume::bounded(8);
     let (inviter_command_tx, _inviter_command_rx) = flume::unbounded();
@@ -12939,7 +12939,7 @@ async fn leave_group_triggers_visible_spellclick_refresh_like_cpp() {
     let other_guid = ObjectGuid::create_player(1, 43);
     let creature_guid = test_creature_guid(131);
     let (other_tx, _other_rx) = flume::bounded(8);
-    let player_registry = Arc::new(wow_network::PlayerRegistry::default());
+    let player_registry = Arc::new(crate::session::directory::PlayerRegistry::default());
     player_registry.register_or_replace(other_guid, broadcast_info(other_guid, other_tx));
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(player_guid);

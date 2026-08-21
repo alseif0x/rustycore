@@ -23,6 +23,7 @@ use rand::{
 use tokio::time::timeout;
 use tracing::{debug, info, warn};
 
+use crate::session::directory::{PlayerRegistry, PrepareLootMoneyApplicationLikeCpp};
 use wow_constants::{
     ClientOpcodes, InventoryResult, InventoryType, ItemContext, ItemFieldFlags, ItemFlags,
     ItemFlags2, ItemQuality, UnitDynFlags,
@@ -78,7 +79,7 @@ use wow_network::{
     ApplyLootMoneyLikeCppCommand, ApplyLootMoneyResultLikeCpp, KickLikeCppCommand,
     LootRollCommandIdentityLikeCpp, LootRollStoreWinnerCommand, LootRollVoteCommand,
     MasterLootGiveCommand, MasterLootGiveResult, NotifyLootMoneyRemovedLikeCppCommand,
-    PlayerRegistry, PrepareLootMoneyApplicationLikeCpp, SessionCommand,
+    SessionCommand,
 };
 use wow_packet::packets::item::{
     ItemExpirePurchaseRefund, ItemInstance, ItemModList, ItemPushResult, ItemPushResultDisplayType,
@@ -994,7 +995,7 @@ impl WorldSession {
                         authority: authority.cloned(),
                     },
                 ),
-            ) != wow_network::PlayerDirectoryReliableSendOutcome::StaleOrDisconnected
+            ) != crate::session::directory::PlayerDirectoryReliableSendOutcome::StaleOrDisconnected
             {
                 sent += 1;
             }
