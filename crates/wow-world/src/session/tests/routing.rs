@@ -12,7 +12,7 @@ async fn realm_only_party_commands_never_use_instance_after_connect_to_like_cpp(
     let group_registry = Arc::new(GroupRegistry::default());
     let group = GroupInfo::new(player_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(player_guid));

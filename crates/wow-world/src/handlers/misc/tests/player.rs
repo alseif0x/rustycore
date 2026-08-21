@@ -378,7 +378,7 @@ async fn set_difficulty_id_group_leader_updates_group_dungeon_difficulty_like_cp
     group.add_member(member);
     group.db_store_id = 44;
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     player_registry.insert(member, broadcast_info_with_command_tx(member_command_tx));
 
     session.set_player_guid(Some(leader));
@@ -432,7 +432,7 @@ async fn set_difficulty_id_group_non_leader_is_silent_like_cpp() {
     let mut group = GroupInfo::new(leader);
     group.add_member(member);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(member));
     session.group_guid = Some(group_guid);

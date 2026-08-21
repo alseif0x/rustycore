@@ -5505,7 +5505,7 @@ fn install_master_loot_group(
     group.loot_method = LOOT_METHOD_MASTER_LIKE_CPP;
     group.master_looter_guid = master_guid;
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 }
@@ -5520,7 +5520,7 @@ fn install_group_loot_group(
     group.add_member(candidate_guid);
     group.loot_method = LOOT_METHOD_GROUP_LIKE_CPP;
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 }
@@ -5894,7 +5894,7 @@ async fn loot_response_success_keeps_cpp_failure_and_threshold_defaults() {
     group.loot_method = LOOT_METHOD_GROUP_LIKE_CPP;
     group.loot_threshold = 4;
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -6323,7 +6323,7 @@ async fn dungeon_trash_builds_one_personal_pool_for_selected_group_looter_like_c
     group.add_member(fixture.second_tapper);
     group.looter_guid = fixture.second_tapper;
     let group_guid = group.group_guid;
-    groups.insert(group_guid, group);
+    groups.register_group_like_cpp(group_guid, group);
     fixture.session.group_guid = Some(group_guid);
     fixture
         .session
@@ -11533,7 +11533,7 @@ async fn loot_money_splits_corpse_gold_to_near_group_members_like_cpp() {
     let mut group = GroupInfo::new(player_guid);
     group.add_member(other_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     player_registry.insert(other_guid, broadcast_info(other_guid, other_tx));
 
     session.set_player_guid(Some(player_guid));
@@ -11893,7 +11893,7 @@ async fn master_loot_item_uses_group_master_looter_guid_like_cpp() {
     group.loot_method = LOOT_METHOD_MASTER_LIKE_CPP;
     group.master_looter_guid = master_guid;
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     player_registry.insert(leader_guid, broadcast_info(leader_guid, leader_tx));
     session.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
@@ -11941,7 +11941,7 @@ async fn master_loot_item_missing_target_sends_player_not_found_like_cpp() {
     group.loot_method = LOOT_METHOD_MASTER_LIKE_CPP;
     group.master_looter_guid = master_guid;
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
@@ -11978,7 +11978,7 @@ async fn master_loot_item_non_master_loot_view_returns_silently_like_cpp() {
     group.loot_method = LOOT_METHOD_MASTER_LIKE_CPP;
     group.master_looter_guid = master_guid;
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -12042,7 +12042,7 @@ async fn master_loot_item_ineligible_target_sends_master_other_like_cpp() {
     group.loot_method = LOOT_METHOD_MASTER_LIKE_CPP;
     group.master_looter_guid = master_guid;
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     player_registry.insert(target_guid, broadcast_info(target_guid, target_tx));
     session.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
@@ -12112,7 +12112,7 @@ async fn master_loot_item_target_not_allowed_for_loot_sends_master_other_like_cp
     group.loot_method = LOOT_METHOD_MASTER_LIKE_CPP;
     group.master_looter_guid = master_guid;
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -12202,7 +12202,7 @@ async fn master_loot_item_self_target_can_store_maps_unique_error_like_cpp() {
     group.loot_method = LOOT_METHOD_MASTER_LIKE_CPP;
     group.master_looter_guid = master_guid;
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -12360,7 +12360,7 @@ async fn master_loot_item_remote_target_can_store_error_is_reported_by_target_se
     group.master_looter_guid = master_guid;
     group.members.push(target_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_send_tx, _target_send_rx) = flume::bounded::<Vec<u8>>(2);
@@ -12473,7 +12473,7 @@ async fn master_loot_item_remote_target_unavailable_command_reports_player_not_f
     group.master_looter_guid = master_guid;
     group.members.push(target_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_send_tx, _target_send_rx) = flume::bounded::<Vec<u8>>(2);

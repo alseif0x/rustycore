@@ -24417,7 +24417,7 @@ impl WorldSession {
         let outcome = registry
             .set_difficulty_transition_like_cpp(group_guid, player_guid, difficulty_id, kind)
             .ok()?;
-        let db_store_id = outcome.facts;
+        let persistence = outcome.persistence;
         let members = outcome.group.members;
 
         for member_guid in members {
@@ -24441,21 +24441,10 @@ impl WorldSession {
             }
         }
 
-        let statement = match kind {
-            wow_network::player_registry::GroupDifficultyKindLikeCpp::Dungeon => {
-                CharStatements::UPD_GROUP_DIFFICULTY
-            }
-            wow_network::player_registry::GroupDifficultyKindLikeCpp::Raid => {
-                CharStatements::UPD_GROUP_RAID_DIFFICULTY
-            }
-            wow_network::player_registry::GroupDifficultyKindLikeCpp::LegacyRaid => {
-                CharStatements::UPD_GROUP_LEGACY_RAID_DIFFICULTY
-            }
-        };
-        let mut stmt = PreparedStatement::new(statement.sql());
-        stmt.set_u32(0, difficulty_id);
-        stmt.set_u32(1, db_store_id);
-        Some(stmt)
+        persistence
+            .into_iter()
+            .next()
+            .map(crate::handlers::group::group_persistence_statement_like_cpp)
     }
 
     pub(crate) fn represented_set_difficulty_reset_owner_like_cpp(

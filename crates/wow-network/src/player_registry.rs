@@ -9,6 +9,7 @@
 //! on logout/disconnect. Chat, emote and movement handlers use the registry
 //! to fan-out packets to nearby players on the same map.
 
+pub use crate::group_registry::GroupDifficultyKindLikeCpp;
 use dashmap::DashMap;
 use dashmap::mapref::{
     multiple::RefMulti,
@@ -327,13 +328,6 @@ pub struct ApplyGroupDifficultyLikeCppCommand {
     pub group_guid: u64,
     pub difficulty_id: u32,
     pub kind: GroupDifficultyKindLikeCpp,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum GroupDifficultyKindLikeCpp {
-    Dungeon,
-    Raid,
-    LegacyRaid,
 }
 
 /// Payload for the transitional map-owned creature melee compatibility hit
