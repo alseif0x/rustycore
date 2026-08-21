@@ -376,7 +376,7 @@ async fn battlemaster_join_arena_requires_group_leader_like_cpp() {
     let mut group = GroupInfo::new(leader);
     let group_guid = group.group_guid;
     group.members.push(player);
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     let (mut session, send_rx) = make_session();
     session.set_player_guid(Some(player));
@@ -408,7 +408,7 @@ async fn battlemaster_join_arena_records_represented_rated_queue_intent_like_cpp
     let group_registry = Arc::new(GroupRegistry::default());
     let group = GroupInfo::new(player);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     let (mut session, send_rx) = make_session();
     session.set_player_guid(Some(player));
@@ -515,7 +515,7 @@ async fn battlemaster_join_skirmish_group_request_requires_group_leader_like_cpp
     let mut group = GroupInfo::new(leader);
     let group_guid = group.group_guid;
     group.members.push(player);
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     let (mut session, send_rx) = make_session();
     session.set_player_guid(Some(player));
@@ -547,7 +547,7 @@ async fn battlemaster_join_skirmish_records_solo_and_group_intents_like_cpp() {
     let group_registry = Arc::new(GroupRegistry::default());
     let group = GroupInfo::new(player);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     let (mut session, send_rx) = make_session();
     session.set_player_guid(Some(player));
@@ -734,7 +734,7 @@ async fn accept_wargame_invite_missing_inviter_is_silent_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let group = GroupInfo::new(player_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.set_player_guid(Some(player_guid));
     session.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
@@ -765,12 +765,12 @@ async fn accept_wargame_invite_records_ready_to_queue_when_groups_match_like_cpp
     let mut player_group = GroupInfo::new(player_guid);
     player_group.members.push(player_ally_guid);
     let player_group_guid = player_group.group_guid;
-    group_registry.insert(player_group_guid, player_group);
+    group_registry.register_group_like_cpp(player_group_guid, player_group);
 
     let mut inviter_group = GroupInfo::new(inviter_guid);
     inviter_group.members.push(inviter_ally_guid);
     let inviter_group_guid = inviter_group.group_guid;
-    group_registry.insert(inviter_group_guid, inviter_group);
+    group_registry.register_group_like_cpp(inviter_group_guid, inviter_group);
 
     let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(4);
     let mut inviter_info = broadcast_info_with_command_tx(command_tx);

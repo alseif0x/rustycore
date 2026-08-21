@@ -81,7 +81,7 @@ use wow_network::{
     PendingInvites, PlayerBroadcastInfo, RefreshVisibleWorldCreaturesLikeCppCommand,
     ResetSeasonalQuestStatusCommand, SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand,
     SendRealmPacketLikeCppCommand, SendVisibleObjectValuesUpdateCommand, SessionCommand,
-    WorldSessionShutdownFlushLikeCppCommand, register_group_db_store_id_like_cpp,
+    WorldSessionShutdownFlushLikeCppCommand,
 };
 use wow_packet::ServerPacket;
 use wow_packet::packets::loot::{
@@ -7874,7 +7874,7 @@ fn create_map_player_context_uses_group_recent_instance_like_cpp() {
     group.dungeon_difficulty_id = 2;
     group.set_recent_instance_like_cpp(631, owner, 9001);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     let map_entry =
         represented_map_entry_for_create_map_context_like_cpp(631, wow_data::map::MAP_INSTANCE);
 
@@ -7902,7 +7902,7 @@ fn create_map_player_context_group_owner_falls_back_to_leader_like_cpp() {
     group.raid_difficulty_id = 15;
     group.legacy_raid_difficulty_id = 4;
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     let map_entry =
         represented_map_entry_for_create_map_context_like_cpp(631, wow_data::map::MAP_RAID);
 
@@ -8134,7 +8134,7 @@ fn create_map_active_instance_lock_context_uses_group_recent_owner_like_cpp() {
     group.add_member(member);
     group.set_recent_instance_like_cpp(631, owner, 9001);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     session.player_guid = Some(member);
     session.group_guid = Some(group_guid);
@@ -8239,7 +8239,7 @@ fn create_map_side_effects_set_group_recent_instance_like_cpp() {
     let group_registry = Arc::new(GroupRegistry::default());
     let group = GroupInfo::new(leader);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
     let decision = wow_map::CreateMapDecision::Create {
@@ -8527,7 +8527,7 @@ fn load_represented_group_difficulties_overrides_player_values_like_cpp() {
     group.raid_difficulty_id = 15;
     group.legacy_raid_difficulty_id = 4;
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([
         difficulty_entry(2, MAP_INSTANCE_LIKE_CPP, DifficultyFlags::CAN_SELECT),
@@ -8609,8 +8609,7 @@ fn load_represented_group_by_db_store_id_sets_group_and_difficulties_like_cpp() 
     group.raid_difficulty_id = 15;
     group.legacy_raid_difficulty_id = 4;
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
-    register_group_db_store_id_like_cpp(80_928, group_guid);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([
         difficulty_entry(2, MAP_INSTANCE_LIKE_CPP, DifficultyFlags::CAN_SELECT),
@@ -8715,7 +8714,7 @@ fn reset_group_update_sequence_starts_loaded_group_at_one_like_cpp() {
     let group_registry = Arc::new(GroupRegistry::default());
     let group = GroupInfo::new(leader);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -8741,7 +8740,7 @@ fn reset_group_update_sequence_does_not_reset_same_group_like_cpp() {
     let group_registry = Arc::new(GroupRegistry::default());
     let group = GroupInfo::new(leader);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -8778,8 +8777,8 @@ fn reset_group_update_sequence_resets_when_group_changes_like_cpp() {
     let first_group_guid = first_group.group_guid;
     let second_group = GroupInfo::new(second_leader);
     let second_group_guid = second_group.group_guid;
-    group_registry.insert(first_group_guid, first_group);
-    group_registry.insert(second_group_guid, second_group);
+    group_registry.register_group_like_cpp(first_group_guid, first_group);
+    group_registry.register_group_like_cpp(second_group_guid, second_group);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     session.group_guid = Some(first_group_guid);
@@ -8828,7 +8827,7 @@ async fn party_update_command_consumes_receiver_sequence_like_cpp() {
     let group_registry = Arc::new(GroupRegistry::default());
     let group = GroupInfo::new(player_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(player_guid));
@@ -8884,7 +8883,7 @@ async fn group_removal_command_clears_remote_party_type_like_cpp() {
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(player_guid);
     group.group_guid = group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(player_guid));
     session.group_guid = Some(group_guid);
@@ -8928,7 +8927,7 @@ async fn group_removal_command_clears_remote_party_type_like_cpp() {
             },
         ))
         .unwrap();
-    group_registry.remove(&group_guid);
+    group_registry.unregister_group_like_cpp(&group_guid);
     session
         .process_represented_session_commands_like_cpp()
         .await;
@@ -8975,7 +8974,7 @@ async fn group_removal_command_can_send_group_uninvite_like_cpp() {
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(player_guid);
     group.group_guid = group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(player_guid));
     session.group_guid = Some(group_guid);
@@ -8996,7 +8995,7 @@ async fn group_removal_command_can_send_group_uninvite_like_cpp() {
         Arc::new(PendingInvites::default()),
     );
     player_registry.insert(player_guid, broadcast_info(player_guid, registry_send_tx));
-    group_registry.remove(&group_guid);
+    group_registry.unregister_group_like_cpp(&group_guid);
 
     session
         .session_command_tx()
@@ -9046,7 +9045,7 @@ fn represented_group_leader_flag_is_set_for_loaded_leader_like_cpp() {
     let group_registry = Arc::new(GroupRegistry::default());
     let group = GroupInfo::new(player_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -9074,7 +9073,7 @@ fn represented_group_leader_flag_is_removed_for_non_leader_like_cpp() {
     let mut group = GroupInfo::new(leader_guid);
     group.add_member(player_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -12731,7 +12730,7 @@ async fn accept_invite_to_raid_group_triggers_visible_gameobject_refresh_like_cp
     let mut group = GroupInfo::new(inviter_guid);
     group.convert_to_raid_like_cpp();
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     let player_registry = Arc::new(wow_network::PlayerRegistry::default());
     let (inviter_tx, _inviter_rx) = flume::bounded(8);
     let (player_tx, _player_rx) = flume::bounded(8);
@@ -12746,7 +12745,7 @@ async fn accept_invite_to_raid_group_triggers_visible_gameobject_refresh_like_cp
         broadcast_info_with_command(player_guid, player_tx, player_command_tx),
     );
     let pending_invites = Arc::new(PendingInvites::default());
-    pending_invites.insert(
+    pending_invites.seed_invite_like_cpp(
         player_guid,
         PendingInviteLikeCpp::new_existing_group(
             inviter_guid,
@@ -12943,7 +12942,7 @@ async fn leave_group_triggers_visible_spellclick_refresh_like_cpp() {
     let mut group = GroupInfo::new(player_guid);
     group.add_member(other_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(player_guid));
     session.group_guid = Some(group_guid);
@@ -31425,7 +31424,7 @@ fn canonical_access_requirement_connected_group_leader_achievement_matches_cpp()
     group.raid_difficulty_id = 3;
     group.add_member(member_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     member_session.set_canonical_map_manager(Arc::clone(&canonical));
     member_session.set_player_registry(Arc::clone(&player_registry));
@@ -31922,7 +31921,7 @@ fn canonical_current_expansion_raid_group_allows_entry_like_cpp() {
     group.convert_to_raid_like_cpp();
     group.raid_difficulty_id = 3;
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -32196,7 +32195,7 @@ fn canonical_player_existing_instance_map_rejects_incompatible_player_lock_like_
     group.add_member(member);
     group.set_recent_instance_like_cpp(631, instance_owner, 9001);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -32305,7 +32304,7 @@ fn canonical_player_existing_instance_map_full_sends_transfer_abort_like_cpp() {
     group.add_member(member);
     group.set_recent_instance_like_cpp(631, leader, 9001);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -32380,7 +32379,7 @@ fn canonical_existing_instance_full_gate_does_not_count_game_masters_like_cpp() 
     group.add_member(member);
     group.set_recent_instance_like_cpp(631, leader, 9001);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -32458,7 +32457,7 @@ fn canonical_game_master_bypasses_existing_instance_full_gate_like_cpp() {
     group.add_member(gm);
     group.set_recent_instance_like_cpp(631, leader, 9001);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -32525,7 +32524,7 @@ fn canonical_player_existing_raid_in_progress_sends_transfer_abort_like_cpp() {
     group.add_member(member);
     group.set_recent_instance_like_cpp(631, leader, 9001);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -32599,7 +32598,7 @@ fn canonical_loading_player_bypasses_existing_raid_in_progress_gate_like_cpp() {
     group.add_member(member);
     group.set_recent_instance_like_cpp(631, leader, 9001);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -33435,7 +33434,7 @@ fn configure_two_player_group_for_reputation_test(
     let mut group = GroupInfo::new(player_guid);
     group.add_member(other_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -33801,7 +33800,7 @@ fn reputation_gain_applies_recruit_a_friend_bonus_for_non_spell_sources_like_cpp
     let mut group = GroupInfo::new(player_guid);
     group.add_member(recruit_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -33857,7 +33856,7 @@ fn reputation_gain_recruit_a_friend_bonus_requires_configured_distance_like_cpp(
     let mut group = GroupInfo::new(player_guid);
     group.add_member(recruit_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -36491,7 +36490,7 @@ fn player_registry_publishes_home_group_party_type_like_cpp() {
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     let group = GroupInfo::new(guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
     session.player_name = Some("PartyTypeTester".to_string());
@@ -36521,12 +36520,12 @@ fn player_registry_publishes_instance_group_party_type_like_cpp() {
 
     let home_group = GroupInfo::new(guid);
     let home_group_guid = home_group.group_guid;
-    group_registry.insert(home_group_guid, home_group);
+    group_registry.register_group_like_cpp(home_group_guid, home_group);
 
     let mut instance_group = GroupInfo::new(guid);
     instance_group.group_category = wow_network::group_registry::GROUP_CATEGORY_INSTANCE_LIKE_CPP;
     let instance_group_guid = instance_group.group_guid;
-    group_registry.insert(instance_group_guid, instance_group);
+    group_registry.register_group_like_cpp(instance_group_guid, instance_group);
 
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
@@ -36871,7 +36870,7 @@ fn represented_vehicle_interact_session_like_cpp(
         group.add_member(target_guid);
     }
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(player_guid));
     session.set_loaded_player_name_like_cpp("RideVehicleInteractTester".to_string());
@@ -38005,7 +38004,7 @@ async fn creature_kill_target_dies_proc_filters_group_reward_distance_like_cpp()
     group.add_member(near_member);
     group.add_member(far_member);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.player_guid = Some(player);
     session.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
     session.group_guid = Some(group_guid);
@@ -47855,7 +47854,7 @@ async fn spell_change_raid_marker_effect_row_stores_marker_and_fanouts_like_cpp(
     group.convert_to_raid_like_cpp();
     group.add_member(member_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     player_registry.insert(leader_guid, broadcast_info(leader_guid, leader_tx));
     player_registry.insert(member_guid, broadcast_info(member_guid, member_tx));
     session.set_player_guid(Some(leader_guid));
@@ -47959,7 +47958,7 @@ async fn spell_change_raid_marker_raid_requires_leader_or_assistant_like_cpp() {
     group.convert_to_raid_like_cpp();
     group.add_member(member_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     player_registry.insert(member_guid, broadcast_info(member_guid, member_tx));
     session.set_player_guid(Some(member_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
@@ -52203,7 +52202,7 @@ fn player_attack_uses_owner_group_visibility_like_cpp() {
     let mut group = GroupInfo::new(attacker);
     group.add_member(owner);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     assert_eq!(
@@ -52293,7 +52292,7 @@ fn player_attack_uses_private_object_group_visibility_like_cpp() {
         PlayerAttackStartLikeCppResult::Rejected
     );
 
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     assert_eq!(
@@ -52420,7 +52419,7 @@ fn player_attack_uses_private_summon_group_owner_like_cpp() {
         PlayerAttackStartLikeCppResult::Rejected
     );
 
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     assert_eq!(
         session.start_player_attack_like_cpp(summon),
@@ -55404,7 +55403,7 @@ fn give_xp_runtime_raf_awards_triple_xp_without_spending_rested_bonus_like_cpp()
     let mut group = GroupInfo::new(player_guid);
     group.add_member(recruit_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -73978,7 +73977,7 @@ fn send_new_item_plan_group_broadcasts_to_group_members_including_self() {
     let mut group = GroupInfo::new(self_guid);
     group.add_member(other_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.player_guid = Some(self_guid);
     session.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
@@ -76605,7 +76604,7 @@ fn gameobject_use_ritual_validates_summoned_owner_like_cpp() {
     let mut group = GroupInfo::new(owner_guid);
     group.add_member(player_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session
@@ -76666,7 +76665,7 @@ fn gameobject_use_ritual_completes_and_deactivates_like_cpp() {
     let mut group = GroupInfo::new(other_player_guid);
     group.add_member(player_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -76748,7 +76747,7 @@ fn gameobject_use_ritual_casts_caster_target_spell_at_random_unique_users_like_c
     let mut group = GroupInfo::new(other_player_guid);
     group.add_member(player_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -76855,7 +76854,7 @@ fn gameobject_use_persistent_summoned_ritual_keeps_gameobject_owner_like_cpp() {
     let mut group = GroupInfo::new(owner_guid);
     group.add_member(player_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -76929,7 +76928,7 @@ fn gameobject_use_meeting_stone_maps_spell_by_entry_like_cpp() {
     let mut group = GroupInfo::new(player_guid);
     group.add_member(target_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     let player_registry = Arc::new(PlayerRegistry::default());
@@ -77071,7 +77070,7 @@ fn gameobject_use_meeting_stone_checks_content_tuning_levels_like_cpp() {
     let mut group = GroupInfo::new(player_guid);
     group.add_member(target_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -79455,7 +79454,7 @@ fn gameobject_use_spellcaster_party_only_requires_owner_raid_like_cpp() {
     let mut group = GroupInfo::new(owner_guid);
     group.add_member(player_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -79527,7 +79526,7 @@ fn gameobject_use_spellcaster_party_only_accepts_canonical_created_by_like_cpp()
     let mut group = GroupInfo::new(owner_guid);
     group.add_member(player_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -79942,7 +79941,7 @@ async fn gameobject_use_goober_kill_credit_filters_group_reward_distance_like_cp
     group.add_member(near_member);
     group.add_member(far_member);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));

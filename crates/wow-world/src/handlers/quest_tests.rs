@@ -4088,7 +4088,7 @@ fn install_confirm_accept_sender_snapshot(
         }
     }
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     (sender_session, sender_rx)
@@ -5311,7 +5311,7 @@ async fn quest_confirm_accept_source_item_bound_objective_broadcasts_to_group_li
     group.add_member(receiver_guid);
     group.add_member(other_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -5408,7 +5408,7 @@ async fn quest_confirm_accept_source_item_bound_objective_dont_report_flag_sends
     group.add_member(receiver_guid);
     group.add_member(other_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -6486,7 +6486,7 @@ fn install_represented_party(
     let mut group = GroupInfo::new(sender_guid);
     group.add_member(receiver_guid);
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     session.group_guid = Some(group_guid);
     session.set_player_registry(player_registry.clone());
