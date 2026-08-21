@@ -1779,15 +1779,15 @@ pub(crate) fn fanout_game_event_announcement_to_player_sessions_like_cpp(
         })
         .collect();
 
-    for session in player_registry.iter() {
-        if !session.is_in_world {
+    for recipient in player_registry.runtime_recipients() {
+        if !recipient.is_in_world {
             summary.announce_event_not_in_world_skipped += 1;
             continue;
         }
 
         for bytes in &packet_bytes {
             summary.announce_event_send_attempted += 1;
-            match session.send_tx.try_send(bytes.clone()) {
+            match player_registry.try_send_current_packet(recipient.registration, bytes.clone()) {
                 Ok(()) => summary.announce_event_send_queued += 1,
                 Err(_) => summary.announce_event_send_failed += 1,
             }
@@ -1832,13 +1832,13 @@ pub(crate) fn fanout_reset_event_seasonal_quests_to_player_sessions_like_cpp(
         return;
     };
 
-    for session in player_registry.iter() {
+    for recipient in player_registry.runtime_recipients() {
         summary.reset_event_seasonal_quests_player_session_send_attempted += 1;
         let command = SessionCommand::ResetSeasonalQuestStatus(ResetSeasonalQuestStatusCommand {
             event_id,
             event_start_time,
         });
-        match session.command_tx.try_send(command) {
+        match player_registry.try_send_current_command(recipient.registration, command) {
             Ok(()) => summary.reset_event_seasonal_quests_player_session_send_queued += 1,
             Err(_) => summary.reset_event_seasonal_quests_player_session_send_failed += 1,
         }
@@ -2082,12 +2082,12 @@ pub(crate) fn fanout_game_event_npc_flag_values_update_to_visible_sessions_like_
     };
 
     let packet_bytes = update.to_bytes();
-    for session in player_registry.iter() {
-        if !session.is_in_world {
+    for recipient in player_registry.runtime_recipients() {
+        if !recipient.is_in_world {
             summary.update_npc_flags_values_update_not_in_world_skipped += 1;
             continue;
         }
-        if session.map_id != map_id {
+        if recipient.map_id != map_id {
             summary.update_npc_flags_values_update_wrong_map_skipped += 1;
             continue;
         }
@@ -2100,7 +2100,7 @@ pub(crate) fn fanout_game_event_npc_flag_values_update_to_visible_sessions_like_
                 packet_bytes: packet_bytes.clone(),
                 unit_values_update: Some(packet_update.clone()),
             });
-        match session.command_tx.try_send(command) {
+        match player_registry.try_send_current_command(recipient.registration, command) {
             Ok(()) => summary.update_npc_flags_values_update_send_queued += 1,
             Err(_) => summary.update_npc_flags_values_update_send_failed += 1,
         }
@@ -2193,14 +2193,14 @@ pub(crate) fn fanout_realm_update_world_state_to_player_sessions_like_cpp(
     };
     let bytes = packet.to_bytes();
 
-    for session in player_registry.iter() {
-        if !session.is_in_world {
+    for recipient in player_registry.runtime_recipients() {
+        if !recipient.is_in_world {
             summary.update_world_states_global_message_not_in_world_skipped += 1;
             continue;
         }
 
         summary.update_world_states_global_message_send_attempted += 1;
-        match session.send_tx.try_send(bytes.clone()) {
+        match player_registry.try_send_current_packet(recipient.registration, bytes.clone()) {
             Ok(()) => summary.update_world_states_global_message_send_queued += 1,
             Err(_) => summary.update_world_states_global_message_send_failed += 1,
         }

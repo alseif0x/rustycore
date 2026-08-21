@@ -209,10 +209,9 @@ use wow_network::{
     GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp, GroupInfo,
     GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
     KickLikeCppCommand, LootRollCommandIdentityLikeCpp, NotifyLootMoneyRemovedLikeCppCommand,
-    PendingInvites, PlayerBroadcastInfo, PlayerRegistry,
-    RefreshVisibleWorldCreaturesLikeCppCommand, SessionCommand, SharedClientVisibleGuidsLikeCpp,
-    SocketTimeoutsLikeCpp, SocketWriteFenceLikeCpp, SocketWriteFenceWaitResultLikeCpp,
-    group_guid_by_db_store_id_like_cpp,
+    PendingInvites, PlayerBroadcastInfo, PlayerRegistry, SessionCommand,
+    SharedClientVisibleGuidsLikeCpp, SocketTimeoutsLikeCpp, SocketWriteFenceLikeCpp,
+    SocketWriteFenceWaitResultLikeCpp, group_guid_by_db_store_id_like_cpp,
 };
 use wow_packet::packets::chat::{ChatMsg, ChatPkt, PrintNotification};
 use wow_packet::packets::gossip::ClientGossipText;
@@ -16493,7 +16492,7 @@ impl WorldSession {
         map_id: u16,
         position: &Position,
         visibility_radius: f32,
-    ) -> Vec<(ObjectGuid, PlayerBroadcastInfo)> {
+    ) -> Vec<(ObjectGuid, wow_network::PlayerVisibilityCreateSnapshot)> {
         let Some(player_guid) = self.player_guid() else {
             return Vec::new();
         };
@@ -16507,27 +16506,20 @@ impl WorldSession {
         let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
 
         registry
-            .iter()
-            .filter_map(|entry| {
-                let (guid, info) = entry.pair();
-                if *guid == player_guid
-                    || !info.is_in_world
-                    || info.map_id != map_id
-                    || info.instance_id != instance_id
-                    || self.canonical_player_phase_visible_like_cpp(map_id, instance_id, *guid)
-                        != Some(true)
-                    || !Self::visibility_distance_allows_like_cpp(
-                        position,
-                        source_combat_reach,
-                        &info.position,
-                        info.combat_reach,
-                        visibility_radius,
-                    )
-                {
-                    return None;
-                }
-                Some((*guid, info.clone()))
+            .player_visibility_create_candidates(
+                player_guid,
+                map_id,
+                instance_id,
+                *position,
+                source_combat_reach,
+                visibility_radius,
+            )
+            .into_iter()
+            .filter(|candidate| {
+                self.canonical_player_phase_visible_like_cpp(map_id, instance_id, candidate.guid)
+                    == Some(true)
             })
+            .map(|candidate| (candidate.guid, candidate))
             .collect()
     }
 
@@ -34924,26 +34916,26 @@ impl WorldSession {
             crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
 
         let candidates: Vec<_> = registry
-            .iter()
-            .filter_map(|entry| {
-                let (other_guid, other_info): (&ObjectGuid, &PlayerBroadcastInfo) = entry.pair();
-                if *other_guid == player_guid
-                    || !other_info.is_in_world
-                    || other_info.map_id != map_id
-                    || other_info.instance_id != instance_id
+            .runtime_recipients()
+            .into_iter()
+            .filter_map(|recipient| {
+                if recipient.guid == player_guid
+                    || !recipient.is_in_world
+                    || recipient.map_id != map_id
+                    || recipient.instance_id != instance_id
                 {
                     return None;
                 }
-                let dx = other_info.position.x - source_position.x;
-                let dy = other_info.position.y - source_position.y;
+                let dx = recipient.position.x - source_position.x;
+                let dy = recipient.position.y - source_position.y;
                 if dx * dx + dy * dy > range_sq {
                     return None;
                 }
-                Some(other_info.command_tx.clone())
+                Some(recipient.registration)
             })
             .collect();
 
-        for command_tx in candidates {
+        for registration in candidates {
             let command = SendIfVisibleLikeCppCommand {
                 queued_at: Instant::now(),
                 source_guid,
@@ -34958,7 +34950,7 @@ impl WorldSession {
             } else {
                 SessionCommand::SendIfVisibleLikeCpp(command)
             };
-            let _ = command_tx.try_send(command);
+            let _ = registry.try_send_current_command(registration, command);
         }
     }
 
@@ -63912,18 +63904,17 @@ impl WorldSession {
         let target_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
         let mut broadcast_count = 0;
 
-        for entry in registry.iter() {
-            let (other_guid, broadcast_info) = entry.pair();
-            if *other_guid == guid
-                || !broadcast_info.is_in_world
-                || broadcast_info.map_id != map_id
-                || broadcast_info.instance_id != instance_id
+        for recipient in registry.runtime_recipients() {
+            if recipient.guid == guid
+                || !recipient.is_in_world
+                || recipient.map_id != map_id
+                || recipient.instance_id != instance_id
             {
                 continue;
             }
             if !Self::visibility_distance_allows_like_cpp(
-                &broadcast_info.position,
-                broadcast_info.combat_reach,
+                &recipient.position,
+                recipient.combat_reach,
                 &pos,
                 target_combat_reach,
                 visibility_range,
@@ -63931,27 +63922,15 @@ impl WorldSession {
                 continue;
             }
 
-            broadcast_info
-                .visibility_refresh_pending_like_cpp
-                .store(true, Ordering::Release);
-            let command = SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(
-                RefreshVisibleWorldCreaturesLikeCppCommand {
-                    map_id,
-                    instance_id,
-                },
-            );
-            match broadcast_info.command_tx.try_send(command) {
-                Ok(()) | Err(flume::TrySendError::Full(_)) => {
-                    // A full queue is safe: the receiver consumes the durable
-                    // coalesced flag after draining whatever currently fills
-                    // the bounded command queue.
+            match registry.request_current_visibility_refresh(
+                recipient.registration,
+                map_id,
+                instance_id,
+            ) {
+                Ok(()) => {
                     broadcast_count += 1;
                 }
-                Err(flume::TrySendError::Disconnected(_)) => {
-                    broadcast_info
-                        .visibility_refresh_pending_like_cpp
-                        .store(false, Ordering::Release);
-                }
+                Err(_) => {}
             }
         }
 
