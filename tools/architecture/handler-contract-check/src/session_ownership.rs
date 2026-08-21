@@ -53,6 +53,8 @@ const SERVER_PACKAGE_ROOT: &str = "crates/world-server";
 const SERVER_CRATE_ROOT: &str = "crates/world-server/src/lib.rs";
 const NETWORK_PACKAGE_ROOT: &str = "crates/wow-network";
 const NETWORK_CRATE_ROOT: &str = "crates/wow-network/src/lib.rs";
+const SOCIAL_PACKAGE_ROOT: &str = "crates/wow-social";
+const SOCIAL_CRATE_ROOT: &str = "crates/wow-social/src/lib.rs";
 const WORLD_SESSION_MODULE: &str = "crate::session";
 const WORLD_SESSION_NAME: &str = "WorldSession";
 const SESSION_RESOURCES_MODULE: &str = "crate::session_resources";
@@ -60,6 +62,10 @@ const SESSION_RESOURCES_NAME: &str = "SessionResources";
 const SESSION_FACTORY_MODULE: &str = "crate::session_factory";
 const SESSION_FACTORY_NAME: &str = "create_session";
 const PRIVATE_WORLD_SESSION_OWNER_ROOTS: &[&str] = &["crate::handlers::misc", WORLD_SESSION_MODULE];
+/// Issue #137 relocated the atomic Group owner here. `SessionCommand` still
+/// names `GroupDifficultyKindLikeCpp` in one payload, so the contract scan must
+/// reach this module or that payload type would silently leave the inventory.
+const SOCIAL_GROUP_MODULE: &str = "crate::group";
 /// Issue #138 relocated the opaque connected-session directory here. Its
 /// `PlayerBroadcastInfo` surface is still an ownership target, so the session
 /// contract scan must reach this module as well as the `wow-network` mailbox.
@@ -248,6 +254,7 @@ enum PackageRole {
     World,
     Server,
     Network,
+    Social,
 }
 
 struct SourceUnit {
@@ -266,6 +273,7 @@ impl PackageRole {
             Self::World => "wow-world",
             Self::Server => "world-server",
             Self::Network => "wow-network",
+            Self::Social => "wow-social",
         }
     }
 }
@@ -1316,6 +1324,9 @@ fn collect_items(
 
         if role == PackageRole::Network
             || (role == PackageRole::World && module == WORLD_SESSION_DIRECTORY_MODULE)
+            || (role == PackageRole::Social
+                && (module == SOCIAL_GROUP_MODULE
+                    || module.starts_with(&format!("{SOCIAL_GROUP_MODULE}::"))))
         {
             collect_contract_type(item, module, &item_cfg, item_availability, builder);
         }
@@ -1883,6 +1894,12 @@ fn collect_repository_baseline_with_persistence(
         PackageRole::Network,
         NETWORK_PACKAGE_ROOT,
         NETWORK_CRATE_ROOT,
+    )?);
+    units.extend(repository_units(
+        repository_root,
+        PackageRole::Social,
+        SOCIAL_PACKAGE_ROOT,
+        SOCIAL_CRATE_ROOT,
     )?);
     let persistence_accesses = if with_persistence {
         collect_workspace_persistence_baseline(repository_root)?

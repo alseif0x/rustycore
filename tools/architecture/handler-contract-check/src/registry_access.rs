@@ -904,15 +904,17 @@ fn collect_use_bindings(
         }
         UseTree::Glob(_) => {
             // `directory` is the relocated player-directory owner module from
-            // issue #138; `player_registry`/`group_registry` remain the
-            // `wow-network` mailbox and group owners.
+            // issue #138 and `wow_social`/`group` the relocated Group owner from
+            // issue #137; `player_registry` remains the `wow-network` mailbox.
             let hides_registry = prefix.iter().any(|segment| {
                 matches!(
                     segment.as_str(),
                     "wow_network"
                         | "wow_world"
+                        | "wow_social"
                         | "player_registry"
                         | "group_registry"
+                        | "group"
                         | "directory"
                 )
             });
@@ -2923,6 +2925,29 @@ mod tests {
 
         inventory("use crate::session::admission::*;\n")
             .expect("an unrelated session submodule glob stays allowed");
+    }
+
+    /// Issue #137 moved the Group owner to `wow_social::group`. The glob guard
+    /// must fail closed on the relocated owner exactly as it already does on
+    /// `wow_network`, otherwise one `use ...::group::*;` would silently
+    /// reintroduce hidden `GroupRegistry`/`PendingInvites` access.
+    #[test]
+    fn registry_inventory_rejects_relocated_group_owner_glob() {
+        for import in [
+            "use wow_social::group::*;\n",
+            "use wow_social::*;\n",
+            "use crate::group::invites::*;\n",
+        ] {
+            let error = inventory(import)
+                .expect_err("a glob over the relocated Group owner must fail closed");
+            assert!(
+                error.contains("can hide a registry alias"),
+                "{import} -> {error}"
+            );
+        }
+
+        inventory("use crate::handlers::party_ui::*;\n")
+            .expect("an unrelated social-adjacent module glob stays allowed");
     }
 
     #[test]

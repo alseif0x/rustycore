@@ -52,10 +52,7 @@ use wow_data::{
     ItemStore, MapDifficultyEntry, MapDifficultyStore, MapEntry, MapStore, SpellInfo, SpellStore,
 };
 use wow_database::SqlParam;
-use wow_network::{
-    GroupInfo, GroupRegistry, PendingInvites, SessionCommand,
-    group_registry::{DIFFICULTY_NORMAL_LIKE_CPP, GROUP_FLAG_LFG_LIKE_CPP},
-};
+use wow_network::SessionCommand;
 use wow_packet::ServerPacket;
 use wow_packet::WorldPacket;
 use wow_packet::packets::misc::TRADE_STATUS_INITIATED_LIKE_CPP;
@@ -67,6 +64,9 @@ use wow_packet::packets::misc::{SUPPORT_SPAM_TYPE_CHAT_LIKE_CPP, empty_battle_pe
 use wow_packet::packets::misc::{
     TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_STATE_CHANGED_LIKE_CPP,
     TRADE_STATUS_UNACCEPTED_LIKE_CPP,
+};
+use wow_social::group::{
+    DIFFICULTY_NORMAL_LIKE_CPP, GROUP_FLAG_LFG_LIKE_CPP, GroupInfo, GroupRegistry, PendingInvites,
 };
 
 fn currency_entry(id: u32) -> wow_data::CurrencyTypesEntry {

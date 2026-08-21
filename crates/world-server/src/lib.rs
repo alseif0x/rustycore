@@ -49,17 +49,19 @@ use wow_loot::{
 use wow_network::session_mgr::SessionManager;
 use wow_network::world_socket::{AccountInfo, AccountLookup};
 use wow_network::{
-    GameEventQuestCompleteCommandLikeCpp, GameEventQuestCompleteResponseLikeCpp, GroupDbRowLikeCpp,
-    GroupLoadSummaryLikeCpp, GroupMemberCharacterLikeCpp, GroupMemberDbRowLikeCpp, GroupRegistry,
-    KickLikeCppCommand, PendingInvites, ReadyCheckEventLikeCpp, ResetSeasonalQuestStatusCommand,
-    SendVisibleObjectValuesUpdateCommand, SessionCommand, SocketTimeoutsLikeCpp,
-    WorldListenerPolicyLikeCpp, WorldSessionShutdownFlushLikeCppCommand,
-    WorldSessionShutdownFlushResultLikeCpp, load_groups_from_db_rows_like_cpp,
-    tick_all_group_ready_checks_like_cpp,
+    GameEventQuestCompleteCommandLikeCpp, GameEventQuestCompleteResponseLikeCpp,
+    KickLikeCppCommand, ResetSeasonalQuestStatusCommand, SendVisibleObjectValuesUpdateCommand,
+    SessionCommand, SocketTimeoutsLikeCpp, WorldListenerPolicyLikeCpp,
+    WorldSessionShutdownFlushLikeCppCommand, WorldSessionShutdownFlushResultLikeCpp,
 };
 use wow_packet::{
     ServerPacket,
     packets::chat::{ChatMsg, ChatPkt},
+};
+use wow_social::group::{
+    GroupDbRowLikeCpp, GroupLoadSummaryLikeCpp, GroupMemberCharacterLikeCpp,
+    GroupMemberDbRowLikeCpp, GroupRegistry, PendingInvites, ReadyCheckEventLikeCpp,
+    load_groups_from_db_rows_like_cpp, tick_all_group_ready_checks_like_cpp,
 };
 use wow_world::session::directory::PlayerRegistry;
 use wow_world::{

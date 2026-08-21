@@ -138,14 +138,20 @@
     {
       "from": "wow-network",
       "to": "wow-data",
-      "tracking_issue": 137,
-      "reason": "The network-owned directory, mailbox payloads, and Group owner still carry gameplay data. #150 and #192-#196 close raw directory access before #138 relocates it; #191 then relocates the remaining ordinary mailbox payloads. In parallel, #151 and #197-#199 close Group storage before #195 adapts addressing and #137 performs the final Group move. The audited DAG orders #137 after #191 so #137 owns removal of the final direct edge."
+      "tracking_issue": 140,
+      "reason": "Two Session mailbox command payloads still carry `wow_data::quest::QuestTemplate`. #150 and #192-#196 closed raw directory access, #138 relocated the directory, and #151/#197-#199/#195/#137 moved the Group owner into wow-social, so the remaining use is mailbox-only: #140 owns the pump/mailbox boundary and the final direct edge."
     },
     {
       "from": "wow-network",
       "to": "wow-loot",
       "tracking_issue": 140,
       "reason": "PlayerBroadcastInfo and SessionCommand payloads still carry wow-loot values after the completed protocol/rail relocations #191/#190. #189 removes durable persistence coordination, #138 closes the directory path, and #140 owns the remaining mailbox-pump boundary and final direct edge decision."
+    },
+    {
+      "from": "wow-network",
+      "to": "wow-social",
+      "tracking_issue": 140,
+      "reason": "After #137 relocated the Group owner, the Session mailbox still names `GroupDifficultyKindLikeCpp` in `ApplyGroupDifficultyLikeCppCommand`. This is the only Group symbol left in wow-network; #140 relocates that mailbox and removes the edge. It grants no other wow-social use."
     },
     {
       "from": "wow-packet",
@@ -368,7 +374,9 @@
         "build": []
       },
       "wow-social": {
-        "normal": [],
+        "normal": [
+          "dashmap"
+        ],
         "build": []
       },
       "wow-spell": {

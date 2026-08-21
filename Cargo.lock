@@ -3078,6 +3078,7 @@ dependencies = [
  "wow-network",
  "wow-packet",
  "wow-scripts",
+ "wow-social",
  "wow-world",
 ]
 
@@ -3329,6 +3330,7 @@ dependencies = [
  "wow-data",
  "wow-loot",
  "wow-packet",
+ "wow-social",
 ]
 
 [[package]]
@@ -3396,8 +3398,10 @@ dependencies = [
 name = "wow-social"
 version = "0.1.0"
 dependencies = [
+ "dashmap",
  "wow-constants",
  "wow-core",
+ "wow-data",
 ]
 
 [[package]]
@@ -3446,6 +3450,7 @@ dependencies = [
  "wow-packet",
  "wow-recastdetour",
  "wow-script",
+ "wow-social",
 ]
 
 [[package]]

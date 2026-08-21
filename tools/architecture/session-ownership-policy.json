@@ -3359,7 +3359,7 @@
         },
         {
           "name": "represented_group_update_sequences_like_cpp",
-          "type": "[RepresentedGroupUpdateSequenceLikeCpp ; wow_network :: group_registry :: MAX_GROUP_CATEGORY_LIKE_CPP as usize]",
+          "type": "[RepresentedGroupUpdateSequenceLikeCpp ; wow_social :: group :: MAX_GROUP_CATEGORY_LIKE_CPP as usize]",
           "visibility": "private",
           "cfg": [],
           "source_class": "production"
@@ -53340,7 +53340,7 @@
     "session_command_payload_types": [
       {
         "definition": {
-          "module": "crate::group_registry",
+          "module": "crate::group::model",
           "name": "GroupDifficultyKindLikeCpp",
           "visibility": "pub",
           "cfg": [],
@@ -55834,7 +55834,7 @@
     },
     "generated_surface_inputs": [
       {
-        "module": "crate::group_registry",
+        "module": "crate::group::model",
         "target": "GroupDifficultyKindLikeCpp",
         "kind": "derive",
         "fingerprint": "derive (Clone , Copy , Debug , PartialEq , Eq)",
@@ -56212,7 +56212,7 @@
           "symbol": "GroupRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{GameEventQuestCompleteCommandLikeCpp,GameEventQuestCompleteResponseLikeCpp,GroupDbRowLikeCpp,GroupLoadSummaryLikeCpp,GroupMemberCharacterLikeCpp,GroupMemberDbRowLikeCpp,GroupRegistry,KickLikeCppCommand,PendingInvites,ReadyCheckEventLikeCpp,ResetSeasonalQuestStatusCommand,SendVisibleObjectValuesUpdateCommand,SessionCommand,SocketTimeoutsLikeCpp,WorldListenerPolicyLikeCpp,WorldSessionShutdownFlushLikeCppCommand,WorldSessionShutdownFlushResultLikeCpp,load_groups_from_db_rows_like_cpp,tick_all_group_ready_checks_like_cpp}",
+          "fingerprint": "wow_social::group::{GroupDbRowLikeCpp,GroupLoadSummaryLikeCpp,GroupMemberCharacterLikeCpp,GroupMemberDbRowLikeCpp,GroupRegistry,PendingInvites,ReadyCheckEventLikeCpp,load_groups_from_db_rows_like_cpp,tick_all_group_ready_checks_like_cpp}",
           "count": 1
         },
         {
@@ -56225,7 +56225,7 @@
           "symbol": "PendingInvites",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{GameEventQuestCompleteCommandLikeCpp,GameEventQuestCompleteResponseLikeCpp,GroupDbRowLikeCpp,GroupLoadSummaryLikeCpp,GroupMemberCharacterLikeCpp,GroupMemberDbRowLikeCpp,GroupRegistry,KickLikeCppCommand,PendingInvites,ReadyCheckEventLikeCpp,ResetSeasonalQuestStatusCommand,SendVisibleObjectValuesUpdateCommand,SessionCommand,SocketTimeoutsLikeCpp,WorldListenerPolicyLikeCpp,WorldSessionShutdownFlushLikeCppCommand,WorldSessionShutdownFlushResultLikeCpp,load_groups_from_db_rows_like_cpp,tick_all_group_ready_checks_like_cpp}",
+          "fingerprint": "wow_social::group::{GroupDbRowLikeCpp,GroupLoadSummaryLikeCpp,GroupMemberCharacterLikeCpp,GroupMemberDbRowLikeCpp,GroupRegistry,PendingInvites,ReadyCheckEventLikeCpp,load_groups_from_db_rows_like_cpp,tick_all_group_ready_checks_like_cpp}",
           "count": 1
         },
         {
@@ -57473,7 +57473,7 @@
           "symbol": "GroupRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{GameEventQuestCompleteCommandLikeCpp,GroupRegistry,PendingInvites}",
+          "fingerprint": "wow_social::group::{GroupRegistry,PendingInvites}",
           "count": 1
         },
         {
@@ -57486,7 +57486,7 @@
           "symbol": "PendingInvites",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{GameEventQuestCompleteCommandLikeCpp,GroupRegistry,PendingInvites}",
+          "fingerprint": "wow_social::group::{GroupRegistry,PendingInvites}",
           "count": 1
         },
         {
@@ -57529,87 +57529,9 @@
           "count": 1
         },
         {
-          "package": "wow-network",
-          "module": "crate",
-          "source": "crates/wow-network/src/lib.rs",
-          "enclosing": "module",
-          "registry": "GroupRegistry",
-          "operation": "import_alias",
-          "symbol": "GroupRegistry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry::{AcceptGroupInviteResultLikeCpp,CreateGroupInviteResultLikeCpp,EMPTY_TARGET_ICON_RAW_LIKE_CPP,GROUP_ASSIGN_MAINASSIST_LIKE_CPP,GROUP_ASSIGN_MAINTANK_LIKE_CPP,GROUP_FLAG_DESTROYED_LIKE_CPP,GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP,GROUP_FLAG_LFG_LIKE_CPP,GROUP_FLAG_RAID_LIKE_CPP,GroupAuthorityErrorLikeCpp,GroupDbRowLikeCpp,GroupDifficultyKindLikeCpp,GroupInfo,GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupLfgDbStateLikeCpp,GroupLoadSummaryLikeCpp,GroupMemberCharacterLikeCpp,GroupMemberDbRowLikeCpp,GroupMemberRemovalFactsLikeCpp,GroupMemberRemovalKindLikeCpp,GroupMemberSlotLikeCpp,GroupOwnedInstanceLikeCpp,GroupPersistenceIntentLikeCpp,GroupRecentInstanceLikeCpp,GroupRegistry,GroupTransitionOutcomeLikeCpp,LFG_GROUP_KICK_VOTES_NEEDED_LIKE_CPP,LFG_GROUP_MAX_KICKS_LIKE_CPP,LFG_STATE_DUNGEON_LIKE_CPP,LFG_STATE_FINISHED_DUNGEON_LIKE_CPP,LOOT_METHOD_PERSONAL_LIKE_CPP,MAX_GROUP_SIZE_LIKE_CPP,MAX_RAID_SIZE_LIKE_CPP,MAX_RAID_SUBGROUPS_LIKE_CPP,MEMBER_FLAG_ASSISTANT_LIKE_CPP,MEMBER_FLAG_MAINASSIST_LIKE_CPP,MEMBER_FLAG_MAINTANK_LIKE_CPP,MISSING_MEMBER_GROUP_LIKE_CPP,PendingInviteLikeCpp,PendingInvites,READYCHECK_DURATION_MS_LIKE_CPP,ReadyCheckEventLikeCpp,TARGET_ICONS_COUNT_LIKE_CPP,get_group_by_db_store_id_like_cpp,group_guid_by_db_store_id_like_cpp,load_groups_from_db_rows_like_cpp,tick_all_group_ready_checks_like_cpp}",
-          "count": 1
-        },
-        {
-          "package": "wow-network",
-          "module": "crate",
-          "source": "crates/wow-network/src/lib.rs",
-          "enclosing": "module",
-          "registry": "PendingInvites",
-          "operation": "import_alias",
-          "symbol": "PendingInvites",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "group_registry::{AcceptGroupInviteResultLikeCpp,CreateGroupInviteResultLikeCpp,EMPTY_TARGET_ICON_RAW_LIKE_CPP,GROUP_ASSIGN_MAINASSIST_LIKE_CPP,GROUP_ASSIGN_MAINTANK_LIKE_CPP,GROUP_FLAG_DESTROYED_LIKE_CPP,GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP,GROUP_FLAG_LFG_LIKE_CPP,GROUP_FLAG_RAID_LIKE_CPP,GroupAuthorityErrorLikeCpp,GroupDbRowLikeCpp,GroupDifficultyKindLikeCpp,GroupInfo,GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupLfgDbStateLikeCpp,GroupLoadSummaryLikeCpp,GroupMemberCharacterLikeCpp,GroupMemberDbRowLikeCpp,GroupMemberRemovalFactsLikeCpp,GroupMemberRemovalKindLikeCpp,GroupMemberSlotLikeCpp,GroupOwnedInstanceLikeCpp,GroupPersistenceIntentLikeCpp,GroupRecentInstanceLikeCpp,GroupRegistry,GroupTransitionOutcomeLikeCpp,LFG_GROUP_KICK_VOTES_NEEDED_LIKE_CPP,LFG_GROUP_MAX_KICKS_LIKE_CPP,LFG_STATE_DUNGEON_LIKE_CPP,LFG_STATE_FINISHED_DUNGEON_LIKE_CPP,LOOT_METHOD_PERSONAL_LIKE_CPP,MAX_GROUP_SIZE_LIKE_CPP,MAX_RAID_SIZE_LIKE_CPP,MAX_RAID_SUBGROUPS_LIKE_CPP,MEMBER_FLAG_ASSISTANT_LIKE_CPP,MEMBER_FLAG_MAINASSIST_LIKE_CPP,MEMBER_FLAG_MAINTANK_LIKE_CPP,MISSING_MEMBER_GROUP_LIKE_CPP,PendingInviteLikeCpp,PendingInvites,READYCHECK_DURATION_MS_LIKE_CPP,ReadyCheckEventLikeCpp,TARGET_ICONS_COUNT_LIKE_CPP,get_group_by_db_store_id_like_cpp,group_guid_by_db_store_id_like_cpp,load_groups_from_db_rows_like_cpp,tick_all_group_ready_checks_like_cpp}",
-          "count": 1
-        },
-        {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
-          "enclosing": "fn get_group_by_db_store_id_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "type_reference",
-          "symbol": "registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "& GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
-          "enclosing": "fn get_group_by_db_store_id_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "get",
-          "symbol": "get",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "get(& group_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
-          "enclosing": "fn load_groups_from_db_rows_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "type_reference",
-          "symbol": "registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "& GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
-          "enclosing": "fn tick_all_group_ready_checks_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "type_reference",
-          "symbol": "registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "& GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
+          "package": "wow-social",
+          "module": "crate::group::invites",
+          "source": "crates/wow-social/src/group/invites.rs",
           "enclosing": "impl GroupRegistry::accept_invite_like_cpp",
           "registry": "PendingInvites",
           "operation": "type_reference",
@@ -57620,9 +57542,9 @@
           "count": 1
         },
         {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
+          "package": "wow-social",
+          "module": "crate::group::invites",
+          "source": "crates/wow-social/src/group/invites.rs",
           "enclosing": "impl GroupRegistry::cancel_invite_like_cpp",
           "registry": "PendingInvites",
           "operation": "type_reference",
@@ -57633,9 +57555,9 @@
           "count": 1
         },
         {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
+          "package": "wow-social",
+          "module": "crate::group::invites",
+          "source": "crates/wow-social/src/group/invites.rs",
           "enclosing": "impl GroupRegistry::cancel_invite_like_cpp",
           "registry": "PendingInvites",
           "operation": "argument_escape",
@@ -57646,9 +57568,9 @@
           "count": 1
         },
         {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
+          "package": "wow-social",
+          "module": "crate::group::invites",
+          "source": "crates/wow-social/src/group/invites.rs",
           "enclosing": "impl GroupRegistry::cancel_invite_unlocked_like_cpp",
           "registry": "PendingInvites",
           "operation": "type_reference",
@@ -57659,9 +57581,9 @@
           "count": 1
         },
         {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
+          "package": "wow-social",
+          "module": "crate::group::invites",
+          "source": "crates/wow-social/src/group/invites.rs",
           "enclosing": "impl GroupRegistry::cancel_pending_group_like_cpp",
           "registry": "PendingInvites",
           "operation": "type_reference",
@@ -57672,9 +57594,9 @@
           "count": 1
         },
         {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
+          "package": "wow-social",
+          "module": "crate::group::invites",
+          "source": "crates/wow-social/src/group/invites.rs",
           "enclosing": "impl GroupRegistry::create_invite_like_cpp",
           "registry": "PendingInvites",
           "operation": "type_reference",
@@ -57685,9 +57607,9 @@
           "count": 1
         },
         {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
+          "package": "wow-social",
+          "module": "crate::group::invites",
+          "source": "crates/wow-social/src/group/invites.rs",
           "enclosing": "impl GroupRegistry::decline_invite_like_cpp",
           "registry": "PendingInvites",
           "operation": "type_reference",
@@ -57698,9 +57620,9 @@
           "count": 1
         },
         {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
+          "package": "wow-social",
+          "module": "crate::group::invites",
+          "source": "crates/wow-social/src/group/invites.rs",
           "enclosing": "impl GroupRegistry::decline_invite_like_cpp",
           "registry": "PendingInvites",
           "operation": "argument_escape",
@@ -57711,9 +57633,9 @@
           "count": 1
         },
         {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
+          "package": "wow-social",
+          "module": "crate::group::invites",
+          "source": "crates/wow-social/src/group/invites.rs",
           "enclosing": "impl GroupRegistry::decline_invite_like_cpp",
           "registry": "PendingInvites",
           "operation": "get",
@@ -57724,9 +57646,9 @@
           "count": 1
         },
         {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
+          "package": "wow-social",
+          "module": "crate::group::invites",
+          "source": "crates/wow-social/src/group/invites.rs",
           "enclosing": "impl GroupRegistry::expire_invite_like_cpp",
           "registry": "PendingInvites",
           "operation": "type_reference",
@@ -57737,9 +57659,9 @@
           "count": 1
         },
         {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
+          "package": "wow-social",
+          "module": "crate::group::invites",
+          "source": "crates/wow-social/src/group/invites.rs",
           "enclosing": "impl GroupRegistry::expire_invite_like_cpp",
           "registry": "PendingInvites",
           "operation": "argument_escape",
@@ -57750,9 +57672,9 @@
           "count": 1
         },
         {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
+          "package": "wow-social",
+          "module": "crate::group::invites",
+          "source": "crates/wow-social/src/group/invites.rs",
           "enclosing": "impl GroupRegistry::replace_invite_like_cpp",
           "registry": "PendingInvites",
           "operation": "type_reference",
@@ -57763,9 +57685,9 @@
           "count": 1
         },
         {
-          "package": "wow-network",
-          "module": "crate::group_registry",
-          "source": "crates/wow-network/src/group_registry.rs",
+          "package": "wow-social",
+          "module": "crate::group::invites",
+          "source": "crates/wow-social/src/group/invites.rs",
           "enclosing": "impl GroupRegistry::replace_invite_like_cpp",
           "registry": "PendingInvites",
           "operation": "argument_escape",
@@ -57773,6 +57695,58 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "pending",
+          "count": 1
+        },
+        {
+          "package": "wow-social",
+          "module": "crate::group::model",
+          "source": "crates/wow-social/src/group/model.rs",
+          "enclosing": "fn get_group_by_db_store_id_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "& GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-social",
+          "module": "crate::group::model",
+          "source": "crates/wow-social/src/group/model.rs",
+          "enclosing": "fn get_group_by_db_store_id_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "get(& group_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-social",
+          "module": "crate::group::model",
+          "source": "crates/wow-social/src/group/model.rs",
+          "enclosing": "fn load_groups_from_db_rows_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "& GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-social",
+          "module": "crate::group::ready_check",
+          "source": "crates/wow-social/src/group/ready_check.rs",
+          "enclosing": "fn tick_all_group_ready_checks_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "& GroupRegistry",
           "count": 1
         },
         {
@@ -59683,7 +59657,7 @@
           "symbol": "GroupRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{AcceptGroupInviteResultLikeCpp,CreateGroupInviteResultLikeCpp,GroupAuthorityErrorLikeCpp,GroupInfo,GroupMemberRemovalKindLikeCpp,GroupPersistenceIntentLikeCpp,GroupRegistry,MEMBER_FLAG_ASSISTANT_LIKE_CPP,ReadyCheckEventLikeCpp,SendPartyUpdateLikeCppCommand,SendRealmPacketLikeCppCommand,SessionCommand}",
+          "fingerprint": "wow_social::group::{AcceptGroupInviteResultLikeCpp,CreateGroupInviteResultLikeCpp,GroupAuthorityErrorLikeCpp,GroupInfo,GroupMemberRemovalKindLikeCpp,GroupPersistenceIntentLikeCpp,GroupRegistry,MEMBER_FLAG_ASSISTANT_LIKE_CPP,ReadyCheckEventLikeCpp}",
           "count": 1
         },
         {
@@ -63518,7 +63492,7 @@
           "symbol": "GroupRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{DurableLootMoneyCompletionLikeCpp,DurableLootMoneyPersistenceGuardLikeCpp,DurableLootMoneyPersistenceTrackerLikeCpp,DurableLootMoneySaveFenceLikeCpp,GameEventQuestCompleteClientOutcomeLikeCpp,GameEventQuestCompleteCommandLikeCpp,GroupInfo,GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupRegistry,KickLikeCppCommand,LootRollCommandIdentityLikeCpp,NotifyLootMoneyRemovedLikeCppCommand,PendingInvites,SessionCommand,SharedClientVisibleGuidsLikeCpp,SocketTimeoutsLikeCpp,SocketWriteFenceLikeCpp,SocketWriteFenceWaitResultLikeCpp,group_guid_by_db_store_id_like_cpp}",
+          "fingerprint": "wow_social::group::{GroupInfo,GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupRegistry,PendingInvites,group_guid_by_db_store_id_like_cpp}",
           "count": 1
         },
         {
@@ -63531,7 +63505,7 @@
           "symbol": "PendingInvites",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "wow_network::{DurableLootMoneyCompletionLikeCpp,DurableLootMoneyPersistenceGuardLikeCpp,DurableLootMoneyPersistenceTrackerLikeCpp,DurableLootMoneySaveFenceLikeCpp,GameEventQuestCompleteClientOutcomeLikeCpp,GameEventQuestCompleteCommandLikeCpp,GroupInfo,GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupRegistry,KickLikeCppCommand,LootRollCommandIdentityLikeCpp,NotifyLootMoneyRemovedLikeCppCommand,PendingInvites,SessionCommand,SharedClientVisibleGuidsLikeCpp,SocketTimeoutsLikeCpp,SocketWriteFenceLikeCpp,SocketWriteFenceWaitResultLikeCpp,group_guid_by_db_store_id_like_cpp}",
+          "fingerprint": "wow_social::group::{GroupInfo,GroupInstanceResetMethodLikeCpp,GroupInstanceResetResultLikeCpp,GroupRegistry,PendingInvites,group_guid_by_db_store_id_like_cpp}",
           "count": 1
         },
         {
@@ -73961,7 +73935,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:610596fe30f51ff2e05dd0c9752db879:len=90756|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:36c19ae2126591bffaa59739579abe76:len=90746|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

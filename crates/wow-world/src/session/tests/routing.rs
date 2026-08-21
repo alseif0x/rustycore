@@ -26,8 +26,8 @@ async fn realm_only_party_commands_never_use_instance_after_connect_to_like_cpp(
                 recipient: player_guid,
                 party_update: wow_packet::packets::party::PartyUpdate {
                     party_flags: 0,
-                    party_index: wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
-                    party_type: wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
+                    party_index: wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP,
+                    party_type: wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP,
                     my_index: 0,
                     party_guid: group_guid,
                     sequence_num: 999,
@@ -92,8 +92,8 @@ async fn realm_only_party_commands_never_use_instance_after_connect_to_like_cpp(
                 recipient: wrong_recipient,
                 party_update: wow_packet::packets::party::PartyUpdate {
                     party_flags: 0,
-                    party_index: wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
-                    party_type: wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
+                    party_index: wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP,
+                    party_type: wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP,
                     my_index: 0,
                     party_guid: group_guid,
                     sequence_num: 0,
@@ -140,15 +140,15 @@ pub(super) fn assert_destroyed_party_update_like_cpp(bytes: &[u8], group_guid: u
     );
     assert_eq!(
         packet.read_uint16().expect("party flags"),
-        wow_network::group_registry::GROUP_FLAG_DESTROYED_LIKE_CPP
+        wow_social::group::GROUP_FLAG_DESTROYED_LIKE_CPP
     );
     assert_eq!(
         packet.read_uint8().expect("party index"),
-        wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+        wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
     );
     assert_eq!(
         packet.read_uint8().expect("party type"),
-        wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP
+        wow_social::group::GROUP_TYPE_NONE_LIKE_CPP
     );
     assert_eq!(packet.read_int32().expect("my index"), -1);
     assert_eq!(
