@@ -672,21 +672,28 @@ fn build_global_alias_index(
         }
     }
 
-    for glob in globs {
-        let Some((target_package, target_module)) =
-            index.resolve_module_path(&glob.package, &glob.module, &glob.target_path)
-        else {
-            continue;
-        };
-        if index
-            .aliases_for(&target_package, &target_module)
-            .is_some_and(|aliases| !aliases.is_empty())
-        {
-            errors.push(format!(
-                "glob import {}::* in {} can hide a cross-module registry alias; import each registry explicitly",
-                glob.target_path.join("::"),
-                glob.module
-            ));
+    // Private module splits commonly inherit their parent facade with
+    // `use super::*`. Resolve those imports through the same exact alias index
+    // instead of rejecting a layout-only change. Iterate to a fixed point so
+    // a private descendant can inherit an alias through more than one facade.
+    // External registry-capable globs remain rejected by `collect_use_bindings`.
+    for _ in 0..=globs.len() {
+        let mut changed = false;
+        for glob in &globs {
+            let Some((target_package, target_module)) =
+                index.resolve_module_path(&glob.package, &glob.module, &glob.target_path)
+            else {
+                continue;
+            };
+            let Some(aliases) = index.aliases_for(&target_package, &target_module).cloned() else {
+                continue;
+            };
+            for (name, kinds) in aliases {
+                changed |= index.insert_aliases(&glob.package, &glob.module, &name, kinds);
+            }
+        }
+        if !changed {
+            break;
         }
     }
     index
@@ -2848,13 +2855,17 @@ mod tests {
             module: "crate::consumer",
             source_path: "src/consumer.rs",
             inherited_cfg: &[],
-            source: "use crate::aliases::*;",
+            source: "use crate::aliases::*; fn read(players: &Players) { players.get(&1); }",
         };
         let cross_module_glob = inventory_registry_accesses(&[alias_module, glob_consumer])
-            .expect_err("a cross-module registry-capable glob must fail closed");
+            .expect("a private cross-module glob must inherit indexed aliases exactly");
         assert!(
-            cross_module_glob.contains("cross-module registry alias"),
-            "{cross_module_glob}"
+            cross_module_glob.accesses.iter().any(|record| {
+                record.module == "crate::consumer"
+                    && record.registry == RegistryKind::Player
+                    && record.operation == RegistryOperation::Get
+            }),
+            "inherited Players alias must retain PlayerRegistry provenance"
         );
 
         let macro_escape = inventory(
