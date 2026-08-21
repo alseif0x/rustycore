@@ -17,7 +17,7 @@ use wow_network::player_registry::{ApplyGroupJoinLikeCppCommand, ApplyGroupRemov
 use wow_network::{
     AcceptGroupInviteResultLikeCpp, CreateGroupInviteResultLikeCpp, GroupAuthorityErrorLikeCpp,
     GroupInfo, GroupMemberRemovalKindLikeCpp, GroupPersistenceIntentLikeCpp, GroupRegistry,
-    MEMBER_FLAG_ASSISTANT_LIKE_CPP, PlayerRegistry, ReadyCheckEventLikeCpp,
+    MEMBER_FLAG_ASSISTANT_LIKE_CPP, PlayerRegistration, PlayerRegistry, ReadyCheckEventLikeCpp,
     SendPartyUpdateLikeCppCommand, SendRealmPacketLikeCppCommand, SessionCommand,
 };
 use wow_packet::packets::misc::{RandomRoll, RandomRollClient};
@@ -318,7 +318,7 @@ fn party_member_full_state_like_cpp(
     target_guid: ObjectGuid,
     registry: Option<&PlayerRegistry>,
 ) -> PartyMemberFullState {
-    let Some(entry) = registry.and_then(|registry| registry.get(&target_guid)) else {
+    let Some(entry) = registry.and_then(|registry| registry.party_member(target_guid)) else {
         return PartyMemberFullState {
             member_guid: target_guid,
             for_enemy: false,
@@ -401,7 +401,7 @@ fn party_player_info_like_cpp(
     guid: ObjectGuid,
 ) -> Option<PartyPlayerInfo> {
     let slot = group.member_slot_like_cpp(guid);
-    registry.get(&guid).map(|entry| {
+    registry.party_member(guid).map(|entry| {
         let race = if entry.race == 0 {
             slot.map(|slot| slot.race).unwrap_or_default()
         } else {
@@ -442,7 +442,7 @@ fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32) {
         .collect();
 
     for (my_idx, &member_guid) in group.members.iter().enumerate() {
-        let member_entry = match registry.get(&member_guid) {
+        let member_entry = match registry.party_member(member_guid) {
             Some(e) => e,
             None => continue,
         };
@@ -480,7 +480,7 @@ fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32) {
             if other_guid == member_guid {
                 continue;
             }
-            if registry.contains_key(&other_guid) {
+            if registry.party_member(other_guid).is_some() {
                 let full_state = party_member_full_state_like_cpp(other_guid, Some(registry));
                 member_full_state_packets.push(full_state.to_bytes());
             }
@@ -492,18 +492,20 @@ fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32) {
             member_full_state_packets,
         };
         #[cfg(not(test))]
-        if member_entry
-            .command_tx
-            .try_send(SessionCommand::SendPartyUpdateLikeCpp(command))
+        if registry
+            .try_send_current_command(
+                member_entry.registration,
+                SessionCommand::SendPartyUpdateLikeCpp(command),
+            )
             .is_err()
         {
             warn!(member = %member_guid, "failed to queue party update for remote session");
         }
         #[cfg(test)]
         {
-            member_entry
-                .command_tx
-                .send_timeout(
+            registry
+                .send_current_command_blocking_timeout(
+                    member_entry.registration,
                     SessionCommand::SendPartyUpdateLikeCpp(command),
                     Duration::from_secs(1),
                 )
@@ -523,18 +525,15 @@ async fn send_group_new_leader_like_cpp(
     }
     .to_bytes();
 
-    let recipients: Vec<_> = group
-        .members
-        .iter()
-        .filter_map(|member_guid| {
-            registry
-                .get(member_guid)
-                .map(|entry| (*member_guid, entry.command_tx.clone()))
-        })
-        .collect();
-    for (member_guid, command_tx) in recipients {
-        let _ =
-            send_realm_packet_to_player_like_cpp(member_guid, &command_tx, packet.clone()).await;
+    let recipients = registry.group_presences_in_order(&group.members);
+    for recipient in recipients {
+        let _ = send_realm_packet_to_player_like_cpp(
+            registry,
+            recipient.registration,
+            recipient.guid,
+            packet.clone(),
+        )
+        .await;
     }
 }
 
@@ -546,7 +545,7 @@ fn first_connected_group_member_like_cpp(
         .members
         .iter()
         .copied()
-        .find(|member_guid| registry.contains_key(member_guid))
+        .find(|member_guid| registry.group_presence(*member_guid).is_some())
 }
 
 fn sender_can_start_ready_check_like_cpp(group: &GroupInfo, sender_guid: ObjectGuid) -> bool {
@@ -566,7 +565,7 @@ fn current_player_party_invite_map_instance_like_cpp(
     }
 
     registry
-        .get(&player_guid)
+        .group_presence(player_guid)
         .map(|entry| (entry.map_id, entry.instance_id))
         .unwrap_or_else(|| (session.player_map_id_like_cpp(), 0))
 }
@@ -694,11 +693,7 @@ fn send_ready_check_events_like_cpp(
     group: &GroupInfo,
     registry: &PlayerRegistry,
 ) {
-    let recipients: Vec<_> = group
-        .members
-        .iter()
-        .filter_map(|guid| registry.get(guid).map(|entry| entry.send_tx.clone()))
-        .collect();
+    let recipients = registry.group_presences_in_order(&group.members);
 
     for event in events {
         let bytes = match *event {
@@ -734,8 +729,8 @@ fn send_ready_check_events_like_cpp(
             .to_bytes(),
         };
 
-        for tx in &recipients {
-            let _ = tx.send(bytes.clone());
+        for recipient in &recipients {
+            let _ = registry.send_current_packet(recipient.registration, bytes.clone());
         }
     }
 }
@@ -743,17 +738,21 @@ fn send_ready_check_events_like_cpp(
 fn connected_group_member_txs_like_cpp(
     group: &GroupInfo,
     registry: &PlayerRegistry,
-) -> Vec<flume::Sender<Vec<u8>>> {
-    group
-        .members
-        .iter()
-        .filter_map(|guid| registry.get(guid).map(|entry| entry.send_tx.clone()))
+) -> Vec<PlayerRegistration> {
+    registry
+        .group_presences_in_order(&group.members)
+        .into_iter()
+        .map(|recipient| recipient.registration)
         .collect()
 }
 
-fn send_group_packet_bytes_like_cpp(bytes: Vec<u8>, recipients: &[flume::Sender<Vec<u8>>]) {
-    for tx in recipients {
-        let _ = tx.send(bytes.clone());
+fn send_group_packet_bytes_like_cpp(
+    registry: &PlayerRegistry,
+    bytes: Vec<u8>,
+    recipients: &[PlayerRegistration],
+) {
+    for recipient in recipients {
+        let _ = registry.send_current_packet(*recipient, bytes.clone());
     }
 }
 
@@ -775,21 +774,20 @@ fn send_party_uninvite_result_like_cpp(session: &WorldSession, result: u8) {
 /// (`Opcodes.cpp:1826-1832`). This path receives only the target command
 /// sender, so the target session performs the final realm-socket routing.
 async fn send_realm_packet_to_player_like_cpp(
+    registry: &PlayerRegistry,
+    registration: PlayerRegistration,
     recipient: ObjectGuid,
-    command_tx: &flume::Sender<SessionCommand>,
     packet_bytes: Vec<u8>,
 ) -> bool {
     let command = SessionCommand::SendRealmPacketLikeCpp(SendRealmPacketLikeCppCommand {
         recipient,
         packet_bytes,
     });
-    match tokio::time::timeout(
-        PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP,
-        command_tx.send_async(command),
-    )
-    .await
+    match registry
+        .send_current_command_timeout(registration, command, PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP)
+        .await
     {
-        Ok(Ok(())) => {
+        Ok(()) => {
             // Test fixtures run a real command dispatcher on another task/thread.
             // Yielding here lets that receiver perform the same session-local
             // routing before packet assertions without adding a wrong-socket
@@ -798,11 +796,14 @@ async fn send_realm_packet_to_player_like_cpp(
             tokio::task::yield_now().await;
             true
         }
-        Ok(Err(error)) => {
-            warn!(recipient = %recipient, %error, "realm-routed party command channel closed");
+        Err(
+            error @ (wow_network::PlayerDirectorySendError::Disconnected
+            | wow_network::PlayerDirectorySendError::StaleRegistration),
+        ) => {
+            warn!(recipient = %recipient, ?error, "realm-routed party command target stale or closed");
             false
         }
-        Err(_) => {
+        Err(wow_network::PlayerDirectorySendError::Full) => {
             warn!(recipient = %recipient, "timed out queueing realm-routed party packet");
             false
         }
@@ -819,22 +820,23 @@ async fn send_realm_packet_to_player_like_cpp(
 /// finite timeout in [`send_realm_packet_to_player_like_cpp`]; this stronger
 /// delivery rule is intentionally scoped to the invite state transition.
 async fn send_realm_party_invite_to_player_like_cpp(
+    registry: &PlayerRegistry,
+    registration: PlayerRegistration,
     recipient: ObjectGuid,
-    command_tx: &flume::Sender<SessionCommand>,
     packet_bytes: Vec<u8>,
 ) -> bool {
     let command = SessionCommand::SendRealmPacketLikeCpp(SendRealmPacketLikeCppCommand {
         recipient,
         packet_bytes,
     });
-    match command_tx.send_async(command).await {
+    match registry.send_current_command(registration, command).await {
         Ok(()) => {
             #[cfg(test)]
             tokio::task::yield_now().await;
             true
         }
         Err(error) => {
-            warn!(recipient = %recipient, %error, "realm-routed party invite channel closed");
+            warn!(recipient = %recipient, ?error, "realm-routed party invite target stale or closed");
             false
         }
     }
@@ -906,36 +908,26 @@ async fn queue_visible_gameobjects_or_spellclicks_refresh_like_cpp(
     registry: &PlayerRegistry,
     local_guid: ObjectGuid,
 ) {
-    let recipients: Vec<_> = group
-        .members
-        .iter()
-        .copied()
-        .filter(|member_guid| *member_guid != local_guid)
-        .filter_map(|member_guid| {
-            registry
-                .get(&member_guid)
-                .map(|member| (member_guid, member.command_tx.clone()))
-        })
+    let recipients: Vec<_> = registry
+        .group_presences_in_order(&group.members)
+        .into_iter()
+        .filter(|member| member.guid != local_guid)
         .collect();
 
-    for (member_guid, command_tx) in recipients {
-        match tokio::time::timeout(
-            PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP,
-            command_tx.send_async(
+    for member in recipients {
+        match registry
+            .send_current_command_timeout(
+                member.registration,
                 wow_network::SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp,
-            ),
-        )
-        .await
+                PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP,
+            )
+            .await
         {
-            Ok(Ok(())) => {}
-            Ok(Err(error)) => warn!(
-                member = %member_guid,
-                %error,
-                "visible gameobject refresh command channel closed"
-            ),
-            Err(_) => warn!(
-                member = %member_guid,
-                "timed out queueing visible gameobject refresh command"
+            Ok(()) => {}
+            Err(error) => warn!(
+                member = %member.guid,
+                ?error,
+                "failed to queue visible gameobject refresh command"
             ),
         }
     }
@@ -1227,12 +1219,7 @@ impl WorldSession {
         };
 
         // Find target by name (case-insensitive), same pattern as whisper handler.
-        let target_lookup = registry
-            .iter()
-            .find(|e| e.value().player_name.eq_ignore_ascii_case(&target_name))
-            .map(|e| (*e.key(), e.value().clone()));
-
-        let (real_target_guid, target_snapshot) = match target_lookup {
+        let target_snapshot = match registry.social_recipient_by_name(&target_name) {
             Some(target) => target,
             None => {
                 warn!(
@@ -1243,6 +1230,7 @@ impl WorldSession {
                 return;
             }
         };
+        let real_target_guid = target_snapshot.guid;
 
         // Don't invite yourself (compare by real GUID from registry).
         if real_target_guid == my_guid {
@@ -1360,8 +1348,9 @@ impl WorldSession {
                     realm_name_normalized: realm_name_normalized.clone(),
                 };
                 let _ = send_realm_packet_to_player_like_cpp(
+                    registry,
+                    target_snapshot.registration,
                     real_target_guid,
-                    &target_snapshot.command_tx,
                     invite.to_bytes(),
                 )
                 .await;
@@ -1395,8 +1384,9 @@ impl WorldSession {
             realm_name_normalized,
         };
         if !send_realm_party_invite_to_player_like_cpp(
+            registry,
+            target_snapshot.registration,
             real_target_guid,
-            &target_snapshot.command_tx,
             invite_packet.to_bytes(),
         )
         .await
@@ -1473,14 +1463,12 @@ impl WorldSession {
             else {
                 return;
             };
-            let leader_command_tx = registry
-                .get(&invite.leader_guid)
-                .map(|leader| leader.command_tx.clone());
-            if let Some(leader_command_tx) = leader_command_tx {
+            if let Some(leader) = registry.group_presence(invite.leader_guid) {
                 let decline = GroupDecline { name: my_name };
                 let _ = send_realm_packet_to_player_like_cpp(
+                    &registry,
+                    leader.registration,
                     invite.leader_guid,
-                    &leader_command_tx,
                     decline.to_bytes(),
                 )
                 .await;
@@ -1488,15 +1476,13 @@ impl WorldSession {
             return;
         }
 
-        let leader_command_tx = registry
-            .get(&invite.leader_guid)
-            .map(|leader| leader.command_tx.clone());
+        let leader = registry.group_presence(invite.leader_guid);
         let (group, persistence, refresh_visible_gameobjects_or_spellclicks) = match group_reg
             .accept_invite_like_cpp(
                 &pending,
                 my_guid,
                 party_index,
-                leader_command_tx.as_ref().map(|_| invite.leader_guid),
+                leader.as_ref().map(|_| invite.leader_guid),
             ) {
             AcceptGroupInviteResultLikeCpp::NoInvite
             | AcceptGroupInviteResultLikeCpp::WrongCategory
@@ -1534,16 +1520,17 @@ impl WorldSession {
                 subgroup: _,
                 persistence,
             } => {
-                if let Some(leader_command_tx) = leader_command_tx.as_ref() {
-                    let _ = leader_command_tx.try_send(SessionCommand::ApplyGroupJoinLikeCpp(
-                        ApplyGroupJoinLikeCppCommand {
+                if let Some(leader) = leader.as_ref() {
+                    let _ = registry.try_send_current_command(
+                        leader.registration,
+                        SessionCommand::ApplyGroupJoinLikeCpp(ApplyGroupJoinLikeCppCommand {
                             group_guid: group.group_guid,
                             category: group.group_category_like_cpp(),
                             party_type: wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
                             subgroup: 0,
                             refresh_visible_gameobjects_or_spellclicks: false,
-                        },
-                    ));
+                        }),
+                    );
                 }
                 (group, persistence, false)
             }
@@ -1638,8 +1625,8 @@ impl WorldSession {
             return;
         };
         let target_has_loot_rolls = registry
-            .get(&uninvite.target_guid)
-            .is_some_and(|target| !target.active_loot_rolls.is_empty());
+            .group_presence(uninvite.target_guid)
+            .is_some_and(|target| target.has_active_loot_rolls);
         let sender_map_id = self.player_map_id_like_cpp();
         let sender_instance_id = self
             .current_canonical_player_map_key_like_cpp()
@@ -1649,7 +1636,7 @@ impl WorldSession {
             if *member_guid == sender_guid {
                 self.in_combat
             } else {
-                registry.get(member_guid).is_some_and(|member| {
+                registry.group_presence(*member_guid).is_some_and(|member| {
                     member.in_combat
                         && member.map_id == sender_map_id
                         && member.instance_id == sender_instance_id
@@ -1735,10 +1722,11 @@ impl WorldSession {
             send_group_uninvite: !should_disband,
             refresh_visible_gameobjects_or_spellclicks: true,
         };
-        if let Some(target_entry) = registry.get(&uninvite.target_guid) {
-            let _ = target_entry
-                .command_tx
-                .try_send(SessionCommand::ApplyGroupRemovalLikeCpp(cleanup_command));
+        if let Some(target) = registry.group_presence(uninvite.target_guid) {
+            let _ = registry.try_send_current_command(
+                target.registration,
+                SessionCommand::ApplyGroupRemovalLikeCpp(cleanup_command),
+            );
         }
 
         if should_disband {
@@ -1872,7 +1860,7 @@ impl WorldSession {
         if let Some(remaining) = dissolve_remaining {
             // Group dissolved — notify last remaining member (if any).
             if let Some(&last_guid) = remaining.first() {
-                if let Some(last_entry) = registry.get(&last_guid) {
+                if let Some(last) = registry.group_presence(last_guid) {
                     let command = ApplyGroupRemovalLikeCppCommand {
                         group_guid: gid,
                         category: wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
@@ -1881,9 +1869,10 @@ impl WorldSession {
                         send_group_uninvite: false,
                         refresh_visible_gameobjects_or_spellclicks: true,
                     };
-                    let _ = last_entry
-                        .command_tx
-                        .try_send(SessionCommand::ApplyGroupRemovalLikeCpp(command));
+                    let _ = registry.try_send_current_command(
+                        last.registration,
+                        SessionCommand::ApplyGroupRemovalLikeCpp(command),
+                    );
                 }
             }
             // Tell self to leave.
@@ -2037,15 +2026,16 @@ impl WorldSession {
 
         if target_guid == sender_guid {
             self.apply_group_subgroup_like_cpp(group_guid, new_subgroup);
-        } else if let Some(target) = registry.get(&target_guid) {
-            let _ = target
-                .command_tx
-                .try_send(SessionCommand::ApplyGroupSubgroupLikeCpp(
+        } else if let Some(target) = registry.group_presence(target_guid) {
+            let _ = registry.try_send_current_command(
+                target.registration,
+                SessionCommand::ApplyGroupSubgroupLikeCpp(
                     wow_network::player_registry::ApplyGroupSubgroupLikeCppCommand {
                         group_guid,
                         subgroup: new_subgroup,
                     },
-                ));
+                ),
+            );
         }
 
         send_party_update(&outcome.group, &registry, vra);
@@ -2105,15 +2095,16 @@ impl WorldSession {
         for (member_guid, subgroup) in subgroup_updates {
             if member_guid == sender_guid {
                 self.apply_group_subgroup_like_cpp(group_guid, subgroup);
-            } else if let Some(member) = registry.get(&member_guid) {
-                let _ = member
-                    .command_tx
-                    .try_send(SessionCommand::ApplyGroupSubgroupLikeCpp(
+            } else if let Some(member) = registry.group_presence(member_guid) {
+                let _ = registry.try_send_current_command(
+                    member.registration,
+                    SessionCommand::ApplyGroupSubgroupLikeCpp(
                         wow_network::player_registry::ApplyGroupSubgroupLikeCppCommand {
                             group_guid,
                             subgroup,
                         },
-                    ));
+                    ),
+                );
             }
         }
 
@@ -2153,11 +2144,10 @@ impl WorldSession {
             Some(registry) => std::sync::Arc::clone(registry),
             None => return,
         };
-        let Some(target_entry) = registry.get(&set_leader.target_guid) else {
+        let Some(target) = registry.social_recipient(set_leader.target_guid) else {
             return;
         };
-        let target_name = target_entry.player_name.clone();
-        drop(target_entry);
+        let target_name = target.player_name;
         let vra = self.virtual_realm_address();
 
         let Some(group_guid) = current_group_guid_like_cpp(
@@ -2569,7 +2559,9 @@ impl WorldSession {
         // C++ broadcasts RoleChangedInform, then Group::SetLfgRoles mutates an
         // existing member slot and calls SendUpdate(). Keep both fanouts outside
         // the mutable guard and only send PartyUpdate when the slot existed.
-        send_group_packet_bytes_like_cpp(bytes, &recipients);
+        if let Some(registry) = registry.as_ref() {
+            send_group_packet_bytes_like_cpp(registry, bytes, &recipients);
+        }
 
         if lfg_roles_mutated_existing_target {
             if let Some(registry) = registry.as_ref() {
@@ -2650,6 +2642,7 @@ impl WorldSession {
 
         for (changed_symbol, target) in outcome.facts {
             send_group_packet_bytes_like_cpp(
+                &registry,
                 raid_target_update_single_like_cpp(
                     party_index,
                     changed_symbol,
@@ -2703,7 +2696,7 @@ impl WorldSession {
         let bytes = raid_markers_changed_like_cpp(&outcome.group);
         let recipients = connected_group_member_txs_like_cpp(&outcome.group, &registry);
 
-        send_group_packet_bytes_like_cpp(bytes, &recipients);
+        send_group_packet_bytes_like_cpp(&registry, bytes, &recipients);
     }
 
     /// CMSG_REQUEST_PARTY_JOIN_UPDATES.
@@ -2809,7 +2802,7 @@ impl WorldSession {
             return;
         };
 
-        send_group_packet_bytes_like_cpp(bytes, &recipients);
+        send_group_packet_bytes_like_cpp(&registry, bytes, &recipients);
     }
 
     /// CMSG_SET_LOOT_METHOD.
@@ -2925,8 +2918,8 @@ impl WorldSession {
             if *member_guid == sender_guid {
                 continue;
             }
-            if let Some(entry) = registry.get(member_guid) {
-                let _ = entry.send_tx.send(bytes.clone());
+            if let Some(member) = registry.group_presence(*member_guid) {
+                let _ = registry.send_current_packet(member.registration, bytes.clone());
             }
         }
     }
@@ -3002,8 +2995,8 @@ impl WorldSession {
         let mut sent_to_sender = false;
         // C++ `group->BroadcastPacket(randomRoll.Write(), false)` includes the roller.
         for member_guid in &group.members {
-            if let Some(entry) = registry.get(member_guid) {
-                let _ = entry.send_tx.send(bytes.clone());
+            if let Some(member) = registry.group_presence(*member_guid) {
+                let _ = registry.send_current_packet(member.registration, bytes.clone());
                 if *member_guid == sender_guid {
                     sent_to_sender = true;
                 }
