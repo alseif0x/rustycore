@@ -79,37 +79,37 @@ struct CuratedAnchor {
 const CURATED_ANCHORS: &[CuratedAnchor] = &[
     CuratedAnchor {
         package: "world-server",
-        module: "crate",
+        module: "crate::runtime::game_events",
         name: "mirror_loaded_grid_creature_to_legacy_like_cpp",
         direction: BridgeDirection::CanonicalToLegacy,
     },
     CuratedAnchor {
         package: "world-server",
-        module: "crate",
+        module: "crate::runtime::delivery",
         name: "run_legacy_creature_movement_tick_and_deliver_once_like_cpp",
         direction: BridgeDirection::LegacyToCanonical,
     },
     CuratedAnchor {
         package: "world-server",
-        module: "crate",
+        module: "crate::runtime::delivery",
         name: "run_legacy_creature_aggro_tick_and_deliver_once_like_cpp",
         direction: BridgeDirection::LegacyToCanonical,
     },
     CuratedAnchor {
         package: "world-server",
-        module: "crate",
+        module: "crate::runtime::delivery",
         name: "run_legacy_creature_melee_tick_and_deliver_once_like_cpp",
         direction: BridgeDirection::LegacyToCanonical,
     },
     CuratedAnchor {
         package: "world-server",
-        module: "crate",
+        module: "crate::runtime::delivery",
         name: "run_legacy_creature_spell_tick_and_deliver_once_like_cpp",
         direction: BridgeDirection::LegacyToCanonical,
     },
     CuratedAnchor {
         package: "world-server",
-        module: "crate",
+        module: "crate::runtime::delivery",
         name: "run_legacy_creature_runtime_tick_and_deliver_once_like_cpp",
         direction: BridgeDirection::LegacyToCanonical,
     },
@@ -2115,14 +2115,14 @@ mod tests {
         let baseline = inventory_bridge_accesses(&[
             BridgeSource {
                 package: "world-server",
-                module: "crate",
+                module: "crate::runtime::delivery",
                 source_path: "crates/world-server/src/runtime/delivery.rs",
                 inherited_cfg: &[],
                 source: &delivery,
             },
             BridgeSource {
                 package: "world-server",
-                module: "crate",
+                module: "crate::runtime::game_events",
                 source_path: "crates/world-server/src/runtime/game_events.rs",
                 inherited_cfg: &[],
                 source: &game_events,
