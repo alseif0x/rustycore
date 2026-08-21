@@ -78,7 +78,7 @@ use wow_network::{
     ApplyLootMoneyLikeCppCommand, ApplyLootMoneyResultLikeCpp, KickLikeCppCommand,
     LootRollCommandIdentityLikeCpp, LootRollStoreWinnerCommand, LootRollVoteCommand,
     MasterLootGiveCommand, MasterLootGiveResult, NotifyLootMoneyRemovedLikeCppCommand,
-    PlayerRegistry, SessionCommand,
+    PlayerRegistry, PrepareLootMoneyApplicationLikeCpp, SessionCommand,
 };
 use wow_packet::packets::item::{
     ItemExpirePurchaseRefund, ItemInstance, ItemModList, ItemPushResult, ItemPushResultDisplayType,
@@ -106,11 +106,11 @@ use crate::conditions::{
 };
 use crate::session::{
     DurableItemLootCompletionLikeCpp, DurableItemLootPersistenceGuardLikeCpp,
-    DurableLootItemFanoutLikeCpp, InventoryItem, LootMoneyPersistenceErrorLikeCpp,
-    LootMoneyViewerFanoutLikeCpp, RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
-    RepresentedLootRollState, RepresentedLootRollVote,
-    RepresentedQuestObjectiveProgressEventLikeCpp, SessionState, WorldSession,
-    loot_money_durable_outcome_like_cpp,
+    DurableLootItemFanoutLikeCpp, InventoryItem, LootMoneyDeliveryAddressLikeCpp,
+    LootMoneyPersistenceErrorLikeCpp, LootMoneyViewerFanoutLikeCpp,
+    RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect, RepresentedLootRollState,
+    RepresentedLootRollVote, RepresentedQuestObjectiveProgressEventLikeCpp, SessionState,
+    WorldSession, loot_money_durable_outcome_like_cpp,
 };
 
 const LOOT_METHOD_FREE_FOR_ALL_LIKE_CPP: u8 = 0;
@@ -762,22 +762,14 @@ impl WorldSession {
             .unwrap_or(0);
         let mut queued = 0;
 
-        for entry in registry.iter() {
-            let (candidate_guid, candidate) = entry.pair();
-            if *candidate_guid == player_guid {
-                continue;
-            }
-            if !candidate.is_in_world
-                || candidate.map_id != current_map_id
-                || candidate.instance_id != current_instance_id
-            {
-                continue;
-            }
-            if candidate
-                .command_tx
-                .try_send(SessionCommand::SyncChestGameobjectStateAndRefreshLikeCpp(
-                    command.clone(),
-                ))
+        for registration in
+            registry.same_map_loot_recipients(player_guid, current_map_id, current_instance_id)
+        {
+            if registry
+                .try_send_current_command(
+                    registration,
+                    SessionCommand::SyncChestGameobjectStateAndRefreshLikeCpp(command.clone()),
+                )
                 .is_ok()
             {
                 queued += 1;
@@ -808,22 +800,14 @@ impl WorldSession {
             .unwrap_or(0);
         let mut queued = 0;
 
-        for entry in registry.iter() {
-            let (candidate_guid, candidate) = entry.pair();
-            if *candidate_guid == player_guid {
-                continue;
-            }
-            if !candidate.is_in_world
-                || candidate.map_id != current_map_id
-                || candidate.instance_id != current_instance_id
-            {
-                continue;
-            }
-            if candidate
-                .command_tx
-                .try_send(SessionCommand::SyncGooberGameobjectStateAndRefreshLikeCpp(
-                    command.clone(),
-                ))
+        for registration in
+            registry.same_map_loot_recipients(player_guid, current_map_id, current_instance_id)
+        {
+            if registry
+                .try_send_current_command(
+                    registration,
+                    SessionCommand::SyncGooberGameobjectStateAndRefreshLikeCpp(command.clone()),
+                )
                 .is_ok()
             {
                 queued += 1;
@@ -851,28 +835,20 @@ impl WorldSession {
             .unwrap_or(0);
         let mut queued = 0;
 
-        for entry in registry.iter() {
-            let (candidate_guid, candidate) = entry.pair();
-            if *candidate_guid == player_guid {
-                continue;
-            }
-            if !candidate.is_in_world
-                || candidate.map_id != current_map_id
-                || candidate.instance_id != current_instance_id
-            {
-                continue;
-            }
-            if candidate
-                .command_tx
-                .try_send(SessionCommand::SendIfVisibleLikeCpp(
-                    SendIfVisibleLikeCppCommand {
+        for registration in
+            registry.same_map_loot_recipients(player_guid, current_map_id, current_instance_id)
+        {
+            if registry
+                .try_send_current_command(
+                    registration,
+                    SessionCommand::SendIfVisibleLikeCpp(SendIfVisibleLikeCppCommand {
                         queued_at: Instant::now(),
                         source_guid: gameobject_guid,
                         map_id: current_map_id,
                         instance_id: current_instance_id,
                         packet_bytes: packet_bytes.clone(),
-                    },
-                ))
+                    }),
+                )
                 .is_ok()
             {
                 queued += 1;
@@ -1002,23 +978,13 @@ impl WorldSession {
         let Some(registry) = self.player_registry() else {
             return sent;
         };
-        let remote_command_txs = registry
-            .iter()
-            .filter_map(|entry| {
-                let (candidate_guid, candidate) = entry.pair();
-                (*candidate_guid != player_guid
-                    && candidate.is_in_world
-                    && candidate.map_id == map_id
-                    && candidate.instance_id == instance_id)
-                    .then(|| candidate.command_tx.clone())
-            })
-            .collect::<Vec<_>>();
-        for command_tx in remote_command_txs {
+        let recipients = registry.same_map_loot_recipients(player_guid, map_id, instance_id);
+        for registration in recipients {
             // C++'s dirty-field pass cannot silently lose this forced update.
             // Do not retain a DashMap guard (or any map/authority lock) while
             // queueing the bounded target-session command rail.
-            if queue_creature_loot_release_command_reliably_like_cpp(
-                &command_tx,
+            if registry.queue_current_command_reliably(
+                registration,
                 SessionCommand::SendCreatureLootReleaseValuesUpdateLikeCpp(
                     SendCreatureLootReleaseValuesUpdateLikeCppCommand {
                         creature_guid,
@@ -1028,7 +994,7 @@ impl WorldSession {
                         authority: authority.cloned(),
                     },
                 ),
-            ) != CreatureLootReleaseCommandQueueOutcomeLikeCpp::Disconnected
+            ) != wow_network::PlayerDirectoryReliableSendOutcome::StaleOrDisconnected
             {
                 sent += 1;
             }
@@ -1122,20 +1088,12 @@ impl WorldSession {
             .unwrap_or(0);
         let mut queued = 0;
 
-        for entry in registry.iter() {
-            let (candidate_guid, candidate) = entry.pair();
-            if *candidate_guid == player_guid {
-                continue;
-            }
-            if !candidate.is_in_world
-                || candidate.map_id != current_map_id
-                || candidate.instance_id != current_instance_id
-            {
-                continue;
-            }
-            if candidate
-                .command_tx
-                .try_send(
+        for registration in
+            registry.same_map_loot_recipients(player_guid, current_map_id, current_instance_id)
+        {
+            if registry
+                .try_send_current_command(
+                    registration,
                     SessionCommand::SyncGatheringNodeGameobjectStateAndRefreshLikeCpp(
                         command.clone(),
                     ),
@@ -1817,39 +1775,6 @@ impl WorldSession {
                 if recipients.is_empty() {
                     recipients.push(player_guid);
                 }
-                let mut admitted = Vec::with_capacity(recipients.len());
-                for recipient in recipients.iter().copied() {
-                    let admission = if recipient == player_guid {
-                        Some((
-                            self.session_command_tx(),
-                            self.durable_loot_money_persistence_tracker_like_cpp(),
-                        ))
-                    } else {
-                        self.player_registry()
-                            .and_then(|registry| registry.get(&recipient))
-                            .map(|target| {
-                                (
-                                    target.command_tx.clone(),
-                                    Arc::clone(&target.durable_loot_money_tracker_like_cpp),
-                                )
-                            })
-                    };
-                    let Some((command_tx, money_tracker)) = admission else {
-                        admitted.clear();
-                        break;
-                    };
-                    admitted.push((recipient, command_tx, money_tracker));
-                }
-
-                // Eligibility is chosen once, before persistence.  If a
-                // connected eligible member cannot be admitted, retry the
-                // original pool instead of silently changing the divisor.
-                if admitted.len() != recipients.len() || admitted.is_empty() {
-                    claim.rollback_like_cpp();
-                    let _ = self.reconcile_represented_loot_cache_like_cpp(*loot_guid, player_guid);
-                    continue;
-                }
-
                 let money_per_player = u64::from(*reserved_money) / recipients.len() as u64;
                 let sole_looter = recipients.len() <= 1;
                 let payouts = recipients
@@ -1858,31 +1783,77 @@ impl WorldSession {
                     .map(|recipient| (recipient, money_per_player))
                     .collect::<Vec<_>>();
                 let authority_committed = Arc::new(AtomicBool::new(false));
-                let mut deliveries = Vec::with_capacity(admitted.len());
+                let mut deliveries = Vec::with_capacity(recipients.len());
                 let mut local_application = None;
-                for (recipient, command_tx, money_tracker) in admitted {
-                    let application = ApplyLootMoneyLikeCppCommand {
-                        recipient,
-                        loot_owner: *loot_guid,
-                        loot_obj: *loot_obj,
-                        amount: money_per_player,
-                        durable_applied_amount: Arc::new(AtomicU64::new(0)),
-                        durable_persistence_tracker: money_tracker,
-                        sole_looter,
-                        authority: authority.clone(),
-                        authority_generation,
-                        authority_committed: Arc::clone(&authority_committed),
-                        send_coin_removed: Arc::new(AtomicBool::new(false)),
-                        applied: Arc::new(AtomicBool::new(false)),
-                        published: Arc::new(AtomicBool::new(false)),
-                    };
-                    if recipient == player_guid {
+                for recipient in recipients.iter().copied() {
+                    let durable_applied_amount = Arc::new(AtomicU64::new(0));
+                    let send_coin_removed = Arc::new(AtomicBool::new(false));
+                    let applied = Arc::new(AtomicBool::new(false));
+                    let published = Arc::new(AtomicBool::new(false));
+                    let (delivery, application) = if recipient == player_guid {
+                        let application = ApplyLootMoneyLikeCppCommand {
+                            recipient,
+                            loot_owner: *loot_guid,
+                            loot_obj: *loot_obj,
+                            amount: money_per_player,
+                            durable_applied_amount,
+                            durable_persistence_tracker: self
+                                .durable_loot_money_persistence_tracker_like_cpp(),
+                            sole_looter,
+                            authority: authority.clone(),
+                            authority_generation,
+                            authority_committed: Arc::clone(&authority_committed),
+                            send_coin_removed,
+                            applied,
+                            published,
+                        };
                         local_application = Some(application.clone());
-                    }
-                    deliveries.push((
-                        command_tx,
-                        SessionCommand::ApplyLootMoneyLikeCpp(application),
-                    ));
+                        (
+                            LootMoneyDeliveryAddressLikeCpp::Source(self.session_command_tx()),
+                            application,
+                        )
+                    } else {
+                        let Some(registry) = self.player_registry().cloned() else {
+                            deliveries.clear();
+                            break;
+                        };
+                        let Some(prepared) = registry.prepare_loot_money_application(
+                            PrepareLootMoneyApplicationLikeCpp {
+                                recipient,
+                                loot_owner: *loot_guid,
+                                loot_obj: *loot_obj,
+                                amount: money_per_player,
+                                durable_applied_amount,
+                                sole_looter,
+                                authority: authority.clone(),
+                                authority_generation,
+                                authority_committed: Arc::clone(&authority_committed),
+                                send_coin_removed,
+                                applied,
+                                published,
+                            },
+                        ) else {
+                            deliveries.clear();
+                            break;
+                        };
+                        (
+                            LootMoneyDeliveryAddressLikeCpp::Directory {
+                                registry,
+                                registration: prepared.registration,
+                            },
+                            prepared.command,
+                        )
+                    };
+                    deliveries.push((delivery, SessionCommand::ApplyLootMoneyLikeCpp(application)));
+                }
+
+                // Eligibility is chosen once, before persistence. If a
+                // connected eligible member cannot be admitted, retry the
+                // original pool instead of silently changing the divisor.
+                if deliveries.len() != recipients.len() || deliveries.is_empty() {
+                    claim.rollback_like_cpp();
+                    let _ = self.reconcile_represented_loot_cache_like_cpp(*loot_guid, player_guid);
+                    continue;
                 }
 
                 let current_map = self.player_map_id_like_cpp();
@@ -2044,8 +2015,9 @@ impl WorldSession {
                     self.send_packet(&notify);
                     player_money_delta = player_money_delta.saturating_add(money_per_player);
                 } else if let Some(registry) = self.player_registry() {
-                    if let Some(member) = registry.get(&recipient) {
-                        let _ = member.send_tx.send(notify.to_bytes());
+                    if let Some(member) = registry.loot_presence(recipient) {
+                        let _ =
+                            registry.send_current_packet(member.registration, notify.to_bytes());
                     }
                 }
             }
@@ -2146,7 +2118,7 @@ impl WorldSession {
                 continue;
             }
 
-            let Some(member) = player_registry.get(member_guid) else {
+            let Some(member) = player_registry.loot_presence(*member_guid) else {
                 continue;
             };
 
@@ -2878,42 +2850,32 @@ impl WorldSession {
             return false;
         };
 
-        let roll_key = (roll.loot_obj, roll.loot_list_id);
         let instance_id = self
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
-        let mut command_target = None;
-        for owner in registry.iter() {
-            if *owner.key() == player_guid {
-                continue;
-            }
-            if owner.map_id != self.player_map_id_like_cpp() || owner.instance_id != instance_id {
-                continue;
-            }
-            if let Some(identity) = owner
-                .active_loot_rolls
-                .iter()
-                .find(|identity| identity.matches_key_like_cpp(roll_key.0, roll_key.1))
-            {
-                command_target = Some((owner.command_tx.clone(), identity.clone()));
-                break;
-            }
-        }
-
-        let Some((command_tx, roll_identity)) = command_target else {
+        let Some((registration, roll_identity)) = registry.loot_roll_owner(
+            player_guid,
+            self.player_map_id_like_cpp(),
+            instance_id,
+            roll.loot_obj,
+            roll.loot_list_id,
+        ) else {
             return false;
         };
 
-        command_tx
-            .try_send(SessionCommand::LootRollVote(LootRollVoteCommand {
-                voter_guid: player_guid,
-                loot_obj: roll.loot_obj,
-                loot_list_id: roll.loot_list_id,
-                roll_type: roll.roll_type,
-                pass_on_group_loot: self.pass_on_group_loot,
-                roll_identity,
-            }))
+        registry
+            .try_send_current_command(
+                registration,
+                SessionCommand::LootRollVote(LootRollVoteCommand {
+                    voter_guid: player_guid,
+                    loot_obj: roll.loot_obj,
+                    loot_list_id: roll.loot_list_id,
+                    roll_type: roll.roll_type,
+                    pass_on_group_loot: self.pass_on_group_loot,
+                    roll_identity,
+                }),
+            )
             .is_ok()
     }
 
@@ -3390,18 +3352,17 @@ impl WorldSession {
         let Some(registry) = self.player_registry() else {
             return;
         };
-        let Some(player) = registry.get(&target) else {
-            return;
-        };
         let instance_id = self
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
-        if player.map_id != self.player_map_id_like_cpp() || player.instance_id != instance_id {
+        let Some(registration) =
+            registry.loot_delivery_recipient(target, self.player_map_id_like_cpp(), instance_id)
+        else {
             return;
-        }
+        };
 
-        let _ = player.send_tx.send(packet.to_bytes());
+        let _ = registry.send_current_packet(registration, packet.to_bytes());
     }
 
     fn broadcast_represented_loot_roll_packet_like_cpp<P: ServerPacket>(
@@ -3432,14 +3393,15 @@ impl WorldSession {
             let Some(registry) = self.player_registry() else {
                 continue;
             };
-            let Some(player) = registry.get(looter) else {
+            let Some(registration) = registry.loot_delivery_recipient(
+                *looter,
+                self.player_map_id_like_cpp(),
+                instance_id,
+            ) else {
                 continue;
             };
-            if player.map_id != self.player_map_id_like_cpp() || player.instance_id != instance_id {
-                continue;
-            }
 
-            let _ = player.send_tx.send(bytes.clone());
+            let _ = registry.send_current_packet(registration, bytes.clone());
         }
     }
 
@@ -3470,14 +3432,15 @@ impl WorldSession {
             let Some(registry) = self.player_registry() else {
                 continue;
             };
-            let Some(player) = registry.get(player_guid) else {
+            let Some(registration) = registry.loot_delivery_recipient(
+                *player_guid,
+                self.player_map_id_like_cpp(),
+                instance_id,
+            ) else {
                 continue;
             };
-            if player.map_id != self.player_map_id_like_cpp() || player.instance_id != instance_id {
-                continue;
-            }
 
-            let _ = player.send_tx.send(bytes.clone());
+            let _ = registry.send_current_packet(registration, bytes.clone());
         }
     }
 
@@ -3759,12 +3722,9 @@ impl WorldSession {
         let Some(registry) = self.player_registry() else {
             return MasterLootGiveResult::TargetMismatch;
         };
-        let Some(target_info) = registry.get(&target) else {
+        let Some(command_address) = registry.control_address(target) else {
             return MasterLootGiveResult::TargetMismatch;
         };
-
-        let command_tx = target_info.command_tx.clone();
-        drop(target_info);
 
         let (result_tx, result_rx) = flume::bounded(1);
         let command = SessionCommand::MasterLootGive(MasterLootGiveCommand {
@@ -3778,7 +3738,7 @@ impl WorldSession {
             result_tx,
         });
 
-        if command_tx.try_send(command).is_err() {
+        if command_address.try_send(command).is_err() {
             return MasterLootGiveResult::TargetMismatch;
         }
 
@@ -4272,12 +4232,9 @@ impl WorldSession {
         let Some(registry) = self.player_registry() else {
             return MasterLootGiveResult::TargetMismatch;
         };
-        let Some(target_info) = registry.get(&target) else {
+        let Some(command_address) = registry.control_address(target) else {
             return MasterLootGiveResult::TargetMismatch;
         };
-
-        let command_tx = target_info.command_tx.clone();
-        drop(target_info);
 
         let (result_tx, result_rx) = flume::bounded(1);
         let command = SessionCommand::LootRollStoreWinner(LootRollStoreWinnerCommand {
@@ -4291,7 +4248,7 @@ impl WorldSession {
             result_tx,
         });
 
-        if command_tx.try_send(command).is_err() {
+        if command_address.try_send(command).is_err() {
             return MasterLootGiveResult::TargetMismatch;
         }
 
@@ -5801,15 +5758,18 @@ impl WorldSession {
                     stale_viewers.push(viewer);
                     continue;
                 };
-                let Some(player) = registry.get(&viewer) else {
+                let Some(registration) =
+                    registry.loot_delivery_recipient(viewer, route.map_id, route.instance_id)
+                else {
                     stale_viewers.push(viewer);
                     continue;
                 };
-                if player.map_id != route.map_id || player.instance_id != route.instance_id {
+                if registry
+                    .send_current_packet(registration, bytes.clone())
+                    .is_err()
+                {
                     stale_viewers.push(viewer);
-                    continue;
                 }
-                let _ = player.send_tx.send(bytes.clone());
             }
         }
 
@@ -6108,11 +6068,10 @@ impl WorldSession {
             .map(|key| key.instance_id)
             .unwrap_or(0);
         self.player_registry()
-            .and_then(|registry| registry.get(&target))
-            .is_some_and(|target_info| {
-                target_info.map_id == self.player_map_id_like_cpp()
-                    && target_info.instance_id == instance_id
+            .and_then(|registry| {
+                registry.loot_delivery_recipient(target, self.player_map_id_like_cpp(), instance_id)
             })
+            .is_some()
     }
 
     fn represented_master_loot_target_eligible_like_cpp(&self, target: ObjectGuid) -> bool {
@@ -6485,14 +6444,15 @@ impl WorldSession {
             let Some(registry) = self.player_registry() else {
                 continue;
             };
-            let Some(player) = registry.get(allowed_looter) else {
+            let Some(registration) = registry.loot_delivery_recipient(
+                *allowed_looter,
+                self.player_map_id_like_cpp(),
+                instance_id,
+            ) else {
                 continue;
             };
-            if player.map_id != self.player_map_id_like_cpp() || player.instance_id != instance_id {
-                continue;
-            }
 
-            let _ = player.send_tx.send(bytes.clone());
+            let _ = registry.send_current_packet(registration, bytes.clone());
         }
     }
 
@@ -6580,16 +6540,18 @@ impl WorldSession {
                 stale_looters.push(*looter);
                 continue;
             };
-            let Some(player) = registry.get(looter) else {
+            let Some(registration) =
+                registry.loot_delivery_recipient(*looter, current_map, current_instance)
+            else {
                 stale_looters.push(*looter);
                 continue;
             };
-            if player.map_id != current_map || player.instance_id != current_instance {
+            if registry
+                .send_current_packet(registration, bytes.clone())
+                .is_err()
+            {
                 stale_looters.push(*looter);
-                continue;
             }
-
-            let _ = player.send_tx.send(bytes.clone());
         }
 
         if !stale_looters.is_empty()
@@ -6640,16 +6602,18 @@ impl WorldSession {
                 stale_looters.push(*looter);
                 continue;
             };
-            let Some(player) = registry.get(looter) else {
+            let Some(registration) =
+                registry.loot_delivery_recipient(*looter, current_map, current_instance)
+            else {
                 stale_looters.push(*looter);
                 continue;
             };
-            if player.map_id != current_map || player.instance_id != current_instance {
+            if registry
+                .send_current_packet(registration, bytes.clone())
+                .is_err()
+            {
                 stale_looters.push(*looter);
-                continue;
             }
-
-            let _ = player.send_tx.send(bytes.clone());
         }
 
         if !stale_looters.is_empty()
@@ -6743,15 +6707,15 @@ impl WorldSession {
                             ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP
                         }
                     } else {
-                        match player_registry
-                            .as_deref()
-                            .and_then(|registry| registry.get(looter))
-                        {
-                            Some(player)
-                                if player.map_id == current_map_id
-                                    && player.instance_id == current_instance_id =>
-                            {
-                                if player.pass_on_group_loot {
+                        match player_registry.as_deref().and_then(|registry| {
+                            registry.loot_pass_on_group_loot(
+                                *looter,
+                                current_map_id,
+                                current_instance_id,
+                            )
+                        }) {
+                            Some(pass_on_group_loot) => {
+                                if pass_on_group_loot {
                                     ROLL_VOTE_PASS_LIKE_CPP
                                 } else {
                                     ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP
@@ -6877,16 +6841,15 @@ impl WorldSession {
             let Some(registry) = self.player_registry() else {
                 continue;
             };
-            let Some(player) = registry.get(&looter) else {
+            let Some(registration) = registry.loot_delivery_recipient(
+                looter,
+                self.player_map_id_like_cpp(),
+                current_instance_id,
+            ) else {
                 continue;
             };
-            if player.map_id != self.player_map_id_like_cpp()
-                || player.instance_id != current_instance_id
-            {
-                continue;
-            }
 
-            let _ = player.send_tx.send(packet.to_bytes());
+            let _ = registry.send_current_packet(registration, packet.to_bytes());
         }
 
         for (packet, state) in auto_pass_packets {
@@ -6901,15 +6864,16 @@ impl WorldSession {
         let Some(registry) = self.player_registry() else {
             return;
         };
-        let Some(mut info) = registry.get_mut(&player_guid) else {
-            return;
-        };
-
-        info.active_loot_rolls = self
+        let identities = self
             .represented_loot_rolls
             .values()
             .map(|state| state.command_identity.clone())
             .collect();
+        let _ = registry.replace_loot_rolls_for_control_channel(
+            player_guid,
+            &self.session_command_tx(),
+            identities,
+        );
     }
 
     pub(crate) async fn tick_represented_loot_rolls_like_cpp(&mut self) {
@@ -7756,7 +7720,8 @@ impl WorldSession {
                 looters.push(*member_guid);
                 continue;
             }
-            let Some(member) = registry.and_then(|registry| registry.get(member_guid)) else {
+            let Some(member) = registry.and_then(|registry| registry.loot_presence(*member_guid))
+            else {
                 continue;
             };
             if member.is_in_world
@@ -8178,7 +8143,7 @@ impl WorldSession {
                     return true;
                 }
                 registry
-                    .and_then(|registry| registry.get(tapper))
+                    .and_then(|registry| registry.loot_presence(*tapper))
                     .is_some_and(|player| {
                         player.is_in_world
                             && player.map_id == map_id
@@ -8641,8 +8606,7 @@ impl WorldSession {
             });
         }
 
-        let registry = self.player_registry()?;
-        let player = registry.get(&player_guid)?;
+        let player = self.player_registry()?.loot_player_context(player_guid)?;
         Some(RepresentedLootPlayerContext {
             race: player.race,
             class: player.class,
@@ -12766,6 +12730,7 @@ fn creature_loot_is_allowed_to_player_like_cpp(
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CreatureLootReleaseCommandQueueOutcomeLikeCpp {
     Queued,
@@ -12773,6 +12738,7 @@ enum CreatureLootReleaseCommandQueueOutcomeLikeCpp {
     Disconnected,
 }
 
+#[cfg(test)]
 fn queue_creature_loot_release_command_reliably_like_cpp(
     command_tx: &flume::Sender<SessionCommand>,
     command: SessionCommand,
@@ -12825,7 +12791,7 @@ fn connected_roll_looters_like_cpp(
         let Some(registry) = player_registry else {
             continue;
         };
-        let Some(player) = registry.get(looter) else {
+        let Some(player) = registry.loot_presence(*looter) else {
             continue;
         };
         if player.map_id == current_map_id && player.instance_id == current_instance_id {
@@ -12850,8 +12816,7 @@ fn represented_max_enchanting_skill_like_cpp(
         } else {
             max_skill.max(
                 player_registry
-                    .and_then(|registry| registry.get(looter))
-                    .map(|player| player.enchanting_skill)
+                    .and_then(|registry| registry.loot_enchanting_skill(*looter))
                     .unwrap_or(0),
             )
         }

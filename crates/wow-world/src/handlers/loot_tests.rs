@@ -41,8 +41,8 @@ use super::{
 };
 use crate::conditions::QUEST_STATUS_REWARDED_LIKE_CPP;
 use crate::session::{
-    DurableItemLootCompletionLikeCpp, LootMoneyViewerFanoutLikeCpp,
-    RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
+    DurableItemLootCompletionLikeCpp, LootMoneyDeliveryAddressLikeCpp,
+    LootMoneyViewerFanoutLikeCpp, RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
     RepresentedLootRollCriteriaEvent, SessionState, loot_money_durable_outcome_like_cpp,
 };
 use crate::session_policy::LootDropRatesLikeCpp;
@@ -1426,6 +1426,35 @@ fn represented_money_removed_erases_missing_players_looting_like_cpp() {
         session.loot_table.get(&owner_guid).unwrap().players_looting,
         vec![player_guid, open_guid]
     );
+}
+
+#[test]
+fn loot_directory_delivery_rejects_replaced_session_generation_like_cpp() {
+    let guid = ObjectGuid::create_player(1, 91);
+    let registry = PlayerRegistry::new();
+    let (first_tx, first_rx) = flume::bounded(2);
+    registry.register_or_replace(guid, broadcast_info(guid, first_tx));
+    let stale = registry
+        .loot_presence(guid)
+        .expect("first connected loot recipient");
+
+    let (replacement_tx, replacement_rx) = flume::bounded(2);
+    registry.register_or_replace(guid, broadcast_info(guid, replacement_tx));
+
+    assert_eq!(
+        registry.send_current_packet(stale.registration, vec![0xAA]),
+        Err(wow_network::PlayerDirectorySendError::StaleRegistration)
+    );
+    assert!(first_rx.try_recv().is_err());
+    assert!(replacement_rx.try_recv().is_err());
+
+    let current = registry
+        .loot_presence(guid)
+        .expect("replacement loot recipient");
+    registry
+        .send_current_packet(current.registration, vec![0xBB])
+        .expect("current generation receives its packet");
+    assert_eq!(replacement_rx.try_recv().unwrap(), vec![0xBB]);
 }
 
 fn loot_release_packet(object: ObjectGuid) -> WorldPacket {
@@ -3007,7 +3036,7 @@ async fn cancelled_money_waiter_cannot_reopen_a_durable_claim_like_cpp() {
         published: Arc::new(AtomicBool::new(false)),
     };
     let delivery = (
-        second.session_command_tx(),
+        LootMoneyDeliveryAddressLikeCpp::Source(second.session_command_tx()),
         SessionCommand::ApplyLootMoneyLikeCpp(application),
     );
     let viewer_fanout = LootMoneyViewerFanoutLikeCpp {
@@ -3134,7 +3163,7 @@ async fn money_viewer_opened_during_persistence_receives_coin_removed_like_cpp()
             vec![(first_guid, 9)],
             claim,
             vec![(
-                first.session_command_tx(),
+                LootMoneyDeliveryAddressLikeCpp::Source(first.session_command_tx()),
                 SessionCommand::ApplyLootMoneyLikeCpp(application),
             )],
             Arc::clone(&authority_committed),

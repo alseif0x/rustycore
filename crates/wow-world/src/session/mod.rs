@@ -441,6 +441,39 @@ pub(crate) struct LootMoneyViewerFanoutLikeCpp {
     pub payout_recipients: HashSet<ObjectGuid>,
 }
 
+/// Opaque destination for one already-durable loot-money publication.
+#[derive(Clone)]
+pub(crate) enum LootMoneyDeliveryAddressLikeCpp {
+    /// The source session owns this sender directly.
+    Source(flume::Sender<SessionCommand>),
+    /// A remote session is addressed by its directory incarnation.
+    Directory {
+        registry: Arc<PlayerRegistry>,
+        registration: wow_network::PlayerRegistration,
+    },
+}
+
+impl LootMoneyDeliveryAddressLikeCpp {
+    fn queue_reliably_like_cpp(self, command: SessionCommand) {
+        match self {
+            Self::Source(command_tx) => {
+                if let Err(error) = command_tx.try_send(command) {
+                    let command = error.into_inner();
+                    tokio::spawn(async move {
+                        let _ = command_tx.send_async(command).await;
+                    });
+                }
+            }
+            Self::Directory {
+                registry,
+                registration,
+            } => {
+                let _ = registry.queue_current_command_reliably(registration, command);
+            }
+        }
+    }
+}
+
 /// Routing state for one durable item claim. The completion owns this
 /// independently of the packet waiter, so a timeout, cancellation, or later
 /// `CMSG_LOOT_RELEASE` cannot suppress the result of an already ordered claim.
@@ -28492,7 +28525,7 @@ impl WorldSession {
         &self,
         mut payouts: Vec<(ObjectGuid, u64)>,
         claim: LootClaimLease,
-        mut deliveries: Vec<(flume::Sender<SessionCommand>, SessionCommand)>,
+        mut deliveries: Vec<(LootMoneyDeliveryAddressLikeCpp, SessionCommand)>,
         authority_committed: Arc<AtomicBool>,
         viewer_fanout: LootMoneyViewerFanoutLikeCpp,
     ) -> Result<
@@ -28664,18 +28697,12 @@ impl WorldSession {
                                 guard.mark_indeterminate_like_cpp();
                             }
                             let _ = persistence_guard.quarantine_commit_unknown_like_cpp();
-                            for (command_tx, _) in &deliveries {
+                            for (delivery, _) in &deliveries {
                                 let kick = SessionCommand::KickLikeCpp(KickLikeCppCommand {
                                     reason: "loot-money COMMIT outcome is unknown; relog required"
                                         .to_string(),
                                 });
-                                if let Err(error) = command_tx.try_send(kick) {
-                                    let command_tx = command_tx.clone();
-                                    let kick = error.into_inner();
-                                    tokio::spawn(async move {
-                                        let _ = command_tx.send_async(kick).await;
-                                    });
-                                }
+                                delivery.clone().queue_reliably_like_cpp(kick);
                             }
                             return Err(LootMoneyPersistenceErrorLikeCpp::CommitOutcomeUnknown(
                                 commit_error,
@@ -28753,22 +28780,28 @@ impl WorldSession {
                 if viewer_fanout.payout_recipients.contains(&viewer) {
                     continue;
                 }
-                let command_tx = if viewer == viewer_fanout.source_player {
-                    Some(viewer_fanout.source_command_tx.clone())
+                let delivery = if viewer == viewer_fanout.source_player {
+                    Some(LootMoneyDeliveryAddressLikeCpp::Source(
+                        viewer_fanout.source_command_tx.clone(),
+                    ))
                 } else {
                     viewer_fanout.player_registry.as_ref().and_then(|registry| {
-                        let target = registry.get(&viewer)?;
-                        (target.is_in_world
-                            && target.map_id == viewer_fanout.map_id
-                            && target.instance_id == viewer_fanout.instance_id)
-                            .then(|| target.command_tx.clone())
+                        let registration = registry.in_world_loot_delivery_recipient(
+                            viewer,
+                            viewer_fanout.map_id,
+                            viewer_fanout.instance_id,
+                        )?;
+                        Some(LootMoneyDeliveryAddressLikeCpp::Directory {
+                            registry: Arc::clone(registry),
+                            registration,
+                        })
                     })
                 };
-                let Some(command_tx) = command_tx else {
+                let Some(delivery) = delivery else {
                     continue;
                 };
                 deliveries.push((
-                    command_tx,
+                    delivery,
                     SessionCommand::NotifyLootMoneyRemovedLikeCpp(
                         NotifyLootMoneyRemovedLikeCppCommand {
                             recipient: viewer,
@@ -28785,13 +28818,8 @@ impl WorldSession {
             // Do not make persistence wait for another session's bounded
             // command queue. Each delivery task owns its command until the
             // target drains capacity or disconnects.
-            for (command_tx, command) in deliveries {
-                if let Err(error) = command_tx.try_send(command) {
-                    let command = error.into_inner();
-                    tokio::spawn(async move {
-                        let _ = command_tx.send_async(command).await;
-                    });
-                }
+            for (delivery, command) in deliveries {
+                delivery.queue_reliably_like_cpp(command);
             }
             Ok(())
         }))
@@ -33276,7 +33304,7 @@ impl WorldSession {
         }
         self.player_registry.as_ref().and_then(|registry| {
             registry
-                .get(&player_guid)
+                .group_reward_snapshot(player_guid)
                 .map(|entry| (entry.level, entry.map_id, entry.position, entry.is_alive))
         })
     }
@@ -39701,8 +39729,10 @@ impl WorldSession {
 
         let mut delivered = false;
         for member_guid in &group.members {
-            if let Some(member) = player_registry.get(member_guid) {
-                delivered |= member.realm_send_tx.send(bytes.clone()).is_ok();
+            if let Some(member) = player_registry.loot_presence(*member_guid) {
+                delivered |= player_registry
+                    .send_current_realm_packet(member.registration, bytes.clone())
+                    .is_ok();
             }
         }
 
@@ -47054,7 +47084,7 @@ impl WorldSession {
         } else {
             self.player_registry.as_ref().and_then(|registry| {
                 registry
-                    .get(&player_guid)
+                    .loot_presence(player_guid)
                     .map(|entry| (entry.map_id, entry.position))
             })
         };

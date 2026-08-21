@@ -11,7 +11,8 @@ The assignment is responsibility-based even when a function lives in the session
 
 - #192 closed runtime selection, fanout, presence and generation-checked delivery resolution; its
   rows were removed from the remaining-direct-access table when the slice landed.
-- #193 owns combat, loot, inventory-reward and durable-loot consumers.
+- #193 closed combat, loot, inventory-reward and durable-loot access through bounded projections,
+  incarnation addresses and ordered directory commands; its rows were removed on landing.
 - #194 owns quest, spell, movement, vehicle and movement-visibility consumers.
 - #195 owns group, chat, social, ready-check and group-membership consumers.
 - #196 owns the generic broad-mirror synchronization helper and every test/fixture compatibility
