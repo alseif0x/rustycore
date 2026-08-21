@@ -12,13 +12,11 @@ use wow_constants::ClientOpcodes;
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_database::{CharStatements, PreparedStatement, StatementDef};
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_network::group_registry::{GROUP_CATEGORY_HOME_LIKE_CPP, RAID_MARKERS_COUNT_LIKE_CPP};
+use wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP;
 use wow_network::player_registry::{ApplyGroupJoinLikeCppCommand, ApplyGroupRemovalLikeCppCommand};
 use wow_network::{
-    AcceptGroupInviteResultLikeCpp, CreateGroupInviteResultLikeCpp,
-    GROUP_ASSIGN_MAINASSIST_LIKE_CPP, GROUP_ASSIGN_MAINTANK_LIKE_CPP, GroupInfo, GroupRegistry,
-    LFG_GROUP_KICK_VOTES_NEEDED_LIKE_CPP, LFG_STATE_FINISHED_DUNGEON_LIKE_CPP,
-    MEMBER_FLAG_ASSISTANT_LIKE_CPP, MEMBER_FLAG_MAINASSIST_LIKE_CPP, MEMBER_FLAG_MAINTANK_LIKE_CPP,
+    AcceptGroupInviteResultLikeCpp, CreateGroupInviteResultLikeCpp, GroupAuthorityErrorLikeCpp,
+    GroupInfo, GroupMemberRemovalKindLikeCpp, GroupRegistry, MEMBER_FLAG_ASSISTANT_LIKE_CPP,
     PlayerRegistry, ReadyCheckEventLikeCpp, SendPartyUpdateLikeCppCommand,
     SendRealmPacketLikeCppCommand, SessionCommand, free_group_db_store_id_like_cpp,
 };
@@ -1560,155 +1558,106 @@ impl WorldSession {
             return;
         };
 
-        let mut group_leave_statements: Vec<PreparedStatement> = Vec::new();
-        let mut should_disband = false;
-        let mut db_store_to_free: Option<u32> = None;
-        {
-            let mut group = match group_reg.get_mut(&group_guid) {
-                Some(group) => group,
-                None => return,
-            };
-            // C++ `Player::CanUninviteFromGroup`: an LFG group takes the boot
-            // gate and never the ordinary leader/assistant checks
-            // (`Player.cpp:25147-25192`). The LFG-specific rejections come
-            // first, in C++ order.
-            if group.is_lfg_group_like_cpp() {
-                if group.lfg_kicks_left_like_cpp == 0 {
-                    send_party_uninvite_result_like_cpp(self, party_result::PARTY_LFG_BOOT_LIMIT);
-                    return;
-                }
-                // No VoteKick authority exists yet, so
-                // `ERR_PARTY_LFG_BOOT_IN_PROGRESS` can never fire here.
-                if group.members.len() <= LFG_GROUP_KICK_VOTES_NEEDED_LIKE_CPP {
-                    send_party_uninvite_result_like_cpp(
-                        self,
-                        party_result::PARTY_LFG_BOOT_TOO_FEW_PLAYERS,
-                    );
-                    return;
-                }
-                if group.lfg_db_state.as_ref().and_then(|state| state.state)
-                    == Some(LFG_STATE_FINISHED_DUNGEON_LIKE_CPP)
-                {
-                    send_party_uninvite_result_like_cpp(
-                        self,
-                        party_result::PARTY_LFG_BOOT_DUNGEON_COMPLETE,
-                    );
-                    return;
-                }
-                // C++ checks the target's loot rolls only for a connected
-                // player (`ObjectAccessor::FindConnectedPlayer`).
-                let target_has_loot_rolls = self
-                    .player_registry()
-                    .and_then(|registry| registry.get(&uninvite.target_guid))
-                    .is_some_and(|target| !target.active_loot_rolls.is_empty());
-                if target_has_loot_rolls {
-                    send_party_uninvite_result_like_cpp(
-                        self,
-                        party_result::PARTY_LFG_BOOT_LOOT_ROLLS,
-                    );
-                    return;
-                }
-                // C++ rejects when any member in the uninviter's map is in
-                // combat (`Player.cpp:25173-25176`: `IsInMap(this)` first).
-                // Members report their combat transitions into the broadcast
-                // registry through `set_in_combat_like_cpp`, so the gate
-                // reads every represented member ON THE UNINVITER'S MAP,
-                // falling back to the live session mirror for the uninviter
-                // itself.
-                let sender_map_id = self.player_map_id_like_cpp();
-                let sender_instance_id = self
-                    .current_canonical_player_map_key_like_cpp()
-                    .map(|key| key.instance_id)
-                    .unwrap_or(0);
-                let any_member_in_combat = group.members.iter().any(|member_guid| {
-                    if *member_guid == sender_guid {
-                        self.in_combat
-                    } else {
-                        self.player_registry()
-                            .and_then(|registry| registry.get(member_guid))
-                            .is_some_and(|member| {
-                                member.in_combat
-                                    && member.map_id == sender_map_id
-                                    && member.instance_id == sender_instance_id
-                            })
-                    }
-                });
-                if any_member_in_combat {
-                    send_party_uninvite_result_like_cpp(
-                        self,
-                        party_result::PARTY_LFG_BOOT_IN_COMBAT,
-                    );
-                    return;
-                }
+        let Some(group_snapshot) = group_reg.get(&group_guid) else {
+            return;
+        };
+        let target_has_loot_rolls = registry
+            .get(&uninvite.target_guid)
+            .is_some_and(|target| !target.active_loot_rolls.is_empty());
+        let sender_map_id = self.player_map_id_like_cpp();
+        let sender_instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let any_member_in_combat = group_snapshot.members.iter().any(|member_guid| {
+            if *member_guid == sender_guid {
+                self.in_combat
+            } else {
+                registry.get(member_guid).is_some_and(|member| {
+                    member.in_combat
+                        && member.map_id == sender_map_id
+                        && member.instance_id == sender_instance_id
+                })
             }
-            let sender_is_assistant = group
-                .member_slot_like_cpp(sender_guid)
-                .is_some_and(|slot| (slot.flags & MEMBER_FLAG_ASSISTANT_LIKE_CPP) != 0);
-            if !group.is_lfg_group_like_cpp()
-                && group.leader_guid != sender_guid
-                && !sender_is_assistant
-            {
+        });
+        let outcome = match group_reg.remove_member_like_cpp(
+            group_guid,
+            uninvite.target_guid,
+            GroupMemberRemovalKindLikeCpp::Kick {
+                actor_guid: sender_guid,
+                actor_in_battleground: self.player_in_represented_battleground_like_cpp(),
+                target_has_loot_rolls,
+                any_member_in_actor_map_combat: any_member_in_combat,
+            },
+            &[],
+        ) {
+            Ok(outcome) => outcome,
+            Err(GroupAuthorityErrorLikeCpp::LfgBootLimit) => {
+                send_party_uninvite_result_like_cpp(self, party_result::PARTY_LFG_BOOT_LIMIT);
+                return;
+            }
+            Err(GroupAuthorityErrorLikeCpp::LfgBootTooFewPlayers) => {
+                send_party_uninvite_result_like_cpp(
+                    self,
+                    party_result::PARTY_LFG_BOOT_TOO_FEW_PLAYERS,
+                );
+                return;
+            }
+            Err(GroupAuthorityErrorLikeCpp::LfgBootDungeonComplete) => {
+                send_party_uninvite_result_like_cpp(
+                    self,
+                    party_result::PARTY_LFG_BOOT_DUNGEON_COMPLETE,
+                );
+                return;
+            }
+            Err(GroupAuthorityErrorLikeCpp::LfgBootLootRolls) => {
+                send_party_uninvite_result_like_cpp(self, party_result::PARTY_LFG_BOOT_LOOT_ROLLS);
+                return;
+            }
+            Err(GroupAuthorityErrorLikeCpp::LfgBootInCombat) => {
+                send_party_uninvite_result_like_cpp(self, party_result::PARTY_LFG_BOOT_IN_COMBAT);
+                return;
+            }
+            Err(GroupAuthorityErrorLikeCpp::NotLeaderOrAssistant)
+            | Err(GroupAuthorityErrorLikeCpp::TargetIsLeader) => {
                 send_party_uninvite_result_like_cpp(self, party_result::NOT_LEADER);
                 return;
             }
-            if !group.is_lfg_group_like_cpp() && self.player_in_represented_battleground_like_cpp()
-            {
-                // C++ `CanUninviteFromGroup` normal branch: battleground
-                // senders are restricted before any target check
-                // (`Player.cpp:25181-25182`).
+            Err(GroupAuthorityErrorLikeCpp::InviteRestricted) => {
                 send_party_uninvite_result_like_cpp(self, party_result::INVITE_RESTRICTED);
                 return;
             }
-            if !group.is_lfg_group_like_cpp() && group.leader_guid == uninvite.target_guid {
-                send_party_uninvite_result_like_cpp(self, party_result::NOT_LEADER);
-                return;
-            }
-            if !group.members.contains(&uninvite.target_guid) {
-                // Invite operations acquire the pending-invite transition
-                // lock before any group shard; release this group guard first
-                // to preserve that global lock order.
-                drop(group);
+            Err(GroupAuthorityErrorLikeCpp::MissingMember) => {
                 if let Some(pending_invites) = pending_invites.as_ref() {
-                    let invite_belongs_to_group = pending_invites
+                    if let Some(invite) = pending_invites
                         .get(&uninvite.target_guid)
-                        .is_some_and(|invite| invite.group_guid == Some(group_guid));
-                    if invite_belongs_to_group {
-                        if let Some(invite) = pending_invites.get(&uninvite.target_guid) {
-                            group_reg.cancel_invite_like_cpp(
-                                pending_invites,
-                                uninvite.target_guid,
-                                invite,
-                            );
-                        }
+                        .filter(|invite| invite.group_guid == Some(group_guid))
+                    {
+                        group_reg.cancel_invite_like_cpp(
+                            pending_invites,
+                            uninvite.target_guid,
+                            invite,
+                        );
                         return;
                     }
                 }
                 send_party_uninvite_result_like_cpp(self, party_result::TARGET_NOT_IN_GROUP);
                 return;
             }
-
-            // C++ `Group::RemoveMember` returns early for LFG groups with
-            // `GROUP_REMOVEMETHOD_KICK` (`Group.cpp:573-575`): the LFG
-            // vote-kick scripts own the actual removal, so a direct uninvite
-            // that passed the boot gate never removes the member here.
-            if group.is_lfg_group_like_cpp() {
-                return;
-            }
-
-            group.remove_member(&uninvite.target_guid);
-            let db_store_id = group.db_store_id;
-            if group.members.len() < 2 {
-                group_leave_statements.push(group_delete_statement_like_cpp(db_store_id));
-                group_leave_statements
-                    .push(group_member_delete_all_statement_like_cpp(db_store_id));
-                group_leave_statements.push(group_lfg_data_delete_statement_like_cpp(db_store_id));
-                should_disband = true;
-                db_store_to_free = Some(db_store_id);
-            } else {
-                group_leave_statements
-                    .push(group_member_delete_statement_like_cpp(uninvite.target_guid));
-            }
-        }
+            Err(GroupAuthorityErrorLikeCpp::LfgKickOwnedByVote) => return,
+            Err(_) => return,
+        };
+        let should_disband = outcome.facts.disbanded;
+        let db_store_id = outcome.facts.db_store_id;
+        let group_leave_statements = if should_disband {
+            vec![
+                group_delete_statement_like_cpp(db_store_id),
+                group_member_delete_all_statement_like_cpp(db_store_id),
+                group_lfg_data_delete_statement_like_cpp(db_store_id),
+            ]
+        } else {
+            vec![group_member_delete_statement_like_cpp(uninvite.target_guid)]
+        };
 
         if !group_leave_statements.is_empty() {
             if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
@@ -1740,10 +1689,7 @@ impl WorldSession {
         }
 
         if should_disband {
-            group_reg.remove(&group_guid);
-            if let Some(db_store_id) = db_store_to_free {
-                free_group_db_store_id_like_cpp(db_store_id);
-            }
+            free_group_db_store_id_like_cpp(db_store_id);
             self.group_guid = None;
             self.clear_represented_group_subgroup_like_cpp();
             self.send_player_party_type_update_like_cpp(
@@ -1762,9 +1708,7 @@ impl WorldSession {
             return;
         }
 
-        if let Some(group) = group_reg.get(&group_guid) {
-            send_party_update(&group, &registry, self.virtual_realm_address());
-        }
+        send_party_update(&outcome.group, &registry, self.virtual_realm_address());
     }
 
     /// CMSG_LEAVE_GROUP (0x364c)
@@ -1850,47 +1794,41 @@ impl WorldSession {
             result_guid: ObjectGuid::EMPTY,
         });
 
-        // 2. Remove self from the group.
-        let dissolve_remaining: Option<Vec<ObjectGuid>>;
-        let mut dissolved_db_store_id: Option<u32> = None;
-        let mut group_leave_statements: Vec<PreparedStatement> = Vec::new();
-        {
-            let mut group = match group_reg.get_mut(&gid) {
-                Some(g) => g,
-                None => return,
-            };
-            group.remove_member(&my_guid);
-            let db_store_id = group.db_store_id;
-
-            if group.members.len() < 2 {
-                group_leave_statements.push(group_delete_statement_like_cpp(db_store_id));
-                group_leave_statements
-                    .push(group_member_delete_all_statement_like_cpp(db_store_id));
-                group_leave_statements.push(group_lfg_data_delete_statement_like_cpp(db_store_id));
-                dissolved_db_store_id = Some(db_store_id);
-                dissolve_remaining = Some(group.members.clone());
-            } else {
-                dissolve_remaining = None;
-                group_leave_statements.push(group_member_delete_statement_like_cpp(my_guid));
-                if group.leader_guid == my_guid {
-                    if let Some(new_leader) =
-                        first_connected_group_member_like_cpp(&group, &registry)
-                    {
-                        group_leave_statements.push(group_leader_update_statement_like_cpp(
-                            new_leader,
-                            db_store_id,
-                        ));
-                    }
-                }
-                // Reassign leader if needed.
-                if group.leader_guid == my_guid {
-                    if let Some(new_leader) =
-                        first_connected_group_member_like_cpp(&group, &registry)
-                    {
-                        group.leader_guid = new_leader;
-                    }
-                }
-            }
+        // 2. Remove self from the group through the canonical owner. Connected
+        // successor candidates are facts; membership and leader choice are
+        // revalidated under the group shard.
+        let connected_members = group_reg
+            .get(&gid)
+            .map(|group| connected_group_members_like_cpp(&group, &registry))
+            .unwrap_or_default();
+        let outcome = match group_reg.remove_member_like_cpp(
+            gid,
+            my_guid,
+            GroupMemberRemovalKindLikeCpp::Leave,
+            &connected_members,
+        ) {
+            Ok(outcome) => outcome,
+            Err(_) => return,
+        };
+        let dissolve_remaining = outcome
+            .facts
+            .disbanded
+            .then(|| outcome.facts.remaining_members.clone());
+        let db_store_id = outcome.facts.db_store_id;
+        let mut group_leave_statements = if outcome.facts.disbanded {
+            vec![
+                group_delete_statement_like_cpp(db_store_id),
+                group_member_delete_all_statement_like_cpp(db_store_id),
+                group_lfg_data_delete_statement_like_cpp(db_store_id),
+            ]
+        } else {
+            vec![group_member_delete_statement_like_cpp(my_guid)]
+        };
+        if let Some(new_leader) = outcome.facts.new_leader_guid {
+            group_leave_statements.push(group_leader_update_statement_like_cpp(
+                new_leader,
+                db_store_id,
+            ));
         }
 
         if !group_leave_statements.is_empty() {
@@ -1910,10 +1848,7 @@ impl WorldSession {
 
         if let Some(remaining) = dissolve_remaining {
             // Group dissolved — notify last remaining member (if any).
-            group_reg.remove(&gid);
-            if let Some(db_store_id) = dissolved_db_store_id {
-                free_group_db_store_id_like_cpp(db_store_id);
-            }
+            free_group_db_store_id_like_cpp(db_store_id);
             if let Some(&last_guid) = remaining.first() {
                 if let Some(last_entry) = registry.get(&last_guid) {
                     let command = ApplyGroupRemovalLikeCppCommand {
@@ -1943,9 +1878,7 @@ impl WorldSession {
         }
 
         // 3. Send updated PartyUpdate to remaining members.
-        if let Some(group) = group_reg.get(&gid) {
-            send_party_update(&group, &registry, vra);
-        }
+        send_party_update(&outcome.group, &registry, vra);
 
         // 4. Uninvite self.
         self.group_guid = None;
@@ -1990,45 +1923,30 @@ impl WorldSession {
         };
         let vra = self.virtual_realm_address();
 
-        let mut group_type_persistence: Option<(u16, u32)> = None;
-        let converted = {
-            let mut group = match group_reg.get_mut(&group_guid) {
-                Some(group) => group,
-                None => return,
-            };
-            if group.leader_guid != my_guid || group.members.len() < 2 {
+        let outcome = match group_reg.convert_group_like_cpp(group_guid, my_guid, convert.raid) {
+            Ok(outcome) => outcome,
+            Err(GroupAuthorityErrorLikeCpp::GroupTooLarge) => {
+                self.send_packet_realm(&PartyCommandResult {
+                    name: String::new(),
+                    command: 0,
+                    result: party_result::OK,
+                    result_data: 0,
+                    result_guid: ObjectGuid::EMPTY,
+                });
                 return;
             }
-
-            self.send_packet_realm(&PartyCommandResult {
-                name: String::new(),
-                command: 0,
-                result: party_result::OK,
-                result_data: 0,
-                result_guid: ObjectGuid::EMPTY,
-            });
-
-            if convert.raid {
-                group.convert_to_raid_like_cpp();
-                group_type_persistence = Some((group.group_flags, group.db_store_id));
-                true
-            } else {
-                let converted = group.convert_to_group_like_cpp();
-                if converted {
-                    group_type_persistence = Some((group.group_flags, group.db_store_id));
-                }
-                converted
-            }
+            Err(_) => return,
         };
+        self.send_packet_realm(&PartyCommandResult {
+            name: String::new(),
+            command: 0,
+            result: party_result::OK,
+            result_data: 0,
+            result_guid: ObjectGuid::EMPTY,
+        });
+        let (group_flags, db_store_id) = outcome.facts;
 
-        if !converted {
-            return;
-        }
-
-        if let (Some((group_flags, db_store_id)), Some(char_db)) = (
-            group_type_persistence,
-            self.char_db().map(std::sync::Arc::clone),
-        ) {
+        if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
             let stmt = group_type_update_statement_like_cpp(group_flags, db_store_id);
             if let Err(error) = char_db.execute(&stmt).await {
                 warn!(
@@ -2043,11 +1961,13 @@ impl WorldSession {
         // `queue_visible...` may wait on a full member command channel. Clone
         // the value and release DashMap's read guard before the first await so
         // unrelated group mutations are never stalled behind that backpressure.
-        if let Some(group) = group_reg.get(&group_guid).map(|group| group.clone()) {
-            send_party_update(&group, &registry, vra);
-            queue_visible_gameobjects_or_spellclicks_refresh_like_cpp(&group, &registry, my_guid)
-                .await;
-        }
+        send_party_update(&outcome.group, &registry, vra);
+        queue_visible_gameobjects_or_spellclicks_refresh_like_cpp(
+            &outcome.group,
+            &registry,
+            my_guid,
+        )
+        .await;
         let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
     }
 
@@ -2091,30 +2011,16 @@ impl WorldSession {
             return;
         };
 
-        let mut subgroup_update: Option<(ObjectGuid, u8)> = None;
-        {
-            let mut group = match group_reg.get_mut(&group_guid) {
-                Some(group) => group,
-                None => return,
-            };
-            let sender_is_assistant = group.member_slot_like_cpp(sender_guid).is_some_and(|slot| {
-                (slot.flags & wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP)
-                    == wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP
-            });
-            if group.leader_guid != sender_guid && !sender_is_assistant {
-                return;
-            }
-            if !group.has_free_slot_sub_group_like_cpp(change.new_subgroup) {
-                return;
-            }
-            if group.change_member_group_like_cpp(change.target_guid, change.new_subgroup) {
-                subgroup_update = Some((change.target_guid, change.new_subgroup));
-            }
-        }
-
-        let Some((target_guid, new_subgroup)) = subgroup_update else {
-            return;
+        let outcome = match group_reg.change_member_subgroup_like_cpp(
+            group_guid,
+            sender_guid,
+            change.target_guid,
+            change.new_subgroup,
+        ) {
+            Ok(outcome) => outcome,
+            Err(_) => return,
         };
+        let (target_guid, new_subgroup) = outcome.facts;
 
         if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
             let stmt = group_member_subgroup_update_statement_like_cpp(target_guid, new_subgroup);
@@ -2141,9 +2047,7 @@ impl WorldSession {
                 ));
         }
 
-        if let Some(group) = group_reg.get(&group_guid) {
-            send_party_update(&group, &registry, vra);
-        }
+        send_party_update(&outcome.group, &registry, vra);
     }
 
     /// CMSG_SWAP_SUB_GROUPS.
@@ -2184,25 +2088,16 @@ impl WorldSession {
             return;
         };
 
-        let subgroup_updates = {
-            let mut group = match group_reg.get_mut(&group_guid) {
-                Some(group) => group,
-                None => return,
-            };
-            let sender_is_assistant = group.member_slot_like_cpp(sender_guid).is_some_and(|slot| {
-                (slot.flags & wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP)
-                    == wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP
-            });
-            if group.leader_guid != sender_guid && !sender_is_assistant {
-                return;
-            }
-
-            group.swap_members_groups_like_cpp(swap.first_target, swap.second_target)
+        let outcome = match group_reg.swap_member_subgroups_like_cpp(
+            group_guid,
+            sender_guid,
+            swap.first_target,
+            swap.second_target,
+        ) {
+            Ok(outcome) => outcome,
+            Err(_) => return,
         };
-
-        let Some(subgroup_updates) = subgroup_updates else {
-            return;
-        };
+        let subgroup_updates = outcome.facts;
 
         if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
             for &(member_guid, subgroup) in &subgroup_updates {
@@ -2233,9 +2128,7 @@ impl WorldSession {
             }
         }
 
-        if let Some(group) = group_reg.get(&group_guid) {
-            send_party_update(&group, &registry, vra);
-        }
+        send_party_update(&outcome.group, &registry, vra);
     }
 
     /// CMSG_SET_PARTY_LEADER.
@@ -2287,23 +2180,15 @@ impl WorldSession {
             return;
         };
 
-        let (db_store_id, final_flags) = {
-            let mut group = match group_reg.get_mut(&group_guid) {
-                Some(group) => group,
-                None => return,
-            };
-            if !group.is_leader_like_cpp(sender_guid) {
-                return;
-            }
-            if !group.members.contains(&set_leader.target_guid) {
-                return;
-            }
-            let db_store_id = group.db_store_id;
-            let Some(final_flags) = group.change_leader_like_cpp(set_leader.target_guid) else {
-                return;
-            };
-            (db_store_id, final_flags)
+        let outcome = match group_reg.change_leader_transition_like_cpp(
+            group_guid,
+            sender_guid,
+            set_leader.target_guid,
+        ) {
+            Ok(outcome) => outcome,
+            Err(_) => return,
         };
+        let (db_store_id, final_flags) = outcome.facts;
 
         if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
             let mut statements = Vec::new();
@@ -2328,10 +2213,8 @@ impl WorldSession {
             }
         }
 
-        if let Some(group) = group_reg.get(&group_guid).map(|group| group.clone()) {
-            send_group_new_leader_like_cpp(&group, &registry, &target_name).await;
-            send_party_update(&group, &registry, vra);
-        }
+        send_group_new_leader_like_cpp(&outcome.group, &registry, &target_name).await;
+        send_party_update(&outcome.group, &registry, vra);
     }
 
     /// CMSG_SET_ASSISTANT_LEADER.
@@ -2374,24 +2257,17 @@ impl WorldSession {
             return;
         };
 
-        let final_flags = {
-            let mut group = match group_reg.get_mut(&group_guid) {
-                Some(group) => group,
-                None => return,
-            };
-            if group.leader_guid != sender_guid {
-                return;
-            }
-            group.set_group_member_flag_like_cpp(
-                set_assistant.target,
-                set_assistant.apply,
-                MEMBER_FLAG_ASSISTANT_LIKE_CPP,
-            )
+        let outcome = match group_reg.set_member_flag_transition_like_cpp(
+            group_guid,
+            sender_guid,
+            set_assistant.target,
+            set_assistant.apply,
+            MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+        ) {
+            Ok(outcome) => outcome,
+            Err(_) => return,
         };
-
-        let Some(final_flags) = final_flags else {
-            return;
-        };
+        let final_flags = outcome.facts;
 
         if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
             let stmt =
@@ -2406,9 +2282,7 @@ impl WorldSession {
             }
         }
 
-        if let Some(group) = group_reg.get(&group_guid) {
-            send_party_update(&group, &registry, vra);
-        }
+        send_party_update(&outcome.group, &registry, vra);
     }
 
     /// CMSG_SET_EVERYONE_IS_ASSISTANT.
@@ -2448,16 +2322,15 @@ impl WorldSession {
             return;
         };
 
-        let (group_flags, db_store_id) = {
-            let mut group = match group_reg.get_mut(&group_guid) {
-                Some(group) => group,
-                None => return,
-            };
-            if group.leader_guid != sender_guid {
-                return;
-            }
-            group.set_everyone_is_assistant_like_cpp(set_everyone.everyone_is_assistant)
+        let outcome = match group_reg.set_everyone_assistant_transition_like_cpp(
+            group_guid,
+            sender_guid,
+            set_everyone.everyone_is_assistant,
+        ) {
+            Ok(outcome) => outcome,
+            Err(_) => return,
         };
+        let (group_flags, db_store_id) = outcome.facts;
 
         if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
             let stmt = group_type_update_statement_like_cpp(group_flags, db_store_id);
@@ -2471,9 +2344,7 @@ impl WorldSession {
             }
         }
 
-        if let Some(group) = group_reg.get(&group_guid) {
-            send_party_update(&group, &registry, vra);
-        }
+        send_party_update(&outcome.group, &registry, vra);
     }
 
     /// CMSG_SILENCE_PARTY_TALKER.
@@ -2553,24 +2424,19 @@ impl WorldSession {
             return;
         };
 
-        let events = {
-            let mut group = match group_reg.get_mut(&group_guid) {
-                Some(group) => group,
-                None => return,
-            };
-            if !sender_can_start_ready_check_like_cpp(&group, sender_guid) {
-                return;
-            }
-            let connected = connected_group_members_like_cpp(&group, &registry);
-            group.start_ready_check_like_cpp(sender_guid, connected)
+        let connected = group_reg
+            .get(&group_guid)
+            .map(|group| connected_group_members_like_cpp(&group, &registry))
+            .unwrap_or_default();
+        let outcome = match group_reg.start_ready_check_transition_like_cpp(
+            group_guid,
+            sender_guid,
+            connected,
+        ) {
+            Ok(outcome) => outcome,
+            Err(_) => return,
         };
-
-        if events.is_empty() {
-            return;
-        }
-        if let Some(group) = group_reg.get(&group_guid) {
-            send_ready_check_events_like_cpp(&events, &group, &registry);
-        }
+        send_ready_check_events_like_cpp(&outcome.facts, &outcome.group, &registry);
     }
 
     /// CMSG_READY_CHECK_RESPONSE.
@@ -2608,20 +2474,15 @@ impl WorldSession {
             return;
         };
 
-        let events = {
-            let mut group = match group_reg.get_mut(&group_guid) {
-                Some(group) => group,
-                None => return,
-            };
-            group.set_member_ready_check_like_cpp(sender_guid, response.is_ready)
+        let outcome = match group_reg.respond_ready_check_transition_like_cpp(
+            group_guid,
+            sender_guid,
+            response.is_ready,
+        ) {
+            Ok(outcome) => outcome,
+            Err(_) => return,
         };
-
-        if events.is_empty() {
-            return;
-        }
-        if let Some(group) = group_reg.get(&group_guid) {
-            send_ready_check_events_like_cpp(&events, &group, &registry);
-        }
+        send_ready_check_events_like_cpp(&outcome.facts, &outcome.group, &registry);
     }
 
     /// CMSG_SET_PARTY_ASSIGNMENT.
@@ -2665,42 +2526,17 @@ impl WorldSession {
             return;
         };
 
-        let persist_updates = {
-            let mut group = match group_reg.get_mut(&group_guid) {
-                Some(group) => group,
-                None => return,
-            };
-            let sender_is_assistant = group
-                .member_slot_like_cpp(sender_guid)
-                .is_some_and(|slot| (slot.flags & MEMBER_FLAG_ASSISTANT_LIKE_CPP) != 0);
-            if group.leader_guid != sender_guid && !sender_is_assistant {
-                return;
-            }
-
-            match assignment.assignment {
-                GROUP_ASSIGN_MAINASSIST_LIKE_CPP => {
-                    group.remove_unique_group_member_flag_like_cpp(MEMBER_FLAG_MAINASSIST_LIKE_CPP);
-                    group
-                        .set_group_member_flag_updates_like_cpp(
-                            assignment.target,
-                            assignment.apply,
-                            MEMBER_FLAG_MAINASSIST_LIKE_CPP,
-                        )
-                        .unwrap_or_default()
-                }
-                GROUP_ASSIGN_MAINTANK_LIKE_CPP => {
-                    group.remove_unique_group_member_flag_like_cpp(MEMBER_FLAG_MAINTANK_LIKE_CPP);
-                    group
-                        .set_group_member_flag_updates_like_cpp(
-                            assignment.target,
-                            assignment.apply,
-                            MEMBER_FLAG_MAINTANK_LIKE_CPP,
-                        )
-                        .unwrap_or_default()
-                }
-                _ => Vec::new(),
-            }
+        let outcome = match group_reg.set_party_assignment_transition_like_cpp(
+            group_guid,
+            sender_guid,
+            assignment.target,
+            assignment.assignment,
+            assignment.apply,
+        ) {
+            Ok(outcome) => outcome,
+            Err(_) => return,
         };
+        let persist_updates = outcome.facts;
 
         if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
             for (member_guid, final_flags) in persist_updates {
@@ -2716,9 +2552,7 @@ impl WorldSession {
             }
         }
 
-        if let Some(group) = group_reg.get(&group_guid) {
-            send_party_update(&group, &registry, vra);
-        }
+        send_party_update(&outcome.group, &registry, vra);
     }
 
     /// CMSG_SET_ROLE.
@@ -2780,45 +2614,36 @@ impl WorldSession {
         };
 
         let registry = self.player_registry().map(std::sync::Arc::clone);
-        let Some((bytes, recipients)) = group_reg.get(&group_guid).and_then(|group| {
-            let old_role = group.get_lfg_roles_like_cpp(set_role.target_guid);
-            if old_role == set_role.role {
-                return None;
-            }
-            let recipients = registry
-                .as_ref()
-                .map(|registry| connected_group_member_txs_like_cpp(&group, registry))
-                .unwrap_or_default();
-            Some((
-                role_changed_inform_like_cpp(
-                    group.group_category_like_cpp(),
-                    sender_guid,
-                    set_role.target_guid,
-                    old_role,
-                    set_role.role,
-                ),
-                recipients,
-            ))
-        }) else {
-            return;
+        let outcome = match group_reg.set_lfg_role_transition_like_cpp(
+            group_guid,
+            set_role.target_guid,
+            set_role.role,
+        ) {
+            Ok(outcome) => outcome,
+            Err(_) => return,
         };
+        let (old_role, lfg_roles_mutated_existing_target) = outcome.facts;
+        let recipients = registry
+            .as_ref()
+            .map(|registry| connected_group_member_txs_like_cpp(&outcome.group, registry))
+            .unwrap_or_default();
+        let bytes = role_changed_inform_like_cpp(
+            outcome.group.group_category_like_cpp(),
+            sender_guid,
+            set_role.target_guid,
+            old_role,
+            set_role.role,
+        );
 
         // C++ broadcasts RoleChangedInform, then Group::SetLfgRoles mutates an
         // existing member slot and calls SendUpdate(). Keep both fanouts outside
         // the mutable guard and only send PartyUpdate when the slot existed.
         send_group_packet_bytes_like_cpp(bytes, &recipients);
 
-        let lfg_roles_mutated_existing_target = group_reg
-            .get_mut(&group_guid)
-            .map(|mut group| group.set_lfg_roles_like_cpp(set_role.target_guid, set_role.role))
-            .unwrap_or(false);
-
         if lfg_roles_mutated_existing_target {
             if let Some(registry) = registry.as_ref() {
                 let vra = self.virtual_realm_address();
-                if let Some(group) = group_reg.get(&group_guid) {
-                    send_party_update(&group, registry, vra);
-                }
+                send_party_update(&outcome.group, registry, vra);
             }
         }
     }
@@ -2880,27 +2705,19 @@ impl WorldSession {
             return;
         }
 
-        let Some((updates, recipients, party_index)) = ({
-            let mut group = match group_reg.get_mut(&group_guid) {
-                Some(group) => group,
-                None => return,
-            };
-            if group.is_raid_group()
-                && !group.is_leader_like_cpp(sender_guid)
-                && !group.is_assistant_like_cpp(sender_guid)
-            {
-                return;
-            }
-            let recipients = connected_group_member_txs_like_cpp(&group, &registry);
-            let party_index = group.group_category_like_cpp();
-            group
-                .set_target_icon_like_cpp(symbol, update.target)
-                .map(|updates| (updates, recipients, party_index))
-        }) else {
-            return;
+        let outcome = match group_reg.set_target_icon_transition_like_cpp(
+            group_guid,
+            sender_guid,
+            symbol,
+            update.target,
+        ) {
+            Ok(outcome) => outcome,
+            Err(_) => return,
         };
+        let recipients = connected_group_member_txs_like_cpp(&outcome.group, &registry);
+        let party_index = outcome.group.group_category_like_cpp();
 
-        for (changed_symbol, target) in updates {
+        for (changed_symbol, target) in outcome.facts {
             send_group_packet_bytes_like_cpp(
                 raid_target_update_single_like_cpp(
                     party_index,
@@ -2944,28 +2761,16 @@ impl WorldSession {
             return;
         };
 
-        let Some((bytes, recipients)) = ({
-            let mut group = match group_reg.get_mut(&group_guid) {
-                Some(group) => group,
-                None => return,
-            };
-            if group.is_raid_group()
-                && !group.is_leader_like_cpp(sender_guid)
-                && !group.is_assistant_like_cpp(sender_guid)
-            {
-                return;
-            }
-            if usize::from(clear.marker_id) > RAID_MARKERS_COUNT_LIKE_CPP {
-                return;
-            }
-            group.delete_raid_marker_like_cpp(clear.marker_id);
-            Some((
-                raid_markers_changed_like_cpp(&group),
-                connected_group_member_txs_like_cpp(&group, &registry),
-            ))
-        }) else {
-            return;
+        let outcome = match group_reg.delete_raid_marker_transition_like_cpp(
+            group_guid,
+            sender_guid,
+            clear.marker_id,
+        ) {
+            Ok(outcome) => outcome,
+            Err(_) => return,
         };
+        let bytes = raid_markers_changed_like_cpp(&outcome.group);
+        let recipients = connected_group_member_txs_like_cpp(&outcome.group, &registry);
 
         send_group_packet_bytes_like_cpp(bytes, &recipients);
     }
