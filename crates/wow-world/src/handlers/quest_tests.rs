@@ -4378,7 +4378,7 @@ async fn quest_confirm_accept_no_source_side_effects_adds_local_quest_state_like
     assert_eq!(status.slot, 0);
     let registry = session.player_registry().expect("test installs registry");
     let snapshot = registry
-        .get(&receiver_guid)
+        .fixture_snapshot(receiver_guid)
         .expect("receiver snapshot should sync after quest insertion");
     assert_eq!(
         snapshot.active_quest_statuses.get(&quest_id),
@@ -4438,7 +4438,7 @@ async fn quest_confirm_accept_first_free_slot_skips_occupied_slot_like_cpp() {
     assert_eq!(status.status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
     let registry = session.player_registry().expect("test installs registry");
     let snapshot = registry
-        .get(&receiver_guid)
+        .fixture_snapshot(receiver_guid)
         .expect("receiver snapshot should sync after quest insertion");
     assert_eq!(
         snapshot.active_quest_statuses.get(&quest_id),
@@ -4489,7 +4489,7 @@ async fn quest_confirm_accept_source_spell_records_two_self_casts_like_cpp() {
     assert_eq!(status.slot, 0);
     let registry = session.player_registry().expect("test installs registry");
     let snapshot = registry
-        .get(&receiver_guid)
+        .fixture_snapshot(receiver_guid)
         .expect("receiver snapshot should sync after source-spell quest insertion");
     assert_eq!(
         snapshot.active_quest_statuses.get(&quest_id),
@@ -6936,7 +6936,7 @@ async fn push_quest_to_party_grouped_receiver_wrong_class_emits_class_pair_like_
     receiver_session.sync_player_registry_state_like_cpp();
     assert_eq!(
         player_registry
-            .get(&receiver_guid)
+            .fixture_snapshot(receiver_guid)
             .expect("receiver snapshot")
             .class,
         1
@@ -6988,7 +6988,7 @@ async fn push_quest_to_party_grouped_receiver_wrong_race_emits_race_pair_like_cp
     receiver_session.sync_player_registry_state_like_cpp();
     assert_eq!(
         player_registry
-            .get(&receiver_guid)
+            .fixture_snapshot(receiver_guid)
             .expect("receiver snapshot")
             .race,
         1
@@ -7129,15 +7129,13 @@ async fn push_quest_to_party_grouped_receiver_low_min_reputation_emits_low_facti
     add_active_quest(&mut session, shared_quest_id);
     let (player_registry, receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    player_registry
-        .get_mut(&receiver_guid)
-        .expect("receiver snapshot")
-        .reputation_standings = vec![(72, 99)];
+    assert!(player_registry.fixture_update(receiver_guid, |receiver| {
+        receiver.reputation_standings = vec![(72, 99)];
+    }));
     receiver_session.sync_player_registry_state_like_cpp();
-    player_registry
-        .get_mut(&receiver_guid)
-        .expect("receiver snapshot")
-        .reputation_standings = vec![(72, 99)];
+    assert!(player_registry.fixture_update(receiver_guid, |receiver| {
+        receiver.reputation_standings = vec![(72, 99)];
+    }));
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -7175,10 +7173,9 @@ async fn push_quest_to_party_grouped_receiver_equal_max_reputation_emits_low_fac
     let (player_registry, receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
     receiver_session.sync_player_registry_state_like_cpp();
-    player_registry
-        .get_mut(&receiver_guid)
-        .expect("receiver snapshot")
-        .reputation_standings = vec![(72, 100)];
+    assert!(player_registry.fixture_update(receiver_guid, |receiver| {
+        receiver.reputation_standings = vec![(72, 100)];
+    }));
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -7659,10 +7656,9 @@ async fn push_quest_to_party_reputation_precedes_previous_prerequisite_like_cpp(
     let (player_registry, receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
     receiver_session.sync_player_registry_state_like_cpp();
-    player_registry
-        .get_mut(&receiver_guid)
-        .expect("receiver snapshot")
-        .reputation_standings = vec![(72, 99)];
+    assert!(player_registry.fixture_update(receiver_guid, |receiver| {
+        receiver.reputation_standings = vec![(72, 99)];
+    }));
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -7706,10 +7702,9 @@ async fn push_quest_to_party_class_precedes_reputation_like_cpp() {
         install_represented_party(&mut session, sender_guid, receiver_guid);
     receiver_session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
     receiver_session.sync_player_registry_state_like_cpp();
-    player_registry
-        .get_mut(&receiver_guid)
-        .expect("receiver snapshot")
-        .reputation_standings = vec![(72, -42000)];
+    assert!(player_registry.fixture_update(receiver_guid, |receiver| {
+        receiver.reputation_standings = vec![(72, -42000)];
+    }));
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -7805,13 +7800,17 @@ async fn push_quest_to_party_receiver_level_snapshot_syncs_from_world_session_li
     let (player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
     assert_eq!(
-        player_registry.get(&receiver_guid).map(|info| info.level),
+        player_registry
+            .fixture_snapshot(receiver_guid)
+            .map(|info| info.level),
         Some(80)
     );
     receiver_session.set_player_level_like_cpp(19);
     receiver_session.sync_player_registry_state_like_cpp();
     assert_eq!(
-        player_registry.get(&receiver_guid).map(|info| info.level),
+        player_registry
+            .fixture_snapshot(receiver_guid)
+            .map(|info| info.level),
         Some(19)
     );
 
@@ -8435,7 +8434,7 @@ async fn push_quest_to_party_grouped_receiver_dead_observes_runtime_under_map_sy
     assert!(!receiver_session.player_is_alive_like_cpp());
     assert!(
         !player_registry
-            .get(&receiver_guid)
+            .fixture_snapshot(receiver_guid)
             .expect("receiver registry snapshot")
             .is_alive
     );

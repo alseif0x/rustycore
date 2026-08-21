@@ -63,6 +63,7 @@
     137,
     190,
     140,
+    252,
     182,
     183,
     184,
@@ -787,6 +788,14 @@
       "kind": "slice",
       "parents": [133, 99],
       "depends_on": [230]
+    },
+    {
+      "number": 252,
+      "state": "open",
+      "title": "[ARCH.RUNTIME.PLAYER] Retire the temporary PlayerBroadcastInfo gameplay mirror",
+      "kind": "slice",
+      "parents": [133],
+      "depends_on": [138, 140, 189]
     }
   ]
 }

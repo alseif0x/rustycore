@@ -684,7 +684,7 @@ fn connected_group_members_like_cpp(
         .members
         .iter()
         .copied()
-        .filter(|member_guid| registry.contains_key(member_guid))
+        .filter(|member_guid| registry.group_presence(*member_guid).is_some())
         .collect()
 }
 
@@ -2623,7 +2623,7 @@ impl WorldSession {
 
         if update.target.is_player()
             && !update.target.is_empty()
-            && !registry.contains_key(&update.target)
+            && registry.group_presence(update.target).is_none()
         {
             return;
         }
