@@ -152,7 +152,7 @@ The refactor campaign must preserve:
 python3 tools/architecture/check_architecture.py self-test
 python3 tools/architecture/check_architecture.py check
 python3 tools/architecture/check_architecture.py hotspots --limit 20
-cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check
+cargo run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check
 ./tools/pr-preflight.sh architecture
 ```
 

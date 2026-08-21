@@ -22,7 +22,7 @@ and `_LoadEquipmentSets`/`_LoadTransmogOutfits` source paths.
 The strict import selection is:
 
 ```bash
-cargo +1.88.0 run -q -p capture-diff -- import equipment-set-save \
+cargo run -q -p capture-diff -- import equipment-set-save \
   --cpp target/captures/equipment-set-save/cpp.pkt \
   --rust target/captures/equipment-set-save/rust \
   --from-opcode s2c:0x26B2 \

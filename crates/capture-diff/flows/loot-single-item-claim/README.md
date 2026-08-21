@@ -147,8 +147,8 @@ REPO_ROOT=/absolute/path/to/your/rustycore-worktree
 cd "$REPO_ROOT"
 test -z "$(git status --porcelain=v1 --untracked-files=normal)"
 PROTOC=/home/cdmonio/.local/protoc/bin/protoc \
-  cargo +1.88.0 build --locked -p world-server
-cargo +1.88.0 build --locked \
+  cargo build --locked -p world-server
+cargo build --locked \
   --manifest-path tools/wow-test-bot/Cargo.toml
 
 RUST_EXEC="$(realpath target/debug/world-server)"
@@ -331,7 +331,7 @@ Finally, without either capture script running:
 ```bash
 REPO_ROOT=/absolute/path/to/your/rustycore-worktree
 cd "$REPO_ROOT"
-cargo +1.88.0 run -p capture-diff -- import loot-single-item-claim \
+cargo run -p capture-diff -- import loot-single-item-claim \
   --cpp target/captures/loot-single-item-claim/cpp.pkt \
   --rust target/captures/loot-single-item-claim/rust \
   --cpp-manifest target/captures/loot-single-item-claim/cpp.capture-manifest.json \
@@ -352,7 +352,7 @@ After that import reports `CLEAN`, maintainers must:
    provenance and all repository/executable/PM2/config identities;
 2. set `requirement.json` to `"status": "ready"` with no stale
    `blocked_reason`;
-3. run `cargo +1.88.0 run -p capture-diff -- verify-required
+3. run `cargo run -p capture-diff -- verify-required
    loot-single-item-claim` and the local `capture` preflight.
 
 The pre-lineage issue-#106 import on 2026-07-18 did not produce the RAW

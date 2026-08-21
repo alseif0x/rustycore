@@ -7,7 +7,7 @@
 **WoW Wrath of the Lich King Classic (3.4.3.54261) server emulator written in Rust.**
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Rust](https://img.shields.io/badge/Rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/Rust-1.98%2B-orange.svg)](https://www.rust-lang.org)
 [![Target](https://img.shields.io/badge/WotLK%20Classic-3.4.3.54261-blueviolet.svg)](#)
 [![Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2.svg)](https://discord.gg/mH6ACpGPb2)
 
@@ -72,7 +72,7 @@ That split is a migration bridge, not the final design.
 
 ## Tech Stack
 
-- **Rust 1.88+** — edition 2024
+- **Rust 1.98+** — edition 2024
 - **Tokio** — async runtime and networking
 - **Axum** — Battle.net REST API
 - **SQLx + MariaDB** — login/auth, characters, world, and hotfix databases
@@ -117,7 +117,7 @@ MIGRATION_STATUS.md  Older high-level migration status
 
 ## Requirements
 
-- Rust `1.88+`
+- Rust `1.98+`
 - MariaDB `10.6+`
 - `protoc` for protobuf-dependent crates; set `PROTOC` if it is not available on `PATH`
 - A WotLK Classic `3.4.3.54261` client for manual testing

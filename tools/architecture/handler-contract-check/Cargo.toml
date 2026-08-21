@@ -2,7 +2,7 @@
 name = "handler-contract-check"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.98"
 license = "GPL-3.0-or-later"
 publish = false
 default-run = "handler-contract-check"
