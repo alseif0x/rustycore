@@ -6160,7 +6160,7 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
     }
 
     let character = include_str!("character.rs");
-    let session = include_str!("../session.rs");
+    let session = include_str!("../session/dispatch.rs");
     assert_publication_segment(
         character,
         "bank-slot purchase",

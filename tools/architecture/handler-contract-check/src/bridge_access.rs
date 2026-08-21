@@ -2105,22 +2105,32 @@ mod tests {
     #[test]
     fn real_runtime_ledger_anchor_definitions_are_present_once() {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-        let server_path = repository.join("crates/world-server/src/main.rs");
-        let session_path = repository.join("crates/wow-world/src/session.rs");
-        let server = fs::read_to_string(&server_path).expect("world-server source");
+        let delivery_path = repository.join("crates/world-server/src/runtime/delivery.rs");
+        let game_events_path = repository.join("crates/world-server/src/runtime/game_events.rs");
+        let session_path = repository.join("crates/wow-world/src/session/mod.rs");
+        let delivery = fs::read_to_string(&delivery_path).expect("world-server delivery source");
+        let game_events =
+            fs::read_to_string(&game_events_path).expect("world-server game-events source");
         let session = fs::read_to_string(&session_path).expect("wow-world session source");
         let baseline = inventory_bridge_accesses(&[
             BridgeSource {
                 package: "world-server",
                 module: "crate",
-                source_path: "crates/world-server/src/main.rs",
+                source_path: "crates/world-server/src/runtime/delivery.rs",
                 inherited_cfg: &[],
-                source: &server,
+                source: &delivery,
+            },
+            BridgeSource {
+                package: "world-server",
+                module: "crate",
+                source_path: "crates/world-server/src/runtime/game_events.rs",
+                inherited_cfg: &[],
+                source: &game_events,
             },
             BridgeSource {
                 package: "wow-world",
                 module: "crate::session",
-                source_path: "crates/wow-world/src/session.rs",
+                source_path: "crates/wow-world/src/session/mod.rs",
                 inherited_cfg: &[],
                 source: &session,
             },

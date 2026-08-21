@@ -96,7 +96,7 @@ self_test() {
   assert_eq "$active_toolchain" "$pinned_toolchain" \
     "rust-toolchain.toml active compiler"
   assert_eq "$(path_kind docs/migration/STATE.md)" other "documentation routing"
-  assert_eq "$(path_kind crates/wow-world/src/session.rs)" workspace-rust \
+  assert_eq "$(path_kind crates/wow-world/src/session/mod.rs)" workspace-rust \
     "workspace crate routing"
   assert_eq "$(path_kind tools/architecture/handler-contract-check/src/lib.rs)" \
     architecture-checker "standalone architecture checker routing"

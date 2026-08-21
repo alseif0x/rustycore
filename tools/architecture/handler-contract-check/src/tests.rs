@@ -33,7 +33,7 @@ fn repository_handler_contract_passes() {
         .unwrap_or_else(|error| panic!("invalid repository handler contract:\n{error}"));
     assert!(report.starts_with("handler contract: PASS"), "{report}");
     assert!(report.contains("0 exact drift exceptions"), "{report}");
-    assert!(report.contains("3 #[path] modules verified"), "{report}");
+    assert!(report.contains("16 #[path] modules verified"), "{report}");
 }
 
 #[test]
@@ -579,7 +579,7 @@ opcode_value\topcode_name\thandler_name\tsession_status\tpacket_processing\n\
 
 #[test]
 fn ownership_guard_rejects_cfg_inactive_session_registration() {
-    let session_path = Path::new("crates/wow-world/src/session.rs");
+    let session_path = Path::new("crates/wow-world/src/session/mod.rs");
     let error = reject_registration_syntax_outside_handlers(
         session_path,
         r#"
@@ -597,7 +597,7 @@ fn ownership_guard_rejects_cfg_inactive_session_registration() {
     .expect_err("a target-inactive handler registration outside handlers must fail");
     assert!(
         error.contains(
-            "session.rs invokes inventory registration macro inventory::submit! outside the \
+            "session/mod.rs invokes inventory registration macro inventory::submit! outside the \
              declared handler-registration owner"
         ),
         "{error}"
@@ -635,7 +635,7 @@ fn ownership_guard_rejects_cfg_inactive_session_registration() {
     .expect_err("a target-inactive audited registration macro outside handlers must fail");
     assert!(
         macro_error.contains(
-            "session.rs invokes audited handler registration macro register_move! outside the \
+            "session/mod.rs invokes audited handler registration macro register_move! outside the \
              declared handler-registration owner"
         ),
         "{macro_error}"
@@ -650,8 +650,9 @@ fn ownership_guard_rejects_cfg_inactive_session_registration() {
     )
     .expect_err("include! outside handlers must fail even when target-inactive");
     assert!(
-        include_error
-            .contains("session.rs uses include! outside the declared handler-registration owner"),
+        include_error.contains(
+            "session/mod.rs uses include! outside the declared handler-registration owner"
+        ),
         "{include_error}"
     );
 
@@ -782,7 +783,7 @@ fn registration_guard_handles_absolute_and_raw_macro_paths() {
         let source =
             format!("#[cfg(windows)] {macro_path}! {{ E {{ opcode: ClientOpcodes::Hidden }} }}");
         let error = reject_registration_syntax_outside_handlers(
-            Path::new("crates/wow-world/src/session.rs"),
+            Path::new("crates/wow-world/src/session/mod.rs"),
             &source,
         )
         .expect_err("absolute/raw submit path outside the owner must not disappear");
@@ -811,7 +812,7 @@ fn registration_guard_rejects_metavariable_macro_forwarders() {
         }
     "#;
     let definition_error = reject_registration_syntax_outside_handlers(
-        Path::new("crates/wow-world/src/session.rs"),
+        Path::new("crates/wow-world/src/session/mod.rs"),
         definition,
     )
     .expect_err("a macro-metavariable invocation can forward an unowned registration");
@@ -831,7 +832,7 @@ fn registration_guard_rejects_metavariable_macro_forwarders() {
         );
     "#;
     let invocation_error = reject_registration_syntax_outside_handlers(
-        Path::new("crates/wow-world/src/session.rs"),
+        Path::new("crates/wow-world/src/session/mod.rs"),
         invocation,
     )
     .expect_err("passing inventory::submit through an unknown macro must fail source audit");
@@ -842,7 +843,7 @@ fn registration_guard_rejects_metavariable_macro_forwarders() {
     );
 
     let mount_error = reject_registration_syntax_outside_handlers(
-        Path::new("crates/wow-world/src/session.rs"),
+        Path::new("crates/wow-world/src/session/mod.rs"),
         "mount_source! { mod hidden_module; }\n",
     )
     .expect_err("an unknown macro must not mount an unaudited Rust module");

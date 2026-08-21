@@ -3448,7 +3448,7 @@ mod tests {
     #[test]
     fn buy_registration_and_dispatch_arm_are_both_active_while_legacy_shortcuts_stay_disabled() {
         let trainer = include_str!("trainer.rs");
-        let session = include_str!("../session.rs");
+        let session = include_str!("../session/dispatch.rs");
         assert!(trainer.contains("opcode: ClientOpcodes::TrainerBuySpell"));
         assert!(session.contains("ClientOpcodes::TrainerBuySpell =>"));
 

@@ -26,7 +26,7 @@
   },
   "world_session_responsibility_families": {
     "coverage_source": {
-      "file": "crates/wow-world/src/session.rs",
+      "file": "crates/wow-world/src/session/mod.rs",
       "rust_item": "WorldSession",
       "parser": "syn::ItemStruct named fields",
       "include_cfg": "all",
@@ -1761,7 +1761,7 @@
         "files": [
           "crates/world-server/src/runtime/delivery.rs",
           "crates/world-server/src/runtime/game_events.rs",
-          "crates/wow-world/src/session.rs",
+          "crates/wow-world/src/session/mod.rs",
           "crates/wow-world/src/map_manager.rs",
           "crates/wow-world/src/handlers/loot.rs"
         ],
@@ -1942,10 +1942,10 @@
       },
       "entries": [
         {
-          "path": "crates/wow-world/src/session.rs",
-          "production_lines": 71961,
-          "test_lines": 94165,
-          "total_lines": 166126,
+          "path": "crates/wow-world/src/session/mod.rs",
+          "production_lines": 71989,
+          "test_lines": 94187,
+          "total_lines": 166176,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             140,
