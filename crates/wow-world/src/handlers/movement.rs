@@ -2021,11 +2021,11 @@ mod tests {
 
         session.set_player_guid(Some(guid));
         session.set_player_registry(std::sync::Arc::clone(&registry));
-        registry.insert(
+        registry.register_or_replace(
             guid,
             broadcast_info_with_command(guid, self_tx, self_command_tx),
         );
-        registry.insert(
+        registry.register_or_replace(
             other_guid,
             broadcast_info_with_command(other_guid, other_tx, other_command_tx),
         );
@@ -2079,7 +2079,7 @@ mod tests {
         let registry = wow_network::PlayerRegistry::default();
         let (old_send_tx, _old_send_rx) = flume::bounded(1);
         let (old_command_tx, old_command_rx) = flume::bounded(1);
-        registry.insert(
+        registry.register_or_replace(
             recipient_guid,
             broadcast_info_with_command(recipient_guid, old_send_tx, old_command_tx),
         );
@@ -2097,7 +2097,7 @@ mod tests {
 
         let (replacement_send_tx, _replacement_send_rx) = flume::bounded(1);
         let (replacement_command_tx, replacement_command_rx) = flume::bounded(1);
-        registry.insert(
+        registry.register_or_replace(
             recipient_guid,
             broadcast_info_with_command(
                 recipient_guid,
@@ -2166,13 +2166,13 @@ mod tests {
             ),
         );
 
-        registry.insert(
+        registry.register_or_replace(
             player_guid,
             broadcast_info_with_command(player_guid, self_tx, self_command_tx),
         );
         let mut other_info = broadcast_info_with_command(other_guid, other_tx, other_command_tx);
         other_info.position = moved_position;
-        registry.insert(other_guid, other_info);
+        registry.register_or_replace(other_guid, other_info);
 
         let movement = MovementInfo {
             guid: mover_guid,
@@ -2240,14 +2240,14 @@ mod tests {
 
         session.set_player_guid(Some(guid));
         session.set_player_registry(std::sync::Arc::clone(&registry));
-        registry.insert(
+        registry.register_or_replace(
             guid,
             broadcast_info_with_command(guid, self_tx, self_command_tx),
         );
         let mut far_info = broadcast_info_with_command(far_guid, far_tx, far_command_tx);
         far_info.position =
             wow_core::Position::new(crate::map_manager::VISIBILITY_RADIUS + 10.0, 0.0, 0.0, 0.0);
-        registry.insert(far_guid, far_info);
+        registry.register_or_replace(far_guid, far_info);
 
         let movement = MovementInfo {
             guid,
@@ -2584,7 +2584,7 @@ mod tests {
         session.set_player_position_like_cpp(original_position);
         session.set_player_movement_flags_like_cpp(MovementFlag::SWIMMING);
         session.set_player_registry(std::sync::Arc::clone(&registry));
-        registry.insert(other_guid, broadcast_info(other_guid, other_tx));
+        registry.register_or_replace(other_guid, broadcast_info(other_guid, other_tx));
 
         let movement = MovementInfo {
             guid: spoofed_guid,
@@ -2619,7 +2619,7 @@ mod tests {
         session.set_player_position_like_cpp(original_position);
         session.set_player_movement_flags_like_cpp(MovementFlag::SWIMMING);
         session.set_player_registry(std::sync::Arc::clone(&registry));
-        registry.insert(other_guid, broadcast_info(other_guid, other_tx));
+        registry.register_or_replace(other_guid, broadcast_info(other_guid, other_tx));
 
         let movement = MovementInfo {
             guid,
@@ -2829,11 +2829,11 @@ mod tests {
         session.set_player_registry(std::sync::Arc::clone(&registry));
         session.set_player_position_like_cpp(wow_core::Position::ZERO);
         session.set_player_movement_time_like_cpp(100);
-        registry.insert(
+        registry.register_or_replace(
             guid,
             broadcast_info_with_command(guid, self_tx, self_command_tx),
         );
-        registry.insert(
+        registry.register_or_replace(
             other_guid,
             broadcast_info_with_command(other_guid, other_tx, other_command_tx),
         );

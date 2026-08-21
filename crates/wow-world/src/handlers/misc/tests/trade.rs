@@ -177,7 +177,7 @@ async fn duel_response_accepts_challenged_duel_and_sends_countdown_like_cpp() {
     partner_session.set_player_guid(Some(partner_guid));
 
     let registry = Arc::new(PlayerRegistry::default());
-    registry.insert(
+    registry.register_or_replace(
         partner_guid,
         broadcast_info_with_command_tx(partner_session.session_command_tx()),
     );
@@ -456,7 +456,7 @@ async fn cancel_trade_cancels_partner_represented_trade_like_cpp() {
 
     let registry = Arc::new(PlayerRegistry::default());
     let partner_command_tx = partner_session.session_command_tx();
-    registry.insert(
+    registry.register_or_replace(
         partner_guid,
         broadcast_info_with_command_tx(partner_command_tx),
     );
@@ -545,7 +545,7 @@ async fn accept_trade_records_acceptance_and_notifies_partner_like_cpp() {
 
     let registry = Arc::new(PlayerRegistry::default());
     let partner_command_tx = partner_session.session_command_tx();
-    registry.insert(
+    registry.register_or_replace(
         partner_guid,
         broadcast_info_with_command_tx(partner_command_tx),
     );
@@ -632,7 +632,7 @@ async fn clear_trade_item_clears_slot_and_unaccepts_both_sides_like_cpp() {
 
     let registry = Arc::new(PlayerRegistry::default());
     let partner_command_tx = partner_session.session_command_tx();
-    registry.insert(
+    registry.register_or_replace(
         partner_guid,
         broadcast_info_with_command_tx(partner_command_tx),
     );
@@ -765,7 +765,7 @@ async fn set_trade_item_records_slot_and_unaccepts_both_sides_like_cpp() {
 
     let registry = Arc::new(PlayerRegistry::default());
     let partner_command_tx = partner_session.session_command_tx();
-    registry.insert(
+    registry.register_or_replace(
         partner_guid,
         broadcast_info_with_command_tx(partner_command_tx),
     );
@@ -882,7 +882,7 @@ async fn set_trade_gold_records_money_and_unaccepts_both_sides_like_cpp() {
 
     let registry = Arc::new(PlayerRegistry::default());
     let partner_command_tx = partner_session.session_command_tx();
-    registry.insert(
+    registry.register_or_replace(
         partner_guid,
         broadcast_info_with_command_tx(partner_command_tx),
     );
@@ -956,7 +956,7 @@ async fn set_trade_spell_zero_clears_spell_and_unaccepts_both_sides_like_cpp() {
 
     let registry = Arc::new(PlayerRegistry::default());
     let partner_command_tx = partner_session.session_command_tx();
-    registry.insert(
+    registry.register_or_replace(
         partner_guid,
         broadcast_info_with_command_tx(partner_command_tx),
     );
@@ -1071,7 +1071,7 @@ async fn set_trade_spell_valid_records_spell_and_cast_item_like_cpp() {
 
     let registry = Arc::new(PlayerRegistry::default());
     let partner_command_tx = partner_session.session_command_tx();
-    registry.insert(
+    registry.register_or_replace(
         partner_guid,
         broadcast_info_with_command_tx(partner_command_tx),
     );
@@ -1235,7 +1235,7 @@ async fn unaccept_trade_clears_acceptance_and_notifies_partner_like_cpp() {
 
     let registry = Arc::new(PlayerRegistry::default());
     let partner_command_tx = partner_session.session_command_tx();
-    registry.insert(
+    registry.register_or_replace(
         partner_guid,
         broadcast_info_with_command_tx(partner_command_tx),
     );
@@ -1311,7 +1311,7 @@ async fn busy_trade_cancels_partner_represented_trade_like_cpp() {
 
     let registry = Arc::new(PlayerRegistry::default());
     let partner_command_tx = partner_session.session_command_tx();
-    registry.insert(
+    registry.register_or_replace(
         partner_guid,
         broadcast_info_with_command_tx(partner_command_tx),
     );
@@ -1405,7 +1405,7 @@ async fn begin_trade_sends_initiated_status_to_partner_like_cpp() {
 
     let registry = Arc::new(PlayerRegistry::default());
     let partner_command_tx = partner_session.session_command_tx();
-    registry.insert(
+    registry.register_or_replace(
         partner_guid,
         broadcast_info_with_command_tx(partner_command_tx),
     );
@@ -1499,7 +1499,7 @@ async fn ignore_trade_cancels_partner_represented_trade_like_cpp() {
 
     let registry = Arc::new(PlayerRegistry::default());
     let partner_command_tx = partner_session.session_command_tx();
-    registry.insert(
+    registry.register_or_replace(
         partner_guid,
         broadcast_info_with_command_tx(partner_command_tx),
     );

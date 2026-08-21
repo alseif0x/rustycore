@@ -67,12 +67,8 @@ impl WorldSession {
             None => return,
         };
 
-        let entry = match registry.get(&target_guid) {
-            Some(e) => {
-                use wow_network::player_registry::PlayerBroadcastInfo;
-                let info: PlayerBroadcastInfo = e.value().clone();
-                info
-            }
+        let entry = match registry.inspect_snapshot(target_guid) {
+            Some(entry) => entry,
             None => {
                 warn!("Inspect: target {:?} not found in registry", target_guid);
                 return;
@@ -122,8 +118,8 @@ impl WorldSession {
             None => return,
         };
 
-        let entry = match registry.get(&request.target) {
-            Some(e) => e.value().clone(),
+        let entry = match registry.inspect_snapshot(request.target) {
+            Some(entry) => entry,
             None => return,
         };
 
@@ -162,8 +158,8 @@ impl WorldSession {
             None => return,
         };
 
-        let target = match registry.get(&request.guid) {
-            Some(e) => e.value().clone(),
+        let target = match registry.inspect_snapshot(request.guid) {
+            Some(target) => target,
             None => return,
         };
 

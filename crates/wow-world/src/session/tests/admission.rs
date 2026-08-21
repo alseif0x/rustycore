@@ -276,9 +276,9 @@ fn packet_spoof_ban_eviction_queues_kick_for_affected_accounts_like_cpp() {
     info_c.account_id = 7;
     info_c.command_tx = command_tx_c;
 
-    registry.insert(guid_a, info_a);
-    registry.insert(guid_b, info_b);
-    registry.insert(guid_c, info_c);
+    registry.register_or_replace(guid_a, info_a);
+    registry.register_or_replace(guid_b, info_b);
+    registry.register_or_replace(guid_c, info_c);
     session.set_player_registry(registry);
 
     assert_eq!(

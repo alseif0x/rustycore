@@ -423,18 +423,19 @@ display is checked against the JSON ledger:
 50. #137 — encapsulated Group owner move;
 51. #190 — durable creature-runtime rail relocation;
 52. #140 — Session mailbox pump;
-53. #182 — logical realm/instance routing;
-54. #183 — Session-only phase driver;
-55. #184 — login/logout lifecycle modules;
-56. #224 — character/loot/quest physical modules;
-57. #225 — Map/MapManager physical modules;
-58. #226 — Player/Unit physical modules;
-59. #227 — packet/spell-data physical modules;
-60. #228 — trusted linked external module API;
-61. #229 — deterministic external Cargo composition;
-62. #230 — agent-neutral module CLI and skeleton;
-63. #231 — typed module configuration/fixtures;
-64. #153 — terminal architecture audit.
+53. #252 — retire the temporary PlayerBroadcastInfo gameplay mirror;
+54. #182 — logical realm/instance routing;
+55. #183 — Session-only phase driver;
+56. #184 — login/logout lifecycle modules;
+57. #224 — character/loot/quest physical modules;
+58. #225 — Map/MapManager physical modules;
+59. #226 — Player/Unit physical modules;
+60. #227 — packet/spell-data physical modules;
+61. #228 — trusted linked external module API;
+62. #229 — deterministic external Cargo composition;
+63. #230 — agent-neutral module CLI and skeleton;
+64. #231 — typed module configuration/fixtures;
+65. #153 — terminal architecture audit.
 
 A slice may start once its declared prerequisites are merged and its branch is current. Independent
 physical work remains parallel to semantic authority cuts. Mechanical moves use focused compile and

@@ -35016,10 +35016,11 @@ impl WorldSession {
             }
         }
 
-        if let Some(registry) = self.player_registry()
-            && let Some(info) = registry.get(&guid)
+        if let Some(unit_state) = self
+            .player_registry()
+            .and_then(|registry| registry.represented_unit_state(guid))
         {
-            return info.unit_state;
+            return unit_state;
         }
 
         0
@@ -35411,14 +35412,17 @@ impl WorldSession {
         let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry) else {
             return;
         };
-        // Compute values that themselves read `player_registry` BEFORE locking the
-        // entry. `player_unit_state_for_registry_like_cpp` falls back to
-        // `registry.get(&guid)` when there is no canonical map manager (e.g. tests);
-        // calling it while holding `get_mut(&guid)` would re-lock the same DashMap
-        // shard on this thread → deadlock. It is the only sync-called helper that
-        // reads the registry, so hoisting just this one is sufficient.
+        // Work on an owned incarnation snapshot. Publication below verifies the
+        // exact owning control channel, so a stale session cannot overwrite its
+        // replacement and no directory guard escapes this module.
         let unit_state_for_registry = self.player_unit_state_for_registry_like_cpp();
-        if let Some(mut info) = registry.get_mut(&guid) {
+        let Some(registration) = registry
+            .control_address(guid)
+            .map(|address| address.registration())
+        else {
+            return;
+        };
+        if let Some(mut info) = registry.lookup_current(registration) {
             info.is_in_world = self.player_is_in_world_for_registry_like_cpp();
             info.combat_reach = self.canonical_player_combat_reach_snapshot_like_cpp();
             info.liquid_status = self.player_liquid_status_like_cpp();
@@ -35533,6 +35537,11 @@ impl WorldSession {
             info.yesterday_honorable_kills = yesterday_honorable_kills;
             info.lifetime_max_rank = lifetime_max_rank;
             info.honor_level = honor_level;
+            registry.publish_broadcast_info_for_control_channel(
+                guid,
+                &self.session_command_tx,
+                info,
+            );
         }
     }
 
@@ -45115,10 +45124,12 @@ impl WorldSession {
     /// (like the LFG boot combat check) read live per-member state.
     pub(crate) fn set_in_combat_like_cpp(&mut self, in_combat: bool) {
         self.in_combat = in_combat;
-        if let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry)
-            && let Some(mut info) = registry.get_mut(&guid)
-        {
-            info.in_combat = in_combat;
+        if let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry) {
+            registry.publish_in_combat_for_control_channel(
+                guid,
+                &self.session_command_tx,
+                in_combat,
+            );
         }
     }
 
@@ -47412,6 +47423,19 @@ impl WorldSession {
         &self.represented_silence_party_talker_like_cpp
     }
 
+    fn try_send_connected_player_command_like_cpp(
+        &self,
+        target_guid: ObjectGuid,
+        command: SessionCommand,
+    ) {
+        if let Some(address) = self
+            .player_registry()
+            .and_then(|registry| registry.control_address(target_guid))
+        {
+            let _ = address.try_send(command);
+        }
+    }
+
     pub(crate) fn cancel_represented_trade_like_cpp(&mut self, status: u8, sendback: bool) {
         use wow_packet::ServerPacket;
 
@@ -47428,18 +47452,15 @@ impl WorldSession {
             self.send_raw_packet(&packet_bytes);
         }
 
-        if let Some(registry) = self.player_registry()
-            && let Some(partner) = registry.get(&partner_guid)
-        {
-            let _ = partner
-                .command_tx
-                .try_send(SessionCommand::CancelRepresentedTradeLikeCpp(
-                    wow_network::player_registry::CancelRepresentedTradeLikeCppCommand {
-                        status,
-                        packet_bytes,
-                    },
-                ));
-        }
+        self.try_send_connected_player_command_like_cpp(
+            partner_guid,
+            SessionCommand::CancelRepresentedTradeLikeCpp(
+                wow_network::player_registry::CancelRepresentedTradeLikeCppCommand {
+                    status,
+                    packet_bytes,
+                },
+            ),
+        );
     }
 
     pub(crate) fn clear_represented_trade_item_like_cpp(&mut self, trade_slot: u8) {
@@ -47472,17 +47493,14 @@ impl WorldSession {
             TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
         self.send_raw_packet(&packet_bytes);
 
-        if let Some(registry) = self.player_registry()
-            && let Some(partner) = registry.get(&partner_guid)
-        {
-            let _ = partner
-                .command_tx
-                .try_send(SessionCommand::UnacceptRepresentedTradeLikeCpp(
-                    wow_network::player_registry::UnacceptRepresentedTradeLikeCppCommand {
-                        packet_bytes,
-                    },
-                ));
-        }
+        self.try_send_connected_player_command_like_cpp(
+            partner_guid,
+            SessionCommand::UnacceptRepresentedTradeLikeCpp(
+                wow_network::player_registry::UnacceptRepresentedTradeLikeCppCommand {
+                    packet_bytes,
+                },
+            ),
+        );
     }
 
     pub(crate) fn set_represented_trade_item_like_cpp(
@@ -47535,17 +47553,14 @@ impl WorldSession {
             TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
         self.send_raw_packet(&packet_bytes);
 
-        if let Some(registry) = self.player_registry()
-            && let Some(partner) = registry.get(&partner_guid)
-        {
-            let _ = partner
-                .command_tx
-                .try_send(SessionCommand::UnacceptRepresentedTradeLikeCpp(
-                    wow_network::player_registry::UnacceptRepresentedTradeLikeCppCommand {
-                        packet_bytes,
-                    },
-                ));
-        }
+        self.try_send_connected_player_command_like_cpp(
+            partner_guid,
+            SessionCommand::UnacceptRepresentedTradeLikeCpp(
+                wow_network::player_registry::UnacceptRepresentedTradeLikeCppCommand {
+                    packet_bytes,
+                },
+            ),
+        );
     }
 
     pub(crate) fn set_represented_trade_gold_like_cpp(&mut self, coinage: u64) {
@@ -47580,17 +47595,14 @@ impl WorldSession {
             TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
         self.send_raw_packet(&packet_bytes);
 
-        if let Some(registry) = self.player_registry()
-            && let Some(partner) = registry.get(&partner_guid)
-        {
-            let _ = partner
-                .command_tx
-                .try_send(SessionCommand::UnacceptRepresentedTradeLikeCpp(
-                    wow_network::player_registry::UnacceptRepresentedTradeLikeCppCommand {
-                        packet_bytes,
-                    },
-                ));
-        }
+        self.try_send_connected_player_command_like_cpp(
+            partner_guid,
+            SessionCommand::UnacceptRepresentedTradeLikeCpp(
+                wow_network::player_registry::UnacceptRepresentedTradeLikeCppCommand {
+                    packet_bytes,
+                },
+            ),
+        );
     }
 
     pub(crate) fn set_represented_trade_spell_like_cpp(
@@ -47663,17 +47675,14 @@ impl WorldSession {
             TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
         self.send_raw_packet(&packet_bytes);
 
-        if let Some(registry) = self.player_registry()
-            && let Some(partner) = registry.get(&partner_guid)
-        {
-            let _ = partner
-                .command_tx
-                .try_send(SessionCommand::UnacceptRepresentedTradeLikeCpp(
-                    wow_network::player_registry::UnacceptRepresentedTradeLikeCppCommand {
-                        packet_bytes,
-                    },
-                ));
-        }
+        self.try_send_connected_player_command_like_cpp(
+            partner_guid,
+            SessionCommand::UnacceptRepresentedTradeLikeCpp(
+                wow_network::player_registry::UnacceptRepresentedTradeLikeCppCommand {
+                    packet_bytes,
+                },
+            ),
+        );
     }
 
     pub(crate) fn accept_represented_trade_like_cpp(&mut self, state_index: u32) {
@@ -47695,17 +47704,14 @@ impl WorldSession {
 
         let packet_bytes =
             TradeStatus::status_only_like_cpp(TRADE_STATUS_ACCEPTED_LIKE_CPP).to_bytes();
-        if let Some(registry) = self.player_registry()
-            && let Some(partner) = registry.get(&partner_guid)
-        {
-            let _ = partner
-                .command_tx
-                .try_send(SessionCommand::SendRepresentedTradeStatusLikeCpp(
-                    wow_network::player_registry::SendRepresentedTradeStatusLikeCppCommand {
-                        packet_bytes,
-                    },
-                ));
-        }
+        self.try_send_connected_player_command_like_cpp(
+            partner_guid,
+            SessionCommand::SendRepresentedTradeStatusLikeCpp(
+                wow_network::player_registry::SendRepresentedTradeStatusLikeCppCommand {
+                    packet_bytes,
+                },
+            ),
+        );
     }
 
     pub(crate) fn unaccept_represented_trade_like_cpp(&mut self) {
@@ -47719,17 +47725,14 @@ impl WorldSession {
 
         let packet_bytes =
             TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
-        if let Some(registry) = self.player_registry()
-            && let Some(partner) = registry.get(&partner_guid)
-        {
-            let _ = partner
-                .command_tx
-                .try_send(SessionCommand::SendRepresentedTradeStatusLikeCpp(
-                    wow_network::player_registry::SendRepresentedTradeStatusLikeCppCommand {
-                        packet_bytes,
-                    },
-                ));
-        }
+        self.try_send_connected_player_command_like_cpp(
+            partner_guid,
+            SessionCommand::SendRepresentedTradeStatusLikeCpp(
+                wow_network::player_registry::SendRepresentedTradeStatusLikeCppCommand {
+                    packet_bytes,
+                },
+            ),
+        );
     }
 
     pub(crate) fn begin_represented_trade_like_cpp(&mut self) {
@@ -47742,17 +47745,14 @@ impl WorldSession {
         let packet_bytes = TradeStatus::initiated_like_cpp(0).to_bytes();
         self.send_raw_packet(&packet_bytes);
 
-        if let Some(registry) = self.player_registry()
-            && let Some(partner) = registry.get(&partner_guid)
-        {
-            let _ = partner
-                .command_tx
-                .try_send(SessionCommand::SendRepresentedTradeStatusLikeCpp(
-                    wow_network::player_registry::SendRepresentedTradeStatusLikeCppCommand {
-                        packet_bytes,
-                    },
-                ));
-        }
+        self.try_send_connected_player_command_like_cpp(
+            partner_guid,
+            SessionCommand::SendRepresentedTradeStatusLikeCpp(
+                wow_network::player_registry::SendRepresentedTradeStatusLikeCppCommand {
+                    packet_bytes,
+                },
+            ),
+        );
     }
 
     #[cfg(test)]
@@ -47867,18 +47867,14 @@ impl WorldSession {
         opponent_guid: ObjectGuid,
         packet_bytes: Vec<u8>,
     ) {
-        if let Some(registry) = self.player_registry()
-            && let Some(opponent) = registry.get(&opponent_guid)
-        {
-            let _ =
-                opponent
-                    .command_tx
-                    .try_send(SessionCommand::SendRepresentedDuelCountdownLikeCpp(
-                        wow_network::player_registry::SendRepresentedDuelCountdownLikeCppCommand {
-                            packet_bytes,
-                        },
-                    ));
-        }
+        self.try_send_connected_player_command_like_cpp(
+            opponent_guid,
+            SessionCommand::SendRepresentedDuelCountdownLikeCpp(
+                wow_network::player_registry::SendRepresentedDuelCountdownLikeCppCommand {
+                    packet_bytes,
+                },
+            ),
+        );
     }
 
     fn send_represented_duel_requested_to_opponent_like_cpp(
@@ -47887,19 +47883,15 @@ impl WorldSession {
         arbiter_guid: ObjectGuid,
         packet_bytes: Vec<u8>,
     ) {
-        if let Some(registry) = self.player_registry()
-            && let Some(opponent) = registry.get(&opponent_guid)
-        {
-            let _ =
-                opponent
-                    .command_tx
-                    .try_send(SessionCommand::SendRepresentedDuelRequestedLikeCpp(
-                        wow_network::player_registry::SendRepresentedDuelRequestedLikeCppCommand {
-                            arbiter_guid,
-                            packet_bytes,
-                        },
-                    ));
-        }
+        self.try_send_connected_player_command_like_cpp(
+            opponent_guid,
+            SessionCommand::SendRepresentedDuelRequestedLikeCpp(
+                wow_network::player_registry::SendRepresentedDuelRequestedLikeCppCommand {
+                    arbiter_guid,
+                    packet_bytes,
+                },
+            ),
+        );
     }
 
     /// C++ `Spell::EffectDuel`.
@@ -51944,7 +51936,7 @@ impl WorldSession {
                 if !self
                     .player_registry
                     .as_ref()
-                    .is_some_and(|registry| registry.contains_key(&target_guid))
+                    .is_some_and(|registry| registry.group_presence(target_guid).is_some())
                 {
                     continue;
                 }
