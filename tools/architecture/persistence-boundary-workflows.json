@@ -667,7 +667,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "const ITEM_GUID_DANGLING_REFERENCE_CLEANUP_STATEMENTS_LIKE_CPP",
       "logical_databases": [
         "characters"
@@ -684,24 +684,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn canonical_map_update_tick_set_inactive_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn clear_online_accounts_like_cpp",
       "logical_databases": [
         "characters",
@@ -719,77 +702,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn create_session",
-      "logical_databases": [
-        "characters",
-        "login",
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn execute_game_event_quest_complete_condition_save_db_bridge_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn execute_game_event_seasonal_quest_db_deletes_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn execute_game_event_world_event_state_db_bridge_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn execute_respawn_db_attempt_like_cpp",
       "logical_databases": [
         "characters"
@@ -806,58 +719,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn game_event_seasonal_quest_db_delete_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn game_event_world_event_state_db_delete_operation_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn game_event_world_event_state_db_save_operation_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn item_guid_reference_cleanup_transaction_like_cpp",
       "logical_databases": [
         "characters"
@@ -874,7 +736,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn keepalive_mysql_database_like_cpp",
       "logical_databases": [
         "characters",
@@ -893,7 +755,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn load_condition_reference_template_ids_like_cpp",
       "logical_databases": [
         "world"
@@ -910,92 +772,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn load_disable_mgr_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn load_group_db_rows_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn load_group_member_character_cache_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn load_group_member_db_rows_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn load_groups_from_character_database_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn load_loot_condition_ids_like_cpp",
       "logical_databases": [
         "world"
@@ -1012,7 +789,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn load_loot_condition_reference_uses_like_cpp",
       "logical_databases": [
         "world"
@@ -1029,7 +806,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn load_loot_stores_like_cpp",
       "logical_databases": [
         "world"
@@ -1046,7 +823,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn load_loot_template_rows_like_cpp",
       "logical_databases": [
         "world"
@@ -1063,7 +840,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn load_persisted_respawn_times_like_cpp",
       "logical_databases": [
         "characters"
@@ -1080,24 +857,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn load_realm_win64_auth_seed_like_cpp",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn load_world_db_version_like_cpp",
       "logical_databases": [
         "world"
@@ -1114,7 +874,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn loot_store_all_rows_statement_like_cpp",
       "logical_databases": [
         "world"
@@ -1131,79 +891,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn main",
-      "logical_databases": [
-        "characters",
-        "hotfix",
-        "login",
-        "world"
-      ],
-      "boundary": "world-server bootstrap composition root",
-      "target_issues": [
-        153,
-        200
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow uses independent characters, hotfix, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn materialize_game_event_quest_complete_db_bridge_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn queue_respawn_db_delete_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn queue_respawn_db_save_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn realm_list_snapshot_from_result_like_cpp",
       "logical_databases": [
         "login"
@@ -1220,7 +908,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn respawn_statement_key_like_cpp",
       "logical_databases": [
         "characters"
@@ -1237,77 +925,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn run_game_event_quest_complete_processor_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn run_world_session_until_disconnect_like_cpp",
-      "logical_databases": [
-        "characters",
-        "login",
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn set_realm_offline",
       "logical_databases": [
         "login"
@@ -1324,7 +942,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn set_realm_online",
       "logical_databases": [
         "login"
@@ -1341,24 +959,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn spawn_canonical_map_update_loop",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn spawn_db_keepalive_loop_like_cpp",
       "logical_databases": [
         "characters",
@@ -1377,24 +978,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn spawn_legacy_creature_runtime_update_loop_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn spawn_realm_list_update_loop_like_cpp",
       "logical_databases": [
         "login"
@@ -1411,7 +995,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn spawn_respawn_db_writer_like_cpp",
       "logical_databases": [
         "characters"
@@ -1428,7 +1012,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn update_realm_list_once_like_cpp",
       "logical_databases": [
         "login"
@@ -1445,7 +1029,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn update_world_db_core_version_like_cpp",
       "logical_databases": [
         "world"
@@ -1462,7 +1046,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "fn verify_world_db_version_like_cpp",
       "logical_databases": [
         "world"
@@ -1479,7 +1063,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "impl RespawnDbRetryQueueLikeCpp::enqueue_latest",
       "logical_databases": [
         "characters"
@@ -1496,7 +1080,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "impl RespawnDbRetryQueueLikeCpp::retry_failed",
       "logical_databases": [
         "characters"
@@ -1513,7 +1097,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "impl RespawnDbWriterSenderLikeCpp::send",
       "logical_databases": [
         "characters"
@@ -1530,7 +1114,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "impl wow_network::world_socket::AccountLookup for DbAccountLookup::lookup_account",
       "logical_databases": [
         "login"
@@ -1547,7 +1131,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "module",
       "logical_databases": [
         "characters",
@@ -1567,7 +1151,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "struct DbAccountLookup",
       "logical_databases": [
         "login"
@@ -1584,58 +1168,7 @@
     {
       "package": "world-server",
       "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "struct GameEventQuestCompleteConditionSaveDbStatementLikeCpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "struct GameEventSeasonalQuestDbDeleteLikeCpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "struct GameEventWorldEventStateDbStatementLikeCpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
+      "source": "crates/world-server/src/lib.rs",
       "enclosing": "struct PendingRespawnDbStatementLikeCpp",
       "logical_databases": [
         "characters"
@@ -1651,9 +1184,30 @@
     },
     {
       "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "struct RespawnDbDeleteLikeCpp",
+      "module": "crate::app",
+      "source": "crates/world-server/src/app.rs",
+      "enclosing": "fn run_inner",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "world-server bootstrap composition root",
+      "target_issues": [
+        153,
+        200
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow uses independent characters, hotfix, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
+    },
+    {
+      "package": "world-server",
+      "module": "crate::runtime::delivery",
+      "source": "crates/world-server/src/runtime/delivery.rs",
+      "enclosing": "fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp",
       "logical_databases": [
         "characters"
       ],
@@ -1662,15 +1216,15 @@
         153
       ],
       "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
     {
       "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "struct RespawnDbSaveLikeCpp",
+      "module": "crate::runtime::delivery",
+      "source": "crates/world-server/src/runtime/delivery.rs",
+      "enclosing": "fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp",
       "logical_databases": [
         "characters"
       ],
@@ -1679,8 +1233,25 @@
         153
       ],
       "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "world-server",
+      "module": "crate::runtime::delivery",
+      "source": "crates/world-server/src/runtime/delivery.rs",
+      "enclosing": "fn spawn_legacy_creature_runtime_update_loop_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "world-server bootstrap/data-source boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
     {
@@ -6922,7 +6493,7 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Pure classification of a finished sqlx error; it issues nothing and imposes no order. Separates a failure to acquire a connection \u2014 which never reached the server, so the statement definitely did not run \u2014 from a failure after the statement was sent, whose outcome is ambiguous and must not be recorded as a revert.",
+      "current_order": "Pure classification of a finished sqlx error; it issues nothing and imposes no order. Separates a failure to acquire a connection — which never reached the server, so the statement definitely did not run — from a failure after the statement was sent, whose outcome is ambiguous and must not be recorded as a revert.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path."
     },
     {
@@ -12120,24 +11691,59 @@
       "package": "wow-world",
       "module": "crate::handlers::misc",
       "source": "crates/wow-world/src/handlers/misc/mod.rs",
-      "enclosing": "impl crate :: session :: WorldSession::apply_represented_difficulty_change_like_cpp",
+      "enclosing": "module",
       "logical_databases": [
-        "characters"
+        "characters",
+        "world"
       ],
-      "boundary": "player difficulty persistence boundary",
+      "boundary": "misc compatibility persistence helper boundary",
       "target_issues": [
-        153,
-        187
+        153
       ],
       "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "connection_affinity": "This is a shared dependency/type surface for characters, world; it does not itself imply a runtime transaction.",
+      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
     },
     {
       "package": "wow-world",
-      "module": "crate::handlers::misc",
-      "source": "crates/wow-world/src/handlers/misc/mod.rs",
+      "module": "crate::handlers::misc::gameobject",
+      "source": "crates/wow-world/src/handlers/misc/gameobject.rs",
+      "enclosing": "impl crate :: session :: WorldSession::handle_game_obj_use",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "gameobject interaction persistence boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::handlers::misc::gameobject",
+      "source": "crates/wow-world/src/handlers/misc/gameobject.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters",
+        "world"
+      ],
+      "boundary": "misc compatibility persistence helper boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "This is a shared dependency/type surface for characters, world; it does not itself imply a runtime transaction.",
+      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
+      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::handlers::misc::instance",
+      "source": "crates/wow-world/src/handlers/misc/instance.rs",
       "enclosing": "impl crate :: session :: WorldSession::confirm_pending_bind_like_cpp",
       "logical_databases": [
         "characters"
@@ -12154,59 +11760,8 @@
     },
     {
       "package": "wow-world",
-      "module": "crate::handlers::misc",
-      "source": "crates/wow-world/src/handlers/misc/mod.rs",
-      "enclosing": "impl crate :: session :: WorldSession::handle_bug_report",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "support report persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::misc",
-      "source": "crates/wow-world/src/handlers/misc/mod.rs",
-      "enclosing": "impl crate :: session :: WorldSession::handle_game_obj_use",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "gameobject interaction persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::misc",
-      "source": "crates/wow-world/src/handlers/misc/mod.rs",
-      "enclosing": "impl crate :: session :: WorldSession::handle_query_next_mail_time",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "player mail persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::misc",
-      "source": "crates/wow-world/src/handlers/misc/mod.rs",
+      "module": "crate::handlers::misc::instance",
+      "source": "crates/wow-world/src/handlers/misc/instance.rs",
       "enclosing": "impl crate :: session :: WorldSession::handle_set_saved_instance_extend",
       "logical_databases": [
         "characters"
@@ -12223,8 +11778,8 @@
     },
     {
       "package": "wow-world",
-      "module": "crate::handlers::misc",
-      "source": "crates/wow-world/src/handlers/misc/mod.rs",
+      "module": "crate::handlers::misc::instance",
+      "source": "crates/wow-world/src/handlers/misc/instance.rs",
       "enclosing": "impl crate :: session :: WorldSession::reset_represented_instances_like_cpp",
       "logical_databases": [
         "characters"
@@ -12241,8 +11796,8 @@
     },
     {
       "package": "wow-world",
-      "module": "crate::handlers::misc",
-      "source": "crates/wow-world/src/handlers/misc/mod.rs",
+      "module": "crate::handlers::misc::instance",
+      "source": "crates/wow-world/src/handlers/misc/instance.rs",
       "enclosing": "module",
       "logical_databases": [
         "characters",
@@ -12256,6 +11811,76 @@
       "connection_affinity": "This is a shared dependency/type surface for characters, world; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::handlers::misc::player",
+      "source": "crates/wow-world/src/handlers/misc/player.rs",
+      "enclosing": "impl crate :: session :: WorldSession::apply_represented_difficulty_change_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "player difficulty persistence boundary",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::handlers::misc::player",
+      "source": "crates/wow-world/src/handlers/misc/player.rs",
+      "enclosing": "impl crate :: session :: WorldSession::handle_query_next_mail_time",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "player mail persistence boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::handlers::misc::player",
+      "source": "crates/wow-world/src/handlers/misc/player.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters",
+        "world"
+      ],
+      "boundary": "misc compatibility persistence helper boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "This is a shared dependency/type surface for characters, world; it does not itself imply a runtime transaction.",
+      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
+      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::handlers::misc::support",
+      "source": "crates/wow-world/src/handlers/misc/support.rs",
+      "enclosing": "impl crate :: session :: WorldSession::handle_bug_report",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "support report persistence boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
     {
       "package": "wow-world",
@@ -13220,7 +12845,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "enum GroupLootMoneyAttemptErrorLikeCpp::CommitOutcomeUnknown",
       "logical_databases": [
         "characters"
@@ -13238,7 +12863,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "enum LootMoneyPersistenceErrorLikeCpp::CommitOutcomeUnknown",
       "logical_databases": [
         "characters"
@@ -13256,7 +12881,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "enum LootMoneyPersistenceErrorLikeCpp::Database",
       "logical_databases": [
         "characters"
@@ -13274,7 +12899,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "fn attempt_group_loot_money_transaction_like_cpp",
       "logical_databases": [
         "characters"
@@ -13292,7 +12917,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "fn run_legacy_creature_lifecycle_tick_once_like_cpp",
       "logical_databases": [
         "characters"
@@ -13309,7 +12934,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl RepresentedPlayerConditionContextLikeCpp::as_context",
       "logical_databases": [
         "characters",
@@ -13328,7 +12953,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::append_planned_player_currency_save_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -13346,7 +12971,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::append_player_currency_save_statements",
       "logical_databases": [
         "characters"
@@ -13364,7 +12989,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_action_delete_spec_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13382,7 +13007,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_action_insert_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13400,7 +13025,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_difficulties_save_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13418,7 +13043,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_explored_zones_save_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13436,7 +13061,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_glyph_delete_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13454,7 +13079,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_glyph_insert_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13472,7 +13097,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_gold_save_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13490,7 +13115,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_health_save_statement_from_snapshot_like_cpp",
       "logical_databases": [
         "characters"
@@ -13508,7 +13133,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_health_save_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13526,7 +13151,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_level_xp_save_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13544,7 +13169,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_online_rest_state_save_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13562,7 +13187,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_played_time_save_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13580,7 +13205,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_position_save_statement_from_snapshot_like_cpp",
       "logical_databases": [
         "characters"
@@ -13598,7 +13223,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_position_save_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13616,7 +13241,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_powers_save_statement_from_snapshot_like_cpp",
       "logical_databases": [
         "characters"
@@ -13634,7 +13259,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_powers_save_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13652,7 +13277,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_rest_state_save_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13670,7 +13295,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_skill_delete_all_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13688,7 +13313,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_skill_insert_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13706,7 +13331,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_spell_charge_delete_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13724,7 +13349,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_spell_charge_insert_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13742,7 +13367,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_spell_cooldown_delete_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13760,7 +13385,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_spell_cooldown_insert_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13778,7 +13403,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_spell_delete_by_spell_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13796,7 +13421,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_spell_fallback_upsert_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13814,7 +13439,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_spell_favorite_delete_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13832,7 +13457,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_spell_favorite_insert_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13850,7 +13475,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_spell_insert_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13868,7 +13493,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_talent_delete_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13886,7 +13511,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_talent_insert_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13904,7 +13529,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_talent_reset_state_save_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13922,7 +13547,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_cuf_profile_delete_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13940,7 +13565,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_cuf_profile_replace_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13958,7 +13583,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_equipment_set_delete_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13976,7 +13601,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_equipment_set_insert_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -13994,7 +13619,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_equipment_set_update_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -14012,7 +13637,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_player_homebind_update_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -14030,7 +13655,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_transmog_outfit_insert_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -14048,7 +13673,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_transmog_outfit_update_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -14066,7 +13691,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_void_storage_delete_all_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -14084,7 +13709,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_void_storage_delete_slot_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -14102,7 +13727,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_void_storage_replace_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -14120,7 +13745,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_void_storage_withdrawal_item_insert_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -14138,7 +13763,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::char_db",
       "logical_databases": [
         "characters"
@@ -14155,7 +13780,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::character_action_button_save_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -14173,7 +13798,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::character_glyph_save_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -14191,7 +13816,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::character_skill_save_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -14209,7 +13834,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::character_spell_charge_save_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -14227,7 +13852,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::character_spell_cooldown_save_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -14245,7 +13870,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::character_spell_fallback_save_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -14263,7 +13888,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::character_spell_save_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -14281,7 +13906,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::character_talent_save_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -14299,7 +13924,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::character_void_storage_save_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -14317,7 +13942,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::commit_exclusive_player_money_and_spell_acquisition_like_cpp",
       "logical_databases": [
         "characters"
@@ -14334,7 +13959,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::commit_exclusive_player_money_transaction_like_cpp",
       "logical_databases": [
         "characters"
@@ -14352,7 +13977,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::commit_exclusive_trainer_money_only_like_cpp",
       "logical_databases": [
         "characters"
@@ -14370,7 +13995,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::commit_represented_talent_reset_at_like_cpp",
       "logical_databases": [
         "characters"
@@ -14388,7 +14013,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::cuf_profile_save_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -14406,7 +14031,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::current_player_save_to_db_statement_plan_like_cpp",
       "logical_databases": [
         "characters"
@@ -14424,7 +14049,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::current_player_xp_save_statement_plan_like_cpp",
       "logical_databases": [
         "characters"
@@ -14442,7 +14067,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::destroy_uncaged_battle_pet_item_durable_like_cpp",
       "logical_databases": [
         "characters"
@@ -14459,7 +14084,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::equipment_set_save_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -14477,25 +14102,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
-      "enclosing": "impl WorldSession::flush_packet_spoof_ban_like_cpp",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "Session residual persistence boundary",
-      "target_issues": [
-        153,
-        187
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit login connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::give_xp",
       "logical_databases": [
         "characters"
@@ -14513,7 +14120,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::install_battle_pet_purchase_store_from_char_db_like_cpp",
       "logical_databases": [
         "characters"
@@ -14530,7 +14137,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::instance_time_restriction_save_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -14548,7 +14155,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::load_account_data_like_cpp",
       "logical_databases": [
         "characters"
@@ -14566,7 +14173,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::load_completed_achievements_like_cpp",
       "logical_databases": [
         "characters"
@@ -14584,7 +14191,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::load_instance_time_restrictions_like_cpp",
       "logical_databases": [
         "characters"
@@ -14602,7 +14209,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::load_tutorials_data_like_cpp",
       "logical_databases": [
         "characters"
@@ -14620,7 +14227,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::login_db",
       "logical_databases": [
         "login"
@@ -14637,7 +14244,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::mutate_and_persist_player_gold_exclusive_like_cpp",
       "logical_databases": [
         "characters"
@@ -14655,24 +14262,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
-      "enclosing": "impl WorldSession::packet_spoof_ban_affected_account_ids_like_cpp",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "Session residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::persist_player_gold_checked_like_cpp",
       "logical_databases": [
         "characters"
@@ -14689,7 +14279,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::persist_player_homebind_like_cpp",
       "logical_databases": [
         "characters"
@@ -14706,7 +14296,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::played_time_save_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -14724,7 +14314,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::repair_all_inventory_item_durability_with_player_money_like_cpp",
       "logical_databases": [
         "characters"
@@ -14742,7 +14332,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::repair_inventory_item_durability_like_cpp",
       "logical_databases": [
         "characters"
@@ -14760,7 +14350,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::represented_set_difficulty_id_like_cpp",
       "logical_databases": [
         "characters"
@@ -14777,7 +14367,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::represented_talent_reset_transaction_statement_plan_like_cpp",
       "logical_databases": [
         "characters"
@@ -14795,7 +14385,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_cuf_profiles_like_cpp",
       "logical_databases": [
         "characters"
@@ -14813,7 +14403,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_current_player_to_db_like_cpp",
       "logical_databases": [
         "characters"
@@ -14831,7 +14421,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_instance_time_restrictions_like_cpp",
       "logical_databases": [
         "characters"
@@ -14849,7 +14439,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_player_action_buttons_like_cpp",
       "logical_databases": [
         "characters"
@@ -14867,7 +14457,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_player_difficulties_like_cpp",
       "logical_databases": [
         "characters"
@@ -14885,7 +14475,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_player_equipment_sets_like_cpp",
       "logical_databases": [
         "characters"
@@ -14903,7 +14493,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_player_explored_zones_like_cpp",
       "logical_databases": [
         "characters"
@@ -14921,7 +14511,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_player_glyphs_like_cpp",
       "logical_databases": [
         "characters"
@@ -14939,7 +14529,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_player_gold",
       "logical_databases": [
         "characters"
@@ -14957,7 +14547,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_player_health_like_cpp",
       "logical_databases": [
         "characters"
@@ -14975,7 +14565,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_player_level_xp_like_cpp",
       "logical_databases": [
         "characters"
@@ -14993,7 +14583,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_player_position_like_cpp",
       "logical_databases": [
         "characters"
@@ -15011,7 +14601,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_player_powers_like_cpp",
       "logical_databases": [
         "characters"
@@ -15029,7 +14619,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_player_skills_like_cpp",
       "logical_databases": [
         "characters"
@@ -15047,7 +14637,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_player_spell_charges_like_cpp",
       "logical_databases": [
         "characters"
@@ -15065,7 +14655,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_player_spell_cooldowns_like_cpp",
       "logical_databases": [
         "characters"
@@ -15083,7 +14673,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_player_talent_reset_state_like_cpp",
       "logical_databases": [
         "characters"
@@ -15101,7 +14691,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_player_talents_like_cpp",
       "logical_databases": [
         "characters"
@@ -15119,7 +14709,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_reputation_to_db_like_cpp",
       "logical_databases": [
         "characters"
@@ -15137,7 +14727,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::save_tutorials_data_like_cpp",
       "logical_databases": [
         "characters"
@@ -15155,7 +14745,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::set_account_data_persisted_like_cpp",
       "logical_databases": [
         "characters"
@@ -15173,7 +14763,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::set_char_db",
       "logical_databases": [
         "characters"
@@ -15190,7 +14780,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::set_login_db",
       "logical_databases": [
         "login"
@@ -15207,7 +14797,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::set_represented_group_difficulty_like_cpp",
       "logical_databases": [
         "characters"
@@ -15224,7 +14814,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::set_world_db",
       "logical_databases": [
         "world"
@@ -15241,7 +14831,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::spawn_group_loot_money_persistence_like_cpp",
       "logical_databases": [
         "characters"
@@ -15259,7 +14849,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::tutorial_save_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -15277,7 +14867,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::uncage_item_state_like_cpp",
       "logical_databases": [
         "characters"
@@ -15294,7 +14884,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::world_db",
       "logical_databases": [
         "world"
@@ -15311,7 +14901,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "module",
       "logical_databases": [
         "characters",
@@ -15330,7 +14920,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "struct HomebindPersistenceJobLikeCpp",
       "logical_databases": [
         "characters"
@@ -15347,7 +14937,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "struct LegacyCreatureLifecycleTickOutcomeLikeCpp",
       "logical_databases": [
         "characters"
@@ -15364,7 +14954,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "struct PlayerSaveToDbStatementPlanLikeCpp",
       "logical_databases": [
         "characters"
@@ -15382,7 +14972,7 @@
     {
       "package": "wow-world",
       "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
+      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "struct WorldSession",
       "logical_databases": [
         "characters",
@@ -15397,6 +14987,24 @@
       "connection_affinity": "This is a shared dependency/type surface for characters, login, world; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::session::admission",
+      "source": "crates/wow-world/src/session/admission.rs",
+      "enclosing": "impl super :: WorldSession::flush_packet_spoof_ban_like_cpp",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "Session residual persistence boundary",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow preserves one explicit login connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
     },
     {
       "package": "wow-world",

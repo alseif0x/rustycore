@@ -50,15 +50,16 @@ const ISSUE_LEDGER_RELATIVE_PATH: &str = "tools/architecture/architecture-issue-
 const WORLD_PACKAGE_ROOT: &str = "crates/wow-world";
 const WORLD_CRATE_ROOT: &str = "crates/wow-world/src/lib.rs";
 const SERVER_PACKAGE_ROOT: &str = "crates/world-server";
-const SERVER_CRATE_ROOT: &str = "crates/world-server/src/main.rs";
+const SERVER_CRATE_ROOT: &str = "crates/world-server/src/lib.rs";
 const NETWORK_PACKAGE_ROOT: &str = "crates/wow-network";
 const NETWORK_CRATE_ROOT: &str = "crates/wow-network/src/lib.rs";
 const WORLD_SESSION_MODULE: &str = "crate::session";
 const WORLD_SESSION_NAME: &str = "WorldSession";
 const SESSION_RESOURCES_MODULE: &str = "crate::session_resources";
 const SESSION_RESOURCES_NAME: &str = "SessionResources";
-const SESSION_FACTORY_MODULE: &str = "crate";
+const SESSION_FACTORY_MODULE: &str = "crate::session_factory";
 const SESSION_FACTORY_NAME: &str = "create_session";
+const PRIVATE_WORLD_SESSION_OWNER_ROOTS: &[&str] = &["crate::handlers::misc", WORLD_SESSION_MODULE];
 const SESSION_COMMAND_NAME: &str = "SessionCommand";
 const PLAYER_BROADCAST_INFO_NAME: &str = "PlayerBroadcastInfo";
 const FNV1A_64_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -822,6 +823,19 @@ fn normalized_trait_path(item: &ItemImpl) -> Option<String> {
         .map(|(_, path, _)| normalized_tokens(path))
 }
 
+fn logical_world_session_owner(module: &str) -> &str {
+    PRIVATE_WORLD_SESSION_OWNER_ROOTS
+        .iter()
+        .copied()
+        .find(|root| {
+            module == *root
+                || module
+                    .strip_prefix(*root)
+                    .is_some_and(|suffix| suffix.starts_with("::"))
+        })
+        .unwrap_or(module)
+}
+
 fn impl_item_surface(
     module: &str,
     trait_path: &Option<String>,
@@ -881,6 +895,7 @@ fn collect_world_session_impl(
     if !type_path_ends_with(&item.self_ty, WORLD_SESSION_NAME) {
         return;
     }
+    let module = logical_world_session_owner(module);
     let trait_path = normalized_trait_path(item);
     let impl_target = trait_path.as_ref().map_or_else(
         || format!("impl {WORLD_SESSION_NAME}"),
@@ -2381,14 +2396,18 @@ mod tests {
                     fn new(_account_id: u32) -> Self {{ Self }}
                     fn set_char_db(&mut self, _db: u32) {{}}
                 }}
-                async fn create_session(account_id: u32, resources: SessionResources) {{
-                    let mut session = WorldSession::new(account_id);
-                    if let Some(db) = resources.char_db {{ session.set_char_db(db); }}
-                    {extra_factory}
-                }}
-                async fn bootstrap() {{
-                    let resources = SessionResources {{ char_db: None, {extra_field_init} }};
-                    create_session(1, resources).await;
+                mod session_factory {{
+                    use super::*;
+
+                    async fn create_session(account_id: u32, resources: SessionResources) {{
+                        let mut session = WorldSession::new(account_id);
+                        if let Some(db) = resources.char_db {{ session.set_char_db(db); }}
+                        {extra_factory}
+                    }}
+                    async fn bootstrap() {{
+                        let resources = SessionResources {{ char_db: None, {extra_field_init} }};
+                        create_session(1, resources).await;
+                    }}
                 }}
             "#,
             extra_field_init = if extra_field.is_empty() {
@@ -2635,6 +2654,37 @@ mod tests {
     }
 
     #[test]
+    fn splitting_a_private_owner_into_child_modules_keeps_one_logical_owner() {
+        let baseline_world = r#"
+            pub mod session { pub struct WorldSession { pub account_id: u32 } }
+            mod handlers {
+                mod misc {
+                    impl crate::session::WorldSession { fn calendar(&self) {} }
+                }
+            }
+        "#;
+        let split_world = r#"
+            pub mod session { pub struct WorldSession { pub account_id: u32 } }
+            mod handlers {
+                mod misc {
+                    mod calendar {
+                        impl crate::session::WorldSession { fn calendar(&self) {} }
+                    }
+                }
+            }
+        "#;
+        let baseline =
+            synthetic_baseline(baseline_world, &server_source("", "")).expect("baseline parses");
+        let split = synthetic_baseline(split_world, &server_source("", ""))
+            .expect("private child module parses");
+
+        compare_baseline(&baseline, &split)
+            .expect("a private physical child remains part of its logical owner");
+        assert_eq!(split.world_session.impls.len(), 1);
+        assert_eq!(split.world_session.impls[0].module, "crate::handlers::misc");
+    }
+
+    #[test]
     fn session_resources_and_factory_fanout_are_exact() {
         let baseline = synthetic_baseline(&world_source("state: u8,", ""), &server_source("", ""))
             .expect("baseline parses");
@@ -2826,6 +2876,32 @@ mod tests {
         let parsed: PolicyEnvelope =
             serde_json::from_value(value).expect("semantic keys remain isolated");
         assert_eq!(parsed.syntax_baseline, baseline);
+    }
+
+    #[test]
+    fn server_ownership_root_follows_private_library_modules() {
+        let repository_root = crate::repository_root().expect("repository root");
+        let units = repository_units(
+            &repository_root,
+            PackageRole::Server,
+            SERVER_PACKAGE_ROOT,
+            SERVER_CRATE_ROOT,
+        )
+        .expect("world-server library modules must be discoverable");
+
+        assert!(units.iter().any(|unit| {
+            unit.logical_module_path == SESSION_RESOURCES_MODULE
+                && unit.source_path.ends_with("session_resources.rs")
+        }));
+        assert!(units.iter().any(|unit| {
+            unit.logical_module_path == SESSION_FACTORY_MODULE
+                && unit.source_path.ends_with("session_factory.rs")
+        }));
+        assert!(
+            units
+                .iter()
+                .all(|unit| !unit.source_path.ends_with("main.rs"))
+        );
     }
 
     #[test]
