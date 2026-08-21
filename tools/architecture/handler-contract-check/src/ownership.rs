@@ -19,8 +19,9 @@ use quote::ToTokens;
 use serde_json::Value;
 use syn::parse::Parser;
 use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
 use syn::visit::Visit;
-use syn::{Item, ItemMod, Meta, Token};
+use syn::{Attribute, Item, ItemMod, Meta, Token};
 
 use crate::module_policy::CapabilityOwner;
 use crate::registrations::{
@@ -878,6 +879,382 @@ fn child_module_directory(source: &Path) -> Result<PathBuf, String> {
     }
 }
 
+/// Read a source file with every `#[path]` module spliced back in as an inline
+/// module.
+///
+/// `#[path]` does not change the module tree: `#[path = "x_tests.rs"] mod tests;`
+/// declares exactly the module that `mod tests { .. }` would. The analyzers do
+/// not see it that way, because each physical file becomes its own unit with its
+/// own symbol table, and provenance is resolved from a file's own `use` items.
+/// A child that reaches its parent's imports through `use super::*` -- which is
+/// real Rust, the child can name an ancestor's private imports -- loses that
+/// provenance, because resolving a glob is beyond a syntactic analyzer. Moving a
+/// `mod tests` out of its parent then silently deletes rows from the very
+/// inventories that exist to notice deletions: 29 of 71 bridge rows and 1,261 of
+/// 23,404 persistence rows vanished this way.
+///
+/// Splicing removes the indirection before anything is analyzed, so the audit
+/// sees the module tree the compiler sees and the extraction is invisible to
+/// every ratchet at once, rather than each analyzer needing its own repair.
+/// The inner attributes a `#[path]` child declares on itself.
+///
+/// `walk_source_file` extends a mount's cfg with these, so a key built only
+/// from the parent's context and the declaration would not match the context
+/// the walker actually produced.
+fn child_inner_attributes(child: &Path) -> Result<Vec<syn::Attribute>, String> {
+    let source = fs::read_to_string(child)
+        .map_err(|error| format!("cannot read {}: {error}", child.display()))?;
+    let syntax = syn::parse_file(&source)
+        .map_err(|error| format!("cannot parse {}: {error}", child.display()))?;
+    Ok(syntax.attrs)
+}
+
+/// Which (file, logical module path) pairs are reached through a `#[path]`.
+///
+/// Matched by logical path, not by file, so a file that is also mounted
+/// ordinarily keeps that mount: skipping the whole file would drop the ordinary
+/// context from the analysis without saying so.
+pub(crate) fn spliced_child_contexts(
+    mounts: &BTreeMap<PathBuf, BTreeSet<SourceMountContext>>,
+) -> Result<BTreeSet<(PathBuf, String, Vec<String>)>, String> {
+    let mut spliced = BTreeSet::new();
+    for (parent_path, parent_contexts) in mounts {
+        let raw = fs::read_to_string(parent_path)
+            .map_err(|error| format!("cannot read {}: {error}", parent_path.display()))?;
+        for (child, ident, attributes) in path_module_children(parent_path, &raw) {
+            for parent_context in parent_contexts {
+                // Keyed by cfg as well as name. One file can be mounted under
+                // the same logical name through mutually exclusive
+                // declarations -- `#[cfg(not(test))] mod foo;` beside
+                // `#[cfg(test)] #[path = "foo.rs"] mod foo;` -- and a
+                // name-only key matched both, filtering out the production
+                // context that no splice represents.
+                // The child's own inner attributes count too: `walk_source_file`
+                // extends the mount context with them, so a child carrying
+                // `#![cfg(unix)]` has a context this key would otherwise miss --
+                // leaving the spliced context unfiltered and its contents
+                // counted twice.
+                let declared = extend_cfg_context(&parent_context.cfg, &attributes);
+                spliced.insert((
+                    child.clone(),
+                    format!("{}::{ident}", parent_context.logical_module_path),
+                    extend_cfg_context(&declared, &child_inner_attributes(&child)?),
+                ));
+            }
+        }
+    }
+    Ok(spliced)
+}
+
+/// Files reachable only as `#[path]` children of `source`.
+///
+/// A consumer that reads sources through [`read_spliced_source`] already has
+/// these inside their parent, so analysing them again would double-count them
+/// and reintroduce the separate-unit provenance loss the splice exists to
+/// remove. The mount graph still records them, which is where the `#[path]`
+/// count and the duplicate-owner rejection live.
+pub(crate) fn path_module_children(
+    source_path: &Path,
+    source: &str,
+) -> Vec<(PathBuf, String, Vec<syn::Attribute>)> {
+    let Ok(syntax) = syn::parse_file(source) else {
+        return Vec::new();
+    };
+    let mut children = Vec::new();
+    for item in &syntax.items {
+        let Item::Mod(module) = item else { continue };
+        if module.content.is_some() {
+            continue;
+        }
+        let Ok(Some(relative)) = explicit_path(&module.attrs) else {
+            continue;
+        };
+        let child = source_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(relative);
+        if let Ok(resolved) = child.canonicalize() {
+            children.push((resolved, module.ident.to_string(), module.attrs.clone()));
+        }
+    }
+    children
+}
+
+pub(crate) fn read_spliced_source(
+    source_path: &Path,
+    package_root: &Path,
+) -> Result<String, String> {
+    read_spliced_source_at_depth(source_path, package_root, 0)
+}
+
+/// `#[path]` chains are not expected to nest, but a bound keeps a cycle from
+/// becoming a stack overflow; `walk_source_file` reports the cycle properly.
+const MAX_PATH_MODULE_DEPTH: usize = 8;
+
+fn read_spliced_source_at_depth(
+    source_path: &Path,
+    package_root: &Path,
+    depth: usize,
+) -> Result<String, String> {
+    let source = fs::read_to_string(source_path)
+        .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
+    if depth > MAX_PATH_MODULE_DEPTH {
+        return Err(format!(
+            "#[path] module nesting deeper than {MAX_PATH_MODULE_DEPTH} while splicing {}",
+            source_path.display()
+        ));
+    }
+
+    let syntax = syn::parse_file(&source)
+        .map_err(|error| format!("cannot parse {}: {error}", source_path.display()))?;
+
+    // Collected first and applied last-to-first so earlier byte ranges stay valid.
+    let mut replacements: Vec<(std::ops::Range<usize>, String)> = Vec::new();
+    for item in &syntax.items {
+        let Item::Mod(module) = item else { continue };
+        if module.content.is_some() {
+            continue;
+        }
+        let Some(relative) = explicit_path(&module.attrs)? else {
+            continue;
+        };
+        let child_path = source_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(&relative);
+        let context = format!(
+            "#[path] module {} declared in {}",
+            module.ident,
+            source_path.display()
+        );
+        let resolved = validate_source_file(&child_path, package_root, &context)?;
+        let child = read_spliced_source_at_depth(&resolved, package_root, depth + 1)?;
+        let child = strip_shebang(&child);
+        let body = strip_inner_cfg_test(&child, &module.attrs, &resolved)?;
+
+        // The declaration is rebuilt by slicing the original bytes rather than by
+        // re-emitting the parsed tokens: `to_token_stream().to_string()` would
+        // print `# [cfg (test)]`, which parses the same but no longer matches
+        // what the file says, and this text is what every later audit reads.
+        let item_range = item.span().byte_range();
+        let item_text = &source[item_range.clone()];
+        let attribute_range = module
+            .attrs
+            .iter()
+            .find(|attribute| attribute.path().is_ident("path"))
+            .map(|attribute| attribute.span().byte_range())
+            .ok_or_else(|| format!("lost the #[path] attribute of module {}", module.ident))?;
+        let mut declaration = String::with_capacity(item_text.len());
+        declaration.push_str(&item_text[..attribute_range.start - item_range.start]);
+        // The attribute occupied its own line, so splicing its range out leaves
+        // the newline that followed it and the module's remaining attributes end
+        // up separated from the declaration they apply to.
+        declaration.push_str(
+            item_text[attribute_range.end - item_range.start..].trim_start_matches(['\n', '\r']),
+        );
+        let declaration = declaration
+            .trim_end()
+            .strip_suffix(';')
+            .ok_or_else(|| {
+                format!(
+                    "#[path] module {} in {} is not a `mod name;` declaration",
+                    module.ident,
+                    source_path.display()
+                )
+            })?
+            .trim_end()
+            .to_owned();
+        replacements.push((item_range, format!("{declaration} {{\n{body}\n}}")));
+    }
+
+    if replacements.is_empty() {
+        return Ok(source);
+    }
+    replacements.sort_by_key(|(range, _)| range.start);
+    let mut spliced = source;
+    for (range, text) in replacements.into_iter().rev() {
+        spliced.replace_range(range, &text);
+    }
+    Ok(spliced)
+}
+
+/// Whether a normalized cfg makes its item test-only.
+///
+/// Not a string comparison: `cfg(all(test))` and `cfg(all(test, unix))` are
+/// test-only too, and reading them as production-capable charges an entire
+/// test child against a production ceiling. `any(..)` is not, since one of its
+/// branches can hold without `test`, and a negation is not.
+fn cfg_is_test_only(cfg: &str) -> bool {
+    let compact = cfg.replace(' ', "");
+    let Some(inner) = compact
+        .strip_prefix("cfg(")
+        .and_then(|rest| rest.strip_suffix(')'))
+    else {
+        return false;
+    };
+    cfg_predicate_is_test_only(inner)
+}
+
+fn cfg_predicate_is_test_only(predicate: &str) -> bool {
+    if predicate == "test" {
+        return true;
+    }
+    if let Some(inner) = predicate
+        .strip_prefix("all(")
+        .and_then(|rest| rest.strip_suffix(')'))
+    {
+        // `all(..)` holds only if every term does, so one test-only term makes
+        // the whole thing test-only.
+        return split_top_level_predicates(inner)
+            .iter()
+            .any(|term| cfg_predicate_is_test_only(term));
+    }
+    if let Some(inner) = predicate
+        .strip_prefix("any(")
+        .and_then(|rest| rest.strip_suffix(')'))
+    {
+        // `any(..)` holds if any term does, so it is test-only only when every
+        // term is.
+        let terms = split_top_level_predicates(inner);
+        return !terms.is_empty() && terms.iter().all(|term| cfg_predicate_is_test_only(term));
+    }
+    if let Some(inner) = predicate
+        .strip_prefix("not(")
+        .and_then(|rest| rest.strip_suffix(')'))
+    {
+        // Double negation is the only shape that survives: `not(not(test))` is
+        // `test`. A single `not(test)` is the opposite of test-only.
+        return inner
+            .strip_prefix("not(")
+            .and_then(|rest| rest.strip_suffix(')'))
+            .is_some_and(cfg_predicate_is_test_only);
+    }
+    // Anything else -- a bare feature, a target predicate -- is not test-only.
+    false
+}
+
+fn split_top_level_predicates(inner: &str) -> Vec<&str> {
+    let mut terms = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0usize;
+    for (index, character) in inner.char_indices() {
+        match character {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                terms.push(&inner[start..index]);
+                start = index + 1;
+            }
+            _ => {}
+        }
+    }
+    terms.push(&inner[start..]);
+    terms
+}
+
+/// Skip leading whitespace and comments, so an attribute written with trivia
+/// between its tokens is still recognised as one.
+fn strip_rust_trivia_prefix(text: &str) -> &str {
+    let mut rest = text.trim_start();
+    loop {
+        if let Some(after) = rest.strip_prefix("/*") {
+            // Rust block comments nest, so the first `*/` is not necessarily
+            // the end: `/* outer /* inner */ end */` closes at the second.
+            // Walked by char boundary, not by byte: a comment may hold
+            // non-ASCII text, and slicing `&after[index..index + 2]` inside a
+            // multi-byte character panics -- taking the whole mandatory check
+            // down with it.
+            let mut depth = 1usize;
+            let mut cursor = after;
+            while depth > 0 {
+                if let Some(next) = cursor.strip_prefix("/*") {
+                    depth += 1;
+                    cursor = next;
+                } else if let Some(next) = cursor.strip_prefix("*/") {
+                    depth -= 1;
+                    cursor = next;
+                } else {
+                    match cursor.chars().next() {
+                        Some(character) => cursor = &cursor[character.len_utf8()..],
+                        None => return "",
+                    }
+                }
+            }
+            rest = cursor.trim_start();
+        } else if let Some(after) = rest.strip_prefix("//") {
+            rest = after.find('\n').map_or("", |end| after[end..].trim_start());
+        } else {
+            return rest;
+        }
+    }
+}
+
+/// Drop a leading `#!` shebang line.
+///
+/// rustc and rustfmt accept a shebang at the top of an external module file,
+/// but inside `mod child { .. }` it is not valid Rust: `#!` there begins an
+/// inner attribute. Splicing it through made the reconstructed parent
+/// unparseable, so the whole file dropped out of the inventory -- a silent loss
+/// of every row it owned.
+///
+/// Only a first line starting `#!` and not `#![`, which is the shebang rather
+/// than an inner attribute.
+fn strip_shebang(source: &str) -> String {
+    // `#! /* keep */ [cfg(test)]` is an inner attribute, not a shebang: the
+    // bracket may be separated from the `#!` by trivia, so a `#![` prefix test
+    // strips a real attribute's first line.
+    let Some(rest) = source.strip_prefix("#!") else {
+        return source.to_owned();
+    };
+    // Not bounded to the first line: a line comment between the `#!` and its
+    // bracket puts them on separate lines, and `#!// keep\n[cfg(test)]` is an
+    // inner attribute whose first line a shebang rule would delete.
+    if strip_rust_trivia_prefix(rest).starts_with('[') {
+        return source.to_owned();
+    }
+    match source.find('\n') {
+        // The newline is kept so byte offsets after it do not shift.
+        Some(end) => source[end..].to_owned(),
+        None => String::new(),
+    }
+}
+
+/// Drop a `#![cfg(test)]` that the `mod` declaration already states.
+///
+/// Inlining would otherwise record the module's cfg twice and change its exact
+/// identity in the baseline. Every other inner attribute is carried through
+/// untouched: `mod m { #![doc = ".."] .. }` means exactly what the same
+/// attribute meant at the top of the module's own file, so rewriting it would
+/// change the audited source rather than preserve it.
+fn strip_inner_cfg_test(
+    child: &str,
+    module_attributes: &[Attribute],
+    child_path: &Path,
+) -> Result<String, String> {
+    let syntax = syn::parse_file(child)
+        .map_err(|error| format!("cannot parse {}: {error}", child_path.display()))?;
+    if syntax.attrs.is_empty() {
+        return Ok(child.to_owned());
+    }
+    let module_is_test_only = module_attributes.iter().any(|attribute| {
+        attribute.path().is_ident("cfg")
+            && attribute.to_token_stream().to_string().replace(' ', "") == "#[cfg(test)]"
+    });
+    let mut body = child.to_owned();
+    let mut ranges = Vec::new();
+    for attribute in &syntax.attrs {
+        let text = attribute.to_token_stream().to_string().replace(' ', "");
+        if text == "#![cfg(test)]" && module_is_test_only {
+            ranges.push(attribute.span().byte_range());
+        }
+    }
+    ranges.sort_by_key(|range| range.start);
+    for range in ranges.into_iter().rev() {
+        body.replace_range(range, "");
+    }
+    Ok(body)
+}
+
 fn resolve_module_source(
     module: &ItemMod,
     source_path: &Path,
@@ -1212,6 +1589,79 @@ pub(crate) struct WorkspaceSourceMount {
 
 /// Resolve every workspace production lib/bin module graph using the same
 /// locked Cargo metadata and path rules as the handler ownership audit.
+/// Every `#[path]` mount in the workspace, as repository-relative paths.
+///
+/// `parent` mounts `child`, and `test_only` says whether the declaration or the
+/// child itself is `cfg(test)`. Emitted for the Python guard, which charges a
+/// child's lines to its parent and has no business parsing Rust to find them.
+///
+/// Only `#[path]` declarations are reported. A plain `mod foo;` resolving to
+/// `parent/foo.rs` by the ordinary rules is an extraction too, and its lines
+/// currently leave the parent's charged total -- so a hotspot could be split
+/// that way and the ratchet would accept the drop. Nothing in the tree does
+/// this today; closing it means implementing Rust's default path resolution and
+/// re-freezing every ratchet against the wider mount set, tracked as #220 and a
+/// prerequisite for the `session.rs` split.
+#[derive(Debug, serde::Serialize)]
+pub(crate) struct PathModuleMount {
+    parent: String,
+    child: String,
+    test_only: bool,
+}
+
+pub(crate) fn workspace_path_module_mounts(
+    repository_root: &Path,
+) -> Result<Vec<PathModuleMount>, String> {
+    let mut mounts = Vec::new();
+    // Queued rather than iterated: `workspace_source_mounts` omits a spliced
+    // child, so a child that mounts a grandchild would never be read and only
+    // the first level of a chain would be reported.
+    let mut pending: Vec<PathBuf> = workspace_source_mounts(repository_root)?
+        .into_iter()
+        .map(|mount| mount.source_path)
+        .collect();
+    let mut seen: BTreeSet<PathBuf> = BTreeSet::new();
+    while let Some(source_path) = pending.pop() {
+        if !seen.insert(source_path.clone()) {
+            continue;
+        }
+        let raw = fs::read_to_string(&source_path)
+            .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
+        for (child, ident, attributes) in path_module_children(&source_path, &raw) {
+            pending.push(child.clone());
+            let _ = ident;
+            let declared_test_only = normalized_cfg_attributes(&attributes)
+                .iter()
+                .any(|cfg| cfg_is_test_only(cfg));
+            let child_inner = child_inner_attributes(&child)?;
+            let inner_test_only = normalized_cfg_attributes(&child_inner)
+                .iter()
+                .any(|cfg| cfg_is_test_only(cfg));
+            mounts.push(PathModuleMount {
+                parent: crate::session_ownership::repository_relative_path(
+                    repository_root,
+                    &source_path,
+                )?,
+                child: crate::session_ownership::repository_relative_path(repository_root, &child)?,
+                test_only: declared_test_only || inner_test_only,
+            });
+        }
+    }
+    mounts.sort_by(|left, right| (&left.parent, &left.child).cmp(&(&right.parent, &right.child)));
+    // Conservative merge: a pair mounted both test-only and production-capable
+    // is production-capable, because charging its lines as tests would take
+    // them out of the production ceiling they belong to.
+    mounts.dedup_by(|left, right| {
+        if left.parent == right.parent && left.child == right.child {
+            right.test_only = right.test_only && left.test_only;
+            true
+        } else {
+            false
+        }
+    });
+    Ok(mounts)
+}
+
 pub(crate) fn workspace_source_mounts(
     repository_root: &Path,
 ) -> Result<Vec<WorkspaceSourceMount>, String> {
@@ -1235,13 +1685,32 @@ pub(crate) fn workspace_source_mounts(
                     scope.name
                 )
             })?;
+        let spliced_contexts = spliced_child_contexts(&mounts)?;
         for (source_path, contexts) in mounts {
-            let source = fs::read_to_string(&source_path)
-                .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
+            // Contexts reached through a `#[path]` arrive inside their parent's
+            // spliced source, so analysing them here too would double-count
+            // them. Any other context for the same file -- `mod foo;
+            // #[path = "foo.rs"] mod alias;` is valid Rust and mounts one file
+            // twice -- still needs analysing, so the contexts are filtered
+            // rather than the file skipped.
+            let remaining: BTreeSet<SourceMountContext> = contexts
+                .into_iter()
+                .filter(|context| {
+                    !spliced_contexts.contains(&(
+                        source_path.clone(),
+                        context.logical_module_path.clone(),
+                        context.cfg.clone(),
+                    ))
+                })
+                .collect();
+            if remaining.is_empty() {
+                continue;
+            }
+            let source = read_spliced_source(&source_path, &scope.root)?;
             result.push(WorkspaceSourceMount {
                 package: scope.name.clone(),
                 source_path,
-                contexts,
+                contexts: remaining,
                 source,
             });
         }

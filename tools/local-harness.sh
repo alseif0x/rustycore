@@ -22,13 +22,13 @@ Usage:
   ./tools/local-harness.sh --help
 
 quick
-  Whitespace, changed JSON/shell files, Rust formatting, and cargo check only
-  for directly affected workspace crates.
+  Whitespace, changed JSON/shell files, Rust formatting, and compile-only
+  cargo checks (including test targets) for directly affected crates.
 
 final
-  Everything in quick plus library tests for directly affected crates. Slow
+  The same lightweight compile-only gate for the final tree. Test execution,
   workspace-wide inventories, live databases, capture QA, and Codex review are
-  intentionally excluded from the daily development path.
+  explicit operations, not automatic daily-development gates.
 
 BASE defaults to origin/3.4.3.
 Set LOCAL_HARNESS_DRY_RUN=1 to print routed commands without executing them.
@@ -120,6 +120,11 @@ RUST_MIN_STACK="${RUST_MIN_STACK:-$DEFAULT_RUST_MIN_STACK}"
 ((RUST_MIN_STACK >= DEFAULT_RUST_MIN_STACK)) || die \
   "RUST_MIN_STACK must be at least $DEFAULT_RUST_MIN_STACK bytes for Rust 1.88"
 export RUST_MIN_STACK
+# Rust 1.88 has produced stale on-disk query-cache assertions for the giant
+# wow-world test target in this repository. Compile checks value repeatability
+# over incremental reuse, so keep the lightweight harness out of that cache.
+CARGO_INCREMENTAL=0
+export CARGO_INCREMENTAL
 
 cd "$REPO_ROOT"
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "not inside a git worktree"
@@ -263,23 +268,8 @@ if ((${#packages[@]} > 0)); then
   for package in "${package_names[@]}"; do
     cargo_package_args+=(--package "$package")
   done
-  log "Cargo check for affected packages: ${package_names[*]}"
-  run cargo +1.88.0 check --locked "${cargo_package_args[@]}"
-
-  if [[ "$MODE" == "final" ]]; then
-    for package in "${package_names[@]}"; do
-      has_lib="$(jq -r --arg package "$package" '
-        [.packages[] | select(.name == $package) | .targets[].kind[]]
-        | any(. == "lib" or . == "proc-macro")
-      ' <<<"$metadata")"
-      if [[ "$has_lib" == "true" ]]; then
-        log "Library tests for affected package: $package"
-        run cargo +1.88.0 test --locked --package "$package" --lib
-      else
-        log "No library target for $package; cargo check is the final local gate"
-      fi
-    done
-  fi
+  log "Compile code and tests for affected packages: ${package_names[*]}"
+  run cargo +1.88.0 check --locked --tests "${cargo_package_args[@]}"
 fi
 
 if [[ "$MODE" == "final" ]]; then

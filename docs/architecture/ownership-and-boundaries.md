@@ -275,16 +275,33 @@ The current baseline was audited on branch `3.4.3` at HEAD `002d3d87`. Productio
 are reported separately because moving an inline test module must not masquerade as ownership
 progress:
 
-| Hotspot | Production | Tests | Total |
-|---|---:|---:|---:|
-| `crates/wow-world/src/session.rs` | 71,933 | 94,888 | 166,821 |
-| `crates/wow-map/src/map.rs` | 15,245 | 18,415 | 33,660 |
-| `crates/wow-world/src/handlers/character.rs` | 20,200 | 10,653 | 30,853 |
-| `crates/wow-world/src/handlers/loot.rs` | 13,732 | 16,234 | 29,966 |
-| `crates/world-server/src/main.rs` | 15,370 | 12,805 | 28,175 |
-| `crates/wow-world/src/handlers/misc.rs` | 7,315 | 11,473 | 18,788 |
-| `crates/wow-world/src/handlers/quest.rs` | 8,255 | 10,217 | 18,472 |
-| `crates/wow-entities/src/player.rs` | 9,265 | 8,907 | 18,172 |
+| Hotspot | Production | Tests | Total | Tests live in |
+|---|---:|---:|---:|---|
+| `crates/wow-world/src/session.rs` | 71,961 | 94,165 | 166,126 | `session_tests.rs` |
+| `crates/wow-world/src/handlers/character.rs` | 20,200 | 10,691 | 30,891 | `character_tests.rs` |
+| `crates/world-server/src/main.rs` | 15,370 | 12,533 | 27,903 | `main_tests.rs` |
+| `crates/wow-map/src/map.rs` | 15,245 | 18,273 | 33,518 | `map_tests.rs` |
+| `crates/wow-world/src/handlers/loot.rs` | 13,744 | 16,081 | 29,825 | `loot_tests.rs` |
+| `crates/wow-entities/src/player.rs` | 9,265 | 8,891 | 18,156 | `player_tests.rs` |
+| `crates/wow-world/src/handlers/quest.rs` | 8,255 | 10,172 | 18,427 | `quest_tests.rs` |
+| `crates/wow-world/src/handlers/misc.rs` | 7,315 | 11,322 | 18,637 | `misc_tests.rs` |
+
+Counts are per **module**, not per file: a `#[path]` child is part of the module
+that mounts it, so its lines are added to the parent's row and it does not get a
+row of its own. Extracting a `mod tests` into a sibling therefore moves nothing
+the ratchet can see, which is the point — capping only what stayed behind would
+have left 94,042 lines of `session.rs` tests uncapped and retired the protection
+the extraction was supposed to preserve. Where the `#[cfg(test)]` sits on the
+mount rather than inside the child, as it does for
+`character_vendor_atomicity_tests.rs`, the child counts as test lines regardless
+of how the file itself reads.
+
+Every root `mod tests` above was moved to a sibling `#[cfg(test)] #[path = "..._tests.rs"]` file.
+The `Production` column is byte-for-byte unchanged from the pre-extraction audit for all eight
+files, which is the evidence that the move carried no production code: only the `Tests` and `Total`
+columns fell. This is test *placement*, explicitly not ownership progress — the retirement
+conditions in the ledger are untouched, and the hotspot classifier counts a wholly-`cfg(test)`
+sibling as test lines so the extraction cannot be laundered into a smaller production number.
 
 At the same HEAD, the syntax-aware ratchet records 738 `WorldSession` fields: 727 production and
 11 `cfg(test)` fixtures. It also records all 20 logical inherent-impl owners and 3,339 exact

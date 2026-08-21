@@ -2159,12 +2159,64 @@ def top_level_cfg_test_line_indexes(source: str) -> set[int]:
     return test_line_indexes
 
 
+def file_is_entirely_cfg_test(source: str) -> bool:
+    """Whether an inner `#![cfg(test)]` makes the whole file test-only.
+
+    A test module extracted to its own file carries its `#[cfg(test)]` on the
+    `mod` declaration in the parent, not inside the file, so the extent scan
+    below finds nothing and counts every line as production. That inverts the
+    metric: moving 94k lines of tests out of a hotspot would report the hotspot
+    unchanged and a new 94k production file appearing.
+
+    Only inner attributes and inner doc comments may precede the first item, so
+    reading until the first other line is enough to decide.
+    """
+    for line in source.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("//"):
+            continue
+        if stripped == "#![cfg(test)]":
+            return True
+        if stripped.startswith("#!["):
+            continue
+        return False
+    return False
+
+
 def hotspot_line_counts(source: str) -> tuple[int, int, int]:
     """Partition physical lines by exact top-level cfg(test) item extents."""
     lines = source.splitlines()
+    if file_is_entirely_cfg_test(source):
+        return len(lines), 0, len(lines)
     test_lines = len(top_level_cfg_test_line_indexes(source))
     production_lines = len(lines) - test_lines
     return len(lines), production_lines, test_lines
+
+
+def run_path_module_scanner_self_tests() -> int:
+    """Prove the `#[path]` mapping covers the mounts this repository has.
+
+    The mapping comes from `syn` by way of the Rust analyzer, so the thing worth
+    checking here is not lexing -- it is that the guard is actually consuming it
+    and that every mount it reports resolves to a file whose parent exists. A
+    silent empty mapping would put every `#[path]` child back outside its
+    parent's ceiling, which is the failure this aggregation exists to prevent.
+    """
+    mounts = path_module_mounts()
+    if not mounts:
+        raise ArchitectureError(
+            "path module mapping is empty; this repository mounts #[path] children, "
+            "so an empty result means the analyzer was not consulted"
+        )
+    for parent, children in mounts.items():
+        if not parent.is_file():
+            raise ArchitectureError(f"#[path] parent {parent} does not exist")
+        for child, _ in children:
+            if not child.is_file():
+                raise ArchitectureError(f"#[path] child {child} does not exist")
+            if child == parent:
+                raise ArchitectureError(f"{parent} cannot mount itself")
+    return len(mounts)
 
 
 def run_hotspot_classifier_self_tests() -> int:
@@ -2228,6 +2280,68 @@ def run_hotspot_classifier_self_tests() -> int:
 HOTSPOT_ROW_CACHE: dict[pathlib.Path, tuple[int, int, int, str]] = {}
 
 
+PATH_MODULE_MOUNTS_COMMAND = (
+    "cargo",
+    "run",
+    "--quiet",
+    "--release",
+    "--locked",
+    "--manifest-path",
+    "tools/architecture/handler-contract-check/Cargo.toml",
+    "--bin",
+    "session-ownership-check",
+    "--",
+    "print-path-modules",
+)
+
+PATH_MODULE_MOUNTS_CACHE: dict[str, dict[pathlib.Path, list[tuple[pathlib.Path, bool]]]] = {}
+
+
+def path_module_mounts() -> dict[pathlib.Path, list[tuple[pathlib.Path, bool]]]:
+    """Which files each source mounts with `#[path]`, resolved by `syn`.
+
+    Asked of the Rust analyzer rather than scanned here. Finding these in text
+    means reimplementing a Rust lexer -- comments, escapes, raw strings, char
+    literals versus lifetimes, macro bodies, trivia between attribute tokens --
+    and every gap is a way to move a hotspot ceiling. That list does not end:
+    an invoked `macro_rules!` can generate a mount no scanner can see without
+    expanding it. One parser in this repository already resolves all of it, so
+    this asks that one instead of maintaining a second.
+    """
+    if "mounts" in PATH_MODULE_MOUNTS_CACHE:
+        return PATH_MODULE_MOUNTS_CACHE["mounts"]
+    result = subprocess.run(
+        PATH_MODULE_MOUNTS_COMMAND,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode:
+        raise ArchitectureError(
+            "cannot resolve #[path] module mounts: "
+            f"{result.stderr.strip() or result.stdout.strip()}"
+        )
+    try:
+        rows = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise ArchitectureError(f"#[path] mount output is not JSON: {exc}") from exc
+    mounts: dict[pathlib.Path, list[tuple[pathlib.Path, bool]]] = {}
+    for row in rows:
+        parent = REPO_ROOT / row["parent"]
+        mounts.setdefault(parent, []).append(
+            (REPO_ROOT / row["child"], bool(row["test_only"]))
+        )
+    PATH_MODULE_MOUNTS_CACHE["mounts"] = mounts
+    return mounts
+
+
+def path_module_children(path: pathlib.Path, source: str) -> list[tuple[pathlib.Path, bool]]:
+    """Files `path` mounts with `#[path]`, and whether each mount is test-only."""
+    del source
+    return path_module_mounts().get(path, [])
+
+
 def hotspot_row(path: pathlib.Path) -> tuple[int, int, int, str]:
     cached = HOTSPOT_ROW_CACHE.get(path)
     if cached is not None:
@@ -2237,6 +2351,21 @@ def hotspot_row(path: pathlib.Path) -> tuple[int, int, int, str]:
     except OSError as exc:
         raise ArchitectureError(f"cannot read Rust source {path}: {exc}") from exc
     total_lines, production_lines, test_lines = hotspot_line_counts(source)
+    # A `#[path]` child counts against the module that mounts it. Without this
+    # the ceiling applies to whatever stayed behind: moving 94,000 test lines
+    # into a sibling would leave the parent capped at what remains and the
+    # sibling capped by nothing, so the extraction would silently retire the
+    # ratchet it was supposed to leave intact.
+    for child, mounted_under_cfg_test in path_module_children(path, source):
+        child_total, child_production, child_tests = hotspot_row(child)[:3]
+        total_lines += child_total
+        if mounted_under_cfg_test:
+            # The mount supplies the cfg, so none of the child is production
+            # however the file itself reads.
+            test_lines += child_total
+        else:
+            production_lines += child_production
+            test_lines += child_tests
     row = (
         total_lines,
         production_lines,
@@ -2249,7 +2378,17 @@ def hotspot_row(path: pathlib.Path) -> tuple[int, int, int, str]:
 
 def hotspot_rows(limit: int | None = 10) -> list[tuple[int, int, int, str]]:
     crates_root = REPO_ROOT / "crates"
-    rows = [hotspot_row(path) for path in crates_root.glob("*/src/**/*.rs")]
+    sources = sorted(crates_root.glob("*/src/**/*.rs"))
+    mounted: set[pathlib.Path] = set()
+    for path in sources:
+        try:
+            source = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ArchitectureError(f"cannot read Rust source {path}: {exc}") from exc
+        mounted.update(child for child, _ in path_module_children(path, source))
+    # Mounted children are already inside their parent's row; listing them again
+    # would double-count them in the report.
+    rows = [hotspot_row(path) for path in sources if path.resolve() not in mounted]
     rows.sort(key=lambda row: (-row[0], row[3]))
     return rows if limit is None else rows[:limit]
 
@@ -3323,6 +3462,7 @@ def main() -> int:
             runtime_ownership_rejections = run_runtime_ownership_self_tests(
                 runtime_ledger, ledger
             )
+            run_path_module_scanner_self_tests()
             hotspot_classifier_fixtures = run_hotspot_classifier_self_tests()
             hotspot_ratchet_rejections, hotspot_reduction_acceptances = (
                 run_hotspot_ratchet_self_tests(runtime_ledger)
