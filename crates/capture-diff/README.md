@@ -113,7 +113,7 @@ The rested-XP gate isolates the first kill reward packet from the complete bot
 round-trip:
 
 ```bash
-cargo +1.88.0 run -q -p capture-diff -- import rested-xp-kill \
+cargo run -q -p capture-diff -- import rested-xp-kill \
   --cpp target/captures/rested-xp-kill/cpp.pkt \
   --rust target/captures/rested-xp-kill/rust \
   --from-opcode s2c:0x26E5 \

@@ -1412,7 +1412,7 @@ def cargo_metadata() -> dict[str, Any]:
 
 
 def package_id_url_basename(package_id_base: str, prefix: str) -> str | None:
-    # Cargo 1.88 PackageIdSpec::fmt omits the name only when the URL's final
+    # Cargo PackageIdSpec::fmt omits the name only when the URL's final
     # path segment equals it exactly. Do not decode, trim, or strip suffixes.
     if not package_id_base.startswith(prefix):
         return None

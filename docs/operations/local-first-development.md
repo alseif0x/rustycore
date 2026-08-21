@@ -53,7 +53,7 @@ explicitly when behavior changes, for example:
 
 ```bash
 PROTOC=/home/cdmonio/.local/protoc/bin/protoc \
-  cargo +1.88.0 test --locked -p wow-world exact_test_name --lib
+  cargo test --locked -p wow-world exact_test_name --lib
 ```
 
 Broad test execution remains available through `tools/pr-preflight.sh` for explicit audits and
@@ -68,9 +68,9 @@ LOCAL_HARNESS_DRY_RUN=1 ./tools/local-harness.sh quick origin/3.4.3
 
 It does not require an agent SDK, a model-specific CLI, prompts, or interactive input. Agents can
 inspect the stable command interface with `./tools/local-harness.sh --help` and must treat a
-non-zero exit status as a failed local gate. The harness also exports the repository's required
-minimum `RUST_MIN_STACK` and disables Rust incremental compilation so the giant test target does
-not reuse a stale on-disk query cache between agents or branches.
+non-zero exit status as a failed local gate. The harness invokes plain `cargo`, so rustup selects
+the exact compiler from `rust-toolchain.toml`; it imposes no compiler stack or incremental-cache
+workaround.
 
 ## What remains exhaustive
 

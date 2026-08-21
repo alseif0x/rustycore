@@ -29,7 +29,7 @@ Check every relevant change for:
   automation entering the patch.
 
 For build and workflow changes, also verify exact command equivalence between local and GitHub
-execution, Rust 1.88.0 and locked dependency use, protoc 28.3 handling, shell quoting and exit-code
+execution, the `rust-toolchain.toml` compiler and locked dependency use, protoc 28.3 handling, shell quoting and exit-code
 propagation, shallow-checkout behavior, and that safe default modes never start services or mutate
 databases. Local review must not bypass the required GitHub `Codex reviewer verdict` for the PR's
 current HEAD.

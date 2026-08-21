@@ -15,7 +15,7 @@ The entry point is:
 ./tools/pr-preflight.sh --help
 ```
 
-It reads `rust-toolchain.toml` and runs the required jobs with Rust `1.88.0`. Protobuf-dependent
+It reads `rust-toolchain.toml` and runs the required jobs with its exact pinned Rust. Protobuf-dependent
 commands require the version pinned in `.protoc-version` (`28.3`); the script uses `PROTOC` when
 set (resolving bare command names through `PATH`), then checks the project's usual local install
 and `PATH`. GitHub downloads the version from the same file. Review commands require an
