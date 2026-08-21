@@ -489,41 +489,25 @@ impl WorldSession {
                 .current_canonical_player_map_key_like_cpp()
                 .map(|key| key.instance_id)
                 .unwrap_or(0);
-            let range_sq =
-                crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
-
-            let candidates: Vec<_> = registry
-                .iter()
-                .filter_map(|entry| {
-                    let (other_guid, other_info) = entry.pair();
-                    if *other_guid == player_guid {
-                        return None;
-                    }
-                    if !other_info.is_in_world
-                        || other_info.map_id != map_id
-                        || other_info.instance_id != instance_id
-                    {
-                        return None;
-                    }
-                    let dx = other_info.position.x - pos.x;
-                    let dy = other_info.position.y - pos.y;
-                    if dx * dx + dy * dy > range_sq {
-                        return None;
-                    }
-                    Some(other_info.command_tx.clone())
-                })
-                .collect();
-
-            for command_tx in candidates {
-                let _ = command_tx.try_send(wow_network::SessionCommand::SendIfVisibleLikeCpp(
-                    wow_network::player_registry::SendIfVisibleLikeCppCommand {
-                        queued_at: std::time::Instant::now(),
-                        source_guid: mover_guid,
-                        map_id,
-                        instance_id,
-                        packet_bytes: packet_bytes.clone(),
-                    },
-                ));
+            for registration in registry.movement_recipients_within_range(
+                player_guid,
+                map_id,
+                instance_id,
+                pos,
+                crate::map_manager::VISIBILITY_RADIUS,
+            ) {
+                let _ = registry.try_send_current_command(
+                    registration,
+                    wow_network::SessionCommand::SendIfVisibleLikeCpp(
+                        wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                            queued_at: std::time::Instant::now(),
+                            source_guid: mover_guid,
+                            map_id,
+                            instance_id,
+                            packet_bytes: packet_bytes.clone(),
+                        },
+                    ),
+                );
             }
         }
         if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
@@ -2086,6 +2070,52 @@ mod tests {
             session.player_movement_flags_like_cpp(),
             MovementFlag::empty()
         );
+    }
+
+    #[test]
+    fn movement_directory_rejects_replaced_recipient_generation_like_cpp() {
+        let source_guid = ObjectGuid::create_player(1, 44);
+        let recipient_guid = ObjectGuid::create_player(1, 45);
+        let registry = wow_network::PlayerRegistry::default();
+        let (old_send_tx, _old_send_rx) = flume::bounded(1);
+        let (old_command_tx, old_command_rx) = flume::bounded(1);
+        registry.insert(
+            recipient_guid,
+            broadcast_info_with_command(recipient_guid, old_send_tx, old_command_tx),
+        );
+        let recipients = registry.movement_recipients_within_range(
+            source_guid,
+            0,
+            0,
+            Position::ZERO,
+            crate::map_manager::VISIBILITY_RADIUS,
+        );
+        let [stale] = recipients.as_slice() else {
+            panic!("expected the first recipient generation");
+        };
+        let stale = *stale;
+
+        let (replacement_send_tx, _replacement_send_rx) = flume::bounded(1);
+        let (replacement_command_tx, replacement_command_rx) = flume::bounded(1);
+        registry.insert(
+            recipient_guid,
+            broadcast_info_with_command(
+                recipient_guid,
+                replacement_send_tx,
+                replacement_command_tx,
+            ),
+        );
+
+        let result = registry.try_send_current_command(
+            stale,
+            wow_network::SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp,
+        );
+        assert_eq!(
+            result,
+            Err(wow_network::PlayerDirectorySendError::StaleRegistration)
+        );
+        assert!(old_command_rx.try_recv().is_err());
+        assert!(replacement_command_rx.try_recv().is_err());
     }
 
     #[tokio::test]
