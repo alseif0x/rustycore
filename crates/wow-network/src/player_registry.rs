@@ -1407,6 +1407,80 @@ impl PlayerControlAddress {
     }
 }
 
+/// Failure to deliver through a generation-checked directory address.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PlayerDirectorySendError {
+    /// The registration disappeared or was replaced before delivery.
+    StaleRegistration,
+    /// The bounded destination queue is currently full.
+    Full,
+    /// The destination session has disconnected.
+    Disconnected,
+}
+
+/// Owned facts used only for runtime recipient selection.
+#[derive(Clone, Debug)]
+pub struct PlayerRuntimeRecipient {
+    pub registration: PlayerRegistration,
+    pub guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub position: Position,
+    pub combat_reach: f32,
+    pub liquid_status: u32,
+    pub is_in_world: bool,
+    pub is_alive: bool,
+    pub account_id: u32,
+    pub advanced_combat_logging: bool,
+    pub committed_visibility: SharedClientVisibleGuidsLikeCpp,
+}
+
+/// Owned player facts required by the legacy creature aggro compatibility cut.
+#[derive(Clone, Debug)]
+pub struct PlayerAggroCandidateSnapshot {
+    pub player_guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub position: Position,
+    pub combat_reach: f32,
+    pub liquid_status: u32,
+    pub level: u8,
+    pub gray_level: u8,
+    pub unit_flags: u32,
+    pub unit_flags2: u32,
+    pub unit_state: u32,
+    pub is_game_master: bool,
+    pub is_contested_pvp: bool,
+    pub faction_template_id: u32,
+    pub reputation_standings: Vec<(u32, i32)>,
+    pub reputation_state_flags: Vec<(u32, u32)>,
+    pub forced_reputation_ranks: Vec<(u32, wow_data::reputation::ReputationRankLikeCpp)>,
+    pub forced_reputation_faction_ids: Vec<u32>,
+}
+
+/// Owned CREATE payload facts for one spatially eligible player.
+#[derive(Clone, Debug)]
+pub struct PlayerVisibilityCreateSnapshot {
+    pub guid: ObjectGuid,
+    pub position: Position,
+    pub race: u8,
+    pub class: u8,
+    pub sex: u8,
+    pub level: u8,
+    pub display_id: u32,
+    pub zone_id: u32,
+    pub current_health: u32,
+    pub max_health: u32,
+    pub power_type: u8,
+    pub current_power: u16,
+    pub max_power: u16,
+    pub base_mana: i32,
+    pub transport: Option<TransportInfo>,
+    pub visible_items: Arc<[(i32, u16, u16); 19]>,
+    pub customizations: Arc<Vec<ChrCustomizationChoiceValuesUpdate>>,
+    pub party_member_party_type: [u8; 2],
+}
+
 /// Transitional entry representation used only by the compatibility accessors
 /// scheduled for removal in #192-#196.
 #[doc(hidden)]
@@ -1610,6 +1684,319 @@ impl PlayerRegistry {
                 entry.info.command_tx.same_channel(command_tx)
             })
             .is_some()
+    }
+
+    /// Snapshot the bounded facts used by runtime recipient selection.
+    #[must_use]
+    pub fn runtime_recipients(&self) -> Vec<PlayerRuntimeRecipient> {
+        self.entries
+            .iter()
+            .map(|entry| {
+                let guid = *entry.key();
+                let entry = entry.value();
+                PlayerRuntimeRecipient {
+                    registration: PlayerRegistration {
+                        guid,
+                        generation: entry.generation,
+                    },
+                    guid,
+                    map_id: entry.info.map_id,
+                    instance_id: entry.info.instance_id,
+                    position: entry.info.position,
+                    combat_reach: entry.info.combat_reach,
+                    liquid_status: entry.info.liquid_status,
+                    is_in_world: entry.info.is_in_world,
+                    is_alive: entry.info.is_alive,
+                    account_id: entry.info.account_id,
+                    advanced_combat_logging: entry
+                        .info
+                        .advanced_combat_logging_enabled_like_cpp
+                        .load(Ordering::Relaxed),
+                    committed_visibility: entry.info.client_visible_guids_like_cpp.clone(),
+                }
+            })
+            .collect()
+    }
+
+    /// Resolve one current runtime recipient without exposing directory storage.
+    #[must_use]
+    pub fn runtime_recipient(&self, guid: ObjectGuid) -> Option<PlayerRuntimeRecipient> {
+        let entry = self.entries.get(&guid)?;
+        Some(PlayerRuntimeRecipient {
+            registration: PlayerRegistration {
+                guid,
+                generation: entry.generation,
+            },
+            guid,
+            map_id: entry.info.map_id,
+            instance_id: entry.info.instance_id,
+            position: entry.info.position,
+            combat_reach: entry.info.combat_reach,
+            liquid_status: entry.info.liquid_status,
+            is_in_world: entry.info.is_in_world,
+            is_alive: entry.info.is_alive,
+            account_id: entry.info.account_id,
+            advanced_combat_logging: entry
+                .info
+                .advanced_combat_logging_enabled_like_cpp
+                .load(Ordering::Relaxed),
+            committed_visibility: entry.info.client_visible_guids_like_cpp.clone(),
+        })
+    }
+
+    /// Snapshot only live player facts needed by the legacy aggro compatibility cut.
+    #[must_use]
+    pub fn legacy_aggro_candidates(&self) -> Vec<PlayerAggroCandidateSnapshot> {
+        self.entries
+            .iter()
+            .filter_map(|entry| {
+                let guid = *entry.key();
+                let entry = entry.value();
+                let info = &entry.info;
+                (info.is_in_world && info.is_alive).then(|| PlayerAggroCandidateSnapshot {
+                    player_guid: guid,
+                    map_id: info.map_id,
+                    instance_id: info.instance_id,
+                    position: info.position,
+                    combat_reach: info.combat_reach,
+                    liquid_status: info.liquid_status,
+                    level: info.level,
+                    gray_level: info.gray_level,
+                    unit_flags: info.unit_flags,
+                    unit_flags2: info.unit_flags2,
+                    unit_state: info.unit_state,
+                    is_game_master: info.is_game_master,
+                    is_contested_pvp: info.is_contested_pvp,
+                    faction_template_id: info.faction_template_id,
+                    reputation_standings: info.reputation_standings.clone(),
+                    reputation_state_flags: info.reputation_state_flags.clone(),
+                    forced_reputation_ranks: info.forced_reputation_ranks.clone(),
+                    forced_reputation_faction_ids: info.forced_reputation_faction_ids.clone(),
+                })
+            })
+            .collect()
+    }
+
+    /// Select player CREATE candidates by directory-owned presence and spatial facts.
+    #[must_use]
+    pub fn player_visibility_create_candidates(
+        &self,
+        excluded_guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+        source_position: Position,
+        source_combat_reach: f32,
+        visibility_radius: f32,
+    ) -> Vec<PlayerVisibilityCreateSnapshot> {
+        self.entries
+            .iter()
+            .filter_map(|entry| {
+                let guid = *entry.key();
+                let entry = entry.value();
+                let info = &entry.info;
+                if guid == excluded_guid
+                    || !info.is_in_world
+                    || info.map_id != map_id
+                    || info.instance_id != instance_id
+                {
+                    return None;
+                }
+                let dx = info.position.x - source_position.x;
+                let dy = info.position.y - source_position.y;
+                let reach =
+                    visibility_radius + source_combat_reach.max(0.0) + info.combat_reach.max(0.0);
+                if dx * dx + dy * dy >= reach * reach {
+                    return None;
+                }
+                Some(PlayerVisibilityCreateSnapshot {
+                    guid,
+                    position: info.position,
+                    race: info.race,
+                    class: info.class,
+                    sex: info.sex,
+                    level: info.level,
+                    display_id: info.display_id,
+                    zone_id: info.zone_id,
+                    current_health: info.current_health,
+                    max_health: info.max_health,
+                    power_type: info.power_type,
+                    current_power: info.current_power,
+                    max_power: info.max_power,
+                    base_mana: info.base_mana,
+                    transport: info.transport.clone(),
+                    visible_items: Arc::clone(&info.visible_items),
+                    customizations: Arc::clone(&info.customizations),
+                    party_member_party_type: info.party_member_party_type,
+                })
+            })
+            .collect()
+    }
+
+    /// Queue a command only if the selected incarnation is still current.
+    pub fn try_send_current_command(
+        &self,
+        registration: PlayerRegistration,
+        command: SessionCommand,
+    ) -> Result<(), PlayerDirectorySendError> {
+        let entry = self
+            .entries
+            .get(&registration.guid)
+            .filter(|entry| entry.generation == registration.generation)
+            .ok_or(PlayerDirectorySendError::StaleRegistration)?;
+        let tx = entry.info.command_tx.clone();
+        drop(entry);
+        tx.try_send(command).map_err(|error| match error {
+            flume::TrySendError::Full(_) => PlayerDirectorySendError::Full,
+            flume::TrySendError::Disconnected(_) => PlayerDirectorySendError::Disconnected,
+        })
+    }
+
+    /// Queue packet bytes on the normal socket only for the current incarnation.
+    pub fn try_send_current_packet(
+        &self,
+        registration: PlayerRegistration,
+        packet: Vec<u8>,
+    ) -> Result<(), PlayerDirectorySendError> {
+        let entry = self
+            .entries
+            .get(&registration.guid)
+            .filter(|entry| entry.generation == registration.generation)
+            .ok_or(PlayerDirectorySendError::StaleRegistration)?;
+        let tx = entry.info.send_tx.clone();
+        drop(entry);
+        tx.try_send(packet).map_err(|error| match error {
+            flume::TrySendError::Full(_) => PlayerDirectorySendError::Full,
+            flume::TrySendError::Disconnected(_) => PlayerDirectorySendError::Disconnected,
+        })
+    }
+
+    fn with_current_durable_runtime(
+        &self,
+        registration: PlayerRegistration,
+    ) -> Option<Arc<Mutex<DurableCreatureRuntimeCommandsLikeCpp>>> {
+        let entry = self.entries.get(&registration.guid)?;
+        (entry.generation == registration.generation)
+            .then(|| Arc::clone(&entry.info.durable_creature_runtime_commands_like_cpp))
+    }
+
+    pub fn publish_current_attack_start(
+        &self,
+        registration: PlayerRegistration,
+        command: CreatureAttackStartLikeCppCommand,
+    ) -> bool {
+        self.with_current_durable_runtime(registration)
+            .and_then(|durable| {
+                durable
+                    .lock()
+                    .ok()
+                    .map(|mut durable| durable.publish_attack_start_like_cpp(command))
+            })
+            .unwrap_or(false)
+    }
+
+    pub fn publish_current_attack_stop(
+        &self,
+        registration: PlayerRegistration,
+        command: CreatureAttackStopLikeCppCommand,
+    ) -> bool {
+        self.with_current_durable_runtime(registration)
+            .and_then(|durable| {
+                durable
+                    .lock()
+                    .ok()
+                    .map(|mut durable| durable.publish_attack_stop_like_cpp(command))
+            })
+            .unwrap_or(false)
+    }
+
+    pub fn publish_current_melee_damage(
+        &self,
+        registration: PlayerRegistration,
+        command: ApplyCreatureMeleeDamageLikeCppCommand,
+    ) -> bool {
+        self.with_current_durable_runtime(registration)
+            .and_then(|durable| {
+                durable
+                    .lock()
+                    .ok()
+                    .map(|mut durable| durable.publish_melee_damage_like_cpp(command))
+            })
+            .unwrap_or(false)
+    }
+
+    pub fn publish_current_send_if_visible(
+        &self,
+        registration: PlayerRegistration,
+        command: SendIfVisibleLikeCppCommand,
+    ) -> bool {
+        self.with_current_durable_runtime(registration)
+            .and_then(|durable| {
+                durable
+                    .lock()
+                    .ok()
+                    .map(|mut durable| durable.publish_send_if_visible_like_cpp(command))
+            })
+            .unwrap_or(false)
+    }
+
+    pub fn publish_current_creature_spell_cast_if_visible(
+        &self,
+        registration: PlayerRegistration,
+        command: SendCreatureSpellCastIfVisibleLikeCppCommand,
+    ) -> bool {
+        self.with_current_durable_runtime(registration)
+            .and_then(|durable| {
+                durable.lock().ok().map(|mut durable| {
+                    durable.publish_creature_spell_cast_if_visible_like_cpp(command)
+                })
+            })
+            .unwrap_or(false)
+    }
+
+    pub fn publish_current_pvp_combat_expiry(
+        &self,
+        registration: PlayerRegistration,
+        command: ReconcilePvpCombatExpiryLikeCppCommand,
+    ) -> bool {
+        self.with_current_durable_runtime(registration)
+            .and_then(|durable| {
+                durable.lock().ok().map(|mut durable| {
+                    durable.publish_pvp_combat_expiry_like_cpp(command);
+                    true
+                })
+            })
+            .unwrap_or(false)
+    }
+
+    /// Coalesce and queue a visibility refresh for a current recipient.
+    pub fn request_current_visibility_refresh(
+        &self,
+        registration: PlayerRegistration,
+        map_id: u16,
+        instance_id: u32,
+    ) -> Result<(), PlayerDirectorySendError> {
+        let entry = self
+            .entries
+            .get(&registration.guid)
+            .filter(|entry| entry.generation == registration.generation)
+            .ok_or(PlayerDirectorySendError::StaleRegistration)?;
+        let pending = Arc::clone(&entry.info.visibility_refresh_pending_like_cpp);
+        let tx = entry.info.command_tx.clone();
+        drop(entry);
+        pending.store(true, Ordering::Release);
+        let command = SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(
+            RefreshVisibleWorldCreaturesLikeCppCommand {
+                map_id,
+                instance_id,
+            },
+        );
+        match tx.try_send(command) {
+            Ok(()) | Err(flume::TrySendError::Full(_)) => Ok(()),
+            Err(flume::TrySendError::Disconnected(_)) => {
+                pending.store(false, Ordering::Release);
+                Err(PlayerDirectorySendError::Disconnected)
+            }
+        }
     }
 
     /// Temporary compatibility lookup; assigned to #192-#195.

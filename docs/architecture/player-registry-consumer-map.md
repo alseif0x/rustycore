@@ -9,7 +9,8 @@ remaining storage operations to the consumer slices that must remove them.
 
 The assignment is responsibility-based even when a function lives in the session monolith:
 
-- #192 owns runtime selection, fanout, presence and delivery resolution.
+- #192 closed runtime selection, fanout, presence and generation-checked delivery resolution; its
+  rows were removed from the remaining-direct-access table when the slice landed.
 - #193 owns combat, loot, inventory-reward and durable-loot consumers.
 - #194 owns quest, spell, movement, vehicle and movement-visibility consumers.
 - #195 owns group, chat, social, ready-check and group-membership consumers.

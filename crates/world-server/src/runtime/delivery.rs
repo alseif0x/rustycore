@@ -149,21 +149,21 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
             // side; the receiver is already known.  We mirror this by populating the
             // command with the *target* session's own map/instance so the gate passes.
             // If the guid is not in the registry we drop silently (session already gone).
-            let candidate = registry
-                .get(guid)
-                .map(|entry| (entry.command_tx.clone(), entry.map_id, entry.instance_id));
-            if let Some((tx, target_map_id, target_instance_id)) = candidate {
+            if let Some(candidate) = registry.runtime_recipient(*guid) {
                 summary.candidates_seen += 1;
                 let cmd = wow_network::SessionCommand::SendIfVisibleLikeCpp(
                     wow_network::player_registry::SendIfVisibleLikeCppCommand {
                         queued_at: Instant::now(),
                         source_guid: event.source_guid,
-                        map_id: target_map_id,
-                        instance_id: target_instance_id,
+                        map_id: candidate.map_id,
+                        instance_id: candidate.instance_id,
                         packet_bytes: event.packet_bytes.clone(),
                     },
                 );
-                if tx.try_send(cmd).is_ok() {
+                if registry
+                    .try_send_current_command(candidate.registration, cmd)
+                    .is_ok()
+                {
                     summary.candidates_queued += 1;
                 } else {
                     summary.send_failed += 1;
@@ -178,7 +178,7 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
             // DashMap iteration (no guards held during try_send).
             // Mirrors the NearbyVisible pattern above.
             struct Candidate {
-                tx: flume::Sender<wow_network::SessionCommand>,
+                registration: wow_network::PlayerRegistration,
                 skip_reason: Option<BroadcastSkipReason>,
             }
             enum BroadcastSkipReason {
@@ -187,29 +187,29 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
                 WrongInstance,
             }
             let candidates: Vec<Candidate> = registry
-                .iter()
-                .map(|entry| {
-                    let info = entry.value();
-                    if !info.is_in_world {
+                .runtime_recipients()
+                .into_iter()
+                .map(|recipient| {
+                    if !recipient.is_in_world {
                         return Candidate {
-                            tx: info.command_tx.clone(),
+                            registration: recipient.registration,
                             skip_reason: Some(BroadcastSkipReason::NotInWorld),
                         };
                     }
-                    if info.map_id != *map_id {
+                    if recipient.map_id != *map_id {
                         return Candidate {
-                            tx: info.command_tx.clone(),
+                            registration: recipient.registration,
                             skip_reason: Some(BroadcastSkipReason::WrongMap),
                         };
                     }
-                    if info.instance_id != *instance_id {
+                    if recipient.instance_id != *instance_id {
                         return Candidate {
-                            tx: info.command_tx.clone(),
+                            registration: recipient.registration,
                             skip_reason: Some(BroadcastSkipReason::WrongInstance),
                         };
                     }
                     Candidate {
-                        tx: info.command_tx.clone(),
+                        registration: recipient.registration,
                         skip_reason: None,
                     }
                 })
@@ -237,7 +237,10 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
                                 packet_bytes: event.packet_bytes.clone(),
                             },
                         );
-                        if candidate.tx.try_send(cmd).is_ok() {
+                        if registry
+                            .try_send_current_command(candidate.registration, cmd)
+                            .is_ok()
+                        {
                             summary.candidates_queued += 1;
                         } else {
                             summary.send_failed += 1;
@@ -257,7 +260,7 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
             let range_sq = range * range;
             // Collect candidates first (avoid holding guards during try_send).
             struct Candidate {
-                tx: flume::Sender<wow_network::SessionCommand>,
+                registration: wow_network::PlayerRegistration,
                 skip_reason: Option<SkipReason>,
             }
             enum SkipReason {
@@ -267,45 +270,45 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
                 Distance,
             }
             let candidates: Vec<Candidate> = registry
-                .iter()
-                .map(|entry| {
-                    let info = entry.value();
-                    if !info.is_in_world {
+                .runtime_recipients()
+                .into_iter()
+                .map(|recipient| {
+                    if !recipient.is_in_world {
                         return Candidate {
-                            tx: info.command_tx.clone(),
+                            registration: recipient.registration,
                             skip_reason: Some(SkipReason::NotInWorld),
                         };
                     }
-                    if info.map_id != *map_id {
+                    if recipient.map_id != *map_id {
                         return Candidate {
-                            tx: info.command_tx.clone(),
+                            registration: recipient.registration,
                             skip_reason: Some(SkipReason::WrongMap),
                         };
                     }
-                    if info.instance_id != *instance_id {
+                    if recipient.instance_id != *instance_id {
                         return Candidate {
-                            tx: info.command_tx.clone(),
+                            registration: recipient.registration,
                             skip_reason: Some(SkipReason::WrongInstance),
                         };
                     }
                     let dist_sq = if *required_3d {
-                        let dx = info.position.x - source_position.x;
-                        let dy = info.position.y - source_position.y;
-                        let dz = info.position.z - source_position.z;
+                        let dx = recipient.position.x - source_position.x;
+                        let dy = recipient.position.y - source_position.y;
+                        let dz = recipient.position.z - source_position.z;
                         dx * dx + dy * dy + dz * dz
                     } else {
-                        let dx = info.position.x - source_position.x;
-                        let dy = info.position.y - source_position.y;
+                        let dx = recipient.position.x - source_position.x;
+                        let dy = recipient.position.y - source_position.y;
                         dx * dx + dy * dy
                     };
                     if dist_sq > range_sq {
                         return Candidate {
-                            tx: info.command_tx.clone(),
+                            registration: recipient.registration,
                             skip_reason: Some(SkipReason::Distance),
                         };
                     }
                     Candidate {
-                        tx: info.command_tx.clone(),
+                        registration: recipient.registration,
                         skip_reason: None,
                     }
                 })
@@ -336,7 +339,10 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
                                 packet_bytes: event.packet_bytes.clone(),
                             },
                         );
-                        if candidate.tx.try_send(cmd).is_ok() {
+                        if registry
+                            .try_send_current_command(candidate.registration, cmd)
+                            .is_ok()
+                        {
                             summary.candidates_queued += 1;
                         } else {
                             summary.send_failed += 1;
@@ -357,7 +363,7 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
         } => {
             let range_sq = range * range;
             struct Candidate {
-                durable: Arc<std::sync::Mutex<wow_network::DurableCreatureRuntimeCommandsLikeCpp>>,
+                registration: wow_network::PlayerRegistration,
                 committed_visibility_like_cpp: wow_network::SharedClientVisibleGuidsLikeCpp,
                 advanced_combat_logging_like_cpp: bool,
                 skip_reason: Option<DurableSpellCastSkipReason>,
@@ -370,26 +376,26 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
                 NotVisible,
             }
             let candidates: Vec<Candidate> = registry
-                .iter()
-                .map(|entry| {
-                    let info = entry.value();
-                    let dx = info.position.x - source_position.x;
-                    let dy = info.position.y - source_position.y;
-                    let dz = info.position.z - source_position.z;
+                .runtime_recipients()
+                .into_iter()
+                .map(|recipient| {
+                    let dx = recipient.position.x - source_position.x;
+                    let dy = recipient.position.y - source_position.y;
+                    let dz = recipient.position.z - source_position.z;
                     let distance_sq = if *required_3d {
                         dx * dx + dy * dy + dz * dz
                     } else {
                         dx * dx + dy * dy
                     };
-                    let skip_reason = if !info.is_in_world {
+                    let skip_reason = if !recipient.is_in_world {
                         Some(DurableSpellCastSkipReason::NotInWorld)
-                    } else if info.map_id != *map_id {
+                    } else if recipient.map_id != *map_id {
                         Some(DurableSpellCastSkipReason::WrongMap)
-                    } else if info.instance_id != *instance_id {
+                    } else if recipient.instance_id != *instance_id {
                         Some(DurableSpellCastSkipReason::WrongInstance)
                     } else if distance_sq > range_sq {
                         Some(DurableSpellCastSkipReason::Distance)
-                    } else if !info.client_visible_guids_like_cpp.contains(source_guid) {
+                    } else if !recipient.committed_visibility.contains(source_guid) {
                         // C++ `MessageDistDeliverer` reads `HaveAtClient` while
                         // `SendSpellGo` runs, so the recipient decision belongs
                         // here and is committed into the queued command.
@@ -398,13 +404,11 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
                         None
                     };
                     Candidate {
-                        durable: Arc::clone(&info.durable_creature_runtime_commands_like_cpp),
-                        committed_visibility_like_cpp: info.client_visible_guids_like_cpp.clone(),
+                        registration: recipient.registration,
+                        committed_visibility_like_cpp: recipient.committed_visibility,
                         // C++ `WorldObject::SendCombatLogMessage` reads each
                         // receiver's preference while distributing the cast.
-                        advanced_combat_logging_like_cpp: info
-                            .advanced_combat_logging_enabled_like_cpp
-                            .load(std::sync::atomic::Ordering::Relaxed),
+                        advanced_combat_logging_like_cpp: recipient.advanced_combat_logging,
                         skip_reason,
                     }
                 })
@@ -448,9 +452,9 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
                         },
                         committed_visibility_like_cpp: candidate.committed_visibility_like_cpp,
                     };
-                if candidate.durable.lock().is_ok_and(|mut durable| {
-                    durable.publish_creature_spell_cast_if_visible_like_cpp(command)
-                }) {
+                if registry
+                    .publish_current_creature_spell_cast_if_visible(candidate.registration, command)
+                {
                     summary.candidates_queued += 1;
                 } else {
                     summary.send_failed += 1;
@@ -467,26 +471,26 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
         } => {
             let range_sq = range * range;
             struct Candidate {
-                durable: Arc<std::sync::Mutex<wow_network::DurableCreatureRuntimeCommandsLikeCpp>>,
+                registration: wow_network::PlayerRegistration,
                 eligible: bool,
             }
             let candidates: Vec<Candidate> = registry
-                .iter()
-                .map(|entry| {
-                    let info = entry.value();
-                    let dx = info.position.x - source_position.x;
-                    let dy = info.position.y - source_position.y;
-                    let dz = info.position.z - source_position.z;
+                .runtime_recipients()
+                .into_iter()
+                .map(|recipient| {
+                    let dx = recipient.position.x - source_position.x;
+                    let dy = recipient.position.y - source_position.y;
+                    let dz = recipient.position.z - source_position.z;
                     let distance_sq = if *required_3d {
                         dx * dx + dy * dy + dz * dz
                     } else {
                         dx * dx + dy * dy
                     };
                     Candidate {
-                        durable: Arc::clone(&info.durable_creature_runtime_commands_like_cpp),
-                        eligible: info.is_in_world
-                            && info.map_id == *map_id
-                            && info.instance_id == *instance_id
+                        registration: recipient.registration,
+                        eligible: recipient.is_in_world
+                            && recipient.map_id == *map_id
+                            && recipient.instance_id == *instance_id
                             && distance_sq <= range_sq,
                     }
                 })
@@ -504,11 +508,7 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
                     instance_id: *instance_id,
                     packet_bytes: event.packet_bytes.clone(),
                 };
-                if candidate
-                    .durable
-                    .lock()
-                    .is_ok_and(|mut durable| durable.publish_send_if_visible_like_cpp(command))
-                {
+                if registry.publish_current_send_if_visible(candidate.registration, command) {
                     summary.candidates_queued += 1;
                 } else {
                     summary.send_failed += 1;
@@ -549,7 +549,7 @@ pub(crate) fn deliver_refresh_visible_world_creatures_like_cpp(
     registry: &wow_network::PlayerRegistry,
 ) -> RuntimeVisibilityRefreshDeliverySummaryLikeCpp {
     struct Candidate {
-        tx: flume::Sender<wow_network::SessionCommand>,
+        registration: wow_network::PlayerRegistration,
         skip_reason: Option<RefreshSkipReason>,
     }
     enum RefreshSkipReason {
@@ -559,29 +559,29 @@ pub(crate) fn deliver_refresh_visible_world_creatures_like_cpp(
     }
 
     let candidates: Vec<Candidate> = registry
-        .iter()
-        .map(|entry| {
-            let info = entry.value();
-            if !info.is_in_world {
+        .runtime_recipients()
+        .into_iter()
+        .map(|recipient| {
+            if !recipient.is_in_world {
                 return Candidate {
-                    tx: info.command_tx.clone(),
+                    registration: recipient.registration,
                     skip_reason: Some(RefreshSkipReason::NotInWorld),
                 };
             }
-            if info.map_id != map_id {
+            if recipient.map_id != map_id {
                 return Candidate {
-                    tx: info.command_tx.clone(),
+                    registration: recipient.registration,
                     skip_reason: Some(RefreshSkipReason::WrongMap),
                 };
             }
-            if info.instance_id != instance_id {
+            if recipient.instance_id != instance_id {
                 return Candidate {
-                    tx: info.command_tx.clone(),
+                    registration: recipient.registration,
                     skip_reason: Some(RefreshSkipReason::WrongInstance),
                 };
             }
             Candidate {
-                tx: info.command_tx.clone(),
+                registration: recipient.registration,
                 skip_reason: None,
             }
         })
@@ -607,7 +607,10 @@ pub(crate) fn deliver_refresh_visible_world_creatures_like_cpp(
                         instance_id,
                     },
                 );
-                if candidate.tx.try_send(cmd).is_ok() {
+                if registry
+                    .try_send_current_command(candidate.registration, cmd)
+                    .is_ok()
+                {
                     summary.candidates_queued += 1;
                 } else {
                     summary.send_failed += 1;
@@ -635,45 +638,40 @@ pub(crate) fn collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
 ) -> Vec<wow_world::session::LegacyCreatureAggroCandidateLikeCpp> {
     let mut candidates: Vec<_> = registry
-        .iter()
-        .filter_map(|entry| {
-            let guid = *entry.key();
-            let info = entry.value();
-            (info.is_in_world && info.is_alive).then_some(
-                wow_world::session::LegacyCreatureAggroCandidateLikeCpp {
-                    player_guid: guid,
-                    map_id: info.map_id,
-                    instance_id: info.instance_id,
-                    map_difficulty_id: 0,
-                    position: info.position,
-                    player_visibility_represented: false,
-                    player_phase_shift: wow_entities::PhaseShift::default(),
-                    player_visibility_detection:
-                        wow_entities::UnitVisibilityDetectionStateLikeCpp::default(),
-                    player_combat_reach: info.combat_reach,
-                    player_detected_range_aura_mod: 0.0,
-                    player_liquid_status_like_cpp: info.liquid_status,
-                    player_level: info.level,
-                    player_gray_level: info.gray_level,
-                    player_unit_flags: info.unit_flags,
-                    player_unit_flags2: info.unit_flags2,
-                    player_unit_state: info.unit_state,
-                    player_is_game_master: info.is_game_master,
-                    player_is_contested_pvp: info.is_contested_pvp,
-                    player_faction_template_id: info.faction_template_id,
-                    player_reputation_standings: info.reputation_standings.clone(),
-                    player_reputation_state_flags: info.reputation_state_flags.clone(),
-                    player_forced_reputation_ranks: info.forced_reputation_ranks.clone(),
-                    player_forced_reputation_faction_ids: info
-                        .forced_reputation_faction_ids
-                        .clone(),
-                    player_school_immunity_mask: 0,
-                    player_damage_immunity_mask: 0,
-                    player_has_confuse_aura: false,
-                    player_has_breakable_stun_aura: false,
-                },
-            )
-        })
+        .legacy_aggro_candidates()
+        .into_iter()
+        .map(
+            |snapshot| wow_world::session::LegacyCreatureAggroCandidateLikeCpp {
+                player_guid: snapshot.player_guid,
+                map_id: snapshot.map_id,
+                instance_id: snapshot.instance_id,
+                map_difficulty_id: 0,
+                position: snapshot.position,
+                player_visibility_represented: false,
+                player_phase_shift: wow_entities::PhaseShift::default(),
+                player_visibility_detection:
+                    wow_entities::UnitVisibilityDetectionStateLikeCpp::default(),
+                player_combat_reach: snapshot.combat_reach,
+                player_detected_range_aura_mod: 0.0,
+                player_liquid_status_like_cpp: snapshot.liquid_status,
+                player_level: snapshot.level,
+                player_gray_level: snapshot.gray_level,
+                player_unit_flags: snapshot.unit_flags,
+                player_unit_flags2: snapshot.unit_flags2,
+                player_unit_state: snapshot.unit_state,
+                player_is_game_master: snapshot.is_game_master,
+                player_is_contested_pvp: snapshot.is_contested_pvp,
+                player_faction_template_id: snapshot.faction_template_id,
+                player_reputation_standings: snapshot.reputation_standings,
+                player_reputation_state_flags: snapshot.reputation_state_flags,
+                player_forced_reputation_ranks: snapshot.forced_reputation_ranks,
+                player_forced_reputation_faction_ids: snapshot.forced_reputation_faction_ids,
+                player_school_immunity_mask: 0,
+                player_damage_immunity_mask: 0,
+                player_has_confuse_aura: false,
+                player_has_breakable_stun_aura: false,
+            },
+        )
         .collect();
 
     if let Some(canonical_map_manager) = canonical_map_manager
@@ -816,7 +814,7 @@ pub(crate) fn deliver_creature_attack_start_commands_like_cpp(
     registry: &wow_network::PlayerRegistry,
 ) -> RuntimeCreatureAttackStartDeliverySummaryLikeCpp {
     struct Candidate {
-        durable: Arc<std::sync::Mutex<wow_network::DurableCreatureRuntimeCommandsLikeCpp>>,
+        registration: wow_network::PlayerRegistration,
         map_id: u16,
         instance_id: u32,
         is_in_world: bool,
@@ -827,16 +825,16 @@ pub(crate) fn deliver_creature_attack_start_commands_like_cpp(
     for command in commands {
         summary.commands_seen += 1;
 
-        let Some(candidate) = registry.get(&command.victim_guid).map(|entry| {
-            let info = entry.value();
-            Candidate {
-                durable: Arc::clone(&info.durable_creature_runtime_commands_like_cpp),
-                map_id: info.map_id,
-                instance_id: info.instance_id,
-                is_in_world: info.is_in_world,
-                is_alive: info.is_alive,
-            }
-        }) else {
+        let Some(candidate) = registry
+            .runtime_recipient(command.victim_guid)
+            .map(|recipient| Candidate {
+                registration: recipient.registration,
+                map_id: recipient.map_id,
+                instance_id: recipient.instance_id,
+                is_in_world: recipient.is_in_world,
+                is_alive: recipient.is_alive,
+            })
+        else {
             summary.candidates_skipped_missing_victim += 1;
             continue;
         };
@@ -859,11 +857,7 @@ pub(crate) fn deliver_creature_attack_start_commands_like_cpp(
             continue;
         }
 
-        if let Ok(mut durable) = candidate.durable.lock() {
-            if !durable.publish_attack_start_like_cpp(command.clone()) {
-                summary.send_failed += 1;
-                continue;
-            }
+        if registry.publish_current_attack_start(candidate.registration, command.clone()) {
             summary.candidates_queued += 1;
         } else {
             summary.send_failed += 1;
@@ -995,33 +989,21 @@ pub(crate) fn deliver_creature_attack_stop_commands_like_cpp(
     let mut summary = RuntimeCreatureAttackStartDeliverySummaryLikeCpp::default();
     for command in commands {
         summary.commands_seen += 1;
-        let Some(candidate) = registry.get(&command.victim_guid).map(|entry| {
-            let info = entry.value();
-            (
-                Arc::clone(&info.durable_creature_runtime_commands_like_cpp),
-                info.map_id,
-                info.instance_id,
-                info.is_in_world,
-            )
-        }) else {
+        let Some(candidate) = registry.runtime_recipient(command.victim_guid) else {
             summary.candidates_skipped_missing_victim += 1;
             continue;
         };
         summary.candidates_seen += 1;
-        if !candidate.3 {
+        if !candidate.is_in_world {
             summary.candidates_skipped_not_in_world += 1;
-        } else if candidate.1 != command.map_id {
+        } else if candidate.map_id != command.map_id {
             summary.candidates_skipped_wrong_map += 1;
-        } else if candidate.2 != command.instance_id {
+        } else if candidate.instance_id != command.instance_id {
             summary.candidates_skipped_wrong_instance += 1;
         // Evade cleanup is a one-shot authoritative transition. Publish it to
         // the durable FIFO rail so bounded visual backpressure cannot
         // drop it or block the global creature tick.
-        } else if let Ok(mut durable) = candidate.0.lock() {
-            if !durable.publish_attack_stop_like_cpp(command.clone()) {
-                summary.send_failed += 1;
-                continue;
-            }
+        } else if registry.publish_current_attack_stop(candidate.registration, command.clone()) {
             summary.candidates_queued += 1;
         } else {
             summary.send_failed += 1;
@@ -1045,7 +1027,7 @@ pub(crate) fn deliver_creature_melee_damage_commands_like_cpp(
     registry: &wow_network::PlayerRegistry,
 ) -> RuntimeCreatureMeleeDeliverySummaryLikeCpp {
     struct Candidate {
-        durable: Arc<std::sync::Mutex<wow_network::DurableCreatureRuntimeCommandsLikeCpp>>,
+        registration: wow_network::PlayerRegistration,
         map_id: u16,
         instance_id: u32,
         is_in_world: bool,
@@ -1055,15 +1037,15 @@ pub(crate) fn deliver_creature_melee_damage_commands_like_cpp(
     for command in commands {
         summary.commands_seen += 1;
 
-        let Some(candidate) = registry.get(&command.victim_guid).map(|entry| {
-            let info = entry.value();
-            Candidate {
-                durable: Arc::clone(&info.durable_creature_runtime_commands_like_cpp),
-                map_id: info.map_id,
-                instance_id: info.instance_id,
-                is_in_world: info.is_in_world,
-            }
-        }) else {
+        let Some(candidate) = registry
+            .runtime_recipient(command.victim_guid)
+            .map(|recipient| Candidate {
+                registration: recipient.registration,
+                map_id: recipient.map_id,
+                instance_id: recipient.instance_id,
+                is_in_world: recipient.is_in_world,
+            })
+        else {
             summary.candidates_skipped_missing_victim += 1;
             continue;
         };
@@ -1082,11 +1064,7 @@ pub(crate) fn deliver_creature_melee_damage_commands_like_cpp(
             continue;
         }
 
-        if let Ok(mut durable) = candidate.durable.lock() {
-            if !durable.publish_melee_damage_like_cpp(command.clone()) {
-                summary.send_failed += 1;
-                continue;
-            }
+        if registry.publish_current_melee_damage(candidate.registration, command.clone()) {
             summary.candidates_queued += 1;
         } else {
             summary.send_failed += 1;
@@ -1108,22 +1086,21 @@ pub(crate) fn collect_legacy_chase_target_snapshots_like_cpp(
     wow_world::ChaseTargetSnapshotLikeCpp,
 > {
     registry
-        .iter()
-        .filter_map(|entry| {
-            let guid = *entry.key();
-            let info = entry.value();
-            (info.is_in_world && info.is_alive).then_some((
-                (info.map_id, info.instance_id, guid),
+        .runtime_recipients()
+        .into_iter()
+        .filter_map(|recipient| {
+            (recipient.is_in_world && recipient.is_alive).then_some((
+                (recipient.map_id, recipient.instance_id, recipient.guid),
                 wow_world::ChaseTargetSnapshotLikeCpp {
-                    guid,
-                    position: info.position,
-                    combat_reach: info.combat_reach,
+                    guid: recipient.guid,
+                    position: recipient.position,
+                    combat_reach: recipient.combat_reach,
                     in_world: true,
                     // C++ `Unit::isInAccessiblePlaceFor` asks `CanEnterWater()`
                     // when the victim `IsInWater()`; the registry already carries
                     // the liquid status the aggro scan uses.
                     in_water: Some(
-                        info.liquid_status
+                        recipient.liquid_status
                             & (wow_world::session::LIQUID_MAP_IN_WATER_LIKE_CPP
                                 | wow_world::session::LIQUID_MAP_UNDER_WATER_LIKE_CPP)
                             != 0,
