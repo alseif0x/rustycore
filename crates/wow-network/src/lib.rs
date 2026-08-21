@@ -17,7 +17,7 @@ pub use accept::{
     start_world_listener,
 };
 pub use group_registry::{
-    AddGroupMemberIfRoomResultLikeCpp, EMPTY_TARGET_ICON_RAW_LIKE_CPP,
+    AcceptGroupInviteResultLikeCpp, CreateGroupInviteResultLikeCpp, EMPTY_TARGET_ICON_RAW_LIKE_CPP,
     GROUP_ASSIGN_MAINASSIST_LIKE_CPP, GROUP_ASSIGN_MAINTANK_LIKE_CPP,
     GROUP_FLAG_DESTROYED_LIKE_CPP, GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP, GROUP_FLAG_LFG_LIKE_CPP,
     GROUP_FLAG_RAID_LIKE_CPP, GroupDbRowLikeCpp, GroupInfo, GroupInstanceResetMethodLikeCpp,
@@ -29,10 +29,10 @@ pub use group_registry::{
     MAX_RAID_SIZE_LIKE_CPP, MAX_RAID_SUBGROUPS_LIKE_CPP, MEMBER_FLAG_ASSISTANT_LIKE_CPP,
     MEMBER_FLAG_MAINASSIST_LIKE_CPP, MEMBER_FLAG_MAINTANK_LIKE_CPP, MISSING_MEMBER_GROUP_LIKE_CPP,
     PendingInviteLikeCpp, PendingInvites, READYCHECK_DURATION_MS_LIKE_CPP, ReadyCheckEventLikeCpp,
-    TARGET_ICONS_COUNT_LIKE_CPP, add_group_member_if_room_like_cpp,
-    free_group_db_store_id_like_cpp, get_group_by_db_store_id_like_cpp,
-    group_guid_by_db_store_id_like_cpp, load_groups_from_db_rows_like_cpp,
-    register_group_db_store_id_like_cpp, tick_all_group_ready_checks_like_cpp,
+    TARGET_ICONS_COUNT_LIKE_CPP, free_group_db_store_id_like_cpp,
+    get_group_by_db_store_id_like_cpp, group_guid_by_db_store_id_like_cpp,
+    load_groups_from_db_rows_like_cpp, register_group_db_store_id_like_cpp,
+    tick_all_group_ready_checks_like_cpp,
 };
 pub use player_registry::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyLootMoneyLikeCppCommand,

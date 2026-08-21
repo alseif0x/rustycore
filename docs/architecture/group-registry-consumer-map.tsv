@@ -1,6 +1,4 @@
 owner_type	consumer_family	current_compatibility	transition_issue	final_shape
-GroupRegistry	invite acceptance and first group creation	insert/get_mut	#197	atomic typed create-or-join outcome
-PendingInvites	invite create replace cancel expire and accept	insert/remove	#197	named atomic invite transitions
 GroupRegistry	member removal leave and disband	get_mut/remove	#198	typed membership outcome
 GroupRegistry	leader subgroup role loot difficulty icon and marker updates	get_mut	#198	typed state-transition outcome
 GroupRegistry	ready-check start response and timer expiry	get_mut	#198	typed ready-check events

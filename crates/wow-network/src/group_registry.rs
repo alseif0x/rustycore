@@ -4,7 +4,7 @@ use dashmap::DashMap;
 use std::{
     collections::BTreeMap,
     sync::{
-        Mutex,
+        Mutex, MutexGuard,
         atomic::{AtomicU32, AtomicU64, Ordering},
     },
 };
@@ -1310,7 +1310,7 @@ impl GroupRegistry {
             .collect()
     }
 
-    /// Transitional invite/create/join compatibility; owned by #197.
+    /// Transitional database-load/test compatibility; removed by #199.
     pub fn insert(&self, group_guid: u64, group: GroupInfo) -> Option<GroupInfo> {
         self.groups.insert(group_guid, group)
     }
@@ -1327,59 +1327,6 @@ impl GroupRegistry {
         group_guid: &u64,
     ) -> Option<dashmap::mapref::one::RefMut<'_, u64, GroupInfo>> {
         self.groups.get_mut(group_guid)
-    }
-}
-
-/// Result of the existing-group join portion of C++
-/// `WorldSession::HandlePartyInviteResponseOpcode`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AddGroupMemberIfRoomResultLikeCpp {
-    Added {
-        db_store_id: u32,
-        subgroup: u8,
-        is_raid_group: bool,
-    },
-    Full,
-    AddFailed,
-    AlreadyMember,
-    MissingGroup,
-}
-
-/// Atomically perform the C++ `Group::IsFull` then `Group::AddMember` sequence.
-///
-/// TrinityCore runs this sequence on its serialized world/session execution
-/// path (`GroupHandler.cpp`, `HandlePartyInviteResponseOpcode`). Rust sessions
-/// can accept invitations concurrently, so the mutable DashMap guard must span
-/// both operations to retain the same capacity invariant.
-pub fn add_group_member_if_room_like_cpp(
-    registry: &GroupRegistry,
-    group_guid: u64,
-    member_guid: ObjectGuid,
-) -> AddGroupMemberIfRoomResultLikeCpp {
-    let Some(mut group) = registry.get_mut(&group_guid) else {
-        return AddGroupMemberIfRoomResultLikeCpp::MissingGroup;
-    };
-
-    if group.is_full_like_cpp() {
-        return AddGroupMemberIfRoomResultLikeCpp::Full;
-    }
-    if group.members.contains(&member_guid) {
-        return AddGroupMemberIfRoomResultLikeCpp::AlreadyMember;
-    }
-    if !group.add_member(member_guid) {
-        // C++ returns silently when AddMember fails after the distinct IsFull
-        // check, for example when raid subgroup state has no free slot.
-        return AddGroupMemberIfRoomResultLikeCpp::AddFailed;
-    }
-
-    let subgroup = group
-        .member_slot_like_cpp(member_guid)
-        .map(|slot| slot.subgroup)
-        .unwrap_or_default();
-    AddGroupMemberIfRoomResultLikeCpp::Added {
-        db_store_id: group.db_store_id,
-        subgroup,
-        is_raid_group: group.is_raid_group(),
     }
 }
 
@@ -1514,6 +1461,7 @@ impl PendingInviteLikeCpp {
 #[derive(Debug, Default)]
 pub struct PendingInvites {
     invites: DashMap<ObjectGuid, PendingInviteLikeCpp>,
+    transition_lock: Mutex<()>,
 }
 
 impl PendingInvites {
@@ -1521,16 +1469,29 @@ impl PendingInvites {
         Self::default()
     }
 
+    fn lock_transition(&self) -> MutexGuard<'_, ()> {
+        self.transition_lock
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     /// Return an immutable owned invite snapshot.
     pub fn get(&self, invited_guid: &ObjectGuid) -> Option<PendingInviteLikeCpp> {
+        let _transition = self.lock_transition();
         self.invites.get(invited_guid).map(|invite| *invite)
     }
 
     pub fn contains_key(&self, invited_guid: &ObjectGuid) -> bool {
+        let _transition = self.lock_transition();
         self.invites.contains_key(invited_guid)
     }
 
     pub fn matching_guids(&self, invite: PendingInviteLikeCpp) -> Vec<ObjectGuid> {
+        let _transition = self.lock_transition();
+        self.matching_guids_unlocked(invite)
+    }
+
+    fn matching_guids_unlocked(&self, invite: PendingInviteLikeCpp) -> Vec<ObjectGuid> {
         self.invites
             .iter()
             .filter(|entry| *entry.value() == invite)
@@ -1538,18 +1499,292 @@ impl PendingInvites {
             .collect()
     }
 
-    /// Transitional invite mutation compatibility; owned by #197.
+    /// Transitional test-fixture compatibility; removed by #199.
     pub fn insert(
         &self,
         invited_guid: ObjectGuid,
         invite: PendingInviteLikeCpp,
     ) -> Option<PendingInviteLikeCpp> {
+        let _transition = self.lock_transition();
         self.invites.insert(invited_guid, invite)
     }
 
-    /// Transitional invite mutation compatibility; owned by #197.
+    /// Transitional test-fixture compatibility; removed by #199.
     pub fn remove(&self, invited_guid: &ObjectGuid) -> Option<(ObjectGuid, PendingInviteLikeCpp)> {
+        let _transition = self.lock_transition();
         self.invites.remove(invited_guid)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CreateGroupInviteResultLikeCpp {
+    Created(PendingInviteLikeCpp),
+    TargetAlreadyInvited,
+    TargetAlreadyGrouped,
+    InviterNotLeaderOrAssistant,
+    GroupFull,
+    MissingInviterGroup,
+    WrongCategory,
+}
+
+#[derive(Debug, Clone)]
+pub enum AcceptGroupInviteResultLikeCpp {
+    NoInvite,
+    WrongCategory,
+    SelfInvite,
+    GroupFull,
+    AddFailed,
+    AlreadyMember,
+    MissingGroup,
+    MissingLeader,
+    JoinedExisting { group: GroupInfo, subgroup: u8 },
+    Created { group: GroupInfo, subgroup: u8 },
+}
+
+impl GroupRegistry {
+    /// Atomically validate and record the represented C++ group invite.
+    pub fn create_invite_like_cpp(
+        &self,
+        pending: &PendingInvites,
+        inviter_guid: ObjectGuid,
+        invitee_guid: ObjectGuid,
+        inviter_group_guid: Option<u64>,
+        lookup_group_category: u8,
+        new_group_category: u8,
+    ) -> CreateGroupInviteResultLikeCpp {
+        let _transition = pending.lock_transition();
+
+        if pending.invites.contains_key(&invitee_guid) {
+            return CreateGroupInviteResultLikeCpp::TargetAlreadyInvited;
+        }
+        if self.groups.iter().any(|group| {
+            group.group_category_like_cpp() == lookup_group_category
+                && group.members.contains(&invitee_guid)
+        }) {
+            return CreateGroupInviteResultLikeCpp::TargetAlreadyGrouped;
+        }
+
+        let resolved_inviter_group_guid = inviter_group_guid
+            .filter(|group_guid| {
+                self.groups.get(group_guid).is_some_and(|group| {
+                    group.group_category_like_cpp() == lookup_group_category
+                        && group.members.contains(&inviter_guid)
+                })
+            })
+            .or_else(|| {
+                self.groups
+                    .iter()
+                    .find(|group| {
+                        group.group_category_like_cpp() == lookup_group_category
+                            && group.members.contains(&inviter_guid)
+                    })
+                    .map(|group| *group.key())
+            });
+        if inviter_group_guid.is_some() && resolved_inviter_group_guid.is_none() {
+            return CreateGroupInviteResultLikeCpp::MissingInviterGroup;
+        }
+
+        let invite = if let Some(group_guid) = resolved_inviter_group_guid {
+            let Some(group) = self.groups.get(&group_guid) else {
+                return CreateGroupInviteResultLikeCpp::MissingInviterGroup;
+            };
+            if group.group_category_like_cpp() != lookup_group_category {
+                return CreateGroupInviteResultLikeCpp::WrongCategory;
+            }
+            if !group.is_leader_like_cpp(inviter_guid) && !group.is_assistant_like_cpp(inviter_guid)
+            {
+                return CreateGroupInviteResultLikeCpp::InviterNotLeaderOrAssistant;
+            }
+            if group.is_full_like_cpp() {
+                return CreateGroupInviteResultLikeCpp::GroupFull;
+            }
+            PendingInviteLikeCpp::new_existing_group(
+                group.leader_guid,
+                group_guid,
+                group.group_category_like_cpp(),
+            )
+        } else if let Some(invite) = pending.invites.get(&inviter_guid).map(|invite| *invite) {
+            invite
+        } else {
+            let invite = PendingInviteLikeCpp::new_pending_group(inviter_guid, new_group_category);
+            pending.invites.insert(inviter_guid, invite);
+            invite
+        };
+
+        pending.invites.insert(invitee_guid, invite);
+        CreateGroupInviteResultLikeCpp::Created(invite)
+    }
+
+    fn cancel_invite_unlocked_like_cpp(
+        pending: &PendingInvites,
+        invitee_guid: ObjectGuid,
+        expected: PendingInviteLikeCpp,
+    ) -> bool {
+        if pending.invites.get(&invitee_guid).map(|invite| *invite) != Some(expected) {
+            return false;
+        }
+        pending.invites.remove(&invitee_guid);
+        if expected.group_guid.is_none() && pending.matching_guids_unlocked(expected).len() <= 1 {
+            for guid in pending.matching_guids_unlocked(expected) {
+                pending.invites.remove(&guid);
+            }
+        }
+        true
+    }
+
+    /// Cancel one exact invite without deleting a newer replacement.
+    pub fn cancel_invite_like_cpp(
+        &self,
+        pending: &PendingInvites,
+        invitee_guid: ObjectGuid,
+        expected: PendingInviteLikeCpp,
+    ) -> bool {
+        let _transition = pending.lock_transition();
+        Self::cancel_invite_unlocked_like_cpp(pending, invitee_guid, expected)
+    }
+
+    /// Replace one exact invite and clean up an abandoned pending group.
+    pub fn replace_invite_like_cpp(
+        &self,
+        pending: &PendingInvites,
+        invitee_guid: ObjectGuid,
+        expected: PendingInviteLikeCpp,
+        replacement: PendingInviteLikeCpp,
+    ) -> bool {
+        let _transition = pending.lock_transition();
+        if !Self::cancel_invite_unlocked_like_cpp(pending, invitee_guid, expected) {
+            return false;
+        }
+        if replacement.group_guid.is_none() {
+            pending
+                .invites
+                .entry(replacement.leader_guid)
+                .or_insert(replacement);
+        }
+        pending.invites.insert(invitee_guid, replacement);
+        true
+    }
+
+    /// Expire one exact invite without touching a newer replacement.
+    pub fn expire_invite_like_cpp(
+        &self,
+        pending: &PendingInvites,
+        invitee_guid: ObjectGuid,
+        expected: PendingInviteLikeCpp,
+    ) -> bool {
+        self.cancel_invite_like_cpp(pending, invitee_guid, expected)
+    }
+
+    /// Cancel every invite belonging to the exact pending group identity.
+    pub fn cancel_pending_group_like_cpp(
+        &self,
+        pending: &PendingInvites,
+        expected: PendingInviteLikeCpp,
+    ) -> usize {
+        let _transition = pending.lock_transition();
+        let guids = pending.matching_guids_unlocked(expected);
+        for guid in &guids {
+            pending.invites.remove(guid);
+        }
+        guids.len()
+    }
+
+    /// Consume a decline only when its optional category still matches.
+    pub fn decline_invite_like_cpp(
+        &self,
+        pending: &PendingInvites,
+        invitee_guid: ObjectGuid,
+        party_index: Option<u8>,
+    ) -> Option<PendingInviteLikeCpp> {
+        let invite = pending.get(&invitee_guid)?;
+        if party_index.is_some_and(|index| invite.group_category != index) {
+            return None;
+        }
+        self.cancel_invite_like_cpp(pending, invitee_guid, invite)
+            .then_some(invite)
+    }
+
+    /// Atomically consume an invite and create or join its group.
+    pub fn accept_invite_like_cpp(
+        &self,
+        pending: &PendingInvites,
+        invitee_guid: ObjectGuid,
+        party_index: Option<u8>,
+        available_new_group_leader: Option<ObjectGuid>,
+    ) -> AcceptGroupInviteResultLikeCpp {
+        let _transition = pending.lock_transition();
+        let Some(invite) = pending.invites.get(&invitee_guid).map(|invite| *invite) else {
+            return AcceptGroupInviteResultLikeCpp::NoInvite;
+        };
+        if party_index.is_some_and(|index| invite.group_category != index) {
+            return AcceptGroupInviteResultLikeCpp::WrongCategory;
+        }
+
+        if invite.leader_guid == invitee_guid {
+            // C++ removes the invite before rejecting self-acceptance.
+            pending.invites.remove(&invitee_guid);
+            return AcceptGroupInviteResultLikeCpp::SelfInvite;
+        }
+
+        if let Some(group_guid) = invite.group_guid {
+            let Some(mut group) = self.groups.get_mut(&group_guid) else {
+                return AcceptGroupInviteResultLikeCpp::MissingGroup;
+            };
+            if group.group_category_like_cpp() != invite.group_category {
+                return AcceptGroupInviteResultLikeCpp::WrongCategory;
+            }
+            // C++ consumes a valid invite before its full/AddMember checks.
+            pending.invites.remove(&invitee_guid);
+            if group.is_full_like_cpp() {
+                return AcceptGroupInviteResultLikeCpp::GroupFull;
+            }
+            if group.members.contains(&invitee_guid) {
+                return AcceptGroupInviteResultLikeCpp::AlreadyMember;
+            }
+            if !group.add_member(invitee_guid) {
+                return AcceptGroupInviteResultLikeCpp::AddFailed;
+            }
+            let subgroup = group
+                .member_slot_like_cpp(invitee_guid)
+                .map(|slot| slot.subgroup)
+                .unwrap_or_default();
+            return AcceptGroupInviteResultLikeCpp::JoinedExisting {
+                group: group.clone(),
+                subgroup,
+            };
+        }
+
+        pending.invites.remove(&invitee_guid);
+        if available_new_group_leader != Some(invite.leader_guid) {
+            for guid in pending.matching_guids_unlocked(invite) {
+                pending.invites.remove(&guid);
+            }
+            return AcceptGroupInviteResultLikeCpp::MissingLeader;
+        }
+
+        let mut group = GroupInfo::new(invite.leader_guid);
+        if !group.add_member(invitee_guid) {
+            return AcceptGroupInviteResultLikeCpp::AddFailed;
+        }
+        let group_guid = group.group_guid;
+        let db_store_id = group.db_store_id;
+        let subgroup = group
+            .member_slot_like_cpp(invitee_guid)
+            .map(|slot| slot.subgroup)
+            .unwrap_or_default();
+        self.groups.insert(group_guid, group.clone());
+        register_group_db_store_id_like_cpp(db_store_id, group_guid);
+        pending.invites.remove(&invite.leader_guid);
+        let promoted = PendingInviteLikeCpp::new_existing_group(
+            invite.leader_guid,
+            group_guid,
+            invite.group_category,
+        );
+        for guid in pending.matching_guids_unlocked(invite) {
+            pending.invites.insert(guid, promoted);
+        }
+
+        AcceptGroupInviteResultLikeCpp::Created { group, subgroup }
     }
 }
 
@@ -1630,43 +1865,9 @@ mod tests {
     }
 
     #[test]
-    fn add_group_member_if_room_accepts_last_party_slot_then_reports_full_like_cpp() {
-        let registry = GroupRegistry::default();
-        let leader = ObjectGuid::create_player(1, 42);
-        let mut party = GroupInfo::new(leader);
-        for counter in 43..46 {
-            assert!(party.add_member(ObjectGuid::create_player(1, counter)));
-        }
-        let group_guid = party.group_guid;
-        let db_store_id = party.db_store_id;
-        registry.insert(group_guid, party);
-
-        let final_member = ObjectGuid::create_player(1, 46);
-        assert_eq!(
-            add_group_member_if_room_like_cpp(&registry, group_guid, final_member),
-            AddGroupMemberIfRoomResultLikeCpp::Added {
-                db_store_id,
-                subgroup: 0,
-                is_raid_group: false,
-            }
-        );
-        assert_eq!(
-            add_group_member_if_room_like_cpp(
-                &registry,
-                group_guid,
-                ObjectGuid::create_player(1, 47),
-            ),
-            AddGroupMemberIfRoomResultLikeCpp::Full
-        );
-
-        let party = registry.get(&group_guid).expect("party remains registered");
-        assert_eq!(party.members.len(), MAX_GROUP_SIZE_LIKE_CPP);
-        assert!(party.members.contains(&final_member));
-    }
-
-    #[test]
-    fn concurrent_final_party_slot_accepts_exactly_one_member_like_cpp() {
+    fn concurrent_final_party_slot_accepts_exactly_one_invite_like_cpp() {
         let registry = std::sync::Arc::new(GroupRegistry::default());
+        let pending = std::sync::Arc::new(PendingInvites::default());
         let leader = ObjectGuid::create_player(1, 42);
         let mut party = GroupInfo::new(leader);
         for counter in 43..46 {
@@ -1680,14 +1881,25 @@ mod tests {
             ObjectGuid::create_player(1, 46),
             ObjectGuid::create_player(1, 47),
         ];
+        for candidate in candidates {
+            pending.insert(
+                candidate,
+                PendingInviteLikeCpp::new_existing_group(
+                    leader,
+                    group_guid,
+                    GROUP_CATEGORY_HOME_LIKE_CPP,
+                ),
+            );
+        }
         let handles: Vec<_> = candidates
             .into_iter()
             .map(|candidate| {
                 let registry = std::sync::Arc::clone(&registry);
+                let pending = std::sync::Arc::clone(&pending);
                 let barrier = std::sync::Arc::clone(&barrier);
                 std::thread::spawn(move || {
                     barrier.wait();
-                    add_group_member_if_room_like_cpp(&registry, group_guid, candidate)
+                    registry.accept_invite_like_cpp(&pending, candidate, None, Some(leader))
                 })
             })
             .collect();
@@ -1700,14 +1912,19 @@ mod tests {
         assert_eq!(
             results
                 .iter()
-                .filter(|result| matches!(result, AddGroupMemberIfRoomResultLikeCpp::Added { .. }))
+                .filter(|result| {
+                    matches!(
+                        result,
+                        AcceptGroupInviteResultLikeCpp::JoinedExisting { .. }
+                    )
+                })
                 .count(),
             1
         );
         assert_eq!(
             results
                 .iter()
-                .filter(|result| matches!(result, AddGroupMemberIfRoomResultLikeCpp::Full))
+                .filter(|result| matches!(result, AcceptGroupInviteResultLikeCpp::GroupFull))
                 .count(),
             1
         );
@@ -1722,24 +1939,263 @@ mod tests {
     }
 
     #[test]
-    fn add_group_member_if_room_preserves_distinct_add_failure_like_cpp() {
-        let registry = GroupRegistry::default();
+    fn one_pending_invite_can_be_consumed_only_once() {
+        let registry = std::sync::Arc::new(GroupRegistry::default());
+        let pending = std::sync::Arc::new(PendingInvites::default());
         let leader = ObjectGuid::create_player(1, 42);
-        let candidate = ObjectGuid::create_player(1, 77);
-        let mut raid = GroupInfo::new(leader);
-        raid.convert_to_raid_like_cpp();
-        raid.raid_subgroup_counts =
-            Some([MAX_GROUP_SIZE_LIKE_CPP as u8; MAX_RAID_SUBGROUPS_LIKE_CPP]);
-        let group_guid = raid.group_guid;
-        registry.insert(group_guid, raid);
+        let invitee = ObjectGuid::create_player(1, 77);
+        let group = GroupInfo::new(leader);
+        let group_guid = group.group_guid;
+        registry.insert(group_guid, group);
+        pending.insert(
+            invitee,
+            PendingInviteLikeCpp::new_existing_group(
+                leader,
+                group_guid,
+                GROUP_CATEGORY_HOME_LIKE_CPP,
+            ),
+        );
+
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
+        let handles: Vec<_> = (0..2)
+            .map(|_| {
+                let registry = std::sync::Arc::clone(&registry);
+                let pending = std::sync::Arc::clone(&pending);
+                let barrier = std::sync::Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    registry.accept_invite_like_cpp(&pending, invitee, None, Some(leader))
+                })
+            })
+            .collect();
+        barrier.wait();
+        let results: Vec<_> = handles
+            .into_iter()
+            .map(|handle| handle.join().expect("accept thread"))
+            .collect();
 
         assert_eq!(
-            add_group_member_if_room_like_cpp(&registry, group_guid, candidate),
-            AddGroupMemberIfRoomResultLikeCpp::AddFailed
+            results
+                .iter()
+                .filter(|result| {
+                    matches!(
+                        result,
+                        AcceptGroupInviteResultLikeCpp::JoinedExisting { .. }
+                    )
+                })
+                .count(),
+            1
         );
-        let raid = registry.get(&group_guid).expect("raid remains registered");
-        assert_eq!(raid.members, vec![leader]);
-        assert!(!raid.members.contains(&candidate));
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| matches!(result, AcceptGroupInviteResultLikeCpp::NoInvite))
+                .count(),
+            1
+        );
+        let group = registry.get(&group_guid).expect("group remains registered");
+        assert_eq!(
+            group
+                .members
+                .iter()
+                .filter(|guid| **guid == invitee)
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn concurrent_pending_group_accepts_create_once_then_join_once() {
+        let registry = std::sync::Arc::new(GroupRegistry::default());
+        let pending = std::sync::Arc::new(PendingInvites::default());
+        let leader = ObjectGuid::create_player(1, 42);
+        let invitees = [
+            ObjectGuid::create_player(1, 77),
+            ObjectGuid::create_player(1, 78),
+        ];
+        let invite = PendingInviteLikeCpp::new_pending_group(leader, GROUP_CATEGORY_HOME_LIKE_CPP);
+        pending.insert(leader, invite);
+        for invitee in invitees {
+            pending.insert(invitee, invite);
+        }
+
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
+        let handles: Vec<_> = invitees
+            .into_iter()
+            .map(|invitee| {
+                let registry = std::sync::Arc::clone(&registry);
+                let pending = std::sync::Arc::clone(&pending);
+                let barrier = std::sync::Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    registry.accept_invite_like_cpp(&pending, invitee, None, Some(leader))
+                })
+            })
+            .collect();
+        barrier.wait();
+        let results: Vec<_> = handles
+            .into_iter()
+            .map(|handle| handle.join().expect("accept thread"))
+            .collect();
+
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| matches!(result, AcceptGroupInviteResultLikeCpp::Created { .. }))
+                .count(),
+            1
+        );
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| {
+                    matches!(
+                        result,
+                        AcceptGroupInviteResultLikeCpp::JoinedExisting { .. }
+                    )
+                })
+                .count(),
+            1
+        );
+        let groups = registry.snapshots();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].members.len(), 3);
+        assert!(groups[0].members.contains(&leader));
+        assert!(
+            invitees
+                .iter()
+                .all(|invitee| groups[0].members.contains(invitee))
+        );
+    }
+
+    #[test]
+    fn invite_transition_failures_do_not_partially_mutate_state() {
+        let registry = GroupRegistry::default();
+        let pending = PendingInvites::default();
+        let leader = ObjectGuid::create_player(1, 42);
+        let invitee = ObjectGuid::create_player(1, 77);
+        let other_leader = ObjectGuid::create_player(1, 90);
+        let existing =
+            PendingInviteLikeCpp::new_pending_group(other_leader, GROUP_CATEGORY_HOME_LIKE_CPP);
+        pending.insert(invitee, existing);
+
+        assert_eq!(
+            registry.create_invite_like_cpp(
+                &pending,
+                leader,
+                invitee,
+                None,
+                GROUP_CATEGORY_HOME_LIKE_CPP,
+                GROUP_CATEGORY_HOME_LIKE_CPP,
+            ),
+            CreateGroupInviteResultLikeCpp::TargetAlreadyInvited
+        );
+        assert_eq!(pending.get(&invitee), Some(existing));
+        assert!(pending.get(&leader).is_none());
+
+        let missing_target = ObjectGuid::create_player(1, 78);
+        assert_eq!(
+            registry.create_invite_like_cpp(
+                &pending,
+                leader,
+                missing_target,
+                Some(u64::MAX),
+                GROUP_CATEGORY_HOME_LIKE_CPP,
+                GROUP_CATEGORY_HOME_LIKE_CPP,
+            ),
+            CreateGroupInviteResultLikeCpp::MissingInviterGroup
+        );
+        assert!(pending.get(&missing_target).is_none());
+
+        let missing_group_invite = PendingInviteLikeCpp::new_existing_group(
+            leader,
+            u64::MAX,
+            GROUP_CATEGORY_HOME_LIKE_CPP,
+        );
+        pending.insert(invitee, missing_group_invite);
+        assert!(matches!(
+            registry.accept_invite_like_cpp(&pending, invitee, None, Some(leader)),
+            AcceptGroupInviteResultLikeCpp::MissingGroup
+        ));
+        assert_eq!(pending.get(&invitee), Some(missing_group_invite));
+        assert!(registry.snapshots().is_empty());
+
+        pending.insert(invitee, existing);
+        assert!(matches!(
+            registry.accept_invite_like_cpp(
+                &pending,
+                invitee,
+                Some(GROUP_CATEGORY_INSTANCE_LIKE_CPP),
+                Some(leader),
+            ),
+            AcceptGroupInviteResultLikeCpp::WrongCategory
+        ));
+        assert_eq!(pending.get(&invitee), Some(existing));
+
+        let mut duplicate_group = GroupInfo::new(leader);
+        assert!(duplicate_group.add_member(invitee));
+        let duplicate_group_guid = duplicate_group.group_guid;
+        registry.insert(duplicate_group_guid, duplicate_group.clone());
+        pending.insert(
+            invitee,
+            PendingInviteLikeCpp::new_existing_group(
+                leader,
+                duplicate_group_guid,
+                GROUP_CATEGORY_HOME_LIKE_CPP,
+            ),
+        );
+        assert!(matches!(
+            registry.accept_invite_like_cpp(&pending, invitee, None, Some(leader)),
+            AcceptGroupInviteResultLikeCpp::AlreadyMember
+        ));
+        assert!(pending.get(&invitee).is_none());
+        assert_eq!(
+            registry.get(&duplicate_group_guid).unwrap().members,
+            duplicate_group.members
+        );
+    }
+
+    #[test]
+    fn stale_delivery_failure_cannot_cancel_a_replacement_invite() {
+        let registry = GroupRegistry::default();
+        let pending = PendingInvites::default();
+        let invitee = ObjectGuid::create_player(1, 77);
+        let stale = PendingInviteLikeCpp::new_pending_group(
+            ObjectGuid::create_player(1, 42),
+            GROUP_CATEGORY_HOME_LIKE_CPP,
+        );
+        let replacement = PendingInviteLikeCpp::new_pending_group(
+            ObjectGuid::create_player(1, 43),
+            GROUP_CATEGORY_HOME_LIKE_CPP,
+        );
+        pending.insert(invitee, replacement);
+
+        assert!(!registry.cancel_invite_like_cpp(&pending, invitee, stale));
+        assert_eq!(pending.get(&invitee), Some(replacement));
+        assert!(!registry.replace_invite_like_cpp(&pending, invitee, stale, replacement));
+        assert!(registry.replace_invite_like_cpp(&pending, invitee, replacement, stale));
+        assert_eq!(pending.get(&invitee), Some(stale));
+        assert!(registry.expire_invite_like_cpp(&pending, invitee, stale));
+        assert!(pending.get(&invitee).is_none());
+
+        let decline = PendingInviteLikeCpp::new_pending_group(
+            ObjectGuid::create_player(1, 44),
+            GROUP_CATEGORY_HOME_LIKE_CPP,
+        );
+        pending.insert(decline.leader_guid, decline);
+        pending.insert(invitee, decline);
+        assert!(
+            registry
+                .decline_invite_like_cpp(&pending, invitee, Some(GROUP_CATEGORY_INSTANCE_LIKE_CPP),)
+                .is_none()
+        );
+        assert_eq!(pending.get(&invitee), Some(decline));
+        assert_eq!(
+            registry.decline_invite_like_cpp(&pending, invitee, None),
+            Some(decline)
+        );
+        assert!(pending.get(&invitee).is_none());
+        assert!(pending.get(&decline.leader_guid).is_none());
     }
 
     #[test]
