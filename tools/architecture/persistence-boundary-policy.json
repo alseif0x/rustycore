@@ -22574,13 +22574,13 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc.rs::fn bug_report_insert_statement_like_cpp",
+      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc/mod.rs::fn bug_report_insert_statement_like_cpp",
       "source_class": "production",
       "packages": [
         "wow-world"
       ],
       "sources": [
-        "crates/wow-world/src/handlers/misc.rs"
+        "crates/wow-world/src/handlers/misc/mod.rs"
       ],
       "source_prefixes": [],
       "modules": [
@@ -22595,7 +22595,7 @@
       "logical_databases": [
         "characters"
       ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow fn bug_report_insert_statement_like_cpp in crates/wow-world/src/handlers/misc.rs.",
+      "capability_owner": "misc compatibility persistence helper boundary currently owns the complete wow-world workflow fn bug_report_insert_statement_like_cpp in crates/wow-world/src/handlers/misc/mod.rs.",
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -22606,13 +22606,13 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc.rs::impl crate :: session :: WorldSession::apply_represented_difficulty_change_like_cpp",
+      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc/mod.rs::impl crate :: session :: WorldSession::apply_represented_difficulty_change_like_cpp",
       "source_class": "production",
       "packages": [
         "wow-world"
       ],
       "sources": [
-        "crates/wow-world/src/handlers/misc.rs"
+        "crates/wow-world/src/handlers/misc/mod.rs"
       ],
       "source_prefixes": [],
       "modules": [
@@ -22627,7 +22627,7 @@
       "logical_databases": [
         "characters"
       ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::apply_represented_difficulty_change_like_cpp in crates/wow-world/src/handlers/misc.rs.",
+      "capability_owner": "player difficulty persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::apply_represented_difficulty_change_like_cpp in crates/wow-world/src/handlers/misc/mod.rs.",
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
@@ -22639,13 +22639,13 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc.rs::impl crate :: session :: WorldSession::confirm_pending_bind_like_cpp",
+      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc/mod.rs::impl crate :: session :: WorldSession::confirm_pending_bind_like_cpp",
       "source_class": "production",
       "packages": [
         "wow-world"
       ],
       "sources": [
-        "crates/wow-world/src/handlers/misc.rs"
+        "crates/wow-world/src/handlers/misc/mod.rs"
       ],
       "source_prefixes": [],
       "modules": [
@@ -22660,7 +22660,7 @@
       "logical_databases": [
         "characters"
       ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::confirm_pending_bind_like_cpp in crates/wow-world/src/handlers/misc.rs.",
+      "capability_owner": "instance lock persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::confirm_pending_bind_like_cpp in crates/wow-world/src/handlers/misc/mod.rs.",
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
@@ -22672,13 +22672,13 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc.rs::impl crate :: session :: WorldSession::handle_bug_report",
+      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc/mod.rs::impl crate :: session :: WorldSession::handle_bug_report",
       "source_class": "production",
       "packages": [
         "wow-world"
       ],
       "sources": [
-        "crates/wow-world/src/handlers/misc.rs"
+        "crates/wow-world/src/handlers/misc/mod.rs"
       ],
       "source_prefixes": [],
       "modules": [
@@ -22693,7 +22693,7 @@
       "logical_databases": [
         "characters"
       ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::handle_bug_report in crates/wow-world/src/handlers/misc.rs.",
+      "capability_owner": "support report persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::handle_bug_report in crates/wow-world/src/handlers/misc/mod.rs.",
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -22704,13 +22704,13 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc.rs::impl crate :: session :: WorldSession::handle_game_obj_use",
+      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc/mod.rs::impl crate :: session :: WorldSession::handle_game_obj_use",
       "source_class": "production",
       "packages": [
         "wow-world"
       ],
       "sources": [
-        "crates/wow-world/src/handlers/misc.rs"
+        "crates/wow-world/src/handlers/misc/mod.rs"
       ],
       "source_prefixes": [],
       "modules": [
@@ -22725,7 +22725,7 @@
       "logical_databases": [
         "world"
       ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::handle_game_obj_use in crates/wow-world/src/handlers/misc.rs.",
+      "capability_owner": "gameobject interaction persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::handle_game_obj_use in crates/wow-world/src/handlers/misc/mod.rs.",
       "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -22736,13 +22736,13 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc.rs::impl crate :: session :: WorldSession::handle_query_next_mail_time",
+      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc/mod.rs::impl crate :: session :: WorldSession::handle_query_next_mail_time",
       "source_class": "production",
       "packages": [
         "wow-world"
       ],
       "sources": [
-        "crates/wow-world/src/handlers/misc.rs"
+        "crates/wow-world/src/handlers/misc/mod.rs"
       ],
       "source_prefixes": [],
       "modules": [
@@ -22757,7 +22757,7 @@
       "logical_databases": [
         "characters"
       ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::handle_query_next_mail_time in crates/wow-world/src/handlers/misc.rs.",
+      "capability_owner": "player mail persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::handle_query_next_mail_time in crates/wow-world/src/handlers/misc/mod.rs.",
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -22768,13 +22768,13 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc.rs::impl crate :: session :: WorldSession::handle_set_saved_instance_extend",
+      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc/mod.rs::impl crate :: session :: WorldSession::handle_set_saved_instance_extend",
       "source_class": "production",
       "packages": [
         "wow-world"
       ],
       "sources": [
-        "crates/wow-world/src/handlers/misc.rs"
+        "crates/wow-world/src/handlers/misc/mod.rs"
       ],
       "source_prefixes": [],
       "modules": [
@@ -22789,7 +22789,7 @@
       "logical_databases": [
         "characters"
       ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::handle_set_saved_instance_extend in crates/wow-world/src/handlers/misc.rs.",
+      "capability_owner": "instance lock persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::handle_set_saved_instance_extend in crates/wow-world/src/handlers/misc/mod.rs.",
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
@@ -22801,13 +22801,13 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc.rs::impl crate :: session :: WorldSession::reset_represented_instances_like_cpp",
+      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc/mod.rs::impl crate :: session :: WorldSession::reset_represented_instances_like_cpp",
       "source_class": "production",
       "packages": [
         "wow-world"
       ],
       "sources": [
-        "crates/wow-world/src/handlers/misc.rs"
+        "crates/wow-world/src/handlers/misc/mod.rs"
       ],
       "source_prefixes": [],
       "modules": [
@@ -22822,7 +22822,7 @@
       "logical_databases": [
         "characters"
       ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::reset_represented_instances_like_cpp in crates/wow-world/src/handlers/misc.rs.",
+      "capability_owner": "instance lock persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::reset_represented_instances_like_cpp in crates/wow-world/src/handlers/misc/mod.rs.",
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
@@ -22834,13 +22834,13 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc.rs::module",
+      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc/mod.rs::module",
       "source_class": "production",
       "packages": [
         "wow-world"
       ],
       "sources": [
-        "crates/wow-world/src/handlers/misc.rs"
+        "crates/wow-world/src/handlers/misc/mod.rs"
       ],
       "source_prefixes": [],
       "modules": [
@@ -22856,7 +22856,7 @@
         "characters",
         "world"
       ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow module in crates/wow-world/src/handlers/misc.rs.",
+      "capability_owner": "misc compatibility persistence helper boundary currently owns the complete wow-world workflow module in crates/wow-world/src/handlers/misc/mod.rs.",
       "connection_affinity": "This is a shared dependency/type surface for characters, world; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
@@ -29643,7 +29643,7 @@
         "crates/wow-world/src/handlers/chat.rs",
         "crates/wow-world/src/handlers/group.rs",
         "crates/wow-world/src/handlers/loot.rs",
-        "crates/wow-world/src/handlers/misc.rs",
+        "crates/wow-world/src/handlers/misc/mod.rs",
         "crates/wow-world/src/handlers/movement.rs",
         "crates/wow-world/src/handlers/quest.rs",
         "crates/wow-world/src/handlers/spell.rs",

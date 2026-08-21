@@ -61783,7 +61783,7 @@
         {
           "package": "wow-world",
           "module": "crate::handlers::misc",
-          "source": "crates/wow-world/src/handlers/misc.rs",
+          "source": "crates/wow-world/src/handlers/misc/mod.rs",
           "enclosing": "impl WorldSession::handle_reset_instances",
           "registry": "GroupRegistry",
           "operation": "accessor",
@@ -61796,7 +61796,7 @@
         {
           "package": "wow-world",
           "module": "crate::handlers::misc",
-          "source": "crates/wow-world/src/handlers/misc.rs",
+          "source": "crates/wow-world/src/handlers/misc/mod.rs",
           "enclosing": "impl WorldSession::handle_reset_instances",
           "registry": "GroupRegistry",
           "operation": "local_alias",
@@ -61809,7 +61809,7 @@
         {
           "package": "wow-world",
           "module": "crate::handlers::misc",
-          "source": "crates/wow-world/src/handlers/misc.rs",
+          "source": "crates/wow-world/src/handlers/misc/mod.rs",
           "enclosing": "impl WorldSession::handle_reset_instances",
           "registry": "GroupRegistry",
           "operation": "get",
@@ -61822,7 +61822,7 @@
         {
           "package": "wow-world",
           "module": "crate::handlers::misc",
-          "source": "crates/wow-world/src/handlers/misc.rs",
+          "source": "crates/wow-world/src/handlers/misc/mod.rs",
           "enclosing": "impl WorldSession::send_mount_special_anim_to_visible_set_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "accessor",
@@ -61835,7 +61835,7 @@
         {
           "package": "wow-world",
           "module": "crate::handlers::misc",
-          "source": "crates/wow-world/src/handlers/misc.rs",
+          "source": "crates/wow-world/src/handlers/misc/mod.rs",
           "enclosing": "impl WorldSession::send_mount_special_anim_to_visible_set_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "local_alias",
@@ -61848,7 +61848,7 @@
         {
           "package": "wow-world",
           "module": "crate::handlers::misc",
-          "source": "crates/wow-world/src/handlers/misc.rs",
+          "source": "crates/wow-world/src/handlers/misc/mod.rs",
           "enclosing": "impl WorldSession::send_mount_special_anim_to_visible_set_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "iter",

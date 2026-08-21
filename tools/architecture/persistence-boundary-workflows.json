@@ -12102,12 +12102,12 @@
     {
       "package": "wow-world",
       "module": "crate::handlers::misc",
-      "source": "crates/wow-world/src/handlers/misc.rs",
+      "source": "crates/wow-world/src/handlers/misc/mod.rs",
       "enclosing": "fn bug_report_insert_statement_like_cpp",
       "logical_databases": [
         "characters"
       ],
-      "boundary": "wow-world residual persistence boundary",
+      "boundary": "misc compatibility persistence helper boundary",
       "target_issues": [
         153
       ],
@@ -12119,12 +12119,12 @@
     {
       "package": "wow-world",
       "module": "crate::handlers::misc",
-      "source": "crates/wow-world/src/handlers/misc.rs",
+      "source": "crates/wow-world/src/handlers/misc/mod.rs",
       "enclosing": "impl crate :: session :: WorldSession::apply_represented_difficulty_change_like_cpp",
       "logical_databases": [
         "characters"
       ],
-      "boundary": "wow-world residual persistence boundary",
+      "boundary": "player difficulty persistence boundary",
       "target_issues": [
         153,
         187
@@ -12137,12 +12137,12 @@
     {
       "package": "wow-world",
       "module": "crate::handlers::misc",
-      "source": "crates/wow-world/src/handlers/misc.rs",
+      "source": "crates/wow-world/src/handlers/misc/mod.rs",
       "enclosing": "impl crate :: session :: WorldSession::confirm_pending_bind_like_cpp",
       "logical_databases": [
         "characters"
       ],
-      "boundary": "wow-world residual persistence boundary",
+      "boundary": "instance lock persistence boundary",
       "target_issues": [
         153,
         187
@@ -12155,12 +12155,12 @@
     {
       "package": "wow-world",
       "module": "crate::handlers::misc",
-      "source": "crates/wow-world/src/handlers/misc.rs",
+      "source": "crates/wow-world/src/handlers/misc/mod.rs",
       "enclosing": "impl crate :: session :: WorldSession::handle_bug_report",
       "logical_databases": [
         "characters"
       ],
-      "boundary": "wow-world residual persistence boundary",
+      "boundary": "support report persistence boundary",
       "target_issues": [
         153
       ],
@@ -12172,12 +12172,12 @@
     {
       "package": "wow-world",
       "module": "crate::handlers::misc",
-      "source": "crates/wow-world/src/handlers/misc.rs",
+      "source": "crates/wow-world/src/handlers/misc/mod.rs",
       "enclosing": "impl crate :: session :: WorldSession::handle_game_obj_use",
       "logical_databases": [
         "world"
       ],
-      "boundary": "wow-world residual persistence boundary",
+      "boundary": "gameobject interaction persistence boundary",
       "target_issues": [
         153
       ],
@@ -12189,12 +12189,12 @@
     {
       "package": "wow-world",
       "module": "crate::handlers::misc",
-      "source": "crates/wow-world/src/handlers/misc.rs",
+      "source": "crates/wow-world/src/handlers/misc/mod.rs",
       "enclosing": "impl crate :: session :: WorldSession::handle_query_next_mail_time",
       "logical_databases": [
         "characters"
       ],
-      "boundary": "wow-world residual persistence boundary",
+      "boundary": "player mail persistence boundary",
       "target_issues": [
         153
       ],
@@ -12206,12 +12206,12 @@
     {
       "package": "wow-world",
       "module": "crate::handlers::misc",
-      "source": "crates/wow-world/src/handlers/misc.rs",
+      "source": "crates/wow-world/src/handlers/misc/mod.rs",
       "enclosing": "impl crate :: session :: WorldSession::handle_set_saved_instance_extend",
       "logical_databases": [
         "characters"
       ],
-      "boundary": "wow-world residual persistence boundary",
+      "boundary": "instance lock persistence boundary",
       "target_issues": [
         153,
         187
@@ -12224,12 +12224,12 @@
     {
       "package": "wow-world",
       "module": "crate::handlers::misc",
-      "source": "crates/wow-world/src/handlers/misc.rs",
+      "source": "crates/wow-world/src/handlers/misc/mod.rs",
       "enclosing": "impl crate :: session :: WorldSession::reset_represented_instances_like_cpp",
       "logical_databases": [
         "characters"
       ],
-      "boundary": "wow-world residual persistence boundary",
+      "boundary": "instance lock persistence boundary",
       "target_issues": [
         153,
         187
@@ -12242,13 +12242,13 @@
     {
       "package": "wow-world",
       "module": "crate::handlers::misc",
-      "source": "crates/wow-world/src/handlers/misc.rs",
+      "source": "crates/wow-world/src/handlers/misc/mod.rs",
       "enclosing": "module",
       "logical_databases": [
         "characters",
         "world"
       ],
-      "boundary": "wow-world residual persistence boundary",
+      "boundary": "misc compatibility persistence helper boundary",
       "target_issues": [
         153
       ],
