@@ -106,7 +106,7 @@ fn represented_lfg_db_state_like_cpp(
     })
 }
 
-pub fn free_group_db_store_id_like_cpp(storage_id: u32) {
+fn free_group_db_store_id_like_cpp(storage_id: u32) {
     if storage_id == 0 {
         return;
     }
@@ -124,7 +124,7 @@ pub fn free_group_db_store_id_like_cpp(storage_id: u32) {
     }
 }
 
-pub fn register_group_db_store_id_like_cpp(storage_id: u32, runtime_group_guid: u64) {
+fn register_group_db_store_id_like_cpp(storage_id: u32, runtime_group_guid: u64) {
     if let Ok(mut store) = GROUP_DB_STORE.lock() {
         let index = storage_id as usize;
         if index >= store.len() {
@@ -221,6 +221,13 @@ pub enum GroupInstanceResetResultLikeCpp {
     NotEmpty,
     CannotReset,
     Other,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GroupDifficultyKindLikeCpp {
+    Dungeon,
+    Raid,
+    LegacyRaid,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -1313,6 +1320,69 @@ pub enum GroupAuthorityErrorLikeCpp {
 pub struct GroupTransitionOutcomeLikeCpp<T> {
     pub group: GroupInfo,
     pub facts: T,
+    /// Ordered durability work emitted by the aggregate. Application adapters
+    /// materialize these intents after the registry mutation and after its
+    /// backing-map guard has been released.
+    pub persistence: Vec<GroupPersistenceIntentLikeCpp>,
+}
+
+/// Database-neutral durability commands emitted by represented C++ `Group`
+/// transitions. Keeping statement construction in the application adapter
+/// prevents SQL/database types from leaking into the aggregate boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GroupPersistenceIntentLikeCpp {
+    InsertGroup {
+        db_store_id: u32,
+        leader_guid: ObjectGuid,
+        loot_method: u8,
+        looter_guid: ObjectGuid,
+        loot_threshold: u8,
+        group_flags: u16,
+        dungeon_difficulty_id: u32,
+        raid_difficulty_id: u32,
+        legacy_raid_difficulty_id: u32,
+        master_looter_guid: ObjectGuid,
+    },
+    InsertMember {
+        db_store_id: u32,
+        member_guid: ObjectGuid,
+        member_flags: u8,
+        subgroup: u8,
+        roles: u8,
+    },
+    DeleteGroup {
+        db_store_id: u32,
+    },
+    DeleteAllMembers {
+        db_store_id: u32,
+    },
+    DeleteLfgData {
+        db_store_id: u32,
+    },
+    DeleteMember {
+        member_guid: ObjectGuid,
+    },
+    UpdateLeader {
+        db_store_id: u32,
+        leader_guid: ObjectGuid,
+    },
+    UpdateGroupType {
+        db_store_id: u32,
+        group_flags: u16,
+    },
+    UpdateMemberSubgroup {
+        member_guid: ObjectGuid,
+        subgroup: u8,
+    },
+    UpdateMemberFlags {
+        member_guid: ObjectGuid,
+        flags: u8,
+    },
+    UpdateDifficulty {
+        db_store_id: u32,
+        kind: GroupDifficultyKindLikeCpp,
+        difficulty_id: u32,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -1358,22 +1428,31 @@ impl GroupRegistry {
             .collect()
     }
 
-    /// Transitional database-load/test compatibility; removed by #199.
-    pub fn insert(&self, group_guid: u64, group: GroupInfo) -> Option<GroupInfo> {
-        self.groups.insert(group_guid, group)
+    /// Register a fully materialized group while preserving runtime/database
+    /// identity invariants. Database loading and fixtures use this boundary;
+    /// callers never receive a backing-map entry guard.
+    pub fn register_group_like_cpp(&self, group_guid: u64, group: GroupInfo) -> Option<GroupInfo> {
+        assert_eq!(
+            group_guid, group.group_guid,
+            "group registry key must match group identity"
+        );
+        let db_store_id = group.db_store_id;
+        register_group_db_store_id_like_cpp(db_store_id, group_guid);
+        let previous = self.groups.insert(group_guid, group);
+        if let Some(previous) = previous.as_ref()
+            && previous.db_store_id != db_store_id
+        {
+            free_group_db_store_id_like_cpp(previous.db_store_id);
+        }
+        previous
     }
 
-    /// Transitional test-fixture compatibility; removed by #199.
-    pub fn remove(&self, group_guid: &u64) -> Option<(u64, GroupInfo)> {
-        self.groups.remove(group_guid)
-    }
-
-    /// Transitional database-load/test-fixture compatibility; removed by #199.
-    pub fn get_mut(
-        &self,
-        group_guid: &u64,
-    ) -> Option<dashmap::mapref::one::RefMut<'_, u64, GroupInfo>> {
-        self.groups.get_mut(group_guid)
+    /// Explicit teardown used by lifecycle cleanup and fixtures. Storage-id
+    /// publication is retired together with the group.
+    pub fn unregister_group_like_cpp(&self, group_guid: &u64) -> Option<GroupInfo> {
+        let (_, group) = self.groups.remove(group_guid)?;
+        free_group_db_store_id_like_cpp(group.db_store_id);
+        Some(group)
     }
 
     pub fn remove_member_like_cpp(
@@ -1456,10 +1535,28 @@ impl GroupRegistry {
         }
 
         let disbanded = group.members.len() < 2;
+        let persistence = if disbanded {
+            vec![
+                GroupPersistenceIntentLikeCpp::DeleteGroup { db_store_id },
+                GroupPersistenceIntentLikeCpp::DeleteAllMembers { db_store_id },
+                GroupPersistenceIntentLikeCpp::DeleteLfgData { db_store_id },
+            ]
+        } else {
+            let mut intents = vec![GroupPersistenceIntentLikeCpp::DeleteMember { member_guid }];
+            if let Some(leader_guid) = new_leader_guid {
+                intents.push(GroupPersistenceIntentLikeCpp::UpdateLeader {
+                    db_store_id,
+                    leader_guid,
+                });
+            }
+            intents
+        };
         if disbanded {
             let group = entry.remove();
+            free_group_db_store_id_like_cpp(group.db_store_id);
             let remaining_members = group.members.clone();
             return Ok(GroupTransitionOutcomeLikeCpp {
+                persistence,
                 group,
                 facts: GroupMemberRemovalFactsLikeCpp {
                     removed_guid: member_guid,
@@ -1474,6 +1571,7 @@ impl GroupRegistry {
         let group = group.clone();
         let remaining_members = group.members.clone();
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence,
             group,
             facts: GroupMemberRemovalFactsLikeCpp {
                 removed_guid: member_guid,
@@ -1508,6 +1606,10 @@ impl GroupRegistry {
         }
         let facts = (group.group_flags, group.db_store_id);
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence: vec![GroupPersistenceIntentLikeCpp::UpdateGroupType {
+                group_flags: facts.0,
+                db_store_id: facts.1,
+            }],
             group: group.clone(),
             facts,
         })
@@ -1543,6 +1645,10 @@ impl GroupRegistry {
             return Err(GroupAuthorityErrorLikeCpp::NoChange);
         }
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence: vec![GroupPersistenceIntentLikeCpp::UpdateMemberSubgroup {
+                member_guid,
+                subgroup,
+            }],
             group: group.clone(),
             facts: (member_guid, subgroup),
         })
@@ -1566,7 +1672,17 @@ impl GroupRegistry {
         let facts = group
             .swap_members_groups_like_cpp(first, second)
             .ok_or(GroupAuthorityErrorLikeCpp::NoChange)?;
+        let persistence = facts
+            .iter()
+            .map(
+                |&(member_guid, subgroup)| GroupPersistenceIntentLikeCpp::UpdateMemberSubgroup {
+                    member_guid,
+                    subgroup,
+                },
+            )
+            .collect();
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence,
             group: group.clone(),
             facts: facts.to_vec(),
         })
@@ -1592,7 +1708,19 @@ impl GroupRegistry {
         let final_flags = group
             .change_leader_like_cpp(new_leader_guid)
             .ok_or(GroupAuthorityErrorLikeCpp::NoChange)?;
+        let mut persistence = Vec::with_capacity(2);
+        if db_store_id != 0 {
+            persistence.push(GroupPersistenceIntentLikeCpp::UpdateLeader {
+                db_store_id,
+                leader_guid: new_leader_guid,
+            });
+        }
+        persistence.push(GroupPersistenceIntentLikeCpp::UpdateMemberFlags {
+            member_guid: new_leader_guid,
+            flags: final_flags,
+        });
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence,
             group: group.clone(),
             facts: (db_store_id, final_flags),
         })
@@ -1617,6 +1745,10 @@ impl GroupRegistry {
             .set_group_member_flag_like_cpp(member_guid, apply, flag)
             .ok_or(GroupAuthorityErrorLikeCpp::MissingMember)?;
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence: vec![GroupPersistenceIntentLikeCpp::UpdateMemberFlags {
+                member_guid,
+                flags: facts,
+            }],
             group: group.clone(),
             facts,
         })
@@ -1637,6 +1769,10 @@ impl GroupRegistry {
         }
         let facts = group.set_everyone_is_assistant_like_cpp(apply);
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence: vec![GroupPersistenceIntentLikeCpp::UpdateGroupType {
+                group_flags: facts.0,
+                db_store_id: facts.1,
+            }],
             group: group.clone(),
             facts,
         })
@@ -1663,6 +1799,7 @@ impl GroupRegistry {
             GROUP_ASSIGN_MAINTANK_LIKE_CPP => MEMBER_FLAG_MAINTANK_LIKE_CPP,
             _ => {
                 return Ok(GroupTransitionOutcomeLikeCpp {
+                    persistence: Vec::new(),
                     group: group.clone(),
                     facts: Vec::new(),
                 });
@@ -1672,7 +1809,17 @@ impl GroupRegistry {
         let facts = group
             .set_group_member_flag_updates_like_cpp(member_guid, apply, flag)
             .unwrap_or_default();
+        let persistence = facts
+            .iter()
+            .map(
+                |&(member_guid, flags)| GroupPersistenceIntentLikeCpp::UpdateMemberFlags {
+                    member_guid,
+                    flags,
+                },
+            )
+            .collect();
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence,
             group: group.clone(),
             facts,
         })
@@ -1699,6 +1846,7 @@ impl GroupRegistry {
             return Err(GroupAuthorityErrorLikeCpp::NoChange);
         }
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence: Vec::new(),
             group: group.clone(),
             facts,
         })
@@ -1725,6 +1873,7 @@ impl GroupRegistry {
             return Err(GroupAuthorityErrorLikeCpp::NoChange);
         }
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence: Vec::new(),
             group: group.clone(),
             facts,
         })
@@ -1746,6 +1895,7 @@ impl GroupRegistry {
         }
         let mutated = group.set_lfg_roles_like_cpp(member_guid, role);
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence: Vec::new(),
             group: group.clone(),
             facts: (old_role, mutated),
         })
@@ -1773,6 +1923,7 @@ impl GroupRegistry {
             .set_target_icon_like_cpp(symbol, target)
             .ok_or(GroupAuthorityErrorLikeCpp::InvalidSubgroup)?;
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence: Vec::new(),
             group: group.clone(),
             facts,
         })
@@ -1799,6 +1950,7 @@ impl GroupRegistry {
         }
         let facts = group.delete_raid_marker_like_cpp(marker_id);
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence: Vec::new(),
             group: group.clone(),
             facts,
         })
@@ -1830,6 +1982,7 @@ impl GroupRegistry {
             return Err(GroupAuthorityErrorLikeCpp::NoChange);
         }
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence: Vec::new(),
             group: group.clone(),
             facts: (),
         })
@@ -1848,6 +2001,7 @@ impl GroupRegistry {
             .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
         group.set_recent_instance_like_cpp(map_id, owner_guid, instance_id);
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence: Vec::new(),
             group: group.clone(),
             facts: (),
         })
@@ -1865,6 +2019,7 @@ impl GroupRegistry {
             .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
         let facts = group.link_owned_instance_like_cpp(map_id, instance_id);
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence: Vec::new(),
             group: group.clone(),
             facts,
         })
@@ -1882,6 +2037,7 @@ impl GroupRegistry {
             .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
         let facts = group.unlink_owned_instance_like_cpp(map_id, instance_id);
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence: Vec::new(),
             group: group.clone(),
             facts,
         })
@@ -1900,6 +2056,7 @@ impl GroupRegistry {
             .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
         let facts = group.apply_owned_instance_reset_result_like_cpp(map_id, result, method);
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence: Vec::new(),
             group: group.clone(),
             facts,
         })
@@ -1910,7 +2067,7 @@ impl GroupRegistry {
         group_guid: u64,
         actor_guid: ObjectGuid,
         difficulty_id: u32,
-        kind: crate::player_registry::GroupDifficultyKindLikeCpp,
+        kind: GroupDifficultyKindLikeCpp,
     ) -> Result<GroupTransitionOutcomeLikeCpp<u32>, GroupAuthorityErrorLikeCpp> {
         let mut group = self
             .groups
@@ -1923,13 +2080,13 @@ impl GroupRegistry {
             return Err(GroupAuthorityErrorLikeCpp::LfgGroup);
         }
         let changed = match kind {
-            crate::player_registry::GroupDifficultyKindLikeCpp::Dungeon => {
+            GroupDifficultyKindLikeCpp::Dungeon => {
                 group.set_dungeon_difficulty_id_like_cpp(difficulty_id)
             }
-            crate::player_registry::GroupDifficultyKindLikeCpp::Raid => {
+            GroupDifficultyKindLikeCpp::Raid => {
                 group.set_raid_difficulty_id_like_cpp(difficulty_id)
             }
-            crate::player_registry::GroupDifficultyKindLikeCpp::LegacyRaid => {
+            GroupDifficultyKindLikeCpp::LegacyRaid => {
                 group.set_legacy_raid_difficulty_id_like_cpp(difficulty_id)
             }
         };
@@ -1937,6 +2094,11 @@ impl GroupRegistry {
             return Err(GroupAuthorityErrorLikeCpp::NoChange);
         }
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence: vec![GroupPersistenceIntentLikeCpp::UpdateDifficulty {
+                db_store_id: group.db_store_id,
+                kind,
+                difficulty_id,
+            }],
             facts: group.db_store_id,
             group: group.clone(),
         })
@@ -1953,6 +2115,7 @@ impl GroupRegistry {
             .ok_or(GroupAuthorityErrorLikeCpp::MissingGroup)?;
         let facts = group.update_looter_guid_like_cpp(eligible_members, false);
         Ok(GroupTransitionOutcomeLikeCpp {
+            persistence: Vec::new(),
             group: group.clone(),
             facts,
         })
@@ -2026,7 +2189,7 @@ pub fn load_groups_from_db_rows_like_cpp(
         };
 
         let runtime_group_guid = group.group_guid;
-        registry.insert(runtime_group_guid, group);
+        registry.register_group_like_cpp(runtime_group_guid, group);
         register_group_db_store_id_like_cpp(db_store_id, runtime_group_guid);
         advance_next_group_db_store_id_after_load_like_cpp(db_store_id);
         summary.loaded_groups += 1;
@@ -2038,7 +2201,7 @@ pub fn load_groups_from_db_rows_like_cpp(
             summary.skipped_member_rows += 1;
             continue;
         };
-        let Some(mut group) = registry.get_mut(&runtime_group_guid) else {
+        let Some(mut group) = registry.groups.get_mut(&runtime_group_guid) else {
             summary.skipped_member_rows += 1;
             continue;
         };
@@ -2133,20 +2296,15 @@ impl PendingInvites {
             .collect()
     }
 
-    /// Transitional test-fixture compatibility; removed by #199.
-    pub fn insert(
+    /// Explicit fixture/materialization boundary. Production invite changes
+    /// use the atomic `GroupRegistry` transition methods.
+    pub fn seed_invite_like_cpp(
         &self,
         invited_guid: ObjectGuid,
         invite: PendingInviteLikeCpp,
     ) -> Option<PendingInviteLikeCpp> {
         let _transition = self.lock_transition();
         self.invites.insert(invited_guid, invite)
-    }
-
-    /// Transitional test-fixture compatibility; removed by #199.
-    pub fn remove(&self, invited_guid: &ObjectGuid) -> Option<(ObjectGuid, PendingInviteLikeCpp)> {
-        let _transition = self.lock_transition();
-        self.invites.remove(invited_guid)
     }
 }
 
@@ -2171,8 +2329,16 @@ pub enum AcceptGroupInviteResultLikeCpp {
     AlreadyMember,
     MissingGroup,
     MissingLeader,
-    JoinedExisting { group: GroupInfo, subgroup: u8 },
-    Created { group: GroupInfo, subgroup: u8 },
+    JoinedExisting {
+        group: GroupInfo,
+        subgroup: u8,
+        persistence: Vec<GroupPersistenceIntentLikeCpp>,
+    },
+    Created {
+        group: GroupInfo,
+        subgroup: u8,
+        persistence: Vec<GroupPersistenceIntentLikeCpp>,
+    },
 }
 
 impl GroupRegistry {
@@ -2385,6 +2551,13 @@ impl GroupRegistry {
             return AcceptGroupInviteResultLikeCpp::JoinedExisting {
                 group: group.clone(),
                 subgroup,
+                persistence: vec![GroupPersistenceIntentLikeCpp::InsertMember {
+                    db_store_id: group.db_store_id,
+                    member_guid: invitee_guid,
+                    member_flags: 0,
+                    subgroup,
+                    roles: 0,
+                }],
             };
         }
 
@@ -2418,7 +2591,39 @@ impl GroupRegistry {
             pending.invites.insert(guid, promoted);
         }
 
-        AcceptGroupInviteResultLikeCpp::Created { group, subgroup }
+        let persistence = vec![
+            GroupPersistenceIntentLikeCpp::InsertGroup {
+                db_store_id,
+                leader_guid: group.leader_guid,
+                loot_method: group.loot_method,
+                looter_guid: group.looter_guid,
+                loot_threshold: group.loot_threshold,
+                group_flags: group.group_flags,
+                dungeon_difficulty_id: group.dungeon_difficulty_id,
+                raid_difficulty_id: group.raid_difficulty_id,
+                legacy_raid_difficulty_id: group.legacy_raid_difficulty_id,
+                master_looter_guid: group.master_looter_guid,
+            },
+            GroupPersistenceIntentLikeCpp::InsertMember {
+                db_store_id,
+                member_guid: group.leader_guid,
+                member_flags: 0,
+                subgroup: 0,
+                roles: 0,
+            },
+            GroupPersistenceIntentLikeCpp::InsertMember {
+                db_store_id,
+                member_guid: invitee_guid,
+                member_flags: 0,
+                subgroup,
+                roles: 0,
+            },
+        ];
+        AcceptGroupInviteResultLikeCpp::Created {
+            group,
+            subgroup,
+            persistence,
+        }
     }
 }
 
@@ -2432,7 +2637,7 @@ mod tests {
         let leader = ObjectGuid::create_player(1, 42);
         let group = GroupInfo::new(leader);
         let group_guid = group.group_guid;
-        registry.insert(group_guid, group);
+        registry.register_group_like_cpp(group_guid, group);
 
         let mut snapshot = registry.get(&group_guid).expect("group snapshot");
         snapshot.leader_guid = ObjectGuid::create_player(1, 99);
@@ -2448,7 +2653,7 @@ mod tests {
         let leader = ObjectGuid::create_player(1, 42);
         let invited = ObjectGuid::create_player(1, 43);
         let invite = PendingInviteLikeCpp::new_pending_group(leader, 0);
-        pending.insert(invited, invite);
+        pending.seed_invite_like_cpp(invited, invite);
 
         let snapshot = pending.get(&invited).expect("invite snapshot");
 
@@ -2508,7 +2713,7 @@ mod tests {
             assert!(party.add_member(ObjectGuid::create_player(1, counter)));
         }
         let group_guid = party.group_guid;
-        registry.insert(group_guid, party);
+        registry.register_group_like_cpp(group_guid, party);
 
         let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
         let candidates = [
@@ -2516,7 +2721,7 @@ mod tests {
             ObjectGuid::create_player(1, 47),
         ];
         for candidate in candidates {
-            pending.insert(
+            pending.seed_invite_like_cpp(
                 candidate,
                 PendingInviteLikeCpp::new_existing_group(
                     leader,
@@ -2580,8 +2785,8 @@ mod tests {
         let invitee = ObjectGuid::create_player(1, 77);
         let group = GroupInfo::new(leader);
         let group_guid = group.group_guid;
-        registry.insert(group_guid, group);
-        pending.insert(
+        registry.register_group_like_cpp(group_guid, group);
+        pending.seed_invite_like_cpp(
             invitee,
             PendingInviteLikeCpp::new_existing_group(
                 leader,
@@ -2648,9 +2853,9 @@ mod tests {
             ObjectGuid::create_player(1, 78),
         ];
         let invite = PendingInviteLikeCpp::new_pending_group(leader, GROUP_CATEGORY_HOME_LIKE_CPP);
-        pending.insert(leader, invite);
+        pending.seed_invite_like_cpp(leader, invite);
         for invitee in invitees {
-            pending.insert(invitee, invite);
+            pending.seed_invite_like_cpp(invitee, invite);
         }
 
         let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
@@ -2711,7 +2916,7 @@ mod tests {
         let other_leader = ObjectGuid::create_player(1, 90);
         let existing =
             PendingInviteLikeCpp::new_pending_group(other_leader, GROUP_CATEGORY_HOME_LIKE_CPP);
-        pending.insert(invitee, existing);
+        pending.seed_invite_like_cpp(invitee, existing);
 
         assert_eq!(
             registry.create_invite_like_cpp(
@@ -2746,7 +2951,7 @@ mod tests {
             u64::MAX,
             GROUP_CATEGORY_HOME_LIKE_CPP,
         );
-        pending.insert(invitee, missing_group_invite);
+        pending.seed_invite_like_cpp(invitee, missing_group_invite);
         assert!(matches!(
             registry.accept_invite_like_cpp(&pending, invitee, None, Some(leader)),
             AcceptGroupInviteResultLikeCpp::MissingGroup
@@ -2754,7 +2959,7 @@ mod tests {
         assert_eq!(pending.get(&invitee), Some(missing_group_invite));
         assert!(registry.snapshots().is_empty());
 
-        pending.insert(invitee, existing);
+        pending.seed_invite_like_cpp(invitee, existing);
         assert!(matches!(
             registry.accept_invite_like_cpp(
                 &pending,
@@ -2769,8 +2974,8 @@ mod tests {
         let mut duplicate_group = GroupInfo::new(leader);
         assert!(duplicate_group.add_member(invitee));
         let duplicate_group_guid = duplicate_group.group_guid;
-        registry.insert(duplicate_group_guid, duplicate_group.clone());
-        pending.insert(
+        registry.register_group_like_cpp(duplicate_group_guid, duplicate_group.clone());
+        pending.seed_invite_like_cpp(
             invitee,
             PendingInviteLikeCpp::new_existing_group(
                 leader,
@@ -2802,7 +3007,7 @@ mod tests {
             ObjectGuid::create_player(1, 43),
             GROUP_CATEGORY_HOME_LIKE_CPP,
         );
-        pending.insert(invitee, replacement);
+        pending.seed_invite_like_cpp(invitee, replacement);
 
         assert!(!registry.cancel_invite_like_cpp(&pending, invitee, stale));
         assert_eq!(pending.get(&invitee), Some(replacement));
@@ -2816,8 +3021,8 @@ mod tests {
             ObjectGuid::create_player(1, 44),
             GROUP_CATEGORY_HOME_LIKE_CPP,
         );
-        pending.insert(decline.leader_guid, decline);
-        pending.insert(invitee, decline);
+        pending.seed_invite_like_cpp(decline.leader_guid, decline);
+        pending.seed_invite_like_cpp(invitee, decline);
         assert!(
             registry
                 .decline_invite_like_cpp(&pending, invitee, Some(GROUP_CATEGORY_INSTANCE_LIKE_CPP),)
@@ -2854,7 +3059,7 @@ mod tests {
             DIFFICULTY_10_N_LIKE_CPP,
             ObjectGuid::EMPTY,
         );
-        registry.insert(group.group_guid, group);
+        registry.register_group_like_cpp(group.group_guid, group);
 
         register_group_db_store_id_like_cpp(1234, 90);
 
@@ -2881,7 +3086,7 @@ mod tests {
             DIFFICULTY_10_N_LIKE_CPP,
             ObjectGuid::EMPTY,
         );
-        registry.insert(group.group_guid, group);
+        registry.register_group_like_cpp(group.group_guid, group);
         register_group_db_store_id_like_cpp(1235, 91);
 
         free_group_db_store_id_like_cpp(1235);
@@ -4610,7 +4815,7 @@ mod tests {
         group.convert_to_raid_like_cpp();
         let group_guid = group.group_guid;
         let sequence = group.sequence_num;
-        registry.insert(group_guid, group);
+        registry.register_group_like_cpp(group_guid, group);
 
         let result = registry.change_member_subgroup_like_cpp(
             group_guid,
@@ -4637,7 +4842,7 @@ mod tests {
         group.convert_to_raid_like_cpp();
         let group_guid = group.group_guid;
         let sequence = group.sequence_num;
-        registry.insert(group_guid, group);
+        registry.register_group_like_cpp(group_guid, group);
 
         let result = registry.set_member_flag_transition_like_cpp(
             group_guid,
@@ -4662,7 +4867,7 @@ mod tests {
         let mut group = GroupInfo::new(leader);
         group.add_member(member);
         let group_guid = group.group_guid;
-        registry.insert(group_guid, group);
+        registry.register_group_like_cpp(group_guid, group);
 
         registry
             .start_ready_check_transition_like_cpp(group_guid, leader, [leader, member])
@@ -4689,7 +4894,7 @@ mod tests {
         group.add_member(first);
         group.add_member(second);
         let group_guid = group.group_guid;
-        registry.insert(group_guid, group);
+        registry.register_group_like_cpp(group_guid, group);
         let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
 
         let handles = [first, second].map(|candidate| {
@@ -4724,7 +4929,7 @@ mod tests {
         group.add_member(first);
         group.add_member(second);
         let group_guid = group.group_guid;
-        registry.insert(group_guid, group);
+        registry.register_group_like_cpp(group_guid, group);
         let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
 
         let handles = [first, second].map(|target| {
@@ -4759,12 +4964,126 @@ mod tests {
     }
 
     #[test]
+    fn removal_outcome_preserves_cpp_persistence_order_like_cpp() {
+        let registry = GroupRegistry::new();
+        let leader = ObjectGuid::create_player(1, 114);
+        let first = ObjectGuid::create_player(1, 115);
+        let second = ObjectGuid::create_player(1, 116);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(first);
+        group.add_member(second);
+        let group_guid = group.group_guid;
+        let db_store_id = group.db_store_id;
+        registry.register_group_like_cpp(group_guid, group);
+
+        let leave = registry
+            .remove_member_like_cpp(
+                group_guid,
+                leader,
+                GroupMemberRemovalKindLikeCpp::Leave,
+                &[second, first],
+            )
+            .unwrap();
+        assert_eq!(
+            leave.persistence,
+            vec![
+                GroupPersistenceIntentLikeCpp::DeleteMember {
+                    member_guid: leader,
+                },
+                GroupPersistenceIntentLikeCpp::UpdateLeader {
+                    db_store_id,
+                    leader_guid: second,
+                },
+            ]
+        );
+
+        let disband = registry
+            .remove_member_like_cpp(
+                group_guid,
+                first,
+                GroupMemberRemovalKindLikeCpp::Kick {
+                    actor_guid: second,
+                    actor_in_battleground: false,
+                    target_has_loot_rolls: false,
+                    any_member_in_actor_map_combat: false,
+                },
+                &[],
+            )
+            .unwrap();
+        assert!(disband.facts.disbanded);
+        assert_eq!(
+            disband.persistence,
+            vec![
+                GroupPersistenceIntentLikeCpp::DeleteGroup { db_store_id },
+                GroupPersistenceIntentLikeCpp::DeleteAllMembers { db_store_id },
+                GroupPersistenceIntentLikeCpp::DeleteLfgData { db_store_id },
+            ]
+        );
+    }
+
+    #[test]
+    fn invite_acceptance_emits_creation_persistence_before_publication_like_cpp() {
+        let registry = GroupRegistry::new();
+        let pending = PendingInvites::default();
+        let leader = ObjectGuid::create_player(1, 117);
+        let invitee = ObjectGuid::create_player(1, 118);
+        pending.seed_invite_like_cpp(
+            invitee,
+            PendingInviteLikeCpp::new_pending_group(leader, GROUP_CATEGORY_HOME_LIKE_CPP),
+        );
+
+        let AcceptGroupInviteResultLikeCpp::Created {
+            group,
+            subgroup,
+            persistence,
+        } = registry.accept_invite_like_cpp(&pending, invitee, None, Some(leader))
+        else {
+            panic!("expected represented group creation");
+        };
+
+        assert_eq!(persistence.len(), 3);
+        assert!(matches!(
+            persistence[0],
+            GroupPersistenceIntentLikeCpp::InsertGroup { db_store_id, .. }
+                if db_store_id == group.db_store_id
+        ));
+        assert_eq!(
+            persistence[1],
+            GroupPersistenceIntentLikeCpp::InsertMember {
+                db_store_id: group.db_store_id,
+                member_guid: leader,
+                member_flags: 0,
+                subgroup: 0,
+                roles: 0,
+            }
+        );
+        assert_eq!(
+            persistence[2],
+            GroupPersistenceIntentLikeCpp::InsertMember {
+                db_store_id: group.db_store_id,
+                member_guid: invitee,
+                member_flags: 0,
+                subgroup,
+                roles: 0,
+            }
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "group registry key must match group identity")]
+    fn registry_rejects_mismatched_materialized_identity() {
+        let registry = GroupRegistry::new();
+        let group = GroupInfo::new(ObjectGuid::create_player(1, 119));
+        registry.register_group_like_cpp(group.group_guid + 1, group);
+    }
+
+    #[test]
     fn instance_transition_outcomes_are_owned_and_do_not_hold_group_guard() {
         let registry = GroupRegistry::new();
         let leader = ObjectGuid::create_player(1, 121);
         let group = GroupInfo::new(leader);
         let group_guid = group.group_guid;
-        registry.insert(group_guid, group);
+        registry.register_group_like_cpp(group_guid, group);
 
         let recent = registry
             .set_recent_instance_transition_like_cpp(group_guid, 631, leader, 9001)

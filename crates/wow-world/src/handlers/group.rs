@@ -16,9 +16,9 @@ use wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP;
 use wow_network::player_registry::{ApplyGroupJoinLikeCppCommand, ApplyGroupRemovalLikeCppCommand};
 use wow_network::{
     AcceptGroupInviteResultLikeCpp, CreateGroupInviteResultLikeCpp, GroupAuthorityErrorLikeCpp,
-    GroupInfo, GroupMemberRemovalKindLikeCpp, GroupRegistry, MEMBER_FLAG_ASSISTANT_LIKE_CPP,
-    PlayerRegistry, ReadyCheckEventLikeCpp, SendPartyUpdateLikeCppCommand,
-    SendRealmPacketLikeCppCommand, SessionCommand, free_group_db_store_id_like_cpp,
+    GroupInfo, GroupMemberRemovalKindLikeCpp, GroupPersistenceIntentLikeCpp, GroupRegistry,
+    MEMBER_FLAG_ASSISTANT_LIKE_CPP, PlayerRegistry, ReadyCheckEventLikeCpp,
+    SendPartyUpdateLikeCppCommand, SendRealmPacketLikeCppCommand, SessionCommand,
 };
 use wow_packet::packets::misc::{RandomRoll, RandomRollClient};
 use wow_packet::packets::party::{
@@ -948,27 +948,6 @@ fn group_type_update_statement_like_cpp(group_flags: u16, db_store_id: u32) -> P
     stmt
 }
 
-fn group_insert_statement_like_cpp(group: &GroupInfo, db_store_id: u32) -> PreparedStatement {
-    let mut stmt = PreparedStatement::for_statement(CharStatements::INS_GROUP);
-    stmt.set_u32(0, db_store_id);
-    stmt.set_u64(1, group.leader_guid.counter() as u64);
-    stmt.set_u8(2, group.loot_method);
-    stmt.set_u64(3, group.looter_guid.counter() as u64);
-    stmt.set_u8(4, group.loot_threshold);
-    for index in 0..8 {
-        stmt.set_bytes(
-            5 + index,
-            wow_network::EMPTY_TARGET_ICON_RAW_LIKE_CPP.to_vec(),
-        );
-    }
-    stmt.set_u16(13, group.group_flags);
-    stmt.set_u32(14, group.dungeon_difficulty_id);
-    stmt.set_u32(15, group.raid_difficulty_id);
-    stmt.set_u32(16, group.legacy_raid_difficulty_id);
-    stmt.set_u64(17, group.master_looter_guid.counter() as u64);
-    stmt
-}
-
 fn group_member_insert_statement_like_cpp(
     db_store_id: u32,
     member_guid: ObjectGuid,
@@ -1039,9 +1018,132 @@ fn group_lfg_data_delete_statement_like_cpp(db_store_id: u32) -> PreparedStateme
     stmt
 }
 
+/// Application adapter for the database-neutral durability commands emitted
+/// by `GroupRegistry`. The vector order is the transaction order selected by
+/// the aggregate; no registry guard survives into database execution.
+pub(crate) fn group_persistence_statement_like_cpp(
+    intent: GroupPersistenceIntentLikeCpp,
+) -> PreparedStatement {
+    match intent {
+        GroupPersistenceIntentLikeCpp::InsertGroup {
+            db_store_id,
+            leader_guid,
+            loot_method,
+            looter_guid,
+            loot_threshold,
+            group_flags,
+            dungeon_difficulty_id,
+            raid_difficulty_id,
+            legacy_raid_difficulty_id,
+            master_looter_guid,
+        } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::INS_GROUP);
+            stmt.set_u32(0, db_store_id);
+            stmt.set_u64(1, leader_guid.counter() as u64);
+            stmt.set_u8(2, loot_method);
+            stmt.set_u64(3, looter_guid.counter() as u64);
+            stmt.set_u8(4, loot_threshold);
+            for index in 0..8 {
+                stmt.set_bytes(
+                    5 + index,
+                    wow_network::EMPTY_TARGET_ICON_RAW_LIKE_CPP.to_vec(),
+                );
+            }
+            stmt.set_u16(13, group_flags);
+            stmt.set_u32(14, dungeon_difficulty_id);
+            stmt.set_u32(15, raid_difficulty_id);
+            stmt.set_u32(16, legacy_raid_difficulty_id);
+            stmt.set_u64(17, master_looter_guid.counter() as u64);
+            stmt
+        }
+        GroupPersistenceIntentLikeCpp::InsertMember {
+            db_store_id,
+            member_guid,
+            member_flags,
+            subgroup,
+            roles,
+        } => group_member_insert_statement_like_cpp(
+            db_store_id,
+            member_guid,
+            member_flags,
+            subgroup,
+            roles,
+        ),
+        GroupPersistenceIntentLikeCpp::DeleteGroup { db_store_id } => {
+            group_delete_statement_like_cpp(db_store_id)
+        }
+        GroupPersistenceIntentLikeCpp::DeleteAllMembers { db_store_id } => {
+            group_member_delete_all_statement_like_cpp(db_store_id)
+        }
+        GroupPersistenceIntentLikeCpp::DeleteLfgData { db_store_id } => {
+            group_lfg_data_delete_statement_like_cpp(db_store_id)
+        }
+        GroupPersistenceIntentLikeCpp::DeleteMember { member_guid } => {
+            group_member_delete_statement_like_cpp(member_guid)
+        }
+        GroupPersistenceIntentLikeCpp::UpdateLeader {
+            db_store_id,
+            leader_guid,
+        } => group_leader_update_statement_like_cpp(leader_guid, db_store_id),
+        GroupPersistenceIntentLikeCpp::UpdateGroupType {
+            db_store_id,
+            group_flags,
+        } => group_type_update_statement_like_cpp(group_flags, db_store_id),
+        GroupPersistenceIntentLikeCpp::UpdateMemberSubgroup {
+            member_guid,
+            subgroup,
+        } => group_member_subgroup_update_statement_like_cpp(member_guid, subgroup),
+        GroupPersistenceIntentLikeCpp::UpdateMemberFlags { member_guid, flags } => {
+            group_member_flag_update_statement_like_cpp(member_guid, flags)
+        }
+        GroupPersistenceIntentLikeCpp::UpdateDifficulty {
+            db_store_id,
+            kind,
+            difficulty_id,
+        } => {
+            let statement = match kind {
+                wow_network::player_registry::GroupDifficultyKindLikeCpp::Dungeon => {
+                    CharStatements::UPD_GROUP_DIFFICULTY
+                }
+                wow_network::player_registry::GroupDifficultyKindLikeCpp::Raid => {
+                    CharStatements::UPD_GROUP_RAID_DIFFICULTY
+                }
+                wow_network::player_registry::GroupDifficultyKindLikeCpp::LegacyRaid => {
+                    CharStatements::UPD_GROUP_LEGACY_RAID_DIFFICULTY
+                }
+            };
+            let mut stmt = PreparedStatement::new(statement.sql());
+            stmt.set_u32(0, difficulty_id);
+            stmt.set_u32(1, db_store_id);
+            stmt
+        }
+    }
+}
+
 // ── Handler implementations ───────────────────────────────────────────────────
 
 impl WorldSession {
+    async fn persist_group_intents_like_cpp(
+        &self,
+        group_guid: u64,
+        intents: Vec<GroupPersistenceIntentLikeCpp>,
+    ) {
+        let Some(char_db) = self.char_db().map(std::sync::Arc::clone) else {
+            return;
+        };
+        for intent in intents {
+            let stmt = group_persistence_statement_like_cpp(intent);
+            if let Err(error) = char_db.execute(&stmt).await {
+                warn!(
+                    group_guid,
+                    %error,
+                    "failed to persist represented group transition"
+                );
+                break;
+            }
+        }
+    }
+
     /// CMSG_PARTY_INVITE (0x3604)
     ///
     /// Parse layout from C++ `WorldPackets::Party::PartyInviteClient::Read`
@@ -1389,75 +1491,64 @@ impl WorldSession {
         let leader_command_tx = registry
             .get(&invite.leader_guid)
             .map(|leader| leader.command_tx.clone());
-        let mut group_creation_statements: Vec<PreparedStatement> = Vec::new();
-        let (group, persist_member_row, refresh_visible_gameobjects_or_spellclicks, subgroup) =
-            match group_reg.accept_invite_like_cpp(
+        let (group, persistence, refresh_visible_gameobjects_or_spellclicks) = match group_reg
+            .accept_invite_like_cpp(
                 &pending,
                 my_guid,
                 party_index,
                 leader_command_tx.as_ref().map(|_| invite.leader_guid),
             ) {
-                AcceptGroupInviteResultLikeCpp::NoInvite
-                | AcceptGroupInviteResultLikeCpp::WrongCategory
-                | AcceptGroupInviteResultLikeCpp::AddFailed
-                | AcceptGroupInviteResultLikeCpp::AlreadyMember
-                | AcceptGroupInviteResultLikeCpp::MissingGroup
-                | AcceptGroupInviteResultLikeCpp::MissingLeader => return,
-                AcceptGroupInviteResultLikeCpp::SelfInvite => {
-                    warn!(
-                        player = %my_guid,
-                        "HandlePartyInviteResponse: player tried to accept an invite to his own group"
-                    );
-                    return;
-                }
-                AcceptGroupInviteResultLikeCpp::GroupFull => {
-                    self.send_packet_realm(&PartyCommandResult {
-                        name: String::new(),
-                        command: 0,
-                        result: party_result::GROUP_FULL,
-                        result_data: 0,
-                        result_guid: ObjectGuid::EMPTY,
-                    });
-                    return;
-                }
-                AcceptGroupInviteResultLikeCpp::JoinedExisting { group, subgroup } => {
-                    let is_raid_group = group.is_raid_group();
-                    (group, true, is_raid_group, subgroup)
-                }
-                AcceptGroupInviteResultLikeCpp::Created { group, subgroup } => {
-                    let db_store_id = group.db_store_id;
-                    group_creation_statements
-                        .push(group_insert_statement_like_cpp(&group, db_store_id));
-                    group_creation_statements.push(group_member_insert_statement_like_cpp(
-                        db_store_id,
-                        group.leader_guid,
-                        0,
-                        0,
-                        0,
+            AcceptGroupInviteResultLikeCpp::NoInvite
+            | AcceptGroupInviteResultLikeCpp::WrongCategory
+            | AcceptGroupInviteResultLikeCpp::AddFailed
+            | AcceptGroupInviteResultLikeCpp::AlreadyMember
+            | AcceptGroupInviteResultLikeCpp::MissingGroup
+            | AcceptGroupInviteResultLikeCpp::MissingLeader => return,
+            AcceptGroupInviteResultLikeCpp::SelfInvite => {
+                warn!(
+                    player = %my_guid,
+                    "HandlePartyInviteResponse: player tried to accept an invite to his own group"
+                );
+                return;
+            }
+            AcceptGroupInviteResultLikeCpp::GroupFull => {
+                self.send_packet_realm(&PartyCommandResult {
+                    name: String::new(),
+                    command: 0,
+                    result: party_result::GROUP_FULL,
+                    result_data: 0,
+                    result_guid: ObjectGuid::EMPTY,
+                });
+                return;
+            }
+            AcceptGroupInviteResultLikeCpp::JoinedExisting {
+                group,
+                subgroup: _,
+                persistence,
+            } => {
+                let is_raid_group = group.is_raid_group();
+                (group, persistence, is_raid_group)
+            }
+            AcceptGroupInviteResultLikeCpp::Created {
+                group,
+                subgroup: _,
+                persistence,
+            } => {
+                if let Some(leader_command_tx) = leader_command_tx.as_ref() {
+                    let _ = leader_command_tx.try_send(SessionCommand::ApplyGroupJoinLikeCpp(
+                        ApplyGroupJoinLikeCppCommand {
+                            group_guid: group.group_guid,
+                            category: group.group_category_like_cpp(),
+                            party_type: wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
+                            subgroup: 0,
+                            refresh_visible_gameobjects_or_spellclicks: false,
+                        },
                     ));
-                    group_creation_statements.push(group_member_insert_statement_like_cpp(
-                        db_store_id,
-                        my_guid,
-                        0,
-                        subgroup,
-                        0,
-                    ));
-                    if let Some(leader_command_tx) = leader_command_tx.as_ref() {
-                        let _ = leader_command_tx.try_send(SessionCommand::ApplyGroupJoinLikeCpp(
-                            ApplyGroupJoinLikeCppCommand {
-                                group_guid: group.group_guid,
-                                category: group.group_category_like_cpp(),
-                                party_type: wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
-                                subgroup: 0,
-                                refresh_visible_gameobjects_or_spellclicks: false,
-                            },
-                        ));
-                    }
-                    (group, false, false, subgroup)
                 }
-            };
+                (group, persistence, false)
+            }
+        };
         let group_guid = group.group_guid;
-        let existing_db_store_id = persist_member_row.then_some(group.db_store_id);
 
         // Update self's group_guid in session — all Arc borrows are gone now.
         self.group_guid = Some(group_guid);
@@ -1473,30 +1564,15 @@ impl WorldSession {
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
         }
 
-        if let (true, Some(db_store_id), Some(char_db)) = (
-            persist_member_row,
-            existing_db_store_id,
-            self.char_db().map(std::sync::Arc::clone),
-        ) {
-            let stmt = group_member_insert_statement_like_cpp(db_store_id, my_guid, 0, subgroup, 0);
-            if let Err(error) = char_db.execute(&stmt).await {
-                warn!(
-                    group_guid = db_store_id,
-                    member_guid = my_guid.counter(),
-                    %error,
-                    "failed to persist represented group member"
-                );
-            }
-        }
-
-        if !group_creation_statements.is_empty() {
+        if !persistence.is_empty() {
             if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
-                for stmt in group_creation_statements {
+                for intent in persistence {
+                    let stmt = group_persistence_statement_like_cpp(intent);
                     if let Err(error) = char_db.execute(&stmt).await {
                         warn!(
                             group_guid = group_guid,
                             %error,
-                            "failed to persist represented group creation"
+                            "failed to persist represented group transition"
                         );
                         break;
                     }
@@ -1648,31 +1724,8 @@ impl WorldSession {
             Err(_) => return,
         };
         let should_disband = outcome.facts.disbanded;
-        let db_store_id = outcome.facts.db_store_id;
-        let group_leave_statements = if should_disband {
-            vec![
-                group_delete_statement_like_cpp(db_store_id),
-                group_member_delete_all_statement_like_cpp(db_store_id),
-                group_lfg_data_delete_statement_like_cpp(db_store_id),
-            ]
-        } else {
-            vec![group_member_delete_statement_like_cpp(uninvite.target_guid)]
-        };
-
-        if !group_leave_statements.is_empty() {
-            if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
-                for stmt in group_leave_statements {
-                    if let Err(error) = char_db.execute(&stmt).await {
-                        warn!(
-                            group_guid,
-                            %error,
-                            "failed to persist represented party uninvite"
-                        );
-                        break;
-                    }
-                }
-            }
-        }
+        self.persist_group_intents_like_cpp(group_guid, outcome.persistence)
+            .await;
 
         let cleanup_command = ApplyGroupRemovalLikeCppCommand {
             group_guid,
@@ -1689,7 +1742,6 @@ impl WorldSession {
         }
 
         if should_disband {
-            free_group_db_store_id_like_cpp(db_store_id);
             self.group_guid = None;
             self.clear_represented_group_subgroup_like_cpp();
             self.send_player_party_type_update_like_cpp(
@@ -1814,41 +1866,11 @@ impl WorldSession {
             .facts
             .disbanded
             .then(|| outcome.facts.remaining_members.clone());
-        let db_store_id = outcome.facts.db_store_id;
-        let mut group_leave_statements = if outcome.facts.disbanded {
-            vec![
-                group_delete_statement_like_cpp(db_store_id),
-                group_member_delete_all_statement_like_cpp(db_store_id),
-                group_lfg_data_delete_statement_like_cpp(db_store_id),
-            ]
-        } else {
-            vec![group_member_delete_statement_like_cpp(my_guid)]
-        };
-        if let Some(new_leader) = outcome.facts.new_leader_guid {
-            group_leave_statements.push(group_leader_update_statement_like_cpp(
-                new_leader,
-                db_store_id,
-            ));
-        }
-
-        if !group_leave_statements.is_empty() {
-            if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
-                for stmt in group_leave_statements {
-                    if let Err(error) = char_db.execute(&stmt).await {
-                        warn!(
-                            group_guid = gid,
-                            %error,
-                            "failed to persist represented group leave"
-                        );
-                        break;
-                    }
-                }
-            }
-        }
+        self.persist_group_intents_like_cpp(gid, outcome.persistence)
+            .await;
 
         if let Some(remaining) = dissolve_remaining {
             // Group dissolved — notify last remaining member (if any).
-            free_group_db_store_id_like_cpp(db_store_id);
             if let Some(&last_guid) = remaining.first() {
                 if let Some(last_entry) = registry.get(&last_guid) {
                     let command = ApplyGroupRemovalLikeCppCommand {
@@ -1944,19 +1966,8 @@ impl WorldSession {
             result_data: 0,
             result_guid: ObjectGuid::EMPTY,
         });
-        let (group_flags, db_store_id) = outcome.facts;
-
-        if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
-            let stmt = group_type_update_statement_like_cpp(group_flags, db_store_id);
-            if let Err(error) = char_db.execute(&stmt).await {
-                warn!(
-                    group_guid = db_store_id,
-                    group_flags,
-                    %error,
-                    "failed to persist represented group type"
-                );
-            }
-        }
+        self.persist_group_intents_like_cpp(group_guid, outcome.persistence)
+            .await;
 
         // `queue_visible...` may wait on a full member command channel. Clone
         // the value and release DashMap's read guard before the first await so
@@ -2021,18 +2032,8 @@ impl WorldSession {
             Err(_) => return,
         };
         let (target_guid, new_subgroup) = outcome.facts;
-
-        if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
-            let stmt = group_member_subgroup_update_statement_like_cpp(target_guid, new_subgroup);
-            if let Err(error) = char_db.execute(&stmt).await {
-                warn!(
-                    member_guid = target_guid.counter(),
-                    subgroup = new_subgroup,
-                    %error,
-                    "failed to persist represented group subgroup change"
-                );
-            }
-        }
+        self.persist_group_intents_like_cpp(group_guid, outcome.persistence)
+            .await;
 
         if target_guid == sender_guid {
             self.apply_group_subgroup_like_cpp(group_guid, new_subgroup);
@@ -2098,20 +2099,8 @@ impl WorldSession {
             Err(_) => return,
         };
         let subgroup_updates = outcome.facts;
-
-        if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
-            for &(member_guid, subgroup) in &subgroup_updates {
-                let stmt = group_member_subgroup_update_statement_like_cpp(member_guid, subgroup);
-                if let Err(error) = char_db.execute(&stmt).await {
-                    warn!(
-                        member_guid = member_guid.counter(),
-                        subgroup,
-                        %error,
-                        "failed to persist represented group subgroup swap"
-                    );
-                }
-            }
-        }
+        self.persist_group_intents_like_cpp(group_guid, outcome.persistence)
+            .await;
 
         for (member_guid, subgroup) in subgroup_updates {
             if member_guid == sender_guid {
@@ -2188,30 +2177,8 @@ impl WorldSession {
             Ok(outcome) => outcome,
             Err(_) => return,
         };
-        let (db_store_id, final_flags) = outcome.facts;
-
-        if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
-            let mut statements = Vec::new();
-            if db_store_id != 0 {
-                statements.push(group_leader_update_statement_like_cpp(
-                    set_leader.target_guid,
-                    db_store_id,
-                ));
-            }
-            statements.push(group_member_flag_update_statement_like_cpp(
-                set_leader.target_guid,
-                final_flags,
-            ));
-            for stmt in statements {
-                if let Err(error) = char_db.execute(&stmt).await {
-                    warn!(
-                        member_guid = set_leader.target_guid.counter(),
-                        %error,
-                        "failed to persist represented party leader change"
-                    );
-                }
-            }
-        }
+        self.persist_group_intents_like_cpp(group_guid, outcome.persistence)
+            .await;
 
         send_group_new_leader_like_cpp(&outcome.group, &registry, &target_name).await;
         send_party_update(&outcome.group, &registry, vra);
@@ -2267,20 +2234,8 @@ impl WorldSession {
             Ok(outcome) => outcome,
             Err(_) => return,
         };
-        let final_flags = outcome.facts;
-
-        if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
-            let stmt =
-                group_member_flag_update_statement_like_cpp(set_assistant.target, final_flags);
-            if let Err(error) = char_db.execute(&stmt).await {
-                warn!(
-                    member_guid = set_assistant.target.counter(),
-                    flags = final_flags,
-                    %error,
-                    "failed to persist represented group member flag change"
-                );
-            }
-        }
+        self.persist_group_intents_like_cpp(group_guid, outcome.persistence)
+            .await;
 
         send_party_update(&outcome.group, &registry, vra);
     }
@@ -2330,19 +2285,8 @@ impl WorldSession {
             Ok(outcome) => outcome,
             Err(_) => return,
         };
-        let (group_flags, db_store_id) = outcome.facts;
-
-        if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
-            let stmt = group_type_update_statement_like_cpp(group_flags, db_store_id);
-            if let Err(error) = char_db.execute(&stmt).await {
-                warn!(
-                    group_flags,
-                    db_store_id,
-                    %error,
-                    "failed to persist represented everyone-assistant group flags"
-                );
-            }
-        }
+        self.persist_group_intents_like_cpp(group_guid, outcome.persistence)
+            .await;
 
         send_party_update(&outcome.group, &registry, vra);
     }
@@ -2536,21 +2480,8 @@ impl WorldSession {
             Ok(outcome) => outcome,
             Err(_) => return,
         };
-        let persist_updates = outcome.facts;
-
-        if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
-            for (member_guid, final_flags) in persist_updates {
-                let stmt = group_member_flag_update_statement_like_cpp(member_guid, final_flags);
-                if let Err(error) = char_db.execute(&stmt).await {
-                    warn!(
-                        member_guid = member_guid.counter(),
-                        flags = final_flags,
-                        %error,
-                        "failed to persist represented party assignment member flag change"
-                    );
-                }
-            }
-        }
+        self.persist_group_intents_like_cpp(group_guid, outcome.persistence)
+            .await;
 
         send_party_update(&outcome.group, &registry, vra);
     }

@@ -1,4 +1,1 @@
 owner_type	consumer_family	current_compatibility	transition_issue	final_shape
-GroupRegistry	character-database group load	insert/get_mut	#199	owner-local load and persistence intents
-GroupRegistry	all tests and fixtures	insert/remove/get_mut	#199	test-only invariant-preserving builders
-PendingInvites	all tests and fixtures	insert/remove	#199	test-only invariant-preserving builders

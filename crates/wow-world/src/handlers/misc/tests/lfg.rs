@@ -13,7 +13,7 @@ async fn set_difficulty_id_group_lfg_is_silent_like_cpp() {
     let mut group = GroupInfo::new(leader);
     group.group_flags |= GROUP_FLAG_LFG_LIKE_CPP;
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -327,7 +327,7 @@ async fn reset_instances_lfg_group_is_silent_like_cpp() {
     let mut group = GroupInfo::new(leader);
     group.group_flags |= GROUP_FLAG_LFG_LIKE_CPP;
     let group_guid = group.group_guid;
-    group_registry.insert(group_guid, group);
+    group_registry.register_group_like_cpp(group_guid, group);
     let entries = wow_instances::MapDb2Entries {
         map_id: 631,
         difficulty_id: 4,
