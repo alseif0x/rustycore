@@ -66611,7 +66611,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn game_event_spawn_non_pool_creature_and_gameobject_loaded_grid_adds_records_like_cpp ()|body=fnv1a64x2:079ee402a42ed75e7bf2af02d1368845:len=4888|evidence=fnv1a64x2:6888fde9b41f076f9196057e28c7a00c:len=2915",
+          "fingerprint": "signature=fn game_event_spawn_non_pool_creature_and_gameobject_loaded_grid_adds_records_like_cpp ()|body=fnv1a64x2:067ade3187178b0a490857865914e5c9:len=4886|evidence=fnv1a64x2:6888fde9b41f076f9196057e28c7a00c:len=2915",
           "cfg": [
             "cfg (test)"
           ],
@@ -66931,7 +66931,7 @@
               "side": "legacy",
               "kind": "method_call",
               "symbol": "set_default_movement_type_runtime_like_cpp",
-              "fingerprint": "fnv1a64x2:78ec813b4cc603c8e26045109e4be2eb:len=50",
+              "fingerprint": "fnv1a64x2:879fea8e8ffbe12913a081a90b116484:len=50",
               "multiplicity": 1
             },
             {
@@ -66991,7 +66991,7 @@
               "multiplicity": 3
             }
           ],
-          "fingerprint": "signature=async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_melee_like_cpp ()|body=fnv1a64x2:1d5b5ebd48a73f765e785f1b20464c7d:len=11419|evidence=fnv1a64x2:156e021c13baa8505a94bfcabd6b821b:len=8209",
+          "fingerprint": "signature=async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_melee_like_cpp ()|body=fnv1a64x2:430e17465e4580ea68bc4ff9a4497a89:len=11413|evidence=fnv1a64x2:46d2670ed02aa533062dda01dd3ba2b4:len=8209",
           "cfg": [
             "cfg (test)"
           ],
@@ -67255,7 +67255,7 @@
               "side": "legacy",
               "kind": "method_call",
               "symbol": "set_default_movement_type_runtime_like_cpp",
-              "fingerprint": "fnv1a64x2:739e9bf647fa59e0f55f21f7a58db4cb:len=50",
+              "fingerprint": "fnv1a64x2:99c6e2a4487dedf090becb8d37cc249b:len=50",
               "multiplicity": 1
             },
             {
@@ -67301,7 +67301,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=async fn legacy_creature_global_tick_task_delivers_movement_plan_like_cpp ()|body=fnv1a64x2:17e8c4dad40fb86950a49a387e4a0ae4:len=4588|evidence=fnv1a64x2:3715dd048b0ab12113646b366762c726:len=5551",
+          "fingerprint": "signature=async fn legacy_creature_global_tick_task_delivers_movement_plan_like_cpp ()|body=fnv1a64x2:3f85d48733915cdd37aa84df739b22d0:len=4586|evidence=fnv1a64x2:417d0312804c0eb119ec078effe7b266:len=5551",
           "cfg": [
             "cfg (test)"
           ],
@@ -67811,7 +67811,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn legacy_creature_melee_tick_delivers_compatibility_victim_command_like_cpp ()|body=fnv1a64x2:1d9baf6cbf0b50e41b397ef14e012257:len=2995|evidence=fnv1a64x2:d26de1929bbce8eff3de66d40d706b64:len=2831",
+          "fingerprint": "signature=fn legacy_creature_melee_tick_delivers_compatibility_victim_command_like_cpp ()|body=fnv1a64x2:ac11340b0f51b1889a8bd8ea67e1bc53:len=2993|evidence=fnv1a64x2:d26de1929bbce8eff3de66d40d706b64:len=2831",
           "cfg": [
             "cfg (test)"
           ],
@@ -68280,7 +68280,7 @@
               "side": "legacy",
               "kind": "method_call",
               "symbol": "set_default_movement_type_runtime_like_cpp",
-              "fingerprint": "fnv1a64x2:739e9bf647fa59e0f55f21f7a58db4cb:len=50",
+              "fingerprint": "fnv1a64x2:99c6e2a4487dedf090becb8d37cc249b:len=50",
               "multiplicity": 1
             },
             {
@@ -68326,7 +68326,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=async fn legacy_creature_runtime_loop_smoke_delivers_visible_work_like_cpp ()|body=fnv1a64x2:e44968213b4e56f3a5c4f966e98d2f2c:len=3517|evidence=fnv1a64x2:bd6439c0fc940812e3aa712df1e4d081:len=5683",
+          "fingerprint": "signature=async fn legacy_creature_runtime_loop_smoke_delivers_visible_work_like_cpp ()|body=fnv1a64x2:c39c3d434be78ec7e3d1683206be9a60:len=3515|evidence=fnv1a64x2:78ca35ecfdef9242c119589582afc691:len=5683",
           "cfg": [
             "cfg (test)"
           ],
@@ -68954,7 +68954,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn login_grid_load_materializes_area_triggers_like_cpp ()|body=fnv1a64x2:41d0ec8ff9e4f1ef3b5a51906bcf0a9e:len=2594|evidence=fnv1a64x2:66c74630f7faa799a3f21e1e076c7d52:len=1981",
+          "fingerprint": "signature=fn login_grid_load_materializes_area_triggers_like_cpp ()|body=fnv1a64x2:6b93096c92c73df3270e6bc93a4b8c9a:len=2592|evidence=fnv1a64x2:66c74630f7faa799a3f21e1e076c7d52:len=1981",
           "cfg": [
             "cfg (test)"
           ],
@@ -69164,7 +69164,7 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "add_map_object_record_to_map_like_cpp",
-              "fingerprint": "fnv1a64x2:0c6e0e59dfa98f0b3149c0784b2d993a:len=50",
+              "fingerprint": "fnv1a64x2:57ae7e8ca938666810c01011402cd9e3:len=50",
               "multiplicity": 1
             },
             {
@@ -69192,7 +69192,7 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "expect",
-              "fingerprint": "fnv1a64x2:c3592e1355d3bc43d8ca366c202bb8be:len=50",
+              "fingerprint": "fnv1a64x2:463ed368f7d68509285ce21cb1f84fc4:len=50",
               "multiplicity": 1
             },
             {
@@ -69301,7 +69301,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn login_grid_load_mirrors_already_loaded_canonical_creature_to_legacy_like_cpp ()|body=fnv1a64x2:9382c4b5bcae818d4ad6f38a51269e50:len=2778|evidence=fnv1a64x2:e31ebbfb2814a4efa84095c530af9bf2:len=3688",
+          "fingerprint": "signature=fn login_grid_load_mirrors_already_loaded_canonical_creature_to_legacy_like_cpp ()|body=fnv1a64x2:2b2e852e1143cb9dcc97ef262da41e28:len=2774|evidence=fnv1a64x2:21e5446f84849630d92352e0349c67e3:len=3688",
           "cfg": [
             "cfg (test)"
           ],
@@ -69639,7 +69639,7 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "set_weapon_damage",
-              "fingerprint": "fnv1a64x2:587d7a9a7f5c661ea33ada73452a8231:len=50",
+              "fingerprint": "fnv1a64x2:198a33222160543d2895a5e0d146c164:len=50",
               "multiplicity": 1
             },
             {
@@ -69699,7 +69699,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn mirror_canonical_melee_test_creature_like_cpp (canonical : & wow_world :: SharedCanonicalMapManager , guid : ObjectGuid , map_id : u32 , instance_id : u32 ,) -> wow_world :: map_manager :: WorldCreature|body=fnv1a64x2:eedf8702c2a7c5e11e031d5491d3bd12:len=727|evidence=fnv1a64x2:7bfec755c03d39f6ceff0f386babd94d:len=2961",
+          "fingerprint": "signature=fn mirror_canonical_melee_test_creature_like_cpp (canonical : & wow_world :: SharedCanonicalMapManager , guid : ObjectGuid , map_id : u32 , instance_id : u32 ,) -> wow_world :: map_manager :: WorldCreature|body=fnv1a64x2:22a412b0dcadd9f5025ba5febfdd72ae:len=725|evidence=fnv1a64x2:65e4e4bd49113981f9c27121a2dbdf82:len=2961",
           "cfg": [
             "cfg (test)"
           ],
@@ -69841,7 +69841,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn persisted_restart_timer_respawns_once_through_canonical_owner_and_mirrors_legacy_like_cpp ()|body=fnv1a64x2:1c0fbb74233a19dc9566ab43d8a8f7bf:len=4178|evidence=fnv1a64x2:db04af365729c165b01b880364f86b60:len=2202",
+          "fingerprint": "signature=fn persisted_restart_timer_respawns_once_through_canonical_owner_and_mirrors_legacy_like_cpp ()|body=fnv1a64x2:33b2b08c9428cc9841825dc91b2197d3:len=4176|evidence=fnv1a64x2:db04af365729c165b01b880364f86b60:len=2202",
           "cfg": [
             "cfg (test)"
           ],
@@ -69990,7 +69990,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn spawn_group_condition_update_tick_mirrors_loaded_grid_creature_to_legacy_like_cpp ()|body=fnv1a64x2:ce072b801ec787960f6a79bb6b644dcd:len=2721|evidence=fnv1a64x2:cdc8a056a83aa745e7346791740dedce:len=1895",
+          "fingerprint": "signature=fn spawn_group_condition_update_tick_mirrors_loaded_grid_creature_to_legacy_like_cpp ()|body=fnv1a64x2:329b7a9ea7d0bc0a4addd4e90b73d9f9:len=2719|evidence=fnv1a64x2:cdc8a056a83aa745e7346791740dedce:len=1895",
           "cfg": [
             "cfg (test)"
           ],

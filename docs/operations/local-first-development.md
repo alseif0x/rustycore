@@ -33,7 +33,8 @@ runs only applicable checks:
 - `bash -n` for changed shell scripts;
 - `jq empty` for changed JSON;
 - Rust formatting only when Rust inputs changed;
-- `cargo check --locked` only for directly affected workspace packages;
+- `cargo check --locked --tests` only for directly affected workspace packages, compiling both
+  production code and test targets without LLVM linking;
 - fast standalone checker tests only when that checker changed;
 - the QA bot's own format/check only when the bot changed.
 
@@ -46,9 +47,18 @@ Before publishing the final commit, run:
 ./tools/local-harness.sh final origin/3.4.3
 ```
 
-`final` adds library tests only for directly affected workspace packages. Binary-only packages
-retain their successful `cargo check` as the local gate. This is evidence for the maintainer, not
-a status published back to GitHub.
+`final` applies the same lightweight compile-only gate to the final tree. It does not execute a
+monolithic library suite merely because a file moved or a branch was rebased. Run focused tests
+explicitly when behavior changes, for example:
+
+```bash
+PROTOC=/home/cdmonio/.local/protoc/bin/protoc \
+  cargo +1.88.0 test --locked -p wow-world exact_test_name --lib
+```
+
+Broad test execution remains available through `tools/pr-preflight.sh` for explicit audits and
+through scheduled CI. Local harness success is evidence for the maintainer, not a status published
+back to GitHub.
 
 The harness supports a routing-only dry run:
 
@@ -59,7 +69,8 @@ LOCAL_HARNESS_DRY_RUN=1 ./tools/local-harness.sh quick origin/3.4.3
 It does not require an agent SDK, a model-specific CLI, prompts, or interactive input. Agents can
 inspect the stable command interface with `./tools/local-harness.sh --help` and must treat a
 non-zero exit status as a failed local gate. The harness also exports the repository's required
-minimum `RUST_MIN_STACK` so large Rust 1.88 test binaries behave the same for every agent.
+minimum `RUST_MIN_STACK` and disables Rust incremental compilation so the giant test target does
+not reuse a stale on-disk query cache between agents or branches.
 
 ## What remains exhaustive
 

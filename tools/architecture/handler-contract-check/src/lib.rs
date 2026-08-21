@@ -39,7 +39,7 @@ use snapshot::parse_snapshot_contract;
 pub use session_ownership::{
     check_repository as check_session_ownership_repository,
     check_repository_syntax_only as check_session_ownership_repository_syntax_only,
-    print_repository_baseline as print_session_ownership_baseline,
+    print_path_module_mounts, print_repository_baseline as print_session_ownership_baseline,
     print_repository_persistence_baseline as print_persistence_access_baseline,
     print_repository_persistence_policy as print_persistence_boundary_policy,
     print_repository_persistence_policy_from_snapshot as print_persistence_boundary_policy_from_snapshot,

@@ -27,7 +27,7 @@ use crate::bridge_access::{
 };
 use crate::ownership::{
     SourceMountContext, audit_package_source_mounts, cfg_context_allows_production,
-    cfg_context_allows_test, extend_cfg_context, workspace_dependency_aliases,
+    cfg_context_allows_test, extend_cfg_context, read_spliced_source, workspace_dependency_aliases,
     workspace_source_mounts,
 };
 use crate::persistence_access::{
@@ -1716,7 +1716,10 @@ fn collect_units(
     builder.finish(registry_accesses, persistence_accesses, bridge_accesses)
 }
 
-fn repository_relative_path(repository_root: &Path, source_path: &Path) -> Result<String, String> {
+pub(crate) fn repository_relative_path(
+    repository_root: &Path,
+    source_path: &Path,
+) -> Result<String, String> {
     let relative = source_path.strip_prefix(repository_root).map_err(|_| {
         format!(
             "audited source {} is outside repository root {}",
@@ -1746,10 +1749,26 @@ fn repository_units(
     let package_root = repository_root.join(package_root);
     let crate_root = repository_root.join(crate_root);
     let (mounts, _) = audit_package_source_mounts(&package_root, &[crate_root])?;
+    let spliced_contexts = crate::ownership::spliced_child_contexts(&mounts)?;
     let mut units = Vec::new();
     for (source_path, contexts) in mounts {
-        let source = fs::read_to_string(&source_path)
-            .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
+        // Filtered by context, not by file: see the workspace collector for why
+        // a file reached both through `#[path]` and ordinarily keeps the
+        // ordinary mount.
+        let contexts: std::collections::BTreeSet<_> = contexts
+            .into_iter()
+            .filter(|context| {
+                !spliced_contexts.contains(&(
+                    source_path.clone(),
+                    context.logical_module_path.clone(),
+                    context.cfg.clone(),
+                ))
+            })
+            .collect();
+        if contexts.is_empty() {
+            continue;
+        }
+        let source = read_spliced_source(&source_path, &package_root)?;
         for SourceMountContext {
             logical_module_path,
             cfg,
@@ -2153,6 +2172,22 @@ fn check_repository_scoped(
 ///
 /// The command only returns text; callers must review and merge the
 /// `syntax_baseline` object deliberately into the semantic policy.
+/// Print every `#[path]` mount in the workspace, resolved by `syn`.
+///
+/// The Python guard charges a `#[path]` child's lines to the parent that mounts
+/// it, and finding those mounts by scanning text meant reimplementing a Rust
+/// lexer: comments, escapes, raw strings, char literals, macro bodies, trivia
+/// between attribute tokens. Each gap was a way to move a ceiling, and the list
+/// does not end -- an invoked macro can generate a real mount that no scanner
+/// can see without expanding it. There is one parser in this repository that
+/// already gets this right, so the guard asks it instead of growing a second.
+pub fn print_path_module_mounts() -> Result<String, String> {
+    let repository_root = crate::repository_root()?;
+    let mounts = crate::ownership::workspace_path_module_mounts(&repository_root)?;
+    serde_json::to_string_pretty(&mounts)
+        .map_err(|error| format!("cannot serialize path module mounts: {error}"))
+}
+
 pub fn print_repository_baseline() -> Result<String, String> {
     let repository_root = crate::repository_root()?;
     // Without persistence: the envelope skips that field when serializing, so
