@@ -119,8 +119,10 @@ impl SRP6Client {
         let v = self.calculate_v();
         let u = self.calculate_u();
 
-        // k*v
-        let kv = &self.k * &v;
+        // Reduce k*v before the modular subtraction. Since BigUint cannot
+        // represent a negative intermediate, leaving k*v unreduced can
+        // underflow below even though the final SRP value is modulo N.
+        let kv = (&self.k * &v) % &self.N;
 
         // B - k*v (mod N)
         let base = if self.B >= kv {
