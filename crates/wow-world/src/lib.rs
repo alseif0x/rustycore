@@ -24,6 +24,8 @@ pub(crate) mod trainer_offer;
 
 #[cfg(test)]
 mod handler_contract_tests;
+#[cfg(test)]
+mod player_lifecycle_contract;
 
 pub use map_manager::{
     ChaseTargetSnapshotLikeCpp, GridCoord, MapManager, SharedMapManager, WorldCreature,

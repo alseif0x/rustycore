@@ -3420,6 +3420,8 @@ dependencies = [
  "num-traits",
  "parking_lot",
  "rand",
+ "serde",
+ "serde_json",
  "sqlx",
  "tokio",
  "tracing",
