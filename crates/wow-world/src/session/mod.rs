@@ -35317,7 +35317,7 @@ impl WorldSession {
             lifetime_max_rank,
             honor_level,
         ) = self.canonical_player_honor_stats_snapshot_like_cpp();
-        reg.insert(
+        reg.register_or_replace(
             guid,
             PlayerBroadcastInfo {
                 map_id,
@@ -35713,8 +35713,9 @@ impl WorldSession {
         let (Some(guid), Some(reg)) = (self.player_guid(), &self.player_registry) else {
             return;
         };
-        reg.remove(&guid);
-        debug!("Unregistered player {:?} from broadcast registry", guid);
+        if reg.unregister_control_channel(guid, &self.session_command_tx) {
+            debug!("Unregistered player {:?} from broadcast registry", guid);
+        }
     }
 
     /// Update this session's position (and map) in the player registry.

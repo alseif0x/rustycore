@@ -35670,6 +35670,111 @@ fn broadcast_info_with_command(
 }
 
 #[test]
+fn player_registry_replacement_rejects_stale_lookup_and_unregister() {
+    let registry = PlayerRegistry::new();
+    let guid = ObjectGuid::create_player(1, 70_001);
+    let (first_send_tx, _first_send_rx) = flume::bounded(1);
+    let first = registry.register_or_replace(guid, broadcast_info(guid, first_send_tx));
+    let (second_send_tx, _second_send_rx) = flume::bounded(1);
+    let second = registry.register_or_replace(guid, broadcast_info(guid, second_send_tx));
+
+    assert_ne!(first.generation(), second.generation());
+    assert!(registry.lookup_current(first).is_none());
+    assert!(registry.lookup_current(second).is_some());
+    assert!(!registry.unregister(first));
+    assert!(registry.lookup_current(second).is_some());
+    assert!(registry.unregister(second));
+    assert!(registry.control_address(guid).is_none());
+}
+
+#[test]
+fn player_registry_control_address_keeps_incarnation_channel_identity() {
+    let registry = PlayerRegistry::new();
+    let guid = ObjectGuid::create_player(1, 70_002);
+    let (send_tx, _send_rx) = flume::bounded(1);
+    let (first_command_tx, first_command_rx) = flume::bounded(1);
+    let first = registry.register_or_replace(
+        guid,
+        broadcast_info_with_command(guid, send_tx.clone(), first_command_tx),
+    );
+    let first_address = registry.control_address(guid).expect("first address");
+
+    let (second_command_tx, second_command_rx) = flume::bounded(1);
+    let second = registry.register_or_replace(
+        guid,
+        broadcast_info_with_command(guid, send_tx, second_command_tx),
+    );
+    let second_address = registry.control_address(guid).expect("second address");
+
+    assert_eq!(first_address.registration(), first);
+    assert_eq!(second_address.registration(), second);
+    first_address
+        .try_send(SessionCommand::KickLikeCpp(KickLikeCppCommand {
+            reason: "old incarnation".to_string(),
+        }))
+        .expect("old channel remains independently addressable");
+    assert!(first_command_rx.try_recv().is_ok());
+    assert!(second_command_rx.try_recv().is_err());
+}
+
+#[test]
+fn player_registry_stale_channel_cannot_unregister_replacement() {
+    let registry = PlayerRegistry::new();
+    let guid = ObjectGuid::create_player(1, 70_004);
+    let (send_tx, _send_rx) = flume::bounded(1);
+    let (first_command_tx, _first_command_rx) = flume::bounded(1);
+    registry.register_or_replace(
+        guid,
+        broadcast_info_with_command(guid, send_tx.clone(), first_command_tx.clone()),
+    );
+
+    let (second_command_tx, _second_command_rx) = flume::bounded(1);
+    let second = registry.register_or_replace(
+        guid,
+        broadcast_info_with_command(guid, send_tx, second_command_tx.clone()),
+    );
+
+    assert!(!registry.unregister_control_channel(guid, &first_command_tx));
+    assert!(registry.lookup_current(second).is_some());
+    assert!(registry.unregister_control_channel(guid, &second_command_tx));
+    assert!(registry.control_address(guid).is_none());
+}
+
+#[test]
+fn player_registry_replacement_wins_unregister_race() {
+    let registry = Arc::new(PlayerRegistry::new());
+    let guid = ObjectGuid::create_player(1, 70_003);
+    let (first_send_tx, _first_send_rx) = flume::bounded(1);
+    let first = registry.register_or_replace(guid, broadcast_info(guid, first_send_tx));
+    let barrier = Arc::new(std::sync::Barrier::new(3));
+
+    let unregister_registry = Arc::clone(&registry);
+    let unregister_barrier = Arc::clone(&barrier);
+    let unregister = std::thread::spawn(move || {
+        unregister_barrier.wait();
+        unregister_registry.unregister(first)
+    });
+
+    let replacement_registry = Arc::clone(&registry);
+    let replacement_barrier = Arc::clone(&barrier);
+    let replacement = std::thread::spawn(move || {
+        let (send_tx, _send_rx) = flume::bounded(1);
+        replacement_barrier.wait();
+        replacement_registry.register_or_replace(guid, broadcast_info(guid, send_tx))
+    });
+
+    barrier.wait();
+    let _old_was_removed_first = unregister.join().expect("unregister thread");
+    let current = replacement.join().expect("replacement thread");
+
+    assert!(registry.lookup_current(current).is_some());
+    assert_eq!(
+        registry.control_address(guid).unwrap().registration(),
+        current
+    );
+}
+
+#[test]
 fn loaded_player_visible_items_for_create_includes_loaded_enchant_visual_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 90_526);
