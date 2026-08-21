@@ -13,14 +13,8 @@ use wow_constants::ClientOpcodes;
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_database::{CharStatements, PreparedStatement, StatementDef};
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP;
 use wow_network::player_registry::{ApplyGroupJoinLikeCppCommand, ApplyGroupRemovalLikeCppCommand};
-use wow_network::{
-    AcceptGroupInviteResultLikeCpp, CreateGroupInviteResultLikeCpp, GroupAuthorityErrorLikeCpp,
-    GroupInfo, GroupMemberRemovalKindLikeCpp, GroupPersistenceIntentLikeCpp, GroupRegistry,
-    MEMBER_FLAG_ASSISTANT_LIKE_CPP, ReadyCheckEventLikeCpp, SendPartyUpdateLikeCppCommand,
-    SendRealmPacketLikeCppCommand, SessionCommand,
-};
+use wow_network::{SendPartyUpdateLikeCppCommand, SendRealmPacketLikeCppCommand, SessionCommand};
 use wow_packet::packets::misc::{RandomRoll, RandomRollClient};
 use wow_packet::packets::party::{
     ClearRaidMarker, DoReadyCheck, GroupDecline, GroupNewLeader, GroupUninvite, InitiateRolePoll,
@@ -34,6 +28,12 @@ use wow_packet::packets::party::{
     party_result,
 };
 use wow_packet::{ClientPacket, ServerPacket};
+use wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP;
+use wow_social::group::{
+    AcceptGroupInviteResultLikeCpp, CreateGroupInviteResultLikeCpp, GroupAuthorityErrorLikeCpp,
+    GroupInfo, GroupMemberRemovalKindLikeCpp, GroupPersistenceIntentLikeCpp, GroupRegistry,
+    MEMBER_FLAG_ASSISTANT_LIKE_CPP, ReadyCheckEventLikeCpp,
+};
 
 use crate::session::{WorldSession, player_team_for_race_cpp};
 
@@ -1039,7 +1039,7 @@ pub(crate) fn group_persistence_statement_like_cpp(
             for index in 0..8 {
                 stmt.set_bytes(
                     5 + index,
-                    wow_network::EMPTY_TARGET_ICON_RAW_LIKE_CPP.to_vec(),
+                    wow_social::group::EMPTY_TARGET_ICON_RAW_LIKE_CPP.to_vec(),
                 );
             }
             stmt.set_u16(13, group_flags);
@@ -1527,7 +1527,7 @@ impl WorldSession {
                         SessionCommand::ApplyGroupJoinLikeCpp(ApplyGroupJoinLikeCppCommand {
                             group_guid: group.group_guid,
                             category: group.group_category_like_cpp(),
-                            party_type: wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
+                            party_type: wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP,
                             subgroup: 0,
                             refresh_visible_gameobjects_or_spellclicks: false,
                         }),
@@ -1544,7 +1544,7 @@ impl WorldSession {
         if let Some(group) = group_reg.get(&group_guid) {
             self.send_player_party_type_update_like_cpp(
                 group.group_category_like_cpp(),
-                wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
+                wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP,
             );
         }
         self.sync_player_registry_party_member_party_type_like_cpp();
@@ -1717,8 +1717,8 @@ impl WorldSession {
 
         let cleanup_command = ApplyGroupRemovalLikeCppCommand {
             group_guid,
-            category: wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
-            party_type: wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
+            category: wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP,
+            party_type: wow_social::group::GROUP_TYPE_NONE_LIKE_CPP,
             send_group_destroyed: should_disband,
             send_group_uninvite: !should_disband,
             refresh_visible_gameobjects_or_spellclicks: true,
@@ -1734,8 +1734,8 @@ impl WorldSession {
             self.group_guid = None;
             self.clear_represented_group_subgroup_like_cpp();
             self.send_player_party_type_update_like_cpp(
-                wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
-                wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
+                wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP,
+                wow_social::group::GROUP_TYPE_NONE_LIKE_CPP,
             );
             self.sync_player_registry_state_like_cpp();
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
@@ -1744,7 +1744,7 @@ impl WorldSession {
             // `PartyUpdate` after `GroupDestroyed` (`Group.cpp:744-746`).
             self.send_destroyed_group_party_update_like_cpp(
                 group_guid,
-                wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
+                wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP,
             );
             return;
         }
@@ -1864,8 +1864,8 @@ impl WorldSession {
                 if let Some(last) = registry.group_presence(last_guid) {
                     let command = ApplyGroupRemovalLikeCppCommand {
                         group_guid: gid,
-                        category: wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
-                        party_type: wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
+                        category: wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP,
+                        party_type: wow_social::group::GROUP_TYPE_NONE_LIKE_CPP,
                         send_group_destroyed: true,
                         send_group_uninvite: false,
                         refresh_visible_gameobjects_or_spellclicks: true,
@@ -1880,8 +1880,8 @@ impl WorldSession {
             self.group_guid = None;
             self.clear_represented_group_subgroup_like_cpp();
             self.send_player_party_type_update_like_cpp(
-                wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
-                wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
+                wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP,
+                wow_social::group::GROUP_TYPE_NONE_LIKE_CPP,
             );
             self.sync_player_registry_state_like_cpp();
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
@@ -1896,8 +1896,8 @@ impl WorldSession {
         self.group_guid = None;
         self.clear_represented_group_subgroup_like_cpp();
         self.send_player_party_type_update_like_cpp(
-            wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
-            wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
+            wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP,
+            wow_social::group::GROUP_TYPE_NONE_LIKE_CPP,
         );
         self.sync_player_registry_state_like_cpp();
         let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
@@ -1989,7 +1989,7 @@ impl WorldSession {
             Some(guid) => guid,
             None => return,
         };
-        if usize::from(change.new_subgroup) >= wow_network::MAX_RAID_SUBGROUPS_LIKE_CPP {
+        if usize::from(change.new_subgroup) >= wow_social::group::MAX_RAID_SUBGROUPS_LIKE_CPP {
             return;
         }
 

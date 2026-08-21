@@ -87,9 +87,9 @@ use wow_loot::{
     OwnedLootAuthority, OwnedLootAuthorityLifecycle,
 };
 use wow_network::{
-    ApplyLootMoneyLikeCppCommand, GroupInfo, GroupRegistry, KickLikeCppCommand,
-    LootRollCommandIdentityLikeCpp, LootRollVoteCommand, MasterLootGiveResult, PendingInvites,
-    SendCreatureSpellCastIfVisibleLikeCppCommand, SessionCommand,
+    ApplyLootMoneyLikeCppCommand, KickLikeCppCommand, LootRollCommandIdentityLikeCpp,
+    LootRollVoteCommand, MasterLootGiveResult, SendCreatureSpellCastIfVisibleLikeCppCommand,
+    SessionCommand,
 };
 use wow_packet::packets::loot::{
     CreatureLoot, LOOT_ERROR_MASTER_OTHER_LIKE_CPP, LOOT_ERROR_MASTER_UNIQUE_ITEM_LIKE_CPP,
@@ -106,6 +106,7 @@ use wow_packet::packets::update::{
     CreatureCreateData, ObjectDataValuesUpdate, UnitDataValuesDeltaUpdate,
 };
 use wow_packet::{ServerPacket, WorldPacket};
+use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
 
 use crate::session::{
     AuraApplication, InventoryItem, SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP, SpellCastState,

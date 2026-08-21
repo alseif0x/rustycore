@@ -28,12 +28,13 @@ use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
 use wow_database::{CharStatements, SqlParam, StatementDef};
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP;
-use wow_network::{
-    GroupInfo, GroupMemberCharacterLikeCpp, GroupRegistry, PendingInviteLikeCpp, PendingInvites,
-    ReadyCheckEventLikeCpp, SendRealmPacketLikeCppCommand, SessionCommand,
-};
+use wow_network::{SendRealmPacketLikeCppCommand, SessionCommand};
 use wow_packet::{ServerPacket, WorldPacket, packets::party::party_result};
+use wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP;
+use wow_social::group::{
+    GroupInfo, GroupMemberCharacterLikeCpp, GroupRegistry, PendingInviteLikeCpp, PendingInvites,
+    ReadyCheckEventLikeCpp,
+};
 
 use crate::session::WorldSession;
 
@@ -608,19 +609,20 @@ fn party_update_serializes_raid_group_flag_like_cpp() {
     );
     assert_eq!(
         pkt.read_uint16().unwrap(),
-        wow_network::GROUP_FLAG_RAID_LIKE_CPP
+        wow_social::group::GROUP_FLAG_RAID_LIKE_CPP
     );
 }
 
 #[test]
 fn group_type_update_statement_binds_cpp_group_flags_and_db_guid() {
-    let stmt = group_type_update_statement_like_cpp(wow_network::GROUP_FLAG_RAID_LIKE_CPP, 77);
+    let stmt =
+        group_type_update_statement_like_cpp(wow_social::group::GROUP_FLAG_RAID_LIKE_CPP, 77);
 
     assert_eq!(stmt.sql(), CharStatements::UPD_GROUP_TYPE.sql());
     assert_eq!(
         stmt.params(),
         &[
-            SqlParam::U16(wow_network::GROUP_FLAG_RAID_LIKE_CPP),
+            SqlParam::U16(wow_social::group::GROUP_FLAG_RAID_LIKE_CPP),
             SqlParam::U32(77)
         ]
     );
@@ -673,7 +675,7 @@ fn group_insert_statement_binds_cpp_group_row_like_cpp() {
     let leader = ObjectGuid::create_player(1, 42);
     let group = GroupInfo::new(leader);
     let stmt = group_persistence_statement_like_cpp(
-        wow_network::GroupPersistenceIntentLikeCpp::InsertGroup {
+        wow_social::group::GroupPersistenceIntentLikeCpp::InsertGroup {
             db_store_id: 77,
             leader_guid: group.leader_guid,
             loot_method: group.loot_method,
@@ -693,7 +695,7 @@ fn group_insert_statement_binds_cpp_group_row_like_cpp() {
     assert_eq!(stmt.params()[1], SqlParam::U64(leader.counter() as u64));
     assert_eq!(
         stmt.params()[2],
-        SqlParam::U8(wow_network::LOOT_METHOD_PERSONAL_LIKE_CPP)
+        SqlParam::U8(wow_social::group::LOOT_METHOD_PERSONAL_LIKE_CPP)
     );
     assert_eq!(stmt.params()[3], SqlParam::U64(leader.counter() as u64));
     assert_eq!(stmt.params()[4], SqlParam::U8(2));
@@ -796,7 +798,7 @@ async fn leave_group_disband_queues_remote_group_removal_like_cpp() {
     assert_eq!(command.category, GROUP_CATEGORY_HOME_LIKE_CPP);
     assert_eq!(
         command.party_type,
-        wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP
+        wow_social::group::GROUP_TYPE_NONE_LIKE_CPP
     );
     assert!(command.send_group_destroyed);
     assert!(command.refresh_visible_gameobjects_or_spellclicks);
@@ -832,7 +834,7 @@ async fn party_invite_party_index_instance_does_not_use_full_home_group_like_cpp
         .handle_party_invite(party_invite_packet(
             target,
             &target_name,
-            Some(wow_network::group_registry::GROUP_CATEGORY_INSTANCE_LIKE_CPP),
+            Some(wow_social::group::GROUP_CATEGORY_INSTANCE_LIKE_CPP),
             0,
         ))
         .await;
@@ -1550,7 +1552,7 @@ async fn party_invite_response_party_index_mismatch_keeps_invite_pending_like_cp
     session
         .handle_party_invite_response(party_invite_response_packet(
             true,
-            Some(wow_network::group_registry::GROUP_CATEGORY_INSTANCE_LIKE_CPP),
+            Some(wow_social::group::GROUP_CATEGORY_INSTANCE_LIKE_CPP),
             None,
         ))
         .await;
@@ -1610,7 +1612,10 @@ async fn party_invite_response_reports_group_full_without_adding_member_like_cpp
     let group = group_registry
         .get(&group_guid)
         .expect("group remains registered");
-    assert_eq!(group.members.len(), wow_network::MAX_GROUP_SIZE_LIKE_CPP);
+    assert_eq!(
+        group.members.len(),
+        wow_social::group::MAX_GROUP_SIZE_LIKE_CPP
+    );
     assert!(!group.members.contains(&target));
     assert!(session.group_guid.is_none());
 }
@@ -1625,7 +1630,8 @@ async fn party_invite_response_add_member_failure_returns_silently_like_cpp() {
     let mut group = GroupInfo::new(leader);
     group.convert_to_raid_like_cpp();
     group.raid_subgroup_counts = Some(
-        [wow_network::MAX_GROUP_SIZE_LIKE_CPP as u8; wow_network::MAX_RAID_SUBGROUPS_LIKE_CPP],
+        [wow_social::group::MAX_GROUP_SIZE_LIKE_CPP as u8;
+            wow_social::group::MAX_RAID_SUBGROUPS_LIKE_CPP],
     );
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
@@ -1677,7 +1683,7 @@ async fn leave_group_party_index_instance_does_not_leave_home_group_like_cpp() {
 
     session
         .handle_leave_group(leave_group_packet(Some(
-            wow_network::group_registry::GROUP_CATEGORY_INSTANCE_LIKE_CPP,
+            wow_social::group::GROUP_CATEGORY_INSTANCE_LIKE_CPP,
         )))
         .await;
 
@@ -1698,8 +1704,8 @@ fn lfg_group_like_cpp(leader: ObjectGuid, member_count: usize) -> GroupInfo {
     for counter in 100..(100 + member_count as i64 - 1) {
         assert!(group.add_member(ObjectGuid::create_player(1, counter)));
     }
-    group.group_flags |= wow_network::GROUP_FLAG_LFG_LIKE_CPP;
-    group.lfg_kicks_left_like_cpp = wow_network::LFG_GROUP_MAX_KICKS_LIKE_CPP;
+    group.group_flags |= wow_social::group::GROUP_FLAG_LFG_LIKE_CPP;
+    group.lfg_kicks_left_like_cpp = wow_social::group::LFG_GROUP_MAX_KICKS_LIKE_CPP;
     group
 }
 
@@ -1816,9 +1822,9 @@ async fn lfg_uninvite_finished_dungeon_returns_code_without_removal_like_cpp() {
     let sender = ObjectGuid::create_player(1, 100);
     let target = ObjectGuid::create_player(1, 101);
     let mut group = lfg_group_like_cpp(leader, 5);
-    group.lfg_db_state = Some(wow_network::GroupLfgDbStateLikeCpp {
+    group.lfg_db_state = Some(wow_social::group::GroupLfgDbStateLikeCpp {
         dungeon_id: 100,
-        state: Some(wow_network::LFG_STATE_FINISHED_DUNGEON_LIKE_CPP),
+        state: Some(wow_social::group::LFG_STATE_FINISHED_DUNGEON_LIKE_CPP),
     });
     let (mut session, send_rx, group_registry, group_guid) =
         lfg_uninvite_session_like_cpp(group, sender);
@@ -2109,7 +2115,7 @@ async fn party_uninvite_leader_queues_remote_remove_member_cleanup_like_cpp() {
     assert_eq!(command.category, GROUP_CATEGORY_HOME_LIKE_CPP);
     assert_eq!(
         command.party_type,
-        wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP
+        wow_social::group::GROUP_TYPE_NONE_LIKE_CPP
     );
     assert!(!command.send_group_destroyed);
     assert!(command.send_group_uninvite);
@@ -2199,7 +2205,7 @@ async fn party_uninvite_disband_sends_destroyed_party_update_like_cpp() {
     );
     assert_eq!(
         packet.read_uint16().expect("party flags"),
-        wow_network::group_registry::GROUP_FLAG_DESTROYED_LIKE_CPP
+        wow_social::group::GROUP_FLAG_DESTROYED_LIKE_CPP
     );
     assert_eq!(
         packet.read_uint8().expect("party index"),
@@ -2207,7 +2213,7 @@ async fn party_uninvite_disband_sends_destroyed_party_update_like_cpp() {
     );
     assert_eq!(
         packet.read_uint8().expect("party type"),
-        wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP
+        wow_social::group::GROUP_TYPE_NONE_LIKE_CPP
     );
     assert_eq!(packet.read_int32().expect("my index"), -1);
     assert_eq!(
@@ -2635,7 +2641,7 @@ async fn raid_target_raid_regular_member_rejected_but_assistant_allowed_like_cpp
         .await;
     assert_eq!(
         group_registry.get(&group_guid).unwrap().target_icons[4],
-        wow_network::EMPTY_TARGET_ICON_RAW_LIKE_CPP
+        wow_social::group::EMPTY_TARGET_ICON_RAW_LIKE_CPP
     );
     assert!(leader_rx.try_recv().is_err());
     assert!(assistant_rx.try_recv().is_err());
@@ -2646,7 +2652,7 @@ async fn raid_target_raid_regular_member_rejected_but_assistant_allowed_like_cpp
             leader,
             assistant,
             true,
-            wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+            wow_social::group::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
         )
         .unwrap();
     session
@@ -2708,7 +2714,7 @@ async fn raid_target_duplicate_target_clears_old_icon_before_final_update_like_c
     let group = group_registry.get(&group_guid).unwrap();
     assert_eq!(
         group.target_icons[1],
-        wow_network::EMPTY_TARGET_ICON_RAW_LIKE_CPP
+        wow_social::group::EMPTY_TARGET_ICON_RAW_LIKE_CPP
     );
     assert_eq!(group.target_icons[5], target.to_raw_bytes());
 }
@@ -2739,7 +2745,7 @@ async fn raid_target_party_index_instance_does_not_fall_back_to_home_like_cpp() 
 
     assert_eq!(
         group_registry.get(&group_guid).unwrap().target_icons[2],
-        wow_network::EMPTY_TARGET_ICON_RAW_LIKE_CPP
+        wow_social::group::EMPTY_TARGET_ICON_RAW_LIKE_CPP
     );
     assert!(leader_rx.try_recv().is_err());
 }
@@ -3427,7 +3433,7 @@ async fn convert_raid_sets_flag_and_queues_member_refresh_like_cpp() {
     );
     assert_eq!(
         u16::from_le_bytes([party_update[2], party_update[3]]),
-        wow_network::GROUP_FLAG_RAID_LIKE_CPP
+        wow_social::group::GROUP_FLAG_RAID_LIKE_CPP
     );
 }
 
@@ -3480,7 +3486,10 @@ async fn convert_raid_releases_group_guard_before_refresh_backpressure_like_cpp(
         .expect("the group write must not wait for refresh channel backpressure")
         .expect("group writer task should not panic")
         .expect("converted group should remain registered");
-    assert_ne!(observed_flags & wow_network::GROUP_FLAG_RAID_LIKE_CPP, 0);
+    assert_ne!(
+        observed_flags & wow_social::group::GROUP_FLAG_RAID_LIKE_CPP,
+        0
+    );
 
     conversion.await;
 }
@@ -3602,7 +3611,7 @@ async fn change_sub_group_assistant_allowed_but_regular_member_rejected_like_cpp
             leader,
             assistant,
             true,
-            wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+            wow_social::group::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
         )
         .unwrap();
 
@@ -3644,7 +3653,7 @@ async fn set_party_assignment_leader_sets_main_tank_and_fans_out_like_cpp() {
 
     session
         .handle_set_party_assignment(set_party_assignment_packet(
-            wow_network::GROUP_ASSIGN_MAINTANK_LIKE_CPP,
+            wow_social::group::GROUP_ASSIGN_MAINTANK_LIKE_CPP,
             member,
             true,
             Some(0),
@@ -3659,8 +3668,8 @@ async fn set_party_assignment_leader_sets_main_tank_and_fans_out_like_cpp() {
             .member_slot_like_cpp(member)
             .unwrap()
             .flags
-            & wow_network::MEMBER_FLAG_MAINTANK_LIKE_CPP,
-        wow_network::MEMBER_FLAG_MAINTANK_LIKE_CPP
+            & wow_social::group::MEMBER_FLAG_MAINTANK_LIKE_CPP,
+        wow_social::group::MEMBER_FLAG_MAINTANK_LIKE_CPP
     );
     let leader_update = recv_dispatched_packet(&leader_rx, "leader party update");
     assert_eq!(
@@ -3689,7 +3698,7 @@ async fn set_party_assignment_assistant_sets_main_assist_like_cpp() {
         .set_group_member_flag_like_cpp(
             assistant,
             true,
-            wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+            wow_social::group::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
         )
         .unwrap();
     let group_guid = group.group_guid;
@@ -3710,7 +3719,7 @@ async fn set_party_assignment_assistant_sets_main_assist_like_cpp() {
 
     session
         .handle_set_party_assignment(set_party_assignment_packet(
-            wow_network::GROUP_ASSIGN_MAINASSIST_LIKE_CPP,
+            wow_social::group::GROUP_ASSIGN_MAINASSIST_LIKE_CPP,
             target,
             true,
             None,
@@ -3724,8 +3733,8 @@ async fn set_party_assignment_assistant_sets_main_assist_like_cpp() {
             .member_slot_like_cpp(target)
             .unwrap()
             .flags
-            & wow_network::MEMBER_FLAG_MAINASSIST_LIKE_CPP,
-        wow_network::MEMBER_FLAG_MAINASSIST_LIKE_CPP
+            & wow_social::group::MEMBER_FLAG_MAINASSIST_LIKE_CPP,
+        wow_social::group::MEMBER_FLAG_MAINASSIST_LIKE_CPP
     );
     let _ = recv_dispatched_packet(&leader_rx, "leader party update");
 }
@@ -3759,7 +3768,7 @@ async fn set_party_assignment_rejects_regular_member_without_mutation_or_fanout_
 
     session
         .handle_set_party_assignment(set_party_assignment_packet(
-            wow_network::GROUP_ASSIGN_MAINTANK_LIKE_CPP,
+            wow_social::group::GROUP_ASSIGN_MAINTANK_LIKE_CPP,
             target,
             true,
             None,
@@ -3806,7 +3815,7 @@ async fn set_party_assignment_non_raid_or_missing_target_fans_out_and_missing_cl
 
     session
         .handle_set_party_assignment(set_party_assignment_packet(
-            wow_network::GROUP_ASSIGN_MAINTANK_LIKE_CPP,
+            wow_social::group::GROUP_ASSIGN_MAINTANK_LIKE_CPP,
             member,
             true,
             None,
@@ -3833,12 +3842,12 @@ async fn set_party_assignment_non_raid_or_missing_target_fans_out_and_missing_cl
             leader,
             member,
             true,
-            wow_network::MEMBER_FLAG_MAINTANK_LIKE_CPP,
+            wow_social::group::MEMBER_FLAG_MAINTANK_LIKE_CPP,
         )
         .unwrap();
     session
         .handle_set_party_assignment(set_party_assignment_packet(
-            wow_network::GROUP_ASSIGN_MAINTANK_LIKE_CPP,
+            wow_social::group::GROUP_ASSIGN_MAINTANK_LIKE_CPP,
             missing,
             true,
             None,
@@ -3851,7 +3860,7 @@ async fn set_party_assignment_non_raid_or_missing_target_fans_out_and_missing_cl
             .member_slot_like_cpp(member)
             .unwrap()
             .flags
-            & wow_network::MEMBER_FLAG_MAINTANK_LIKE_CPP,
+            & wow_social::group::MEMBER_FLAG_MAINTANK_LIKE_CPP,
         0
     );
     let _ = recv_dispatched_packet(&leader_rx, "leader party update");
@@ -3922,14 +3931,14 @@ async fn set_everyone_is_assistant_leader_applies_to_all_members_and_fans_out_li
     assert!(send_rx.try_recv().is_err());
     let group = group_registry.get(&group_guid).unwrap();
     assert_eq!(
-        group.group_flags & wow_network::GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP,
-        wow_network::GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP
+        group.group_flags & wow_social::group::GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP,
+        wow_social::group::GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP
     );
     for guid in [leader, member] {
         assert_eq!(
             group.member_slot_like_cpp(guid).unwrap().flags
-                & wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
-            wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP
+                & wow_social::group::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+            wow_social::group::MEMBER_FLAG_ASSISTANT_LIKE_CPP
         );
     }
     let leader_update = recv_dispatched_packet(&leader_rx, "leader party update");
@@ -3973,13 +3982,13 @@ async fn set_everyone_is_assistant_leader_clears_all_members_and_fans_out_like_c
 
     let group = group_registry.get(&group_guid).unwrap();
     assert_eq!(
-        group.group_flags & wow_network::GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP,
+        group.group_flags & wow_social::group::GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP,
         0
     );
     for guid in [leader, member] {
         assert_eq!(
             group.member_slot_like_cpp(guid).unwrap().flags
-                & wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+                & wow_social::group::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
             0
         );
     }
@@ -4015,12 +4024,12 @@ async fn set_everyone_is_assistant_rejects_non_leader_without_mutation_or_fanout
 
     let group = group_registry.get(&group_guid).unwrap();
     assert_eq!(
-        group.group_flags & wow_network::GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP,
+        group.group_flags & wow_social::group::GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP,
         0
     );
     assert_eq!(
         group.member_slot_like_cpp(member).unwrap().flags
-            & wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+            & wow_social::group::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
         0
     );
     assert!(leader_rx.try_recv().is_err());
@@ -4198,8 +4207,8 @@ async fn set_assistant_leader_leader_marks_and_unmarks_member_with_party_update_
             .member_slot_like_cpp(member)
             .unwrap()
             .flags
-            & wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
-        wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP
+            & wow_social::group::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+        wow_social::group::MEMBER_FLAG_ASSISTANT_LIKE_CPP
     );
     let leader_update = recv_dispatched_packet(&leader_rx, "leader party update");
     assert_eq!(
@@ -4222,7 +4231,7 @@ async fn set_assistant_leader_leader_marks_and_unmarks_member_with_party_update_
             .member_slot_like_cpp(member)
             .unwrap()
             .flags
-            & wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+            & wow_social::group::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
         0
     );
 }
@@ -4238,7 +4247,7 @@ async fn set_party_leader_leader_changes_to_connected_member_like_cpp() {
     group.convert_to_raid_like_cpp();
     assert_eq!(
         group.set_assistant_leader_flag_like_cpp(member, true),
-        Some(wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP)
+        Some(wow_social::group::MEMBER_FLAG_ASSISTANT_LIKE_CPP)
     );
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
@@ -4263,7 +4272,7 @@ async fn set_party_leader_leader_changes_to_connected_member_like_cpp() {
     assert_eq!(group.leader_guid, member);
     assert_eq!(
         group.member_slot_like_cpp(member).unwrap().flags
-            & wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+            & wow_social::group::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
         0
     );
     drop(group);
@@ -4343,7 +4352,7 @@ async fn set_assistant_leader_rejects_non_leader_even_if_assistant_like_cpp() {
     group.convert_to_raid_like_cpp();
     assert_eq!(
         group.set_assistant_leader_flag_like_cpp(assistant, true),
-        Some(wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP)
+        Some(wow_social::group::MEMBER_FLAG_ASSISTANT_LIKE_CPP)
     );
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
@@ -4536,7 +4545,7 @@ async fn swap_sub_groups_assistant_allowed_but_regular_member_rejected_like_cpp(
             leader,
             assistant,
             true,
-            wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+            wow_social::group::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
         )
         .unwrap();
 
@@ -5256,7 +5265,7 @@ async fn initiate_role_poll_uses_resolved_group_category_like_cpp() {
     let member = ObjectGuid::create_player(1, 43);
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(leader);
-    group.group_category = wow_network::group_registry::GROUP_CATEGORY_INSTANCE_LIKE_CPP;
+    group.group_category = wow_social::group::GROUP_CATEGORY_INSTANCE_LIKE_CPP;
     group.add_member(member);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
@@ -5287,7 +5296,7 @@ async fn initiate_role_poll_uses_resolved_group_category_like_cpp() {
         );
         assert_eq!(
             pkt.read_int8().unwrap(),
-            wow_network::group_registry::GROUP_CATEGORY_INSTANCE_LIKE_CPP as i8
+            wow_social::group::GROUP_CATEGORY_INSTANCE_LIKE_CPP as i8
         );
         assert_eq!(pkt.read_packed_guid().unwrap(), leader);
     }

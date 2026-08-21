@@ -77,15 +77,18 @@ use wow_network::player_registry::{
 use wow_network::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyLootMoneyLikeCppCommand,
     CreatureAttackStartLikeCppCommand, GameEventQuestCompleteClientOutcomeLikeCpp,
-    GameEventQuestCompleteResponseLikeCpp, GroupInfo, GroupInstanceResetMethodLikeCpp,
-    GroupInstanceResetResultLikeCpp, GroupRegistry, KickLikeCppCommand, PendingInviteLikeCpp,
-    PendingInvites, RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
+    GameEventQuestCompleteResponseLikeCpp, KickLikeCppCommand,
+    RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
     SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand, SendRealmPacketLikeCppCommand,
     SendVisibleObjectValuesUpdateCommand, SessionCommand, WorldSessionShutdownFlushLikeCppCommand,
 };
 use wow_packet::ServerPacket;
 use wow_packet::packets::loot::{
     CreatureLoot, LOOT_TYPE_CORPSE_LIKE_CPP, LOOT_TYPE_ITEM_LIKE_CPP, LootEntry, LootEntryFlags,
+};
+use wow_social::group::{
+    GroupInfo, GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
+    PendingInviteLikeCpp, PendingInvites,
 };
 
 const BATTLEGROUND_AB_LIKE_CPP: u32 = 3;
@@ -8721,13 +8724,13 @@ fn reset_group_update_sequence_starts_loaded_group_at_one_like_cpp() {
     assert!(session.reset_group_update_sequence_if_needed_like_cpp());
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
-            wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
         1
     );
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
-            wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
         2
     );
@@ -8747,13 +8750,13 @@ fn reset_group_update_sequence_does_not_reset_same_group_like_cpp() {
     assert!(session.reset_group_update_sequence_if_needed_like_cpp());
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
-            wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
         1
     );
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
-            wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
         2
     );
@@ -8761,7 +8764,7 @@ fn reset_group_update_sequence_does_not_reset_same_group_like_cpp() {
     assert!(!session.reset_group_update_sequence_if_needed_like_cpp());
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
-            wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
         3
     );
@@ -8785,13 +8788,13 @@ fn reset_group_update_sequence_resets_when_group_changes_like_cpp() {
     assert!(session.reset_group_update_sequence_if_needed_like_cpp());
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
-            wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
         1
     );
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
-            wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
         2
     );
@@ -8800,7 +8803,7 @@ fn reset_group_update_sequence_resets_when_group_changes_like_cpp() {
     assert!(session.reset_group_update_sequence_if_needed_like_cpp());
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
-            wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
         1
     );
@@ -8813,7 +8816,7 @@ fn reset_group_update_sequence_without_group_is_noop_like_cpp() {
     assert!(!session.reset_group_update_sequence_if_needed_like_cpp());
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
-            wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+            wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
         0
     );
@@ -8843,8 +8846,8 @@ async fn party_update_command_consumes_receiver_sequence_like_cpp() {
                     recipient: player_guid,
                     party_update: wow_packet::packets::party::PartyUpdate {
                         party_flags: 0,
-                        party_index: wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
-                        party_type: wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
+                        party_index: wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP,
+                        party_type: wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP,
                         my_index: 0,
                         party_guid: group_guid,
                         // C++ ignores any caller/global sequence and asks
@@ -8912,8 +8915,8 @@ async fn group_removal_command_clears_remote_party_type_like_cpp() {
     let before = player_registry.fixture_snapshot(player_guid).unwrap();
     assert_eq!(
         before.party_member_party_type
-            [usize::from(wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP)],
-        wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP
+            [usize::from(wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP)],
+        wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP
     );
     drop(before);
 
@@ -8922,8 +8925,8 @@ async fn group_removal_command_clears_remote_party_type_like_cpp() {
         .try_send(SessionCommand::ApplyGroupRemovalLikeCpp(
             ApplyGroupRemovalLikeCppCommand {
                 group_guid,
-                category: wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
-                party_type: wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
+                category: wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP,
+                party_type: wow_social::group::GROUP_TYPE_NONE_LIKE_CPP,
                 send_group_destroyed: true,
                 send_group_uninvite: false,
                 refresh_visible_gameobjects_or_spellclicks: false,
@@ -8938,9 +8941,8 @@ async fn group_removal_command_clears_remote_party_type_like_cpp() {
     assert_eq!(session.group_guid, None);
     let after = player_registry.fixture_snapshot(player_guid).unwrap();
     assert_eq!(
-        after.party_member_party_type
-            [usize::from(wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP)],
-        wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP
+        after.party_member_party_type[usize::from(wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP)],
+        wow_social::group::GROUP_TYPE_NONE_LIKE_CPP
     );
     drop(after);
 
@@ -9005,8 +9007,8 @@ async fn group_removal_command_can_send_group_uninvite_like_cpp() {
         .try_send(SessionCommand::ApplyGroupRemovalLikeCpp(
             ApplyGroupRemovalLikeCppCommand {
                 group_guid,
-                category: wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
-                party_type: wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
+                category: wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP,
+                party_type: wow_social::group::GROUP_TYPE_NONE_LIKE_CPP,
                 send_group_destroyed: false,
                 send_group_uninvite: true,
                 refresh_visible_gameobjects_or_spellclicks: false,
@@ -12753,7 +12755,7 @@ async fn accept_invite_to_raid_group_triggers_visible_gameobject_refresh_like_cp
         PendingInviteLikeCpp::new_existing_group(
             inviter_guid,
             group_guid,
-            wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
+            wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP,
         ),
     );
 
@@ -36507,8 +36509,8 @@ fn player_registry_publishes_home_group_party_type_like_cpp() {
     assert_eq!(
         info.party_member_party_type,
         [
-            wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
-            wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP
+            wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP,
+            wow_social::group::GROUP_TYPE_NONE_LIKE_CPP
         ]
     );
 }
@@ -36526,7 +36528,7 @@ fn player_registry_publishes_instance_group_party_type_like_cpp() {
     group_registry.register_group_like_cpp(home_group_guid, home_group);
 
     let mut instance_group = GroupInfo::new(guid);
-    instance_group.group_category = wow_network::group_registry::GROUP_CATEGORY_INSTANCE_LIKE_CPP;
+    instance_group.group_category = wow_social::group::GROUP_CATEGORY_INSTANCE_LIKE_CPP;
     let instance_group_guid = instance_group.group_guid;
     group_registry.register_group_like_cpp(instance_group_guid, instance_group);
 
@@ -36543,8 +36545,8 @@ fn player_registry_publishes_instance_group_party_type_like_cpp() {
     assert_eq!(
         info.party_member_party_type,
         [
-            wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
-            wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP
+            wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP,
+            wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP
         ]
     );
 }

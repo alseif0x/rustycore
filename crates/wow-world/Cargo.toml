@@ -39,6 +39,7 @@ wow-packet = { workspace = true }
 wow-handler = { workspace = true }
 wow-instances = { workspace = true }
 wow-script = { workspace = true }
+wow-social = { workspace = true }
 sqlx = { workspace = true }
 
 [dev-dependencies]

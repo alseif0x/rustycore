@@ -2,6 +2,31 @@
 
 use super::*;
 
+/// Supply the Group owner's loaded-difficulty port from the DB2 store.
+///
+/// `wow-social` owns the Group rules but must not depend on a data adapter, so
+/// the composition root binds the port to the concrete `wow_data` store. Both
+/// the trait and the store are foreign to this crate, so the binding is an
+/// explicit borrowing adapter rather than a blanket impl. Every method forwards
+/// to the existing C++-anchored validation unchanged.
+pub(crate) struct GroupDifficultyStorePortLikeCpp<'a>(pub(crate) &'a wow_data::DifficultyStore);
+
+impl wow_social::group::GroupDifficultyValidatorLikeCpp for GroupDifficultyStorePortLikeCpp<'_> {
+    fn check_loaded_dungeon_difficulty_id_like_cpp(&self, difficulty: u32) -> u32 {
+        self.0
+            .check_loaded_dungeon_difficulty_id_like_cpp(difficulty)
+    }
+
+    fn check_loaded_raid_difficulty_id_like_cpp(&self, difficulty: u32) -> u32 {
+        self.0.check_loaded_raid_difficulty_id_like_cpp(difficulty)
+    }
+
+    fn check_loaded_legacy_raid_difficulty_id_like_cpp(&self, difficulty: u32) -> u32 {
+        self.0
+            .check_loaded_legacy_raid_difficulty_id_like_cpp(difficulty)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CanonicalRespawnConditionSchedulerLikeCpp {
     pub(crate) timer_ms: u32,
@@ -244,7 +269,7 @@ pub(crate) async fn load_groups_from_character_database_like_cpp(
         group_rows,
         member_rows,
         &character_cache,
-        difficulty_store,
+        &GroupDifficultyStorePortLikeCpp(difficulty_store),
     ))
 }
 
@@ -296,7 +321,7 @@ pub(crate) async fn load_group_db_rows_like_cpp(
     }
 
     loop {
-        let mut target_icons = [[0u8; 16]; wow_network::TARGET_ICONS_COUNT_LIKE_CPP];
+        let mut target_icons = [[0u8; 16]; wow_social::group::TARGET_ICONS_COUNT_LIKE_CPP];
         for (idx, icon) in target_icons.iter_mut().enumerate() {
             let bytes: Vec<u8> = result.try_read(4 + idx).unwrap_or_default();
             *icon = target_icon_raw_from_db_bytes_like_cpp(&bytes);

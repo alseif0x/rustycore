@@ -23,7 +23,7 @@ use wow_constants::{ClientOpcodes, UnitState};
 use wow_core::ObjectGuid;
 use wow_core::guid::HighGuid;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_network::{GroupInfo, SendAddonIfRegisteredLikeCppCommand, SessionCommand};
+use wow_network::{SendAddonIfRegisteredLikeCppCommand, SessionCommand};
 use wow_packet::packets::chat::{
     CTextEmote, ChatAddonMessage, ChatAddonMessageTargeted, ChatAddonMessageWhisper, ChatMessage,
     ChatMessageAfk, ChatMessageChannel, ChatMessageDnd, ChatMessageEmote, ChatMessageWhisper,
@@ -32,6 +32,7 @@ use wow_packet::packets::chat::{
     UpdateAadcStatusResponse,
 };
 use wow_packet::{ClientPacket, ServerPacket};
+use wow_social::group::GroupInfo;
 
 use crate::session::{
     ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp, SPELL_AURA_INTERRUPT_FLAG_ANIM_LIKE_CPP,
@@ -1572,7 +1573,7 @@ mod tests {
     };
     use std::collections::{HashMap, HashSet};
     use std::sync::Arc;
-    use wow_network::PendingInvites;
+    use wow_social::group::PendingInvites;
 
     const LANG_COMMON_LIKE_CPP: i32 = 7;
 
@@ -2144,7 +2145,7 @@ mod tests {
         group.add_member(other_subgroup);
         assert!(group.change_member_group_like_cpp(other_subgroup, 1));
         let group_guid = group.group_guid;
-        let group_registry = Arc::new(wow_network::GroupRegistry::default());
+        let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
         group_registry.register_group_like_cpp(group_guid, group);
         session.group_guid = Some(group_guid);
         session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -2179,7 +2180,7 @@ mod tests {
         group.convert_to_raid_like_cpp();
         group.add_member(member);
         let group_guid = group.group_guid;
-        let group_registry = Arc::new(wow_network::GroupRegistry::default());
+        let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
         group_registry.register_group_like_cpp(group_guid, group);
         session.group_guid = Some(group_guid);
         session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -2212,7 +2213,7 @@ mod tests {
         let mut group = GroupInfo::new(leader);
         group.add_member(member);
         let group_guid = group.group_guid;
-        let group_registry = Arc::new(wow_network::GroupRegistry::default());
+        let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
         group_registry.register_group_like_cpp(group_guid, group);
         session.group_guid = Some(group_guid);
         session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -2239,7 +2240,7 @@ mod tests {
         let mut group = GroupInfo::new(leader);
         group.add_member(member);
         let group_guid = group.group_guid;
-        let group_registry = Arc::new(wow_network::GroupRegistry::default());
+        let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
         group_registry.register_group_like_cpp(group_guid, group);
         session.group_guid = Some(group_guid);
         session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -3030,7 +3031,7 @@ mod tests {
         let mut group = GroupInfo::new(leader);
         group.add_member(member);
         let group_guid = group.group_guid;
-        let group_registry = Arc::new(wow_network::GroupRegistry::default());
+        let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
         group_registry.register_group_like_cpp(group_guid, group);
         session.group_guid = Some(group_guid);
         session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -3370,7 +3371,7 @@ mod tests {
         let mut group = GroupInfo::new(leader);
         group.add_member(member);
         let group_guid = group.group_guid;
-        let group_registry = Arc::new(wow_network::GroupRegistry::default());
+        let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
         group_registry.register_group_like_cpp(group_guid, group);
         session.group_guid = Some(group_guid);
         session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -3607,7 +3608,7 @@ mod tests {
         group.add_member(other_subgroup);
         assert!(group.change_member_group_like_cpp(other_subgroup, 1));
         let group_guid = group.group_guid;
-        let group_registry = Arc::new(wow_network::GroupRegistry::default());
+        let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
         group_registry.register_group_like_cpp(group_guid, group);
         session.group_guid = Some(group_guid);
         session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -3638,7 +3639,7 @@ mod tests {
         let mut group = GroupInfo::new(leader);
         group.add_member(member);
         let group_guid = group.group_guid;
-        let group_registry = Arc::new(wow_network::GroupRegistry::default());
+        let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
         group_registry.register_group_like_cpp(group_guid, group);
         session.group_guid = Some(group_guid);
         session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -3728,7 +3729,7 @@ mod tests {
         let mut group = GroupInfo::new(leader);
         group.add_member(member);
         let group_guid = group.group_guid;
-        let group_registry = Arc::new(wow_network::GroupRegistry::default());
+        let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
         group_registry.register_group_like_cpp(group_guid, group);
         session.group_guid = Some(group_guid);
         session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));

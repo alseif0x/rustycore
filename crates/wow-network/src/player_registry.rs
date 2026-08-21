@@ -12,7 +12,6 @@
 //! `wow_world::session::directory`; the pump and the mailbox boundary itself
 //! move out under issue #140.
 
-pub use crate::group_registry::GroupDifficultyKindLikeCpp;
 use std::collections::{HashSet, VecDeque};
 use std::sync::{
     Arc, Mutex,
@@ -23,6 +22,7 @@ use wow_core::ObjectGuid;
 use wow_loot::{LootClaimLease, OwnedLootAuthority};
 use wow_packet::packets::loot::LootEntry;
 use wow_packet::packets::party::PartyUpdate;
+pub use wow_social::group::GroupDifficultyKindLikeCpp;
 
 /// C++ `Player::m_clientGUIDs` held behind a shared handle.
 ///

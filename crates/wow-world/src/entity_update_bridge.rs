@@ -1586,12 +1586,7 @@ mod tests {
         let mut player = Player::new(Some(7), false);
         player.clear_data_changes();
 
-        assert!(
-            player.set_party_type_like_cpp(
-                0,
-                wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP
-            )
-        );
+        assert!(player.set_party_type_like_cpp(0, wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP));
 
         let update = player.values_update(true);
         let packet_update = player_values_update_to_packet(&update).unwrap();
@@ -1606,11 +1601,11 @@ mod tests {
         ));
         assert_eq!(
             packet_update.party_type[0],
-            wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP
+            wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP
         );
         assert_eq!(
             packet_update.party_type[1],
-            wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP
+            wow_social::group::GROUP_TYPE_NONE_LIKE_CPP
         );
     }
 

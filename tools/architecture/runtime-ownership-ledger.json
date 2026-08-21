@@ -897,7 +897,7 @@
           "represented_silence_party_talker_like_cpp",
           "represented_wargame_invite_acceptances_like_cpp"
         ],
-        "current_storage": "Player-local social/chat flags and broad represented Group/Guild/Calendar outcomes live on WorldSession while Group/PendingInvites live in wow-network.",
+        "current_storage": "Player-local social/chat flags and broad represented Group/Guild/Calendar outcomes live on WorldSession while Group/PendingInvites live in wow_social::group.",
         "sole_writer": "The owning Session writes player-local flags; Group transitions currently span GroupRegistry and handlers and must converge behind one Group authority.",
         "readers": "Chat/group/social/calendar handlers, directory addressing, packet publication, persistence, and ready-check timers.",
         "clock_lifetime": "Session lifetime for chat/addon state; process/group lifetime for Group; event lifetime for Calendar operations.",
@@ -1162,7 +1162,7 @@
             "pending_invites",
             "player_registry"
           ],
-          "owner": "world-server composition holds handles; the player directory owner is wow_world::session::directory and the Group registries/mailboxes remain in wow-network.",
+          "owner": "world-server composition holds handles; the player directory owner is wow_world::session::directory, the Group owner is wow_social::group, and the Session mailbox remains in wow-network.",
           "open_retirement_issues": [
             137,
             138,
@@ -1731,7 +1731,7 @@
             "SendRepresentedDuelCountdownLikeCpp",
             "SendRepresentedDuelRequestedLikeCpp"
           ],
-          "owner": "wow-network currently defines payloads; Group/wow-social or canonical Player owns transitions and Session applies receiver-local facts.",
+          "owner": "wow-network still defines the mailbox payloads; wow_social::group owns Group transitions and Session applies receiver-local facts.",
           "open_retirement_issues": [
             137,
             140,
@@ -1933,9 +1933,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 73679,
-          "test_lines": 94442,
-          "total_lines": 168121,
+          "production_lines": 73682,
+          "test_lines": 94444,
+          "total_lines": 168126,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             140,
@@ -1979,8 +1979,8 @@
         {
           "path": "crates/wow-world/src/handlers/loot.rs",
           "production_lines": 13674,
-          "test_lines": 16156,
-          "total_lines": 29830,
+          "test_lines": 16157,
+          "total_lines": 29831,
           "owner": "wow-world loot handler plus transitional loot/map/persistence coordination.",
           "open_retirement_issues": [
             153,
@@ -1994,9 +1994,9 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 24956,
-          "test_lines": 21522,
-          "total_lines": 46478,
+          "production_lines": 24984,
+          "test_lines": 21521,
+          "total_lines": 46505,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153,
@@ -2032,6 +2032,18 @@
             226
           ],
           "retirement_condition": "Player submodules own one mutable representation per responsibility with colocated tests; Session and directory mirrors for migrated families are removed."
+        },
+        {
+          "path": "crates/wow-social/src/group/mod.rs",
+          "production_lines": 2783,
+          "test_lines": 2511,
+          "total_lines": 5294,
+          "owner": "wow-social atomic Group/PendingInvites authority relocated from wow-network by #137.",
+          "open_retirement_issues": [
+            140,
+            153
+          ],
+          "retirement_condition": "Group state, invariants and outcomes stay behind the narrow named service boundary; no transport, SQL or packet type enters wow-social and the transitional wow-network mailbox edge is gone."
         }
       ]
     }
