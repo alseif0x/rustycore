@@ -10357,42 +10357,6 @@
       "package": "wow-world",
       "module": "crate::handlers::character::account",
       "source": "crates/wow-world/src/handlers/character/account.rs",
-      "enclosing": "impl WorldSession::save_account_item_appearances_like_cpp",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "Player login/logout lifecycle persistence capability",
-      "target_issues": [
-        153,
-        200
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit login connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::account",
-      "source": "crates/wow-world/src/handlers/character/account.rs",
-      "enclosing": "impl WorldSession::save_account_transmog_illusions_like_cpp",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "Player login/logout lifecycle persistence capability",
-      "target_issues": [
-        153,
-        200
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit login connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::account",
-      "source": "crates/wow-world/src/handlers/character/account.rs",
       "enclosing": "module",
       "logical_databases": [
         "characters",

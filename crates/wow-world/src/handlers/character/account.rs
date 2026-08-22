@@ -12,8 +12,9 @@
 use wow_database::{CharStatements, LoginStatements, PreparedStatement, SqlTransaction};
 
 use wow_persistence::{
-    AccountCollectionSaveLikeCpp, AccountHeirloomRowLikeCpp, AccountMountRowLikeCpp,
-    AccountToyRowLikeCpp, PersistenceOutcomeLikeCpp, PlayerOfflineMarkLikeCpp,
+    AccountCollectionSaveLikeCpp, AccountHeirloomRowLikeCpp, AccountMaskBlockLikeCpp,
+    AccountMountRowLikeCpp, AccountToyRowLikeCpp, PersistenceOutcomeLikeCpp,
+    PlayerOfflineMarkLikeCpp,
 };
 
 use super::*;
@@ -1211,7 +1212,7 @@ impl WorldSession {
     }
 
     pub(crate) async fn save_account_item_appearances_like_cpp(&mut self) {
-        let Some(login_db) = self.login_db().map(Arc::clone) else {
+        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             return;
         };
         let plan = self.account_item_appearance_save_plan_like_cpp();
@@ -1220,38 +1221,34 @@ impl WorldSession {
         }
 
         let bnet_account_id = self.battlenet_account_id();
-        let mut tx = SqlTransaction::new();
-        for (block_index, appearance_mask) in plan.appearance_blocks {
-            let mut stmt = login_db.prepare(LoginStatements::INS_BNET_ITEM_APPEARANCES);
-            stmt.set_u32(0, bnet_account_id);
-            stmt.set_u32(1, block_index);
-            stmt.set_u32(2, appearance_mask);
-            tx.append(stmt);
-        }
-        for item_modified_appearance_id in plan.favorite_inserts {
-            let mut stmt = login_db.prepare(LoginStatements::INS_BNET_ITEM_FAVORITE_APPEARANCE);
-            stmt.set_u32(0, bnet_account_id);
-            stmt.set_u32(1, item_modified_appearance_id);
-            tx.append(stmt);
-        }
-        for item_modified_appearance_id in plan.favorite_deletes {
-            let mut stmt = login_db.prepare(LoginStatements::DEL_BNET_ITEM_FAVORITE_APPEARANCE);
-            stmt.set_u32(0, bnet_account_id);
-            stmt.set_u32(1, item_modified_appearance_id);
-            tx.append(stmt);
-        }
+        let save = AccountCollectionSaveLikeCpp::ItemAppearances {
+            bnet_account_id,
+            appearance_blocks: plan
+                .appearance_blocks
+                .into_iter()
+                .map(|(block_index, mask)| AccountMaskBlockLikeCpp { block_index, mask })
+                .collect(),
+            favorite_inserts: plan.favorite_inserts,
+            favorite_deletes: plan.favorite_deletes,
+        };
 
-        if let Err(error) = login_db.commit_transaction(tx).await {
-            warn!(
+        match port.save_account_collection_like_cpp(save).await {
+            PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
                 account = self.account_id,
                 bnet_account = bnet_account_id,
-                "Failed to save account item appearances: {error}"
-            );
+                "Failed to save account item appearances: {reason}"
+            ),
+            PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
+                account = self.account_id,
+                bnet_account = bnet_account_id,
+                "Account item appearance save outcome is unknown: {reason}"
+            ),
         }
     }
 
     pub(crate) async fn save_account_transmog_illusions_like_cpp(&self) {
-        let Some(login_db) = self.login_db().map(Arc::clone) else {
+        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             return;
         };
         let plan = self.account_transmog_illusion_save_plan_like_cpp();
@@ -1260,21 +1257,27 @@ impl WorldSession {
         }
 
         let bnet_account_id = self.battlenet_account_id();
-        let mut tx = SqlTransaction::new();
-        for (block_index, illusion_mask) in plan.illusion_blocks {
-            let mut stmt = login_db.prepare(LoginStatements::INS_BNET_TRANSMOG_ILLUSIONS);
-            stmt.set_u32(0, bnet_account_id);
-            stmt.set_u32(1, block_index);
-            stmt.set_u32(2, illusion_mask);
-            tx.append(stmt);
-        }
+        let save = AccountCollectionSaveLikeCpp::TransmogIllusions {
+            bnet_account_id,
+            illusion_blocks: plan
+                .illusion_blocks
+                .into_iter()
+                .map(|(block_index, mask)| AccountMaskBlockLikeCpp { block_index, mask })
+                .collect(),
+        };
 
-        if let Err(error) = login_db.commit_transaction(tx).await {
-            warn!(
+        match port.save_account_collection_like_cpp(save).await {
+            PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
                 account = self.account_id,
                 bnet_account = bnet_account_id,
-                "Failed to save account transmog illusions: {error}"
-            );
+                "Failed to save account transmog illusions: {reason}"
+            ),
+            PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
+                account = self.account_id,
+                bnet_account = bnet_account_id,
+                "Account transmog illusion save outcome is unknown: {reason}"
+            ),
         }
     }
 
