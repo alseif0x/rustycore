@@ -1,0 +1,12 @@
+[package]
+name = "__MODULE_PACKAGE__"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+
+[dependencies]
+wow-module-api = { path = "../../crates/wow-module-api" }
+
+[dev-dependencies]
+# The focused hook test builds a PlayerLoginSnapshot, which carries an ObjectGuid.
+wow-core = { path = "../../crates/wow-core" }

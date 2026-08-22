@@ -76,6 +76,54 @@ With nothing under `modules/`, the compositor is a no-op that calls
 binary still calls `world_server::run`. A server without modules never consults a
 registry and its capture and state behaviour are untouched.
 
+## The module manager
+
+`tools/modules/rustycore-module` is the author/operator workflow. Every command is
+non-interactive and never prompts, so a shell, a script or an agent drives it the same way.
+
+| Command | Does |
+|---|---|
+| `new <id>` | scaffold from the official skeleton |
+| `install --path P` / `--git URL [--ref R] [--commit C]` | register a checkout |
+| `update <id>` | refresh a Git checkout to its pinned or requested ref |
+| `remove <id>` | delete exactly one validated checkout |
+| `list` | report installed modules |
+| `sync` / `check` | regenerate, or verify without writing |
+| `build` / `test` | cargo build/test the composed server |
+| `doctor` | diagnose the installation |
+
+Add `--json` to any command for machine output. **Stdout carries JSON and nothing else**, so an
+agent can parse it without stripping prose; errors go to stderr as JSON carrying the same exit
+code.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | success |
+| 1 | usage or validation error |
+| 2 | requested module not found |
+| 3 | source or network error |
+| 4 | refused: dirty or conflicting checkout |
+
+### Safety
+
+- Only `install` and `update` touch the network.
+- Neither ever executes a script from the fetched repository: the manager clones or copies,
+  reads `module.toml`, and stops.
+- A rejected install leaves nothing behind — the partial checkout is removed.
+- `update` refuses a checkout with local modifications rather than discarding them.
+- `remove` resolves the id to exactly one validated checkout inside `modules/` and refuses any
+  path that escapes it.
+- The manager never runs SQL. `data/sql/` is yours to apply.
+
+### The skeleton
+
+`rustycore-module new` produces a module that compiles and tests as-is: manifest, `src/lib.rs`
+with a working `register`, a focused hook test asserting the module greets only on first login,
+an example configuration, `data/sql/{auth,characters,world,hotfixes}/` and a README stating the
+trust model. Optional directories are documented rather than generated empty.
+
 ## Out of scope here
 
 Remote repository management, typed configuration, SQL, Wasm and live reload —

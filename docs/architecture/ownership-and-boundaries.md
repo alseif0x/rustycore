@@ -328,6 +328,15 @@ logical monolith: its registrations, behavior, and tests now live in private cap
 under `handlers/misc/`, while `misc/mod.rs` is a 164-line compatibility facade for shared packet
 types, constants, and narrow helpers. Every production capability file is below 700 lines.
 
+Issue #230 adds the author/operator workflow on top: `tools/modules/rustycore-module` with
+`new`, `install`, `update`, `remove`, `list`, `sync`, `check`, `build`, `test` and `doctor`. Every
+command is non-interactive, `--json` emits pure JSON on stdout so an agent parses it without
+stripping prose, and the five exit codes are documented and covered by tests. Only `install` and
+`update` reach the network, neither ever executes a script from the fetched repository, a rejected
+install leaves nothing behind, `update` refuses a dirty checkout instead of discarding work, and
+`remove` refuses any path escaping `modules/`. The official skeleton produces a module that
+compiles and tests as-is, including a focused hook test.
+
 Issue #229 makes that API installable. `modules/<checkout>/module.toml` describes an
 independent trusted repository, `tools/modules/compose.py sync` validates every checkout and
 regenerates both `modules.lock.toml` and the `world-modules` compositor crate, and `check` fails
