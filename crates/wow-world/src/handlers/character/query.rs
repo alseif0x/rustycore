@@ -1,0 +1,761 @@
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! Character and name queries, inspection responses.
+
+use super::*;
+
+impl WorldSession {
+    /// Handle CMSG_DB_QUERY_BULK — client requests DB2 records.
+    ///
+    /// TrinityCore only sends a Valid `DBReply` when `sDB2Manager.GetStorage`
+    /// returns typed storage and that storage can serialize the record through
+    /// `DB2StorageBase::WriteRecord`. Rust's `HotfixBlobCache` stores raw
+    /// WDC4/DB2 record bytes, which are not the same wire format. Only typed
+    /// stores implemented here may answer Valid; missing typed storage follows
+    /// the C++ Invalid branch and lets the client use its local DB2 cache.
+    pub async fn handle_db_query_bulk(&mut self, query: wow_packet::packets::misc::DbQueryBulk) {
+        info!(
+            "DbQueryBulk: table=0x{:08X}, {} records {:?} for account {}",
+            query.table_hash,
+            query.queries.len(),
+            query.queries,
+            self.account_id
+        );
+        for record_id in &query.queries {
+            if query.table_hash == TACT_KEY_TABLE_HASH_LIKE_CPP {
+                let tact_key = (*record_id)
+                    .try_into()
+                    .ok()
+                    .and_then(|id| self.tact_key_store().and_then(|store| store.get(id)));
+                if let Some(entry) = tact_key {
+                    debug!(
+                        "DbQueryBulk: TactKey.db2 record={} -> Valid(1), 16-byte typed WriteRecord payload",
+                        record_id
+                    );
+                    self.send_packet_realm(&DBReply::found(
+                        query.table_hash,
+                        *record_id,
+                        entry.key.to_vec(),
+                    ));
+                    continue;
+                }
+                debug!(
+                    "DbQueryBulk: NOT_FOUND TactKey.db2 record={} -> Invalid(3), client may use local DB2 cache",
+                    record_id
+                );
+            } else {
+                info!(
+                    "DbQueryBulk: table=0x{:08X} record={} -> Invalid(3), no typed DB2 storage serializer",
+                    query.table_hash, record_id
+                );
+            }
+            // RecordRemoved(2) would tell the client to delete the record from its cache,
+            // which is wrong for client-local DB2 rows missing from server typed storage.
+            self.send_packet_realm(&DBReply::not_found(query.table_hash, *record_id));
+        }
+    }
+
+    /// Handle CMSG_QUERY_CREATURE — client requests creature template data.
+    ///
+    /// The client sends this automatically after receiving an UpdateObject with
+    /// unknown creature entries. Without a response, NPC names don't display
+    /// and interaction menus don't work.
+    pub async fn handle_query_creature(&mut self, query: QueryCreature) {
+        // If already responded, skip — client caches locally after first response
+        if self.creature_query_cache.contains(&query.creature_id) {
+            return;
+        }
+        self.creature_query_cache.insert(query.creature_id);
+
+        let world_db = match self.world_db() {
+            Some(db) => Arc::clone(db),
+            None => {
+                self.send_packet(&QueryCreatureResponse {
+                    creature_id: query.creature_id,
+                    allow: false,
+                    stats: None,
+                });
+                return;
+            }
+        };
+
+        // Query creature template
+        let mut stmt = world_db.prepare(WorldStatements::SEL_CREATURE_QUERY_RESPONSE);
+        stmt.set_u32(0, query.creature_id);
+
+        let result = match world_db.query(&stmt).await {
+            Ok(r) => r,
+            Err(e) => {
+                debug!(
+                    "Failed to query creature template {}: {e}",
+                    query.creature_id
+                );
+                self.send_packet(&QueryCreatureResponse {
+                    creature_id: query.creature_id,
+                    allow: false,
+                    stats: None,
+                });
+                return;
+            }
+        };
+
+        if result.is_empty() {
+            self.send_packet(&QueryCreatureResponse {
+                creature_id: query.creature_id,
+                allow: false,
+                stats: None,
+            });
+            return;
+        }
+
+        // Parse template fields
+        let name: String = result.read_string(1);
+        let _female_name: String = result.read_string(2);
+        let subname: String = result.read_string(3);
+        let title_alt: String = result.read_string(4);
+        let icon_name: String = result.read_string(5);
+        let creature_type: i32 = result.try_read(6).unwrap_or(0);
+        let creature_family: i32 = result.try_read(7).unwrap_or(0);
+        let classification: i32 = result.try_read(8).unwrap_or(0);
+        let kill_credit1: i32 = result.try_read(9).unwrap_or(0);
+        let kill_credit2: i32 = result.try_read(10).unwrap_or(0);
+        let civilian: bool = result.try_read::<u8>(11).unwrap_or(0) != 0;
+        let racial_leader: bool = result.try_read::<u8>(12).unwrap_or(0) != 0;
+        let movement_id: i32 = result.try_read(13).unwrap_or(0);
+        let required_expansion: i32 = result.try_read(14).unwrap_or(0);
+        let vignette_id: i32 = result.try_read(15).unwrap_or(0);
+        let unit_class: i32 = result.try_read::<u8>(16).unwrap_or(1) as i32;
+        let widget_set_id: i32 = result.try_read(17).unwrap_or(0);
+        let widget_set_unit_condition_id: i32 = result.try_read(18).unwrap_or(0);
+        // LEFT JOIN nullable fields from creature_template_difficulty
+        let hp_multi: f32 = result.try_read::<Option<f32>>(19).flatten().unwrap_or(1.0);
+        let energy_multi: f32 = result.try_read::<Option<f32>>(20).flatten().unwrap_or(1.0);
+        let creature_difficulty_id: i32 = result.try_read::<Option<i32>>(21).flatten().unwrap_or(0);
+        let type_flags: u32 = result.try_read::<Option<u32>>(22).flatten().unwrap_or(0);
+        let type_flags2: u32 = result.try_read::<Option<u32>>(23).flatten().unwrap_or(0);
+
+        // Override name/subname/title_alt with localized versions when not English
+        let locale = &self.locale;
+        let (name, subname, title_alt) = if !locale.is_empty() && locale != "enUS" {
+            let mut loc_stmt = world_db.prepare(WorldStatements::SEL_CREATURE_TEMPLATE_LOCALE);
+            loc_stmt.set_u32(0, query.creature_id);
+            loc_stmt.set_string(1, locale);
+            match world_db.query(&loc_stmt).await {
+                Ok(r) if !r.is_empty() => {
+                    let loc_name: String = r.read_string(0);
+                    // col 1 = NameAlt (female name)
+                    let loc_subname: String = r.read_string(2);
+                    let loc_title_alt: String = r.read_string(3);
+                    (
+                        if loc_name.is_empty() { name } else { loc_name },
+                        if loc_subname.is_empty() {
+                            subname
+                        } else {
+                            loc_subname
+                        },
+                        if loc_title_alt.is_empty() {
+                            title_alt
+                        } else {
+                            loc_title_alt
+                        },
+                    )
+                }
+                Ok(_) => (name, subname, title_alt),
+                Err(e) => {
+                    warn!(
+                        "Failed to query creature locale for {}: {e}",
+                        query.creature_id
+                    );
+                    (name, subname, title_alt)
+                }
+            }
+        } else {
+            (name, subname, title_alt)
+        };
+
+        // Query display models
+        let mut display_stmt = world_db.prepare(WorldStatements::SEL_CREATURE_DISPLAY_MODELS);
+        display_stmt.set_u32(0, query.creature_id);
+
+        let mut displays = Vec::new();
+        let mut total_probability: f32 = 0.0;
+
+        if let Ok(disp_result) = world_db.query(&display_stmt).await {
+            if !disp_result.is_empty() {
+                let mut disp_result = disp_result;
+                loop {
+                    let display_id: u32 = disp_result.try_read(0).unwrap_or(0);
+                    let scale: f32 = disp_result.try_read(1).unwrap_or(1.0);
+                    let probability: f32 = disp_result.try_read(2).unwrap_or(1.0);
+                    total_probability += probability;
+                    displays.push(CreatureXDisplay {
+                        creature_display_id: display_id,
+                        scale,
+                        probability,
+                    });
+                    if !disp_result.next_row() {
+                        break;
+                    }
+                }
+            }
+        }
+
+        let mut names: [String; 4] = Default::default();
+        names[0] = name;
+
+        let stats = CreatureStats {
+            title: subname,
+            title_alt,
+            cursor_name: icon_name,
+            civilian,
+            leader: racial_leader,
+            names,
+            name_alts: Default::default(),
+            flags: [type_flags, type_flags2],
+            creature_type,
+            creature_family,
+            classification,
+            proxy_creature_ids: [kill_credit1, kill_credit2],
+            display: CreatureDisplayStats {
+                displays,
+                total_probability,
+            },
+            hp_multi,
+            energy_multi,
+            quest_items: Vec::new(),
+            creature_movement_info_id: movement_id,
+            health_scaling_expansion: 0,
+            required_expansion,
+            vignette_id,
+            unit_class,
+            creature_difficulty_id,
+            widget_set_id,
+            widget_set_unit_condition_id,
+        };
+
+        self.send_packet(&QueryCreatureResponse {
+            creature_id: query.creature_id,
+            allow: true,
+            stats: Some(stats),
+        });
+    }
+
+    /// Handle CMSG_QUERY_GAME_OBJECT — client requests gameobject template data.
+    pub async fn handle_query_game_object(
+        &mut self,
+        query: wow_packet::packets::query::QueryGameObject,
+    ) {
+        let world_db = match self.world_db() {
+            Some(db) => Arc::clone(db),
+            None => {
+                self.send_packet(&QueryGameObjectResponse {
+                    game_object_id: query.game_object_id,
+                    guid: query.guid,
+                    allow: false,
+                    stats: None,
+                });
+                return;
+            }
+        };
+
+        let mut stmt = world_db.prepare(WorldStatements::SEL_GAMEOBJECT_TEMPLATE_BY_ENTRY);
+        stmt.set_u32(0, query.game_object_id);
+
+        let result = match world_db.query(&stmt).await {
+            Ok(r) => r,
+            Err(e) => {
+                debug!(
+                    "Failed to query gameobject template {}: {e}",
+                    query.game_object_id
+                );
+                self.send_packet(&QueryGameObjectResponse {
+                    game_object_id: query.game_object_id,
+                    guid: query.guid,
+                    allow: false,
+                    stats: None,
+                });
+                return;
+            }
+        };
+
+        if result.is_empty() {
+            self.send_packet(&QueryGameObjectResponse {
+                game_object_id: query.game_object_id,
+                guid: query.guid,
+                allow: false,
+                stats: None,
+            });
+            return;
+        }
+
+        let go_type: i32 = result.try_read(1).unwrap_or(0);
+        let display_id: i32 = result.try_read(2).unwrap_or(0);
+        let mut name: String = result.read_string(3);
+        let icon_name: String = result.read_string(4);
+        let mut cast_bar_caption: String = result.read_string(5);
+        let mut unk_string: String = result.read_string(6);
+        let size: f32 = result.try_read(7).unwrap_or(1.0);
+
+        // Data0..Data34 at columns 8..42, matching C++ MAX_GAMEOBJECT_DATA.
+        let mut data = [0i32; 35];
+        for i in 0..35 {
+            data[i] = result.try_read(8 + i).unwrap_or(0);
+        }
+        let content_tuning_id = result.try_read(43).unwrap_or(0);
+
+        let locale = &self.locale;
+        if !locale.is_empty() && locale != "enUS" {
+            let mut loc_stmt = world_db.prepare(WorldStatements::SEL_GAMEOBJECT_TEMPLATE_LOCALE);
+            loc_stmt.set_u32(0, query.game_object_id);
+            loc_stmt.set_string(1, locale);
+            match world_db.query(&loc_stmt).await {
+                Ok(r) if !r.is_empty() => {
+                    let loc_name: String = r.read_string(0);
+                    let loc_cast_bar_caption: String = r.read_string(1);
+                    let loc_unk_string: String = r.read_string(2);
+                    if !loc_name.is_empty() {
+                        name = loc_name;
+                    }
+                    if !loc_cast_bar_caption.is_empty() {
+                        cast_bar_caption = loc_cast_bar_caption;
+                    }
+                    if !loc_unk_string.is_empty() {
+                        unk_string = loc_unk_string;
+                    }
+                }
+                Ok(_) => {}
+                Err(e) => debug!(
+                    "Failed to query gameobject locale {} {}: {e}",
+                    query.game_object_id, locale
+                ),
+            }
+        }
+
+        let mut quest_items = Vec::new();
+        let mut quest_item_stmt = world_db.prepare(WorldStatements::SEL_GAMEOBJECT_QUEST_ITEMS);
+        quest_item_stmt.set_u32(0, query.game_object_id);
+        match world_db.query(&quest_item_stmt).await {
+            Ok(mut quest_item_result) if !quest_item_result.is_empty() => loop {
+                let item_id: i32 = quest_item_result.try_read::<i32>(0).unwrap_or(0);
+                if item_id > 0 {
+                    quest_items.push(item_id);
+                }
+                if !quest_item_result.next_row() {
+                    break;
+                }
+            },
+            Ok(_) => {}
+            Err(e) => debug!(
+                "Failed to query gameobject quest items {}: {e}",
+                query.game_object_id
+            ),
+        }
+
+        let mut names: [String; 4] = Default::default();
+        names[0] = name;
+
+        let stats = GameObjectStats {
+            names,
+            icon_name,
+            cast_bar_caption,
+            unk_string,
+            go_type,
+            display_id,
+            data,
+            size,
+            quest_items,
+            content_tuning_id,
+        };
+
+        self.send_packet(&QueryGameObjectResponse {
+            game_object_id: query.game_object_id,
+            guid: query.guid,
+            allow: true,
+            stats: Some(stats),
+        });
+    }
+
+    pub async fn handle_query_page_text(&mut self, query: QueryPageText) {
+        let world_db = match self.world_db() {
+            Some(db) => Arc::clone(db),
+            None => {
+                self.send_packet(&QueryPageTextResponse {
+                    page_text_id: query.page_text_id,
+                    allow: false,
+                    pages: Vec::new(),
+                });
+                return;
+            }
+        };
+
+        let mut pages = Vec::new();
+        let mut page_id = query.page_text_id;
+        let mut visited = HashSet::new();
+
+        while page_id != 0 && visited.insert(page_id) && pages.len() < 100 {
+            let mut stmt = world_db.prepare(WorldStatements::SEL_PAGE_TEXT);
+            stmt.set_u32(0, page_id);
+            let result = match world_db.query(&stmt).await {
+                Ok(result) => result,
+                Err(e) => {
+                    debug!("Failed to query page text {page_id}: {e}");
+                    break;
+                }
+            };
+            if result.is_empty() {
+                break;
+            }
+
+            let id: u32 = result.try_read(0).unwrap_or(page_id);
+            let mut text: String = result.read_string(1);
+            let next_page_id: u32 = result.try_read(2).unwrap_or(0);
+            let player_condition_id: i32 = result.try_read(3).unwrap_or(0);
+            let flags: u8 = result.try_read(4).unwrap_or(0);
+
+            let locale = &self.locale;
+            if !locale.is_empty() && locale != "enUS" {
+                let mut loc_stmt = world_db.prepare(WorldStatements::SEL_PAGE_TEXT_LOCALE);
+                loc_stmt.set_u32(0, id);
+                loc_stmt.set_string(1, locale);
+                match world_db.query(&loc_stmt).await {
+                    Ok(locale_result) if !locale_result.is_empty() => {
+                        let locale_text: String = locale_result.read_string(0);
+                        if !locale_text.is_empty() {
+                            text = locale_text;
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(e) => debug!("Failed to query page text locale {id} {locale}: {e}"),
+                }
+            }
+
+            pages.push(PageTextInfo {
+                id,
+                next_page_id,
+                player_condition_id,
+                flags,
+                text,
+            });
+            page_id = next_page_id;
+        }
+
+        self.send_packet(&QueryPageTextResponse {
+            page_text_id: query.page_text_id,
+            allow: !pages.is_empty(),
+            pages,
+        });
+    }
+
+    pub async fn handle_item_text_query(&mut self, query: ItemTextQuery) {
+        let response = self
+            .inventory_item_objects_like_cpp()
+            .get(&query.id)
+            .map(|item| QueryItemTextResponse::valid_like_cpp(query.id, item.text().to_string()))
+            .unwrap_or_else(|| QueryItemTextResponse::invalid_like_cpp(query.id));
+
+        self.send_packet(&response);
+    }
+
+    /// CMSG_QUERY_PET_NAME — resolve an in-world pet name.
+    ///
+    /// C++ `SendQueryPetNameResponse` uses `ObjectAccessor::GetCreatureOrPetOrVehicle`
+    /// and fills the response only when that lookup succeeds. This bounded path
+    /// represents the canonical normal-pet branch; creature/vehicle names and
+    /// declined-name runtime are left explicit until those object-accessor paths
+    /// are unified.
+    pub async fn handle_query_pet_name(&mut self, query: QueryPetName) {
+        let mut response = QueryPetNameResponse::not_allowed(query.unit_guid);
+
+        if let Some((name, timestamp)) =
+            self.represented_query_canonical_pet_name_like_cpp(query.unit_guid)
+        {
+            response.allow = true;
+            response.name = name;
+            response.timestamp = timestamp;
+        }
+
+        self.send_packet(&response);
+    }
+
+    pub(crate) fn represented_query_canonical_pet_name_like_cpp(
+        &self,
+        unit_guid: ObjectGuid,
+    ) -> Option<(String, u32)> {
+        let player_guid = self.player_guid()?;
+        let key = self.current_canonical_player_map_key_like_cpp()?;
+        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let manager = manager.lock().ok()?;
+        let managed = manager.find_map(key.map_id, key.instance_id)?;
+        let pet = managed.map().map_object_record(unit_guid)?.pet()?;
+        if pet.owner_guid() != player_guid {
+            return None;
+        }
+
+        let name = pet.creature().unit().world().name().to_string();
+        // C++ reads UnitData::PetNameTimestamp. The canonical entity model has
+        // not exposed normal-pet rename/load timestamps yet, so this bounded
+        // branch preserves the default timestamp until that runtime lands.
+        let timestamp = 0;
+        Some((name, timestamp))
+    }
+
+    /// Handle CMSG_GOSSIP_HELLO / TalkToGossip — player right-clicks an NPC.
+    ///
+    /// For now, we send an empty gossip message with a default NPC text.
+    /// This allows the client to show the gossip window.
+    /// Handle CMSG_QUERY_PLAYER_NAMES — client requests player name data.
+    ///
+    /// The client sends this after receiving UpdateObject for a player whose
+    /// name isn't cached. Without a response, the player's nameplate is blank.
+    pub async fn handle_query_player_names(&mut self, query: QueryPlayerNames) {
+        let char_db = match self.char_db() {
+            Some(db) => Arc::clone(db),
+            None => {
+                // Send failure response for all queried players
+                let players = query
+                    .players
+                    .iter()
+                    .map(|guid| NameCacheLookupResult {
+                        player: *guid,
+                        result: 1, // Failure
+                        data: None,
+                    })
+                    .collect();
+                self.send_packet_realm(&QueryPlayerNamesResponse { players });
+                return;
+            }
+        };
+
+        let mut results = Vec::new();
+
+        for guid in &query.players {
+            let counter = guid.counter();
+
+            let mut stmt = char_db.prepare(CharStatements::SEL_CHARACTER);
+            stmt.set_u64(0, counter as u64);
+
+            let db_result = match char_db.query(&stmt).await {
+                Ok(r) => r,
+                Err(_) => {
+                    results.push(NameCacheLookupResult {
+                        player: *guid,
+                        result: 1,
+                        data: None,
+                    });
+                    continue;
+                }
+            };
+
+            if db_result.is_empty() {
+                results.push(NameCacheLookupResult {
+                    player: *guid,
+                    result: 1,
+                    data: None,
+                });
+                continue;
+            }
+
+            let name: String = db_result.read_string(2);
+            let race: u8 = db_result.read(3);
+            let class: u8 = db_result.read(4);
+            let sex: u8 = db_result.read(5);
+            let level: u8 = db_result.read(6);
+
+            // Build account GUIDs (simplified — just use account_id)
+            let account_id_val = self.account_id as i64;
+            let account_guid = ObjectGuid::new((HighGuid::WowAccount as i64) << 58, account_id_val);
+            let bnet_guid = ObjectGuid::new((HighGuid::BNetAccount as i64) << 58, account_id_val);
+
+            // Use the session VRA (region << 24 | battlegroup << 16 | realmId)
+            // to match what every other packet sends. The wrong formula caused
+            // "Unknown Entity" because the client rejected the mismatched VRA.
+            let vra = self.virtual_realm_address();
+
+            results.push(NameCacheLookupResult {
+                player: *guid,
+                result: 0, // Success
+                data: Some(PlayerGuidLookupData {
+                    name,
+                    race,
+                    sex,
+                    class,
+                    level,
+                    guid_actual: *guid,
+                    account_id: account_guid,
+                    bnet_account_id: bnet_guid,
+                    virtual_realm_address: vra,
+                    ..Default::default()
+                }),
+            });
+        }
+
+        debug!(
+            "QueryPlayerNames: {} queries, {} found for account {}",
+            query.players.len(),
+            results.iter().filter(|r| r.result == 0).count(),
+            self.account_id
+        );
+        self.send_packet_realm(&QueryPlayerNamesResponse { players: results });
+    }
+
+    pub fn handle_query_realm_name(&mut self, query: QueryRealmName) {
+        debug!(
+            "QueryRealmName: VRA=0x{:08X}, ours=0x{:08X}, local={}",
+            query.virtual_realm_address,
+            self.virtual_realm_address(),
+            query.virtual_realm_address == self.virtual_realm_address()
+        );
+
+        let resp = self.realm_query_response_like_cpp(query.virtual_realm_address);
+        self.send_packet_realm(&resp);
+    }
+
+    pub(crate) fn realm_query_response_like_cpp(
+        &self,
+        virtual_realm_address: u32,
+    ) -> RealmQueryResponse {
+        if let Some((realm_name_actual, realm_name_normalized)) =
+            self.realm_names_for_address_like_cpp(virtual_realm_address)
+        {
+            RealmQueryResponse {
+                virtual_realm_address,
+                lookup_state: 0, // RESPONSE_SUCCESS
+                realm_name_actual: realm_name_actual.to_string(),
+                realm_name_normalized: realm_name_normalized.to_string(),
+                is_local: virtual_realm_address == self.virtual_realm_address(),
+            }
+        } else {
+            RealmQueryResponse {
+                virtual_realm_address,
+                lookup_state: 1, // RESPONSE_FAILURE
+                realm_name_actual: String::new(),
+                realm_name_normalized: String::new(),
+                is_local: false,
+            }
+        }
+    }
+
+    /// CMSG_AREA_SPIRIT_HEALER_QUERY — ask an area spirit healer for resurrection timer.
+    /// C++ ref: `WorldSession::HandleAreaSpiritHealerQueryOpcode`.
+    pub async fn handle_area_spirit_healer_query(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let query = match AreaSpiritHealerQuery::read(&mut pkt) {
+            Ok(query) => query,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "AreaSpiritHealerQuery parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let Some(access) = self.represented_area_spirit_healer_access_like_cpp(query.healer_guid)
+        else {
+            debug!(
+                account = self.account_id,
+                healer = ?query.healer_guid,
+                "AreaSpiritHealerQuery ignored without represented area spirit healer"
+            );
+            return;
+        };
+
+        // C++ sends the current shared channel timer or the individual aura
+        // duration after casting SPELL_SPIRIT_HEAL_PLAYER_AURA. Spell/aura/channel
+        // runtime is still outside this represented handler, so the packet shape
+        // and validation are ported and the timer remains zero for now.
+        if (access.npc_flags2
+            & wow_constants::unit::NPCFlags2::AREA_SPIRIT_HEALER_INDIVIDUAL.bits())
+            != 0
+        {
+            debug!(
+                account = self.account_id,
+                healer = ?query.healer_guid,
+                "AreaSpiritHealerQuery individual aura/channel timer is not represented yet"
+            );
+        }
+
+        self.send_packet(&AreaSpiritHealerTime {
+            healer_guid: query.healer_guid,
+            time_left_ms: 0,
+        });
+    }
+
+    /// Handle CMSG_QUEST_GIVER_STATUS_MULTIPLE_QUERY — client asks quest status for visible questgivers.
+    ///
+    /// C++ anchors:
+    /// - `Player::SendQuestGiverStatusMultiple`, `Player.cpp:16804-16837`.
+    /// - `QuestGiverStatusMultiple::Write`, `QuestPackets.cpp:64-74`.
+    ///
+    /// Ownership/sync: represented `client_visible_guids_like_cpp` + canonical map access + read-only
+    /// `QuestStore` relations -> one outbound packet only. This handler must not mutate map,
+    /// QuestStore, ObjectAccessor/GameEvent, or player state. Exact Creature hostility/faction remains
+    /// a documented gap; represented Creature NPC QUEST_GIVER flag is enforced when available.
+    pub async fn handle_quest_giver_status_multiple_query(&mut self) {
+        trace!(
+            "QuestGiverStatusMultipleQuery from account {}",
+            self.account_id
+        );
+
+        let visible_guids: Vec<ObjectGuid> = self
+            .client_visible_guids_like_cpp
+            .snapshot_like_cpp()
+            .into_iter()
+            .collect();
+        let statuses = self.collect_quest_giver_status_multiple_like_cpp(visible_guids);
+        self.send_packet(&QuestGiverStatusMultiple { statuses });
+    }
+
+    /// Handle CMSG_QUEST_GIVER_STATUS_TRACKED_QUERY — client supplies questgiver GUIDs to query.
+    ///
+    /// C++ anchors:
+    /// - `QuestGiverStatusTrackedQuery::Read`, `QuestPackets.cpp:40-54`.
+    /// - `WorldSession::HandleQuestgiverStatusTrackedQueryOpcode`, `QuestHandler.cpp:775-778`.
+    /// - `Player::SendQuestGiverStatusMultiple`, `Player.cpp:16809-16837`.
+    ///
+    /// Ownership/sync: client packet GUID set -> represented canonical Creature/GameObject access +
+    /// read-only `QuestStore` status -> one outbound packet only. This must not read the visible GUID
+    /// cache and must not mutate map, QuestStore, ObjectAccessor/GameEvent, player quest state, or
+    /// represented visibility state.
+    pub async fn handle_quest_giver_status_tracked_query(&mut self, mut pkt: WorldPacket) {
+        trace!(
+            "QuestGiverStatusTrackedQuery from account {}",
+            self.account_id
+        );
+
+        let guid_count = match pkt.read_uint32() {
+            Ok(guid_count) => guid_count,
+            Err(e) => {
+                warn!("Malformed QuestGiverStatusTrackedQuery count: {e}");
+                return;
+            }
+        };
+
+        if guid_count > QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP {
+            warn!(
+                guid_count,
+                max = QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP,
+                "QuestGiverStatusTrackedQuery exceeds C++ max capacity"
+            );
+            return;
+        }
+
+        let mut quest_giver_guids = HashSet::with_capacity(guid_count as usize);
+        for _ in 0..guid_count {
+            match pkt.read_packed_guid() {
+                Ok(guid) => {
+                    quest_giver_guids.insert(guid);
+                }
+                Err(e) => {
+                    warn!("Malformed QuestGiverStatusTrackedQuery packed GUID: {e}");
+                    return;
+                }
+            }
+        }
+
+        let statuses = self.collect_quest_giver_status_multiple_like_cpp(quest_giver_guids);
+        self.send_packet(&QuestGiverStatusMultiple { statuses });
+    }
+}
