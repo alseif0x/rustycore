@@ -14,7 +14,7 @@
       "package": "wow-world",
       "module": "crate::session",
       "allow_descendants": true,
-      "tracking_issue": 152
+      "tracking_issue": 153
     }
   ]
 }

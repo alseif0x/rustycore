@@ -175,6 +175,19 @@ documented sequence is a complete topological ordering of the slices. A closed s
 on an open prerequisite. The checked-in state remains an offline reviewed snapshot; the guard does
 not contact GitHub or silently rewrite titles, states, or higher baselines.
 
+Because the snapshot is offline, its `state` fields are the guard's weakest point: while a slice is
+recorded `open`, neither the closed-slice-prerequisite rule nor the completed-issue-exception rule
+can fire against it. Issue #258 found sixteen states lagging at once, which had made both rules
+inert. Two conventions keep that from reaccumulating. First, **`depends_on` records hard
+prerequisites only** — the exact issues named after "Depends on" in the issue body. A conditional
+reference ("required only if timing or authority changes"), a contrast ("uses focused combat/loot
+contracts instead of the Player lifecycle trace") or a plain mention belongs in the issue text and
+in `Refs`, never in `depends_on`; #258 removed four such over-declared edges, all of which had
+recorded a conditional or explicitly rejected reference as a hard one. Second, **an `open_*` list
+means open**: any slice that closes an issue resyncs the states and drops that number from every
+`open_retirement_issues` and `cutover_issues` list in the same PR, so a completed issue can never
+keep standing as somebody's future owner.
+
 `handler-module-policy.json` is the offline authority for packet-dispatch and
 handler-registration module ownership. Each capability declares one Cargo package, one logical
 Rust module root, whether private descendants belong to that root, and an open issue that owns its
