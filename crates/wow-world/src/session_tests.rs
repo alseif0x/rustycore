@@ -19,6 +19,8 @@ mod connection;
 mod dispatch;
 #[path = "session/tests/driver.rs"]
 mod driver;
+#[path = "session/tests/lifecycle.rs"]
+mod lifecycle;
 #[path = "session/tests/routing.rs"]
 mod routing;
 

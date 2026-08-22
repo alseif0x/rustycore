@@ -11,6 +11,7 @@ mod connection;
 pub mod directory;
 mod dispatch;
 mod driver;
+mod lifecycle;
 pub mod mailbox;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
@@ -35599,119 +35600,6 @@ impl WorldSession {
         }
     }
 
-    pub(crate) fn unregister_from_object_accessor(&self) {
-        let (Some(guid), Some(accessor)) = (self.player_guid(), &self.object_accessor) else {
-            return;
-        };
-        accessor.write().remove_player(guid);
-    }
-
-    pub(crate) fn unregister_canonical_player_from_map_like_cpp(&self) {
-        let Some(guid) = self.player_guid() else {
-            return;
-        };
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
-            return;
-        };
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        let Ok(mut manager) = manager.lock() else {
-            return;
-        };
-
-        let mut instance_id = None;
-        manager.do_for_all_maps_with_map_id(map_id, |managed| {
-            if instance_id.is_none() && managed.map().get_typed_player(guid).is_some() {
-                instance_id = Some(managed.instance_id());
-            }
-        });
-
-        let Some(instance_id) = instance_id else {
-            return;
-        };
-        let Some(managed) = manager.find_map_mut(map_id, instance_id) else {
-            return;
-        };
-
-        if let Err(err) = managed.map_mut().remove_from_map_like_cpp(guid, true) {
-            match err {
-                wow_map::RemoveFromMapError::ObjectNotFound { .. } => {
-                    debug!("Canonical Player {:?} already removed from map", guid);
-                }
-                wow_map::RemoveFromMapError::ResetMap(reset_err) => {
-                    warn!(
-                        "Failed to remove canonical Player {:?} from map: {reset_err:?}",
-                        guid
-                    );
-                }
-            }
-        }
-    }
-
-    pub fn cleanup_shared_runtime_state(&mut self) {
-        self.unregister_from_player_registry();
-        self.notify_other_players_visibility_changed_like_cpp();
-        self.unregister_canonical_player_from_map_like_cpp();
-        self.unregister_from_object_accessor();
-        self.release_character_login_claim_like_cpp();
-        self.clear_inventory_items_and_objects_like_cpp();
-    }
-
-    pub async fn cleanup_shared_runtime_state_on_disconnect_like_cpp(&mut self) {
-        self.wait_for_active_loot_persistence_like_cpp().await;
-        if let Some(player_guid) = self.player_guid()
-            && self.has_active_loot_views_like_cpp()
-        {
-            self.do_loot_release_all_like_cpp(player_guid).await;
-        }
-        self.cleanup_shared_runtime_state();
-    }
-
-    pub async fn save_disconnect_player_to_db_like_cpp(&mut self) {
-        let Some(player_guid) = self.player_guid() else {
-            self.mark_login_account_offline_on_disconnect_like_cpp()
-                .await;
-            return;
-        };
-
-        info!(
-            account = self.account_id,
-            guid = player_guid.counter(),
-            "Saving player on disconnect"
-        );
-        self.set_player_logout_like_cpp(true);
-        self.wait_for_active_loot_persistence_like_cpp().await;
-        if self.has_active_loot_views_like_cpp() {
-            self.do_loot_release_all_like_cpp(player_guid).await;
-        }
-        self.clear_buyback_on_logout().await;
-        self.save_current_player_to_db_like_cpp().await;
-        self.save_account_mounts_like_cpp().await;
-        self.save_account_toys_like_cpp().await;
-        self.save_account_heirlooms_like_cpp().await;
-        self.save_account_item_appearances_like_cpp().await;
-        self.save_account_transmog_illusions_like_cpp().await;
-        self.mark_character_offline().await;
-        self.mark_character_account_offline_like_cpp().await;
-        self.mark_login_account_offline_on_disconnect_like_cpp()
-            .await;
-        info!(
-            account = self.account_id,
-            guid = player_guid.counter(),
-            "Finished disconnect save"
-        );
-    }
-
-    /// Remove this session from the player registry.
-    /// Called on logout or disconnect.
-    pub(crate) fn unregister_from_player_registry(&self) {
-        let (Some(guid), Some(reg)) = (self.player_guid(), &self.player_registry) else {
-            return;
-        };
-        if reg.unregister_control_channel(guid, &self.session_command_tx) {
-            debug!("Unregistered player {:?} from broadcast registry", guid);
-        }
-    }
-
     /// Update this session's position (and map) in the player registry.
     /// Called whenever `player_position` changes.
     pub(crate) fn update_registry_position(&self) {
@@ -35802,73 +35690,9 @@ impl WorldSession {
         self.sync_current_player_session_visibility_detection_like_cpp();
     }
 
-    /// Atomically reserve the only live runtime authority for `guid`.
-    /// Re-entry by this same session is idempotent; a live foreign claim is
-    /// rejected before either session can load and later save stale rows.
-    pub(crate) fn try_claim_character_login_like_cpp(&mut self, guid: ObjectGuid) -> bool {
-        if self
-            .player_login_claim_like_cpp
-            .as_ref()
-            .is_some_and(|(claimed_guid, _)| *claimed_guid == guid)
-        {
-            return true;
-        }
-        self.release_character_login_claim_like_cpp();
-
-        let claims = ACTIVE_CHARACTER_LOGIN_CLAIMS_LIKE_CPP.get_or_init(Default::default);
-        match claims.entry(guid) {
-            dashmap::mapref::entry::Entry::Vacant(entry) => {
-                let identity = Arc::new(());
-                entry.insert(Arc::downgrade(&identity));
-                self.player_login_claim_like_cpp = Some((guid, identity));
-                true
-            }
-            dashmap::mapref::entry::Entry::Occupied(mut entry) => {
-                if entry.get().upgrade().is_some() {
-                    return false;
-                }
-                let identity = Arc::new(());
-                entry.insert(Arc::downgrade(&identity));
-                self.player_login_claim_like_cpp = Some((guid, identity));
-                true
-            }
-        }
-    }
-
-    pub(crate) fn release_character_login_claim_like_cpp(&mut self) {
-        let Some((guid, identity)) = self.player_login_claim_like_cpp.take() else {
-            return;
-        };
-        let Some(claims) = ACTIVE_CHARACTER_LOGIN_CLAIMS_LIKE_CPP.get() else {
-            return;
-        };
-        if let Some(entry) = claims.get(&guid) {
-            let owns_claim = entry
-                .upgrade()
-                .is_some_and(|current| Arc::ptr_eq(&current, &identity));
-            drop(entry);
-            if owns_claim {
-                claims.remove(&guid);
-            }
-        }
-    }
-
     /// Get the player loading GUID.
     pub fn player_loading(&self) -> Option<ObjectGuid> {
         self.player_loading
-    }
-
-    pub(crate) fn set_player_logout_like_cpp(&mut self, player_logout: bool) {
-        self.player_logout_like_cpp = player_logout;
-        if player_logout {
-            self.durable_loot_money_persistence_like_cpp
-                .close_admission_permanently_like_cpp();
-        }
-        self.sync_current_player_session_visibility_detection_like_cpp();
-    }
-
-    pub(crate) fn player_logout_like_cpp(&self) -> bool {
-        self.player_logout_like_cpp
     }
 
     /// Get a clone of the send channel.
@@ -56926,20 +56750,6 @@ impl WorldSession {
         {
             self.force_update_visibility_like_cpp().await;
         }
-    }
-
-    /// Complete timed logout.
-    ///
-    /// C++ `WorldSession::LogoutPlayer(true)` saves while `_player` still
-    /// exists, then removes the player from the world. Keep the represented
-    /// player identity alive until the session loop runs the disconnect-save
-    /// path; clearing it here would make the later save a no-op.
-    fn complete_logout(&mut self) {
-        use wow_packet::packets::misc::LogoutComplete;
-
-        info!("Logout complete for account {}", self.account_id);
-        self.send_packet(&LogoutComplete);
-        self.state = SessionState::Disconnecting;
     }
 
     /// Kick the session (mark as disconnecting).
