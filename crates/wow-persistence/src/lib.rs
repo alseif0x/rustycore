@@ -102,6 +102,60 @@ pub struct PlayerTutorialsSaveLikeCpp {
     pub already_persisted: bool,
 }
 
+/// One row of an account-wide collection, ready to persist.
+///
+/// These are Battle.net account collections, not character state: C++ writes
+/// them to the Login database during logout, each collection in its own
+/// transaction. The five-transaction shape is preserved deliberately — #187
+/// records that C++ appends them to one transaction and Rust does not, and
+/// changing that is a behaviour fix with its own evidence, not something to
+/// fold into an architecture move.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AccountCollectionSaveLikeCpp {
+    Mounts(Vec<AccountMountRowLikeCpp>),
+    Toys(Vec<AccountToyRowLikeCpp>),
+    Heirlooms(Vec<AccountHeirloomRowLikeCpp>),
+}
+
+impl AccountCollectionSaveLikeCpp {
+    /// True when there is nothing to write. The caller skips the transaction
+    /// rather than opening an empty one.
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Mounts(rows) => rows.is_empty(),
+            Self::Toys(rows) => rows.is_empty(),
+            Self::Heirlooms(rows) => rows.is_empty(),
+        }
+    }
+
+    /// Account collections live in the Login database.
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Login
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AccountMountRowLikeCpp {
+    pub bnet_account_id: u32,
+    pub mount_spell_id: u32,
+    pub flags: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AccountToyRowLikeCpp {
+    pub bnet_account_id: u32,
+    pub item_id: u32,
+    pub is_favorite: bool,
+    pub has_fanfare: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AccountHeirloomRowLikeCpp {
+    pub bnet_account_id: u32,
+    pub item_id: u32,
+    pub flags: u32,
+}
+
 /// The lifecycle capability the Session depends on.
 ///
 /// The Session holds this, not a database handle. Anything the Session needs
@@ -121,6 +175,13 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
     fn save_tutorials_like_cpp<'a>(
         &'a self,
         save: PlayerTutorialsSaveLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
+
+    /// Persist one account-wide collection in its own Login-database
+    /// transaction, as C++ does during logout.
+    fn save_account_collection_like_cpp<'a>(
+        &'a self,
+        save: AccountCollectionSaveLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 }
 
