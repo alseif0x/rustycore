@@ -3054,6 +3054,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "world-modules"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "tokio",
+ "world-server",
+ "wow-module-api",
+]
+
+[[package]]
 name = "world-server"
 version = "0.1.0"
 dependencies = [
@@ -3074,6 +3084,7 @@ dependencies = [
  "wow-logging",
  "wow-loot",
  "wow-map",
+ "wow-module-api",
  "wow-movement",
  "wow-network",
  "wow-packet",

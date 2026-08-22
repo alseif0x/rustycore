@@ -23,6 +23,7 @@ wow-database = { workspace = true }
 wow-loot = { workspace = true }
 wow-movement = { workspace = true }
 wow-network = { workspace = true }
+wow-module-api = { workspace = true }
 wow-world = { workspace = true }
 wow-handler = { workspace = true }
 wow-instances = { workspace = true }
