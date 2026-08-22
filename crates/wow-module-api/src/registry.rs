@@ -106,9 +106,25 @@ impl ModuleDescriptor {
 /// Why a registration was refused.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ModuleRegistrationError {
-    InvalidId { id: String, reason: &'static str },
-    InvalidDescriptor { id: String, reason: &'static str },
-    DuplicateId { id: String },
+    InvalidId {
+        id: String,
+        reason: &'static str,
+    },
+    InvalidDescriptor {
+        id: String,
+        reason: &'static str,
+    },
+    DuplicateId {
+        id: String,
+    },
+    /// A module refused its configuration, so it never registered.
+    Configuration(crate::ModuleConfigError),
+}
+
+impl From<crate::ModuleConfigError> for ModuleRegistrationError {
+    fn from(error: crate::ModuleConfigError) -> Self {
+        Self::Configuration(error)
+    }
 }
 
 impl fmt::Display for ModuleRegistrationError {
@@ -119,6 +135,7 @@ impl fmt::Display for ModuleRegistrationError {
                 write!(f, "invalid descriptor for module {id}: {reason}")
             }
             Self::DuplicateId { id } => write!(f, "module {id} is already registered"),
+            Self::Configuration(error) => write!(f, "{error}"),
         }
     }
 }

@@ -124,6 +124,59 @@ with a working `register`, a focused hook test asserting the module greets only 
 an example configuration, `data/sql/{auth,characters,world,hotfixes}/` and a README stating the
 trust model. Optional directories are documented rather than generated empty.
 
+## Typed configuration
+
+Options are namespaced by validated `ModuleId`, so two modules cannot collide on a key.
+
+```toml
+# module.toml — immutable package defaults, shipped with the module
+[config]
+enabled = true
+welcome_text = "Example Greeter is installed."
+```
+
+```toml
+# conf/modules/example.greeter.toml — operator overrides, outside the module repository
+welcome_text = "Welcome to our realm!"
+```
+
+Overrides never live inside the checkout, so updating a module cannot clobber operator
+settings and a module repository never carries a secret.
+
+`sync` merges defaults with overrides, validates them, and **embeds the typed result** in the
+generated compositor. A module therefore reads its configuration exactly once, at registration:
+no callback touches a file, and there is no live reload to race against.
+
+### Validation happens before activation
+
+A module takes the options it knows about and calls `finish()`. Anything left over is an
+operator typo and fails registration, so a misspelled key is never silently ignored. Wrong types
+and values the type system cannot express — a blank string, a negative count — are refused the
+same way. A module that refuses its configuration is **not registered**, so an invalid value is
+caught at startup rather than at a player's login.
+
+### Digest
+
+Every module's exact configuration has a deterministic digest, recorded in `modules.lock.toml`
+and reported by `list` and `doctor`. It is computed identically on both sides — the Rust
+`ModuleConfig::digest` and `compose.py` pin the same literals in their tests — so the lock always
+describes what the module will actually see. Insertion order does not affect it, and the digest
+is fixed at construction so it still describes what the module was *given* after it has read
+its options.
+
+## Source API compatibility
+
+`module.toml` declares the `source_api` it was written against. Composition refuses anything this
+server does not provide, with an actionable message, before a single line is compiled:
+
+```
+modules/incompatible_api/module.toml: source_api '2' is not supported;
+this server provides ['1']. Update the module or pin an older server.
+```
+
+`tools/modules/fixtures/incompatible_api/` is that fixture, and `doctor --json` reports
+`supported_source_apis` alongside each module's own.
+
 ## Out of scope here
 
 Remote repository management, typed configuration, SQL, Wasm and live reload —

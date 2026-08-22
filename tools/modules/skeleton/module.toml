@@ -10,3 +10,9 @@ registrar = "__MODULE_CRATE__::register"
 
 [compatibility]
 source_api = "1"
+
+[config]
+# Package defaults. Operators override these in conf/modules/__MODULE_ID__.toml,
+# outside this repository, so updating the module never clobbers their settings.
+enabled = true
+welcome_text = "__MODULE_DISPLAY__ is installed."

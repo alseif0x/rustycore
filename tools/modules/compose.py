@@ -23,6 +23,10 @@ MODULES_DIR = REPO_ROOT / "modules"
 LOCK_PATH = REPO_ROOT / "modules.lock.toml"
 COMPOSITOR = REPO_ROOT / "crates" / "world-modules"
 SUPPORTED_SOURCE_API = "1"
+# Source APIs this server still accepts. A module asking for anything else
+# fails at composition, long before a player logs in.
+COMPATIBLE_SOURCE_APIS = {"1"}
+CONFIG_OVERRIDE_DIR = REPO_ROOT / "conf" / "modules"
 
 ID_RE = re.compile(r"^[a-z][a-z0-9_.]{0,63}$")
 PACKAGE_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
@@ -93,10 +97,12 @@ def parse_manifest(root: pathlib.Path, manifest: pathlib.Path) -> dict:
 
     source_api = str(compat.get("source_api", ""))
     _require(
-        source_api == SUPPORTED_SOURCE_API,
+        source_api in COMPATIBLE_SOURCE_APIS,
         f"{where}: source_api {source_api!r} is not supported; this server provides "
-        f"{SUPPORTED_SOURCE_API!r}",
+        f"{sorted(COMPATIBLE_SOURCE_APIS)}. Update the module or pin an older server.",
     )
+
+    config = load_config(identifier, raw.get("config", {}), where)
 
     return {
         "id": identifier,
@@ -109,8 +115,58 @@ def parse_manifest(root: pathlib.Path, manifest: pathlib.Path) -> dict:
         "requested_ref": module.get("ref", ""),
         "resolved_commit": module.get("commit", ""),
         "digest": _digest(root),
+        "config": config,
+        "config_digest": config_digest(config),
         "order": module.get("order", 0),
     }
+
+
+CONFIG_KEY_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+
+
+def load_config(module_id: str, defaults: dict, where) -> dict:
+    """Package defaults, then operator overrides from outside the repository.
+
+    Overrides live in `conf/modules/<id>.toml`, never inside the module
+    checkout, so updating a module never clobbers operator settings and a
+    module repository never carries a secret.
+    """
+    merged: dict[str, object] = {}
+    for source, values in (("default", defaults), ("override", _override_for(module_id))):
+        for key, value in values.items():
+            _require(
+                bool(CONFIG_KEY_RE.match(key)),
+                f"{where}: invalid {source} configuration key {key!r}",
+            )
+            _require(
+                isinstance(value, (bool, int, str)) and not isinstance(value, float),
+                f"{where}: configuration key {key!r} must be a boolean, integer or string",
+            )
+            merged[key] = value
+    return dict(sorted(merged.items()))
+
+
+def _override_for(module_id: str) -> dict:
+    path = CONFIG_OVERRIDE_DIR / f"{module_id}.toml"
+    if not path.is_file():
+        return {}
+    return tomllib.loads(path.read_text(encoding="utf-8"))
+
+
+def config_digest(config: dict) -> str:
+    """Mirror `ModuleConfig::digest` exactly so both sides agree."""
+    state = 0xCBF29CE484222325
+    for key, value in sorted(config.items()):
+        if isinstance(value, bool):
+            rendered = f"b:{'true' if value else 'false'}"
+        elif isinstance(value, int):
+            rendered = f"i:{value}"
+        else:
+            rendered = f"s:{len(value)}:{value}"
+        for byte in f"{key}={rendered};".encode():
+            state ^= byte
+            state = (state * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
+    return f"fnv1a64:{state:016x}"
 
 
 def reject_collisions(modules: list[dict]) -> None:
@@ -151,6 +207,7 @@ def render_lock(modules: list[dict]) -> str:
             f'registrar = "{m["registrar"]}"',
             f'source_api = "{m["source_api"]}"',
             f"enabled_order = {index}",
+            f'config_digest = "{m["config_digest"]}"',
             f'digest = "sha256:{m["digest"]}"',
             "",
         ]
@@ -182,15 +239,43 @@ wow-module-api = {{ workspace = true }}
 '''.replace("\n\n\n", "\n\n").rstrip("\n") + "\n"
 
 
+def _rust_config(config: dict) -> str:
+    if not config:
+        return "        std::collections::BTreeMap::new()"
+    rows = []
+    for key, value in sorted(config.items()):
+        if isinstance(value, bool):
+            rendered = f"wow_module_api::ModuleConfigValue::Bool({'true' if value else 'false'})"
+        elif isinstance(value, int):
+            rendered = f"wow_module_api::ModuleConfigValue::Integer({value})"
+        else:
+            escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+            rendered = f'wow_module_api::ModuleConfigValue::Text("{escaped}".to_owned())'
+        rows.append(f'            ("{key}".to_owned(), {rendered}),')
+    body = "\n".join(rows)
+    return "        std::collections::BTreeMap::from([\n" + body + "\n        ])"
+
+
 def render_main(modules: list[dict]) -> str:
     rows = ordered(modules)
     if rows:
-        calls = "\n".join(
-            f"    {m['registrar'].replace('-', '_')}(&mut modules)\n"
-            f'        .map_err(|error| anyhow::anyhow!("module {m["id"]}: {{error}}"))?;'
-            for m in rows
+        blocks = []
+        for m in rows:
+            crate = m["registrar"].split("::")[0]
+            blocks.append(
+                f"    let config = wow_module_api::ModuleConfig::new(\n"
+                f'        &wow_module_api::ModuleId::new("{m["id"]}")\n'
+                f'            .expect("composed module ids are validated at sync"),\n'
+                f"{_rust_config(m['config'])},\n"
+                f"    );\n"
+                f"    {m['registrar']}(&mut modules, config)\n"
+                f'        .map_err(|error| anyhow::anyhow!("module {m["id"]}: {{error}}"))?;'
+            )
+        calls = "\n".join(blocks)
+        summary = "\n".join(
+            f"//! {i}. `{m['id']}` {m['version']} (config {m['config_digest']})"
+            for i, m in enumerate(rows)
         )
-        summary = "\n".join(f"//! {i}. `{m['id']}` {m['version']}" for i, m in enumerate(rows))
     else:
         calls = "    // No modules are installed; this is the no-op compositor."
         summary = "//! No modules are installed."
@@ -202,7 +287,8 @@ def render_main(modules: list[dict]) -> str:
 //!
 //! Registrars run in the operator's declared order, recorded in
 //! `modules.lock.toml`. Ordering is explicit here and never relies on linker
-//! inventory. Installed modules, in composition order:
+//! inventory. Configuration is validated at sync and embedded, so no callback
+//! reads a file. Installed modules, in composition order:
 //!
 {summary}
 

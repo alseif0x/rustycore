@@ -1,0 +1,19 @@
+# Compatibility fixture: declares a source API this server does not provide,
+# so composition must refuse it before anything is compiled or activated.
+# Trusted linked module manifest. See docs/architecture/modules.md.
+[module]
+id = "fixture.future_api"
+version = "1.0.0"
+display_name = "Future API Fixture"
+
+[build]
+# The Cargo package this checkout provides, and the registrar the compositor
+# calls. The path is relative to this manifest and must stay inside it.
+package = "fixture-future-api"
+crate_path = "."
+registrar = "fixture_future_api::register"
+
+[compatibility]
+# The module source API this module was written against. The compositor
+# refuses to compile a module that asks for an API it does not provide.
+source_api = "2"
