@@ -38,7 +38,7 @@
       "member_key": "name",
       "zero_gaps": true,
       "zero_overlap": true,
-      "expected_field_count": 740,
+      "expected_field_count": 741,
       "validation": "Compare the sorted AST names with the sorted concatenation of every family.field_names; reject a missing name, duplicate name, stale name, family count mismatch, or total count mismatch."
     },
     "families": [
@@ -236,7 +236,7 @@
       },
       {
         "id": "immutable_catalogs_configuration_and_services",
-        "expected_field_count": 187,
+        "expected_field_count": 188,
         "field_names": [
           "access_requirement_store",
           "adventure_map_poi_store",
@@ -352,6 +352,7 @@
           "player_create_custom_spell_store_like_cpp",
           "player_create_info_store_like_cpp",
           "player_grid_load_resolver_like_cpp",
+          "player_lifecycle_port_like_cpp",
           "power_type_store",
           "pvp_item_store",
           "quest_faction_reward_store",
@@ -1079,9 +1080,9 @@
         "retirement_condition": "This residual is empty, or every remaining field has an explicit reviewed stable-Session justification and a dedicated exact-membership rule."
       }
     ],
-    "expected_field_count": 740,
-    "expected_unique_field_count": 740,
-    "expected_production_field_count": 728,
+    "expected_field_count": 741,
+    "expected_unique_field_count": 741,
+    "expected_production_field_count": 729,
     "expected_test_fixture_field_count": 12
   },
   "inventories": {
@@ -1094,8 +1095,8 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.session_resources.fields"
       },
       "audited_summary": {
-        "field_count": 244,
-        "option_field_count": 187,
+        "field_count": 245,
+        "option_field_count": 188,
         "count_kind": "baseline observation; AST is authoritative"
       },
       "coverage_rule": {
@@ -1103,7 +1104,7 @@
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_field_count": 244,
+        "expected_field_count": 245,
         "validation": "Compare sorted AST field names with the sorted concatenation of every entry.field_names; reject gaps, duplicates, stale names, entry count drift, or total count drift."
       },
       "entries": [
@@ -1138,10 +1139,11 @@
         },
         {
           "id": "session_resources_runtime_handles",
-          "expected_field_count": 2,
+          "expected_field_count": 3,
           "field_names": [
             "instance_lock_mgr",
-            "module_registry"
+            "module_registry",
+            "player_lifecycle_port"
           ],
           "owner": "world-server composition stores handles; legacy and canonical runtime owners remain distinct and audited by #188.",
           "open_retirement_issues": [
@@ -1410,7 +1412,7 @@
           "retirement_condition": "Every remaining field has an exact capability bundle/consumer owner or is removed from Session construction."
         }
       ],
-      "expected_field_count": 244
+      "expected_field_count": 245
     },
     "player_broadcast_info": {
       "coverage_source": {
@@ -1870,9 +1872,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 75081,
-          "test_lines": 95247,
-          "total_lines": 170328,
+          "production_lines": 75101,
+          "test_lines": 95405,
+          "total_lines": 170506,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             140,
@@ -1899,9 +1901,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20379,
+          "production_lines": 20409,
           "test_lines": 10761,
-          "total_lines": 31140,
+          "total_lines": 31170,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "open_retirement_issues": [
             153,
@@ -1926,9 +1928,9 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 25023,
+          "production_lines": 25040,
           "test_lines": 21528,
-          "total_lines": 46551,
+          "total_lines": 46568,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153,
