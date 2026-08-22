@@ -25,6 +25,8 @@ mod lifecycle;
 mod lifecycle_persistence;
 #[path = "session/tests/routing.rs"]
 mod routing;
+#[path = "session/tests/save_plan_order.rs"]
+mod save_plan_order;
 
 use routing::assert_destroyed_party_update_like_cpp;
 
