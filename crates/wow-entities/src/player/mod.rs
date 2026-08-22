@@ -11,7 +11,7 @@
 
 mod collections;
 mod identity;
-mod inventory;
+mod items;
 mod location;
 mod progression;
 mod social;
