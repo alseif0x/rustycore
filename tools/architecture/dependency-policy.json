@@ -6,7 +6,8 @@
       "wow-constants",
       "wow-core",
       "wow-ecs",
-      "wow-math"
+      "wow-math",
+      "wow-module-api"
     ],
     "domain-runtime": [
       "wow-achievement",
@@ -377,6 +378,10 @@
           "rand",
           "tracing"
         ],
+        "build": []
+      },
+      "wow-module-api": {
+        "normal": [],
         "build": []
       }
     },
