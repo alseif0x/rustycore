@@ -149,7 +149,7 @@
     },
     {
       "number": 137,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.5e] Move the encapsulated Group owner into wow-social",
       "kind": "slice",
       "parents": [
@@ -163,7 +163,7 @@
     },
     {
       "number": 138,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.4g] Relocate the opaque session directory out of wow-network",
       "kind": "slice",
       "parents": [
@@ -176,7 +176,7 @@
     },
     {
       "number": 139,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.MOD.MISC] Split misc handlers into private capability modules",
       "kind": "slice",
       "parents": [
@@ -252,7 +252,7 @@
     },
     {
       "number": 150,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.4a] Introduce an opaque PlayerRegistry facade in place",
       "kind": "slice",
       "parents": [
@@ -265,7 +265,7 @@
     },
     {
       "number": 151,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.5a] Introduce opaque GroupRegistry and PendingInvites facades in place",
       "kind": "slice",
       "parents": [
@@ -278,7 +278,7 @@
     },
     {
       "number": 152,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.MOD.SESSION] Split WorldSession admission, dispatch and test structure",
       "kind": "slice",
       "parents": [
@@ -471,7 +471,7 @@
     },
     {
       "number": 187,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.2] Freeze Player lifecycle persistence order before its port",
       "kind": "slice",
       "parents": [
@@ -529,46 +529,37 @@
     },
     {
       "number": 192,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.4b] Replace runtime fanout access with session-directory queries",
       "kind": "slice",
       "parents": [
         133
       ],
-      "depends_on": [
-        150,
-        188
-      ]
+      "depends_on": [150]
     },
     {
       "number": 193,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.4c] Replace combat and loot access with bounded directory capabilities",
       "kind": "slice",
       "parents": [
         133
       ],
-      "depends_on": [
-        150,
-        187
-      ]
+      "depends_on": [150]
     },
     {
       "number": 194,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.4d] Replace quest, spell and movement access with bounded directory capabilities",
       "kind": "slice",
       "parents": [
         133
       ],
-      "depends_on": [
-        150,
-        188
-      ]
+      "depends_on": [150]
     },
     {
       "number": 195,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.4e] Replace social and group access with session-addressing APIs",
       "kind": "slice",
       "parents": [
@@ -581,7 +572,7 @@
     },
     {
       "number": 196,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.4f] Privatize PlayerRegistry storage and migrate compatibility fixtures",
       "kind": "slice",
       "parents": [
@@ -596,7 +587,7 @@
     },
     {
       "number": 197,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.5b] Encapsulate group invite, creation and capacity transitions",
       "kind": "slice",
       "parents": [
@@ -608,7 +599,7 @@
     },
     {
       "number": 198,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.5c] Encapsulate group membership, leadership and ready-state transitions",
       "kind": "slice",
       "parents": [
@@ -620,16 +611,13 @@
     },
     {
       "number": 199,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.5d] Separate group persistence/publication and close GroupRegistry storage",
       "kind": "slice",
       "parents": [
         133
       ],
-      "depends_on": [
-        187,
-        198
-      ]
+      "depends_on": [198]
     },
     {
       "number": 200,
@@ -719,7 +707,7 @@
     },
     {
       "number": 223,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.PLAN] Align the modular roadmap, physical metrics and local-first policy",
       "kind": "slice",
       "parents": [133],

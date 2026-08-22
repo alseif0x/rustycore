@@ -128,7 +128,6 @@
         "mirror_direction": "No gameplay mirror is authorized; status and counters are Session-owned protocol state.",
         "target_owner": "transitional wow_world::session::{admission,dispatch}, terminal wow-session with wow-handler metadata contracts.",
         "cutover_issues": [
-          152,
           153,
           183
         ],
@@ -184,19 +183,7 @@
         "mirror_direction": "Player/Group facts are currently projected into directory/session fields; no directory write may become a second gameplay authority.",
         "target_owner": "opaque Session directory for identity/addressing, wow-social for Group/PendingInvites, canonical Player for player-local social references.",
         "cutover_issues": [
-          137,
-          138,
-          150,
-          151,
-          153,
-          192,
-          193,
-          194,
-          195,
-          196,
-          197,
-          198,
-          199
+          153
         ],
         "rollback_condition": "Restore the previous facade adapter if recipient sets, generations, Group invariants, persistence order, or packet order differs; never reopen raw backing storage.",
         "retirement_condition": "WorldSession retains only an opaque directory handle and local Group identity; Group state, pending invites, raw map guards, and broad player projections are absent."
@@ -240,7 +227,6 @@
           153,
           169,
           184,
-          187,
           189,
           200
         ],
@@ -446,8 +432,6 @@
         "mirror_direction": "These are dependency copies/handles rather than gameplay mirrors, but copying the entire bag into Session obscures the real reader boundary.",
         "target_owner": "world-server bootstrap/composition plus capability-specific immutable wow-data views or narrow application services; final owner must be confirmed per field by #153.",
         "cutover_issues": [
-          139,
-          152,
           153
         ],
         "rollback_condition": "Restore the previous private factory wiring if required/optional startup behavior or store overlay ordering changes; do not expose SessionResources publicly.",
@@ -489,10 +473,7 @@
           28,
           140,
           153,
-          188,
-          192,
-          193,
-          194
+          188
         ],
         "rollback_condition": "Flip the bounded method back to its previous authoritative implementation if phase trace, recipient set, packet order, or single-tick evidence differs; never enable both writers.",
         "retirement_condition": "Every transition has one canonical Map/Entity writer and clock, its legacy bridge is deleted, and no delivery/await/persistence occurs under Map guards."
@@ -576,10 +557,7 @@
         "target_owner": "wow-entities::Player inventory/economy, wow-loot for loot rules/authority, wow-persistence ports for durability, thin wow-world handlers for adaptation.",
         "cutover_issues": [
           153,
-          187,
           189,
-          193,
-          196,
           200
         ],
         "rollback_condition": "Restore the prior capability adapter if item identity, money, loot eligibility, roll order, transaction order, or packet bytes differ; do not restore raw directory access.",
@@ -764,7 +742,6 @@
         "cutover_issues": [
           153,
           169,
-          194,
           200
         ],
         "rollback_condition": "Restore the previous per-capability adapter if spell/quest criteria, order, persistence, or packets differ; retain completed atomic acquisition/saga boundaries.",
@@ -863,10 +840,7 @@
         "cutover_issues": [
           153,
           183,
-          188,
-          192,
-          194,
-          196
+          188
         ],
         "rollback_condition": "Re-enable only the previous single owner for the bounded method if phase order, movement ACKs, visibility recipients, combat outcome, or packet order differs.",
         "retirement_condition": "Player/Map are the only mutable owners, Session retains an opaque generation-checked PlayerHandle, and all Session/directory gameplay mirrors for the migrated family are removed."
@@ -905,14 +879,7 @@
         "mirror_direction": "Group facts project to Player/session views and delivery outcomes; session presence must not become membership authority.",
         "target_owner": "wow-social for Group/PendingInvites and stable social rules, canonical Player for player-local views, thin wow-world capability handlers, Session directory for addressing only.",
         "cutover_issues": [
-          137,
-          139,
-          151,
-          153,
-          195,
-          197,
-          198,
-          199
+          153
         ],
         "rollback_condition": "Restore the prior adapter if Group atomicity, member order, packet order, persistence, or offline/stale-generation behavior differs; never reopen raw maps.",
         "retirement_condition": "Group/Calendar capabilities own transitions, handlers only decode/adapt/encode, and WorldSession contains only player-local Session state."
@@ -1149,7 +1116,6 @@
           "owner": "world-server composition currently stores concrete adapters; wow-database owns their implementation.",
           "open_retirement_issues": [
             169,
-            187,
             200
           ],
           "retirement_condition": "Session construction supplies typed wow-persistence capability ports rather than concrete database/pool aggregates."
@@ -1164,11 +1130,7 @@
           ],
           "owner": "world-server composition holds handles; the player directory owner is wow_world::session::directory, the Group owner is wow_social::group, and the Session mailbox remains in wow-network.",
           "open_retirement_issues": [
-            137,
-            138,
-            140,
-            150,
-            151
+            140
           ],
           "retirement_condition": "Only opaque directory, mailbox and Group capability handles are composed; raw storage/payload types are absent."
         },
@@ -1367,7 +1329,6 @@
           ],
           "owner": "world-server bootstrap/composition; immutable data remains owned by wow-data or its defining crate.",
           "open_retirement_issues": [
-            139,
             153
           ],
           "retirement_condition": "Factory bundles are capability-specific and required/optional semantics fail closed; WorldSession does not receive the full catalog bag."
@@ -1482,7 +1443,6 @@
           ],
           "owner": "Session directory owns incarnation/addressing; canonical Player or admitted Session identity owns identity facts as assigned by the field ledger.",
           "open_retirement_issues": [
-            138,
             140,
             252
           ],
@@ -1500,7 +1460,6 @@
           ],
           "owner": "Player/session publishes receiver-local delivery state into PlayerRegistry; Map selects spatial candidates and Player owns client-visible membership.",
           "open_retirement_issues": [
-            138,
             140,
             188,
             252
@@ -1674,8 +1633,7 @@
           "open_retirement_issues": [
             140,
             153,
-            188,
-            192
+            188
           ],
           "retirement_condition": "Map-owned typed outcomes replace gameplay payload variants; Session protocol retains only bounded delivery facts and never rewrites stale gameplay state."
         },
@@ -1693,9 +1651,7 @@
           "open_retirement_issues": [
             140,
             153,
-            187,
-            189,
-            193
+            189
           ],
           "retirement_condition": "Loot owner outcomes and persistence outcomes cross the Session boundary without embedding mutable loot authority or trackers."
         },
@@ -1710,8 +1666,7 @@
           "owner": "wow-network currently defines payloads; represented Player/quest capability owns state and Session owns recipient delivery.",
           "open_retirement_issues": [
             140,
-            153,
-            194
+            153
           ],
           "retirement_condition": "Quest capability returns typed outcomes and Session mailbox contains only addressing/delivery data."
         },
@@ -1733,14 +1688,8 @@
           ],
           "owner": "wow-network still defines the mailbox payloads; wow_social::group owns Group transitions and Session applies receiver-local facts.",
           "open_retirement_issues": [
-            137,
             140,
-            151,
-            153,
-            195,
-            197,
-            198,
-            199
+            153
           ],
           "retirement_condition": "Group/social/Player outcomes are typed at their owner; Session mailbox performs generation-checked delivery without reimplementing invariants."
         }
@@ -1801,9 +1750,7 @@
           "direction": "represented WorldSession player fields -> rebuilt wow_entities::Player snapshot -> canonical map",
           "owner": "WorldSession remains the current mutable represented-player writer; the snapshot is not an independent writer.",
           "open_retirement_issues": [
-            153,
-            194,
-            196
+            153
           ],
           "retirement_condition": "Map stores the one canonical mutable Player and Session retains only a generation-checked PlayerHandle."
         },
@@ -1817,8 +1764,7 @@
           "open_retirement_issues": [
             153,
             188,
-            189,
-            193
+            189
           ],
           "retirement_condition": "Loot reads and mutations use one canonical entity/view owner and no dual-manager reconciliation remains."
         },
@@ -1850,9 +1796,7 @@
           "owner": "persistence-boundary-workflows.json is the reviewed semantic authority; persistence-boundary-policy.json is its canonical generated projection over the exact snapshot.",
           "open_retirement_issues": [
             153,
-            187,
             189,
-            199,
             200
           ],
           "retirement_condition": "Each non-stable group disappears with its typed capability migration; wow-database remains the sole stable concrete adapter boundary."
@@ -1875,7 +1819,6 @@
           ],
           "owner": "wow-handler owns metadata/registry contracts; wow_world::handlers owns concrete registrations and WorldSession currently owns the dispatch arms.",
           "open_retirement_issues": [
-            152,
             153
           ],
           "retirement_condition": "One module-aware registration/arm contract remains exact and the terminal PacketRouter boundary no longer requires wow-session to depend on wow-world."
@@ -1887,7 +1830,6 @@
           ],
           "owner": "wow_world::handlers::misc currently; Calendar capability target is inside wow-world until its API/owner is proven.",
           "open_retirement_issues": [
-            139,
             153
           ],
           "retirement_condition": "Calendar is a thin capability module with colocated tests, exact registrations, narrow dependencies, and no external impl WorldSession growth."
@@ -1899,14 +1841,7 @@
           ],
           "owner": "Concrete wow-world handler modules; canonical gameplay owner varies by command and is not the handler.",
           "open_retirement_issues": [
-            153,
-            192,
-            193,
-            194,
-            195,
-            197,
-            198,
-            199
+            153
           ],
           "retirement_condition": "Each handler decodes, invokes one typed capability, and encodes/delivers an ordered outcome without raw registry, DB, Map guard, or gameplay rules."
         },
@@ -1939,7 +1874,6 @@
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             140,
-            152,
             153,
             182,
             183,
@@ -1969,8 +1903,6 @@
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "open_retirement_issues": [
             153,
-            192,
-            194,
             200,
             224
           ],
@@ -1984,9 +1916,7 @@
           "owner": "wow-world loot handler plus transitional loot/map/persistence coordination.",
           "open_retirement_issues": [
             153,
-            187,
             189,
-            193,
             224
           ],
           "retirement_condition": "Loot handlers adapt typed wow-loot/Player/Map/persistence outcomes and no longer coordinate dual authorities or durable trackers."
@@ -2000,8 +1930,7 @@
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153,
-            188,
-            192
+            188
           ],
           "retirement_condition": "The crate keeps main as a thin entry point and distributes bootstrap/loaders/runtime by cohesive private modules; gameplay algorithms and hidden mutable clocks are absent."
         },
@@ -2013,7 +1942,6 @@
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
           "open_retirement_issues": [
             153,
-            194,
             200,
             224
           ],
@@ -2027,8 +1955,6 @@
           "owner": "wow-entities partial canonical Player model.",
           "open_retirement_issues": [
             153,
-            194,
-            196,
             226
           ],
           "retirement_condition": "Player submodules own one mutable representation per responsibility with colocated tests; Session and directory mirrors for migrated families are removed."
