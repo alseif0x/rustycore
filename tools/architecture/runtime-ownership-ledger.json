@@ -1873,8 +1873,8 @@
         {
           "path": "crates/wow-world/src/session/mod.rs",
           "production_lines": 74567,
-          "test_lines": 95529,
-          "total_lines": 170096,
+          "test_lines": 95627,
+          "total_lines": 170194,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             140,
