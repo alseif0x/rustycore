@@ -850,6 +850,9 @@ pub(super) async fn create_session(
     );
     session.set_min_quest_scaled_xp_ratio_like_cpp(resources.min_quest_scaled_xp_ratio);
     session.set_min_discovered_scaled_xp_ratio_like_cpp(resources.min_discovered_scaled_xp_ratio);
+    if let Some(ref modules) = resources.module_registry {
+        session.set_module_registry_like_cpp(Arc::clone(modules));
+    }
     if let Some(ref registry) = resources.player_registry {
         session.set_player_registry(Arc::clone(registry));
     }

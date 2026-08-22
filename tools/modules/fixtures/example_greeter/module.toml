@@ -1,0 +1,17 @@
+# Trusted linked module manifest. See docs/architecture/modules.md.
+[module]
+id = "example.greeter"
+version = "1.0.0"
+display_name = "Example Greeter"
+
+[build]
+# The Cargo package this checkout provides, and the registrar the compositor
+# calls. The path is relative to this manifest and must stay inside it.
+package = "example-greeter"
+crate_path = "."
+registrar = "example_greeter::register"
+
+[compatibility]
+# The module source API this module was written against. The compositor
+# refuses to compile a module that asks for an API it does not provide.
+source_api = "1"

@@ -328,6 +328,17 @@ logical monolith: its registrations, behavior, and tests now live in private cap
 under `handlers/misc/`, while `misc/mod.rs` is a 164-line compatibility facade for shared packet
 types, constants, and narrow helpers. Every production capability file is below 700 lines.
 
+Issue #229 makes that API installable. `modules/<checkout>/module.toml` describes an
+independent trusted repository, `tools/modules/compose.py sync` validates every checkout and
+regenerates both `modules.lock.toml` and the `world-modules` compositor crate, and `check` fails
+when the tree has drifted. Generation is an explicit operator step: the build never fetches and no
+`build.rs` discovers or rewrites the source tree. Composition order is the operator's declared
+order then module id, never registration order and never linker inventory. The compositor refuses,
+before compiling, a malformed id/version/package/path/registrar, a `crate_path` escaping its
+checkout, a duplicate id or Cargo package, and an unsupported `source_api`. The zero-module build
+stays exactly as it was: `world-server`'s binary still calls `run`, and the generated compositor
+with nothing installed passes an empty registry to `run_with_modules`.
+
 Issue #228 opens the module lane by earning a public source API rather than declaring one.
 `wow-module-api` exists only to carry the `player.login -> SendSystemMessageSelf` vertical anchored
 to C++ `ScriptMgr::OnPlayerLogin`, and it is classified `foundation` with an empty external

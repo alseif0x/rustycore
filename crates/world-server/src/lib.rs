@@ -1158,7 +1158,7 @@ impl AccountLookup for DbAccountLookup {
 // ── Main ─────────────────────────────────────────────────────────
 
 mod app;
-pub use app::run;
+pub use app::{run, run_with_modules};
 
 async fn set_realm_online(login_db: &LoginDatabase, realm_id: u16) -> Result<()> {
     login_db

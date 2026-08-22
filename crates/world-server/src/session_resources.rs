@@ -280,6 +280,11 @@ pub(super) struct SessionResources {
     pub(super) min_discovered_scaled_xp_ratio: u32,
     /// Shared registry of all active player sessions (for broadcast).
     pub(super) player_registry: Option<Arc<PlayerRegistry>>,
+    /// Trusted linked modules composed by the generated compositor (#229).
+    ///
+    /// Absent for the ordinary zero-module build, in which case no session
+    /// ever consults a registry.
+    pub(super) module_registry: Option<Arc<wow_module_api::ModuleRegistry>>,
     /// Session -> world-server bridge for C++ GameEventMgr::HandleQuestComplete.
     pub(super) game_event_quest_complete_tx:
         Option<flume::Sender<GameEventQuestCompleteCommandLikeCpp>>,

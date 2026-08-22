@@ -39,6 +39,7 @@ members = [
     "crates/wow-recastdetour",
     # Executables
     "crates/bnet-server",
+    "crates/world-modules",
     "crates/world-server",
     # Tooling
     "crates/capture-diff",
@@ -169,6 +170,7 @@ wow-ai = { path = "crates/wow-ai" }
 wow-packet = { path = "crates/wow-packet" }
 wow-handler = { path = "crates/wow-handler" }
 wow-chat = { path = "crates/wow-chat" }
+world-server = { path = "crates/world-server" }
 wow-module-api = { path = "crates/wow-module-api" }
 wow-social = { path = "crates/wow-social" }
 wow-loot = { path = "crates/wow-loot" }
