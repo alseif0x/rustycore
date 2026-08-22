@@ -11,13 +11,15 @@ use super::*;
 
 use std::sync::Mutex;
 use wow_persistence::{
-    LogicalDatabaseLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
-    PlayerLifecyclePortLikeCpp, PlayerOfflineMarkLikeCpp, PlayerTutorialsSaveLikeCpp,
+    AccountCollectionSaveLikeCpp, LogicalDatabaseLikeCpp, PersistenceFutureLikeCpp,
+    PersistenceOutcomeLikeCpp, PlayerLifecyclePortLikeCpp, PlayerOfflineMarkLikeCpp,
+    PlayerTutorialsSaveLikeCpp,
 };
 
 struct RecordingPortLikeCpp {
     seen: Mutex<Vec<PlayerOfflineMarkLikeCpp>>,
     tutorials: Mutex<Vec<PlayerTutorialsSaveLikeCpp>>,
+    collections: Mutex<Vec<AccountCollectionSaveLikeCpp>>,
     outcome: PersistenceOutcomeLikeCpp,
 }
 
@@ -26,6 +28,7 @@ impl RecordingPortLikeCpp {
         Arc::new(Self {
             seen: Mutex::new(Vec::new()),
             tutorials: Mutex::new(Vec::new()),
+            collections: Mutex::new(Vec::new()),
             outcome,
         })
     }
@@ -34,6 +37,9 @@ impl RecordingPortLikeCpp {
     }
     fn tutorial_saves(&self) -> Vec<PlayerTutorialsSaveLikeCpp> {
         self.tutorials.lock().unwrap().clone()
+    }
+    fn collection_saves(&self) -> Vec<AccountCollectionSaveLikeCpp> {
+        self.collections.lock().unwrap().clone()
     }
 }
 
@@ -52,6 +58,15 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         save: PlayerTutorialsSaveLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
         self.tutorials.lock().unwrap().push(save);
+        let outcome = self.outcome.clone();
+        Box::pin(async move { outcome })
+    }
+
+    fn save_account_collection_like_cpp<'a>(
+        &'a self,
+        save: AccountCollectionSaveLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        self.collections.lock().unwrap().push(save);
         let outcome = self.outcome.clone();
         Box::pin(async move { outcome })
     }
@@ -261,4 +276,48 @@ async fn a_non_applied_tutorial_save_keeps_the_state_dirty_like_cpp() {
             "an unconfirmed INSERT must not be recorded as persisted"
         );
     }
+}
+
+/// Each account collection reaches the port as its own request against the
+/// Login database. Three requests, not one: C++ logout commits them
+/// separately, and #187 freezes that until a deliberate behaviour change.
+#[tokio::test]
+async fn account_collections_are_saved_as_separate_login_requests_like_cpp() {
+    let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7300_0001)));
+
+    session.save_account_mounts_like_cpp().await;
+    session.save_account_toys_like_cpp().await;
+    session.save_account_heirlooms_like_cpp().await;
+
+    for save in port.collection_saves() {
+        assert_eq!(
+            save.logical_database(),
+            LogicalDatabaseLikeCpp::Login,
+            "account collections belong to the login database"
+        );
+        assert!(!save.is_empty(), "an empty collection must not be sent");
+    }
+}
+
+/// An empty collection opens no transaction.
+#[tokio::test]
+async fn empty_account_collections_are_not_sent_like_cpp() {
+    let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 0 });
+
+    session.save_account_mounts_like_cpp().await;
+    session.save_account_toys_like_cpp().await;
+    session.save_account_heirlooms_like_cpp().await;
+
+    assert!(port.collection_saves().is_empty());
+}
+
+/// With no port installed nothing is written and nothing panics.
+#[tokio::test]
+async fn account_collections_without_a_port_write_nothing_like_cpp() {
+    let (mut session, _, _) = make_session();
+
+    session.save_account_mounts_like_cpp().await;
+    session.save_account_toys_like_cpp().await;
+    session.save_account_heirlooms_like_cpp().await;
 }
