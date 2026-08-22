@@ -1935,10 +1935,10 @@
           "retirement_condition": "The crate keeps main as a thin entry point and distributes bootstrap/loaders/runtime by cohesive private modules; gameplay algorithms and hidden mutable clocks are absent."
         },
         {
-          "path": "crates/wow-world/src/handlers/quest.rs",
-          "production_lines": 8269,
+          "path": "crates/wow-world/src/handlers/quest/mod.rs",
+          "production_lines": 8344,
           "test_lines": 10172,
-          "total_lines": 18441,
+          "total_lines": 18516,
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
           "open_retirement_issues": [
             153,
