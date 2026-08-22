@@ -14,10 +14,26 @@ use super::*;
 /// Boxing keeps the enormous startup future private to this crate and gives
 /// embedders a stable, compact library boundary.
 pub fn run(args: Vec<String>) -> Pin<Box<dyn Future<Output = Result<ExitCode>> + Send + 'static>> {
-    Box::pin(run_inner(args))
+    run_with_modules(args, wow_module_api::ModuleRegistry::new())
 }
 
-async fn run_inner(args: Vec<String>) -> Result<ExitCode> {
+/// Run the world server with a pre-composed trusted module registry.
+///
+/// The generated compositor crate (issue #229) calls this after invoking every
+/// installed module's registrar in the operator's declared order. `run` is the
+/// zero-module case and passes an empty registry, so the ordinary build is
+/// unchanged and never observes a module.
+pub fn run_with_modules(
+    args: Vec<String>,
+    modules: wow_module_api::ModuleRegistry,
+) -> Pin<Box<dyn Future<Output = Result<ExitCode>> + Send + 'static>> {
+    Box::pin(run_inner(args, Arc::new(modules)))
+}
+
+async fn run_inner(
+    args: Vec<String>,
+    modules: Arc<wow_module_api::ModuleRegistry>,
+) -> Result<ExitCode> {
     // Initialize logging
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -4536,6 +4552,7 @@ async fn run_inner(args: Vec<String>) -> Result<ExitCode> {
             0,
         ),
         player_registry: Some(Arc::clone(&player_registry)),
+        module_registry: Some(Arc::clone(&modules)),
         game_event_quest_complete_tx: Some(game_event_quest_complete_tx),
         group_registry: Some(Arc::clone(&group_registry)),
         pending_invites: Some(Arc::clone(&pending_invites)),

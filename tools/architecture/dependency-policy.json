@@ -43,6 +43,7 @@
     ],
     "composition": [
       "bnet-server",
+      "world-modules",
       "world-server"
     ],
     "tooling": [
