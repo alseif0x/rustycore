@@ -1277,6 +1277,90 @@ def validate_runtime_syntax_coverage(
         )
 
 
+def validate_runtime_clock_phase_trace(repository_root: Path) -> int:
+    """Check the #188 clock/phase trace still describes the code it claims to.
+
+    The trace is a reviewed description, not a target, so this guard proves it
+    stays truthful rather than prescribing a shape: every clock must name a
+    source and entry point that exist, declare its cadence, diff source and
+    availability, and state the guard that stops a second owner resolving the
+    same transition. A clock that admits delivering under a map guard fails,
+    because the campaign's non-negotiable invariant forbids it.
+    """
+    trace_path = repository_root / "tools/architecture/runtime-clock-phase-trace.json"
+    trace = load_json(trace_path)
+    if trace.get("schema_version") != 1:
+        raise ArchitectureError("runtime clock/phase trace has an unsupported schema version")
+    clocks = trace.get("clocks")
+    if not isinstance(clocks, list) or not clocks:
+        raise ArchitectureError("runtime clock/phase trace records no clocks")
+
+    required = (
+        "id", "source", "entry", "cpp_anchor", "availability", "cadence",
+        "diff_source", "owns", "delivers_under_map_guard", "resolution_guard",
+        "regression_anchors",
+    )
+    seen: set[str] = set()
+    for clock in clocks:
+        missing = [field for field in required if field not in clock]
+        if missing:
+            raise ArchitectureError(
+                f"runtime clock {clock.get('id', '<unnamed>')} is missing {missing}"
+            )
+        identifier = clock["id"]
+        if identifier in seen:
+            raise ArchitectureError(f"runtime clock {identifier} is recorded twice")
+        seen.add(identifier)
+        if clock["availability"] not in {"production", "diagnostic"}:
+            raise ArchitectureError(
+                f"runtime clock {identifier} must be production or diagnostic"
+            )
+        if clock["delivers_under_map_guard"] is not False:
+            raise ArchitectureError(
+                f"runtime clock {identifier} claims delivery under a map guard, "
+                "which the campaign invariants forbid"
+            )
+        source = repository_root / clock["source"]
+        if not source.is_file():
+            raise ArchitectureError(
+                f"runtime clock {identifier} names missing source {clock['source']}"
+            )
+        body = source.read_text(encoding="utf-8")
+        entry = clock["entry"]
+        if entry.isidentifier() and f"fn {entry}" not in body:
+            raise ArchitectureError(
+                f"runtime clock {identifier} names entry point {entry} "
+                f"that {clock['source']} does not define"
+            )
+        for field in ("cadence", "diff_source", "resolution_guard"):
+            if not str(clock[field]).strip():
+                raise ArchitectureError(f"runtime clock {identifier} has an empty {field}")
+        for anchor in clock["regression_anchors"]:
+            if not _repository_defines_test(repository_root, anchor):
+                raise ArchitectureError(
+                    f"runtime clock {identifier} names regression anchor {anchor} "
+                    "that no test defines"
+                )
+
+    owner = trace.get("tick_owner", {})
+    for field in ("constructed_default", "production_default",
+                  "production_default_source", "production_default_mechanism"):
+        if not str(owner.get(field, "")).strip():
+            raise ArchitectureError(f"runtime clock/phase trace tick_owner lacks {field}")
+    return len(clocks)
+
+
+def _repository_defines_test(repository_root: Path, name: str) -> bool:
+    needle = f"fn {name}("
+    for path in (repository_root / "crates").rglob("*.rs"):
+        try:
+            if needle in path.read_text(encoding="utf-8"):
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def validate_player_broadcast_retirement_ledger(
     syntax_policy: dict[str, Any], issue_ledger: dict[str, Any]
 ) -> None:
@@ -3613,6 +3697,7 @@ def main() -> int:
             validate_player_broadcast_retirement_ledger(
                 session_ownership_policy, ledger
             )
+            traced_clocks = validate_runtime_clock_phase_trace(REPO_ROOT)
             validate_documented_sequence(ledger)
         if args.command == "self-test":
             run_fixture_self_tests(policy)
@@ -3663,7 +3748,8 @@ def main() -> int:
             syntax = session_ownership_policy["syntax_baseline"]
             print(
                 "Architecture ownership: PASS "
-                f"({len(syntax['world_session']['fields'])} WorldSession fields, "
+                f"({traced_clocks} traced runtime clocks, "
+                f"{len(syntax['world_session']['fields'])} WorldSession fields, "
                 f"{len(syntax['session_resources']['fields'])} SessionResources fields, "
                 f"{len(syntax['player_broadcast_info']['fields'])} broadcast fields, "
                 f"{len(syntax['session_command']['variants'])} command variants, "
