@@ -30751,11 +30751,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "poll_instance_link",
-          "visibility": "private",
+          "visibility": "pub (super)",
           "signature": "async fn poll_instance_link (& mut self)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",

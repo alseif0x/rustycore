@@ -13,6 +13,8 @@
 
 #[path = "session/tests/admission.rs"]
 mod admission;
+#[path = "session/tests/connection.rs"]
+mod connection;
 #[path = "session/tests/dispatch.rs"]
 mod dispatch;
 #[path = "session/tests/routing.rs"]
