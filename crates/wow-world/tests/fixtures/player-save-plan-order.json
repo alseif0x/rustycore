@@ -1,11 +1,50 @@
 [
-  "UPDATE characters SET position_x = ?, position_y = ?, position_z = ?, orientation = ?, map = ?, instance_id = ?, zone = ? WHERE guid = ?",
-  "UPDATE characters SET level = ?, xp = ? WHERE guid = ?",
-  "UPDATE characters SET money = ? WHERE guid = ?",
-  "UPDATE characters SET restState = ?, playerFlags = ?, rest_bonus = ?, logout_time = ?, is_logout_resting = ? WHERE guid = ?",
-  "UPDATE characters SET health = ? WHERE guid = ?",
-  "UPDATE characters SET resettalents_cost = ?, resettalents_time = ? WHERE guid = ?",
-  "UPDATE characters SET exploredZones = ? WHERE guid = ?",
-  "UPDATE characters SET dungeonDifficulty = ?, raidDifficulty = ?, legacyRaidDifficulty = ? WHERE guid = ?",
-  "UPDATE characters SET totaltime = ?, leveltime = ? WHERE guid = ?"
+  [
+    "UPDATE characters SET position_x = ?, position_y = ?, position_z = ?, orientation = ?, map = ?, instance_id = ?, zone = ? WHERE guid = ?",
+    1
+  ],
+  [
+    "UPDATE characters SET level = ?, xp = ? WHERE guid = ?",
+    1
+  ],
+  [
+    "UPDATE characters SET money = ? WHERE guid = ?",
+    1
+  ],
+  [
+    "UPDATE characters SET restState = ?, playerFlags = ?, rest_bonus = ?, logout_time = ?, is_logout_resting = ? WHERE guid = ?",
+    1
+  ],
+  [
+    "UPDATE characters SET health = ? WHERE guid = ?",
+    1
+  ],
+  [
+    "UPDATE characters SET resettalents_cost = ?, resettalents_time = ? WHERE guid = ?",
+    1
+  ],
+  [
+    "UPDATE characters SET exploredZones = ? WHERE guid = ?",
+    1
+  ],
+  [
+    "UPDATE characters SET dungeonDifficulty = ?, raidDifficulty = ?, legacyRaidDifficulty = ? WHERE guid = ?",
+    1
+  ],
+  [
+    "DELETE FROM character_glyphs WHERE guid = ?",
+    1
+  ],
+  [
+    "INSERT INTO character_glyphs (guid, talentGroup, glyphSlot, glyphId) VALUES(?, ?, ?, ?)",
+    24
+  ],
+  [
+    "INSERT INTO account_tutorial(tut0, tut1, tut2, tut3, tut4, tut5, tut6, tut7, accountId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    1
+  ],
+  [
+    "UPDATE characters SET totaltime = ?, leveltime = ? WHERE guid = ?",
+    1
+  ]
 ]
