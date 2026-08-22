@@ -6,6 +6,12 @@
 //! Spell DB2 stores and their loaders.
 
 use super::catalog::{SpellHitEffectMechanicRowLikeCpp, SpellInterruptRowLikeCpp};
+// Explicit database imports: this module reaches its parent through
+// `use super::*`, and the persistence inventory cannot resolve a glob, so
+// without these every database access in the file is invisible to the
+// ratchet (see #277).
+use wow_database::{HotfixDatabase, WorldDatabase, WorldStatements};
+
 use super::*;
 
 #[derive(Debug, Clone, Default)]
