@@ -327,6 +327,23 @@ logical monolith: its registrations, behavior, and tests now live in private cap
 under `handlers/misc/`, while `misc/mod.rs` is a 164-line compatibility facade for shared packet
 types, constants, and narrow helpers. Every production capability file is below 700 lines.
 
+Issue #227 finishes the physical lane on the protocol and static-data hotspots.
+`wow-packet/src/packets/misc.rs` (13,185 lines) becomes `misc/` split by protocol family —
+`character`, `social`, `spell`, `combat`, `movement`, `world_state`, `session` — with its
+4,977-line inline test module extracted; `packets/update.rs` (9,735) becomes `update/` split by
+entity domain — `player`, `unit`, `game_object`, `item`, `movement`, `block`; and
+`wow-data/src/spell.rs` (7,559) becomes `spell/` with `stores`, `catalog`, `acquisition` and
+`corrections`. Every public type and byte contract is unchanged, which the 724 packet and 711
+data tests confirm.
+
+Two lessons the guards taught here are worth recording. Trait-implementation methods cannot carry
+a visibility qualifier, so the cross-module promotions had to distinguish inherent impls from
+trait impls rather than rewrite every `fn`. And a module named `inventory` shadows the `inventory`
+crate that carries handler registrations: `handler-contract-check` rejects it by name. #226 had
+introduced exactly that shadow as `player/inventory`, and its harness run did not reach the
+handler-contract stage; #227 renames it to `player/items`, matching what #224 had already chosen
+for the character family for the same reason.
+
 Issue #226 does the same for the canonical entities. `wow-entities/src/player.rs` (9,268 lines)
 becomes `player/` with `identity`, `location`, `vitals`, `powers`-in-`vitals`, `progression`,
 `collections`, `social`, `spellbook`, `visibility` and an `inventory/` subtree split into

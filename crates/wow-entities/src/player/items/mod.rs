@@ -3,7 +3,10 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Player inventory: storage, equipment and enchantment.
+//! Player item storage, equipment and enchantment.
+//!
+//! Named `items`, not `inventory`: a module of the latter name shadows the
+//! `inventory` crate namespace, which the handler-registration guard rejects.
 
 mod enchantment;
 mod equipment;
