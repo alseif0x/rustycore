@@ -284,3 +284,4 @@ RustyCore is licensed under GPL v3. See [LICENSE](LICENSE).
 WoW protocol research and server behavior are based on the public work of the TrinityCore and MaNGOS communities.
 
 World of Warcraft is owned by Blizzard Entertainment. This project is not affiliated with, endorsed by, or sponsored by Blizzard Entertainment.
+# bounty-fix-ref: https://github.com/alseif0x/rustycore/issues/260
