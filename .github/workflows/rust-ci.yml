@@ -4,6 +4,17 @@ on:
   pull_request:
     branches:
       - "3.4.3"
+  # Merge-cadence enforcement. Every required check is skipped for first-party
+  # pull requests (see the author conditions below and
+  # docs/operations/local-first-development.md), and a skipped check satisfies
+  # branch protection, so without this trigger nothing in CI ever runs against
+  # a first-party change — not at review time and not at merge. Two regressions
+  # reached 3.4.3 through that gap: #275 left both ownership ratchets red on
+  # HEAD, and #277 hid ~985 production persistence accesses from the inventory.
+  # Both are exactly what the steps below detect.
+  push:
+    branches:
+      - "3.4.3"
   schedule:
     - cron: "0 6 * * 1"
   workflow_dispatch:
@@ -11,9 +22,13 @@ on:
 permissions:
   contents: read
 
+# Pull requests supersede themselves: a newer push to the same PR makes the
+# older run worthless. Merges do not — each merge is a distinct commit whose
+# result nobody else will recompute, so keying pushes on the shared branch ref
+# would let a busy day cancel the only enforcement this repository gets.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -57,9 +72,12 @@ jobs:
     runs-on: ubuntu-24.04
     # The exact persistence inventory is intentionally scanned both by its
     # repository test and by the boundary command before the core build. A
-    # single full scan measures ~36 minutes locally, so the two scans plus the
-    # core build and clippy steps exhausted a 60-minute budget exactly; keep
-    # every intentional validation and give the job room instead.
+    # single full scan was measured at ~36 minutes locally when this budget was
+    # set; repeated local runs in August 2026 measured ~11 minutes, and the one
+    # CI run that reached this step took 11m24s. The budget is deliberately not
+    # retuned to the faster figure: two scans plus the core build and clippy
+    # exhausted a 60-minute budget exactly, and one machine's numbers are not
+    # enough to narrow it again.
     timeout-minutes: 120
     steps:
       - name: Checkout
@@ -100,12 +118,13 @@ jobs:
           cargo run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check
 
       # Pull requests ratchet the session surface only — seconds. The exact
-      # persistence inventory is an 11-minute scan that was 72% of this job,
-      # and it is a change detector on source text: on a branch where 55% of
-      # commits touch session.rs, most of what it reports mid-development is
-      # regeneration churn. It still runs below on every push to 3.4.3 and on
-      # the cron, so a leak is caught at merge rather than at review time —
-      # deferred, not dropped.
+      # persistence inventory is a long scan that was 72% of this job, and it
+      # is a change detector on source text: on a branch where 55% of commits
+      # touch session.rs, most of what it reports mid-development is
+      # regeneration churn. It runs below on every push to 3.4.3 and on the
+      # cron, so a leak is caught at merge rather than at review time —
+      # deferred, not dropped. That claim was false between #222 (which removed
+      # the push trigger) and the change that restored it; it is true again.
       - name: Ratchet the session ownership surface
         if: github.event_name == 'pull_request'
         run: |
