@@ -123,11 +123,21 @@ its local Codex review is optional.
 Broad remote validation runs only in these cases:
 
 - a pull request whose author is not `alseif0x`;
+- **a push to `3.4.3`, which is every merge**;
 - the scheduled Rust CI audit;
 - an explicit `workflow_dispatch` run.
 
-A failure in a scheduled audit should produce a focused issue. It does not retroactively turn
-every intermediate first-party commit into a review cycle.
+The merge-cadence case exists because the first three bullets alone left first-party work with no
+remote enforcement at all. A skipped required check satisfies branch protection, so a first-party
+pull request merged with every check reporting *skipped* — which reads as green. Two regressions
+reached `3.4.3` that way: #275 left both ownership ratchets red on HEAD, blocking every subsequent
+local preflight, and #277 hid roughly 985 production persistence accesses from the inventory. Both
+are detected by steps that already existed and simply never ran.
+
+This does not weaken the trust boundary. Review-time validation stays local and stays the author's
+job; what runs at merge is the enforcement nobody was performing. A failure there names a commit
+already on `3.4.3`, so it should produce a focused issue and a fix on top, not a retroactive review
+cycle over intermediate commits — the same rule the scheduled audit follows.
 
 ## Trust boundary
 
