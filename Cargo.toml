@@ -11,6 +11,7 @@ members = [
     "crates/wow-collections",
     # Infrastructure
     "crates/wow-database",
+    "crates/wow-persistence",
     "crates/wow-network",
     "crates/wow-proto",
     # ECS + Game Core
@@ -157,6 +158,7 @@ wow-crypto = { path = "crates/wow-crypto" }
 wow-math = { path = "crates/wow-math" }
 wow-collections = { path = "crates/wow-collections" }
 wow-database = { path = "crates/wow-database" }
+wow-persistence = { path = "crates/wow-persistence" }
 wow-network = { path = "crates/wow-network" }
 wow-proto = { path = "crates/wow-proto" }
 wow-ecs = { path = "crates/wow-ecs" }

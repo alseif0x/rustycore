@@ -3088,6 +3088,7 @@ dependencies = [
  "wow-movement",
  "wow-network",
  "wow-packet",
+ "wow-persistence",
  "wow-scripts",
  "wow-social",
  "wow-world",
@@ -3230,6 +3231,7 @@ dependencies = [
  "tracing",
  "wow-config",
  "wow-logging",
+ "wow-persistence",
 ]
 
 [[package]]
@@ -3364,6 +3366,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "wow-persistence"
+version = "0.1.0"
+
+[[package]]
 name = "wow-proto"
 version = "0.1.0"
 dependencies = [
@@ -3464,6 +3470,7 @@ dependencies = [
  "wow-movement",
  "wow-network",
  "wow-packet",
+ "wow-persistence",
  "wow-recastdetour",
  "wow-script",
  "wow-social",

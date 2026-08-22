@@ -7,7 +7,8 @@
       "wow-core",
       "wow-ecs",
       "wow-math",
-      "wow-module-api"
+      "wow-module-api",
+      "wow-persistence"
     ],
     "domain-runtime": [
       "wow-achievement",
@@ -316,6 +317,10 @@
         ],
         "build": []
       },
+      "wow-module-api": {
+        "normal": [],
+        "build": []
+      },
       "wow-movement": {
         "normal": [
           "bitflags"
@@ -345,6 +350,10 @@
           "thiserror",
           "tracing"
         ],
+        "build": []
+      },
+      "wow-persistence": {
+        "normal": [],
         "build": []
       },
       "wow-pvp": {
@@ -379,10 +388,6 @@
           "rand",
           "tracing"
         ],
-        "build": []
-      },
-      "wow-module-api": {
-        "normal": [],
         "build": []
       }
     },
