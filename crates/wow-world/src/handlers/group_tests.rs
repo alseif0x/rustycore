@@ -105,7 +105,6 @@ fn broadcast_info_with_command_tx(
         client_visible_guids_like_cpp: Default::default(),
         advanced_combat_logging_enabled_like_cpp: Default::default(),
         visibility_refresh_pending_like_cpp: Default::default(),
-        durable_loot_money_tracker_like_cpp: Default::default(),
         active_loot_rolls: Vec::new(),
         in_combat: false,
         pass_on_group_loot: false,
@@ -556,7 +555,7 @@ fn party_update_sends_master_looter_only_for_master_loot_like_cpp() {
     let master = ObjectGuid::create_player(1, 77);
     let (tx, rx) = bounded(8);
     let registry = PlayerRegistry::default();
-    registry.register_or_replace(leader, broadcast_info(leader, tx));
+    registry.register_or_replace(leader, broadcast_info(leader, tx), Default::default());
     let mut group = GroupInfo::new(leader);
     group.loot_method = 2;
     group.master_looter_guid = master;
@@ -577,7 +576,7 @@ fn party_update_sends_master_looter_only_for_master_loot_like_cpp() {
 
     let (tx, rx) = bounded(8);
     let registry = PlayerRegistry::default();
-    registry.register_or_replace(leader, broadcast_info(leader, tx));
+    registry.register_or_replace(leader, broadcast_info(leader, tx), Default::default());
     group.loot_method = 0;
 
     send_party_update(&group, &registry, 0);
@@ -595,7 +594,7 @@ fn party_update_serializes_raid_group_flag_like_cpp() {
     let leader = ObjectGuid::create_player(1, 42);
     let (tx, rx) = bounded(8);
     let registry = PlayerRegistry::default();
-    registry.register_or_replace(leader, broadcast_info(leader, tx));
+    registry.register_or_replace(leader, broadcast_info(leader, tx), Default::default());
     let mut group = GroupInfo::new(leader);
     group.convert_to_raid_like_cpp();
 
@@ -753,7 +752,7 @@ fn group_leave_selects_first_connected_new_leader_like_cpp() {
 
     let registry = PlayerRegistry::default();
     let (tx, _rx) = bounded(1);
-    registry.register_or_replace(connected, broadcast_info(connected, tx));
+    registry.register_or_replace(connected, broadcast_info(connected, tx), Default::default());
 
     assert_eq!(
         first_connected_group_member_like_cpp(&group, &registry),
@@ -772,6 +771,7 @@ async fn leave_group_disband_queues_remote_group_removal_like_cpp() {
     player_registry.register_or_replace(
         last_guid,
         broadcast_info_with_command_tx(last_guid, last_send_tx, last_command_tx),
+        Default::default(),
     );
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(leaving_guid);
@@ -813,7 +813,11 @@ async fn party_invite_party_index_instance_does_not_use_full_home_group_like_cpp
 
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, target_rx) = bounded(8);
-    player_registry.register_or_replace(target, broadcast_info(target, target_tx));
+    player_registry.register_or_replace(
+        target,
+        broadcast_info(target, target_tx),
+        Default::default(),
+    );
 
     let group_registry = Arc::new(GroupRegistry::default());
     let mut home_group = GroupInfo::new(inviter);
@@ -869,7 +873,11 @@ async fn party_invite_server_uses_cpp_inviter_values_like_cpp() {
 
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, target_rx) = bounded(8);
-    player_registry.register_or_replace(target, broadcast_info(target, target_tx));
+    player_registry.register_or_replace(
+        target,
+        broadcast_info(target, target_tx),
+        Default::default(),
+    );
     session.set_player_registry(player_registry);
     session.set_group_registry(
         Arc::new(GroupRegistry::default()),
@@ -941,6 +949,7 @@ async fn party_invite_and_result_route_through_realm_like_cpp() {
     player_registry.register_or_replace(
         target,
         broadcast_info_with_command_tx(target, target_instance_tx, target_command_tx),
+        Default::default(),
     );
     session.set_player_registry(player_registry);
     session.set_group_registry(
@@ -995,6 +1004,7 @@ async fn party_invite_waits_through_command_backpressure_like_cpp() {
     player_registry.register_or_replace(
         target,
         broadcast_info_with_command_tx(target, target_send_tx, target_command_tx.clone()),
+        Default::default(),
     );
     let pending = Arc::new(PendingInvites::default());
     session.set_player_registry(player_registry);
@@ -1066,6 +1076,7 @@ async fn party_invite_closed_command_channel_rolls_back_pending_like_cpp() {
     player_registry.register_or_replace(
         target,
         broadcast_info_with_command_tx(target, target_send_tx, target_command_tx),
+        Default::default(),
     );
     let pending = Arc::new(PendingInvites::default());
     session.set_player_registry(player_registry);
@@ -1096,12 +1107,14 @@ async fn group_new_leader_fanout_queues_realm_commands_like_cpp() {
     registry.register_or_replace(
         leader,
         broadcast_info_with_command_tx(leader, leader_instance_tx, leader_command_tx),
+        Default::default(),
     );
     let (member_instance_tx, member_instance_rx) = bounded(4);
     let (member_command_tx, member_command_rx) = bounded(4);
     registry.register_or_replace(
         member,
         broadcast_info_with_command_tx(member, member_instance_tx, member_command_tx),
+        Default::default(),
     );
 
     send_group_new_leader_like_cpp(&group, &registry, "NewLeader").await;
@@ -1132,7 +1145,11 @@ async fn party_invite_non_leader_rejects_not_leader_like_cpp() {
 
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, target_rx) = bounded(8);
-    player_registry.register_or_replace(target, broadcast_info(target, target_tx));
+    player_registry.register_or_replace(
+        target,
+        broadcast_info(target, target_tx),
+        Default::default(),
+    );
 
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(leader);
@@ -1169,7 +1186,11 @@ async fn party_invite_target_already_grouped_sends_already_and_cannot_accept_lik
 
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, target_rx) = bounded(8);
-    player_registry.register_or_replace(target, broadcast_info(target, target_tx));
+    player_registry.register_or_replace(
+        target,
+        broadcast_info(target, target_tx),
+        Default::default(),
+    );
 
     let group_registry = Arc::new(GroupRegistry::default());
     let mut target_group = GroupInfo::new(target_leader);
@@ -1205,7 +1226,11 @@ async fn party_invite_raid_with_five_members_is_not_full_like_cpp() {
 
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, target_rx) = bounded(8);
-    player_registry.register_or_replace(target, broadcast_info(target, target_tx));
+    player_registry.register_or_replace(
+        target,
+        broadcast_info(target, target_tx),
+        Default::default(),
+    );
 
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(inviter);
@@ -1244,7 +1269,7 @@ async fn party_invite_rejects_gm_target_like_cpp_default_config() {
     let (target_tx, target_rx) = bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
     target_info.is_game_master = true;
-    player_registry.register_or_replace(target, target_info);
+    player_registry.register_or_replace(target, target_info, Default::default());
     let pending_invites = Arc::new(PendingInvites::default());
 
     session.set_player_guid(Some(inviter));
@@ -1278,7 +1303,7 @@ async fn party_invite_rejects_cross_faction_like_cpp_default_config() {
     let (target_tx, target_rx) = bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
     target_info.race = 2; // Orc/Horde, while inviter identity below is Human/Alliance.
-    player_registry.register_or_replace(target, target_info);
+    player_registry.register_or_replace(target, target_info, Default::default());
     let pending_invites = Arc::new(PendingInvites::default());
 
     session.set_player_guid(Some(inviter));
@@ -1312,7 +1337,7 @@ async fn party_invite_allows_gm_target_when_cpp_config_enabled() {
     let (target_tx, target_rx) = bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
     target_info.is_game_master = true;
-    player_registry.register_or_replace(target, target_info);
+    player_registry.register_or_replace(target, target_info, Default::default());
     let pending_invites = Arc::new(PendingInvites::default());
 
     session.set_player_guid(Some(inviter));
@@ -1346,7 +1371,7 @@ async fn party_invite_allows_cross_faction_when_cpp_config_enabled() {
     let (target_tx, target_rx) = bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
     target_info.race = 2;
-    player_registry.register_or_replace(target, target_info);
+    player_registry.register_or_replace(target, target_info, Default::default());
     let pending_invites = Arc::new(PendingInvites::default());
 
     session.set_player_guid(Some(inviter));
@@ -1378,7 +1403,11 @@ async fn party_invite_rejects_low_level_non_friend_like_cpp() {
 
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, target_rx) = bounded(8);
-    player_registry.register_or_replace(target, broadcast_info(target, target_tx));
+    player_registry.register_or_replace(
+        target,
+        broadcast_info(target, target_tx),
+        Default::default(),
+    );
     let pending_invites = Arc::new(PendingInvites::default());
 
     session.set_player_guid(Some(inviter));
@@ -1458,12 +1487,12 @@ async fn party_invite_rejects_same_map_different_instances_like_cpp() {
     let mut inviter_info = broadcast_info(inviter, inviter_tx);
     inviter_info.map_id = 571;
     inviter_info.instance_id = 100;
-    player_registry.register_or_replace(inviter, inviter_info);
+    player_registry.register_or_replace(inviter, inviter_info, Default::default());
     let (target_tx, target_rx) = bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
     target_info.map_id = 571;
     target_info.instance_id = 200;
-    player_registry.register_or_replace(target, target_info);
+    player_registry.register_or_replace(target, target_info, Default::default());
     let pending_invites = Arc::new(PendingInvites::default());
 
     session.set_player_guid(Some(inviter));
@@ -1499,7 +1528,7 @@ async fn party_invite_rejects_instance_difficulty_mismatch_like_cpp() {
     target_info.map_id = 571;
     target_info.instance_id = 100;
     target_info.dungeon_difficulty_id = 2;
-    player_registry.register_or_replace(target, target_info);
+    player_registry.register_or_replace(target, target_info, Default::default());
     let pending_invites = Arc::new(PendingInvites::default());
 
     session.set_player_guid(Some(inviter));
@@ -1865,7 +1894,7 @@ async fn lfg_uninvite_target_loot_rolls_returns_code_without_removal_like_cpp() 
             1,
         ),
     );
-    player_registry.register_or_replace(target, target_info);
+    player_registry.register_or_replace(target, target_info, Default::default());
     session.set_player_registry(player_registry);
 
     session
@@ -1926,7 +1955,7 @@ async fn lfg_uninvite_member_in_combat_returns_code_without_removal_like_cpp() {
     let (target_tx, _target_rx) = flume::bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
     target_info.in_combat = true;
-    player_registry.register_or_replace(target, target_info);
+    player_registry.register_or_replace(target, target_info, Default::default());
     session.set_player_registry(Arc::clone(&player_registry));
     assert!(!session.in_combat);
 
@@ -1963,7 +1992,7 @@ async fn lfg_uninvite_member_in_combat_on_another_map_passes_gate_like_cpp() {
     target_info.in_combat = true;
     target_info.map_id = 1;
     target_info.instance_id = 1;
-    player_registry.register_or_replace(target, target_info);
+    player_registry.register_or_replace(target, target_info, Default::default());
     session.set_player_registry(Arc::clone(&player_registry));
 
     session
@@ -1995,6 +2024,7 @@ async fn session_combat_transition_updates_the_registry_member_view_like_cpp() {
     player_registry.register_or_replace(
         guid,
         broadcast_info_with_command_tx(guid, tx, session.session_command_tx()),
+        Default::default(),
     );
     session.set_player_registry(Arc::clone(&player_registry));
 
@@ -2076,12 +2106,21 @@ async fn party_uninvite_leader_queues_remote_remove_member_cleanup_like_cpp() {
     let (target_command_tx, target_command_rx) = bounded(8);
     let (remaining_tx, remaining_rx) = bounded(8);
     let player_registry = Arc::new(PlayerRegistry::default());
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
     player_registry.register_or_replace(
         target,
         broadcast_info_with_command_tx(target, target_tx, target_command_tx),
+        Default::default(),
     );
-    player_registry.register_or_replace(remaining, broadcast_info(remaining, remaining_tx));
+    player_registry.register_or_replace(
+        remaining,
+        broadcast_info(remaining, remaining_tx),
+        Default::default(),
+    );
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(leader);
     group.add_member(target);
@@ -2142,10 +2181,15 @@ async fn party_uninvite_disband_sends_destroyed_party_update_like_cpp() {
     let (target_tx, _target_rx) = bounded(8);
     let (target_command_tx, target_command_rx) = bounded(8);
     let player_registry = Arc::new(PlayerRegistry::default());
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
     player_registry.register_or_replace(
         target,
         broadcast_info_with_command_tx(target, target_tx, target_command_tx),
+        Default::default(),
     );
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(leader);
@@ -2315,8 +2359,16 @@ fn party_member_full_state_carries_phase_states_like_cpp() {
     let (leader_tx, leader_rx) = bounded(8);
     let (member_tx, _member_rx) = bounded(8);
     let registry = PlayerRegistry::default();
-    registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    registry.register_or_replace(member, broadcast_info(member, member_tx));
+    registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
     registry.fixture_update(member, |info| {
         info.party_member_phase_states = wow_packet::packets::party::PartyMemberPhaseStates {
             phase_shift_flags: 0x08,
@@ -2406,8 +2458,16 @@ fn ready_check_fanout_sends_events_only_to_connected_members_like_cpp() {
     let registry = PlayerRegistry::default();
     let (leader_tx, leader_rx) = bounded(8);
     let (member_tx, member_rx) = bounded(8);
-    registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    registry.register_or_replace(member, broadcast_info(member, member_tx));
+    registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
 
     let events = vec![
         ReadyCheckEventLikeCpp::Response {
@@ -2474,7 +2534,7 @@ fn group_party_update_member_info_uses_loaded_member_slot_like_cpp() {
 
     let registry = PlayerRegistry::default();
     let (tx, _rx) = bounded(1);
-    registry.register_or_replace(member, broadcast_info(member, tx));
+    registry.register_or_replace(member, broadcast_info(member, tx), Default::default());
     registry.fixture_update(member, |entry| {
         entry.player_name.clear();
         entry.race = 0;
@@ -2546,8 +2606,16 @@ async fn raid_target_symbol_out_of_range_does_not_mutate_or_fanout_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
     let (target_tx, _target_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(target, broadcast_info(target, target_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        target,
+        broadcast_info(target, target_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -2580,9 +2648,21 @@ async fn raid_target_non_raid_regular_member_can_set_icon_like_cpp() {
     let (leader_tx, leader_rx) = bounded(8);
     let (member_tx, member_rx) = bounded(8);
     let (target_tx, _target_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
-    player_registry.register_or_replace(target, broadcast_info(target, target_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        target,
+        broadcast_info(target, target_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(member));
     session.group_guid = Some(group_guid);
@@ -2627,9 +2707,21 @@ async fn raid_target_raid_regular_member_rejected_but_assistant_allowed_like_cpp
     let (leader_tx, leader_rx) = bounded(8);
     let (assistant_tx, assistant_rx) = bounded(8);
     let (target_tx, _target_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(assistant, broadcast_info(assistant, assistant_tx));
-    player_registry.register_or_replace(target, broadcast_info(target, target_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        assistant,
+        broadcast_info(assistant, assistant_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        target,
+        broadcast_info(target, target_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(assistant));
     session.group_guid = Some(group_guid);
@@ -2680,8 +2772,16 @@ async fn raid_target_duplicate_target_clears_old_icon_before_final_update_like_c
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
     let (target_tx, _target_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(target, broadcast_info(target, target_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        target,
+        broadcast_info(target, target_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -2731,8 +2831,16 @@ async fn raid_target_party_index_instance_does_not_fall_back_to_home_like_cpp() 
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
     let (target_tx, _target_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(target, broadcast_info(target, target_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        target,
+        broadcast_info(target, target_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -2807,8 +2915,16 @@ async fn clear_raid_marker_removes_one_slot_and_fanouts_like_cpp() {
     group.add_raid_marker_like_cpp(3, 571, remaining_position, ObjectGuid::EMPTY);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -2847,7 +2963,11 @@ async fn clear_raid_marker_id_eight_removes_all_like_cpp() {
     group.add_raid_marker_like_cpp(3, 571, Position::xyz(4.0, 5.0, 6.0), ObjectGuid::EMPTY);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -2886,7 +3006,11 @@ async fn clear_raid_marker_raid_requires_leader_or_assistant_like_cpp() {
     group.add_raid_marker_like_cpp(3, 571, Position::xyz(4.0, 5.0, 6.0), ObjectGuid::EMPTY);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(member));
     session.group_guid = Some(group_guid);
@@ -2991,7 +3115,11 @@ async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_
     let target = ObjectGuid::create_player(1, 78);
     let (target_tx, target_rx) = bounded::<Vec<u8>>(4);
     let registry = Arc::new(PlayerRegistry::default());
-    registry.register_or_replace(target, broadcast_info(target, target_tx));
+    registry.register_or_replace(
+        target,
+        broadcast_info(target, target_tx),
+        Default::default(),
+    );
     registry.fixture_update(target, |info| {
         info.level = 80;
         info.class = 4;
@@ -3159,8 +3287,16 @@ async fn set_role_group_broadcasts_old_new_and_updates_existing_target_like_cpp(
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
     let (member_tx, member_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -3219,7 +3355,11 @@ async fn set_role_group_old_equal_returns_without_packet_or_mutation_like_cpp() 
     group_registry.register_group_like_cpp(group_guid, group);
     let player_registry = Arc::new(PlayerRegistry::default());
     let (member_tx, member_rx) = bounded(8);
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -3251,7 +3391,11 @@ async fn set_role_absent_target_broadcasts_but_does_not_mutate_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -3295,7 +3439,11 @@ async fn initiate_role_poll_rejects_regular_member_without_fanout_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(member));
     session.group_guid = Some(group_guid);
@@ -3328,8 +3476,16 @@ async fn initiate_role_poll_allows_leader_and_assistant_and_sends_connected_memb
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
     let (assistant_tx, assistant_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(assistant, broadcast_info(assistant, assistant_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        assistant,
+        broadcast_info(assistant, assistant_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(assistant));
     session.group_guid = Some(group_guid);
@@ -3395,10 +3551,15 @@ async fn convert_raid_sets_flag_and_queues_member_refresh_like_cpp() {
     let (member_tx, _member_rx) = bounded(8);
     let (member_command_tx, member_command_rx) =
         test_session_command_dispatcher(member, member_tx.clone());
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
     player_registry.register_or_replace(
         member,
         broadcast_info_with_command_tx(member, member_tx, member_command_tx),
+        Default::default(),
     );
 
     session.set_player_guid(Some(leader));
@@ -3450,7 +3611,11 @@ async fn convert_raid_releases_group_guard_before_refresh_backpressure_like_cpp(
 
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, _leader_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
     let (member_tx, _member_rx) = bounded(8);
     // PartyUpdate fills this single slot; the following async refresh then
     // waits for its timeout and exposes any DashMap guard held across it.
@@ -3458,6 +3623,7 @@ async fn convert_raid_releases_group_guard_before_refresh_backpressure_like_cpp(
     player_registry.register_or_replace(
         member,
         broadcast_info_with_command_tx(member, member_tx, member_command_tx),
+        Default::default(),
     );
 
     session.set_player_guid(Some(leader));
@@ -3539,8 +3705,16 @@ async fn change_sub_group_leader_moves_member_and_fans_out_update_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
     let (member_tx, member_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -3585,9 +3759,21 @@ async fn change_sub_group_assistant_allowed_but_regular_member_rejected_like_cpp
     let (leader_tx, _leader_rx) = bounded(8);
     let (assistant_tx, _assistant_rx) = bounded(8);
     let (target_tx, _target_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(assistant, broadcast_info(assistant, assistant_tx));
-    player_registry.register_or_replace(target, broadcast_info(target, target_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        assistant,
+        broadcast_info(assistant, assistant_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        target,
+        broadcast_info(target, target_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(assistant));
     session.group_guid = Some(group_guid);
@@ -3643,8 +3829,16 @@ async fn set_party_assignment_leader_sets_main_tank_and_fans_out_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
     let (member_tx, member_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -3708,9 +3902,21 @@ async fn set_party_assignment_assistant_sets_main_assist_like_cpp() {
     let (leader_tx, leader_rx) = bounded(8);
     let (assistant_tx, _assistant_rx) = bounded(8);
     let (target_tx, _target_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(assistant, broadcast_info(assistant, assistant_tx));
-    player_registry.register_or_replace(target, broadcast_info(target, target_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        assistant,
+        broadcast_info(assistant, assistant_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        target,
+        broadcast_info(target, target_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(assistant));
     session.group_guid = Some(group_guid);
@@ -3757,9 +3963,21 @@ async fn set_party_assignment_rejects_regular_member_without_mutation_or_fanout_
     let (leader_tx, leader_rx) = bounded(8);
     let (member_tx, member_rx) = bounded(8);
     let (target_tx, target_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
-    player_registry.register_or_replace(target, broadcast_info(target, target_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        target,
+        broadcast_info(target, target_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(member));
     session.group_guid = Some(group_guid);
@@ -3805,8 +4023,16 @@ async fn set_party_assignment_non_raid_or_missing_target_fans_out_and_missing_cl
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
     let (member_tx, member_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -3883,8 +4109,16 @@ async fn set_party_assignment_unknown_assignment_fans_out_without_mutation_like_
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
     let (member_tx, member_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -3916,8 +4150,16 @@ async fn set_everyone_is_assistant_leader_applies_to_all_members_and_fans_out_li
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
     let (member_tx, member_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -3968,8 +4210,16 @@ async fn set_everyone_is_assistant_leader_clears_all_members_and_fans_out_like_c
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
     let (member_tx, member_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -4010,8 +4260,16 @@ async fn set_everyone_is_assistant_rejects_non_leader_without_mutation_or_fanout
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
     let (member_tx, member_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(member));
     session.group_guid = Some(group_guid);
@@ -4152,8 +4410,16 @@ async fn set_everyone_is_assistant_idempotent_still_fans_out_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
     let (member_tx, member_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -4187,8 +4453,16 @@ async fn set_assistant_leader_leader_marks_and_unmarks_member_with_party_update_
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
     let (member_tx, member_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -4255,8 +4529,16 @@ async fn set_party_leader_leader_changes_to_connected_member_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
     let (member_tx, member_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -4315,8 +4597,16 @@ async fn set_party_leader_rejects_non_leader_and_disconnected_target_like_cpp() 
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
     let (member_tx, member_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(member));
     session.group_guid = Some(group_guid);
@@ -4359,7 +4649,11 @@ async fn set_assistant_leader_rejects_non_leader_even_if_assistant_like_cpp() {
 
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, target_rx) = bounded(8);
-    player_registry.register_or_replace(target, broadcast_info(target, target_tx));
+    player_registry.register_or_replace(
+        target,
+        broadcast_info(target, target_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(assistant));
     session.group_guid = Some(group_guid);
@@ -4396,7 +4690,11 @@ async fn set_assistant_leader_non_raid_or_missing_target_noops_like_cpp() {
 
     let player_registry = Arc::new(PlayerRegistry::default());
     let (member_tx, member_rx) = bounded(8);
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -4453,9 +4751,17 @@ async fn swap_sub_groups_leader_swaps_members_and_fans_out_update_like_cpp() {
     let (leader_tx, leader_rx) = bounded(8);
     let (first_tx, first_rx) = bounded(8);
     let (second_tx, second_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(first, broadcast_info(first, first_tx));
-    player_registry.register_or_replace(second, broadcast_info(second, second_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(first, broadcast_info(first, first_tx), Default::default());
+    player_registry.register_or_replace(
+        second,
+        broadcast_info(second, second_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -4509,10 +4815,22 @@ async fn swap_sub_groups_assistant_allowed_but_regular_member_rejected_like_cpp(
     let (assistant_tx, _assistant_rx) = bounded(8);
     let (first_tx, first_rx) = bounded(8);
     let (second_tx, second_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(assistant, broadcast_info(assistant, assistant_tx));
-    player_registry.register_or_replace(first, broadcast_info(first, first_tx));
-    player_registry.register_or_replace(second, broadcast_info(second, second_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        assistant,
+        broadcast_info(assistant, assistant_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(first, broadcast_info(first, first_tx), Default::default());
+    player_registry.register_or_replace(
+        second,
+        broadcast_info(second, second_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(assistant));
     session.group_guid = Some(group_guid);
@@ -4597,8 +4915,12 @@ async fn swap_sub_groups_missing_or_same_subgroup_does_not_fanout_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (first_tx, first_rx) = bounded(8);
     let (second_tx, second_rx) = bounded(8);
-    player_registry.register_or_replace(first, broadcast_info(first, first_tx));
-    player_registry.register_or_replace(second, broadcast_info(second, second_tx));
+    player_registry.register_or_replace(first, broadcast_info(first, first_tx), Default::default());
+    player_registry.register_or_replace(
+        second,
+        broadcast_info(second, second_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);
@@ -4765,8 +5087,12 @@ async fn random_roll_with_group_broadcasts_to_all_members_including_sender_like_
     let player_registry = Arc::new(PlayerRegistry::default());
     let (sender_tx, sender_rx) = bounded(8);
     let (other_tx, other_rx) = bounded(8);
-    player_registry.register_or_replace(sender, broadcast_info(sender, sender_tx));
-    player_registry.register_or_replace(other, broadcast_info(other, other_tx));
+    player_registry.register_or_replace(
+        sender,
+        broadcast_info(sender, sender_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(other, broadcast_info(other, other_tx), Default::default());
 
     session.set_player_guid(Some(sender));
     session.group_guid = Some(group_guid);
@@ -4805,8 +5131,12 @@ async fn random_roll_ignores_party_index_for_home_group_lookup_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (sender_tx, sender_rx) = bounded(8);
     let (other_tx, other_rx) = bounded(8);
-    player_registry.register_or_replace(sender, broadcast_info(sender, sender_tx));
-    player_registry.register_or_replace(other, broadcast_info(other, other_tx));
+    player_registry.register_or_replace(
+        sender,
+        broadcast_info(sender, sender_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(other, broadcast_info(other, other_tx), Default::default());
 
     session.set_player_guid(Some(sender));
     session.group_guid = Some(group_guid);
@@ -4882,8 +5212,12 @@ async fn minimap_ping_with_group_broadcasts_to_other_members_excluding_sender_li
     let player_registry = Arc::new(PlayerRegistry::default());
     let (sender_tx, sender_rx) = bounded(8);
     let (other_tx, other_rx) = bounded(8);
-    player_registry.register_or_replace(sender, broadcast_info(sender, sender_tx));
-    player_registry.register_or_replace(other, broadcast_info(other, other_tx));
+    player_registry.register_or_replace(
+        sender,
+        broadcast_info(sender, sender_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(other, broadcast_info(other, other_tx), Default::default());
 
     session.set_player_guid(Some(sender));
     session.group_guid = Some(group_guid);
@@ -4928,8 +5262,12 @@ async fn minimap_ping_party_index_none_keeps_home_fanout_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (sender_tx, sender_rx) = bounded(8);
     let (other_tx, other_rx) = bounded(8);
-    player_registry.register_or_replace(sender, broadcast_info(sender, sender_tx));
-    player_registry.register_or_replace(other, broadcast_info(other, other_tx));
+    player_registry.register_or_replace(
+        sender,
+        broadcast_info(sender, sender_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(other, broadcast_info(other, other_tx), Default::default());
 
     session.set_player_guid(Some(sender));
     session.group_guid = Some(group_guid);
@@ -4964,7 +5302,7 @@ async fn minimap_ping_sender_not_in_registry_skips_sending_like_cpp() {
     // Only register 'other' — sender has no PlayerRegistry entry (edge case).
     let player_registry = Arc::new(PlayerRegistry::default());
     let (other_tx, other_rx) = bounded(8);
-    player_registry.register_or_replace(other, broadcast_info(other, other_tx));
+    player_registry.register_or_replace(other, broadcast_info(other, other_tx), Default::default());
 
     session.set_player_guid(Some(sender));
     session.group_guid = Some(group_guid);
@@ -5078,8 +5416,16 @@ async fn minimap_ping_stale_cache_does_not_fanout_to_other_group() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (stale_tx, stale_rx) = bounded(8);
     let (real_tx, real_rx) = bounded(8);
-    player_registry.register_or_replace(stale_member, broadcast_info(stale_member, stale_tx));
-    player_registry.register_or_replace(real_member, broadcast_info(real_member, real_tx));
+    player_registry.register_or_replace(
+        stale_member,
+        broadcast_info(stale_member, stale_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        real_member,
+        broadcast_info(real_member, real_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(sender));
     // Cache points to stale group.
@@ -5137,8 +5483,16 @@ async fn ready_check_stale_cache_uses_real_group_for_mutation_and_fanout() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (stale_tx, stale_rx) = bounded(8);
     let (real_tx, _real_rx) = bounded(8);
-    player_registry.register_or_replace(stale_member, broadcast_info(stale_member, stale_tx));
-    player_registry.register_or_replace(real_member, broadcast_info(real_member, real_tx));
+    player_registry.register_or_replace(
+        stale_member,
+        broadcast_info(stale_member, stale_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        real_member,
+        broadcast_info(real_member, real_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(sender));
     session.group_guid = Some(stale_guid);
@@ -5236,8 +5590,12 @@ async fn minimap_ping_party_index_instance_does_not_fanout_home_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (sender_tx, sender_rx) = bounded(8);
     let (other_tx, other_rx) = bounded(8);
-    player_registry.register_or_replace(sender, broadcast_info(sender, sender_tx));
-    player_registry.register_or_replace(other, broadcast_info(other, other_tx));
+    player_registry.register_or_replace(
+        sender,
+        broadcast_info(sender, sender_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(other, broadcast_info(other, other_tx), Default::default());
 
     session.set_player_guid(Some(sender));
     session.group_guid = Some(group_guid);
@@ -5273,8 +5631,16 @@ async fn initiate_role_poll_uses_resolved_group_category_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (leader_tx, leader_rx) = bounded(8);
     let (member_tx, member_rx) = bounded(8);
-    player_registry.register_or_replace(leader, broadcast_info(leader, leader_tx));
-    player_registry.register_or_replace(member, broadcast_info(member, member_tx));
+    player_registry.register_or_replace(
+        leader,
+        broadcast_info(leader, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        member,
+        broadcast_info(member, member_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);

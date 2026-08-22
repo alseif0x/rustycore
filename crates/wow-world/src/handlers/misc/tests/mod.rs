@@ -740,7 +740,6 @@ fn broadcast_info_with_command_tx(
         client_visible_guids_like_cpp: Default::default(),
         advanced_combat_logging_enabled_like_cpp: Default::default(),
         visibility_refresh_pending_like_cpp: Default::default(),
-        durable_loot_money_tracker_like_cpp: Default::default(),
         active_loot_rolls: Vec::new(),
         in_combat: false,
         pass_on_group_loot: false,

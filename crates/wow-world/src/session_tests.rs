@@ -8907,6 +8907,7 @@ async fn group_removal_command_clears_remote_party_type_like_cpp() {
     player_registry.register_or_replace(
         player_guid,
         broadcast_info_with_command(player_guid, registry_send_tx, session.session_command_tx()),
+        Default::default(),
     );
     session.sync_player_registry_state_like_cpp();
 
@@ -8997,7 +8998,11 @@ async fn group_removal_command_can_send_group_uninvite_like_cpp() {
         Arc::clone(&group_registry),
         Arc::new(PendingInvites::default()),
     );
-    player_registry.register_or_replace(player_guid, broadcast_info(player_guid, registry_send_tx));
+    player_registry.register_or_replace(
+        player_guid,
+        broadcast_info(player_guid, registry_send_tx),
+        Default::default(),
+    );
     group_registry.unregister_group_like_cpp(&group_guid);
 
     session
@@ -9442,7 +9447,7 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
                     viewer.session_command_tx(),
                 );
                 viewer_info.map_id = 571;
-                registry.register_or_replace(viewer_guid, viewer_info);
+                registry.register_or_replace(viewer_guid, viewer_info, Default::default());
                 source.set_player_registry(registry);
 
                 let outcome = source.apply_represented_live_intent_like_cpp(
@@ -10744,7 +10749,7 @@ fn creature_realm_fanout_uses_validated_position_without_canonical_mirror() {
     observer_info.map_id = 571;
     observer_info.instance_id = 0;
     observer_info.position = source_position;
-    registry.register_or_replace(observer, observer_info);
+    registry.register_or_replace(observer, observer_info, Default::default());
 
     source.set_player_guid(Some(source_player));
     source.set_player_map_position_like_cpp(571, Position::ZERO);
@@ -12742,10 +12747,12 @@ async fn accept_invite_to_raid_group_triggers_visible_gameobject_refresh_like_cp
     player_registry.register_or_replace(
         inviter_guid,
         broadcast_info_with_command(inviter_guid, inviter_tx, inviter_command_tx),
+        Default::default(),
     );
     player_registry.register_or_replace(
         player_guid,
         broadcast_info_with_command(player_guid, player_tx, player_command_tx),
+        Default::default(),
     );
     let pending_invites = Arc::new(PendingInvites::default());
     pending_invites.seed_invite_like_cpp(
@@ -12940,7 +12947,11 @@ async fn leave_group_triggers_visible_spellclick_refresh_like_cpp() {
     let creature_guid = test_creature_guid(131);
     let (other_tx, _other_rx) = flume::bounded(8);
     let player_registry = Arc::new(crate::session::directory::PlayerRegistry::default());
-    player_registry.register_or_replace(other_guid, broadcast_info(other_guid, other_tx));
+    player_registry.register_or_replace(
+        other_guid,
+        broadcast_info(other_guid, other_tx),
+        Default::default(),
+    );
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(player_guid);
     group.add_member(other_guid);
@@ -13291,7 +13302,7 @@ async fn player_kill_same_faction_objective_skips_opposite_team_victim_like_cpp(
     let registry = Arc::new(PlayerRegistry::default());
     let mut victim_info = broadcast_info(victim_guid, victim_tx);
     victim_info.race = 2; // Orc/Horde; player test race defaults to Human/Alliance.
-    registry.register_or_replace(victim_guid, victim_info);
+    registry.register_or_replace(victim_guid, victim_info, Default::default());
 
     let quest_id = 12_504;
     let mut quest = test_quest_template(quest_id);
@@ -19053,10 +19064,12 @@ fn represented_mounted_aura_toggles_mount_flag_like_cpp() {
     registry.register_or_replace(
         player_guid,
         broadcast_info(player_guid, flume::bounded(1).0),
+        Default::default(),
     );
     registry.register_or_replace(
         other_guid,
         broadcast_info_with_command(other_guid, other_tx, other_command_tx),
+        Default::default(),
     );
     session.set_creature_template_mount_store(Arc::new(
         wow_data::CreatureTemplateMountStoreLikeCpp::from_entries([
@@ -27572,7 +27585,7 @@ async fn update_visibility_uses_map_sources_without_world_db_like_cpp() {
     other_info.map_id = 571;
     other_info.position = Position::new(50.0, 50.0, 0.0, 0.0);
     add_canonical_test_player_on_map(&canonical, other_player_guid, other_info.position, 571, 0);
-    registry.register_or_replace(other_player_guid, other_info);
+    registry.register_or_replace(other_player_guid, other_info, Default::default());
 
     session.update_visibility().await;
 
@@ -33431,7 +33444,7 @@ fn configure_two_player_group_for_reputation_test(
     other_info.position = Position::new(10.0, 10.0, 0.0, 0.0);
     other_info.level = 80;
     other_info.is_alive = true;
-    player_registry.register_or_replace(other_guid, other_info);
+    player_registry.register_or_replace(other_guid, other_info, Default::default());
 
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(player_guid);
@@ -33797,7 +33810,7 @@ fn reputation_gain_applies_recruit_a_friend_bonus_for_non_spell_sources_like_cpp
     recruit_info.position = Position::new(25.0, 0.0, 0.0, 0.0);
     recruit_info.account_id = 2;
     recruit_info.recruiter_id = 0;
-    player_registry.register_or_replace(recruit_guid, recruit_info);
+    player_registry.register_or_replace(recruit_guid, recruit_info, Default::default());
 
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(player_guid);
@@ -33853,7 +33866,7 @@ fn reputation_gain_recruit_a_friend_bonus_requires_configured_distance_like_cpp(
     recruit_info.map_id = 571;
     recruit_info.position = Position::new(25.0, 0.0, 0.0, 0.0);
     recruit_info.account_id = 2;
-    player_registry.register_or_replace(recruit_guid, recruit_info);
+    player_registry.register_or_replace(recruit_guid, recruit_info, Default::default());
 
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(player_guid);
@@ -35601,7 +35614,6 @@ fn broadcast_info_with_command(
         client_visible_guids_like_cpp: Default::default(),
         advanced_combat_logging_enabled_like_cpp: Default::default(),
         visibility_refresh_pending_like_cpp: Default::default(),
-        durable_loot_money_tracker_like_cpp: Default::default(),
         active_loot_rolls: Vec::new(),
         in_combat: false,
         pass_on_group_loot: false,
@@ -35676,9 +35688,17 @@ fn player_registry_replacement_rejects_stale_lookup_and_unregister() {
     let registry = PlayerRegistry::new();
     let guid = ObjectGuid::create_player(1, 70_001);
     let (first_send_tx, _first_send_rx) = flume::bounded(1);
-    let first = registry.register_or_replace(guid, broadcast_info(guid, first_send_tx));
+    let first = registry.register_or_replace(
+        guid,
+        broadcast_info(guid, first_send_tx),
+        Default::default(),
+    );
     let (second_send_tx, _second_send_rx) = flume::bounded(1);
-    let second = registry.register_or_replace(guid, broadcast_info(guid, second_send_tx));
+    let second = registry.register_or_replace(
+        guid,
+        broadcast_info(guid, second_send_tx),
+        Default::default(),
+    );
 
     assert_ne!(first.generation(), second.generation());
     assert!(registry.lookup_current(first).is_none());
@@ -35698,6 +35718,7 @@ fn player_registry_control_address_keeps_incarnation_channel_identity() {
     let first = registry.register_or_replace(
         guid,
         broadcast_info_with_command(guid, send_tx.clone(), first_command_tx),
+        Default::default(),
     );
     let first_address = registry.control_address(guid).expect("first address");
 
@@ -35705,6 +35726,7 @@ fn player_registry_control_address_keeps_incarnation_channel_identity() {
     let second = registry.register_or_replace(
         guid,
         broadcast_info_with_command(guid, send_tx, second_command_tx),
+        Default::default(),
     );
     let second_address = registry.control_address(guid).expect("second address");
 
@@ -35728,12 +35750,14 @@ fn player_registry_stale_channel_cannot_unregister_replacement() {
     registry.register_or_replace(
         guid,
         broadcast_info_with_command(guid, send_tx.clone(), first_command_tx.clone()),
+        Default::default(),
     );
 
     let (second_command_tx, _second_command_rx) = flume::bounded(1);
     let second = registry.register_or_replace(
         guid,
         broadcast_info_with_command(guid, send_tx, second_command_tx.clone()),
+        Default::default(),
     );
 
     assert!(!registry.unregister_control_channel(guid, &first_command_tx));
@@ -35747,7 +35771,11 @@ fn player_registry_replacement_wins_unregister_race() {
     let registry = Arc::new(PlayerRegistry::new());
     let guid = ObjectGuid::create_player(1, 70_003);
     let (first_send_tx, _first_send_rx) = flume::bounded(1);
-    let first = registry.register_or_replace(guid, broadcast_info(guid, first_send_tx));
+    let first = registry.register_or_replace(
+        guid,
+        broadcast_info(guid, first_send_tx),
+        Default::default(),
+    );
     let barrier = Arc::new(std::sync::Barrier::new(3));
 
     let unregister_registry = Arc::clone(&registry);
@@ -35762,7 +35790,11 @@ fn player_registry_replacement_wins_unregister_race() {
     let replacement = std::thread::spawn(move || {
         let (send_tx, _send_rx) = flume::bounded(1);
         replacement_barrier.wait();
-        replacement_registry.register_or_replace(guid, broadcast_info(guid, send_tx))
+        replacement_registry.register_or_replace(
+            guid,
+            broadcast_info(guid, send_tx),
+            Default::default(),
+        )
     });
 
     barrier.wait();
@@ -35847,10 +35879,11 @@ fn player_entry_visibility_refresh_skips_out_of_range_sessions_like_cpp() {
     registry.register_or_replace(
         nearby_guid,
         broadcast_info_with_command(nearby_guid, nearby_tx, nearby_command_tx),
+        Default::default(),
     );
     let mut far_info = broadcast_info_with_command(far_guid, far_tx, far_command_tx);
     far_info.position = Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
-    registry.register_or_replace(far_guid, far_info);
+    registry.register_or_replace(far_guid, far_info, Default::default());
 
     session.notify_other_players_visibility_changed_like_cpp();
 
@@ -35900,7 +35933,7 @@ async fn player_visibility_refresh_survives_full_command_queue_like_cpp() {
         broadcast_info_with_command(receiver_guid, receiver_send_tx, full_command_tx);
     receiver_info.visibility_refresh_pending_like_cpp =
         Arc::clone(&receiver.visibility_refresh_pending_like_cpp);
-    source_registry.register_or_replace(receiver_guid, receiver_info);
+    source_registry.register_or_replace(receiver_guid, receiver_info, Default::default());
 
     source.notify_other_players_visibility_changed_like_cpp();
 
@@ -35942,10 +35975,11 @@ fn player_exit_visibility_refresh_uses_same_full_diff_like_cpp() {
     session.set_player_position_like_cpp(Position::ZERO);
 
     let (self_tx, _self_rx) = flume::bounded(1);
-    registry.register_or_replace(guid, broadcast_info(guid, self_tx));
+    registry.register_or_replace(guid, broadcast_info(guid, self_tx), Default::default());
     registry.register_or_replace(
         nearby_guid,
         broadcast_info_with_command(nearby_guid, nearby_tx, nearby_command_tx),
+        Default::default(),
     );
 
     session.cleanup_shared_runtime_state();
@@ -35990,11 +36024,11 @@ fn visible_other_players_skips_out_of_visibility_range_like_cpp() {
 
     let mut nearby_info = broadcast_info(nearby_guid, nearby_tx);
     nearby_info.map_id = 571;
-    registry.register_or_replace(nearby_guid, nearby_info);
+    registry.register_or_replace(nearby_guid, nearby_info, Default::default());
     let mut far_info = broadcast_info(far_guid, far_tx);
     far_info.map_id = 571;
     far_info.position = Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
-    registry.register_or_replace(far_guid, far_info);
+    registry.register_or_replace(far_guid, far_info, Default::default());
 
     let visible = session.visible_other_players_from_registry_like_cpp(
         571,
@@ -36024,7 +36058,7 @@ async fn player_visibility_diff_creates_then_removes_registry_player_like_cpp() 
     add_canonical_test_player_on_map(&canonical, target_guid, Position::ZERO, 571, 0);
     let mut target_info = broadcast_info(target_guid, target_tx);
     target_info.map_id = 571;
-    registry.register_or_replace(target_guid, target_info);
+    registry.register_or_replace(target_guid, target_info, Default::default());
 
     session.force_update_visibility_like_cpp().await;
     assert!(session.client_visible_guids_like_cpp.contains(&target_guid));
@@ -36128,7 +36162,7 @@ fn loaded_customizations_refresh_already_registered_player_like_cpp() {
 
     session.set_player_guid(Some(guid));
     session.set_player_registry(Arc::clone(&registry));
-    registry.register_or_replace(guid, broadcast_info(guid, send_tx));
+    registry.register_or_replace(guid, broadcast_info(guid, send_tx), Default::default());
 
     let customizations = vec![
         wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate {
@@ -36160,7 +36194,7 @@ fn visible_other_players_rejects_registry_only_target_like_cpp() {
 
     let mut target_info = broadcast_info(target_guid, target_tx);
     target_info.map_id = 571;
-    registry.register_or_replace(target_guid, target_info);
+    registry.register_or_replace(target_guid, target_info, Default::default());
 
     assert!(
         session
@@ -36205,7 +36239,7 @@ fn visible_other_players_applies_canonical_phase_gate_like_cpp() {
 
     let mut target = broadcast_info(target_guid, target_tx);
     target.map_id = 571;
-    registry.register_or_replace(target_guid, target);
+    registry.register_or_replace(target_guid, target, Default::default());
 
     assert!(
         session
@@ -36854,7 +36888,7 @@ fn insert_represented_vehicle_target_like_cpp(
     info.instance_id = 0;
     info.position = position;
     info.has_vehicle_kit_like_cpp = has_vehicle_kit_like_cpp;
-    registry.register_or_replace(target_guid, info);
+    registry.register_or_replace(target_guid, info, Default::default());
 }
 
 fn represented_vehicle_interact_session_like_cpp(
@@ -38008,8 +38042,8 @@ async fn creature_kill_target_dies_proc_filters_group_reward_distance_like_cpp()
     near_info.position = Position::new(20.0, 10.0, 0.0, 0.0);
     let mut far_info = broadcast_info(far_member, far_tx);
     far_info.position = Position::new(200.0, 10.0, 0.0, 0.0);
-    player_registry.register_or_replace(near_member, near_info);
-    player_registry.register_or_replace(far_member, far_info);
+    player_registry.register_or_replace(near_member, near_info, Default::default());
+    player_registry.register_or_replace(far_member, far_info, Default::default());
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(player);
     group.add_member(near_member);
@@ -39755,7 +39789,7 @@ async fn spell_duel_effect_requests_duel_and_sets_challenged_state_like_cpp() {
     target_info.map_id = 571;
     target_info.position = Position::new(12.0, 10.0, 0.0, 0.0);
     target_info.command_tx = target_session.session_command_tx();
-    registry.register_or_replace(target_guid, target_info);
+    registry.register_or_replace(target_guid, target_info, Default::default());
     session.set_player_registry(registry);
 
     let mut spell_store = wow_data::SpellStore::new();
@@ -44993,7 +45027,7 @@ async fn spell_taunt_effect_matches_caster_threat_to_highest_like_cpp() {
     let observer_guid = ObjectGuid::create_player(1, 2793);
     let mut observer = broadcast_info_with_command(observer_guid, observer_tx, observer_command_tx);
     observer.position = position;
-    registry.register_or_replace(observer_guid, observer);
+    registry.register_or_replace(observer_guid, observer, Default::default());
     session.set_player_registry(registry);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -46649,7 +46683,11 @@ async fn spell_learn_spell_effect_row_preserves_base_grant_without_richer_author
         0,
         BTreeSet::new(),
     ));
-    player_registry.register_or_replace(player_guid, broadcast_info(player_guid, registry_send_tx));
+    player_registry.register_or_replace(
+        player_guid,
+        broadcast_info(player_guid, registry_send_tx),
+        Default::default(),
+    );
     observer.set_player_guid(Some(observer_guid));
     observer.set_player_registry(Arc::clone(&player_registry));
     assert!(
@@ -47870,8 +47908,16 @@ async fn spell_change_raid_marker_effect_row_stores_marker_and_fanouts_like_cpp(
     group.add_member(member_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    player_registry.register_or_replace(leader_guid, broadcast_info(leader_guid, leader_tx));
-    player_registry.register_or_replace(member_guid, broadcast_info(member_guid, member_tx));
+    player_registry.register_or_replace(
+        leader_guid,
+        broadcast_info(leader_guid, leader_tx),
+        Default::default(),
+    );
+    player_registry.register_or_replace(
+        member_guid,
+        broadcast_info(member_guid, member_tx),
+        Default::default(),
+    );
     session.set_player_guid(Some(leader_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.group_guid = Some(group_guid);
@@ -47974,7 +48020,11 @@ async fn spell_change_raid_marker_raid_requires_leader_or_assistant_like_cpp() {
     group.add_member(member_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    player_registry.register_or_replace(member_guid, broadcast_info(member_guid, member_tx));
+    player_registry.register_or_replace(
+        member_guid,
+        broadcast_info(member_guid, member_tx),
+        Default::default(),
+    );
     session.set_player_guid(Some(member_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.group_guid = Some(group_guid);
@@ -55412,7 +55462,7 @@ fn give_xp_runtime_raf_awards_triple_xp_without_spending_rested_bonus_like_cpp()
     recruit_info.position = Position::new(10.0, 0.0, 0.0, 0.0);
     recruit_info.account_id = 2;
     recruit_info.level = 10;
-    player_registry.register_or_replace(recruit_guid, recruit_info);
+    player_registry.register_or_replace(recruit_guid, recruit_info, Default::default());
 
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(player_guid);
@@ -73986,10 +74036,10 @@ fn send_new_item_plan_group_broadcasts_to_group_members_including_self() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut self_info = broadcast_info(self_guid, self_tx);
     self_info.realm_send_tx = self_realm_tx;
-    player_registry.register_or_replace(self_guid, self_info);
+    player_registry.register_or_replace(self_guid, self_info, Default::default());
     let mut other_info = broadcast_info(other_guid, other_tx);
     other_info.realm_send_tx = other_realm_tx;
-    player_registry.register_or_replace(other_guid, other_info);
+    player_registry.register_or_replace(other_guid, other_info, Default::default());
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(self_guid);
     group.add_member(other_guid);
@@ -76770,11 +76820,16 @@ fn gameobject_use_ritual_casts_caster_target_spell_at_random_unique_users_like_c
 
     let player_registry = Arc::new(PlayerRegistry::default());
     let (player_tx, _player_rx) = flume::bounded(1);
-    player_registry.register_or_replace(player_guid, broadcast_info(player_guid, player_tx));
+    player_registry.register_or_replace(
+        player_guid,
+        broadcast_info(player_guid, player_tx),
+        Default::default(),
+    );
     let (other_tx, _other_rx) = flume::bounded(1);
     player_registry.register_or_replace(
         other_player_guid,
         broadcast_info(other_player_guid, other_tx),
+        Default::default(),
     );
     session.set_player_registry(player_registry);
 
@@ -76952,7 +77007,7 @@ fn gameobject_use_meeting_stone_maps_spell_by_entry_like_cpp() {
     let (target_tx, _target_rx) = flume::bounded(1);
     let mut target_info = broadcast_info(target_guid, target_tx);
     target_info.level = 80;
-    player_registry.register_or_replace(target_guid, target_info);
+    player_registry.register_or_replace(target_guid, target_info, Default::default());
     session.set_player_registry(player_registry);
 
     assert!(session.use_represented_gameobject_meeting_stone_like_cpp(
@@ -77095,7 +77150,7 @@ fn gameobject_use_meeting_stone_checks_content_tuning_levels_like_cpp() {
     let (target_tx, _target_rx) = flume::bounded(1);
     let mut target_info = broadcast_info(target_guid, target_tx);
     target_info.level = 20;
-    player_registry.register_or_replace(target_guid, target_info);
+    player_registry.register_or_replace(target_guid, target_info, Default::default());
     session.set_player_registry(player_registry);
     let source = wow_entities::MeetingStoneUseSource {
         area_id: 456,
@@ -79950,8 +80005,8 @@ async fn gameobject_use_goober_kill_credit_filters_group_reward_distance_like_cp
     near_info.position = Position::new(20.0, 0.0, 0.0, 0.0);
     let mut far_info = broadcast_info(far_member, far_tx);
     far_info.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
-    player_registry.register_or_replace(near_member, near_info);
-    player_registry.register_or_replace(far_member, far_info);
+    player_registry.register_or_replace(near_member, near_info, Default::default());
+    player_registry.register_or_replace(far_member, far_info, Default::default());
 
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(player_guid);
@@ -80068,11 +80123,11 @@ fn gameobject_use_goober_state_branch_matches_cpp_custom_anim_and_go_cast() {
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
     same_info.map_id = 571;
     same_info.command_tx = same_command_tx;
-    player_registry.register_or_replace(same_map_guid, same_info);
+    player_registry.register_or_replace(same_map_guid, same_info, Default::default());
     let mut other_info = broadcast_info(other_map_guid, other_send_tx);
     other_info.map_id = 1;
     other_info.command_tx = other_command_tx;
-    player_registry.register_or_replace(other_map_guid, other_info);
+    player_registry.register_or_replace(other_map_guid, other_info, Default::default());
     session.set_player_guid(Some(player_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.set_player_registry(player_registry);
@@ -80302,7 +80357,7 @@ async fn process_pending_expires_gameobject_despawn_delay_like_cpp_update() {
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
     same_info.map_id = 571;
     same_info.command_tx = same_command_tx;
-    player_registry.register_or_replace(same_map_guid, same_info);
+    player_registry.register_or_replace(same_map_guid, same_info, Default::default());
     session.set_player_guid(Some(player_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.set_player_registry(player_registry);
@@ -80545,7 +80600,7 @@ async fn represented_gameobject_chest_just_deactivated_consumable_sends_despawn_
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
     same_info.map_id = 571;
     same_info.command_tx = same_command_tx;
-    player_registry.register_or_replace(same_map_guid, same_info);
+    player_registry.register_or_replace(same_map_guid, same_info, Default::default());
     session.set_player_guid(Some(player_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.set_player_registry(player_registry);
@@ -80937,7 +80992,7 @@ fn gameobject_goober_just_deactivated_consumable_stays_not_ready_like_cpp() {
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
     same_info.map_id = 571;
     same_info.command_tx = same_command_tx;
-    player_registry.register_or_replace(same_map_guid, same_info);
+    player_registry.register_or_replace(same_map_guid, same_info, Default::default());
     session.set_player_guid(Some(player_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.set_player_registry(player_registry);
@@ -81127,7 +81182,7 @@ async fn process_pending_ticks_goober_autoclose_then_cleanup_like_cpp_update() {
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
     same_info.map_id = 571;
     same_info.command_tx = same_command_tx;
-    player_registry.register_or_replace(same_map_guid, same_info);
+    player_registry.register_or_replace(same_map_guid, same_info, Default::default());
     session.set_player_guid(Some(player_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.set_player_registry(player_registry);

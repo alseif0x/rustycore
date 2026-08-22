@@ -10,6 +10,7 @@ pub(crate) mod battle_pet_purchase;
 pub mod conditions;
 pub mod entity_update_bridge;
 pub mod handlers;
+pub mod loot_persistence;
 pub mod map_manager;
 pub mod phasing;
 #[allow(dead_code)] // Private prerequisite seam consumed by trainer issue #157.

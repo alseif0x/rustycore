@@ -20,7 +20,6 @@ df_quests	canonical Player quest log	#252	query immutable dungeon-finder quest h
 display_id	canonical Player/Unit presentation	#252	query immutable CREATE display
 dungeon_difficulty_id	canonical Player difficulty selection	#252	query immutable difficulty selection
 durable_creature_runtime_commands_like_cpp	Session durable mailbox rail	#140	move durable rail storage and pump to Session mailbox
-durable_loot_money_tracker_like_cpp	persistence/application loot coordinator	#189	remove durable tracker from session directory
 enchanting_skill	canonical Player skills	#252	query immutable effective skill value
 faction_template_id	canonical Player/Unit faction	#252	query immutable faction identity
 forced_reputation_faction_ids	canonical Player reputation	#252	query immutable forced-reaction membership

@@ -1418,7 +1418,7 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.player_broadcast_info.fields"
       },
       "audited_summary": {
-        "field_count": 80,
+        "field_count": 79,
         "count_kind": "baseline observation; AST is authoritative"
       },
       "coverage_rule": {
@@ -1426,7 +1426,7 @@
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_field_count": 80,
+        "expected_field_count": 79,
         "validation": "Compare sorted AST field names with the sorted concatenation of every entry.field_names; reject gaps, duplicates, stale names, entry count drift, or total count drift."
       },
       "entries": [
@@ -1468,10 +1468,9 @@
         },
         {
           "id": "directory_durable_loot_coordination",
-          "expected_field_count": 3,
+          "expected_field_count": 2,
           "field_names": [
             "active_loot_rolls",
-            "durable_loot_money_tracker_like_cpp",
             "pass_on_group_loot"
           ],
           "owner": "PlayerRegistry currently exposes loot snapshots and a durable persistence tracker; loot and persistence owners are separate.",
@@ -1570,7 +1569,7 @@
           "retirement_condition": "#252 removes every assigned residual through bounded canonical queries and deletes the broad projection without introducing a replacement mirror."
         }
       ],
-      "expected_field_count": 80
+      "expected_field_count": 79
     },
     "session_command": {
       "coverage_source": {
@@ -1910,9 +1909,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/loot/mod.rs",
-          "production_lines": 13674,
-          "test_lines": 16157,
-          "total_lines": 29831,
+          "production_lines": 13659,
+          "test_lines": 16233,
+          "total_lines": 29892,
           "owner": "wow-world loot handler plus transitional loot/map/persistence coordination.",
           "open_retirement_issues": [
             153,
@@ -1925,8 +1924,8 @@
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
           "production_lines": 24986,
-          "test_lines": 21521,
-          "total_lines": 46507,
+          "test_lines": 21528,
+          "total_lines": 46514,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153,

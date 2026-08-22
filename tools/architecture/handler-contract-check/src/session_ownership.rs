@@ -65,6 +65,10 @@ const PRIVATE_WORLD_SESSION_OWNER_ROOTS: &[&str] = &["crate::handlers::misc", WO
 /// Issue #140 relocated the Session mailbox here, so `SessionCommand` and its
 /// payload closure now live in `wow-world` rather than `wow-network`.
 const WORLD_SESSION_MAILBOX_MODULE: &str = "crate::session::mailbox";
+/// Issue #189 moved durable loot-money coordination to its own persistence
+/// owner. Three `SessionCommand` payload types live there, so the contract
+/// scan must reach it or they would silently leave the pinned inventory.
+const WORLD_LOOT_PERSISTENCE_MODULE: &str = "crate::loot_persistence";
 /// Issue #137 relocated the atomic Group owner here. `SessionCommand` still
 /// names `GroupDifficultyKindLikeCpp` in one payload, so the contract scan must
 /// reach this module or that payload type would silently leave the inventory.
@@ -1329,7 +1333,8 @@ fn collect_items(
             || (role == PackageRole::World
                 && (module == WORLD_SESSION_DIRECTORY_MODULE
                     || module == WORLD_SESSION_MAILBOX_MODULE
-                    || module.starts_with(&format!("{WORLD_SESSION_MAILBOX_MODULE}::"))))
+                    || module.starts_with(&format!("{WORLD_SESSION_MAILBOX_MODULE}::"))
+                    || module == WORLD_LOOT_PERSISTENCE_MODULE))
             || (role == PackageRole::Social
                 && (module == SOCIAL_GROUP_MODULE
                     || module.starts_with(&format!("{SOCIAL_GROUP_MODULE}::"))))

@@ -379,7 +379,11 @@ async fn set_difficulty_id_group_leader_updates_group_dungeon_difficulty_like_cp
     group.db_store_id = 44;
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    player_registry.register_or_replace(member, broadcast_info_with_command_tx(member_command_tx));
+    player_registry.register_or_replace(
+        member,
+        broadcast_info_with_command_tx(member_command_tx),
+        Default::default(),
+    );
 
     session.set_player_guid(Some(leader));
     session.group_guid = Some(group_guid);

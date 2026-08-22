@@ -2024,10 +2024,12 @@ mod tests {
         registry.register_or_replace(
             guid,
             broadcast_info_with_command(guid, self_tx, self_command_tx),
+            Default::default(),
         );
         registry.register_or_replace(
             other_guid,
             broadcast_info_with_command(other_guid, other_tx, other_command_tx),
+            Default::default(),
         );
 
         let movement = MovementInfo {
@@ -2082,6 +2084,7 @@ mod tests {
         registry.register_or_replace(
             recipient_guid,
             broadcast_info_with_command(recipient_guid, old_send_tx, old_command_tx),
+            Default::default(),
         );
         let recipients = registry.movement_recipients_within_range(
             source_guid,
@@ -2104,6 +2107,7 @@ mod tests {
                 replacement_send_tx,
                 replacement_command_tx,
             ),
+            Default::default(),
         );
 
         let result = registry.try_send_current_command(
@@ -2169,10 +2173,11 @@ mod tests {
         registry.register_or_replace(
             player_guid,
             broadcast_info_with_command(player_guid, self_tx, self_command_tx),
+            Default::default(),
         );
         let mut other_info = broadcast_info_with_command(other_guid, other_tx, other_command_tx);
         other_info.position = moved_position;
-        registry.register_or_replace(other_guid, other_info);
+        registry.register_or_replace(other_guid, other_info, Default::default());
 
         let movement = MovementInfo {
             guid: mover_guid,
@@ -2243,11 +2248,12 @@ mod tests {
         registry.register_or_replace(
             guid,
             broadcast_info_with_command(guid, self_tx, self_command_tx),
+            Default::default(),
         );
         let mut far_info = broadcast_info_with_command(far_guid, far_tx, far_command_tx);
         far_info.position =
             wow_core::Position::new(crate::map_manager::VISIBILITY_RADIUS + 10.0, 0.0, 0.0, 0.0);
-        registry.register_or_replace(far_guid, far_info);
+        registry.register_or_replace(far_guid, far_info, Default::default());
 
         let movement = MovementInfo {
             guid,
@@ -2584,7 +2590,11 @@ mod tests {
         session.set_player_position_like_cpp(original_position);
         session.set_player_movement_flags_like_cpp(MovementFlag::SWIMMING);
         session.set_player_registry(std::sync::Arc::clone(&registry));
-        registry.register_or_replace(other_guid, broadcast_info(other_guid, other_tx));
+        registry.register_or_replace(
+            other_guid,
+            broadcast_info(other_guid, other_tx),
+            Default::default(),
+        );
 
         let movement = MovementInfo {
             guid: spoofed_guid,
@@ -2619,7 +2629,11 @@ mod tests {
         session.set_player_position_like_cpp(original_position);
         session.set_player_movement_flags_like_cpp(MovementFlag::SWIMMING);
         session.set_player_registry(std::sync::Arc::clone(&registry));
-        registry.register_or_replace(other_guid, broadcast_info(other_guid, other_tx));
+        registry.register_or_replace(
+            other_guid,
+            broadcast_info(other_guid, other_tx),
+            Default::default(),
+        );
 
         let movement = MovementInfo {
             guid,
@@ -2744,7 +2758,6 @@ mod tests {
             client_visible_guids_like_cpp: Default::default(),
             advanced_combat_logging_enabled_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
-            durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
             in_combat: false,
             pass_on_group_loot: false,
@@ -2832,10 +2845,12 @@ mod tests {
         registry.register_or_replace(
             guid,
             broadcast_info_with_command(guid, self_tx, self_command_tx),
+            Default::default(),
         );
         registry.register_or_replace(
             other_guid,
             broadcast_info_with_command(other_guid, other_tx, other_command_tx),
+            Default::default(),
         );
 
         session

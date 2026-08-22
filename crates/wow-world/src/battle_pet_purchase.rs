@@ -2172,7 +2172,7 @@ pub(crate) mod tests {
 
     pub(crate) fn test_money_commit_fence_like_cpp() -> PlayerMoneyCommitCancellationFenceLikeCpp {
         PlayerMoneyCommitCancellationFenceLikeCpp::new_disarmed_like_cpp(Arc::new(
-            crate::session::mailbox::DurableLootMoneyPersistenceTrackerLikeCpp::default(),
+            crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp::default(),
         ))
     }
 
@@ -2779,7 +2779,7 @@ pub(crate) mod tests {
             .fail_next_compensate_post_apply_read
             .store(true, Ordering::SeqCst);
         let money_tracker =
-            Arc::new(crate::session::mailbox::DurableLootMoneyPersistenceTrackerLikeCpp::default());
+            Arc::new(crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp::default());
         let outcome = store
             .compensate(
                 [10; 16],
