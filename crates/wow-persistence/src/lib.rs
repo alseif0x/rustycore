@@ -88,20 +88,6 @@ impl PersistenceOutcomeLikeCpp {
     }
 }
 
-/// One account's tutorial flags, ready to persist.
-///
-/// C++ `WorldSession::SaveTutorialsData` writes the eight flags in a single
-/// statement, choosing INSERT or UPDATE by whether a row already exists. That
-/// choice is data, not SQL, so it crosses the port as `already_persisted`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlayerTutorialsSaveLikeCpp {
-    pub account_id: u32,
-    /// The flags in index order; the adapter binds them positionally.
-    pub tutorials: Vec<u32>,
-    /// False on the first save for this account, which needs an INSERT.
-    pub already_persisted: bool,
-}
-
 /// One row of an account-wide collection, ready to persist.
 ///
 /// These are Battle.net account collections, not character state: C++ writes
@@ -201,14 +187,6 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
     fn mark_offline_like_cpp<'a>(
         &'a self,
         mark: PlayerOfflineMarkLikeCpp,
-    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
-
-    /// Persist the account's tutorial flags in their own transaction, as C++
-    /// `SaveTutorialsData` does. Separate from the character save on purpose:
-    /// it runs on its own, not as part of that transaction.
-    fn save_tutorials_like_cpp<'a>(
-        &'a self,
-        save: PlayerTutorialsSaveLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 
     /// Persist one account-wide collection in its own Login-database
