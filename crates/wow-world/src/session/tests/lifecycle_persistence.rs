@@ -13,12 +13,11 @@ use std::sync::Mutex;
 use wow_persistence::{
     AccountCollectionSaveLikeCpp, AccountMaskBlockLikeCpp, LogicalDatabaseLikeCpp,
     PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerLifecyclePortLikeCpp,
-    PlayerOfflineMarkLikeCpp, PlayerTutorialsSaveLikeCpp,
+    PlayerOfflineMarkLikeCpp,
 };
 
 struct RecordingPortLikeCpp {
     seen: Mutex<Vec<PlayerOfflineMarkLikeCpp>>,
-    tutorials: Mutex<Vec<PlayerTutorialsSaveLikeCpp>>,
     collections: Mutex<Vec<AccountCollectionSaveLikeCpp>>,
     outcome: PersistenceOutcomeLikeCpp,
 }
@@ -27,16 +26,12 @@ impl RecordingPortLikeCpp {
     fn new(outcome: PersistenceOutcomeLikeCpp) -> Arc<Self> {
         Arc::new(Self {
             seen: Mutex::new(Vec::new()),
-            tutorials: Mutex::new(Vec::new()),
             collections: Mutex::new(Vec::new()),
             outcome,
         })
     }
     fn marks(&self) -> Vec<PlayerOfflineMarkLikeCpp> {
         self.seen.lock().unwrap().clone()
-    }
-    fn tutorial_saves(&self) -> Vec<PlayerTutorialsSaveLikeCpp> {
-        self.tutorials.lock().unwrap().clone()
     }
     fn collection_saves(&self) -> Vec<AccountCollectionSaveLikeCpp> {
         self.collections.lock().unwrap().clone()
@@ -49,15 +44,6 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         mark: PlayerOfflineMarkLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
         self.seen.lock().unwrap().push(mark);
-        let outcome = self.outcome.clone();
-        Box::pin(async move { outcome })
-    }
-
-    fn save_tutorials_like_cpp<'a>(
-        &'a self,
-        save: PlayerTutorialsSaveLikeCpp,
-    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
-        self.tutorials.lock().unwrap().push(save);
         let outcome = self.outcome.clone();
         Box::pin(async move { outcome })
     }
@@ -182,100 +168,6 @@ async fn a_session_without_a_port_performs_no_durable_write_like_cpp() {
     session
         .mark_login_account_offline_on_disconnect_like_cpp()
         .await;
-}
-
-/// `SaveTutorialsData` reaches the port as data — the flags in index order and
-/// the INSERT/UPDATE choice — and clears the dirty flag once it applies.
-#[tokio::test]
-async fn save_tutorials_publishes_the_flags_through_the_port_like_cpp() {
-    let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
-    session.tutorials_like_cpp = [1, 2, 3, 4, 5, 6, 7, 8];
-    session.tutorials_changed_like_cpp = true;
-    session.tutorials_loaded_coherently_like_cpp = true;
-    session.tutorials_loaded_from_db_like_cpp = false;
-
-    session.save_tutorials_data_like_cpp().await;
-
-    let saves = port.tutorial_saves();
-    assert_eq!(saves.len(), 1);
-    assert_eq!(saves[0].account_id, session.account_id);
-    assert_eq!(saves[0].tutorials, vec![1, 2, 3, 4, 5, 6, 7, 8]);
-    assert!(
-        !saves[0].already_persisted,
-        "the first save for an account must be an INSERT"
-    );
-    assert!(
-        session.tutorials_loaded_from_db_like_cpp,
-        "a committed INSERT means the row now exists"
-    );
-    assert!(!session.tutorials_changed_like_cpp);
-}
-
-/// A second save updates rather than inserts.
-#[tokio::test]
-async fn a_later_tutorial_save_updates_the_existing_row_like_cpp() {
-    let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
-    session.tutorials_changed_like_cpp = true;
-    session.tutorials_loaded_coherently_like_cpp = true;
-    session.tutorials_loaded_from_db_like_cpp = true;
-
-    session.save_tutorials_data_like_cpp().await;
-
-    assert!(port.tutorial_saves()[0].already_persisted);
-}
-
-/// Nothing changed means nothing is written.
-#[tokio::test]
-async fn unchanged_tutorials_are_not_saved_like_cpp() {
-    let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
-    session.tutorials_changed_like_cpp = false;
-    session.tutorials_loaded_coherently_like_cpp = true;
-
-    session.save_tutorials_data_like_cpp().await;
-
-    assert!(port.tutorial_saves().is_empty());
-}
-
-/// Incoherently loaded tutorials must not be written back over good data.
-#[tokio::test]
-async fn incoherently_loaded_tutorials_are_not_saved_like_cpp() {
-    let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
-    session.tutorials_changed_like_cpp = true;
-    session.tutorials_loaded_coherently_like_cpp = false;
-
-    session.save_tutorials_data_like_cpp().await;
-
-    assert!(port.tutorial_saves().is_empty());
-    assert!(session.tutorials_changed_like_cpp, "still dirty");
-}
-
-/// Neither a definite failure nor an unknown outcome may clear the dirty flag:
-/// after an unknown outcome the row may or may not exist, so the next save
-/// must not assume an UPDATE will match.
-#[tokio::test]
-async fn a_non_applied_tutorial_save_keeps_the_state_dirty_like_cpp() {
-    for outcome in [
-        PersistenceOutcomeLikeCpp::Failed {
-            reason: "deadlock".to_owned(),
-        },
-        PersistenceOutcomeLikeCpp::Unknown {
-            reason: "connection lost after COMMIT".to_owned(),
-        },
-    ] {
-        let (mut session, port) = session_with_port(outcome);
-        session.tutorials_changed_like_cpp = true;
-        session.tutorials_loaded_coherently_like_cpp = true;
-        session.tutorials_loaded_from_db_like_cpp = false;
-
-        session.save_tutorials_data_like_cpp().await;
-
-        assert_eq!(port.tutorial_saves().len(), 1);
-        assert!(session.tutorials_changed_like_cpp, "must retry");
-        assert!(
-            !session.tutorials_loaded_from_db_like_cpp,
-            "an unconfirmed INSERT must not be recorded as persisted"
-        );
-    }
 }
 
 /// Each account collection reaches the port as its own request against the

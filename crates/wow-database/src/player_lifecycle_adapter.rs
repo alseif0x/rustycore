@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use wow_persistence::{
     AccountCollectionSaveLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
-    PlayerLifecyclePortLikeCpp, PlayerOfflineMarkLikeCpp, PlayerTutorialsSaveLikeCpp,
+    PlayerLifecyclePortLikeCpp, PlayerOfflineMarkLikeCpp,
 };
 
 use crate::params::PreparedStatement;
@@ -91,30 +91,6 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                 // or it did not; there is no COMMIT whose outcome could be
                 // indeterminate. `Unknown` is reserved for the transactional
                 // paths #200 migrates next, so do not manufacture it here.
-                Err(error) => PersistenceOutcomeLikeCpp::Failed {
-                    reason: error.to_string(),
-                },
-            }
-        })
-    }
-
-    fn save_tutorials_like_cpp<'a>(
-        &'a self,
-        save: PlayerTutorialsSaveLikeCpp,
-    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
-        Box::pin(async move {
-            let stmt = build_tutorials_save_statement_like_cpp(
-                save.account_id,
-                &save.tutorials,
-                save.already_persisted,
-            );
-            // C++ SaveTutorialsData commits this on its own; keep the single
-            // statement inside its own transaction rather than borrowing the
-            // character-save transaction it is not part of.
-            let mut tx = SqlTransaction::new();
-            tx.append(stmt);
-            match self.character_db.commit_transaction(tx).await {
-                Ok(()) => PersistenceOutcomeLikeCpp::Applied { rows: 1 },
                 Err(error) => PersistenceOutcomeLikeCpp::Failed {
                     reason: error.to_string(),
                 },
