@@ -1896,9 +1896,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20310,
+          "production_lines": 20315,
           "test_lines": 10749,
-          "total_lines": 31059,
+          "total_lines": 31064,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "open_retirement_issues": [
             153,
