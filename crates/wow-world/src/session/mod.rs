@@ -39484,16 +39484,15 @@ impl WorldSession {
             return None;
         }
 
-        let mut stmt = PreparedStatement::new(if self.tutorials_loaded_from_db_like_cpp {
-            CharStatements::UPD_TUTORIALS.sql()
-        } else {
-            CharStatements::INS_TUTORIALS.sql()
-        });
-        for (index, value) in self.tutorials_like_cpp.iter().copied().enumerate() {
-            stmt.set_u32(index, value);
-        }
-        stmt.set_u32(self.tutorials_like_cpp.len(), account_id);
-        Some(stmt)
+        // One owner for the column order: the adapter builds this row for the
+        // standalone SaveTutorialsData path too (#286).
+        Some(
+            wow_database::player_lifecycle_adapter::build_tutorials_save_statement_like_cpp(
+                account_id,
+                &self.tutorials_like_cpp,
+                self.tutorials_loaded_from_db_like_cpp,
+            ),
+        )
     }
 
     async fn save_tutorials_data_like_cpp(&mut self) {
@@ -39501,35 +39500,48 @@ impl WorldSession {
             return;
         }
 
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             warn!(
                 account = self.account_id,
-                "Skipping SaveTutorialsData because character database is unavailable"
+                "Skipping SaveTutorialsData because the lifecycle persistence port is unavailable"
             );
             return;
         };
 
-        let Some(stmt) = self.tutorial_save_statement_like_cpp(self.account_id) else {
+        if !self.tutorials_loaded_coherently_like_cpp {
             warn!(
                 account = self.account_id,
                 "Skipping SaveTutorialsData because tutorial data was not loaded coherently"
             );
             return;
-        };
+        }
 
         let was_insert = !self.tutorials_loaded_from_db_like_cpp;
-        let mut tx = SqlTransaction::new();
-        tx.append(stmt);
-        match char_db.commit_transaction(tx).await {
-            Ok(()) => {
+        let outcome = port
+            .save_tutorials_like_cpp(wow_persistence::PlayerTutorialsSaveLikeCpp {
+                account_id: self.account_id,
+                tutorials: self.tutorials_like_cpp.to_vec(),
+                already_persisted: self.tutorials_loaded_from_db_like_cpp,
+            })
+            .await;
+        match outcome {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {
                 if was_insert {
                     self.tutorials_loaded_from_db_like_cpp = true;
                 }
                 self.tutorials_changed_like_cpp = false;
             }
-            Err(error) => warn!(
+            // Dirty state stays dirty on both non-applied classes: a retry is
+            // correct after a definite failure, and after an unknown outcome
+            // the row may or may not exist, so the next save must not assume
+            // an UPDATE will match.
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
                 account = self.account_id,
-                "SaveTutorialsData failed: {error}"
+                "SaveTutorialsData failed: {reason}"
+            ),
+            wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
+                account = self.account_id,
+                "SaveTutorialsData outcome is unknown: {reason}"
             ),
         }
     }
