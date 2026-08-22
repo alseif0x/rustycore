@@ -13,8 +13,8 @@
 use std::sync::Arc;
 
 use wow_persistence::{
-    PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerLifecyclePortLikeCpp,
-    PlayerOfflineMarkLikeCpp, PlayerTutorialsSaveLikeCpp,
+    AccountCollectionSaveLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
+    PlayerLifecyclePortLikeCpp, PlayerOfflineMarkLikeCpp, PlayerTutorialsSaveLikeCpp,
 };
 
 use crate::params::PreparedStatement;
@@ -115,6 +115,58 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
             tx.append(stmt);
             match self.character_db.commit_transaction(tx).await {
                 Ok(()) => PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+                Err(error) => PersistenceOutcomeLikeCpp::Failed {
+                    reason: error.to_string(),
+                },
+            }
+        })
+    }
+
+    fn save_account_collection_like_cpp<'a>(
+        &'a self,
+        save: AccountCollectionSaveLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async move {
+            let mut tx = SqlTransaction::new();
+            let rows = match &save {
+                AccountCollectionSaveLikeCpp::Mounts(rows) => {
+                    for row in rows {
+                        let mut stmt = self.login_db.prepare(LoginStatements::REP_ACCOUNT_MOUNTS);
+                        stmt.set_u32(0, row.bnet_account_id);
+                        stmt.set_u32(1, row.mount_spell_id);
+                        stmt.set_u8(2, row.flags);
+                        tx.append(stmt);
+                    }
+                    rows.len()
+                }
+                AccountCollectionSaveLikeCpp::Toys(rows) => {
+                    for row in rows {
+                        let mut stmt = self.login_db.prepare(LoginStatements::REP_ACCOUNT_TOYS);
+                        stmt.set_u32(0, row.bnet_account_id);
+                        stmt.set_u32(1, row.item_id);
+                        stmt.set_bool(2, row.is_favorite);
+                        stmt.set_bool(3, row.has_fanfare);
+                        tx.append(stmt);
+                    }
+                    rows.len()
+                }
+                AccountCollectionSaveLikeCpp::Heirlooms(rows) => {
+                    for row in rows {
+                        let mut stmt = self
+                            .login_db
+                            .prepare(LoginStatements::REP_ACCOUNT_HEIRLOOMS);
+                        stmt.set_u32(0, row.bnet_account_id);
+                        stmt.set_u32(1, row.item_id);
+                        stmt.set_u32(2, row.flags);
+                        tx.append(stmt);
+                    }
+                    rows.len()
+                }
+            };
+            // One collection, one transaction — the shape C++ logout uses and
+            // #187 freezes.
+            match self.login_db.commit_transaction(tx).await {
+                Ok(()) => PersistenceOutcomeLikeCpp::Applied { rows: rows as u64 },
                 Err(error) => PersistenceOutcomeLikeCpp::Failed {
                     reason: error.to_string(),
                 },

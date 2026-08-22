@@ -11,7 +11,10 @@
 // ratchet (see #277).
 use wow_database::{CharStatements, LoginStatements, PreparedStatement, SqlTransaction};
 
-use wow_persistence::{PersistenceOutcomeLikeCpp, PlayerOfflineMarkLikeCpp};
+use wow_persistence::{
+    AccountCollectionSaveLikeCpp, AccountHeirloomRowLikeCpp, AccountMountRowLikeCpp,
+    AccountToyRowLikeCpp, PersistenceOutcomeLikeCpp, PlayerOfflineMarkLikeCpp,
+};
 
 use super::*;
 
@@ -1108,84 +1111,102 @@ impl WorldSession {
     }
 
     pub(crate) async fn save_account_mounts_like_cpp(&self) {
-        let Some(login_db) = self.login_db().map(Arc::clone) else {
+        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             return;
         };
-        let save_rows = self.account_mount_save_rows_like_cpp();
-        if save_rows.is_empty() {
+        let save = AccountCollectionSaveLikeCpp::Mounts(
+            self.account_mount_save_rows_like_cpp()
+                .into_iter()
+                .map(|row| AccountMountRowLikeCpp {
+                    bnet_account_id: row.bnet_account_id,
+                    mount_spell_id: row.mount_spell_id,
+                    flags: row.flags,
+                })
+                .collect(),
+        );
+        if save.is_empty() {
             return;
         }
 
-        let mut tx = SqlTransaction::new();
-        for row in save_rows {
-            let mut stmt = login_db.prepare(LoginStatements::REP_ACCOUNT_MOUNTS);
-            stmt.set_u32(0, row.bnet_account_id);
-            stmt.set_u32(1, row.mount_spell_id);
-            stmt.set_u8(2, row.flags);
-            tx.append(stmt);
-        }
-
-        if let Err(error) = login_db.commit_transaction(tx).await {
-            warn!(
+        match port.save_account_collection_like_cpp(save).await {
+            PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
                 account = self.account_id,
                 bnet_account = self.battlenet_account_id(),
-                "Failed to save account mount flags: {error}"
-            );
+                "Failed to save account mount flags: {reason}"
+            ),
+            PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
+                account = self.account_id,
+                bnet_account = self.battlenet_account_id(),
+                "Account mount flags save outcome is unknown: {reason}"
+            ),
         }
     }
 
     pub(crate) async fn save_account_toys_like_cpp(&self) {
-        let Some(login_db) = self.login_db().map(Arc::clone) else {
+        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             return;
         };
-        let save_rows = self.account_toy_save_rows_like_cpp();
-        if save_rows.is_empty() {
+        let save = AccountCollectionSaveLikeCpp::Toys(
+            self.account_toy_save_rows_like_cpp()
+                .into_iter()
+                .map(|row| AccountToyRowLikeCpp {
+                    bnet_account_id: row.bnet_account_id,
+                    item_id: row.item_id,
+                    is_favorite: row.is_favorite,
+                    has_fanfare: row.has_fanfare,
+                })
+                .collect(),
+        );
+        if save.is_empty() {
             return;
         }
 
-        let mut tx = SqlTransaction::new();
-        for row in save_rows {
-            let mut stmt = login_db.prepare(LoginStatements::REP_ACCOUNT_TOYS);
-            stmt.set_u32(0, row.bnet_account_id);
-            stmt.set_u32(1, row.item_id);
-            stmt.set_bool(2, row.is_favorite);
-            stmt.set_bool(3, row.has_fanfare);
-            tx.append(stmt);
-        }
-
-        if let Err(error) = login_db.commit_transaction(tx).await {
-            warn!(
+        match port.save_account_collection_like_cpp(save).await {
+            PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
                 account = self.account_id,
                 bnet_account = self.battlenet_account_id(),
-                "Failed to save account toy flags: {error}"
-            );
+                "Failed to save account toy flags: {reason}"
+            ),
+            PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
+                account = self.account_id,
+                bnet_account = self.battlenet_account_id(),
+                "Account toy flags save outcome is unknown: {reason}"
+            ),
         }
     }
 
     pub(crate) async fn save_account_heirlooms_like_cpp(&self) {
-        let Some(login_db) = self.login_db().map(Arc::clone) else {
+        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             return;
         };
-        let save_rows = self.account_heirloom_save_rows_like_cpp();
-        if save_rows.is_empty() {
+        let save = AccountCollectionSaveLikeCpp::Heirlooms(
+            self.account_heirloom_save_rows_like_cpp()
+                .into_iter()
+                .map(|row| AccountHeirloomRowLikeCpp {
+                    bnet_account_id: row.bnet_account_id,
+                    item_id: row.item_id,
+                    flags: row.flags,
+                })
+                .collect(),
+        );
+        if save.is_empty() {
             return;
         }
 
-        let mut tx = SqlTransaction::new();
-        for row in save_rows {
-            let mut stmt = login_db.prepare(LoginStatements::REP_ACCOUNT_HEIRLOOMS);
-            stmt.set_u32(0, row.bnet_account_id);
-            stmt.set_u32(1, row.item_id);
-            stmt.set_u32(2, row.flags);
-            tx.append(stmt);
-        }
-
-        if let Err(error) = login_db.commit_transaction(tx).await {
-            warn!(
+        match port.save_account_collection_like_cpp(save).await {
+            PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
                 account = self.account_id,
                 bnet_account = self.battlenet_account_id(),
-                "Failed to save account heirloom flags: {error}"
-            );
+                "Failed to save account heirloom flags: {reason}"
+            ),
+            PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
+                account = self.account_id,
+                bnet_account = self.battlenet_account_id(),
+                "Account heirloom flags save outcome is unknown: {reason}"
+            ),
         }
     }
 
