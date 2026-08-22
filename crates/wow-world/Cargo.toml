@@ -33,6 +33,7 @@ wow-network = { workspace = true }
 wow-logging = { workspace = true }
 wow-loot = { workspace = true }
 wow-map = { workspace = true }
+wow-module-api = { workspace = true }
 wow-movement = { workspace = true }
 wow-recastdetour = { workspace = true }
 wow-packet = { workspace = true }

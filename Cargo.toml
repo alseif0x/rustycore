@@ -25,6 +25,7 @@ members = [
     "crates/wow-packet",
     "crates/wow-handler",
     "crates/wow-chat",
+    "crates/wow-module-api",
     "crates/wow-social",
     "crates/wow-loot",
     "crates/wow-instances",
@@ -168,6 +169,7 @@ wow-ai = { path = "crates/wow-ai" }
 wow-packet = { path = "crates/wow-packet" }
 wow-handler = { path = "crates/wow-handler" }
 wow-chat = { path = "crates/wow-chat" }
+wow-module-api = { path = "crates/wow-module-api" }
 wow-social = { path = "crates/wow-social" }
 wow-loot = { path = "crates/wow-loot" }
 wow-instances = { path = "crates/wow-instances" }

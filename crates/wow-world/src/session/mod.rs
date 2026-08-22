@@ -6691,6 +6691,12 @@ pub struct WorldSession {
     /// Per-character fence published to remote loot sources before they begin
     /// mutating this character's durable balance.
     durable_loot_money_persistence_like_cpp: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
+    /// Trusted linked modules, shared read-only for the whole process.
+    ///
+    /// `None` is the zero-module no-op path: no registry is built and the
+    /// login hook is skipped entirely, so capture and state behaviour match a
+    /// server with the feature absent.
+    module_registry_like_cpp: Option<Arc<wow_module_api::ModuleRegistry>>,
     /// Represented pending group/NBG loot rolls keyed by `(LootObj, LootListID)`.
     pub(crate) represented_loot_rolls:
         std::collections::HashMap<(wow_core::ObjectGuid, u8), RepresentedLootRollState>,
@@ -8451,6 +8457,7 @@ impl WorldSession {
             durable_loot_money_persistence_like_cpp: Arc::new(
                 DurableLootMoneyPersistenceTrackerLikeCpp::default(),
             ),
+            module_registry_like_cpp: None,
             represented_loot_rolls: std::collections::HashMap::new(),
             #[cfg(test)]
             loot_money_persistence_test_result_like_cpp: None,
@@ -39284,6 +39291,58 @@ impl WorldSession {
             Err(flume::TrySendError::Disconnected(_)) => {
                 warn!("Send channel closed for account {}", self.account_id);
                 false
+            }
+        }
+    }
+
+    /// Share the process-wide trusted module registry with this session.
+    ///
+    /// Composition calls this once after construction. A session that never
+    /// receives one keeps the zero-module no-op path.
+    pub fn set_module_registry_like_cpp(&mut self, registry: Arc<wow_module_api::ModuleRegistry>) {
+        self.module_registry_like_cpp = Some(registry);
+    }
+
+    /// C++ `ScriptMgr::OnPlayerLogin` (`ScriptMgr.cpp:2052-2055`), invoked
+    /// once after a completed login (`CharacterHandler.cpp:1452`).
+    ///
+    /// Modules receive an immutable snapshot and return effects; the batch is
+    /// validated as a whole before anything is applied, so an invalid effect
+    /// discards the batch instead of half-applying it. A rejected batch is
+    /// logged and the login continues: a module must not be able to fail a
+    /// player's login.
+    pub(crate) fn dispatch_module_player_login_like_cpp(&self, first_login: bool) {
+        let Some(registry) = self.module_registry_like_cpp.as_ref() else {
+            return;
+        };
+        if registry.is_empty() {
+            return;
+        }
+        let Some(guid) = self.player_guid() else {
+            return;
+        };
+        let snapshot = wow_module_api::PlayerLoginSnapshot {
+            guid,
+            name: self.player_name.clone().unwrap_or_default(),
+            race: self.player_race,
+            class: self.player_class,
+            level: self.player_level,
+            map_id: self.player_map_id_like_cpp(),
+            first_login,
+        };
+        match registry.dispatch_player_login(&snapshot) {
+            Ok(effects) => {
+                for (module, effect) in effects.iter() {
+                    match effect {
+                        wow_module_api::PlayerLoginEffect::SendSystemMessageSelf { text } => {
+                            debug!(module = %module, "module login message");
+                            self.send_system_message_like_cpp(text);
+                        }
+                    }
+                }
+            }
+            Err(error) => {
+                warn!(%error, "module login effect batch rejected; no effect applied");
             }
         }
     }

@@ -3301,6 +3301,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "wow-module-api"
+version = "0.1.0"
+dependencies = [
+ "wow-core",
+]
+
+[[package]]
 name = "wow-movement"
 version = "0.1.0"
 dependencies = [
@@ -3442,6 +3449,7 @@ dependencies = [
  "wow-logging",
  "wow-loot",
  "wow-map",
+ "wow-module-api",
  "wow-movement",
  "wow-network",
  "wow-packet",

@@ -2575,6 +2575,11 @@ impl WorldSession {
         let mut online_stmt = char_db.prepare(CharStatements::UPD_CHAR_ONLINE);
         online_stmt.set_u32(0, guid.counter() as u32);
         let _ = char_db.execute(&online_stmt).await;
+
+        // C++ `sScriptMgr->OnPlayerLogin(pCurrChar, firstLogin)`
+        // (`CharacterHandler.cpp:1452`), after the completed login and after
+        // the login criteria update. Trusted linked modules observe here.
+        self.dispatch_module_player_login_like_cpp(first_login);
     }
 
     /// Build the self CreateObject combat snapshot after C++ login has loaded
