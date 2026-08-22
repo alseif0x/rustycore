@@ -22,13 +22,13 @@ use super::{
     sender_can_start_ready_check_like_cpp,
 };
 use crate::session::directory::{PlayerBroadcastInfo, PlayerRegistry};
+use crate::session::mailbox::{SendRealmPacketLikeCppCommand, SessionCommand};
 use flume::bounded;
 use std::{sync::Arc, time::Duration};
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
 use wow_database::{CharStatements, SqlParam, StatementDef};
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_network::{SendRealmPacketLikeCppCommand, SessionCommand};
 use wow_packet::{ServerPacket, WorldPacket, packets::party::party_result};
 use wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP;
 use wow_social::group::{
@@ -1857,14 +1857,14 @@ async fn lfg_uninvite_target_loot_rolls_returns_code_without_removal_like_cpp() 
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, _target_rx) = flume::bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
-    target_info
-        .active_loot_rolls
-        .push(wow_network::LootRollCommandIdentityLikeCpp::new_like_cpp(
+    target_info.active_loot_rolls.push(
+        crate::session::mailbox::LootRollCommandIdentityLikeCpp::new_like_cpp(
             ObjectGuid::create_item(1, 9001),
             1,
             wow_loot::OwnedLootAuthority::default(),
             1,
-        ));
+        ),
+    );
     player_registry.register_or_replace(target, target_info);
     session.set_player_registry(player_registry);
 

@@ -151,8 +151,8 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
             // If the guid is not in the registry we drop silently (session already gone).
             if let Some(candidate) = registry.runtime_recipient(*guid) {
                 summary.candidates_seen += 1;
-                let cmd = wow_network::SessionCommand::SendIfVisibleLikeCpp(
-                    wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                let cmd = wow_world::session::mailbox::SessionCommand::SendIfVisibleLikeCpp(
+                    wow_world::session::mailbox::SendIfVisibleLikeCppCommand {
                         queued_at: Instant::now(),
                         source_guid: event.source_guid,
                         map_id: candidate.map_id,
@@ -228,8 +228,8 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
                         summary.candidates_skipped_wrong_instance += 1;
                     }
                     None => {
-                        let cmd = wow_network::SessionCommand::SendIfVisibleLikeCpp(
-                            wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                        let cmd = wow_world::session::mailbox::SessionCommand::SendIfVisibleLikeCpp(
+                            wow_world::session::mailbox::SendIfVisibleLikeCppCommand {
                                 queued_at: Instant::now(),
                                 source_guid: event.source_guid,
                                 map_id: *map_id,
@@ -330,8 +330,8 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
                         summary.candidates_skipped_distance += 1;
                     }
                     None => {
-                        let cmd = wow_network::SessionCommand::SendIfVisibleLikeCpp(
-                            wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                        let cmd = wow_world::session::mailbox::SessionCommand::SendIfVisibleLikeCpp(
+                            wow_world::session::mailbox::SendIfVisibleLikeCppCommand {
                                 queued_at: Instant::now(),
                                 source_guid: event.source_guid,
                                 map_id: *map_id,
@@ -364,7 +364,8 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
             let range_sq = range * range;
             struct Candidate {
                 registration: wow_world::session::directory::PlayerRegistration,
-                committed_visibility_like_cpp: wow_network::SharedClientVisibleGuidsLikeCpp,
+                committed_visibility_like_cpp:
+                    wow_world::session::mailbox::SharedClientVisibleGuidsLikeCpp,
                 advanced_combat_logging_like_cpp: bool,
                 skip_reason: Option<DurableSpellCastSkipReason>,
             }
@@ -439,7 +440,7 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
                     None => {}
                 }
                 let command =
-                    wow_network::player_registry::SendCreatureSpellCastIfVisibleLikeCppCommand {
+                    wow_world::session::mailbox::SendCreatureSpellCastIfVisibleLikeCppCommand {
                         queued_at: Instant::now(),
                         source_guid: *source_guid,
                         map_id: *map_id,
@@ -501,7 +502,7 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
                     summary.candidates_skipped_distance += 1;
                     continue;
                 }
-                let command = wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                let command = wow_world::session::mailbox::SendIfVisibleLikeCppCommand {
                     queued_at: Instant::now(),
                     source_guid: event.source_guid,
                     map_id: *map_id,
@@ -601,8 +602,8 @@ pub(crate) fn deliver_refresh_visible_world_creatures_like_cpp(
                 summary.candidates_skipped_wrong_instance += 1;
             }
             None => {
-                let cmd = wow_network::SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(
-                    wow_network::player_registry::RefreshVisibleWorldCreaturesLikeCppCommand {
+                let cmd = wow_world::session::mailbox::SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(
+                    wow_world::session::mailbox::RefreshVisibleWorldCreaturesLikeCppCommand {
                         map_id,
                         instance_id,
                     },
@@ -810,7 +811,7 @@ pub(crate) fn legacy_visibility_distance_like_cpp(
 /// authoritative and one-shot, so it is published to the session's durable
 /// FIFO rail without waiting on its bounded visual-command queue.
 pub(crate) fn deliver_creature_attack_start_commands_like_cpp(
-    commands: &[wow_network::player_registry::CreatureAttackStartLikeCppCommand],
+    commands: &[wow_world::session::mailbox::CreatureAttackStartLikeCppCommand],
     registry: &wow_world::session::directory::PlayerRegistry,
 ) -> RuntimeCreatureAttackStartDeliverySummaryLikeCpp {
     struct Candidate {
@@ -871,7 +872,7 @@ pub(crate) fn deliver_creature_attack_start_commands_like_cpp(
 /// transition also owns session combat state; a creature victim has no
 /// `PlayerRegistry` recipient.
 pub(crate) fn apply_canonical_creature_attack_starts_like_cpp(
-    commands: &[wow_network::player_registry::CreatureAttackStartLikeCppCommand],
+    commands: &[wow_world::session::mailbox::CreatureAttackStartLikeCppCommand],
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
 ) -> usize {
     let Some(manager) = canonical_map_manager else {
@@ -936,7 +937,7 @@ pub(crate) fn apply_canonical_creature_attack_starts_like_cpp(
 /// transition through their session command; creatures have no registry
 /// recipient, so the map-owned bridge must purge the pair here.
 pub(crate) fn apply_canonical_creature_attack_stops_like_cpp(
-    commands: &[wow_network::player_registry::CreatureAttackStopLikeCppCommand],
+    commands: &[wow_world::session::mailbox::CreatureAttackStopLikeCppCommand],
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
 ) -> usize {
     let Some(manager) = canonical_map_manager else {
@@ -983,7 +984,7 @@ pub(crate) fn apply_canonical_creature_attack_stops_like_cpp(
 }
 
 pub(crate) fn deliver_creature_attack_stop_commands_like_cpp(
-    commands: &[wow_network::player_registry::CreatureAttackStopLikeCppCommand],
+    commands: &[wow_world::session::mailbox::CreatureAttackStopLikeCppCommand],
     registry: &wow_world::session::directory::PlayerRegistry,
 ) -> RuntimeCreatureAttackStartDeliverySummaryLikeCpp {
     let mut summary = RuntimeCreatureAttackStartDeliverySummaryLikeCpp::default();
@@ -1023,7 +1024,7 @@ pub(crate) fn deliver_creature_attack_stop_commands_like_cpp(
 /// committed, it publishes every resolved swing to the durable FIFO session
 /// rail rather than dropping it or blocking the world tick.
 pub(crate) fn deliver_creature_melee_damage_commands_like_cpp(
-    commands: &[wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand],
+    commands: &[wow_world::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand],
     registry: &wow_world::session::directory::PlayerRegistry,
 ) -> RuntimeCreatureMeleeDeliverySummaryLikeCpp {
     struct Candidate {

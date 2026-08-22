@@ -498,8 +498,8 @@ impl WorldSession {
             ) {
                 let _ = registry.try_send_current_command(
                     registration,
-                    wow_network::SessionCommand::SendIfVisibleLikeCpp(
-                        wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                    crate::session::mailbox::SessionCommand::SendIfVisibleLikeCpp(
+                        crate::session::mailbox::SendIfVisibleLikeCppCommand {
                             queued_at: std::time::Instant::now(),
                             source_guid: mover_guid,
                             map_id,
@@ -2051,7 +2051,7 @@ mod tests {
         let command = other_command_rx
             .try_recv()
             .expect("visible movement command");
-        let wow_network::SessionCommand::SendIfVisibleLikeCpp(command) = command else {
+        let crate::session::mailbox::SessionCommand::SendIfVisibleLikeCpp(command) = command else {
             panic!("expected SendIfVisibleLikeCpp movement command");
         };
         assert_eq!(command.source_guid, guid);
@@ -2108,7 +2108,7 @@ mod tests {
 
         let result = registry.try_send_current_command(
             stale,
-            wow_network::SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp,
+            crate::session::mailbox::SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp,
         );
         assert_eq!(
             result,
@@ -2210,7 +2210,7 @@ mod tests {
         let command = other_command_rx
             .try_recv()
             .expect("visible controlled-mover movement command");
-        let wow_network::SessionCommand::SendIfVisibleLikeCpp(command) = command else {
+        let crate::session::mailbox::SessionCommand::SendIfVisibleLikeCpp(command) = command else {
             panic!("expected SendIfVisibleLikeCpp movement command");
         };
         assert_eq!(command.source_guid, mover_guid);
@@ -2728,7 +2728,7 @@ mod tests {
     fn broadcast_info_with_command(
         guid: ObjectGuid,
         send_tx: flume::Sender<Vec<u8>>,
-        command_tx: flume::Sender<wow_network::SessionCommand>,
+        command_tx: flume::Sender<crate::session::mailbox::SessionCommand>,
     ) -> crate::session::directory::PlayerBroadcastInfo {
         crate::session::directory::PlayerBroadcastInfo {
             map_id: 0,
@@ -2851,7 +2851,7 @@ mod tests {
         let command = other_command_rx
             .try_recv()
             .expect("visible movement-set command");
-        let wow_network::SessionCommand::SendIfVisibleLikeCpp(command) = command else {
+        let crate::session::mailbox::SessionCommand::SendIfVisibleLikeCpp(command) = command else {
             panic!("expected SendIfVisibleLikeCpp move-skip-time command");
         };
         assert_eq!(command.source_guid, guid);

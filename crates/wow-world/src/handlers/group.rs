@@ -6,6 +6,10 @@
 //! Handlers for Group/Party opcodes: PartyInvite, PartyInviteResponse, LeaveGroup.
 
 use crate::session::directory::{PlayerRegistration, PlayerRegistry};
+use crate::session::mailbox::{
+    ApplyGroupJoinLikeCppCommand, ApplyGroupRemovalLikeCppCommand, SendPartyUpdateLikeCppCommand,
+    SendRealmPacketLikeCppCommand, SessionCommand,
+};
 use rand::Rng;
 use std::time::Duration;
 use tracing::{info, warn};
@@ -13,8 +17,6 @@ use wow_constants::ClientOpcodes;
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_database::{CharStatements, PreparedStatement, StatementDef};
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_network::player_registry::{ApplyGroupJoinLikeCppCommand, ApplyGroupRemovalLikeCppCommand};
-use wow_network::{SendPartyUpdateLikeCppCommand, SendRealmPacketLikeCppCommand, SessionCommand};
 use wow_packet::packets::misc::{RandomRoll, RandomRollClient};
 use wow_packet::packets::party::{
     ClearRaidMarker, DoReadyCheck, GroupDecline, GroupNewLeader, GroupUninvite, InitiateRolePoll,
@@ -919,7 +921,7 @@ async fn queue_visible_gameobjects_or_spellclicks_refresh_like_cpp(
         match registry
             .send_current_command_timeout(
                 member.registration,
-                wow_network::SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp,
+                crate::session::mailbox::SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp,
                 PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP,
             )
             .await
@@ -1095,13 +1097,13 @@ pub(crate) fn group_persistence_statement_like_cpp(
             difficulty_id,
         } => {
             let statement = match kind {
-                wow_network::player_registry::GroupDifficultyKindLikeCpp::Dungeon => {
+                wow_social::group::GroupDifficultyKindLikeCpp::Dungeon => {
                     CharStatements::UPD_GROUP_DIFFICULTY
                 }
-                wow_network::player_registry::GroupDifficultyKindLikeCpp::Raid => {
+                wow_social::group::GroupDifficultyKindLikeCpp::Raid => {
                     CharStatements::UPD_GROUP_RAID_DIFFICULTY
                 }
-                wow_network::player_registry::GroupDifficultyKindLikeCpp::LegacyRaid => {
+                wow_social::group::GroupDifficultyKindLikeCpp::LegacyRaid => {
                     CharStatements::UPD_GROUP_LEGACY_RAID_DIFFICULTY
                 }
             };
@@ -2031,7 +2033,7 @@ impl WorldSession {
             let _ = registry.try_send_current_command(
                 target.registration,
                 SessionCommand::ApplyGroupSubgroupLikeCpp(
-                    wow_network::player_registry::ApplyGroupSubgroupLikeCppCommand {
+                    crate::session::mailbox::ApplyGroupSubgroupLikeCppCommand {
                         group_guid,
                         subgroup: new_subgroup,
                     },
@@ -2100,7 +2102,7 @@ impl WorldSession {
                 let _ = registry.try_send_current_command(
                     member.registration,
                     SessionCommand::ApplyGroupSubgroupLikeCpp(
-                        wow_network::player_registry::ApplyGroupSubgroupLikeCppCommand {
+                        crate::session::mailbox::ApplyGroupSubgroupLikeCppCommand {
                             group_guid,
                             subgroup,
                         },
