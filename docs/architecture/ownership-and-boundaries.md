@@ -327,6 +327,21 @@ logical monolith: its registrations, behavior, and tests now live in private cap
 under `handlers/misc/`, while `misc/mod.rs` is a 164-line compatibility facade for shared packet
 types, constants, and narrow helpers. Every production capability file is below 700 lines.
 
+Issue #226 does the same for the canonical entities. `wow-entities/src/player.rs` (9,268 lines)
+becomes `player/` with `identity`, `location`, `vitals`, `powers`-in-`vitals`, `progression`,
+`collections`, `social`, `spellbook`, `visibility` and an `inventory/` subtree split into
+`storage`, `equipment` and `enchantment`, because inventory alone was 4,253 lines. The former
+7,071-line `unit_subsystems.rs` becomes `unit_subsystems/` with `aura`, `spell`, `combat`,
+`threat`, `movement` and `control`, plus its 2,249-line inline test module extracted to
+`tests.rs`. `Player` and `Unit` remain single types with single semantic owners: no storage
+location, writer, mirror or runtime clock changed.
+
+The suggested target shape named the subsystem directory `unit/`, which would have required
+folding the separate 4,178-line `unit.rs` entity into it. That merge produced duplicate imports
+and privately re-exported subsystem types, so the directory is `unit_subsystems/` and `unit.rs`
+keeps its own module — a naming deviation, not a scope reduction, and one that leaves the Unit
+entity untouched.
+
 Issue #225 gives the two map runtimes the same treatment. `wow-map/src/map.rs` (15,250 lines)
 becomes `map/` with eight private modules — `update`, `storage`, `visibility`, `spawn_groups`,
 `respawn`, `relocation`, `game_object`, `scripts_weather` — and `wow-world/src/map_manager.rs`
