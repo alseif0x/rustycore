@@ -1,0 +1,383 @@
+#!/usr/bin/env python3
+"""RustyCore trusted module manager (issue #230).
+
+Non-interactive by design: every command works identically from a shell, a
+script or an agent, never prompts, and can emit stable JSON with `--json`.
+
+Commands
+--------
+  new       scaffold a module from the official skeleton
+  install   register a local path or Git source as a checkout
+  update    refresh a Git checkout to its pinned or requested ref
+  remove    delete exactly one validated checkout
+  list      report installed modules
+  sync      regenerate modules.lock.toml and the compositor
+  check     verify the tree matches the lock without writing
+  build     cargo build the composed server
+  test      cargo test the composed server and its modules
+  doctor    diagnose the installation
+
+Exit codes
+----------
+  0  success
+  1  usage or validation error
+  2  requested module not found
+  3  source or network error
+  4  refused: dirty or conflicting checkout
+
+Only `install` and `update` may touch the network, and neither ever executes a
+script from the fetched repository.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+import pathlib
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import compose  # noqa: E402
+
+REPO_ROOT = compose.REPO_ROOT
+MODULES_DIR = compose.MODULES_DIR
+SKELETON = pathlib.Path(__file__).resolve().parent / "skeleton"
+
+EXIT_OK, EXIT_USAGE, EXIT_NOT_FOUND, EXIT_SOURCE, EXIT_DIRTY = 0, 1, 2, 3, 4
+
+
+class CliError(Exception):
+    def __init__(self, message: str, code: int = EXIT_USAGE):
+        super().__init__(message)
+        self.code = code
+
+
+def emit(as_json: bool, payload: dict, human: str) -> None:
+    print(json.dumps(payload, indent=2, sort_keys=True) if as_json else human)
+
+
+def _git(args: list[str], cwd: pathlib.Path) -> str:
+    result = subprocess.run(
+        ["git", *args], cwd=cwd, capture_output=True, text=True, check=False
+    )
+    if result.returncode != 0:
+        raise CliError(f"git {' '.join(args)} failed: {result.stderr.strip()}", EXIT_SOURCE)
+    return result.stdout.strip()
+
+
+def _checkout(name: str) -> pathlib.Path:
+    target = (MODULES_DIR / name).resolve()
+    if not target.is_relative_to(MODULES_DIR.resolve()):
+        raise CliError(f"{name!r} escapes the modules directory")
+    return target
+
+
+def _installed() -> list[dict]:
+    return compose.ordered(compose.read_modules())
+
+
+# ---------------------------------------------------------------- commands
+def cmd_new(args) -> int:
+    module_id = args.id
+    if not compose.ID_RE.match(module_id):
+        raise CliError(f"invalid module id {module_id!r}")
+    directory = args.dir or module_id.replace(".", "_")
+    target = _checkout(directory)
+    if target.exists():
+        raise CliError(f"{target.relative_to(REPO_ROOT)} already exists", EXIT_DIRTY)
+
+    package = args.package or module_id.replace(".", "-").replace("_", "-")
+    if not compose.PACKAGE_RE.match(package):
+        raise CliError(f"invalid package name {package!r}")
+    crate = package.replace("-", "_")
+    display = args.display_name or module_id
+
+    substitutions = {
+        "__MODULE_ID__": module_id,
+        "__MODULE_PACKAGE__": package,
+        "__MODULE_CRATE__": crate,
+        "__MODULE_DISPLAY__": display,
+        "__MODULE_DIR__": directory,
+    }
+    for source in sorted(p for p in SKELETON.rglob("*") if p.is_file()):
+        relative = str(source.relative_to(SKELETON))
+        for needle, value in substitutions.items():
+            relative = relative.replace(needle, value)
+        destination = target / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        body = source.read_text(encoding="utf-8")
+        for needle, value in substitutions.items():
+            body = body.replace(needle, value)
+        destination.write_text(body, encoding="utf-8")
+
+    emit(
+        args.json,
+        {"command": "new", "id": module_id, "path": str(target.relative_to(REPO_ROOT))},
+        f"created {target.relative_to(REPO_ROOT)} for module {module_id}",
+    )
+    return EXIT_OK
+
+
+def cmd_install(args) -> int:
+    if bool(args.path) == bool(args.git):
+        raise CliError("exactly one of --path or --git is required")
+
+    if args.path:
+        source = pathlib.Path(args.path).resolve()
+        if not (source / "module.toml").is_file():
+            raise CliError(f"{args.path} has no module.toml", EXIT_NOT_FOUND)
+        directory = args.dir or source.name
+        target = _checkout(directory)
+        if target.exists():
+            raise CliError(f"{target.relative_to(REPO_ROOT)} already exists", EXIT_DIRTY)
+        if source != target:
+            shutil.copytree(source, target)
+        origin, resolved = str(source), ""
+    else:
+        directory = args.dir or args.git.rstrip("/").rsplit("/", 1)[-1].removesuffix(".git")
+        target = _checkout(directory)
+        if target.exists():
+            raise CliError(f"{target.relative_to(REPO_ROOT)} already exists", EXIT_DIRTY)
+        MODULES_DIR.mkdir(parents=True, exist_ok=True)
+        clone = ["clone", "--quiet"]
+        if args.ref:
+            clone += ["--branch", args.ref]
+        _git([*clone, args.git, str(target)], REPO_ROOT)
+        if args.commit:
+            _git(["checkout", "--quiet", args.commit], target)
+        origin, resolved = args.git, _git(["rev-parse", "HEAD"], target)
+
+    try:
+        manifest = compose.parse_manifest(target, target / "module.toml")
+    except compose.ComposeError as error:
+        shutil.rmtree(target, ignore_errors=True)
+        raise CliError(str(error)) from error
+    _pin(target, args.ref or "", resolved)
+    try:
+        compose.reject_collisions(compose.read_modules())
+    except compose.ComposeError as error:
+        shutil.rmtree(target, ignore_errors=True)
+        raise CliError(str(error)) from error
+
+    emit(
+        args.json,
+        {
+            "command": "install",
+            "id": manifest["id"],
+            "path": str(target.relative_to(REPO_ROOT)),
+            "source": origin,
+            "resolved_commit": resolved,
+        },
+        f"installed {manifest['id']} into {target.relative_to(REPO_ROOT)}",
+    )
+    return EXIT_OK
+
+
+def _pin(target: pathlib.Path, requested_ref: str, commit: str) -> None:
+    """Record the requested ref and resolved commit in the checkout manifest."""
+    if not (requested_ref or commit):
+        return
+    manifest = target / "module.toml"
+    body = manifest.read_text(encoding="utf-8")
+    lines = []
+    for line in body.split("\n"):
+        if line.startswith(("ref = ", "commit = ")):
+            continue
+        lines.append(line)
+        if line.strip().startswith("id = "):
+            if requested_ref:
+                lines.append(f'ref = "{requested_ref}"')
+            if commit:
+                lines.append(f'commit = "{commit}"')
+    manifest.write_text("\n".join(lines), encoding="utf-8")
+
+
+def cmd_update(args) -> int:
+    target = _checkout(args.id_or_dir)
+    if not (target / "module.toml").is_file():
+        raise CliError(f"{args.id_or_dir} is not an installed checkout", EXIT_NOT_FOUND)
+    if not (target / ".git").exists():
+        raise CliError(f"{args.id_or_dir} is a local path install; nothing to update", EXIT_SOURCE)
+    if _git(["status", "--porcelain"], target):
+        raise CliError(f"{args.id_or_dir} has local modifications; refusing to update", EXIT_DIRTY)
+
+    _git(["fetch", "--quiet", "origin"], target)
+    wanted = args.commit or args.ref
+    if wanted:
+        _git(["checkout", "--quiet", wanted], target)
+    resolved = _git(["rev-parse", "HEAD"], target)
+    _pin(target, args.ref or "", resolved)
+    manifest = compose.parse_manifest(target, target / "module.toml")
+    emit(
+        args.json,
+        {"command": "update", "id": manifest["id"], "resolved_commit": resolved},
+        f"updated {manifest['id']} to {resolved}",
+    )
+    return EXIT_OK
+
+
+def cmd_remove(args) -> int:
+    modules = compose.read_modules()
+    matches = [
+        m for m in modules
+        if m["id"] == args.id_or_dir
+        or pathlib.Path(m["source_path"]).name == args.id_or_dir
+    ]
+    if not matches:
+        raise CliError(f"no installed module matches {args.id_or_dir!r}", EXIT_NOT_FOUND)
+    if len(matches) > 1:
+        raise CliError(f"{args.id_or_dir!r} matches several checkouts; use the directory name")
+    target = _checkout(pathlib.Path(matches[0]["source_path"]).name)
+    shutil.rmtree(target)
+    emit(
+        args.json,
+        {"command": "remove", "id": matches[0]["id"]},
+        f"removed {matches[0]['id']}",
+    )
+    return EXIT_OK
+
+
+def cmd_list(args) -> int:
+    modules = _installed()
+    emit(
+        args.json,
+        {"command": "list", "modules": modules},
+        "\n".join(
+            f"{i}. {m['id']} {m['version']} ({m['source_path']})"
+            for i, m in enumerate(modules)
+        )
+        or "no modules installed",
+    )
+    return EXIT_OK
+
+
+def cmd_sync(args) -> int:
+    modules = compose.sync(quiet=args.json)
+    if args.json:
+        emit(True, {"command": "sync", "modules": compose.ordered(modules)}, "")
+    return EXIT_OK
+
+
+def cmd_check(args) -> int:
+    modules = compose.check(quiet=args.json)
+    if args.json:
+        emit(True, {"command": "check", "modules": compose.ordered(modules)}, "")
+    return EXIT_OK
+
+
+def _cargo(args, extra: list[str], label: str) -> int:
+    command = ["cargo", *extra]
+    result = subprocess.run(command, cwd=REPO_ROOT, check=False)
+    if result.returncode != 0:
+        raise CliError(f"{label} failed", EXIT_SOURCE)
+    emit(args.json, {"command": label, "status": "ok"}, f"{label} succeeded")
+    return EXIT_OK
+
+
+def cmd_build(args) -> int:
+    compose.check(quiet=args.json)
+    return _cargo(args, ["build", "-p", "world-modules"], "build")
+
+
+def cmd_test(args) -> int:
+    compose.check(quiet=args.json)
+    packages = [arg for m in _installed() for arg in ("-p", m["package"])]
+    return _cargo(args, ["test", *packages] if packages else ["test", "-p", "wow-module-api"], "test")
+
+
+def cmd_doctor(args) -> int:
+    findings: list[str] = []
+    modules = compose.read_modules()
+    if not MODULES_DIR.is_dir():
+        findings.append("modules/ does not exist; nothing is installed")
+    for m in modules:
+        checkout = REPO_ROOT / pathlib.Path(m["source_path"])
+        if (checkout / ".git").exists() and _git(["status", "--porcelain"], checkout):
+            findings.append(f"{m['id']}: checkout has local modifications")
+        if not (REPO_ROOT / "Cargo.toml").read_text(encoding="utf-8").count(m["source_path"]):
+            findings.append(
+                f"{m['id']}: {m['source_path']} is not a workspace member; add it to Cargo.toml"
+            )
+    try:
+        compose.check(quiet=True)
+    except compose.ComposeError as error:
+        findings.append(str(error).splitlines()[0])
+    emit(
+        args.json,
+        {"command": "doctor", "modules": len(modules), "findings": findings},
+        "\n".join(findings) or f"healthy: {len(modules)} module(s) installed and composed",
+    )
+    return EXIT_OK if not findings else EXIT_USAGE
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="rustycore-module", description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--json", action="store_true", help="emit stable JSON")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    def add(name: str, help_text: str) -> argparse.ArgumentParser:
+        child = sub.add_parser(name, help=help_text)
+        child.add_argument("--json", action="store_true", help="emit stable JSON")
+        return child
+
+    new = add("new", "scaffold a module")
+    new.add_argument("id")
+    new.add_argument("--dir")
+    new.add_argument("--package")
+    new.add_argument("--display-name")
+    new.set_defaults(func=cmd_new)
+
+    install = add("install", "install a local or Git module")
+    install.add_argument("--path")
+    install.add_argument("--git")
+    install.add_argument("--ref")
+    install.add_argument("--commit")
+    install.add_argument("--dir")
+    install.set_defaults(func=cmd_install)
+
+    update = add("update", "update a Git checkout")
+    update.add_argument("id_or_dir")
+    update.add_argument("--ref")
+    update.add_argument("--commit")
+    update.set_defaults(func=cmd_update)
+
+    remove = add("remove", "remove one checkout")
+    remove.add_argument("id_or_dir")
+    remove.set_defaults(func=cmd_remove)
+
+    for name, func, help_text in (
+        ("list", cmd_list, "list installed modules"),
+        ("sync", cmd_sync, "regenerate the lock and compositor"),
+        ("check", cmd_check, "verify the tree matches the lock"),
+        ("build", cmd_build, "build the composed server"),
+        ("test", cmd_test, "test the composed server and its modules"),
+        ("doctor", cmd_doctor, "diagnose the installation"),
+    ):
+        add(name, help_text).set_defaults(func=func)
+    return parser
+
+
+def main() -> int:
+    args = build_parser().parse_args()
+    try:
+        return args.func(args)
+    except CliError as error:
+        payload = {"command": args.command, "error": str(error), "exit_code": error.code}
+        if args.json:
+            print(json.dumps(payload, indent=2, sort_keys=True), file=sys.stderr)
+        else:
+            print(f"rustycore-module: {error}", file=sys.stderr)
+        return error.code
+    except compose.ComposeError as error:
+        if args.json:
+            print(json.dumps({"command": args.command, "error": str(error),
+                              "exit_code": EXIT_USAGE}, indent=2, sort_keys=True), file=sys.stderr)
+        else:
+            print(f"rustycore-module: {error}", file=sys.stderr)
+        return EXIT_USAGE
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

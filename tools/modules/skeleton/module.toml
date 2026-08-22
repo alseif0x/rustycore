@@ -1,0 +1,12 @@
+[module]
+id = "__MODULE_ID__"
+version = "0.1.0"
+display_name = "__MODULE_DISPLAY__"
+
+[build]
+package = "__MODULE_PACKAGE__"
+crate_path = "."
+registrar = "__MODULE_CRATE__::register"
+
+[compatibility]
+source_api = "1"

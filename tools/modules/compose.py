@@ -219,18 +219,21 @@ async fn main() -> Result<ExitCode> {{
 '''
 
 
-def sync() -> int:
+def sync(quiet: bool = False) -> list[dict]:
+    """Regenerate the lock and compositor. Returns the composed modules."""
     modules = read_modules()
     COMPOSITOR.joinpath("src").mkdir(parents=True, exist_ok=True)
     LOCK_PATH.write_text(render_lock(modules), encoding="utf-8")
     COMPOSITOR.joinpath("Cargo.toml").write_text(render_manifest(modules), encoding="utf-8")
     COMPOSITOR.joinpath("src/main.rs").write_text(render_main(modules), encoding="utf-8")
-    names = ", ".join(m["id"] for m in ordered(modules)) or "none"
-    print(f"composed {len(modules)} module(s): {names}")
-    return 0
+    if not quiet:
+        names = ", ".join(m["id"] for m in ordered(modules)) or "none"
+        print(f"composed {len(modules)} module(s): {names}")
+    return modules
 
 
-def check() -> int:
+def check(quiet: bool = False) -> list[dict]:
+    """Verify the tree matches the lock. Returns the composed modules."""
     modules = read_modules()
     stale = [
         name
@@ -246,8 +249,9 @@ def check() -> int:
             "composition is stale; run `python3 tools/modules/compose.py sync`:\n  "
             + "\n  ".join(stale)
         )
-    print(f"composition is current for {len(modules)} module(s)")
-    return 0
+    if not quiet:
+        print(f"composition is current for {len(modules)} module(s)")
+    return modules
 
 
 def main() -> int:
@@ -255,7 +259,8 @@ def main() -> int:
     parser.add_argument("command", choices=("sync", "check"))
     args = parser.parse_args()
     try:
-        return sync() if args.command == "sync" else check()
+        sync() if args.command == "sync" else check()
+        return 0
     except ComposeError as error:
         print(f"module composition failed: {error}", file=sys.stderr)
         return 1

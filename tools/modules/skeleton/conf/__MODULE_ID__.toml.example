@@ -1,0 +1,5 @@
+# Example configuration for __MODULE_DISPLAY__.
+#
+# Typed module configuration is issue #231; nothing reads this file yet.
+# Copy it next to your server configuration and edit as needed.
+enabled = true
