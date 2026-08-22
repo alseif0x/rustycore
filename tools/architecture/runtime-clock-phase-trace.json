@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "purpose": "Reviewed inventory of every runtime clock and its phase ownership, recorded by issue #188 before any convergence changes scheduling. It is a description of the code as it stands, not a target.",
+  "validation_contract": [
+    "every clock names a real source file and function that exist in the workspace",
+    "every clock states its cadence source, its diff source and whether it is production or diagnostic",
+    "no clock claims to deliver packets or await while holding a map guard",
+    "each clock's resolution guard names the mechanism that stops a second owner resolving the same transition",
+    "each regression anchor names a test function that exists"
+  ],
+  "clocks": [
+    {
+      "id": "world_update",
+      "source": "crates/world-server/src/lib.rs",
+      "entry": "world_update_loop_step_like_cpp",
+      "cpp_anchor": "World::Update",
+      "availability": "production",
+      "cadence": "configured world update interval",
+      "diff_source": "measured elapsed wall clock",
+      "owns": ["world-level timers and the configured periodic work C++ drives from World::Update"],
+      "delivers_under_map_guard": false,
+      "resolution_guard": "single spawned task; no second owner drives world-level timers",
+      "regression_anchors": ["world_update_loop_step_matches_cpp_timing_contract"]
+    },
+    {
+      "id": "canonical_map_update",
+      "source": "crates/world-server/src/runtime/map.rs",
+      "entry": "spawn_canonical_map_update_loop",
+      "cpp_anchor": "MapManager::Update -> Map::Update",
+      "availability": "production",
+      "cadence": "configured map update interval, MissedTickBehavior::Delay",
+      "diff_source": "measured elapsed wall clock, clamped to u32, zero-diff ticks skipped",
+      "owns": ["canonical grid/spawn/respawn phases", "area-trigger sweep", "canonical game events", "respawn condition scheduling"],
+      "delivers_under_map_guard": false,
+      "delivery_note": "recipients and packets are collected inside the guarded block and delivered after the map lock is released",
+      "resolution_guard": "canonical Map::Update dispatches no AI/combat side effects, so it cannot double-resolve a legacy creature transition",
+      "regression_anchors": ["canonical_map_update_visits_creature_with_no_real_ai_combat_effect_like_cpp"]
+    },
+    {
+      "id": "legacy_creature_runtime",
+      "source": "crates/world-server/src/runtime/delivery.rs",
+      "entry": "spawn_legacy_creature_runtime_update_loop_like_cpp",
+      "cpp_anchor": "Map::Update creature frame: Unit -> threat -> AI -> melee",
+      "availability": "production",
+      "cadence": "configured map update interval, MissedTickBehavior::Delay",
+      "diff_source": "measured elapsed wall clock; the constant interval was a real defect corrected by M2.3",
+      "owns": ["legacy creature lifecycle", "movement and spline launch", "aggro and threat", "spell", "melee", "respawn"],
+      "delivers_under_map_guard": false,
+      "delivery_note": "each run_legacy_creature_*_and_deliver_once_like_cpp bridge collects outcomes under the lock and delivers once after release",
+      "resolution_guard": "RuntimeTickOwner: the loop only resolves when the owner is GlobalLegacy, and session ticks read the same shared owner and skip",
+      "regression_anchors": ["two_sessions_sharing_legacy_map_manager_see_same_creature_state"]
+    },
+    {
+      "id": "group_ready_check",
+      "source": "crates/world-server/src/runtime/map.rs",
+      "entry": "spawn_group_ready_check_tick_loop",
+      "cpp_anchor": "Group::UpdateReadyCheck",
+      "availability": "production",
+      "cadence": "its own configured interval",
+      "diff_source": "loop interval",
+      "owns": ["ready-check expiry for every active group"],
+      "delivers_under_map_guard": false,
+      "delivery_note": "tick_all_group_ready_checks_like_cpp returns events; fanout happens outside any Group or Map guard",
+      "resolution_guard": "single spawned task; the Group owner exposes one tick entry point",
+      "regression_anchors": []
+    },
+    {
+      "id": "realm_list_update",
+      "source": "crates/world-server/src/lib.rs",
+      "entry": "spawn_realm_list_update_loop_like_cpp",
+      "cpp_anchor": "RealmList::UpdateRealms",
+      "availability": "production",
+      "cadence": "its own configured interval",
+      "diff_source": "loop interval",
+      "owns": ["realm list refresh"],
+      "delivers_under_map_guard": false,
+      "resolution_guard": "single spawned task; touches no map or creature state",
+      "regression_anchors": []
+    },
+    {
+      "id": "db_keepalive",
+      "source": "crates/world-server/src/lib.rs",
+      "entry": "spawn_db_keepalive_loop_like_cpp",
+      "cpp_anchor": "DatabaseWorkerPool keepalive",
+      "availability": "production",
+      "cadence": "its own configured interval",
+      "diff_source": "loop interval",
+      "owns": ["database connection keepalive"],
+      "delivers_under_map_guard": false,
+      "resolution_guard": "single spawned task; touches no gameplay state",
+      "regression_anchors": []
+    },
+    {
+      "id": "session_creature_tick",
+      "source": "crates/wow-world/src/session/mod.rs",
+      "entry": "WorldSession update driver",
+      "cpp_anchor": "none: C++ has no session-driven creature frame",
+      "availability": "diagnostic",
+      "cadence": "driven by the owning session task",
+      "diff_source": "session update diff",
+      "owns": ["nothing in production"],
+      "delivers_under_map_guard": false,
+      "resolution_guard": "RuntimeTickOwner::Session; production startup sets GlobalLegacy so this path is inert unless the diagnostic config override selects it",
+      "regression_anchors": ["two_sessions_sharing_legacy_map_manager_see_same_creature_state"]
+    }
+  ],
+  "tick_owner": {
+    "type": "wow_world::map_manager::RuntimeTickOwner",
+    "constructed_default": "Session",
+    "production_default": "GlobalLegacy",
+    "production_default_source": "crates/world-server/src/bootstrap/config.rs::legacy_creature_global_runtime_enabled_from_config_like_cpp",
+    "production_default_mechanism": "RustyCore.LegacyCreatureGlobalRuntime is read as u8 and defaults to enabled when absent (unwrap_or(true)); app startup then calls set_tick_owner(GlobalLegacy)",
+    "note": "The constructed default and the production default deliberately differ: MapManager::new is used by tests and by the diagnostic path, while production always overrides it at startup. Setting the config key to 0 restores the session-owned diagnostic path."
+  }
+}

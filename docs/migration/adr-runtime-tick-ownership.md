@@ -1767,7 +1767,8 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   experimental production loop wrapper `spawn_legacy_creature_runtime_update_loop_like_cpp`. The
   test flips the legacy owner to `GlobalLegacy`, runs the loop with a 1ms interval, observes a real
   `SendIfVisibleLikeCpp` `OnMonsterMove` command through `PlayerRegistry`, verifies canonical
-  creature sync, and aborts the forever task. Production remains default-off; startup logs include
+  creature sync, and aborts the forever task. Production was default-off when this entry was
+  written; it is default-**on** today, see the #188 entry at the end. Startup logs include
   the map-update interval when `RustyCore.LegacyCreatureGlobalRuntime` is enabled. This advances
   manual-test readiness but does not mark 4B.2 complete until the server is actually run with a
   client.
@@ -1924,3 +1925,29 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
 - `crates/world-server/src/main.rs` — both managers + `spawn_canonical_map_update_loop`.
 - C++: `World.cpp:2748` (`sMapMgr->Update`), `Map.cpp:666` (`Map::Update` phase order).
 - `docs/migration/honest-progress-audit.md`, `crates/wow-world/_attic/README.md` (big-bang lesson).
+
+## 2026-08-22 — Issue #188: the recorded clock/phase trace and the tick-owner default
+
+The historical entries above disagree with the code about whether the global legacy creature
+runtime is on. They are dated notes, so they are corrected in place rather than rewritten: the
+2026-05-30 entry said "Production remains default-off", and that was true when written.
+
+The current default, read from code rather than from any note:
+
+- `MapManager::new` constructs `RuntimeTickOwner::Session`
+  (`crates/wow-world/src/map_manager/runtime.rs`). Tests and the diagnostic path get that value.
+- Production never keeps it. `legacy_creature_global_runtime_enabled_from_config_like_cpp`
+  (`crates/world-server/src/bootstrap/config.rs`) reads `RustyCore.LegacyCreatureGlobalRuntime`
+  and **defaults to enabled when the key is absent** — `unwrap_or(true)` — after which startup
+  calls `set_tick_owner(GlobalLegacy)`.
+- So a stock server runs the global legacy creature loop. Setting the key to `0` restores the
+  session-owned diagnostic path.
+
+The two defaults differ deliberately, and that is not the contradiction; the contradiction was
+claiming the *production* default was off.
+
+Issue #188 records the full inventory in
+[`tools/architecture/runtime-clock-phase-trace.json`](../../tools/architecture/runtime-clock-phase-trace.json),
+described in [`runtime-clock-phase-trace.md`](../architecture/runtime-clock-phase-trace.md), and
+`check_architecture.py check` proves that inventory stays truthful. No clock, cadence, phase order
+or bridge was changed by that issue: it is a trace taken before convergence, as its scope requires.
