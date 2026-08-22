@@ -28440,45 +28440,6 @@ impl WorldSession {
         }
     }
 
-    /// Save current player gold to the characters DB.
-    pub(crate) async fn save_player_gold(&mut self) {
-        let Some(money_persistence) = self
-            .begin_exclusive_player_money_persistence_like_cpp()
-            .await
-        else {
-            return;
-        };
-        let guid = match self.player_guid() {
-            Some(g) => g.counter() as u64,
-            None => return,
-        };
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
-            None => return,
-        };
-        let money = self.player_gold_like_cpp();
-        let mut transaction = SqlTransaction::new();
-        transaction.append(Self::build_character_gold_save_statement_like_cpp(
-            money, guid,
-        ));
-        // For an absolute one-column save the pre-transaction durable value is
-        // unknown. Pass equal sentinels so any lost COMMIT reply is quarantined
-        // instead of guessing from a coincidentally equal row.
-        let money_persistence = self
-            .commit_exclusive_player_money_transaction_like_cpp(
-                money_persistence,
-                char_db.as_ref(),
-                transaction,
-                money,
-                money,
-                "absolute player-money save",
-            )
-            .await;
-        drop(money_persistence);
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
-    }
-
     /// Persist an explicit player-money value and surface database failures to
     /// callers that must not expose a loot payout before it is durable.
     ///
@@ -29677,19 +29638,6 @@ impl WorldSession {
         )
     }
 
-    async fn save_player_health_like_cpp(&self, snapshot: &PlayerSaveToDbSnapshotLikeCpp) {
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
-            return;
-        };
-        let stmt = Self::build_character_health_save_statement_from_snapshot_like_cpp(snapshot);
-        if let Err(err) = char_db.execute(&stmt).await {
-            warn!(
-                "Failed to save represented player health for guid {}: {err}",
-                snapshot.guid.counter()
-            );
-        }
-    }
-
     fn build_character_powers_save_statement_like_cpp(
         powers: [i32; 10],
         guid_counter: u64,
@@ -29711,40 +29659,6 @@ impl WorldSession {
         ))
     }
 
-    async fn save_player_powers_like_cpp(&self, snapshot: &PlayerSaveToDbSnapshotLikeCpp) {
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
-            return;
-        };
-        let Some(stmt) =
-            Self::build_character_powers_save_statement_from_snapshot_like_cpp(snapshot)
-        else {
-            if std::env::var_os("RUSTYCORE_SPELL_POWER_TRACE").is_some() {
-                info!(
-                    guid = ?snapshot.guid,
-                    "RUST_PLAYER_POWER_SAVE skipped: no authoritative canonical power snapshot"
-                );
-            }
-            return;
-        };
-        match char_db.execute(&stmt).await {
-            Ok(_) => {
-                if std::env::var_os("RUSTYCORE_SPELL_POWER_TRACE").is_some() {
-                    info!(
-                        guid = ?snapshot.guid,
-                        powers = ?snapshot.powers,
-                        "RUST_PLAYER_POWER_SAVE"
-                    );
-                }
-            }
-            Err(err) => {
-                warn!(
-                    "Failed to save represented player powers for guid {}: {err}",
-                    snapshot.guid.counter()
-                );
-            }
-        }
-    }
-
     fn build_character_level_xp_save_statement_like_cpp(
         level: u8,
         xp: u32,
@@ -29755,21 +29669,6 @@ impl WorldSession {
         stmt.set_u32(1, xp);
         stmt.set_u64(2, guid_counter);
         stmt
-    }
-
-    async fn save_player_level_xp_like_cpp(&self) {
-        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
-        else {
-            return;
-        };
-        let stmt = Self::build_character_level_xp_save_statement_like_cpp(
-            self.player_level_like_cpp(),
-            self.player_xp_like_cpp(),
-            guid.counter() as u64,
-        );
-        if let Err(err) = char_db.execute(&stmt).await {
-            warn!("Failed to save level/xp for guid {}: {err}", guid.counter());
-        }
     }
 
     fn build_character_talent_reset_state_save_statement_like_cpp(
@@ -29785,24 +29684,6 @@ impl WorldSession {
         stmt
     }
 
-    async fn save_player_talent_reset_state_like_cpp(&self) {
-        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
-        else {
-            return;
-        };
-        let stmt = Self::build_character_talent_reset_state_save_statement_like_cpp(
-            self.represented_talent_reset_cost_like_cpp,
-            self.represented_talent_reset_time_secs_like_cpp,
-            guid.counter() as u64,
-        );
-        if let Err(err) = char_db.execute(&stmt).await {
-            warn!(
-                "Failed to save represented talent reset state for guid {}: {err}",
-                guid.counter()
-            );
-        }
-    }
-
     fn build_character_explored_zones_save_statement_like_cpp(
         explored_zones: String,
         guid_counter: u64,
@@ -29811,25 +29692,6 @@ impl WorldSession {
         stmt.set_string(0, explored_zones);
         stmt.set_u64(1, guid_counter);
         stmt
-    }
-
-    async fn save_player_explored_zones_like_cpp(&mut self) {
-        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
-        else {
-            return;
-        };
-
-        self.sync_represented_explored_zones_from_canonical_like_cpp();
-        let stmt = Self::build_character_explored_zones_save_statement_like_cpp(
-            self.represented_explored_zones_db_string_like_cpp(),
-            guid.counter() as u64,
-        );
-        if let Err(err) = char_db.execute(&stmt).await {
-            warn!(
-                "Failed to save represented explored zones for guid {}: {err}",
-                guid.counter()
-            );
-        }
     }
 
     fn build_character_position_save_statement_like_cpp(
@@ -29917,59 +29779,6 @@ impl WorldSession {
             level_time,
             guid_counter,
         )
-    }
-
-    async fn save_player_position_like_cpp(&self, snapshot: &PlayerSaveToDbSnapshotLikeCpp) {
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
-            return;
-        };
-
-        let stmt = Self::build_character_position_save_statement_from_snapshot_like_cpp(
-            snapshot,
-            self.player_zone_id_like_cpp as u32,
-        );
-        match char_db.execute(&stmt).await {
-            Ok(0) => {
-                warn!(
-                    guid = snapshot.guid.counter(),
-                    map_id = snapshot.map_id,
-                    instance_id = snapshot.instance_id,
-                    zone_id = self.player_zone_id_like_cpp,
-                    x = snapshot.position.x,
-                    y = snapshot.position.y,
-                    z = snapshot.position.z,
-                    orientation = snapshot.position.orientation,
-                    "Player::SaveToDB represented position save affected zero rows"
-                );
-            }
-            Ok(rows) => {
-                info!(
-                    guid = snapshot.guid.counter(),
-                    rows,
-                    map_id = snapshot.map_id,
-                    instance_id = snapshot.instance_id,
-                    zone_id = self.player_zone_id_like_cpp,
-                    x = snapshot.position.x,
-                    y = snapshot.position.y,
-                    z = snapshot.position.z,
-                    orientation = snapshot.position.orientation,
-                    "Player::SaveToDB represented position saved"
-                );
-            }
-            Err(err) => {
-                warn!(
-                    guid = snapshot.guid.counter(),
-                    map_id = snapshot.map_id,
-                    instance_id = snapshot.instance_id,
-                    zone_id = self.player_zone_id_like_cpp,
-                    x = snapshot.position.x,
-                    y = snapshot.position.y,
-                    z = snapshot.position.z,
-                    orientation = snapshot.position.orientation,
-                    "Failed to save player position: {err}"
-                );
-            }
-        }
     }
 
     fn current_player_save_to_db_statement_plan_like_cpp(
@@ -32426,310 +32235,6 @@ impl WorldSession {
                 equipment_set.state = RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged;
                 true
             });
-    }
-
-    async fn save_player_skills_like_cpp(&self) {
-        if !self.has_complete_player_skill_save_authority_like_cpp() {
-            warn!(
-                account = self.account_id,
-                player_guid = ?self.player_guid(),
-                "Skipping represented player skill save because complete character_skills slot authority is unavailable"
-            );
-            return;
-        }
-
-        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
-        else {
-            return;
-        };
-
-        let mut tx = SqlTransaction::new();
-        for statement in self.character_skill_save_statements_like_cpp(guid.counter() as u64) {
-            tx.append(statement);
-        }
-        if let Err(err) = char_db.commit_transaction(tx).await {
-            warn!(
-                "Failed to save represented player skills for guid {}: {err}",
-                guid.counter()
-            );
-        }
-    }
-
-    async fn save_player_action_buttons_like_cpp(&self) {
-        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
-        else {
-            return;
-        };
-
-        let Some(statements) =
-            self.character_action_button_save_statements_like_cpp(guid.counter() as u64)
-        else {
-            warn!(
-                account = self.account_id,
-                player_guid = ?self.player_guid(),
-                "Skipping represented player action-button save because character_action was not loaded coherently"
-            );
-            return;
-        };
-
-        let mut tx = SqlTransaction::new();
-        for statement in statements {
-            tx.append(statement);
-        }
-        if let Err(err) = char_db.commit_transaction(tx).await {
-            warn!(
-                "Failed to save represented player action buttons for guid {}: {err}",
-                guid.counter()
-            );
-        }
-    }
-
-    async fn save_player_glyphs_like_cpp(&self) {
-        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
-        else {
-            return;
-        };
-
-        let Some(statements) = self.character_glyph_save_statements_like_cpp(guid.counter() as u64)
-        else {
-            warn!(
-                account = self.account_id,
-                player_guid = ?self.player_guid(),
-                "Skipping represented player glyph save because character_glyphs was not loaded coherently"
-            );
-            return;
-        };
-
-        let mut tx = SqlTransaction::new();
-        for statement in statements {
-            tx.append(statement);
-        }
-        if let Err(err) = char_db.commit_transaction(tx).await {
-            warn!(
-                "Failed to save represented player glyphs for guid {}: {err}",
-                guid.counter()
-            );
-        }
-    }
-
-    async fn save_player_talents_like_cpp(&self) {
-        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
-        else {
-            return;
-        };
-
-        let Some(statements) =
-            self.character_talent_save_statements_like_cpp(guid.counter() as u64)
-        else {
-            warn!(
-                account = self.account_id,
-                player_guid = ?self.player_guid(),
-                "Skipping represented player talent save because character_talent was not loaded coherently"
-            );
-            return;
-        };
-
-        let mut tx = SqlTransaction::new();
-        for statement in statements {
-            tx.append(statement);
-        }
-        if let Err(err) = char_db.commit_transaction(tx).await {
-            warn!(
-                "Failed to save represented player talents for guid {}: {err}",
-                guid.counter()
-            );
-        }
-    }
-
-    async fn save_player_equipment_sets_like_cpp(&mut self) {
-        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
-        else {
-            return;
-        };
-
-        let Some(statements) = self.equipment_set_save_statements_like_cpp(guid.counter() as u64)
-        else {
-            warn!(
-                account = self.account_id,
-                player_guid = ?self.player_guid(),
-                "Skipping represented equipment-set save because character_equipmentsets/character_transmog_outfits were not loaded coherently"
-            );
-            return;
-        };
-
-        if statements.is_empty() {
-            return;
-        }
-
-        let mut tx = SqlTransaction::new();
-        for statement in statements {
-            tx.append(statement);
-        }
-        match char_db.commit_transaction(tx).await {
-            Ok(()) => self.mark_equipment_sets_saved_like_cpp(),
-            Err(err) => warn!(
-                "Failed to save represented equipment sets for guid {}: {err}",
-                guid.counter()
-            ),
-        }
-    }
-
-    async fn save_cuf_profiles_like_cpp(&self) {
-        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
-        else {
-            return;
-        };
-
-        let Some(statements) = self.cuf_profile_save_statements_like_cpp(guid.counter() as u64)
-        else {
-            warn!(
-                account = self.account_id,
-                player_guid = ?self.player_guid(),
-                "Skipping represented CUF profile save because character_cuf_profiles was not loaded coherently"
-            );
-            return;
-        };
-
-        let mut tx = SqlTransaction::new();
-        for statement in statements {
-            tx.append(statement);
-        }
-        if let Err(err) = char_db.commit_transaction(tx).await {
-            warn!(
-                "Failed to save represented CUF profiles for guid {}: {err}",
-                guid.counter()
-            );
-        }
-    }
-
-    async fn save_player_spell_cooldowns_like_cpp(&self) {
-        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
-        else {
-            return;
-        };
-
-        let Some(statements) = self
-            .character_spell_cooldown_save_statements_like_cpp(guid.counter() as u64, unix_now())
-        else {
-            warn!(
-                account = self.account_id,
-                player_guid = ?self.player_guid(),
-                "Skipping represented player spell cooldown save because character_spell_cooldown was not loaded coherently"
-            );
-            return;
-        };
-
-        let mut tx = SqlTransaction::new();
-        for statement in statements {
-            tx.append(statement);
-        }
-        if let Err(err) = char_db.commit_transaction(tx).await {
-            warn!(
-                "Failed to save represented player spell cooldowns for guid {}: {err}",
-                guid.counter()
-            );
-        }
-    }
-
-    async fn save_player_spell_charges_like_cpp(&self) {
-        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
-        else {
-            return;
-        };
-
-        let Some(statements) =
-            self.character_spell_charge_save_statements_like_cpp(guid.counter() as u64, unix_now())
-        else {
-            warn!(
-                account = self.account_id,
-                player_guid = ?self.player_guid(),
-                "Skipping represented player spell charge save because character_spell_charges was not loaded coherently"
-            );
-            return;
-        };
-
-        let mut tx = SqlTransaction::new();
-        for statement in statements {
-            tx.append(statement);
-        }
-        if let Err(err) = char_db.commit_transaction(tx).await {
-            warn!(
-                "Failed to save represented player spell charges for guid {}: {err}",
-                guid.counter()
-            );
-        }
-    }
-
-    async fn save_player_difficulties_like_cpp(&self) {
-        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
-        else {
-            return;
-        };
-
-        let stmt = Self::build_character_difficulties_save_statement_like_cpp(
-            self.represented_dungeon_difficulty_id_like_cpp,
-            self.represented_raid_difficulty_id_like_cpp,
-            self.represented_legacy_raid_difficulty_id_like_cpp,
-            guid.counter() as u64,
-        );
-        if let Err(err) = char_db.execute(&stmt).await {
-            warn!(
-                "Failed to save player difficulties for guid {}: {err}",
-                guid.counter()
-            );
-        }
-    }
-
-    async fn save_instance_time_restrictions_like_cpp(&self) {
-        let statements = self.instance_time_restriction_save_statements_like_cpp();
-        if statements.is_empty() {
-            return;
-        }
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
-            warn!(
-                account = self.account_id,
-                "SaveInstanceTimeRestrictions skipped: character database unavailable"
-            );
-            return;
-        };
-
-        let mut tx = SqlTransaction::new();
-        for statement in statements {
-            tx.append(statement);
-        }
-        if let Err(err) = char_db.commit_transaction(tx).await {
-            warn!(
-                account = self.account_id,
-                "Failed to save account instance time restrictions: {err}"
-            );
-        }
-    }
-
-    async fn save_reputation_to_db_like_cpp(&mut self) {
-        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
-        else {
-            return;
-        };
-        let statements = self
-            .reputation_mgr_like_cpp()
-            .pending_save_to_db_statement_plan_like_cpp(guid.counter() as u64);
-        if statements.is_empty() {
-            return;
-        }
-
-        let mut tx = SqlTransaction::new();
-        for statement in statements {
-            tx.append(statement);
-        }
-        match char_db.commit_transaction(tx).await {
-            Ok(()) => self
-                .reputation_mgr_like_cpp_mut()
-                .mark_pending_save_to_db_committed_like_cpp(),
-            Err(err) => warn!(
-                "Failed to save character reputation for guid {}: {err}",
-                guid.counter()
-            ),
-        }
     }
 
     /// Apply XP to the live session state, leveling up if threshold reached.
@@ -39493,57 +38998,6 @@ impl WorldSession {
                 self.tutorials_loaded_from_db_like_cpp,
             ),
         )
-    }
-
-    async fn save_tutorials_data_like_cpp(&mut self) {
-        if !self.tutorials_changed_like_cpp {
-            return;
-        }
-
-        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
-            warn!(
-                account = self.account_id,
-                "Skipping SaveTutorialsData because the lifecycle persistence port is unavailable"
-            );
-            return;
-        };
-
-        if !self.tutorials_loaded_coherently_like_cpp {
-            warn!(
-                account = self.account_id,
-                "Skipping SaveTutorialsData because tutorial data was not loaded coherently"
-            );
-            return;
-        }
-
-        let was_insert = !self.tutorials_loaded_from_db_like_cpp;
-        let outcome = port
-            .save_tutorials_like_cpp(wow_persistence::PlayerTutorialsSaveLikeCpp {
-                account_id: self.account_id,
-                tutorials: self.tutorials_like_cpp.to_vec(),
-                already_persisted: self.tutorials_loaded_from_db_like_cpp,
-            })
-            .await;
-        match outcome {
-            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {
-                if was_insert {
-                    self.tutorials_loaded_from_db_like_cpp = true;
-                }
-                self.tutorials_changed_like_cpp = false;
-            }
-            // Dirty state stays dirty on both non-applied classes: a retry is
-            // correct after a definite failure, and after an unknown outcome
-            // the row may or may not exist, so the next save must not assume
-            // an UPDATE will match.
-            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
-                account = self.account_id,
-                "SaveTutorialsData failed: {reason}"
-            ),
-            wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
-                account = self.account_id,
-                "SaveTutorialsData outcome is unknown: {reason}"
-            ),
-        }
     }
 
     pub async fn load_global_account_data_like_cpp(&mut self) {
