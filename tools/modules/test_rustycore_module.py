@@ -124,5 +124,56 @@ class ModuleManagerTests(unittest.TestCase):
         )
 
 
+    def test_operator_overrides_live_outside_the_module_and_change_the_digest(self) -> None:
+        self.ws.run("new", "demo.greeter")
+        before = json.loads(self.ws.run("list", "--json").stdout)["modules"][0]["config_digest"]
+
+        conf = self.ws.root / "conf/modules"
+        conf.mkdir(parents=True)
+        (conf / "demo.greeter.toml").write_text(
+            'welcome_text = "Overridden"\n', encoding="utf-8"
+        )
+        after = json.loads(self.ws.run("list", "--json").stdout)["modules"][0]["config_digest"]
+        self.assertNotEqual(before, after, "an override must change the digest")
+
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        main = (self.ws.root / "crates/world-modules/src/main.rs").read_text(encoding="utf-8")
+        self.assertIn("Overridden", main, "the override must reach the compositor")
+        self.assertNotIn(
+            "Overridden",
+            (self.ws.root / "modules/demo_greeter/module.toml").read_text(encoding="utf-8"),
+            "an override must never be written into the module checkout",
+        )
+
+    def test_the_digest_matches_the_rust_implementation(self) -> None:
+        """Pinned in `wow-module-api`'s own tests; both sides must agree."""
+        sys.path.insert(0, str(REPO_ROOT / "tools/modules"))
+        import compose  # noqa: PLC0415
+
+        self.assertEqual(compose.config_digest({}), "fnv1a64:cbf29ce484222325")
+        self.assertEqual(
+            compose.config_digest(
+                {"enabled": True, "welcome_text": "Overridden by the operator"}
+            ),
+            "fnv1a64:1144d896121f347b",
+        )
+
+    def test_an_incompatible_source_api_is_refused_before_activation(self) -> None:
+        shutil.copytree(
+            REPO_ROOT / "tools/modules/fixtures/incompatible_api",
+            self.ws.root / "modules/incompatible_api",
+        )
+        refused = self.ws.run("check")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("source_api", refused.stderr)
+        self.assertIn("Update the module or pin an older server", refused.stderr)
+
+    def test_zero_modules_and_no_config_keep_the_base_behaviour(self) -> None:
+        self.assertEqual(self.ws.run("sync").returncode, 0)
+        main = (self.ws.root / "crates/world-modules/src/main.rs").read_text(encoding="utf-8")
+        self.assertIn("No modules are installed", main)
+        self.assertNotIn("ModuleConfig::new", main)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -246,3 +246,86 @@ fn the_self_message_effect_carries_no_target() {
         "the effect must not carry a target: {rendered}"
     );
 }
+
+/// `compose.py` recomputes this digest to record it in `modules.lock.toml`.
+/// Pinning the exact string here means the two implementations cannot drift
+/// apart silently: `tools/modules/test_rustycore_module.py` asserts the same
+/// literal from the Python side.
+#[test]
+fn the_config_digest_is_deterministic_and_matches_the_composer() {
+    use std::collections::BTreeMap;
+    let id = ModuleId::new("demo.greeter").expect("valid id");
+    let empty = ModuleConfig::new(&id, BTreeMap::new());
+    assert_eq!(empty.digest(), "fnv1a64:cbf29ce484222325");
+
+    let populated = ModuleConfig::new(
+        &id,
+        BTreeMap::from([
+            ("enabled".to_owned(), ModuleConfigValue::Bool(true)),
+            (
+                "welcome_text".to_owned(),
+                ModuleConfigValue::Text("Overridden by the operator".to_owned()),
+            ),
+        ]),
+    );
+    assert_eq!(populated.digest(), "fnv1a64:1144d896121f347b");
+
+    // Insertion order must not matter.
+    let reordered = ModuleConfig::new(
+        &id,
+        BTreeMap::from([
+            (
+                "welcome_text".to_owned(),
+                ModuleConfigValue::Text("Overridden by the operator".to_owned()),
+            ),
+            ("enabled".to_owned(), ModuleConfigValue::Bool(true)),
+        ]),
+    );
+    assert_eq!(reordered.digest(), populated.digest());
+}
+
+/// Two modules cannot collide: each is constructed with its own id and only
+/// ever receives the tree built for that namespace.
+#[test]
+fn configuration_is_namespaced_per_module() {
+    use std::collections::BTreeMap;
+    let mut alpha = ModuleConfig::new(
+        &ModuleId::new("alpha.mod").expect("id"),
+        BTreeMap::from([("text".to_owned(), ModuleConfigValue::Text("a".to_owned()))]),
+    );
+    let mut zulu = ModuleConfig::new(
+        &ModuleId::new("zulu.mod").expect("id"),
+        BTreeMap::from([("text".to_owned(), ModuleConfigValue::Text("z".to_owned()))]),
+    );
+    assert_eq!(alpha.text("text").expect("read"), Some("a".to_owned()));
+    assert_eq!(zulu.text("text").expect("read"), Some("z".to_owned()));
+    assert_ne!(alpha.digest(), zulu.digest());
+}
+
+#[test]
+fn unknown_keys_wrong_types_and_blank_values_are_rejected_with_the_module_named() {
+    use std::collections::BTreeMap;
+    let id = ModuleId::new("demo.greeter").expect("id");
+
+    let unknown = ModuleConfig::new(
+        &id,
+        BTreeMap::from([("typo".to_owned(), ModuleConfigValue::Bool(true))]),
+    );
+    let error = unknown
+        .finish()
+        .expect_err("an unread key is a typo, not a no-op");
+    assert!(error.to_string().contains("demo.greeter"), "{error}");
+    assert!(error.to_string().contains("typo"), "{error}");
+
+    let mut wrong = ModuleConfig::new(
+        &id,
+        BTreeMap::from([(
+            "enabled".to_owned(),
+            ModuleConfigValue::Text("yes".to_owned()),
+        )]),
+    );
+    let error = wrong
+        .bool("enabled")
+        .expect_err("a string is not a boolean");
+    assert!(error.to_string().contains("must be a boolean"), "{error}");
+}

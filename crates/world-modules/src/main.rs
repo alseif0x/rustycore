@@ -6,7 +6,8 @@
 //!
 //! Registrars run in the operator's declared order, recorded in
 //! `modules.lock.toml`. Ordering is explicit here and never relies on linker
-//! inventory. Installed modules, in composition order:
+//! inventory. Configuration is validated at sync and embedded, so no callback
+//! reads a file. Installed modules, in composition order:
 //!
 //! No modules are installed.
 

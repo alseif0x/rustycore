@@ -20,10 +20,12 @@
 //! compiled in, the types are expected to evolve, and official internal
 //! scripts keep their own separate dispatch.
 
+mod config;
 mod effect;
 mod hook;
 mod registry;
 
+pub use config::{ModuleConfig, ModuleConfigError, ModuleConfigValue};
 pub use effect::{ModuleEffectError, PlayerLoginEffect, PlayerLoginEffects, ScopedEffects};
 pub use hook::{PlayerLoginModule, PlayerLoginSnapshot};
 pub use registry::{

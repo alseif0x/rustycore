@@ -244,7 +244,8 @@ def cmd_list(args) -> int:
         args.json,
         {"command": "list", "modules": modules},
         "\n".join(
-            f"{i}. {m['id']} {m['version']} ({m['source_path']})"
+            f"{i}. {m['id']} {m['version']} api={m['source_api']} "
+            f"config={m['config_digest']} ({m['source_path']})"
             for i, m in enumerate(modules)
         )
         or "no modules installed",
@@ -305,7 +306,21 @@ def cmd_doctor(args) -> int:
         findings.append(str(error).splitlines()[0])
     emit(
         args.json,
-        {"command": "doctor", "modules": len(modules), "findings": findings},
+        {
+            "command": "doctor",
+            "modules": [
+                {
+                    "id": m["id"],
+                    "version": m["version"],
+                    "enabled_order": i,
+                    "source_api": m["source_api"],
+                    "config_digest": m["config_digest"],
+                }
+                for i, m in enumerate(compose.ordered(modules))
+            ],
+            "supported_source_apis": sorted(compose.COMPATIBLE_SOURCE_APIS),
+            "findings": findings,
+        },
         "\n".join(findings) or f"healthy: {len(modules)} module(s) installed and composed",
     )
     return EXIT_OK if not findings else EXIT_USAGE

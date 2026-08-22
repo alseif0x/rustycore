@@ -328,6 +328,17 @@ logical monolith: its registrations, behavior, and tests now live in private cap
 under `handlers/misc/`, while `misc/mod.rs` is a 164-line compatibility facade for shared packet
 types, constants, and narrow helpers. Every production capability file is below 700 lines.
 
+Issue #231 closes the module lane with namespaced typed configuration. Package defaults live in
+`module.toml`, operator overrides in `conf/modules/<id>.toml` outside the checkout, and `sync`
+merges, validates and embeds the typed result so a module reads its configuration once at
+registration and no callback touches a file. Keys are namespaced by validated `ModuleId`, an
+unread key fails registration as an operator typo rather than being ignored, and a module that
+refuses its configuration is never registered — so an invalid value is caught at startup, not at a
+player's login. Each configuration has a deterministic digest recorded in the lock and reported by
+`list`/`doctor`, computed identically in Rust and Python with both sides pinning the same literals.
+`source_api` incompatibility is refused with an actionable message before anything compiles, with a
+dedicated fixture.
+
 Issue #230 adds the author/operator workflow on top: `tools/modules/rustycore-module` with
 `new`, `install`, `update`, `remove`, `list`, `sync`, `check`, `build`, `test` and `doctor`. Every
 command is non-interactive, `--json` emits pure JSON on stdout so an agent parses it without
