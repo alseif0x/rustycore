@@ -1909,7 +1909,7 @@
           "retirement_condition": "Character verticals are thin capability adapters with typed owners/ports and no raw directory or concrete persistence access."
         },
         {
-          "path": "crates/wow-world/src/handlers/loot.rs",
+          "path": "crates/wow-world/src/handlers/loot/mod.rs",
           "production_lines": 13674,
           "test_lines": 16157,
           "total_lines": 29831,
