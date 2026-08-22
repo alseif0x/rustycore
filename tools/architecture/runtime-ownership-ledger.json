@@ -38,7 +38,7 @@
       "member_key": "name",
       "zero_gaps": true,
       "zero_overlap": true,
-      "expected_field_count": 738,
+      "expected_field_count": 739,
       "validation": "Compare the sorted AST names with the sorted concatenation of every family.field_names; reject a missing name, duplicate name, stale name, family count mismatch, or total count mismatch."
     },
     "families": [
@@ -235,7 +235,7 @@
       },
       {
         "id": "immutable_catalogs_configuration_and_services",
-        "expected_field_count": 186,
+        "expected_field_count": 187,
         "field_names": [
           "access_requirement_store",
           "adventure_map_poi_store",
@@ -330,6 +330,7 @@
           "map_store",
           "max_player_level_config_like_cpp",
           "mmap_runtime_config_like_cpp",
+          "module_registry_like_cpp",
           "mount_capability_store",
           "mount_definition_store_like_cpp",
           "mount_store",
@@ -1077,9 +1078,9 @@
         "retirement_condition": "This residual is empty, or every remaining field has an explicit reviewed stable-Session justification and a dedicated exact-membership rule."
       }
     ],
-    "expected_field_count": 738,
-    "expected_unique_field_count": 738,
-    "expected_production_field_count": 727,
+    "expected_field_count": 739,
+    "expected_unique_field_count": 739,
+    "expected_production_field_count": 728,
     "expected_test_fixture_field_count": 11
   },
   "inventories": {
@@ -1092,8 +1093,8 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.session_resources.fields"
       },
       "audited_summary": {
-        "field_count": 243,
-        "option_field_count": 186,
+        "field_count": 244,
+        "option_field_count": 187,
         "count_kind": "baseline observation; AST is authoritative"
       },
       "coverage_rule": {
@@ -1101,7 +1102,7 @@
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_field_count": 243,
+        "expected_field_count": 244,
         "validation": "Compare sorted AST field names with the sorted concatenation of every entry.field_names; reject gaps, duplicates, stale names, entry count drift, or total count drift."
       },
       "entries": [
@@ -1136,9 +1137,10 @@
         },
         {
           "id": "session_resources_runtime_handles",
-          "expected_field_count": 1,
+          "expected_field_count": 2,
           "field_names": [
-            "instance_lock_mgr"
+            "instance_lock_mgr",
+            "module_registry"
           ],
           "owner": "world-server composition stores handles; legacy and canonical runtime owners remain distinct and audited by #188.",
           "open_retirement_issues": [
@@ -1407,7 +1409,7 @@
           "retirement_condition": "Every remaining field has an exact capability bundle/consumer owner or is removed from Session construction."
         }
       ],
-      "expected_field_count": 243
+      "expected_field_count": 244
     },
     "player_broadcast_info": {
       "coverage_source": {
