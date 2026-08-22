@@ -327,6 +327,17 @@ logical monolith: its registrations, behavior, and tests now live in private cap
 under `handlers/misc/`, while `misc/mod.rs` is a 164-line compatibility facade for shared packet
 types, constants, and narrow helpers. Every production capability file is below 700 lines.
 
+Issue #225 gives the two map runtimes the same treatment. `wow-map/src/map.rs` (15,250 lines)
+becomes `map/` with eight private modules — `update`, `storage`, `visibility`, `spawn_groups`,
+`respawn`, `relocation`, `game_object`, `scripts_weather` — and `wow-world/src/map_manager.rs`
+(6,607) becomes `map_manager/` with `runtime`, `movement`, `combat` and `respawn`. No `fanout`
+child was created: its 56 lines folded into `runtime` rather than becoming a near-empty file. The
+Map ceiling rises 135 lines for the module headers and imports of twelve new files, and the
+`impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>` header is repeated per child because Rust has
+no way to continue a generic impl across modules. 32 methods became `pub(super)`. Nothing about
+the two documented runtime models changed: no clock, writer, phase, bridge or scheduling was
+touched, which is why this slice never needed #188.
+
 Issue #224 turns the last three handler monoliths into feature trees without moving their logical
 owner: `handlers/character.rs` (20,272 lines), `handlers/loot.rs` (13,606) and
 `handlers/quest.rs` (8,274) become `character/` with eleven modules, `loot/` with ten and `quest/`
