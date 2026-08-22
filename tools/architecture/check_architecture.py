@@ -3329,7 +3329,9 @@ def run_fixture_self_tests(policy: dict[str, Any]) -> None:
             "narrowed workspace default-members fail-closed self-test failed"
         )
 
-    exception_edge = ("wow-network", "wow-data")
+    # #140 retired the wow-network exceptions this fixture used to pin. Any live
+    # issue-linked debt edge exercises the same classification path.
+    exception_edge = ("wow-instances", "wow-data")
     if classify_edge(policy, *exception_edge)[0] != "exception":
         raise ArchitectureError("baseline exception classification self-test failed")
 

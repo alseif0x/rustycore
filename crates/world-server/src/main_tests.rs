@@ -111,12 +111,12 @@ use wow_map::{
     PoolObjectLikeCpp, PoolTemplateDataLikeCpp, RespawnInfoLikeCpp, SpawnData, SpawnGroupFlags,
     SpawnGroupTemplateData, SpawnObjectType, SpawnPosition, SpawnStore, spawn::SpawnGroupMemberRow,
 };
-use wow_network::{SessionCommand, WorldSessionShutdownFlushResultLikeCpp};
 use wow_packet::{
     ServerPacket,
     packets::chat::{ChatMsg, ChatPkt},
 };
 use wow_world::session::directory::{PlayerBroadcastInfo, PlayerRegistry};
+use wow_world::session::mailbox::{SessionCommand, WorldSessionShutdownFlushResultLikeCpp};
 
 #[test]
 fn signed_tinyint_quest_required_preserves_cpp_boolean_semantics() {
@@ -10779,7 +10779,7 @@ fn runtime_directory_delivery_rejects_replaced_recipient_generation() {
 
     let (second_info, second_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
     let current = registry.register_or_replace(guid, second_info);
-    let command = SessionCommand::KickLikeCpp(wow_network::KickLikeCppCommand {
+    let command = SessionCommand::KickLikeCpp(wow_world::session::mailbox::KickLikeCppCommand {
         reason: "stale runtime delivery".to_string(),
     });
 
@@ -10793,7 +10793,7 @@ fn runtime_directory_delivery_rejects_replaced_recipient_generation() {
     registry
         .try_send_current_command(
             current,
-            SessionCommand::KickLikeCpp(wow_network::KickLikeCppCommand {
+            SessionCommand::KickLikeCpp(wow_world::session::mailbox::KickLikeCppCommand {
                 reason: "current runtime delivery".to_string(),
             }),
         )
@@ -11111,7 +11111,7 @@ fn creature_attack_start_delivery_routes_only_to_victim_like_cpp() {
     registry.register_or_replace(other, other_info);
 
     let commands = vec![
-        wow_network::player_registry::CreatureAttackStartLikeCppCommand {
+        wow_world::session::mailbox::CreatureAttackStartLikeCppCommand {
             attacker_guid: attacker,
             victim_guid: victim,
             previous_victim_guid: None,
@@ -11149,7 +11149,7 @@ fn creature_assistance_start_establishes_canonical_combat_for_both_creatures_lik
     add_canonical_test_creature_on_map_like_cpp(&canonical, attacker, Position::ZERO, 571, 4, 100);
     add_canonical_test_creature_on_map_like_cpp(&canonical, victim, Position::ZERO, 571, 4, 100);
     let commands = [
-        wow_network::player_registry::CreatureAttackStartLikeCppCommand {
+        wow_world::session::mailbox::CreatureAttackStartLikeCppCommand {
             attacker_guid: attacker,
             victim_guid: victim,
             previous_victim_guid: None,
@@ -11193,7 +11193,7 @@ fn creature_assistance_stop_purges_canonical_combat_for_both_creatures_like_cpp(
     add_canonical_test_creature_on_map_like_cpp(&canonical, attacker, Position::ZERO, 571, 4, 100);
     add_canonical_test_creature_on_map_like_cpp(&canonical, victim, Position::ZERO, 571, 4, 100);
     let starts = [
-        wow_network::player_registry::CreatureAttackStartLikeCppCommand {
+        wow_world::session::mailbox::CreatureAttackStartLikeCppCommand {
             attacker_guid: attacker,
             victim_guid: victim,
             previous_victim_guid: None,
@@ -11203,7 +11203,7 @@ fn creature_assistance_stop_purges_canonical_combat_for_both_creatures_like_cpp(
         },
     ];
     let stops = [
-        wow_network::player_registry::CreatureAttackStopLikeCppCommand {
+        wow_world::session::mailbox::CreatureAttackStopLikeCppCommand {
             attacker_guid: attacker,
             victim_guid: victim,
             map_id: 571,
@@ -11257,7 +11257,7 @@ fn creature_attack_start_delivery_filters_registry_state_like_cpp() {
     registry.register_or_replace(dead, dead_info);
 
     let make_command =
-        |victim_guid| wow_network::player_registry::CreatureAttackStartLikeCppCommand {
+        |victim_guid| wow_world::session::mailbox::CreatureAttackStartLikeCppCommand {
             attacker_guid: attacker,
             victim_guid,
             previous_victim_guid: None,
@@ -11301,7 +11301,7 @@ fn creature_attack_start_delivery_uses_durable_rail_when_general_queue_is_full_l
     info.is_in_world = true;
     info.is_alive = true;
     registry.register_or_replace(victim, info);
-    let command = wow_network::player_registry::CreatureAttackStartLikeCppCommand {
+    let command = wow_world::session::mailbox::CreatureAttackStartLikeCppCommand {
         attacker_guid: attacker,
         victim_guid: victim,
         previous_victim_guid: None,
@@ -11499,7 +11499,7 @@ fn creature_melee_damage_delivery_routes_only_to_victim_like_cpp() {
     registry.register_or_replace(other, other_info);
 
     let commands = vec![
-        wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand {
+        wow_world::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand {
             attacker_guid: attacker,
             victim_guid: victim,
             map_id: 571,
@@ -11552,7 +11552,7 @@ fn creature_melee_damage_delivery_filters_registry_state_like_cpp() {
     registry.register_or_replace(not_in_world, not_in_world_info);
 
     let make_command =
-        |victim_guid| wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand {
+        |victim_guid| wow_world::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand {
             attacker_guid: attacker,
             victim_guid,
             map_id: 571,
@@ -11603,7 +11603,7 @@ fn creature_melee_damage_delivery_poisoned_durable_rail_counts_send_failed_like_
     registry.register_or_replace(victim, info);
 
     let commands = vec![
-        wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand {
+        wow_world::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand {
             attacker_guid: attacker,
             victim_guid: victim,
             map_id: 571,
@@ -11636,7 +11636,7 @@ fn creature_melee_damage_delivery_preserves_every_swing_when_general_queue_is_fu
     info.instance_id = 0;
     info.is_in_world = true;
     registry.register_or_replace(victim, info);
-    let command = wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand {
+    let command = wow_world::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand {
         attacker_guid: attacker,
         victim_guid: victim,
         map_id: 571,

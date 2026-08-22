@@ -9,6 +9,7 @@
 mod admission;
 pub mod directory;
 mod dispatch;
+pub mod mailbox;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 #[cfg(test)]
@@ -45,6 +46,14 @@ use crate::phasing::{
 use crate::reputation::{ReputationMgrLikeCpp, reputation_to_rank_like_cpp};
 use crate::session::directory::{
     PlayerBroadcastInfo, PlayerRegistry, PlayerVisibilityCreateSnapshot,
+};
+use crate::session::mailbox::{
+    CreatureAttackStartLikeCppCommand, DurableLootMoneyCompletionLikeCpp,
+    DurableLootMoneyPersistenceGuardLikeCpp, DurableLootMoneyPersistenceTrackerLikeCpp,
+    DurableLootMoneySaveFenceLikeCpp, GameEventQuestCompleteClientOutcomeLikeCpp,
+    GameEventQuestCompleteCommandLikeCpp, KickLikeCppCommand, LootRollCommandIdentityLikeCpp,
+    NotifyLootMoneyRemovedLikeCppCommand, SendIfVisibleLikeCppCommand, SessionCommand,
+    SharedClientVisibleGuidsLikeCpp,
 };
 use crate::session_policy::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
@@ -205,15 +214,9 @@ use wow_loot::{
     OwnedLootAuthorityStamp, OwnedLootScope, OwnedLootSnapshot,
 };
 use wow_map::coords::SIZE_OF_GRID_CELL;
-use wow_network::player_registry::SendIfVisibleLikeCppCommand;
 use wow_network::session_mgr::{InstanceLink, SessionManager};
 use wow_network::{
-    DurableLootMoneyCompletionLikeCpp, DurableLootMoneyPersistenceGuardLikeCpp,
-    DurableLootMoneyPersistenceTrackerLikeCpp, DurableLootMoneySaveFenceLikeCpp,
-    GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp,
-    KickLikeCppCommand, LootRollCommandIdentityLikeCpp, NotifyLootMoneyRemovedLikeCppCommand,
-    SessionCommand, SharedClientVisibleGuidsLikeCpp, SocketTimeoutsLikeCpp,
-    SocketWriteFenceLikeCpp, SocketWriteFenceWaitResultLikeCpp,
+    SocketTimeoutsLikeCpp, SocketWriteFenceLikeCpp, SocketWriteFenceWaitResultLikeCpp,
 };
 use wow_packet::packets::chat::{ChatMsg, ChatPkt, PrintNotification};
 use wow_packet::packets::gossip::ClientGossipText;
@@ -4391,8 +4394,8 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
     pub assistance_starts: usize,
     pub plan: crate::map_manager::RuntimePlan,
     pub aggro_starts: usize,
-    pub commands: Vec<wow_network::player_registry::CreatureAttackStartLikeCppCommand>,
-    pub stop_commands: Vec<wow_network::player_registry::CreatureAttackStopLikeCppCommand>,
+    pub commands: Vec<crate::session::mailbox::CreatureAttackStartLikeCppCommand>,
+    pub stop_commands: Vec<crate::session::mailbox::CreatureAttackStopLikeCppCommand>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -4694,7 +4697,7 @@ pub struct LegacyCreatureMeleeTickOutcomeLikeCpp {
     pub canonical_creature_hits: usize,
     pub legacy_creature_victim_syncs: usize,
     pub legacy_creature_victim_sync_cas_rejections: usize,
-    pub commands: Vec<wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand>,
+    pub commands: Vec<crate::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand>,
     pub plan: RuntimePlan,
 }
 
@@ -5393,7 +5396,7 @@ pub struct WorldSession {
     session_command_tx: flume::Sender<SessionCommand>,
     session_command_rx: flume::Receiver<SessionCommand>,
     durable_creature_runtime_commands_like_cpp:
-        Arc<std::sync::Mutex<wow_network::DurableCreatureRuntimeCommandsLikeCpp>>,
+        Arc<std::sync::Mutex<crate::session::mailbox::DurableCreatureRuntimeCommandsLikeCpp>>,
     visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
 
     // State
@@ -24263,27 +24266,27 @@ impl WorldSession {
         &mut self,
         group_guid: u64,
         difficulty_id: u32,
-        kind: wow_network::player_registry::GroupDifficultyKindLikeCpp,
+        kind: wow_social::group::GroupDifficultyKindLikeCpp,
     ) {
         if self.group_guid != Some(group_guid) {
             return;
         }
 
         match kind {
-            wow_network::player_registry::GroupDifficultyKindLikeCpp::Dungeon => {
+            wow_social::group::GroupDifficultyKindLikeCpp::Dungeon => {
                 self.represented_dungeon_difficulty_id_like_cpp = difficulty_id;
                 self.send_packet(&DungeonDifficultySet {
                     difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
                 });
             }
-            wow_network::player_registry::GroupDifficultyKindLikeCpp::Raid => {
+            wow_social::group::GroupDifficultyKindLikeCpp::Raid => {
                 self.represented_raid_difficulty_id_like_cpp = difficulty_id;
                 self.send_packet(&RaidDifficultySet {
                     difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
                     legacy: false,
                 });
             }
-            wow_network::player_registry::GroupDifficultyKindLikeCpp::LegacyRaid => {
+            wow_social::group::GroupDifficultyKindLikeCpp::LegacyRaid => {
                 self.represented_legacy_raid_difficulty_id_like_cpp = difficulty_id;
                 self.send_packet(&RaidDifficultySet {
                     difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
@@ -24333,7 +24336,7 @@ impl WorldSession {
         if entry.instance_type == MAP_INSTANCE_LIKE_CPP {
             if let Some(statement) = self.set_represented_group_difficulty_like_cpp(
                 difficulty_id,
-                wow_network::player_registry::GroupDifficultyKindLikeCpp::Dungeon,
+                wow_social::group::GroupDifficultyKindLikeCpp::Dungeon,
             ) {
                 return vec![statement];
             }
@@ -24351,9 +24354,9 @@ impl WorldSession {
         } else if entry.instance_type == MAP_RAID_LIKE_CPP {
             let legacy = flags.contains(DifficultyFlags::LEGACY);
             let kind = if legacy {
-                wow_network::player_registry::GroupDifficultyKindLikeCpp::LegacyRaid
+                wow_social::group::GroupDifficultyKindLikeCpp::LegacyRaid
             } else {
-                wow_network::player_registry::GroupDifficultyKindLikeCpp::Raid
+                wow_social::group::GroupDifficultyKindLikeCpp::Raid
             };
             if let Some(statement) =
                 self.set_represented_group_difficulty_like_cpp(difficulty_id, kind)
@@ -24413,7 +24416,7 @@ impl WorldSession {
     fn set_represented_group_difficulty_like_cpp(
         &mut self,
         difficulty_id: u32,
-        kind: wow_network::player_registry::GroupDifficultyKindLikeCpp,
+        kind: wow_social::group::GroupDifficultyKindLikeCpp,
     ) -> Option<PreparedStatement> {
         let group_guid = self.group_guid?;
         let player_guid = self.player_guid()?;
@@ -24436,7 +24439,7 @@ impl WorldSession {
                 let _ = player_registry.try_send_current_command(
                     member.registration,
                     SessionCommand::ApplyGroupDifficultyLikeCpp(
-                        wow_network::player_registry::ApplyGroupDifficultyLikeCppCommand {
+                        crate::session::mailbox::ApplyGroupDifficultyLikeCppCommand {
                             group_guid,
                             difficulty_id,
                             kind,
@@ -27566,9 +27569,6 @@ impl WorldSession {
         attacker_guid: ObjectGuid,
         victim_guid: ObjectGuid,
     ) {
-        use wow_network::player_registry::{
-            CreatureAttackStartLikeCppCommand, SendIfVisibleLikeCppCommand,
-        };
         use wow_packet::ServerPacket;
 
         let map_id = self.player_map_id_like_cpp();
@@ -35910,56 +35910,6 @@ impl WorldSession {
         self.send_write_fence_like_cpp = Some(fence);
     }
 
-    /// Clone the C++-style cross-session command channel for this active
-    /// session.
-    ///
-    /// Worldserver-level registries use this as the Rust equivalent of holding
-    /// a `WorldSession*` in `World::m_sessions` for commands such as
-    /// `World::KickAll`; session state is still mutated only by the session
-    /// task when it drains the channel.
-    pub fn session_command_tx(&self) -> flume::Sender<SessionCommand> {
-        self.session_command_tx.clone()
-    }
-
-    pub(crate) fn drain_session_commands(&self) -> Vec<SessionCommand> {
-        let durable_commands = self
-            .durable_creature_runtime_commands_like_cpp
-            .lock()
-            .map(|mut pending| pending.drain_like_cpp())
-            .unwrap_or_default();
-        // Drain the bounded general rail before the first durable presentation
-        // packet so a pending visibility refresh can run first. The rails do
-        // not yet share an enqueue ordinal, so this is not a global cross-rail
-        // ordering guarantee. The spell pair itself still occupies one durable
-        // command and therefore cannot be split by this merge.
-        let first_visible = durable_commands
-            .iter()
-            .position(|command| {
-                matches!(
-                    command,
-                    SessionCommand::SendIfVisibleLikeCpp(_)
-                        | SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(_)
-                        | SessionCommand::SendRealmIfVisibleLikeCpp(_)
-                        | SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(_)
-                )
-            })
-            .unwrap_or(durable_commands.len());
-        let mut commands = durable_commands;
-        let deferred_durable_suffix = commands.split_off(first_visible);
-        while let Ok(command) = self.session_command_rx.try_recv() {
-            commands.push(command);
-        }
-        commands.extend(deferred_durable_suffix);
-        commands
-    }
-
-    pub(crate) fn take_durable_creature_runtime_overflow_like_cpp(&self) -> bool {
-        self.durable_creature_runtime_commands_like_cpp
-            .lock()
-            .map(|mut pending| pending.take_overflowed_and_discard_like_cpp())
-            .unwrap_or(true)
-    }
-
     pub(crate) fn is_addon_registered_like_cpp(&self, prefix: &str) -> bool {
         // C++ WorldSession::IsAddonRegistered: if the registration filter is
         // disabled (initial state or softcap exceeded), all prefixes pass.
@@ -39071,8 +39021,8 @@ impl WorldSession {
         ) {
             let _ = registry.try_send_current_command(
                 registration,
-                wow_network::SessionCommand::SendIfVisibleLikeCpp(
-                    wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                crate::session::mailbox::SessionCommand::SendIfVisibleLikeCpp(
+                    crate::session::mailbox::SendIfVisibleLikeCppCommand {
                         queued_at: Instant::now(),
                         source_guid,
                         map_id,
@@ -47461,7 +47411,7 @@ impl WorldSession {
         self.try_send_connected_player_command_like_cpp(
             partner_guid,
             SessionCommand::CancelRepresentedTradeLikeCpp(
-                wow_network::player_registry::CancelRepresentedTradeLikeCppCommand {
+                crate::session::mailbox::CancelRepresentedTradeLikeCppCommand {
                     status,
                     packet_bytes,
                 },
@@ -47502,9 +47452,7 @@ impl WorldSession {
         self.try_send_connected_player_command_like_cpp(
             partner_guid,
             SessionCommand::UnacceptRepresentedTradeLikeCpp(
-                wow_network::player_registry::UnacceptRepresentedTradeLikeCppCommand {
-                    packet_bytes,
-                },
+                crate::session::mailbox::UnacceptRepresentedTradeLikeCppCommand { packet_bytes },
             ),
         );
     }
@@ -47562,9 +47510,7 @@ impl WorldSession {
         self.try_send_connected_player_command_like_cpp(
             partner_guid,
             SessionCommand::UnacceptRepresentedTradeLikeCpp(
-                wow_network::player_registry::UnacceptRepresentedTradeLikeCppCommand {
-                    packet_bytes,
-                },
+                crate::session::mailbox::UnacceptRepresentedTradeLikeCppCommand { packet_bytes },
             ),
         );
     }
@@ -47604,9 +47550,7 @@ impl WorldSession {
         self.try_send_connected_player_command_like_cpp(
             partner_guid,
             SessionCommand::UnacceptRepresentedTradeLikeCpp(
-                wow_network::player_registry::UnacceptRepresentedTradeLikeCppCommand {
-                    packet_bytes,
-                },
+                crate::session::mailbox::UnacceptRepresentedTradeLikeCppCommand { packet_bytes },
             ),
         );
     }
@@ -47684,9 +47628,7 @@ impl WorldSession {
         self.try_send_connected_player_command_like_cpp(
             partner_guid,
             SessionCommand::UnacceptRepresentedTradeLikeCpp(
-                wow_network::player_registry::UnacceptRepresentedTradeLikeCppCommand {
-                    packet_bytes,
-                },
+                crate::session::mailbox::UnacceptRepresentedTradeLikeCppCommand { packet_bytes },
             ),
         );
     }
@@ -47713,9 +47655,7 @@ impl WorldSession {
         self.try_send_connected_player_command_like_cpp(
             partner_guid,
             SessionCommand::SendRepresentedTradeStatusLikeCpp(
-                wow_network::player_registry::SendRepresentedTradeStatusLikeCppCommand {
-                    packet_bytes,
-                },
+                crate::session::mailbox::SendRepresentedTradeStatusLikeCppCommand { packet_bytes },
             ),
         );
     }
@@ -47734,9 +47674,7 @@ impl WorldSession {
         self.try_send_connected_player_command_like_cpp(
             partner_guid,
             SessionCommand::SendRepresentedTradeStatusLikeCpp(
-                wow_network::player_registry::SendRepresentedTradeStatusLikeCppCommand {
-                    packet_bytes,
-                },
+                crate::session::mailbox::SendRepresentedTradeStatusLikeCppCommand { packet_bytes },
             ),
         );
     }
@@ -47754,9 +47692,7 @@ impl WorldSession {
         self.try_send_connected_player_command_like_cpp(
             partner_guid,
             SessionCommand::SendRepresentedTradeStatusLikeCpp(
-                wow_network::player_registry::SendRepresentedTradeStatusLikeCppCommand {
-                    packet_bytes,
-                },
+                crate::session::mailbox::SendRepresentedTradeStatusLikeCppCommand { packet_bytes },
             ),
         );
     }
@@ -47876,7 +47812,7 @@ impl WorldSession {
         self.try_send_connected_player_command_like_cpp(
             opponent_guid,
             SessionCommand::SendRepresentedDuelCountdownLikeCpp(
-                wow_network::player_registry::SendRepresentedDuelCountdownLikeCppCommand {
+                crate::session::mailbox::SendRepresentedDuelCountdownLikeCppCommand {
                     packet_bytes,
                 },
             ),
@@ -47892,7 +47828,7 @@ impl WorldSession {
         self.try_send_connected_player_command_like_cpp(
             opponent_guid,
             SessionCommand::SendRepresentedDuelRequestedLikeCpp(
-                wow_network::player_registry::SendRepresentedDuelRequestedLikeCppCommand {
+                crate::session::mailbox::SendRepresentedDuelRequestedLikeCppCommand {
                     arbiter_guid,
                     packet_bytes,
                 },
@@ -59311,7 +59247,7 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                             .to_bytes(),
                         });
                         outcome.commands.push(
-                            wow_network::player_registry::CreatureAttackStartLikeCppCommand {
+                            crate::session::mailbox::CreatureAttackStartLikeCppCommand {
                                 attacker_guid: assistant_guid,
                                 victim_guid,
                                 previous_victim_guid: None,
@@ -59355,7 +59291,7 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                             .to_bytes(),
                         });
                         outcome.commands.push(
-                            wow_network::player_registry::CreatureAttackStartLikeCppCommand {
+                            crate::session::mailbox::CreatureAttackStartLikeCppCommand {
                                 attacker_guid: guid,
                                 victim_guid,
                                 previous_victim_guid: (!previous_victim.is_empty())
@@ -59398,7 +59334,7 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                     }
                     for participant_guid in participant_guids {
                         outcome.stop_commands.push(
-                            wow_network::player_registry::CreatureAttackStopLikeCppCommand {
+                            crate::session::mailbox::CreatureAttackStopLikeCppCommand {
                                 attacker_guid: guid,
                                 victim_guid: participant_guid,
                                 map_id,
@@ -59658,7 +59594,7 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                         .to_bytes(),
                     });
                     outcome.commands.push(
-                        wow_network::player_registry::CreatureAttackStartLikeCppCommand {
+                        crate::session::mailbox::CreatureAttackStartLikeCppCommand {
                             attacker_guid: guid,
                             victim_guid: candidate.player_guid,
                             previous_victim_guid: None,
@@ -62965,7 +62901,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         outcome.canonical_hits += 1;
         if swing.victim_guid.is_player() {
             outcome.commands.push(
-                wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand {
+                crate::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand {
                     attacker_guid: swing.attacker_guid,
                     victim_guid: swing.victim_guid,
                     map_id: swing.map_id,

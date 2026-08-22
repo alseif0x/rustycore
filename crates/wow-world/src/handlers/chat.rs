@@ -17,13 +17,13 @@
 
 use tracing::debug;
 
+use crate::session::mailbox::{SendAddonIfRegisteredLikeCppCommand, SessionCommand};
 use wow_chat::hyperlinks::check_all_links_shape_like_cpp;
 use wow_chat::validation::validate_message_like_cpp;
 use wow_constants::{ClientOpcodes, UnitState};
 use wow_core::ObjectGuid;
 use wow_core::guid::HighGuid;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_network::{SendAddonIfRegisteredLikeCppCommand, SessionCommand};
 use wow_packet::packets::chat::{
     CTextEmote, ChatAddonMessage, ChatAddonMessageTargeted, ChatAddonMessageWhisper, ChatMessage,
     ChatMessageAfk, ChatMessageChannel, ChatMessageDnd, ChatMessageEmote, ChatMessageWhisper,
@@ -2032,7 +2032,7 @@ mod tests {
 
     fn expect_send_if_visible_command(
         rx: &flume::Receiver<SessionCommand>,
-    ) -> wow_network::SendIfVisibleLikeCppCommand {
+    ) -> crate::session::mailbox::SendIfVisibleLikeCppCommand {
         match rx.try_recv().expect("visible command") {
             SessionCommand::SendIfVisibleLikeCpp(command) => command,
             other => panic!("expected SendIfVisibleLikeCpp, got {other:?}"),

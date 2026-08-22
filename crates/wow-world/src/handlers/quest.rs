@@ -15,6 +15,10 @@
 //!
 //! Legacy non-canonical note: Game/Handlers/QuestHandler.cs
 
+use crate::session::mailbox::SessionCommand;
+use crate::session::mailbox::{
+    SendRepeatableTurnInRequestItemsLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
+};
 use sqlx::Row;
 use std::{
     collections::{HashMap, HashSet},
@@ -45,10 +49,6 @@ use wow_entities::{
     SendNewItemModifier, SendNewItemPlan, is_bag_pos,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_network::SessionCommand;
-use wow_network::player_registry::{
-    SendRepeatableTurnInRequestItemsLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
-};
 use wow_packet::packets::misc::SetCurrency;
 use wow_packet::packets::query::{
     QueryQuestCompletionNpcs, QuestCompletionNpc, QuestCompletionNpcResponse, QuestPoiBlobData,

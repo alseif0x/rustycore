@@ -41,6 +41,11 @@ use super::{
 };
 use crate::conditions::QUEST_STATUS_REWARDED_LIKE_CPP;
 use crate::session::directory::{PlayerBroadcastInfo, PlayerRegistry};
+use crate::session::mailbox::{
+    ApplyLootMoneyLikeCppCommand, KickLikeCppCommand, LootRollCommandIdentityLikeCpp,
+    LootRollVoteCommand, MasterLootGiveResult, SendCreatureSpellCastIfVisibleLikeCppCommand,
+    SessionCommand,
+};
 use crate::session::{
     DurableItemLootCompletionLikeCpp, LootMoneyDeliveryAddressLikeCpp,
     LootMoneyViewerFanoutLikeCpp, RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
@@ -85,11 +90,6 @@ use wow_loot::{
     GeneratedLootItem, LOOT_SLOT_TYPE_OWNER_LIKE_CPP, LootClaimPayload, LootConditionRowLikeCpp,
     LootStore, LootStoreItem, LootStoreItemContext, LootStoreKind, LootStores, LootTemplateRow,
     OwnedLootAuthority, OwnedLootAuthorityLifecycle,
-};
-use wow_network::{
-    ApplyLootMoneyLikeCppCommand, KickLikeCppCommand, LootRollCommandIdentityLikeCpp,
-    LootRollVoteCommand, MasterLootGiveResult, SendCreatureSpellCastIfVisibleLikeCppCommand,
-    SessionCommand,
 };
 use wow_packet::packets::loot::{
     CreatureLoot, LOOT_ERROR_MASTER_OTHER_LIKE_CPP, LOOT_ERROR_MASTER_UNIQUE_ITEM_LIKE_CPP,
@@ -178,7 +178,7 @@ fn make_visible_creature_spell_session_like_cpp()
 /// frame (`0xCC`) it commits for an advanced-logging receiver.
 fn creature_spell_cast_command_like_cpp(
     source_guid: ObjectGuid,
-    committed_visibility_like_cpp: wow_network::SharedClientVisibleGuidsLikeCpp,
+    committed_visibility_like_cpp: crate::session::mailbox::SharedClientVisibleGuidsLikeCpp,
     go_marker: u8,
 ) -> SendCreatureSpellCastIfVisibleLikeCppCommand {
     let mut start_packet_bytes = (ServerOpcodes::SpellStart as u16).to_le_bytes().to_vec();
@@ -322,7 +322,7 @@ async fn creature_spell_cast_rejects_command_committed_for_another_session_like_
     // committed against the previous incarnation must not be delivered even
     // when the caster is visible again.
     let (mut session, send_rx, source_guid) = make_visible_creature_spell_session_like_cpp();
-    let previous_incarnation = wow_network::SharedClientVisibleGuidsLikeCpp::default();
+    let previous_incarnation = crate::session::mailbox::SharedClientVisibleGuidsLikeCpp::default();
     previous_incarnation.insert(source_guid);
     assert!(
         !session
@@ -13868,7 +13868,7 @@ async fn creature_loot_release_command_retries_without_blocking_source_like_cpp(
         queue_creature_loot_release_command_reliably_like_cpp(
             &command_tx,
             SessionCommand::SendCreatureLootReleaseValuesUpdateLikeCpp(
-                wow_network::SendCreatureLootReleaseValuesUpdateLikeCppCommand {
+                crate::session::mailbox::SendCreatureLootReleaseValuesUpdateLikeCppCommand {
                     creature_guid,
                     map_id: 0,
                     instance_id: 0,
