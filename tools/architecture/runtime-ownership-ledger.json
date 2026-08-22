@@ -38,15 +38,16 @@
       "member_key": "name",
       "zero_gaps": true,
       "zero_overlap": true,
-      "expected_field_count": 739,
+      "expected_field_count": 740,
       "validation": "Compare the sorted AST names with the sorted concatenation of every family.field_names; reject a missing name, duplicate name, stale name, family count mismatch, or total count mismatch."
     },
     "families": [
       {
         "id": "test_only_fixtures",
-        "expected_field_count": 11,
+        "expected_field_count": 12,
         "field_names": [
           "battle_pet_purchase_selection_override_like_cpp",
+          "driver_phase_trace_like_cpp",
           "give_player_xp_script_dispatcher_like_cpp",
           "loot_item_store_test_commit_gate_like_cpp",
           "loot_item_store_test_grants_like_cpp",
@@ -1078,10 +1079,10 @@
         "retirement_condition": "This residual is empty, or every remaining field has an explicit reviewed stable-Session justification and a dedicated exact-membership rule."
       }
     ],
-    "expected_field_count": 739,
-    "expected_unique_field_count": 739,
+    "expected_field_count": 740,
+    "expected_unique_field_count": 740,
     "expected_production_field_count": 728,
-    "expected_test_fixture_field_count": 11
+    "expected_test_fixture_field_count": 12
   },
   "inventories": {
     "session_resources": {
@@ -1869,9 +1870,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 74866,
-          "test_lines": 94946,
-          "total_lines": 169812,
+          "production_lines": 75010,
+          "test_lines": 95123,
+          "total_lines": 170133,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             140,
