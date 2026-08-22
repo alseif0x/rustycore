@@ -419,7 +419,7 @@ async fn set_difficulty_id_group_leader_updates_group_dungeon_difficulty_like_cp
     assert_eq!(command.difficulty_id, 2);
     assert_eq!(
         command.kind,
-        wow_network::player_registry::GroupDifficultyKindLikeCpp::Dungeon
+        wow_social::group::GroupDifficultyKindLikeCpp::Dungeon
     );
 }
 
@@ -474,10 +474,10 @@ async fn group_difficulty_command_updates_remote_member_like_cpp() {
     session
         .session_command_tx()
         .try_send(SessionCommand::ApplyGroupDifficultyLikeCpp(
-            wow_network::player_registry::ApplyGroupDifficultyLikeCppCommand {
+            crate::session::mailbox::ApplyGroupDifficultyLikeCppCommand {
                 group_guid,
                 difficulty_id: 15,
-                kind: wow_network::player_registry::GroupDifficultyKindLikeCpp::Raid,
+                kind: wow_social::group::GroupDifficultyKindLikeCpp::Raid,
             },
         ))
         .unwrap();

@@ -15,6 +15,14 @@
 //! remain in `wow-network`, and the Session mailbox protocol plus its durable
 //! rails stay there until issue #140 relocates them.
 
+use crate::session::mailbox::{
+    ApplyCreatureMeleeDamageLikeCppCommand, ApplyLootMoneyLikeCppCommand,
+    CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
+    DurableCreatureRuntimeCommandsLikeCpp, DurableLootMoneyPersistenceTrackerLikeCpp,
+    LootRollCommandIdentityLikeCpp, ReconcilePvpCombatExpiryLikeCppCommand,
+    RefreshVisibleWorldCreaturesLikeCppCommand, SendCreatureSpellCastIfVisibleLikeCppCommand,
+    SendIfVisibleLikeCppCommand, SessionCommand, SharedClientVisibleGuidsLikeCpp,
+};
 use dashmap::DashMap;
 use std::collections::{HashMap, HashSet};
 use std::sync::{
@@ -23,14 +31,6 @@ use std::sync::{
 };
 use wow_core::{ObjectGuid, Position};
 use wow_loot::OwnedLootAuthority;
-use wow_network::player_registry::{
-    ApplyCreatureMeleeDamageLikeCppCommand, ApplyLootMoneyLikeCppCommand,
-    CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
-    DurableCreatureRuntimeCommandsLikeCpp, DurableLootMoneyPersistenceTrackerLikeCpp,
-    LootRollCommandIdentityLikeCpp, ReconcilePvpCombatExpiryLikeCppCommand,
-    RefreshVisibleWorldCreaturesLikeCppCommand, SendCreatureSpellCastIfVisibleLikeCppCommand,
-    SendIfVisibleLikeCppCommand, SessionCommand, SharedClientVisibleGuidsLikeCpp,
-};
 use wow_packet::packets::movement::TransportInfo;
 use wow_packet::packets::party::{
     PartyMemberAuraState, PartyMemberPetStats, PartyMemberPhaseStates,

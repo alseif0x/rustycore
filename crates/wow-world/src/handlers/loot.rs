@@ -24,6 +24,24 @@ use tokio::time::timeout;
 use tracing::{debug, info, warn};
 
 use crate::session::directory::{PlayerRegistry, PrepareLootMoneyApplicationLikeCpp};
+use crate::session::mailbox::{
+    ApplyCreatureMeleeDamageLikeCppCommand, ApplyGroupJoinLikeCppCommand,
+    ApplyGroupRemovalLikeCppCommand, ApplyLootMoneyLikeCppCommand, ApplyLootMoneyResultLikeCpp,
+    CancelRepresentedTradeLikeCppCommand, CreatureAttackStartLikeCppCommand,
+    CreatureAttackStopLikeCppCommand, KickLikeCppCommand, LootRollCommandIdentityLikeCpp,
+    LootRollStoreWinnerCommand, LootRollVoteCommand, MasterLootGiveCommand, MasterLootGiveResult,
+    NotifyLootMoneyRemovedLikeCppCommand, ReconcilePvpCombatExpiryLikeCppCommand,
+    RefreshVisibleWorldCreaturesLikeCppCommand, SendAddonIfRegisteredLikeCppCommand,
+    SendCreatureLootReleaseValuesUpdateLikeCppCommand,
+    SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
+    SendPartyUpdateLikeCppCommand, SendRepeatableTurnInRequestItemsLikeCppCommand,
+    SendRepresentedDuelCountdownLikeCppCommand, SendRepresentedDuelRequestedLikeCppCommand,
+    SendRepresentedTradeStatusLikeCppCommand, SessionCommand,
+    SetQuestSharingInfoAndSendDetailsCommand, SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
+    SyncGooberGameobjectStateAndRefreshLikeCppCommand, UnacceptRepresentedTradeLikeCppCommand,
+    WorldSessionShutdownFlushResultLikeCpp,
+};
 use wow_constants::{
     ClientOpcodes, InventoryResult, InventoryType, ItemContext, ItemFieldFlags, ItemFlags,
     ItemFlags2, ItemQuality, UnitDynFlags,
@@ -59,27 +77,6 @@ use wow_loot::{
     loot_condition_row_normalize_without_external_stores_like_cpp,
     loot_conditions_allow_player_with_references_like_cpp_representable,
     loot_item_ui_type_for_player_like_cpp,
-};
-use wow_network::player_registry::{
-    ApplyCreatureMeleeDamageLikeCppCommand, ApplyGroupJoinLikeCppCommand,
-    ApplyGroupRemovalLikeCppCommand, CancelRepresentedTradeLikeCppCommand,
-    CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
-    ReconcilePvpCombatExpiryLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
-    SendAddonIfRegisteredLikeCppCommand, SendCreatureLootReleaseValuesUpdateLikeCppCommand,
-    SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
-    SendPartyUpdateLikeCppCommand, SendRepeatableTurnInRequestItemsLikeCppCommand,
-    SendRepresentedDuelCountdownLikeCppCommand, SendRepresentedDuelRequestedLikeCppCommand,
-    SendRepresentedTradeStatusLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
-    SyncChestGameobjectStateAndRefreshLikeCppCommand,
-    SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
-    SyncGooberGameobjectStateAndRefreshLikeCppCommand, UnacceptRepresentedTradeLikeCppCommand,
-    WorldSessionShutdownFlushResultLikeCpp,
-};
-use wow_network::{
-    ApplyLootMoneyLikeCppCommand, ApplyLootMoneyResultLikeCpp, KickLikeCppCommand,
-    LootRollCommandIdentityLikeCpp, LootRollStoreWinnerCommand, LootRollVoteCommand,
-    MasterLootGiveCommand, MasterLootGiveResult, NotifyLootMoneyRemovedLikeCppCommand,
-    SessionCommand,
 };
 use wow_packet::packets::item::{
     ItemExpirePurchaseRefund, ItemInstance, ItemModList, ItemPushResult, ItemPushResultDisplayType,
@@ -1007,7 +1004,7 @@ impl WorldSession {
     /// Receiver-owned half of the loot-release VALUES fanout. Applying
     /// `Player::isAllowedToLoot` here preserves session-local pending-bind
     /// state and avoids serialising one player's dynamic flags for another.
-    fn handle_send_creature_loot_release_values_update_command_like_cpp(
+    pub(crate) fn handle_send_creature_loot_release_values_update_command_like_cpp(
         &mut self,
         command: SendCreatureLootReleaseValuesUpdateLikeCppCommand,
     ) {
@@ -4260,154 +4257,7 @@ impl WorldSession {
             .unwrap_or(MasterLootGiveResult::TargetMismatch)
     }
 
-    pub(crate) async fn process_represented_session_commands_like_cpp(&mut self) {
-        self.apply_pending_durable_item_loot_completions_like_cpp()
-            .await;
-        let creature_runtime_overflowed = self.take_durable_creature_runtime_overflow_like_cpp();
-        if creature_runtime_overflowed {
-            self.kick(
-                "authoritative creature runtime command backlog overflowed; disconnecting desynchronized session",
-            );
-            return;
-        }
-        let commands = self.drain_session_commands();
-        for command in commands {
-            match command {
-                SessionCommand::KickLikeCpp(command) => {
-                    self.kick(&command.reason);
-                }
-                SessionCommand::WorldSessionShutdownFlushLikeCpp(command) => {
-                    let _ = command
-                        .response_tx
-                        .try_send(WorldSessionShutdownFlushResultLikeCpp {
-                            diff_ms: command.diff_ms,
-                            disconnecting: self.is_disconnecting(),
-                        });
-                }
-                SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command) => {
-                    self.handle_apply_creature_melee_damage_like_cpp_command_like_cpp(command);
-                }
-                SessionCommand::CreatureAttackStartLikeCpp(command) => {
-                    self.handle_creature_attack_start_like_cpp_command_like_cpp(command);
-                }
-                SessionCommand::CreatureAttackStopLikeCpp(command) => {
-                    self.handle_creature_attack_stop_like_cpp_command_like_cpp(command);
-                }
-                SessionCommand::ReconcilePvpCombatExpiryLikeCpp(command) => {
-                    self.handle_reconcile_pvp_combat_expiry_like_cpp(command);
-                }
-                SessionCommand::ApplyLootMoneyLikeCpp(command) => {
-                    self.handle_apply_loot_money_like_cpp_command(command).await;
-                }
-                SessionCommand::NotifyLootMoneyRemovedLikeCpp(command) => {
-                    self.handle_notify_loot_money_removed_like_cpp_command(command);
-                }
-                SessionCommand::MasterLootGive(command) => {
-                    self.handle_represented_master_loot_give_command_like_cpp(command)
-                        .await;
-                }
-                SessionCommand::LootRollStoreWinner(command) => {
-                    self.handle_represented_loot_roll_store_winner_command_like_cpp(command)
-                        .await;
-                }
-                SessionCommand::LootRollVote(command) => {
-                    self.handle_represented_loot_roll_vote_command_like_cpp(command)
-                        .await;
-                }
-                SessionCommand::ResetSeasonalQuestStatus(command) => {
-                    let _ = self.reset_seasonal_quest_status_like_cpp(
-                        command.event_id,
-                        command.event_start_time,
-                    );
-                }
-                SessionCommand::SendVisibleObjectValuesUpdate(command) => {
-                    self.handle_send_visible_object_values_update_command_like_cpp(command);
-                }
-                SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(command) => {
-                    self.handle_refresh_visible_world_creatures_like_cpp_command_like_cpp(command)
-                        .await;
-                }
-                SessionCommand::SendCreatureLootReleaseValuesUpdateLikeCpp(command) => {
-                    self.handle_send_creature_loot_release_values_update_command_like_cpp(command);
-                }
-                SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp => {
-                    let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
-                }
-                SessionCommand::SyncGatheringNodeGameobjectStateAndRefreshLikeCpp(command) => {
-                    self.handle_sync_gathering_node_gameobject_state_and_refresh_like_cpp(command);
-                }
-                SessionCommand::SyncChestGameobjectStateAndRefreshLikeCpp(command) => {
-                    self.handle_sync_chest_gameobject_state_and_refresh_like_cpp(command);
-                }
-                SessionCommand::SyncGooberGameobjectStateAndRefreshLikeCpp(command) => {
-                    self.handle_sync_goober_gameobject_state_and_refresh_like_cpp(command);
-                }
-                SessionCommand::SetQuestSharingInfoAndSendDetails(command) => {
-                    self.handle_set_quest_sharing_info_and_send_details_command_like_cpp(command);
-                }
-                SessionCommand::SendRepeatableTurnInRequestItemsLikeCpp(command) => {
-                    self.handle_send_repeatable_turn_in_request_items_command_like_cpp(command);
-                }
-                SessionCommand::SendRealmPacketLikeCpp(command) => {
-                    if self.state() == SessionState::LoggedIn
-                        && self.player_guid() == Some(command.recipient)
-                    {
-                        self.send_raw_packet_realm(&command.packet_bytes);
-                    }
-                }
-                SessionCommand::SendPartyUpdateLikeCpp(command) => {
-                    self.handle_send_party_update_command_like_cpp(command);
-                }
-                SessionCommand::ApplyGroupRemovalLikeCpp(command) => {
-                    self.handle_apply_group_removal_command_like_cpp(command);
-                }
-                SessionCommand::ApplyGroupJoinLikeCpp(command) => {
-                    self.handle_apply_group_join_command_like_cpp(command);
-                }
-                SessionCommand::ApplyGroupDifficultyLikeCpp(command) => {
-                    self.handle_apply_group_difficulty_command_like_cpp(command);
-                }
-                SessionCommand::ApplyGroupSubgroupLikeCpp(command) => {
-                    self.handle_apply_group_subgroup_command_like_cpp(command);
-                }
-                SessionCommand::SendIfVisibleLikeCpp(command) => {
-                    self.handle_send_if_visible_like_cpp_command_like_cpp(command, false, false);
-                }
-                SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(command) => {
-                    self.handle_send_creature_spell_cast_if_visible_like_cpp_command_like_cpp(
-                        command,
-                    );
-                }
-                SessionCommand::SendRealmIfVisibleLikeCpp(command) => {
-                    self.handle_send_if_visible_like_cpp_command_like_cpp(command, true, false);
-                }
-                SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(command) => {
-                    self.handle_send_if_visible_like_cpp_command_like_cpp(command, true, true);
-                }
-                SessionCommand::SendAddonIfRegisteredLikeCpp(command) => {
-                    self.handle_send_addon_if_registered_like_cpp_command_like_cpp(command);
-                }
-                SessionCommand::CancelRepresentedTradeLikeCpp(command) => {
-                    self.handle_cancel_represented_trade_command_like_cpp(command);
-                }
-                SessionCommand::SendRepresentedTradeStatusLikeCpp(command) => {
-                    self.handle_send_represented_trade_status_command_like_cpp(command);
-                }
-                SessionCommand::UnacceptRepresentedTradeLikeCpp(command) => {
-                    self.handle_unaccept_represented_trade_command_like_cpp(command);
-                }
-                SessionCommand::SendRepresentedDuelCountdownLikeCpp(command) => {
-                    self.handle_send_represented_duel_countdown_command_like_cpp(command);
-                }
-                SessionCommand::SendRepresentedDuelRequestedLikeCpp(command) => {
-                    self.handle_send_represented_duel_requested_command_like_cpp(command);
-                }
-            }
-        }
-        self.flush_pending_visibility_refresh_like_cpp().await;
-    }
-
-    fn handle_apply_group_removal_command_like_cpp(
+    pub(crate) fn handle_apply_group_removal_command_like_cpp(
         &mut self,
         command: ApplyGroupRemovalLikeCppCommand,
     ) {
@@ -4440,7 +4290,10 @@ impl WorldSession {
         }
     }
 
-    fn handle_apply_group_join_command_like_cpp(&mut self, command: ApplyGroupJoinLikeCppCommand) {
+    pub(crate) fn handle_apply_group_join_command_like_cpp(
+        &mut self,
+        command: ApplyGroupJoinLikeCppCommand,
+    ) {
         if self.state() != SessionState::LoggedIn {
             return;
         }
@@ -4453,7 +4306,7 @@ impl WorldSession {
         }
     }
 
-    fn handle_send_party_update_command_like_cpp(
+    pub(crate) fn handle_send_party_update_command_like_cpp(
         &mut self,
         mut command: SendPartyUpdateLikeCppCommand,
     ) {
@@ -4474,9 +4327,9 @@ impl WorldSession {
         }
     }
 
-    fn handle_apply_group_difficulty_command_like_cpp(
+    pub(crate) fn handle_apply_group_difficulty_command_like_cpp(
         &mut self,
-        command: wow_network::player_registry::ApplyGroupDifficultyLikeCppCommand,
+        command: crate::session::mailbox::ApplyGroupDifficultyLikeCppCommand,
     ) {
         if self.state() != SessionState::LoggedIn {
             return;
@@ -4488,9 +4341,9 @@ impl WorldSession {
         );
     }
 
-    fn handle_apply_group_subgroup_command_like_cpp(
+    pub(crate) fn handle_apply_group_subgroup_command_like_cpp(
         &mut self,
-        command: wow_network::player_registry::ApplyGroupSubgroupLikeCppCommand,
+        command: crate::session::mailbox::ApplyGroupSubgroupLikeCppCommand,
     ) {
         if self.state() != SessionState::LoggedIn {
             return;
@@ -4501,7 +4354,7 @@ impl WorldSession {
     /// Mirrors the small gathering-node state subset that C++ keeps on the
     /// shared GameObject before asking this session to recompute its visible
     /// GameObject dynamic-flag deltas.
-    fn handle_sync_gathering_node_gameobject_state_and_refresh_like_cpp(
+    pub(crate) fn handle_sync_gathering_node_gameobject_state_and_refresh_like_cpp(
         &mut self,
         command: SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
     ) {
@@ -4562,7 +4415,7 @@ impl WorldSession {
     /// Mirrors the small chest state subset that C++ keeps on the shared
     /// GameObject before asking this session to recompute visible GameObject
     /// dynamic-flag deltas.
-    fn handle_sync_chest_gameobject_state_and_refresh_like_cpp(
+    pub(crate) fn handle_sync_chest_gameobject_state_and_refresh_like_cpp(
         &mut self,
         command: SyncChestGameobjectStateAndRefreshLikeCppCommand,
     ) {
@@ -4627,7 +4480,7 @@ impl WorldSession {
     /// GameObject dynamic-flag deltas. This intentionally does not import the
     /// cooldown/source ownership fields; the map-owned close/despawn path is a
     /// later runtime slice.
-    fn handle_sync_goober_gameobject_state_and_refresh_like_cpp(
+    pub(crate) fn handle_sync_goober_gameobject_state_and_refresh_like_cpp(
         &mut self,
         command: SyncGooberGameobjectStateAndRefreshLikeCppCommand,
     ) {
@@ -4696,7 +4549,7 @@ impl WorldSession {
     /// current canonical health/death tuple and advances a presentation-only
     /// revision, so neither retries nor a delayed command can write an older
     /// value over a newer heal, hit, death, or resurrection.
-    fn handle_apply_creature_melee_damage_like_cpp_command_like_cpp(
+    pub(crate) fn handle_apply_creature_melee_damage_like_cpp_command_like_cpp(
         &mut self,
         command: ApplyCreatureMeleeDamageLikeCppCommand,
     ) {
@@ -4843,7 +4696,7 @@ impl WorldSession {
         }
     }
 
-    fn handle_creature_attack_stop_like_cpp_command_like_cpp(
+    pub(crate) fn handle_creature_attack_stop_like_cpp_command_like_cpp(
         &mut self,
         command: CreatureAttackStopLikeCppCommand,
     ) {
@@ -4909,7 +4762,7 @@ impl WorldSession {
         self.set_in_combat_like_cpp(still_in_combat);
     }
 
-    fn handle_reconcile_pvp_combat_expiry_like_cpp(
+    pub(crate) fn handle_reconcile_pvp_combat_expiry_like_cpp(
         &mut self,
         command: ReconcilePvpCombatExpiryLikeCppCommand,
     ) {
@@ -4939,9 +4792,9 @@ impl WorldSession {
         self.set_in_combat_like_cpp(still_in_combat);
     }
 
-    fn handle_send_visible_object_values_update_command_like_cpp(
+    pub(crate) fn handle_send_visible_object_values_update_command_like_cpp(
         &mut self,
-        command: wow_network::player_registry::SendVisibleObjectValuesUpdateCommand,
+        command: crate::session::mailbox::SendVisibleObjectValuesUpdateCommand,
     ) {
         if self.state() != crate::session::SessionState::LoggedIn {
             return;
@@ -5100,7 +4953,7 @@ impl WorldSession {
         true
     }
 
-    fn handle_send_if_visible_like_cpp_command_like_cpp(
+    pub(crate) fn handle_send_if_visible_like_cpp_command_like_cpp(
         &mut self,
         command: SendIfVisibleLikeCppCommand,
         realm_connection: bool,
@@ -5146,7 +4999,7 @@ impl WorldSession {
     /// frame-oriented socket sends are not transactional against other cloned
     /// producers or a receiver closing after START; absolute writer adjacency
     /// needs a future batch-aware socket envelope.
-    fn handle_send_creature_spell_cast_if_visible_like_cpp_command_like_cpp(
+    pub(crate) fn handle_send_creature_spell_cast_if_visible_like_cpp_command_like_cpp(
         &mut self,
         command: SendCreatureSpellCastIfVisibleLikeCppCommand,
     ) {
@@ -5202,7 +5055,7 @@ impl WorldSession {
     /// Mirrors C++ `WorldSession::IsAddonRegistered(prefix)`: when
     /// `_filterAddonMessages` is false, all prefixes are accepted; otherwise
     /// the prefix must be in the session-local registered list.
-    fn handle_send_addon_if_registered_like_cpp_command_like_cpp(
+    pub(crate) fn handle_send_addon_if_registered_like_cpp_command_like_cpp(
         &mut self,
         command: SendAddonIfRegisteredLikeCppCommand,
     ) {
@@ -5214,7 +5067,7 @@ impl WorldSession {
         }
     }
 
-    fn handle_cancel_represented_trade_command_like_cpp(
+    pub(crate) fn handle_cancel_represented_trade_command_like_cpp(
         &mut self,
         command: CancelRepresentedTradeLikeCppCommand,
     ) {
@@ -5227,7 +5080,7 @@ impl WorldSession {
         self.send_raw_packet(&command.packet_bytes);
     }
 
-    fn handle_send_represented_trade_status_command_like_cpp(
+    pub(crate) fn handle_send_represented_trade_status_command_like_cpp(
         &mut self,
         command: SendRepresentedTradeStatusLikeCppCommand,
     ) {
@@ -5238,7 +5091,7 @@ impl WorldSession {
         self.send_raw_packet(&command.packet_bytes);
     }
 
-    fn handle_unaccept_represented_trade_command_like_cpp(
+    pub(crate) fn handle_unaccept_represented_trade_command_like_cpp(
         &mut self,
         command: UnacceptRepresentedTradeLikeCppCommand,
     ) {
@@ -5250,14 +5103,14 @@ impl WorldSession {
         self.send_raw_packet(&command.packet_bytes);
     }
 
-    fn handle_send_represented_duel_countdown_command_like_cpp(
+    pub(crate) fn handle_send_represented_duel_countdown_command_like_cpp(
         &mut self,
         command: SendRepresentedDuelCountdownLikeCppCommand,
     ) {
         self.send_raw_packet(&command.packet_bytes);
     }
 
-    fn handle_send_represented_duel_requested_command_like_cpp(
+    pub(crate) fn handle_send_represented_duel_requested_command_like_cpp(
         &mut self,
         command: SendRepresentedDuelRequestedLikeCppCommand,
     ) {
@@ -5272,7 +5125,7 @@ impl WorldSession {
     /// `Player::UpdateVisibilityOf`; this command reuses Rust's represented
     /// `update_visibility` pass instead of sending raw bytes that cannot update
     /// `client_visible_guids_like_cpp`.
-    async fn handle_refresh_visible_world_creatures_like_cpp_command_like_cpp(
+    pub(crate) async fn handle_refresh_visible_world_creatures_like_cpp_command_like_cpp(
         &mut self,
         command: RefreshVisibleWorldCreaturesLikeCppCommand,
     ) {
@@ -5293,14 +5146,14 @@ impl WorldSession {
         self.force_update_visibility_like_cpp().await;
     }
 
-    fn handle_send_repeatable_turn_in_request_items_command_like_cpp(
+    pub(crate) fn handle_send_repeatable_turn_in_request_items_command_like_cpp(
         &mut self,
         command: SendRepeatableTurnInRequestItemsLikeCppCommand,
     ) {
         self.send_repeatable_turn_in_request_items_like_cpp(command.sender_guid, &command.quest);
     }
 
-    fn handle_set_quest_sharing_info_and_send_details_command_like_cpp(
+    pub(crate) fn handle_set_quest_sharing_info_and_send_details_command_like_cpp(
         &mut self,
         command: SetQuestSharingInfoAndSendDetailsCommand,
     ) {
@@ -5316,7 +5169,7 @@ impl WorldSession {
         );
     }
 
-    async fn handle_represented_loot_roll_vote_command_like_cpp(
+    pub(crate) async fn handle_represented_loot_roll_vote_command_like_cpp(
         &mut self,
         command: LootRollVoteCommand,
     ) {
@@ -5354,7 +5207,7 @@ impl WorldSession {
             && current_identity.is_exact_roll_like_cpp(&command.roll_identity)
     }
 
-    async fn handle_apply_loot_money_like_cpp_command(
+    pub(crate) async fn handle_apply_loot_money_like_cpp_command(
         &mut self,
         command: ApplyLootMoneyLikeCppCommand,
     ) {
@@ -5397,7 +5250,7 @@ impl WorldSession {
             .await;
     }
 
-    fn handle_notify_loot_money_removed_like_cpp_command(
+    pub(crate) fn handle_notify_loot_money_removed_like_cpp_command(
         &mut self,
         command: NotifyLootMoneyRemovedLikeCppCommand,
     ) {
@@ -5497,7 +5350,7 @@ impl WorldSession {
         ApplyLootMoneyResultLikeCpp::Applied
     }
 
-    async fn handle_represented_master_loot_give_command_like_cpp(
+    pub(crate) async fn handle_represented_master_loot_give_command_like_cpp(
         &mut self,
         command: MasterLootGiveCommand,
     ) {
@@ -5562,7 +5415,7 @@ impl WorldSession {
         let _ = command.result_tx.send(result);
     }
 
-    async fn handle_represented_loot_roll_store_winner_command_like_cpp(
+    pub(crate) async fn handle_represented_loot_roll_store_winner_command_like_cpp(
         &mut self,
         command: LootRollStoreWinnerCommand,
     ) {
@@ -10396,7 +10249,7 @@ impl WorldSession {
             };
 
             money_persistence_guard.commit_like_cpp(
-                wow_network::DurableLootMoneyCompletionLikeCpp {
+                crate::session::mailbox::DurableLootMoneyCompletionLikeCpp {
                     durable_money_before: before,
                     durable_money_after: after,
                     durable_applied_amount: applied_delta,

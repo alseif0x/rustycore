@@ -701,7 +701,7 @@
         },
         {
           "name": "durable_creature_runtime_commands_like_cpp",
-          "type": "Arc < std :: sync :: Mutex < wow_network :: DurableCreatureRuntimeCommandsLikeCpp > >",
+          "type": "Arc < std :: sync :: Mutex < crate :: session :: mailbox :: DurableCreatureRuntimeCommandsLikeCpp > >",
           "visibility": "private",
           "cfg": [],
           "source_class": "production"
@@ -9464,12 +9464,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_apply_creature_melee_damage_like_cpp_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_apply_creature_melee_damage_like_cpp_command_like_cpp (& mut self , command : ApplyCreatureMeleeDamageLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9477,12 +9478,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_apply_group_difficulty_command_like_cpp",
-          "visibility": "private",
-          "signature": "fn handle_apply_group_difficulty_command_like_cpp (& mut self , command : wow_network :: player_registry :: ApplyGroupDifficultyLikeCppCommand ,)",
+          "visibility": "pub (crate)",
+          "signature": "fn handle_apply_group_difficulty_command_like_cpp (& mut self , command : crate :: session :: mailbox :: ApplyGroupDifficultyLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9490,12 +9492,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_apply_group_join_command_like_cpp",
-          "visibility": "private",
-          "signature": "fn handle_apply_group_join_command_like_cpp (& mut self , command : ApplyGroupJoinLikeCppCommand)",
+          "visibility": "pub (crate)",
+          "signature": "fn handle_apply_group_join_command_like_cpp (& mut self , command : ApplyGroupJoinLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9503,12 +9506,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_apply_group_removal_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_apply_group_removal_command_like_cpp (& mut self , command : ApplyGroupRemovalLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9516,12 +9520,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_apply_group_subgroup_command_like_cpp",
-          "visibility": "private",
-          "signature": "fn handle_apply_group_subgroup_command_like_cpp (& mut self , command : wow_network :: player_registry :: ApplyGroupSubgroupLikeCppCommand ,)",
+          "visibility": "pub (crate)",
+          "signature": "fn handle_apply_group_subgroup_command_like_cpp (& mut self , command : crate :: session :: mailbox :: ApplyGroupSubgroupLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9529,12 +9534,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_apply_loot_money_like_cpp_command",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_apply_loot_money_like_cpp_command (& mut self , command : ApplyLootMoneyLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9542,12 +9548,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_cancel_represented_trade_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_cancel_represented_trade_command_like_cpp (& mut self , command : CancelRepresentedTradeLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9569,12 +9576,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_creature_attack_stop_like_cpp_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_creature_attack_stop_like_cpp_command_like_cpp (& mut self , command : CreatureAttackStopLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9666,12 +9674,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_notify_loot_money_removed_like_cpp_command",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_notify_loot_money_removed_like_cpp_command (& mut self , command : NotifyLootMoneyRemovedLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9679,12 +9688,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_reconcile_pvp_combat_expiry_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_reconcile_pvp_combat_expiry_like_cpp (& mut self , command : ReconcilePvpCombatExpiryLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9692,12 +9702,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_refresh_visible_world_creatures_like_cpp_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_refresh_visible_world_creatures_like_cpp_command_like_cpp (& mut self , command : RefreshVisibleWorldCreaturesLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9705,12 +9716,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_represented_loot_roll_store_winner_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_represented_loot_roll_store_winner_command_like_cpp (& mut self , command : LootRollStoreWinnerCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9718,12 +9730,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_represented_loot_roll_vote_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_represented_loot_roll_vote_command_like_cpp (& mut self , command : LootRollVoteCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9731,12 +9744,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_represented_master_loot_give_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_represented_master_loot_give_command_like_cpp (& mut self , command : MasterLootGiveCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9744,12 +9758,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_send_addon_if_registered_like_cpp_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_send_addon_if_registered_like_cpp_command_like_cpp (& mut self , command : SendAddonIfRegisteredLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9757,12 +9772,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_send_creature_loot_release_values_update_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_send_creature_loot_release_values_update_command_like_cpp (& mut self , command : SendCreatureLootReleaseValuesUpdateLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9770,12 +9786,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_send_creature_spell_cast_if_visible_like_cpp_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_send_creature_spell_cast_if_visible_like_cpp_command_like_cpp (& mut self , command : SendCreatureSpellCastIfVisibleLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9783,12 +9800,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_send_if_visible_like_cpp_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_send_if_visible_like_cpp_command_like_cpp (& mut self , command : SendIfVisibleLikeCppCommand , realm_connection : bool , allow_legacy_creature_source : bool ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9796,12 +9814,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_send_party_update_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_send_party_update_command_like_cpp (& mut self , mut command : SendPartyUpdateLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9809,12 +9828,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_send_repeatable_turn_in_request_items_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_send_repeatable_turn_in_request_items_command_like_cpp (& mut self , command : SendRepeatableTurnInRequestItemsLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9822,12 +9842,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_send_represented_duel_countdown_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_send_represented_duel_countdown_command_like_cpp (& mut self , command : SendRepresentedDuelCountdownLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9835,12 +9856,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_send_represented_duel_requested_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_send_represented_duel_requested_command_like_cpp (& mut self , command : SendRepresentedDuelRequestedLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9848,12 +9870,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_send_represented_trade_status_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_send_represented_trade_status_command_like_cpp (& mut self , command : SendRepresentedTradeStatusLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9861,12 +9884,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_send_visible_object_values_update_command_like_cpp",
-          "visibility": "private",
-          "signature": "fn handle_send_visible_object_values_update_command_like_cpp (& mut self , command : wow_network :: player_registry :: SendVisibleObjectValuesUpdateCommand ,)",
+          "visibility": "pub (crate)",
+          "signature": "fn handle_send_visible_object_values_update_command_like_cpp (& mut self , command : crate :: session :: mailbox :: SendVisibleObjectValuesUpdateCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9888,12 +9912,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_quest_sharing_info_and_send_details_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_set_quest_sharing_info_and_send_details_command_like_cpp (& mut self , command : SetQuestSharingInfoAndSendDetailsCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9901,12 +9926,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_sync_chest_gameobject_state_and_refresh_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_sync_chest_gameobject_state_and_refresh_like_cpp (& mut self , command : SyncChestGameobjectStateAndRefreshLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9914,12 +9940,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_sync_gathering_node_gameobject_state_and_refresh_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_sync_gathering_node_gameobject_state_and_refresh_like_cpp (& mut self , command : SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9927,12 +9954,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_sync_goober_gameobject_state_and_refresh_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_sync_goober_gameobject_state_and_refresh_like_cpp (& mut self , command : SyncGooberGameobjectStateAndRefreshLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -9940,12 +9968,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_unaccept_represented_trade_command_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn handle_unaccept_represented_trade_command_like_cpp (& mut self , command : UnacceptRepresentedTradeLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -10327,20 +10356,6 @@
           "source_class": "production",
           "guards": [
             "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot",
-          "trait_path": null,
-          "kind": "method",
-          "name": "process_represented_session_commands_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn process_represented_session_commands_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
           ]
         },
         {
@@ -19146,7 +19161,7 @@
           "kind": "method",
           "name": "apply_group_difficulty_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn apply_group_difficulty_like_cpp (& mut self , group_guid : u64 , difficulty_id : u32 , kind : wow_network :: player_registry :: GroupDifficultyKindLikeCpp ,)",
+          "signature": "fn apply_group_difficulty_like_cpp (& mut self , group_guid : u64 , difficulty_id : u32 , kind : wow_social :: group :: GroupDifficultyKindLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -30512,6 +30527,19 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "process_represented_session_commands_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn process_represented_session_commands_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -44140,7 +44168,7 @@
           "kind": "method",
           "name": "set_represented_group_difficulty_like_cpp",
           "visibility": "private",
-          "signature": "fn set_represented_group_difficulty_like_cpp (& mut self , difficulty_id : u32 , kind : wow_network :: player_registry :: GroupDifficultyKindLikeCpp ,) -> Option < PreparedStatement >",
+          "signature": "fn set_represented_group_difficulty_like_cpp (& mut self , difficulty_id : u32 , kind : wow_social :: group :: GroupDifficultyKindLikeCpp ,) -> Option < PreparedStatement >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -52778,7 +52806,7 @@
     },
     "session_command": {
       "definition": {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "name": "SessionCommand",
         "visibility": "pub",
         "cfg": [],
@@ -53375,7 +53403,140 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::durable",
+          "name": "DurableLootMoneyCompletionLikeCpp",
+          "visibility": "pub",
+          "cfg": [],
+          "source_class": "production"
+        },
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "applied",
+            "type": "Arc < AtomicBool >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "durable_applied_amount",
+            "type": "u64",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "durable_money_after",
+            "type": "u64",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "durable_money_before",
+            "type": "u64",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          }
+        ],
+        "variants": [],
+        "alias": null
+      },
+      {
+        "definition": {
+          "module": "crate::session::mailbox::durable",
+          "name": "DurableLootMoneyPersistenceStateLikeCpp",
+          "visibility": "private",
+          "cfg": [],
+          "source_class": "production"
+        },
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "active_save_fences",
+            "type": "usize",
+            "visibility": "private",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "admission_closed",
+            "type": "bool",
+            "visibility": "private",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "completions",
+            "type": "Vec < DurableLootMoneyCompletionLikeCpp >",
+            "visibility": "private",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "in_flight",
+            "type": "usize",
+            "visibility": "private",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "indeterminate",
+            "type": "bool",
+            "visibility": "private",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "permanently_closed",
+            "type": "bool",
+            "visibility": "private",
+            "cfg": [],
+            "source_class": "production"
+          }
+        ],
+        "variants": [],
+        "alias": null
+      },
+      {
+        "definition": {
+          "module": "crate::session::mailbox::durable",
+          "name": "DurableLootMoneyPersistenceTrackerLikeCpp",
+          "visibility": "pub",
+          "cfg": [],
+          "source_class": "production"
+        },
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "changed",
+            "type": "tokio :: sync :: watch :: Sender < u64 >",
+            "visibility": "private",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "money_mutation_serial",
+            "type": "Arc < tokio :: sync :: Mutex < () > >",
+            "visibility": "private",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "state",
+            "type": "Mutex < DurableLootMoneyPersistenceStateLikeCpp >",
+            "visibility": "private",
+            "cfg": [],
+            "source_class": "production"
+          }
+        ],
+        "variants": [],
+        "alias": null
+      },
+      {
+        "definition": {
+          "module": "crate::session::mailbox::protocol",
           "name": "ApplyCreatureMeleeDamageLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -53452,7 +53613,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "ApplyGroupDifficultyLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -53487,7 +53648,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "ApplyGroupJoinLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -53536,7 +53697,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "ApplyGroupRemovalLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -53592,7 +53753,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "ApplyGroupSubgroupLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -53620,7 +53781,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "ApplyLootMoneyLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -53725,7 +53886,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "CancelRepresentedTradeLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -53753,7 +53914,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "CreatureAttackStartLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -53809,7 +53970,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "CreatureAttackStopLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -53851,140 +54012,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
-          "name": "DurableLootMoneyCompletionLikeCpp",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "applied",
-            "type": "Arc < AtomicBool >",
-            "visibility": "pub",
-            "cfg": [],
-            "source_class": "production"
-          },
-          {
-            "name": "durable_applied_amount",
-            "type": "u64",
-            "visibility": "pub",
-            "cfg": [],
-            "source_class": "production"
-          },
-          {
-            "name": "durable_money_after",
-            "type": "u64",
-            "visibility": "pub",
-            "cfg": [],
-            "source_class": "production"
-          },
-          {
-            "name": "durable_money_before",
-            "type": "u64",
-            "visibility": "pub",
-            "cfg": [],
-            "source_class": "production"
-          }
-        ],
-        "variants": [],
-        "alias": null
-      },
-      {
-        "definition": {
-          "module": "crate::player_registry",
-          "name": "DurableLootMoneyPersistenceStateLikeCpp",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "active_save_fences",
-            "type": "usize",
-            "visibility": "private",
-            "cfg": [],
-            "source_class": "production"
-          },
-          {
-            "name": "admission_closed",
-            "type": "bool",
-            "visibility": "private",
-            "cfg": [],
-            "source_class": "production"
-          },
-          {
-            "name": "completions",
-            "type": "Vec < DurableLootMoneyCompletionLikeCpp >",
-            "visibility": "private",
-            "cfg": [],
-            "source_class": "production"
-          },
-          {
-            "name": "in_flight",
-            "type": "usize",
-            "visibility": "private",
-            "cfg": [],
-            "source_class": "production"
-          },
-          {
-            "name": "indeterminate",
-            "type": "bool",
-            "visibility": "private",
-            "cfg": [],
-            "source_class": "production"
-          },
-          {
-            "name": "permanently_closed",
-            "type": "bool",
-            "visibility": "private",
-            "cfg": [],
-            "source_class": "production"
-          }
-        ],
-        "variants": [],
-        "alias": null
-      },
-      {
-        "definition": {
-          "module": "crate::player_registry",
-          "name": "DurableLootMoneyPersistenceTrackerLikeCpp",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "changed",
-            "type": "tokio :: sync :: watch :: Sender < u64 >",
-            "visibility": "private",
-            "cfg": [],
-            "source_class": "production"
-          },
-          {
-            "name": "money_mutation_serial",
-            "type": "Arc < tokio :: sync :: Mutex < () > >",
-            "visibility": "private",
-            "cfg": [],
-            "source_class": "production"
-          },
-          {
-            "name": "state",
-            "type": "Mutex < DurableLootMoneyPersistenceStateLikeCpp >",
-            "visibility": "private",
-            "cfg": [],
-            "source_class": "production"
-          }
-        ],
-        "variants": [],
-        "alias": null
-      },
-      {
-        "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "KickLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54005,7 +54033,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "LootRollCommandIdentityLikeCpp",
           "visibility": "pub",
           "cfg": [],
@@ -54054,7 +54082,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "LootRollStoreWinnerCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54124,7 +54152,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "LootRollVoteCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54180,7 +54208,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "MasterLootGiveCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54250,7 +54278,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "MasterLootGiveResult",
           "visibility": "pub",
           "cfg": [],
@@ -54293,7 +54321,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "NotifyLootMoneyRemovedLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54349,7 +54377,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "ReconcilePvpCombatExpiryLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54384,7 +54412,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "RefreshVisibleWorldCreaturesLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54412,7 +54440,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "ResetSeasonalQuestStatusCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54440,7 +54468,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "SendAddonIfRegisteredLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54468,7 +54496,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "SendCreatureLootReleaseValuesUpdateLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54517,7 +54545,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "SendCreatureSpellCastIfVisibleLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54580,7 +54608,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "SendIfVisibleLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54629,7 +54657,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "SendPartyUpdateLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54664,7 +54692,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "SendRealmPacketLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54692,7 +54720,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "SendRepeatableTurnInRequestItemsLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54720,7 +54748,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "SendRepresentedDuelCountdownLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54741,7 +54769,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "SendRepresentedDuelRequestedLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54769,7 +54797,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "SendRepresentedTradeStatusLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54790,7 +54818,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "SendVisibleObjectValuesUpdateCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54832,7 +54860,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "SetQuestSharingInfoAndSendDetailsCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54860,7 +54888,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "SharedClientVisibleGuidsLikeCpp",
           "visibility": "pub",
           "cfg": [],
@@ -54881,7 +54909,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "SyncChestGameobjectStateAndRefreshLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54993,7 +55021,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -55091,7 +55119,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "SyncGooberGameobjectStateAndRefreshLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -55182,7 +55210,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "UnacceptRepresentedTradeLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -55203,7 +55231,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "WorldSessionShutdownFlushLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -55231,7 +55259,7 @@
       },
       {
         "definition": {
-          "module": "crate::player_registry",
+          "module": "crate::session::mailbox::protocol",
           "name": "WorldSessionShutdownFlushResultLikeCpp",
           "visibility": "pub",
           "cfg": [],
@@ -55842,79 +55870,15 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
-        "target": "ApplyCreatureMeleeDamageLikeCppCommand",
+        "module": "crate::session::directory",
+        "target": "PlayerBroadcastInfo",
         "kind": "derive",
-        "fingerprint": "derive (Clone , Debug)",
+        "fingerprint": "derive (Clone)",
         "cfg": [],
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
-        "target": "ApplyGroupDifficultyLikeCppCommand",
-        "kind": "derive",
-        "fingerprint": "derive (Clone , Debug)",
-        "cfg": [],
-        "source_class": "production"
-      },
-      {
-        "module": "crate::player_registry",
-        "target": "ApplyGroupJoinLikeCppCommand",
-        "kind": "derive",
-        "fingerprint": "derive (Clone , Copy , Debug , PartialEq , Eq)",
-        "cfg": [],
-        "source_class": "production"
-      },
-      {
-        "module": "crate::player_registry",
-        "target": "ApplyGroupRemovalLikeCppCommand",
-        "kind": "derive",
-        "fingerprint": "derive (Clone , Debug)",
-        "cfg": [],
-        "source_class": "production"
-      },
-      {
-        "module": "crate::player_registry",
-        "target": "ApplyGroupSubgroupLikeCppCommand",
-        "kind": "derive",
-        "fingerprint": "derive (Clone , Copy , Debug , PartialEq , Eq)",
-        "cfg": [],
-        "source_class": "production"
-      },
-      {
-        "module": "crate::player_registry",
-        "target": "ApplyLootMoneyLikeCppCommand",
-        "kind": "derive",
-        "fingerprint": "derive (Clone , Debug)",
-        "cfg": [],
-        "source_class": "production"
-      },
-      {
-        "module": "crate::player_registry",
-        "target": "CancelRepresentedTradeLikeCppCommand",
-        "kind": "derive",
-        "fingerprint": "derive (Clone , Debug)",
-        "cfg": [],
-        "source_class": "production"
-      },
-      {
-        "module": "crate::player_registry",
-        "target": "CreatureAttackStartLikeCppCommand",
-        "kind": "derive",
-        "fingerprint": "derive (Clone , Debug)",
-        "cfg": [],
-        "source_class": "production"
-      },
-      {
-        "module": "crate::player_registry",
-        "target": "CreatureAttackStopLikeCppCommand",
-        "kind": "derive",
-        "fingerprint": "derive (Clone , Debug)",
-        "cfg": [],
-        "source_class": "production"
-      },
-      {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::durable",
         "target": "DurableLootMoneyCompletionLikeCpp",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -55922,7 +55886,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::durable",
         "target": "DurableLootMoneyPersistenceStateLikeCpp",
         "kind": "derive",
         "fingerprint": "derive (Debug , Default)",
@@ -55930,7 +55894,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::durable",
         "target": "DurableLootMoneyPersistenceTrackerLikeCpp",
         "kind": "derive",
         "fingerprint": "derive (Debug)",
@@ -55938,7 +55902,79 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
+        "target": "ApplyCreatureMeleeDamageLikeCppCommand",
+        "kind": "derive",
+        "fingerprint": "derive (Clone , Debug)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::protocol",
+        "target": "ApplyGroupDifficultyLikeCppCommand",
+        "kind": "derive",
+        "fingerprint": "derive (Clone , Debug)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::protocol",
+        "target": "ApplyGroupJoinLikeCppCommand",
+        "kind": "derive",
+        "fingerprint": "derive (Clone , Copy , Debug , PartialEq , Eq)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::protocol",
+        "target": "ApplyGroupRemovalLikeCppCommand",
+        "kind": "derive",
+        "fingerprint": "derive (Clone , Debug)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::protocol",
+        "target": "ApplyGroupSubgroupLikeCppCommand",
+        "kind": "derive",
+        "fingerprint": "derive (Clone , Copy , Debug , PartialEq , Eq)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::protocol",
+        "target": "ApplyLootMoneyLikeCppCommand",
+        "kind": "derive",
+        "fingerprint": "derive (Clone , Debug)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::protocol",
+        "target": "CancelRepresentedTradeLikeCppCommand",
+        "kind": "derive",
+        "fingerprint": "derive (Clone , Debug)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::protocol",
+        "target": "CreatureAttackStartLikeCppCommand",
+        "kind": "derive",
+        "fingerprint": "derive (Clone , Debug)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::protocol",
+        "target": "CreatureAttackStopLikeCppCommand",
+        "kind": "derive",
+        "fingerprint": "derive (Clone , Debug)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::protocol",
         "target": "KickLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -55946,7 +55982,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "LootRollCommandIdentityLikeCpp",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -55954,7 +55990,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "LootRollStoreWinnerCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -55962,7 +55998,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "LootRollVoteCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -55970,7 +56006,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "MasterLootGiveCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -55978,7 +56014,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "MasterLootGiveResult",
         "kind": "derive",
         "fingerprint": "derive (Clone , Copy , Debug , PartialEq , Eq)",
@@ -55986,7 +56022,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "NotifyLootMoneyRemovedLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -55994,7 +56030,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "ReconcilePvpCombatExpiryLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56002,7 +56038,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "RefreshVisibleWorldCreaturesLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56010,7 +56046,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "ResetSeasonalQuestStatusCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Copy , Debug , PartialEq , Eq)",
@@ -56018,7 +56054,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "SendAddonIfRegisteredLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56026,7 +56062,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "SendCreatureLootReleaseValuesUpdateLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56034,7 +56070,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "SendCreatureSpellCastIfVisibleLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug , PartialEq , Eq)",
@@ -56042,7 +56078,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "SendIfVisibleLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56050,7 +56086,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "SendPartyUpdateLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56058,7 +56094,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "SendRealmPacketLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug , PartialEq , Eq)",
@@ -56066,7 +56102,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "SendRepeatableTurnInRequestItemsLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56074,7 +56110,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "SendRepresentedDuelCountdownLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56082,7 +56118,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "SendRepresentedDuelRequestedLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56090,7 +56126,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "SendRepresentedTradeStatusLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56098,7 +56134,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "SendVisibleObjectValuesUpdateCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56106,7 +56142,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "SessionCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56114,7 +56150,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "SetQuestSharingInfoAndSendDetailsCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56122,7 +56158,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "SharedClientVisibleGuidsLikeCpp",
         "kind": "derive",
         "fingerprint": "derive (Clone , Default)",
@@ -56130,7 +56166,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "SyncChestGameobjectStateAndRefreshLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56138,7 +56174,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56146,7 +56182,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "SyncGooberGameobjectStateAndRefreshLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56154,7 +56190,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "UnacceptRepresentedTradeLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56162,7 +56198,7 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "WorldSessionShutdownFlushLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56170,18 +56206,10 @@
         "source_class": "production"
       },
       {
-        "module": "crate::player_registry",
+        "module": "crate::session::mailbox::protocol",
         "target": "WorldSessionShutdownFlushResultLikeCpp",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug , PartialEq , Eq)",
-        "cfg": [],
-        "source_class": "production"
-      },
-      {
-        "module": "crate::session::directory",
-        "target": "PlayerBroadcastInfo",
-        "kind": "derive",
-        "fingerprint": "derive (Clone)",
         "cfg": [],
         "source_class": "production"
       }
@@ -64944,7 +64972,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=fn spawn_canonical_map_update_loop (map_manager : SharedCanonicalMapManager , legacy_map_manager : SharedMapManager , tick_interval_ms : u32 , respawn_condition_interval_ms : u32 , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , condition_store : Arc < wow_data :: ConditionEntriesByTypeStore > , map_store : Arc < wow_data :: MapStore > , character_db : Arc < CharacterDatabase > , respawn_db_writer_tx : RespawnDbWriterSenderLikeCpp , respawn_db_mutation_order : SharedRespawnDbMutationOrderLikeCpp , respawn_db_producer_stop : SharedRespawnDbProducerStopLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , area_trigger_template_store : Arc < wow_data :: AreaTriggerTemplateStore > , mut game_event_scheduler : CanonicalGameEventSchedulerLikeCpp , player_registry : Arc < PlayerRegistry > , battlemaster_list_store : Arc < wow_data :: BattlemasterListStore > , world_state_mgr : SharedWorldStateMgrLikeCpp ,) -> tokio :: task :: JoinHandle < () >|body=fnv1a64x2:3da688826483502fca3c08d4a6ed8a46:len=19238|evidence=fnv1a64x2:c37b0b36becd8dbf167ef9e941316818:len=1023",
+          "fingerprint": "signature=fn spawn_canonical_map_update_loop (map_manager : SharedCanonicalMapManager , legacy_map_manager : SharedMapManager , tick_interval_ms : u32 , respawn_condition_interval_ms : u32 , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , condition_store : Arc < wow_data :: ConditionEntriesByTypeStore > , map_store : Arc < wow_data :: MapStore > , character_db : Arc < CharacterDatabase > , respawn_db_writer_tx : RespawnDbWriterSenderLikeCpp , respawn_db_mutation_order : SharedRespawnDbMutationOrderLikeCpp , respawn_db_producer_stop : SharedRespawnDbProducerStopLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , area_trigger_template_store : Arc < wow_data :: AreaTriggerTemplateStore > , mut game_event_scheduler : CanonicalGameEventSchedulerLikeCpp , player_registry : Arc < PlayerRegistry > , battlemaster_list_store : Arc < wow_data :: BattlemasterListStore > , world_state_mgr : SharedWorldStateMgrLikeCpp ,) -> tokio :: task :: JoinHandle < () >|body=fnv1a64x2:a1e908eb2ee3e2c2decacdf4e46f2261:len=19239|evidence=fnv1a64x2:c37b0b36becd8dbf167ef9e941316818:len=1023",
           "cfg": [],
           "multiplicity": 1
         },
@@ -72717,7 +72745,7 @@
               "multiplicity": 3
             }
           ],
-          "fingerprint": "signature=fn run_legacy_creature_melee_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > ,) -> LegacyCreatureMeleeTickOutcomeLikeCpp|body=fnv1a64x2:92fa4e48a6ce3afa13e9c48af0815019:len=14012|evidence=fnv1a64x2:c01feb86d3e36fae1d8c1e68ada8a139:len=13834",
+          "fingerprint": "signature=fn run_legacy_creature_melee_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > ,) -> LegacyCreatureMeleeTickOutcomeLikeCpp|body=fnv1a64x2:792edaf2671f80d8c3f8074370f98deb:len=14009|evidence=fnv1a64x2:c01feb86d3e36fae1d8c1e68ada8a139:len=13834",
           "cfg": [],
           "multiplicity": 1
         },
@@ -73935,7 +73963,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:36c19ae2126591bffaa59739579abe76:len=90746|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:db86f4990b23216481dec05654fc6ea7:len=90762|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

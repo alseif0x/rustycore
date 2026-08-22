@@ -22,6 +22,15 @@ use routing::assert_destroyed_party_update_like_cpp;
 
 use super::*;
 use crate::session::directory::PlayerBroadcastInfo;
+use crate::session::mailbox::{
+    ApplyCreatureMeleeDamageLikeCppCommand, ApplyGroupRemovalLikeCppCommand,
+    ApplyGroupSubgroupLikeCppCommand, ApplyLootMoneyLikeCppCommand,
+    CreatureAttackStartLikeCppCommand, GameEventQuestCompleteClientOutcomeLikeCpp,
+    GameEventQuestCompleteResponseLikeCpp, KickLikeCppCommand,
+    RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
+    SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand, SendRealmPacketLikeCppCommand,
+    SendVisibleObjectValuesUpdateCommand, SessionCommand, WorldSessionShutdownFlushLikeCppCommand,
+};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering as AtomicOrdering};
 use wow_constants::ItemModType;
 use wow_constants::{
@@ -70,17 +79,6 @@ use wow_entities::{
     INVENTORY_SLOT_ITEM_START, ItemBonusKey, MapObjectRecord, PlayerEnchantDuration,
     REAGENT_BAG_SLOT_START, SendNewItemInstancePlan, SendNewItemModifier, SocketedGem, TYPEID_UNIT,
     UNIT_DATA_BITS, UnitDataUpdate, UnitDataValues, UnitValuesUpdate, UpdateMask,
-};
-use wow_network::player_registry::{
-    ApplyGroupRemovalLikeCppCommand, ApplyGroupSubgroupLikeCppCommand,
-};
-use wow_network::{
-    ApplyCreatureMeleeDamageLikeCppCommand, ApplyLootMoneyLikeCppCommand,
-    CreatureAttackStartLikeCppCommand, GameEventQuestCompleteClientOutcomeLikeCpp,
-    GameEventQuestCompleteResponseLikeCpp, KickLikeCppCommand,
-    RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
-    SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand, SendRealmPacketLikeCppCommand,
-    SendVisibleObjectValuesUpdateCommand, SessionCommand, WorldSessionShutdownFlushLikeCppCommand,
 };
 use wow_packet::ServerPacket;
 use wow_packet::packets::loot::{
@@ -11675,7 +11673,7 @@ async fn durable_creature_runtime_overflow_disconnects_desynchronized_session() 
             .durable_creature_runtime_commands_like_cpp
             .lock()
             .unwrap();
-        for _ in 0..wow_network::MAX_DURABLE_CREATURE_RUNTIME_COMMANDS_LIKE_CPP {
+        for _ in 0..crate::session::mailbox::MAX_DURABLE_CREATURE_RUNTIME_COMMANDS_LIKE_CPP {
             assert!(pending.publish_attack_start_like_cpp(command.clone()));
         }
         assert!(!pending.publish_attack_start_like_cpp(command));

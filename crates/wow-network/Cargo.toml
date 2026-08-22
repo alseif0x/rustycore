@@ -19,13 +19,7 @@ dashmap = { workspace = true }
 wow-core = { workspace = true }
 wow-crypto = { workspace = true }
 wow-packet = { workspace = true }
-# Transitional: the Session mailbox still carries the Group difficulty kind in
-# `ApplyGroupDifficultyLikeCppCommand`. Issue #140 relocates that mailbox and
-# removes this edge.
-wow-social = { workspace = true }
 wow-constants = { workspace = true }
-wow-data = { workspace = true }
-wow-loot = { workspace = true }
 
 [dev-dependencies]
 flate2 = { workspace = true }

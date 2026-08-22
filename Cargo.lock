@@ -3327,10 +3327,7 @@ dependencies = [
  "wow-constants",
  "wow-core",
  "wow-crypto",
- "wow-data",
- "wow-loot",
  "wow-packet",
- "wow-social",
 ]
 
 [[package]]

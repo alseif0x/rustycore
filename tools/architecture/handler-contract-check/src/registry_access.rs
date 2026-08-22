@@ -916,6 +916,7 @@ fn collect_use_bindings(
                         | "group_registry"
                         | "group"
                         | "directory"
+                        | "mailbox"
                 )
             });
             if hides_registry {
@@ -2948,6 +2949,24 @@ mod tests {
 
         inventory("use crate::handlers::party_ui::*;\n")
             .expect("an unrelated social-adjacent module glob stays allowed");
+    }
+
+    /// Issue #140 moved the Session mailbox to `wow_world::session::mailbox`.
+    /// Its payloads name registry types, so a glob over the relocated mailbox
+    /// must fail closed like every other relocated owner.
+    #[test]
+    fn registry_inventory_rejects_relocated_mailbox_glob() {
+        for import in [
+            "use wow_world::session::mailbox::*;\n",
+            "use crate::session::mailbox::protocol::*;\n",
+        ] {
+            let error = inventory(import)
+                .expect_err("a glob over the relocated mailbox owner must fail closed");
+            assert!(
+                error.contains("can hide a registry alias"),
+                "{import} -> {error}"
+            );
+        }
     }
 
     #[test]

@@ -158,8 +158,8 @@ impl crate::session::WorldSession {
         {
             let _ = registry.try_send_current_command(
                 registration,
-                wow_network::SessionCommand::SendIfVisibleLikeCpp(
-                    wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                crate::session::mailbox::SessionCommand::SendIfVisibleLikeCpp(
+                    crate::session::mailbox::SendIfVisibleLikeCppCommand {
                         queued_at: std::time::Instant::now(),
                         source_guid,
                         map_id,

@@ -31,6 +31,7 @@ mod travel;
 
 use super::*;
 use crate::session::directory::{PlayerBroadcastInfo, PlayerRegistry};
+use crate::session::mailbox::SessionCommand;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, RwLock};
 use wow_constants::{
@@ -52,7 +53,6 @@ use wow_data::{
     ItemStore, MapDifficultyEntry, MapDifficultyStore, MapEntry, MapStore, SpellInfo, SpellStore,
 };
 use wow_database::SqlParam;
-use wow_network::SessionCommand;
 use wow_packet::ServerPacket;
 use wow_packet::WorldPacket;
 use wow_packet::packets::misc::TRADE_STATUS_INITIATED_LIKE_CPP;

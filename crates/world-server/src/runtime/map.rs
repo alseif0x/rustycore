@@ -1852,7 +1852,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
                                 continue;
                             };
                             let command =
-                                wow_network::player_registry::ReconcilePvpCombatExpiryLikeCppCommand {
+                                wow_world::session::mailbox::ReconcilePvpCombatExpiryLikeCppCommand {
                                     player_guid,
                                     map_id,
                                     instance_id,

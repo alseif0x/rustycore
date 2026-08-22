@@ -1128,7 +1128,7 @@
             "pending_invites",
             "player_registry"
           ],
-          "owner": "world-server composition holds handles; the player directory owner is wow_world::session::directory, the Group owner is wow_social::group, and the Session mailbox remains in wow-network.",
+          "owner": "world-server composition holds handles; the player directory owner is wow_world::session::directory, the Group owner is wow_social::group, and the Session mailbox is wow_world::session::mailbox.",
           "open_retirement_issues": [
             140
           ],
@@ -1574,7 +1574,7 @@
     },
     "session_command": {
       "coverage_source": {
-        "file": "crates/wow-network/src/player_registry.rs",
+        "file": "crates/wow-world/src/session/mailbox/protocol.rs",
         "rust_item": "SessionCommand",
         "parser": "syn::ItemEnum variants",
         "include_cfg": "all",
@@ -1686,7 +1686,7 @@
             "SendRepresentedDuelCountdownLikeCpp",
             "SendRepresentedDuelRequestedLikeCpp"
           ],
-          "owner": "wow-network still defines the mailbox payloads; wow_social::group owns Group transitions and Session applies receiver-local facts.",
+          "owner": "wow_world::session::mailbox defines the payloads; wow_social::group owns Group transitions and Session applies receiver-local facts.",
           "open_retirement_issues": [
             140,
             153
@@ -1868,9 +1868,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 73682,
-          "test_lines": 94444,
-          "total_lines": 168126,
+          "production_lines": 75031,
+          "test_lines": 94834,
+          "total_lines": 169865,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             140,
@@ -1924,9 +1924,9 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 24984,
+          "production_lines": 24986,
           "test_lines": 21521,
-          "total_lines": 46505,
+          "total_lines": 46507,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153,
