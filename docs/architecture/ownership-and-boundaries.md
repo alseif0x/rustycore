@@ -327,6 +327,27 @@ logical monolith: its registrations, behavior, and tests now live in private cap
 under `handlers/misc/`, while `misc/mod.rs` is a 164-line compatibility facade for shared packet
 types, constants, and narrow helpers. Every production capability file is below 700 lines.
 
+Issue #224 turns the last three handler monoliths into feature trees without moving their logical
+owner: `handlers/character.rs` (20,272 lines), `handlers/loot.rs` (13,606) and
+`handlers/quest.rs` (8,274) become `character/` with eleven modules, `loot/` with ten and `quest/`
+with seven. Each packet entry point is filed under the feature it serves rather than pooled into
+one handler dump, which is what keeps every productive child under the 4,000-line review signal —
+the largest is `character/items.rs` at 3,735. The three logical ceilings rise by 75, 0 and 134
+lines respectively: module headers, docs and imports across 28 new files, with `loot/mod.rs`
+actually shrinking. 178 methods crossed a feature boundary and became `pub(super)`, so the widened
+visibility stops at its family instead of reaching the crate, and the handler-contract snapshot is
+byte-identical because the registrations moved into descendants of the same declared owner root.
+Two mechanical details were forced by the split: the character feature module is `items`, since
+`mod inventory` would shadow the `inventory` crate its registrations use, and the money-publication
+source scan in `character_tests.rs` now concatenates the eleven modules instead of reading one
+file.
+
+The persistence inventory still names the pre-split paths. Refreshing it needs
+`print-persistence-baseline`, which aborts on this workspace — on the parent commit as much as on
+the split — so the snapshot, its derived policy and the reviewed workflow annotations were left
+mutually consistent rather than half-migrated. That blocked refresh is tracked with the other
+unrunnable-tooling findings in #263.
+
 Issue #140 completes the same campaign for the Session mailbox and, unlike the two moves before
 it, is a net dependency reduction rather than a relocation: `wow-network` loses `wow-data`,
 `wow-loot` and `wow-social` outright, so the workspace falls from 109 to 106 edges and the baseline
