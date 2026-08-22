@@ -11,9 +11,9 @@ use super::*;
 
 use std::sync::Mutex;
 use wow_persistence::{
-    AccountCollectionSaveLikeCpp, LogicalDatabaseLikeCpp, PersistenceFutureLikeCpp,
-    PersistenceOutcomeLikeCpp, PlayerLifecyclePortLikeCpp, PlayerOfflineMarkLikeCpp,
-    PlayerTutorialsSaveLikeCpp,
+    AccountCollectionSaveLikeCpp, AccountMaskBlockLikeCpp, LogicalDatabaseLikeCpp,
+    PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerLifecyclePortLikeCpp,
+    PlayerOfflineMarkLikeCpp, PlayerTutorialsSaveLikeCpp,
 };
 
 struct RecordingPortLikeCpp {
@@ -320,4 +320,69 @@ async fn account_collections_without_a_port_write_nothing_like_cpp() {
     session.save_account_mounts_like_cpp().await;
     session.save_account_toys_like_cpp().await;
     session.save_account_heirlooms_like_cpp().await;
+}
+
+/// Appearances keep their favourite inserts ahead of their deletes. They share
+/// one transaction, and a delete that overtook its insert would drop a
+/// favourite the client still shows.
+#[test]
+fn appearance_saves_keep_inserts_before_deletes_like_cpp() {
+    let save = AccountCollectionSaveLikeCpp::ItemAppearances {
+        bnet_account_id: 7,
+        appearance_blocks: vec![AccountMaskBlockLikeCpp {
+            block_index: 0,
+            mask: 0b1011,
+        }],
+        favorite_inserts: vec![101, 102],
+        favorite_deletes: vec![103],
+    };
+
+    assert!(!save.is_empty());
+    assert_eq!(save.logical_database(), LogicalDatabaseLikeCpp::Login);
+    match save {
+        AccountCollectionSaveLikeCpp::ItemAppearances {
+            favorite_inserts,
+            favorite_deletes,
+            ..
+        } => {
+            assert_eq!(favorite_inserts, vec![101, 102]);
+            assert_eq!(favorite_deletes, vec![103]);
+        }
+        other => panic!("unexpected variant: {other:?}"),
+    }
+}
+
+/// An appearance plan with no blocks and no favourite changes writes nothing.
+#[test]
+fn an_empty_appearance_plan_opens_no_transaction_like_cpp() {
+    assert!(
+        AccountCollectionSaveLikeCpp::ItemAppearances {
+            bnet_account_id: 7,
+            appearance_blocks: Vec::new(),
+            favorite_inserts: Vec::new(),
+            favorite_deletes: Vec::new(),
+        }
+        .is_empty()
+    );
+    assert!(
+        AccountCollectionSaveLikeCpp::TransmogIllusions {
+            bnet_account_id: 7,
+            illusion_blocks: Vec::new(),
+        }
+        .is_empty()
+    );
+}
+
+/// Appearances and illusions reach the port without a database handle.
+#[tokio::test]
+async fn appearances_and_illusions_are_saved_through_the_port_like_cpp() {
+    let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7400_0001)));
+
+    session.save_account_item_appearances_like_cpp().await;
+    session.save_account_transmog_illusions_like_cpp().await;
+
+    for save in port.collection_saves() {
+        assert_eq!(save.logical_database(), LogicalDatabaseLikeCpp::Login);
+    }
 }

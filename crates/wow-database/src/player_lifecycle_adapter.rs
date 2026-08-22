@@ -162,6 +162,55 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                     }
                     rows.len()
                 }
+                AccountCollectionSaveLikeCpp::ItemAppearances {
+                    bnet_account_id,
+                    appearance_blocks,
+                    favorite_inserts,
+                    favorite_deletes,
+                } => {
+                    for block in appearance_blocks {
+                        let mut stmt = self
+                            .login_db
+                            .prepare(LoginStatements::INS_BNET_ITEM_APPEARANCES);
+                        stmt.set_u32(0, *bnet_account_id);
+                        stmt.set_u32(1, block.block_index);
+                        stmt.set_u32(2, block.mask);
+                        tx.append(stmt);
+                    }
+                    // Inserts before deletes, as the Session built them.
+                    for id in favorite_inserts {
+                        let mut stmt = self
+                            .login_db
+                            .prepare(LoginStatements::INS_BNET_ITEM_FAVORITE_APPEARANCE);
+                        stmt.set_u32(0, *bnet_account_id);
+                        stmt.set_u32(1, *id);
+                        tx.append(stmt);
+                    }
+                    for id in favorite_deletes {
+                        let mut stmt = self
+                            .login_db
+                            .prepare(LoginStatements::DEL_BNET_ITEM_FAVORITE_APPEARANCE);
+                        stmt.set_u32(0, *bnet_account_id);
+                        stmt.set_u32(1, *id);
+                        tx.append(stmt);
+                    }
+                    appearance_blocks.len() + favorite_inserts.len() + favorite_deletes.len()
+                }
+                AccountCollectionSaveLikeCpp::TransmogIllusions {
+                    bnet_account_id,
+                    illusion_blocks,
+                } => {
+                    for block in illusion_blocks {
+                        let mut stmt = self
+                            .login_db
+                            .prepare(LoginStatements::INS_BNET_TRANSMOG_ILLUSIONS);
+                        stmt.set_u32(0, *bnet_account_id);
+                        stmt.set_u32(1, block.block_index);
+                        stmt.set_u32(2, block.mask);
+                        tx.append(stmt);
+                    }
+                    illusion_blocks.len()
+                }
             };
             // One collection, one transaction — the shape C++ logout uses and
             // #187 freezes.

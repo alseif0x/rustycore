@@ -115,6 +115,27 @@ pub enum AccountCollectionSaveLikeCpp {
     Mounts(Vec<AccountMountRowLikeCpp>),
     Toys(Vec<AccountToyRowLikeCpp>),
     Heirlooms(Vec<AccountHeirloomRowLikeCpp>),
+    /// Appearances are stored as packed masks per block, with the favourite
+    /// list maintained by explicit inserts and deletes. Insert order before
+    /// delete order is preserved: they share one transaction and a delete that
+    /// overtook its insert would drop a favourite the client still shows.
+    ItemAppearances {
+        bnet_account_id: u32,
+        appearance_blocks: Vec<AccountMaskBlockLikeCpp>,
+        favorite_inserts: Vec<u32>,
+        favorite_deletes: Vec<u32>,
+    },
+    TransmogIllusions {
+        bnet_account_id: u32,
+        illusion_blocks: Vec<AccountMaskBlockLikeCpp>,
+    },
+}
+
+/// One packed bitmask block of an account-wide collection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AccountMaskBlockLikeCpp {
+    pub block_index: u32,
+    pub mask: u32,
 }
 
 impl AccountCollectionSaveLikeCpp {
@@ -125,6 +146,19 @@ impl AccountCollectionSaveLikeCpp {
             Self::Mounts(rows) => rows.is_empty(),
             Self::Toys(rows) => rows.is_empty(),
             Self::Heirlooms(rows) => rows.is_empty(),
+            Self::ItemAppearances {
+                appearance_blocks,
+                favorite_inserts,
+                favorite_deletes,
+                ..
+            } => {
+                appearance_blocks.is_empty()
+                    && favorite_inserts.is_empty()
+                    && favorite_deletes.is_empty()
+            }
+            Self::TransmogIllusions {
+                illusion_blocks, ..
+            } => illusion_blocks.is_empty(),
         }
     }
 
