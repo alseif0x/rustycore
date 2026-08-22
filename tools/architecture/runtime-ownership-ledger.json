@@ -1948,10 +1948,10 @@
           "retirement_condition": "Quest handler is a thin adapter over canonical Player/quest/persistence capabilities with exact outcome and packet order."
         },
         {
-          "path": "crates/wow-entities/src/player.rs",
-          "production_lines": 9265,
+          "path": "crates/wow-entities/src/player/mod.rs",
+          "production_lines": 9406,
           "test_lines": 8891,
-          "total_lines": 18156,
+          "total_lines": 18297,
           "owner": "wow-entities partial canonical Player model.",
           "open_retirement_issues": [
             153,
