@@ -3109,7 +3109,6 @@ dependencies = [
  "rand",
  "wow-constants",
  "wow-core",
- "wow-ecs",
  "wow-instances",
 ]
 
@@ -3142,7 +3141,6 @@ version = "0.1.0"
 dependencies = [
  "wow-constants",
  "wow-core",
- "wow-ecs",
 ]
 
 [[package]]
@@ -3300,7 +3298,6 @@ dependencies = [
  "smallvec",
  "wow-constants",
  "wow-core",
- "wow-ecs",
  "wow-entities",
  "wow-loot",
  "wow-math",
@@ -3432,7 +3429,6 @@ dependencies = [
  "bitflags",
  "wow-constants",
  "wow-core",
- "wow-ecs",
 ]
 
 [[package]]
@@ -3459,7 +3455,6 @@ dependencies = [
  "wow-crypto",
  "wow-data",
  "wow-database",
- "wow-ecs",
  "wow-entities",
  "wow-handler",
  "wow-instances",

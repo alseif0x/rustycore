@@ -23,7 +23,6 @@ wow-config = { workspace = true }
 wow-crypto = { workspace = true }
 wow-constants = { workspace = true }
 wow-anticheat = { workspace = true }
-wow-ecs = { workspace = true }
 wow-ai = { workspace = true }
 wow-chat = { workspace = true }
 wow-data = { workspace = true }
