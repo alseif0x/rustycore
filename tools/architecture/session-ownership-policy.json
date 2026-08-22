@@ -23795,11 +23795,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "complete_logout",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn complete_logout (& mut self)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -63713,45 +63715,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::unregister_from_player_registry",
-          "registry": "PlayerRegistry",
-          "operation": "member",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "self . player_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::unregister_from_player_registry",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "guid",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "guid:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::unregister_from_player_registry",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "reg",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "reg:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::update_registry_position",
           "registry": "PlayerRegistry",
           "operation": "member",
@@ -64058,6 +64021,45 @@
           "visibility": "pub (super)",
           "cfg": [],
           "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::lifecycle::cleanup",
+          "source": "crates/wow-world/src/session/lifecycle/cleanup.rs",
+          "enclosing": "impl WorldSession::unregister_from_player_registry",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "self . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::lifecycle::cleanup",
+          "source": "crates/wow-world/src/session/lifecycle/cleanup.rs",
+          "enclosing": "impl WorldSession::unregister_from_player_registry",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "guid",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "guid:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::lifecycle::cleanup",
+          "source": "crates/wow-world/src/session/lifecycle/cleanup.rs",
+          "enclosing": "impl WorldSession::unregister_from_player_registry",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "reg",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "reg:PlayerRegistry",
           "count": 1
         }
       ]
