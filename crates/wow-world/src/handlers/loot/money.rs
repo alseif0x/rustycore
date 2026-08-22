@@ -410,7 +410,7 @@ impl WorldSession {
             };
 
             money_persistence_guard.commit_like_cpp(
-                crate::session::mailbox::DurableLootMoneyCompletionLikeCpp {
+                crate::loot_persistence::DurableLootMoneyCompletionLikeCpp {
                     durable_money_before: before,
                     durable_money_after: after,
                     durable_applied_amount: applied_delta,

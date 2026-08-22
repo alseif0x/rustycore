@@ -133,10 +133,10 @@ async fn mount_special_anim_fanouts_to_visible_sessions_like_cpp() {
     let registry = Arc::new(PlayerRegistry::default());
     let (source_command_tx, source_command_rx) = flume::bounded::<SessionCommand>(2);
     let source_info = broadcast_info_with_command_tx(source_command_tx);
-    registry.register_or_replace(source_guid, source_info);
+    registry.register_or_replace(source_guid, source_info, Default::default());
     let visible_command_tx = visible_session.session_command_tx();
     let visible_info = broadcast_info_with_command_tx(visible_command_tx);
-    registry.register_or_replace(visible_guid, visible_info);
+    registry.register_or_replace(visible_guid, visible_info, Default::default());
     source_session.set_player_registry(Arc::clone(&registry));
     visible_session.set_player_registry(registry);
 

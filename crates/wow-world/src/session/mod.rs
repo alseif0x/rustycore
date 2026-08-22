@@ -35,6 +35,10 @@ use crate::entity_update_bridge::{
     player_values_update_to_update_object, unit_values_update_to_packet,
     unit_values_update_to_update_object,
 };
+use crate::loot_persistence::{
+    DurableLootMoneyCompletionLikeCpp, DurableLootMoneyPersistenceGuardLikeCpp,
+    DurableLootMoneyPersistenceTrackerLikeCpp, DurableLootMoneySaveFenceLikeCpp,
+};
 use crate::map_manager::{
     PendingRespawn, RecipientRule, RuntimeEvent, RuntimeOutput, RuntimePlan, RuntimeTickOwner,
     WorldMMapPathfinderWorkerLikeCpp,
@@ -48,9 +52,7 @@ use crate::session::directory::{
     PlayerBroadcastInfo, PlayerRegistry, PlayerVisibilityCreateSnapshot,
 };
 use crate::session::mailbox::{
-    CreatureAttackStartLikeCppCommand, DurableLootMoneyCompletionLikeCpp,
-    DurableLootMoneyPersistenceGuardLikeCpp, DurableLootMoneyPersistenceTrackerLikeCpp,
-    DurableLootMoneySaveFenceLikeCpp, GameEventQuestCompleteClientOutcomeLikeCpp,
+    CreatureAttackStartLikeCppCommand, GameEventQuestCompleteClientOutcomeLikeCpp,
     GameEventQuestCompleteCommandLikeCpp, KickLikeCppCommand, LootRollCommandIdentityLikeCpp,
     NotifyLootMoneyRemovedLikeCppCommand, SendIfVisibleLikeCppCommand, SessionCommand,
     SharedClientVisibleGuidsLikeCpp,
@@ -35315,9 +35317,6 @@ impl WorldSession {
                 visibility_refresh_pending_like_cpp: Arc::clone(
                     &self.visibility_refresh_pending_like_cpp,
                 ),
-                durable_loot_money_tracker_like_cpp: Arc::clone(
-                    &self.durable_loot_money_persistence_like_cpp,
-                ),
                 active_loot_rolls: self
                     .represented_loot_rolls
                     .values()
@@ -35407,6 +35406,7 @@ impl WorldSession {
                 lifetime_max_rank,
                 honor_level,
             },
+            Arc::clone(&self.durable_loot_money_persistence_like_cpp),
         );
         debug!(
             "Registered player {:?} ({}) in broadcast registry (map {})",

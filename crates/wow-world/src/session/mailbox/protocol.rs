@@ -20,7 +20,7 @@ use wow_packet::packets::loot::LootEntry;
 use wow_packet::packets::party::PartyUpdate;
 pub use wow_social::group::GroupDifficultyKindLikeCpp;
 
-use super::durable::DurableLootMoneyPersistenceTrackerLikeCpp;
+use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
 
 /// C++ `Player::m_clientGUIDs` held behind a shared handle.
 ///
