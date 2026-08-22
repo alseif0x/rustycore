@@ -15,13 +15,14 @@
 //! remain in `wow-network`, and the Session mailbox protocol plus its durable
 //! rails stay there until issue #140 relocates them.
 
+use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
 use crate::session::mailbox::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyLootMoneyLikeCppCommand,
     CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
-    DurableCreatureRuntimeCommandsLikeCpp, DurableLootMoneyPersistenceTrackerLikeCpp,
-    LootRollCommandIdentityLikeCpp, ReconcilePvpCombatExpiryLikeCppCommand,
-    RefreshVisibleWorldCreaturesLikeCppCommand, SendCreatureSpellCastIfVisibleLikeCppCommand,
-    SendIfVisibleLikeCppCommand, SessionCommand, SharedClientVisibleGuidsLikeCpp,
+    DurableCreatureRuntimeCommandsLikeCpp, LootRollCommandIdentityLikeCpp,
+    ReconcilePvpCombatExpiryLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
+    SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand, SessionCommand,
+    SharedClientVisibleGuidsLikeCpp,
 };
 use dashmap::DashMap;
 use std::collections::{HashMap, HashSet};
@@ -90,8 +91,6 @@ pub struct PlayerBroadcastInfo {
     /// session consumes it even when the queue was full, so player entry/exit
     /// visibility cannot be lost under command backpressure.
     pub visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
-    /// Per-character durable loot-money fence used by remote source sessions.
-    pub durable_loot_money_tracker_like_cpp: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
     /// Exact represented pending loot-roll identities owned by this session.
     /// The packet key may be reused, so cross-session routing must clone this
     /// identity into the queued command rather than publishing keys alone.
@@ -558,6 +557,14 @@ pub struct PlayerVisibilityCreateSnapshot {
 struct PlayerRegistryEntry {
     generation: u64,
     info: PlayerBroadcastInfo,
+    /// Durable loot-money coordination for this incarnation.
+    ///
+    /// Issue #189 keeps this beside the entry rather than inside
+    /// [`PlayerBroadcastInfo`]: it is not a gameplay projection another session
+    /// may read, it is the persistence handle the owning session already holds,
+    /// resolved here only so a remote looter can address the recipient's
+    /// coordinator. It creates no second store and no second authority.
+    durable_loot_money: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
 }
 
 /// Thread-safe directory of active player sessions, keyed by player GUID.
@@ -604,10 +611,17 @@ impl PlayerRegistry {
         &self,
         guid: ObjectGuid,
         info: PlayerBroadcastInfo,
+        durable_loot_money: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
     ) -> PlayerRegistration {
         let generation = self.next_generation();
-        self.entries
-            .insert(guid, PlayerRegistryEntry { generation, info });
+        self.entries.insert(
+            guid,
+            PlayerRegistryEntry {
+                generation,
+                info,
+                durable_loot_money,
+            },
+        );
         PlayerRegistration { guid, generation }
     }
 
@@ -1348,9 +1362,7 @@ impl PlayerRegistry {
                 loot_obj: input.loot_obj,
                 amount: input.amount,
                 durable_applied_amount: input.durable_applied_amount,
-                durable_persistence_tracker: Arc::clone(
-                    &entry.info.durable_loot_money_tracker_like_cpp,
-                ),
+                durable_persistence_tracker: Arc::clone(&entry.durable_loot_money),
                 sole_looter: input.sole_looter,
                 authority: input.authority,
                 authority_generation: input.authority_generation,
@@ -1793,7 +1805,6 @@ mod tests {
             client_visible_guids_like_cpp: Default::default(),
             advanced_combat_logging_enabled_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
-            durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
             in_combat: false,
             pass_on_group_loot: false,
@@ -1867,7 +1878,7 @@ mod tests {
         let registry = PlayerRegistry::new();
         let alpha = ObjectGuid::create_player(1, 100);
         let beta = ObjectGuid::create_player(1, 101);
-        let first_alpha = registry.register_or_replace(alpha, info.clone());
+        let first_alpha = registry.register_or_replace(alpha, info.clone(), Default::default());
 
         let social = registry
             .social_recipient_by_name("testplayer")
@@ -1879,7 +1890,8 @@ mod tests {
 
         let mut replacement = info.clone();
         replacement.player_name = "Replacement".to_string();
-        let replacement_alpha = registry.register_or_replace(alpha, replacement);
+        let replacement_alpha =
+            registry.register_or_replace(alpha, replacement, Default::default());
         assert_eq!(
             registry.send_current_packet(first_alpha, vec![1]),
             Err(PlayerDirectorySendError::StaleRegistration),
@@ -1892,7 +1904,7 @@ mod tests {
 
         let mut beta_info = info;
         beta_info.player_name = "Beta".to_string();
-        registry.register_or_replace(beta, beta_info);
+        registry.register_or_replace(beta, beta_info, Default::default());
         let ordered =
             registry.group_presences_in_order(&[beta, ObjectGuid::create_player(1, 999), alpha]);
         assert_eq!(
