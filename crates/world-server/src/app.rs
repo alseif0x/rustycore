@@ -4308,10 +4308,21 @@ async fn run_inner(
         ip_location_store: Some(Arc::clone(&ip_location_store)),
     };
 
+    // The Player lifecycle port is composed here, before any session is
+    // accepted, so a build that cannot persist lifecycle state fails at
+    // startup rather than silently dropping offline marks at logout (#200).
+    let player_lifecycle_port: Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp> = Arc::new(
+        wow_database::player_lifecycle_adapter::MariaDbPlayerLifecycleAdapterLikeCpp::new(
+            Arc::clone(&char_db),
+            Arc::clone(&login_db),
+        ),
+    );
+
     // Build session resources
     let session_resources = Arc::new(SessionResources {
         char_db: Some(Arc::clone(&char_db)),
         login_db: Some(Arc::clone(&login_db)),
+        player_lifecycle_port: Some(Arc::clone(&player_lifecycle_port)),
         world_db: Some(Arc::clone(&world_db)),
         trainer_store: Some(Arc::clone(&trainer_data_store)),
         guid_generator: Some(Arc::clone(&guid_generator)),

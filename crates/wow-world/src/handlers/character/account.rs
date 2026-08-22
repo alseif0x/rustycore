@@ -11,6 +11,8 @@
 // ratchet (see #277).
 use wow_database::{CharStatements, LoginStatements, PreparedStatement, SqlTransaction};
 
+use wow_persistence::{PersistenceOutcomeLikeCpp, PlayerOfflineMarkLikeCpp};
+
 use super::*;
 
 inventory::submit! {
@@ -993,24 +995,30 @@ impl WorldSession {
         self.send_packet(&response);
     }
 
-    /// Mark the current character as offline in the database.
+    /// Mark the current character as offline (#200: through the lifecycle port).
     pub(crate) async fn mark_character_offline(&self) {
-        let guid = match self.player_guid() {
-            Some(g) => g,
-            None => return,
+        let Some(guid) = self.player_guid() else {
+            return;
+        };
+        let Some(port) = self.player_lifecycle_port_like_cpp() else {
+            return;
         };
 
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
-            None => return,
-        };
-
-        let mut stmt = char_db.prepare(CharStatements::UPD_CHAR_OFFLINE);
-        stmt.set_u32(0, guid.counter() as u32);
-        if let Err(e) = char_db.execute(&stmt).await {
-            warn!("Failed to mark character offline: {e}");
-        } else {
-            info!("Marked character offline for guid {}", guid.counter());
+        match port
+            .mark_offline_like_cpp(PlayerOfflineMarkLikeCpp::Character {
+                guid_low: guid.counter() as u32,
+            })
+            .await
+        {
+            PersistenceOutcomeLikeCpp::Applied { .. } => {
+                info!("Marked character offline for guid {}", guid.counter());
+            }
+            PersistenceOutcomeLikeCpp::Failed { reason } => {
+                warn!("Failed to mark character offline: {reason}");
+            }
+            PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                warn!("Character offline mark outcome is unknown: {reason}");
+            }
         }
     }
 
@@ -1026,26 +1034,36 @@ impl WorldSession {
     /// `SMSG_LOGOUT_COMPLETE` because one account can only have one online
     /// character.  See C++ `WorldSession::LogoutPlayer`.
     pub(crate) async fn mark_character_account_offline_like_cpp(&self) {
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let Some(port) = self.player_lifecycle_port_like_cpp() else {
             warn!(
                 account = self.account_id,
-                "Character account offline save skipped: character database unavailable"
+                "Character account offline save skipped: lifecycle persistence port unavailable"
             );
             return;
         };
 
-        let stmt = Self::build_character_account_offline_statement_like_cpp(self.account_id);
-        match char_db.execute(&stmt).await {
-            Ok(rows) => {
+        match port
+            .mark_offline_like_cpp(PlayerOfflineMarkLikeCpp::CharacterAccount {
+                account_id: self.account_id,
+            })
+            .await
+        {
+            PersistenceOutcomeLikeCpp::Applied { rows } => {
                 info!(
                     account = self.account_id,
                     rows, "Marked character account offline like C++"
                 );
             }
-            Err(error) => {
+            PersistenceOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
-                    "Failed to mark character account offline like C++: {error}"
+                    "Failed to mark character account offline like C++: {reason}"
+                );
+            }
+            PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                warn!(
+                    account = self.account_id,
+                    "Character account offline mark outcome is unknown: {reason}"
                 );
             }
         }
@@ -1054,26 +1072,38 @@ impl WorldSession {
     /// Mark the account as offline in the login database when the whole
     /// WorldSession is being destroyed, matching C++ `WorldSession::~WorldSession`.
     pub(crate) async fn mark_login_account_offline_on_disconnect_like_cpp(&self) {
-        let Some(login_db) = self.login_db().map(Arc::clone) else {
+        let Some(port) = self.player_lifecycle_port_like_cpp() else {
             warn!(
                 account = self.account_id,
-                "Disconnect account offline save skipped: login database unavailable"
+                "Disconnect account offline save skipped: lifecycle persistence port unavailable"
             );
             return;
         };
 
-        let mut stmt = login_db.prepare(LoginStatements::UPD_ACCOUNT_OFFLINE);
-        stmt.set_u32(0, self.account_id);
-        if let Err(error) = login_db.execute(&stmt).await {
-            warn!(
-                account = self.account_id,
-                "Failed to mark login account offline on disconnect: {error}"
-            );
-        } else {
-            info!(
-                account = self.account_id,
-                "Marked login account offline on disconnect"
-            );
+        match port
+            .mark_offline_like_cpp(PlayerOfflineMarkLikeCpp::LoginAccount {
+                account_id: self.account_id,
+            })
+            .await
+        {
+            PersistenceOutcomeLikeCpp::Applied { .. } => {
+                info!(
+                    account = self.account_id,
+                    "Marked login account offline on disconnect"
+                );
+            }
+            PersistenceOutcomeLikeCpp::Failed { reason } => {
+                warn!(
+                    account = self.account_id,
+                    "Failed to mark login account offline on disconnect: {reason}"
+                );
+            }
+            PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                warn!(
+                    account = self.account_id,
+                    "Login account offline mark outcome is unknown: {reason}"
+                );
+            }
         }
     }
 

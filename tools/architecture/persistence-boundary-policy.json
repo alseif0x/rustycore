@@ -14143,6 +14143,138 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::impl MariaDbPlayerLifecycleAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbPlayerLifecycleAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the wow-persistence Player lifecycle port (#200) currently owns the complete wow-database workflow impl MariaDbPlayerLifecycleAdapterLikeCpp::new in crates/wow-database/src/player_lifecycle_adapter.rs.",
+      "connection_affinity": "The workflow acquires or uses the characters/login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::mark_offline_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::mark_offline_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the wow-persistence Player lifecycle port (#200) currently owns the complete wow-database workflow impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::mark_offline_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
+      "connection_affinity": "The workflow acquires or uses the characters/login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the wow-persistence Player lifecycle port (#200) currently owns the complete wow-database workflow module in crates/wow-database/src/player_lifecycle_adapter.rs.",
+      "connection_affinity": "The workflow acquires or uses the characters/login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::struct MariaDbPlayerLifecycleAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbPlayerLifecycleAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the wow-persistence Player lifecycle port (#200) currently owns the complete wow-database workflow struct MariaDbPlayerLifecycleAdapterLikeCpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
+      "connection_affinity": "The workflow acquires or uses the characters/login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
       "id": "workflow:wow-database:crate::query_holder:crates/wow-database/src/query_holder.rs::fn prepared_result_slot_like_cpp",
       "source_class": "production",
       "packages": [
@@ -19518,105 +19650,6 @@
         "login"
       ],
       "capability_owner": "Player login/logout lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::load_account_transmog_illusions_like_cpp in crates/wow-world/src/handlers/character/account.rs.",
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153,
-        200
-      ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::character::account:crates/wow-world/src/handlers/character/account.rs::impl WorldSession::mark_character_account_offline_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/character/account.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::character::account"
-      ],
-      "enclosings": [
-        "impl WorldSession::mark_character_account_offline_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "Player login/logout lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::mark_character_account_offline_like_cpp in crates/wow-world/src/handlers/character/account.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153,
-        200
-      ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::character::account:crates/wow-world/src/handlers/character/account.rs::impl WorldSession::mark_character_offline",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/character/account.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::character::account"
-      ],
-      "enclosings": [
-        "impl WorldSession::mark_character_offline"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "Player login/logout lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::mark_character_offline in crates/wow-world/src/handlers/character/account.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153,
-        200
-      ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::character::account:crates/wow-world/src/handlers/character/account.rs::impl WorldSession::mark_login_account_offline_on_disconnect_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/character/account.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::character::account"
-      ],
-      "enclosings": [
-        "impl WorldSession::mark_login_account_offline_on_disconnect_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "login"
-      ],
-      "capability_owner": "Player login/logout lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::mark_login_account_offline_on_disconnect_like_cpp in crates/wow-world/src/handlers/character/account.rs.",
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",

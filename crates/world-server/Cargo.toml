@@ -20,6 +20,7 @@ wow-config = { workspace = true }
 wow-logging = { workspace = true }
 wow-data = { workspace = true }
 wow-database = { workspace = true }
+wow-persistence = { workspace = true }
 wow-loot = { workspace = true }
 wow-movement = { workspace = true }
 wow-network = { workspace = true }

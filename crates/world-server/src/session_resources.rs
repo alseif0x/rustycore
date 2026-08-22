@@ -22,6 +22,9 @@ use wow_world::{
 pub(super) struct SessionResources {
     pub(super) char_db: Option<Arc<wow_database::CharacterDatabase>>,
     pub(super) login_db: Option<Arc<wow_database::LoginDatabase>>,
+    /// Player lifecycle persistence capability (#200). Built from the two
+    /// adapters above; the Session depends on this, never on the handles.
+    pub(super) player_lifecycle_port: Option<Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>>,
     pub(super) world_db: Option<Arc<wow_database::WorldDatabase>>,
     /// Process-wide C++ `ObjectMgr::_trainers` /
     /// `_creatureDefaultTrainers` snapshot.

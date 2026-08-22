@@ -21,6 +21,8 @@ mod dispatch;
 mod driver;
 #[path = "session/tests/lifecycle.rs"]
 mod lifecycle;
+#[path = "session/tests/lifecycle_persistence.rs"]
+mod lifecycle_persistence;
 #[path = "session/tests/routing.rs"]
 mod routing;
 

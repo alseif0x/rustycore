@@ -7555,6 +7555,78 @@
     },
     {
       "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "impl MariaDbPlayerLifecycleAdapterLikeCpp::new",
+      "logical_databases": [
+        "characters",
+        "login"
+      ],
+      "boundary": "wow-database MariaDB adapter for the wow-persistence Player lifecycle port (#200)",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the characters/login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::mark_offline_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login"
+      ],
+      "boundary": "wow-database MariaDB adapter for the wow-persistence Player lifecycle port (#200)",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the characters/login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters",
+        "login"
+      ],
+      "boundary": "wow-database MariaDB adapter for the wow-persistence Player lifecycle port (#200)",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the characters/login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "struct MariaDbPlayerLifecycleAdapterLikeCpp",
+      "logical_databases": [
+        "characters",
+        "login"
+      ],
+      "boundary": "wow-database MariaDB adapter for the wow-persistence Player lifecycle port (#200)",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "The workflow acquires or uses the characters/login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
       "module": "crate::query_holder",
       "source": "crates/wow-database/src/query_holder.rs",
       "enclosing": "fn prepared_result_slot_like_cpp",
@@ -10217,60 +10289,6 @@
       "module": "crate::handlers::character::account",
       "source": "crates/wow-world/src/handlers/character/account.rs",
       "enclosing": "impl WorldSession::load_account_transmog_illusions_like_cpp",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "Player login/logout lifecycle persistence capability",
-      "target_issues": [
-        153,
-        200
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::account",
-      "source": "crates/wow-world/src/handlers/character/account.rs",
-      "enclosing": "impl WorldSession::mark_character_account_offline_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Player login/logout lifecycle persistence capability",
-      "target_issues": [
-        153,
-        200
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::account",
-      "source": "crates/wow-world/src/handlers/character/account.rs",
-      "enclosing": "impl WorldSession::mark_character_offline",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Player login/logout lifecycle persistence capability",
-      "target_issues": [
-        153,
-        200
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::account",
-      "source": "crates/wow-world/src/handlers/character/account.rs",
-      "enclosing": "impl WorldSession::mark_login_account_offline_on_disconnect_like_cpp",
       "logical_databases": [
         "login"
       ],

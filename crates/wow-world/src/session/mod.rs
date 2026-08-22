@@ -5426,6 +5426,10 @@ pub struct WorldSession {
 
     // Login database (for realmcharacters updates)
     login_db: Option<Arc<LoginDatabase>>,
+    /// Typed Player lifecycle persistence capability (#200). The Session
+    /// publishes durable lifecycle state through this port instead of
+    /// reaching for a database handle; `wow-database` supplies the adapter.
+    player_lifecycle_port_like_cpp: Option<Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>>,
 
     // World database (for creature templates, spawns, etc.)
     world_db: Option<Arc<WorldDatabase>>,
@@ -7813,6 +7817,7 @@ impl WorldSession {
             char_db: None,
             homebind_persistence_tx_like_cpp: None,
             login_db: None,
+            player_lifecycle_port_like_cpp: None,
             world_db: None,
             trainer_store_like_cpp: None,
             bank_bag_slot_prices_store: None,
@@ -16680,6 +16685,21 @@ impl WorldSession {
     /// Set the login database for this session.
     pub fn set_login_db(&mut self, db: Arc<LoginDatabase>) {
         self.login_db = Some(db);
+    }
+
+    /// Install the Player lifecycle persistence port. Composition supplies the
+    /// MariaDB adapter; unit sessions leave it empty and skip durable writes.
+    pub fn set_player_lifecycle_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>,
+    ) {
+        self.player_lifecycle_port_like_cpp = Some(port);
+    }
+
+    pub(crate) fn player_lifecycle_port_like_cpp(
+        &self,
+    ) -> Option<&Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>> {
+        self.player_lifecycle_port_like_cpp.as_ref()
     }
 
     /// Attach this session to the one canonical journal owner for its
