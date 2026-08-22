@@ -679,6 +679,15 @@
           "source_class": "production"
         },
         {
+          "name": "driver_phase_trace_like_cpp",
+          "type": "Vec < crate :: session :: driver :: phases :: SessionDriverPhaseLikeCpp >",
+          "visibility": "private",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "name": "dungeon_encounter_store",
           "type": "Option < Arc < DungeonEncounterStore > >",
           "visibility": "private",
@@ -24803,6 +24812,21 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "driver_phase_trace_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn driver_phase_trace_like_cpp (& self) -> & [SessionDriverPhaseLikeCpp]",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "dungeon_encounter_store",
           "visibility": "pub",
           "signature": "fn dungeon_encounter_store (& self) -> Option < & Arc < DungeonEncounterStore > >",
@@ -31367,6 +31391,19 @@
           "name": "record_direct_inventory_item_set_remove_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_direct_inventory_item_set_remove_like_cpp (& mut self , bag : u8 , slot : u8 , item_guid : ObjectGuid ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "record_driver_phase_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn record_driver_phase_like_cpp (& mut self , phase : SessionDriverPhaseLikeCpp)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -38308,6 +38345,21 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "reset_driver_phase_trace_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn reset_driver_phase_trace_like_cpp (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -56267,6 +56319,14 @@
         "source_class": "production"
       },
       {
+        "module": "crate::session",
+        "target": "WorldSession::record_driver_phase_like_cpp",
+        "kind": "attribute",
+        "fingerprint": "inline",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
         "module": "crate::session::directory",
         "target": "PlayerBroadcastInfo",
         "kind": "derive",
@@ -73384,7 +73444,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:de9350e795de71ee8f608bee4f1d8095:len=91142|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:4800742636f528510735515cd947f492:len=91475|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

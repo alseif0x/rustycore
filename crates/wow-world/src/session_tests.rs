@@ -17,6 +17,8 @@ mod admission;
 mod connection;
 #[path = "session/tests/dispatch.rs"]
 mod dispatch;
+#[path = "session/tests/driver.rs"]
+mod driver;
 #[path = "session/tests/routing.rs"]
 mod routing;
 
