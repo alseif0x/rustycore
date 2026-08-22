@@ -1949,9 +1949,9 @@
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",
-          "production_lines": 9406,
+          "production_lines": 9409,
           "test_lines": 8891,
-          "total_lines": 18297,
+          "total_lines": 18300,
           "owner": "wow-entities partial canonical Player model.",
           "open_retirement_issues": [
             153,
