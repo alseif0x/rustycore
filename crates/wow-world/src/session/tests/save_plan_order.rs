@@ -9,6 +9,18 @@
 //! leaves the order within the transaction unguarded, which is precisely what
 //! #286 is about to move into the adapter.
 //!
+//! ## Coverage
+//!
+//! The groups below are pinned: position, level/xp, money, rest state, health,
+//! talent reset, explored zones, difficulties, glyphs, tutorials and played
+//! time — twelve groups, thirty-five statements.
+//!
+//! Not pinned, because they need state a bare test session cannot hold: skills,
+//! talents, spells and their cooldowns/charges, action buttons, CUF profiles,
+//! equipment sets, void storage and instance time restrictions all read through
+//! a player controller. Their order inside the transaction is still unguarded,
+//! and #286 must not treat this file as covering them.
+//!
 //! This freezes that order first. It is not a claim that the order is correct
 //! against C++; it is a claim that moving the builders must not change it.
 
@@ -27,21 +39,38 @@ fn populate(session: &mut WorldSession, counter: i64) {
             orientation: 0.5,
         },
     );
+
+    // Populate the collection groups too. With an empty session the plan emits
+    // only its nine scalar rows, which would leave the order of every
+    // collection group unpinned — exactly the part #286 moves.
+    session.set_player_skill_values_like_cpp(HashMap::from([(6u16, 300u16), (43u16, 150u16)]));
+    session.mark_represented_glyphs_loaded_like_cpp();
+    session.tutorials_changed_like_cpp = true;
+    session.tutorials_loaded_coherently_like_cpp = true;
 }
 
 /// Ordered SQL of every statement the aggregate plan appends, for a session
 /// with a selected character and otherwise default state.
-fn plan_statement_sql(session: &mut WorldSession) -> Vec<String> {
+fn plan_statement_sql(session: &mut WorldSession) -> Vec<(String, usize)> {
     let snapshot = session
         .sync_session_from_save_to_db_snapshot_like_cpp()
         .expect("a selected character yields a save snapshot");
     let plan = session
         .current_player_save_to_db_statement_plan_like_cpp(&snapshot, 1_700_000_000)
         .expect("a coherent session yields a plan");
-    plan.statements
-        .iter()
-        .map(|statement| statement.sql().to_owned())
-        .collect()
+    // Run-length encoded: a collection group emits the same statement once per
+    // row, so recording every repeat would bury the group boundaries this test
+    // exists to pin. `(sql, count)` keeps the order and the boundaries exact
+    // while staying readable.
+    let mut runs: Vec<(String, usize)> = Vec::new();
+    for statement in &plan.statements {
+        let sql = statement.sql().to_owned();
+        match runs.last_mut() {
+            Some((previous, count)) if *previous == sql => *count += 1,
+            _ => runs.push((sql, 1)),
+        }
+    }
+    runs
 }
 
 /// The frozen order. A move that reorders these rows inside the single
@@ -81,8 +110,8 @@ fn the_character_save_plan_keeps_its_statement_order_like_cpp() {
 
 /// Compare against the committed golden, and print a copy-pasteable
 /// replacement when it differs so a deliberate change is easy to review.
-fn insta_like_snapshot(order: &[String]) {
-    let golden: Vec<String> = serde_json::from_str(include_str!(
+fn insta_like_snapshot(order: &[(String, usize)]) {
+    let golden: Vec<(String, usize)> = serde_json::from_str(include_str!(
         "../../../tests/fixtures/player-save-plan-order.json"
     ))
     .expect("golden parses");
