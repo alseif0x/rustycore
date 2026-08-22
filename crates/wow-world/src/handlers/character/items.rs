@@ -5,6 +5,12 @@
 
 //! Inventory storage, equip/swap, destroy, durability and item modification.
 
+// Explicit database imports: this module reaches its parent through
+// `use super::*`, and the persistence inventory cannot resolve a glob, so
+// without these every database access in the file is invisible to the
+// ratchet (see #277).
+use wow_database::{CharStatements, SqlResult, SqlTransaction, WorldStatements};
+
 use super::*;
 
 impl WorldSession {

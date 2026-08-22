@@ -1899,9 +1899,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20315,
-          "test_lines": 10749,
-          "total_lines": 31064,
+          "production_lines": 20379,
+          "test_lines": 10761,
+          "total_lines": 31140,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "open_retirement_issues": [
             153,
@@ -1912,9 +1912,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/loot/mod.rs",
-          "production_lines": 13659,
+          "production_lines": 13695,
           "test_lines": 16233,
-          "total_lines": 29892,
+          "total_lines": 29928,
           "owner": "wow-world loot handler plus transitional loot/map/persistence coordination.",
           "open_retirement_issues": [
             153,
@@ -1926,9 +1926,9 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 25011,
+          "production_lines": 25023,
           "test_lines": 21528,
-          "total_lines": 46539,
+          "total_lines": 46551,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153,
@@ -1938,9 +1938,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/quest/mod.rs",
-          "production_lines": 8344,
-          "test_lines": 10172,
-          "total_lines": 18516,
+          "production_lines": 8368,
+          "test_lines": 10178,
+          "total_lines": 18546,
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
           "open_retirement_issues": [
             153,
@@ -1963,9 +1963,9 @@
         },
         {
           "path": "crates/wow-social/src/group/mod.rs",
-          "production_lines": 2783,
+          "production_lines": 2780,
           "test_lines": 2511,
-          "total_lines": 5294,
+          "total_lines": 5291,
           "owner": "wow-social atomic Group/PendingInvites authority relocated from wow-network by #137.",
           "open_retirement_issues": [
             140,
