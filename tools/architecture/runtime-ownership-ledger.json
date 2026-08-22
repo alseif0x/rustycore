@@ -1882,10 +1882,10 @@
           "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it."
         },
         {
-          "path": "crates/wow-map/src/map.rs",
-          "production_lines": 15245,
+          "path": "crates/wow-map/src/map/mod.rs",
+          "production_lines": 15380,
           "test_lines": 18273,
-          "total_lines": 33518,
+          "total_lines": 33653,
           "owner": "wow-map canonical MapManager/runtime.",
           "open_retirement_issues": [
             28,
