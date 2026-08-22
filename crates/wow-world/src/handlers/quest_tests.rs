@@ -9,6 +9,12 @@
 
 #![cfg(test)]
 
+// Explicit database imports: this module reaches its parent through
+// `use super::*`, and the persistence inventory cannot resolve a glob, so
+// without these every database access in the file is invisible to the
+// ratchet (see #277).
+use wow_database::{CharStatements, CharacterDatabase};
+
 use super::*;
 use crate::session::InventoryItem;
 use crate::session::directory::PlayerRegistry;

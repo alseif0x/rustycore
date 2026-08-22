@@ -1,5 +1,11 @@
 //! Canonical map respawn persistence, periodic work, and update loops.
 
+// Explicit database imports: this module reaches its parent through
+// `use super::*`, and the persistence inventory cannot resolve a glob, so
+// without these every database access in the file is invisible to the
+// ratchet (see #277).
+use wow_database::{CharStatements, CharacterDatabase, PreparedStatement, SqlTransaction};
+
 use super::*;
 
 /// Supply the Group owner's loaded-difficulty port from the DB2 store.
