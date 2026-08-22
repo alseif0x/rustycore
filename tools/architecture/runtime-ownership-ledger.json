@@ -1896,10 +1896,10 @@
           "retirement_condition": "Map runtime/storage/visibility/respawn submodules have one writer and clock per transition; physical splitting is not combined with authority flips."
         },
         {
-          "path": "crates/wow-world/src/handlers/character.rs",
-          "production_lines": 20190,
-          "test_lines": 10735,
-          "total_lines": 30925,
+          "path": "crates/wow-world/src/handlers/character/mod.rs",
+          "production_lines": 20310,
+          "test_lines": 10749,
+          "total_lines": 31059,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "open_retirement_issues": [
             153,

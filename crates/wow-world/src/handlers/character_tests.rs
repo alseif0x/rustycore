@@ -6159,7 +6159,21 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         }
     }
 
-    let character = include_str!("character.rs");
+    // #224 split the former `character.rs` into private feature modules; this
+    // publication-order scan must still see the whole family's source.
+    let character = concat!(
+        include_str!("character/mod.rs"),
+        include_str!("character/account.rs"),
+        include_str!("character/bank.rs"),
+        include_str!("character/gossip.rs"),
+        include_str!("character/items.rs"),
+        include_str!("character/lifecycle.rs"),
+        include_str!("character/query.rs"),
+        include_str!("character/session_state.rs"),
+        include_str!("character/vendor.rs"),
+        include_str!("character/visibility.rs"),
+        include_str!("character/world_entry.rs"),
+    );
     let session = include_str!("../session/dispatch.rs");
     assert_publication_segment(
         character,
