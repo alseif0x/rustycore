@@ -5500,17 +5500,6 @@ async fn run_bot_with_void_storage(
             || std::env::var("WOW_BOT_LOGIN_REQUIRE_KNOWN_SPELLS")
                 .is_ok_and(|value| is_truthy(&value)));
     let mut known_spells_seen = false;
-    let preserve_realm_connection = stand_state_options.is_some()
-        || homebind_options.is_some()
-        || inventory_swap_options.is_some()
-        || vendor_options.is_some()
-        || rested_xp_options.is_some()
-        || detour_chase_options.is_some()
-        || creature_spell_options.is_some()
-        || loot_race_options.is_some()
-        || group_capacity_options.is_some()
-        || equipment_set_options.is_some()
-        || void_storage_options.is_some();
     let mut loot_race_target_seen = false;
     let mut vendor_target_seen: Option<DiscoveredCreatureGuid> = None;
     let mut void_storage_target_seen: Option<DiscoveredCreatureGuid> = None;
@@ -5730,7 +5719,7 @@ async fn run_bot_with_void_storage(
                         .as_ref()
                         .is_none_or(|_| result.inventory_swap_item_create_sha256.is_some());
                     if login_known_spells_ready(login_ok, require_known_spells, known_spells_seen)
-                        && (!preserve_realm_connection || realm_connection.is_some())
+                        && realm_connection.is_some()
                         && equipment_set_login_ready
                         && void_storage_login_ready
                         && inventory_swap_login_ready
@@ -5757,23 +5746,22 @@ async fn run_bot_with_void_storage(
                     );
                     let (instance_stream, instance_crypt) =
                         connect_to_instance(bot_index, &connect_to, &derived_session_key).await?;
-                    if preserve_realm_connection {
-                        if realm_connection.is_some() {
-                            bail!("Routing smoke received more than one SMSG_CONNECT_TO");
-                        }
-                        let realm_stream = std::mem::replace(&mut stream, instance_stream);
-                        let realm_crypt = std::mem::replace(&mut crypt, instance_crypt);
-                        let realm_inflater = std::mem::take(&mut server_inflater);
-                        realm_connection = Some(EncryptedWorldConnection {
-                            stream: realm_stream,
-                            crypt: realm_crypt,
-                            inflater: realm_inflater,
-                        });
-                    } else {
-                        stream = instance_stream;
-                        crypt = instance_crypt;
-                        server_inflater = ServerPacketInflater::default();
+                    // The server keeps cross-socket ordering fences alive after
+                    // SMSG_CONNECT_TO, so the realm socket must stay open on every
+                    // mode: closing it makes the realm writer disappear before it
+                    // acknowledges the fence and the session is kicked with
+                    // "login packet sequence failed".
+                    if realm_connection.is_some() {
+                        bail!("Routing smoke received more than one SMSG_CONNECT_TO");
                     }
+                    let realm_stream = std::mem::replace(&mut stream, instance_stream);
+                    let realm_crypt = std::mem::replace(&mut crypt, instance_crypt);
+                    let realm_inflater = std::mem::take(&mut server_inflater);
+                    realm_connection = Some(EncryptedWorldConnection {
+                        stream: realm_stream,
+                        crypt: realm_crypt,
+                        inflater: realm_inflater,
+                    });
                     info!("[Bot {}] ✅ Instance socket authenticated", bot_index);
                     let void_storage_login_ready =
                         void_storage_options.as_ref().is_none_or(|options| {
@@ -5785,11 +5773,7 @@ async fn run_bot_with_void_storage(
                     let inventory_swap_login_ready = inventory_swap_options
                         .as_ref()
                         .is_none_or(|_| result.inventory_swap_item_create_sha256.is_some());
-                    if login_ok
-                        && preserve_realm_connection
-                        && void_storage_login_ready
-                        && inventory_swap_login_ready
-                    {
+                    if login_ok && void_storage_login_ready && inventory_swap_login_ready {
                         break;
                     }
                 } else if op == 0x304B {
@@ -5799,14 +5783,14 @@ async fn run_bot_with_void_storage(
                 if equipment_set_options.is_some()
                     && login_ok
                     && result.equipment_set_load_seen
-                    && (!preserve_realm_connection || realm_connection.is_some())
+                    && realm_connection.is_some()
                 {
                     break;
                 }
                 if inventory_swap_options.is_some()
                     && login_ok
                     && result.inventory_swap_item_create_sha256.is_some()
-                    && (!preserve_realm_connection || realm_connection.is_some())
+                    && realm_connection.is_some()
                 {
                     break;
                 }
