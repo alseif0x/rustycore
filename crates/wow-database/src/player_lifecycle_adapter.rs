@@ -14,11 +14,36 @@ use std::sync::Arc;
 
 use wow_persistence::{
     PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerLifecyclePortLikeCpp,
-    PlayerOfflineMarkLikeCpp,
+    PlayerOfflineMarkLikeCpp, PlayerTutorialsSaveLikeCpp,
 };
 
-use crate::statements::{CharStatements, LoginStatements};
+use crate::params::PreparedStatement;
+use crate::statements::{CharStatements, LoginStatements, StatementDef};
+use crate::transaction::SqlTransaction;
 use crate::{CharacterDatabase, LoginDatabase};
+
+/// Build the tutorials statement for one account.
+///
+/// Shared rather than duplicated: the Player full-save plan in `wow-world`
+/// still appends this same row to its own transaction, and two independent
+/// copies of the column order would be free to drift. #286 removes the other
+/// caller when the full-save plan moves behind the port.
+pub fn build_tutorials_save_statement_like_cpp(
+    account_id: u32,
+    tutorials: &[u32],
+    already_persisted: bool,
+) -> PreparedStatement {
+    let mut stmt = PreparedStatement::new(if already_persisted {
+        CharStatements::UPD_TUTORIALS.sql()
+    } else {
+        CharStatements::INS_TUTORIALS.sql()
+    });
+    for (index, value) in tutorials.iter().copied().enumerate() {
+        stmt.set_u32(index, value);
+    }
+    stmt.set_u32(tutorials.len(), account_id);
+    stmt
+}
 
 /// Binds the port to the two logical databases the offline marks address.
 pub struct MariaDbPlayerLifecycleAdapterLikeCpp {
@@ -66,6 +91,30 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                 // or it did not; there is no COMMIT whose outcome could be
                 // indeterminate. `Unknown` is reserved for the transactional
                 // paths #200 migrates next, so do not manufacture it here.
+                Err(error) => PersistenceOutcomeLikeCpp::Failed {
+                    reason: error.to_string(),
+                },
+            }
+        })
+    }
+
+    fn save_tutorials_like_cpp<'a>(
+        &'a self,
+        save: PlayerTutorialsSaveLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async move {
+            let stmt = build_tutorials_save_statement_like_cpp(
+                save.account_id,
+                &save.tutorials,
+                save.already_persisted,
+            );
+            // C++ SaveTutorialsData commits this on its own; keep the single
+            // statement inside its own transaction rather than borrowing the
+            // character-save transaction it is not part of.
+            let mut tx = SqlTransaction::new();
+            tx.append(stmt);
+            match self.character_db.commit_transaction(tx).await {
+                Ok(()) => PersistenceOutcomeLikeCpp::Applied { rows: 1 },
                 Err(error) => PersistenceOutcomeLikeCpp::Failed {
                     reason: error.to_string(),
                 },
