@@ -171,17 +171,25 @@ WOW_BOT_DB_CONF=/home/server/trinity-legacy-install/bin/worldserver.conf \
   --loot-race-smoke --ack-disposable-overworld-loot-race
 ```
 
-**Retired orchestration.** Until #331 this smoke was driven by
-`./tools/pr-preflight.sh --allow-runtime-qa --ack-disposable-overworld-loot-race
-qa-loot-race`, which additionally snapshotted the running PM2 world's
-executable, SHA-256 and restart count, swapped in the feature-branch build, and
-restored the original afterwards. That wrapper retired with the rest of the
-legacy validation stack, and its runtime no longer exists on the development
-host: there is no `pm2` and no legacy `worldserver` in
-`/home/server/trinity-legacy-install/bin`. The bot's own guards are unchanged;
-what is gone is the build swap and restore around them. The reference
-implementation is in the git history of `tools/pr-preflight.sh`
-(`run_qa_loot_race` and the `qa_world_*` helpers).
+**Guarded orchestration.** To run it against a feature-branch build without
+leaving that build installed, use `tools/qa-runtime.sh` (#334):
+
+```bash
+./tools/qa-runtime.sh --allow-runtime-qa --ack-disposable-overworld-loot-race \
+  --world-exec target/release/world-server --report /tmp/loot-race.json loot-race
+```
+
+It snapshots the live build by path and SHA-256, refuses to start while a packet
+dump is configured or while the world and instance ports are not owned by the
+service's own process, installs the candidate through `systemctl`, waits until
+it is serving again, runs this smoke, and restores the original build on every
+exit path — including failure, interruption and a hung bot. A restore that does
+not come back clean is reported as the run's outcome even when the smoke passed.
+`./tools/qa-runtime.sh self-test` proves that restore path against fake services;
+`snapshot` prints the live identity without touching anything.
+
+Until #331 this was driven by `pr-preflight.sh qa-loot-race` against PM2, which
+this host no longer runs.
 
 This live mode is never part of normal CI. Both guards are mandatory because it
 temporarily mutates a world GameObject fixture and two disposable characters.
