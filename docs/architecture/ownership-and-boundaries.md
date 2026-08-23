@@ -333,6 +333,20 @@ The mirror is no longer hand-maintained. `check_architecture.py refresh-issue-st
 fails without writing, and the weekly `Issue state drift` workflow runs exactly that. The guards
 keep reading the checked-in file.
 
+**Validating a ledger change takes the exhaustive ratchet.** Three separate guards read issue
+state, and they do not live in one tool: the dependency-exception and `PlayerBroadcastInfo` guards
+are in `check_architecture.py`, while persistence workflow ownership is in the Rust
+`session-ownership-check check`, which only runs in `audit`. #299 was validated with the Python
+checker alone and left 91 workflow groups targeting a closed issue, which #341 then had to repair
+on `3.4.3`. After editing either ledger, run both:
+
+```bash
+python3 tools/architecture/check_architecture.py check
+cargo run --release --locked \
+  --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
+  --bin session-ownership-check -- check
+```
+
 Deriving beats reading issue state at check time, which was the other option #299 named: `check`
 runs inside `audit`, which is offline and hermetic by contract, and a validator that needs GitHub
 to answer would make every architecture check depend on network and API availability. The refresh

@@ -2252,9 +2252,9 @@
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -3119,9 +3119,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -19522,9 +19522,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -19587,9 +19587,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -19620,9 +19620,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -19653,9 +19653,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -19686,9 +19686,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -19719,9 +19719,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -20401,9 +20401,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -20434,9 +20434,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -20467,9 +20467,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -20696,9 +20696,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -20729,9 +20729,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -20762,9 +20762,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -20796,9 +20796,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -20861,9 +20861,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -20894,9 +20894,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -20928,9 +20928,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -20995,9 +20995,9 @@
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -21158,9 +21158,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -21191,9 +21191,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -21420,9 +21420,9 @@
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25258,9 +25258,9 @@
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25291,9 +25291,9 @@
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25324,9 +25324,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25357,9 +25357,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25390,9 +25390,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25423,9 +25423,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25456,9 +25456,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25489,9 +25489,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25522,9 +25522,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25555,9 +25555,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25588,9 +25588,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25621,9 +25621,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25654,9 +25654,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25687,9 +25687,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25720,9 +25720,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25753,9 +25753,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25786,9 +25786,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25819,9 +25819,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25852,9 +25852,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25885,9 +25885,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25918,9 +25918,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25951,9 +25951,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -25984,9 +25984,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26017,9 +26017,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26050,9 +26050,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26083,9 +26083,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26116,9 +26116,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26149,9 +26149,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26182,9 +26182,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26215,9 +26215,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26248,9 +26248,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26281,9 +26281,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26314,9 +26314,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26347,9 +26347,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26380,9 +26380,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26413,9 +26413,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26446,9 +26446,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26479,9 +26479,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26512,9 +26512,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26545,9 +26545,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26578,9 +26578,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26611,9 +26611,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26644,9 +26644,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26677,9 +26677,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26710,9 +26710,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26775,9 +26775,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26808,9 +26808,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26841,9 +26841,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26874,9 +26874,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26907,9 +26907,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26940,9 +26940,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -26973,9 +26973,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -27006,9 +27006,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -27039,9 +27039,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -27200,9 +27200,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -27233,9 +27233,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -27266,9 +27266,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -27331,9 +27331,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -27428,9 +27428,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -27461,9 +27461,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -27494,9 +27494,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -27527,9 +27527,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -27560,9 +27560,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -27721,9 +27721,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -27850,9 +27850,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -27883,9 +27883,9 @@
       "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -27916,9 +27916,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -28109,9 +28109,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -28304,9 +28304,9 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
-        200
+        169
       ],
-      "retirement_condition": "The annotated issues [153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
