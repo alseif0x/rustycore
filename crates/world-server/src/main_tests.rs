@@ -115,7 +115,9 @@ use wow_packet::{
     ServerPacket,
     packets::chat::{ChatMsg, ChatPkt},
 };
-use wow_world::session::directory::{PlayerBroadcastInfo, PlayerRegistry};
+use wow_world::session::directory::{
+    PlayerBroadcastInfo, PlayerRegistry, PlayerSessionRegistrationLikeCpp,
+};
 use wow_world::session::mailbox::{SessionCommand, WorldSessionShutdownFlushResultLikeCpp};
 
 #[test]
@@ -257,87 +259,89 @@ fn player_broadcast_info_fixture_like_cpp(
     send_tx: flume::Sender<Vec<u8>>,
     command_tx: flume::Sender<SessionCommand>,
     player_name: &str,
-) -> PlayerBroadcastInfo {
-    PlayerBroadcastInfo {
-        map_id: 0,
-        instance_id: 0,
-        position: wow_core::Position::ZERO,
-        combat_reach: 0.0,
-        in_combat: false,
-        liquid_status: 0,
-        is_in_world: true,
+) -> PlayerSessionRegistrationLikeCpp {
+    PlayerSessionRegistrationLikeCpp {
+        info: PlayerBroadcastInfo {
+            map_id: 0,
+            instance_id: 0,
+            position: wow_core::Position::ZERO,
+            combat_reach: 0.0,
+            in_combat: false,
+            liquid_status: 0,
+            is_in_world: true,
+            client_visible_guids_like_cpp: Default::default(),
+            advanced_combat_logging_enabled_like_cpp: Default::default(),
+            visibility_refresh_pending_like_cpp: Default::default(),
+            active_loot_rolls: Vec::new(),
+            pass_on_group_loot: false,
+            enchanting_skill: 0,
+            is_alive: true,
+            current_health: 100,
+            max_health: 100,
+            power_type: 0,
+            current_power: 0,
+            max_power: 0,
+            base_mana: 0,
+            transport: None,
+            is_pvp: false,
+            is_ffa_pvp: false,
+            is_ghost: false,
+            is_afk: false,
+            is_dnd: false,
+            auto_reply_msg_like_cpp: String::new(),
+            in_vehicle: false,
+            has_vehicle_kit_like_cpp: false,
+            party_member_vehicle_seat: 0,
+            zone_id: 0,
+            spec_id: 0,
+            unit_flags: 0,
+            unit_flags2: 0,
+            unit_state: 0,
+            is_game_master: false,
+            dungeon_difficulty_id: 1,
+            is_contested_pvp: false,
+            active_expansion: 2,
+            pending_quest_sharing: None,
+            known_spells: Vec::new(),
+            active_quest_statuses: Default::default(),
+            active_quest_objective_counts: Default::default(),
+            rewarded_quests: Default::default(),
+            completed_achievements: Default::default(),
+            daily_quests_completed: Default::default(),
+            df_quests: Default::default(),
+            faction_template_id: 0,
+            reputation_standings: Vec::new(),
+            reputation_state_flags: Vec::new(),
+            forced_reputation_ranks: Vec::new(),
+            forced_reputation_faction_ids: Vec::new(),
+            inventory_item_counts: Default::default(),
+            party_member_party_type: [0; 2],
+            party_member_phase_states: Default::default(),
+            party_member_auras: Vec::new(),
+            party_member_pet_stats: None,
+            player_name: player_name.to_string(),
+            account_id: 1,
+            recruiter_id: 0,
+            race: 1,
+            class: 1,
+            sex: 0,
+            level: 1,
+            gray_level: 0,
+            display_id: 49,
+            visible_items: std::sync::Arc::new([(0, 0, 0); 19]),
+            customizations: std::sync::Arc::default(),
+            lifetime_honorable_kills: 0,
+            this_week_contribution: 0,
+            yesterday_contribution: 0,
+            today_honorable_kills: 0,
+            yesterday_honorable_kills: 0,
+            lifetime_max_rank: 0,
+            honor_level: 0,
+        },
         realm_send_tx: send_tx.clone(),
         send_tx,
         command_tx,
         durable_creature_runtime_commands_like_cpp: Default::default(),
-        client_visible_guids_like_cpp: Default::default(),
-        advanced_combat_logging_enabled_like_cpp: Default::default(),
-        visibility_refresh_pending_like_cpp: Default::default(),
-        active_loot_rolls: Vec::new(),
-        pass_on_group_loot: false,
-        enchanting_skill: 0,
-        is_alive: true,
-        current_health: 100,
-        max_health: 100,
-        power_type: 0,
-        current_power: 0,
-        max_power: 0,
-        base_mana: 0,
-        transport: None,
-        is_pvp: false,
-        is_ffa_pvp: false,
-        is_ghost: false,
-        is_afk: false,
-        is_dnd: false,
-        auto_reply_msg_like_cpp: String::new(),
-        in_vehicle: false,
-        has_vehicle_kit_like_cpp: false,
-        party_member_vehicle_seat: 0,
-        zone_id: 0,
-        spec_id: 0,
-        unit_flags: 0,
-        unit_flags2: 0,
-        unit_state: 0,
-        is_game_master: false,
-        dungeon_difficulty_id: 1,
-        is_contested_pvp: false,
-        active_expansion: 2,
-        pending_quest_sharing: None,
-        known_spells: Vec::new(),
-        active_quest_statuses: Default::default(),
-        active_quest_objective_counts: Default::default(),
-        rewarded_quests: Default::default(),
-        completed_achievements: Default::default(),
-        daily_quests_completed: Default::default(),
-        df_quests: Default::default(),
-        faction_template_id: 0,
-        reputation_standings: Vec::new(),
-        reputation_state_flags: Vec::new(),
-        forced_reputation_ranks: Vec::new(),
-        forced_reputation_faction_ids: Vec::new(),
-        inventory_item_counts: Default::default(),
-        party_member_party_type: [0; 2],
-        party_member_phase_states: Default::default(),
-        party_member_auras: Vec::new(),
-        party_member_pet_stats: None,
-        player_name: player_name.to_string(),
-        account_id: 1,
-        recruiter_id: 0,
-        race: 1,
-        class: 1,
-        sex: 0,
-        level: 1,
-        gray_level: 0,
-        display_id: 49,
-        visible_items: std::sync::Arc::new([(0, 0, 0); 19]),
-        customizations: std::sync::Arc::default(),
-        lifetime_honorable_kills: 0,
-        this_week_contribution: 0,
-        yesterday_contribution: 0,
-        today_honorable_kills: 0,
-        yesterday_honorable_kills: 0,
-        lifetime_max_rank: 0,
-        honor_level: 0,
     }
 }
 
@@ -345,12 +349,9 @@ fn drain_durable_creature_runtime_commands_like_cpp(
     registry: &PlayerRegistry,
     player_guid: ObjectGuid,
 ) -> Vec<SessionCommand> {
-    let durable = Arc::clone(
-        &registry
-            .fixture_snapshot(player_guid)
-            .expect("registered player")
-            .durable_creature_runtime_commands_like_cpp,
-    );
+    let durable = registry
+        .fixture_durable_creature_runtime_commands_like_cpp(player_guid)
+        .expect("registered player");
     durable
         .lock()
         .expect("durable creature-runtime command lock")
@@ -366,7 +367,7 @@ fn insert_player_broadcast_fixture_with_in_world_like_cpp(
 ) {
     let mut info =
         player_broadcast_info_fixture_like_cpp(send_tx, command_tx, &format!("Player{counter}"));
-    info.is_in_world = is_in_world;
+    info.info.is_in_world = is_in_world;
     registry.register_or_replace(
         ObjectGuid::create_player(1, counter as i64),
         info,
@@ -6907,86 +6908,88 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 9009);
     registry.register_or_replace(
         player_guid,
-        PlayerBroadcastInfo {
-            map_id: 0,
-            instance_id: 0,
-            position: wow_core::Position::ZERO,
-            combat_reach: 0.0,
-            in_combat: false,
-            liquid_status: 0,
-            is_in_world: true,
+        PlayerSessionRegistrationLikeCpp {
+            info: PlayerBroadcastInfo {
+                map_id: 0,
+                instance_id: 0,
+                position: wow_core::Position::ZERO,
+                combat_reach: 0.0,
+                in_combat: false,
+                liquid_status: 0,
+                is_in_world: true,
+                client_visible_guids_like_cpp: Default::default(),
+                advanced_combat_logging_enabled_like_cpp: Default::default(),
+                visibility_refresh_pending_like_cpp: Default::default(),
+                active_loot_rolls: Vec::new(),
+                pass_on_group_loot: false,
+                enchanting_skill: 0,
+                is_alive: true,
+                current_health: 100,
+                max_health: 100,
+                power_type: 0,
+                current_power: 0,
+                max_power: 0,
+                base_mana: 0,
+                transport: None,
+                is_pvp: false,
+                is_ffa_pvp: false,
+                is_ghost: false,
+                is_afk: false,
+                is_dnd: false,
+                auto_reply_msg_like_cpp: String::new(),
+                in_vehicle: false,
+                has_vehicle_kit_like_cpp: false,
+                party_member_vehicle_seat: 0,
+                zone_id: 0,
+                spec_id: 0,
+                unit_flags: 0,
+                unit_flags2: 0,
+                unit_state: 0,
+                is_game_master: false,
+                dungeon_difficulty_id: 1,
+                is_contested_pvp: false,
+                active_expansion: 2,
+                pending_quest_sharing: None,
+                known_spells: Vec::new(),
+                active_quest_statuses: Default::default(),
+                active_quest_objective_counts: Default::default(),
+                rewarded_quests: Default::default(),
+                completed_achievements: Default::default(),
+                daily_quests_completed: Default::default(),
+                df_quests: Default::default(),
+                faction_template_id: 0,
+                reputation_standings: Vec::new(),
+                reputation_state_flags: Vec::new(),
+                forced_reputation_ranks: Vec::new(),
+                forced_reputation_faction_ids: Vec::new(),
+                inventory_item_counts: Default::default(),
+                party_member_party_type: [0; 2],
+                party_member_phase_states: Default::default(),
+                party_member_auras: Vec::new(),
+                party_member_pet_stats: None,
+                player_name: "SeasonalTester".to_string(),
+                account_id: 1,
+                recruiter_id: 0,
+                race: 1,
+                class: 1,
+                sex: 0,
+                level: 1,
+                gray_level: 0,
+                display_id: 49,
+                visible_items: std::sync::Arc::new([(0, 0, 0); 19]),
+                customizations: std::sync::Arc::default(),
+                lifetime_honorable_kills: 0,
+                this_week_contribution: 0,
+                yesterday_contribution: 0,
+                today_honorable_kills: 0,
+                yesterday_honorable_kills: 0,
+                lifetime_max_rank: 0,
+                honor_level: 0,
+            },
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
             durable_creature_runtime_commands_like_cpp: Default::default(),
-            client_visible_guids_like_cpp: Default::default(),
-            advanced_combat_logging_enabled_like_cpp: Default::default(),
-            visibility_refresh_pending_like_cpp: Default::default(),
-            active_loot_rolls: Vec::new(),
-            pass_on_group_loot: false,
-            enchanting_skill: 0,
-            is_alive: true,
-            current_health: 100,
-            max_health: 100,
-            power_type: 0,
-            current_power: 0,
-            max_power: 0,
-            base_mana: 0,
-            transport: None,
-            is_pvp: false,
-            is_ffa_pvp: false,
-            is_ghost: false,
-            is_afk: false,
-            is_dnd: false,
-            auto_reply_msg_like_cpp: String::new(),
-            in_vehicle: false,
-            has_vehicle_kit_like_cpp: false,
-            party_member_vehicle_seat: 0,
-            zone_id: 0,
-            spec_id: 0,
-            unit_flags: 0,
-            unit_flags2: 0,
-            unit_state: 0,
-            is_game_master: false,
-            dungeon_difficulty_id: 1,
-            is_contested_pvp: false,
-            active_expansion: 2,
-            pending_quest_sharing: None,
-            known_spells: Vec::new(),
-            active_quest_statuses: Default::default(),
-            active_quest_objective_counts: Default::default(),
-            rewarded_quests: Default::default(),
-            completed_achievements: Default::default(),
-            daily_quests_completed: Default::default(),
-            df_quests: Default::default(),
-            faction_template_id: 0,
-            reputation_standings: Vec::new(),
-            reputation_state_flags: Vec::new(),
-            forced_reputation_ranks: Vec::new(),
-            forced_reputation_faction_ids: Vec::new(),
-            inventory_item_counts: Default::default(),
-            party_member_party_type: [0; 2],
-            party_member_phase_states: Default::default(),
-            party_member_auras: Vec::new(),
-            party_member_pet_stats: None,
-            player_name: "SeasonalTester".to_string(),
-            account_id: 1,
-            recruiter_id: 0,
-            race: 1,
-            class: 1,
-            sex: 0,
-            level: 1,
-            gray_level: 0,
-            display_id: 49,
-            visible_items: std::sync::Arc::new([(0, 0, 0); 19]),
-            customizations: std::sync::Arc::default(),
-            lifetime_honorable_kills: 0,
-            this_week_contribution: 0,
-            yesterday_contribution: 0,
-            today_honorable_kills: 0,
-            yesterday_honorable_kills: 0,
-            lifetime_max_rank: 0,
-            honor_level: 0,
         },
         Default::default(),
     );
@@ -10292,14 +10295,17 @@ fn make_registry_player_like_cpp(
     instance_id: u32,
     position: Position,
     is_in_world: bool,
-) -> (PlayerBroadcastInfo, flume::Receiver<SessionCommand>) {
+) -> (
+    PlayerSessionRegistrationLikeCpp,
+    flume::Receiver<SessionCommand>,
+) {
     let (send_tx, _send_rx) = flume::bounded(4);
     let (command_tx, command_rx) = flume::bounded(4);
     let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "Tester");
-    info.map_id = map_id;
-    info.instance_id = instance_id;
-    info.position = position;
-    info.is_in_world = is_in_world;
+    info.info.map_id = map_id;
+    info.info.instance_id = instance_id;
+    info.info.position = position;
+    info.info.is_in_world = is_in_world;
     (info, command_rx)
 }
 
@@ -10564,9 +10570,11 @@ fn creature_spell_start_go_is_one_atomic_observer_command_without_victim_drain_l
     let (observer_info, _observer_command_rx) =
         make_registry_player_like_cpp(571, 0, Position::new(25.0, 0.0, 0.0, 0.0), true);
     victim_info
+        .info
         .client_visible_guids_like_cpp
         .insert(make_source_guid());
     observer_info
+        .info
         .client_visible_guids_like_cpp
         .insert(make_source_guid());
     registry.register_or_replace(victim_guid, victim_info, Default::default());
@@ -10626,9 +10634,11 @@ fn creature_spell_plan_skips_invisible_observer_but_reaches_victim_like_cpp() {
     // Both viewers already have the caster at client; only range separates
     // them here.
     victim_info
+        .info
         .client_visible_guids_like_cpp
         .insert(make_source_guid());
     invisible_observer_info
+        .info
         .client_visible_guids_like_cpp
         .insert(make_source_guid());
     registry.register_or_replace(victim_guid, victim_info, Default::default());
@@ -10675,9 +10685,10 @@ fn creature_spell_plan_commits_have_at_client_at_resolution_like_cpp() {
     let (unaware_info, _unaware_command_rx) =
         make_registry_player_like_cpp(571, 0, Position::new(25.0, 0.0, 0.0, 0.0), true);
     victim_info
+        .info
         .client_visible_guids_like_cpp
         .insert(make_source_guid());
-    let unaware_visibility = unaware_info.client_visible_guids_like_cpp.clone();
+    let unaware_visibility = unaware_info.info.client_visible_guids_like_cpp.clone();
     registry.register_or_replace(victim_guid, victim_info, Default::default());
     registry.register_or_replace(unaware_guid, unaware_info, Default::default());
 
@@ -10852,10 +10863,10 @@ fn full_command_channel_increments_send_failed_and_does_not_block_like_cpp() {
     drop(command_rx);
 
     let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "Full");
-    info.map_id = 571;
-    info.instance_id = 0;
-    info.is_in_world = true;
-    info.position = Position::ZERO;
+    info.info.map_id = 571;
+    info.info.instance_id = 0;
+    info.info.is_in_world = true;
+    info.info.position = Position::ZERO;
     registry.register_or_replace(guid, info, Default::default());
 
     let event = make_nearby_visible_event_like_cpp(571, 0, Position::ZERO, 1000.0, false);
@@ -10939,9 +10950,9 @@ fn refresh_visible_world_creatures_full_channel_counts_send_failed_like_cpp() {
     drop(command_rx);
 
     let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "RefreshFull");
-    info.map_id = 571;
-    info.instance_id = 7;
-    info.is_in_world = true;
+    info.info.map_id = 571;
+    info.info.instance_id = 7;
+    info.info.is_in_world = true;
     registry.register_or_replace(guid, info, Default::default());
 
     let summary = deliver_refresh_visible_world_creatures_like_cpp(571, 7, &registry);
@@ -10959,22 +10970,22 @@ fn collect_legacy_creature_aggro_candidates_uses_living_in_world_players_like_cp
     let dead_in_world = ObjectGuid::create_player(1, 66);
     let (mut in_world_info, _) =
         make_registry_player_like_cpp(571, 2, Position::new(1.0, 2.0, 3.0, 0.0), true);
-    in_world_info.combat_reach = 1.5;
-    in_world_info.liquid_status = wow_world::session::LIQUID_MAP_IN_WATER_LIKE_CPP;
-    in_world_info.unit_flags2 = wow_constants::unit::UnitFlags2::IGNORE_REPUTATION.bits();
-    in_world_info.faction_template_id = 1;
-    in_world_info.reputation_standings = vec![(72, -6_000)];
-    in_world_info.reputation_state_flags =
+    in_world_info.info.combat_reach = 1.5;
+    in_world_info.info.liquid_status = wow_world::session::LIQUID_MAP_IN_WATER_LIKE_CPP;
+    in_world_info.info.unit_flags2 = wow_constants::unit::UnitFlags2::IGNORE_REPUTATION.bits();
+    in_world_info.info.faction_template_id = 1;
+    in_world_info.info.reputation_standings = vec![(72, -6_000)];
+    in_world_info.info.reputation_state_flags =
         vec![(72, wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP)];
-    in_world_info.forced_reputation_ranks =
+    in_world_info.info.forced_reputation_ranks =
         vec![(87, wow_data::reputation::ReputationRankLikeCpp::Hostile)];
-    in_world_info.forced_reputation_faction_ids = vec![87];
-    in_world_info.is_contested_pvp = true;
+    in_world_info.info.forced_reputation_faction_ids = vec![87];
+    in_world_info.info.is_contested_pvp = true;
     let (not_in_world_info, _) =
         make_registry_player_like_cpp(571, 2, Position::new(9.0, 9.0, 9.0, 0.0), false);
     let (mut dead_in_world_info, _) =
         make_registry_player_like_cpp(571, 2, Position::new(4.0, 4.0, 4.0, 0.0), true);
-    dead_in_world_info.is_alive = false;
+    dead_in_world_info.info.is_alive = false;
     registry.register_or_replace(in_world, in_world_info, Default::default());
     registry.register_or_replace(not_in_world, not_in_world_info, Default::default());
     registry.register_or_replace(dead_in_world, dead_in_world_info, Default::default());
@@ -11254,7 +11265,7 @@ fn creature_attack_start_delivery_filters_registry_state_like_cpp() {
     let (not_in_world_info, not_in_world_rx) =
         make_registry_player_like_cpp(571, 0, Position::ZERO, false);
     let (mut dead_info, dead_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
-    dead_info.is_alive = false;
+    dead_info.info.is_alive = false;
     registry.register_or_replace(wrong_map, wrong_map_info, Default::default());
     registry.register_or_replace(wrong_instance, wrong_instance_info, Default::default());
     registry.register_or_replace(not_in_world, not_in_world_info, Default::default());
@@ -11300,10 +11311,10 @@ fn creature_attack_start_delivery_uses_durable_rail_when_general_queue_is_full_l
     let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
     let (command_tx, command_rx) = flume::bounded::<SessionCommand>(1);
     let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx.clone(), "AggroFull");
-    info.map_id = 571;
-    info.instance_id = 0;
-    info.is_in_world = true;
-    info.is_alive = true;
+    info.info.map_id = 571;
+    info.info.instance_id = 0;
+    info.info.is_in_world = true;
+    info.info.is_alive = true;
     registry.register_or_replace(victim, info, Default::default());
     let command = wow_world::session::mailbox::CreatureAttackStartLikeCppCommand {
         attacker_guid: attacker,
@@ -11381,7 +11392,7 @@ fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp() {
 
     let registry = PlayerRegistry::default();
     let (mut victim_info, victim_rx) = make_registry_player_like_cpp(0, 0, victim_position, true);
-    victim_info.faction_template_id = 1;
+    victim_info.info.faction_template_id = 1;
     registry.register_or_replace(victim, victim_info, Default::default());
     let wrong_map = ObjectGuid::create_player(1, 93_003);
     let (wrong_map_info, wrong_map_rx) = make_registry_player_like_cpp(1, 0, victim_position, true);
@@ -11595,9 +11606,9 @@ fn creature_melee_damage_delivery_poisoned_durable_rail_counts_send_failed_like_
     let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
     let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
     let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "MeleeFull");
-    info.map_id = 571;
-    info.instance_id = 0;
-    info.is_in_world = true;
+    info.info.map_id = 571;
+    info.info.instance_id = 0;
+    info.info.is_in_world = true;
     let durable = Arc::clone(&info.durable_creature_runtime_commands_like_cpp);
     let _ = std::thread::spawn(move || {
         let _guard = durable.lock().unwrap();
@@ -11636,9 +11647,9 @@ fn creature_melee_damage_delivery_preserves_every_swing_when_general_queue_is_fu
     let (command_tx, command_rx) = flume::bounded::<SessionCommand>(1);
     let mut info =
         player_broadcast_info_fixture_like_cpp(send_tx, command_tx.clone(), "MeleeRetry");
-    info.map_id = 571;
-    info.instance_id = 0;
-    info.is_in_world = true;
+    info.info.map_id = 571;
+    info.info.instance_id = 0;
+    info.info.is_in_world = true;
     registry.register_or_replace(victim, info, Default::default());
     let command = wow_world::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand {
         attacker_guid: attacker,
@@ -12191,7 +12202,7 @@ async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_mel
         make_registry_player_like_cpp(1, 0, Position::new(10.0, 10.0, 0.0, 0.0), true);
     registry.register_or_replace(wrong_map, wrong_map_info, Default::default());
     let (mut victim_info, victim_rx) = make_registry_player_like_cpp(0, 0, melee_position, true);
-    victim_info.faction_template_id = 1;
+    victim_info.info.faction_template_id = 1;
     registry.register_or_replace(melee_victim, victim_info, Default::default());
 
     let mmap_config = wow_world::MMapRuntimeConfigLikeCpp {

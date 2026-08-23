@@ -55646,13 +55646,6 @@
           "source_class": "production"
         },
         {
-          "name": "command_tx",
-          "type": "flume :: Sender < SessionCommand >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "completed_achievements",
           "type": "HashSet < u32 >",
           "visibility": "pub",
@@ -55704,13 +55697,6 @@
         {
           "name": "dungeon_difficulty_id",
           "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "durable_creature_runtime_commands_like_cpp",
-          "type": "Arc < Mutex < DurableCreatureRuntimeCommandsLikeCpp > >",
           "visibility": "pub",
           "cfg": [],
           "source_class": "production"
@@ -55989,13 +55975,6 @@
           "source_class": "production"
         },
         {
-          "name": "realm_send_tx",
-          "type": "flume :: Sender < Vec < u8 > >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "recruiter_id",
           "type": "u32",
           "visibility": "pub",
@@ -56019,13 +55998,6 @@
         {
           "name": "rewarded_quests",
           "type": "HashSet < u32 >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "send_tx",
-          "type": "flume :: Sender < Vec < u8 > >",
           "visibility": "pub",
           "cfg": [],
           "source_class": "production"
@@ -63741,7 +63713,7 @@
           "symbol": "PlayerRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "crate::session::directory::{PlayerBroadcastInfo,PlayerRegistry,PlayerVisibilityCreateSnapshot}",
+          "fingerprint": "crate::session::directory::{PlayerBroadcastInfo,PlayerRegistry,PlayerSessionRegistrationLikeCpp,PlayerVisibilityCreateSnapshot}",
           "count": 1
         },
         {
@@ -65835,7 +65807,7 @@
               "multiplicity": 3
             }
           ],
-          "fingerprint": "signature=async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_melee_like_cpp ()|body=fnv1a64x2:0241e542d5b6f4601a4c4a63e4f3f6bb:len=11561|evidence=fnv1a64x2:46d2670ed02aa533062dda01dd3ba2b4:len=8209",
+          "fingerprint": "signature=async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_melee_like_cpp ()|body=fnv1a64x2:2e0a54aac6093c768b6a1c835e6701b1:len=11568|evidence=fnv1a64x2:46d2670ed02aa533062dda01dd3ba2b4:len=8209",
           "cfg": [
             "cfg (test)"
           ],
@@ -66860,7 +66832,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp ()|body=fnv1a64x2:a9612628c0541527e91df4d33e1d46ca:len=5098|evidence=fnv1a64x2:ea60d78f4b0d8ba2468430b3bb634361:len=3116",
+          "fingerprint": "signature=fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp ()|body=fnv1a64x2:2c51502214ff1147a0c3cf1475a4aab4:len=5105|evidence=fnv1a64x2:ea60d78f4b0d8ba2468430b3bb634361:len=3116",
           "cfg": [
             "cfg (test)"
           ],
