@@ -730,6 +730,18 @@ def validation_commands(
     return planned, optional_skips
 
 
+def require_protoc_for(steps: list[dict[str, object]], environment: dict[str, str]) -> None:
+    if "PROTOC" in environment:
+        return
+    for step in steps:
+        argv = step["argv"]
+        if isinstance(argv, list) and argv[:1] == ["cargo"]:
+            raise ValueError(
+                "the plan compiles Rust but no pinned protoc was found; install it, "
+                "put it on PATH, or set PROTOC"
+            )
+
+
 def build_plan(
     repo: Path,
     profile: str,
@@ -743,6 +755,7 @@ def build_plan(
     groups = grouped_paths(paths)
     if profile == "audit":
         steps = audit_steps(base_commit, jobs)
+        require_protoc_for(steps, environment)
         return {
             "base_input": base,
             "base_commit": base_commit,
@@ -766,6 +779,7 @@ def build_plan(
         {"section": f"path-{index:02d}", "argv": command}
         for index, command in enumerate(planned, start=1)
     ]
+    require_protoc_for(steps, environment)
     return {
         "base_input": base,
         "base_commit": base_commit,
@@ -779,6 +793,49 @@ def build_plan(
     }
 
 
+def pinned_protoc_version(repo: Path) -> str:
+    try:
+        version = (repo / ".protoc-version").read_text(encoding="utf-8").strip()
+    except OSError as error:
+        raise ValueError(f"unreadable .protoc-version: {error}") from error
+    if not re.fullmatch(r"[0-9]+(\.[0-9]+)+", version):
+        raise ValueError(f"invalid protoc version in .protoc-version: {version!r}")
+    return version
+
+
+def resolve_protoc(repo: Path, environment: dict[str, str]) -> str | None:
+    """Find the pinned protoc the way the retired harnesses did, or report why not.
+
+    Cargo build scripts need `protoc`, it is not always on PATH, and a missing
+    one surfaces as an unreadable prost-build error deep in a build log.
+    """
+    expected = pinned_protoc_version(repo)
+    explicit = environment.get("PROTOC")
+    candidates: list[str] = []
+    if explicit:
+        candidates.append(shutil.which(explicit) or explicit if "/" not in explicit else explicit)
+    else:
+        found = shutil.which("protoc")
+        if found:
+            candidates.append(found)
+        candidates.append(str(Path(environment.get("HOME", "")) / ".local/protoc/bin/protoc"))
+    for candidate in candidates:
+        try:
+            reported = subprocess.run(
+                [candidate, "--version"], capture_output=True, text=True, timeout=30
+            )
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if reported.returncode == 0 and reported.stdout.strip() == f"libprotoc {expected}":
+            return candidate
+        if reported.returncode == 0:
+            raise ValueError(
+                f"protoc at {candidate} reports {reported.stdout.strip()!r}, "
+                f"expected 'libprotoc {expected}'"
+            )
+    return None
+
+
 def command_environment(repo: Path, jobs: int) -> dict[str, str]:
     environment = os.environ.copy()
     worktree = hashlib.sha256(str(repo).encode()).hexdigest()[:16]
@@ -789,6 +846,11 @@ def command_environment(repo: Path, jobs: int) -> dict[str, str]:
             "CARGO_TARGET_DIR": str(repo / "target" / "validation-v2" / "cargo" / worktree),
         }
     )
+    protoc = resolve_protoc(repo, environment)
+    if protoc is not None:
+        environment["PROTOC"] = protoc
+    else:
+        environment.pop("PROTOC", None)
     return environment
 
 
