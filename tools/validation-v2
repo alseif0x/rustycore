@@ -16,7 +16,6 @@ import shutil
 import signal
 import subprocess
 import sys
-import tempfile
 import time
 import tomllib
 
@@ -26,6 +25,14 @@ LOCKED_ERROR = 75
 DEFAULT_JOBS = 2
 MAX_JOBS = 8
 DEFAULT_TIMEOUT = 900
+DEFAULT_BASE = "origin/3.4.3"
+WHITESPACE_CHECK = (
+    "from pathlib import Path; import sys; "
+    "bad=[f'{path}:{number}' for path in sys.argv[1:] "
+    "for number,line in enumerate(Path(path).read_text(encoding='utf-8').splitlines(),1) "
+    "if line.endswith((' ', '\\t'))]; "
+    "bad and print('\\n'.join(bad), file=sys.stderr); raise SystemExit(bool(bad))"
+)
 
 
 def utc_now() -> str:
@@ -112,18 +119,347 @@ def write_manifest(path: Path, document: dict[str, object]) -> None:
     os.replace(temporary, path)
 
 
-def commands(profile: str, jobs: int) -> list[list[str]]:
-    quick = [
-        ["git", "diff", "--check"],
-        ["cargo", "fmt", "--all", "--check"],
-    ]
-    if profile == "quick":
-        return quick
-    if profile == "final":
-        return quick + [
-            ["cargo", "test", "--locked", "-p", "wow-core", "--lib", "--jobs", str(jobs)]
+def nul_paths(repo: Path, *command: str) -> list[str]:
+    data = subprocess.check_output(command, cwd=repo)
+    try:
+        return [item.decode("utf-8") for item in data.split(b"\0") if item]
+    except UnicodeDecodeError as error:
+        raise ValueError("Git path is not valid UTF-8") from error
+
+
+def resolve_base(repo: Path, base: str) -> str:
+    try:
+        return output(repo, "git", "rev-parse", "--verify", f"{base}^{{commit}}")
+    except subprocess.CalledProcessError as error:
+        raise ValueError(f"base '{base}' is unavailable") from error
+
+
+def changed_paths(repo: Path, base_commit: str) -> list[str]:
+    paths: set[str] = set()
+    for command in (
+        ("git", "diff", "--name-only", "-z", f"{base_commit}...HEAD"),
+        ("git", "diff", "--name-only", "-z", "--cached"),
+        ("git", "diff", "--name-only", "-z"),
+        ("git", "ls-files", "--others", "--exclude-standard", "-z"),
+    ):
+        paths.update(nul_paths(repo, *command))
+    return sorted(paths)
+
+
+def classify_path(path: str) -> str:
+    if path.startswith("tools/architecture/handler-contract-check/"):
+        return "architecture-checker"
+    if path.startswith("tools/wow-test-bot/"):
+        return "wow-test-bot"
+    if path.startswith(".github/workflows/") and Path(path).suffix in {".yml", ".yaml"}:
+        return "workflow"
+    if path.startswith("crates/"):
+        return "workspace-rust"
+    if (
+        path in {"Cargo.toml", "Cargo.lock", "rust-toolchain.toml", ".protoc-version"}
+        or path.startswith("proto/")
+        or path.endswith("/build.rs")
+    ):
+        return "workspace-root"
+    suffix = Path(path).suffix
+    if suffix == ".rs":
+        return "workspace-root"
+    if suffix == ".sh":
+        return "shell"
+    if suffix == ".json":
+        return "json"
+    if suffix == ".py" or path == "tools/validation-v2":
+        return "python"
+    if path.startswith("docs/") or suffix in {".md", ".txt", ".tsv"}:
+        return "documentation"
+    return "other"
+
+
+def grouped_paths(paths: list[str]) -> dict[str, list[str]]:
+    groups: dict[str, list[str]] = {}
+    for path in paths:
+        groups.setdefault(classify_path(path), []).append(path)
+    return {name: groups[name] for name in sorted(groups)}
+
+
+def cargo_metadata(
+    repo: Path, environment: dict[str, str], timeout: int
+) -> tuple[dict[str, object], dict[str, object]]:
+    command = ["cargo", "metadata", "--locked", "--offline", "--format-version", "1"]
+    started_at = utc_now()
+    started = time.monotonic()
+    try:
+        result = subprocess.run(
+            command,
+            cwd=repo,
+            env=environment,
+            text=True,
+            capture_output=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise ValueError(f"Cargo metadata exceeded {timeout} seconds") from error
+    signal_number = -result.returncode if result.returncode < 0 else None
+    exit_code = 128 + signal_number if signal_number is not None else result.returncode
+    outcome = {
+        "argv": command,
+        "started_at": started_at,
+        "ended_at": utc_now(),
+        "duration_seconds": round(time.monotonic() - started, 3),
+        "exit_code": exit_code,
+        "signal": signal_number,
+        "status": "passed" if exit_code == 0 else "failed",
+    }
+    if exit_code != 0:
+        if result.stderr:
+            print(result.stderr, file=sys.stderr, end="")
+        raise ValueError("locked offline Cargo metadata failed")
+    try:
+        metadata = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise ValueError("Cargo metadata returned invalid JSON") from error
+    return metadata, outcome
+
+
+def workspace_model(repo: Path, metadata: dict[str, object]) -> dict[str, object]:
+    members = metadata.get("workspace_members")
+    packages = metadata.get("packages")
+    resolve = metadata.get("resolve")
+    if not isinstance(members, list) or not isinstance(packages, list) or not isinstance(resolve, dict):
+        raise ValueError("Cargo metadata is missing workspace identity or resolve graph")
+    member_ids = set(members)
+    by_id: dict[str, dict[str, object]] = {}
+    roots: list[tuple[str, str]] = []
+    for package in packages:
+        if not isinstance(package, dict) or package.get("id") not in member_ids:
+            continue
+        package_id = package.get("id")
+        name = package.get("name")
+        manifest = package.get("manifest_path")
+        if not all(isinstance(value, str) for value in (package_id, name, manifest)):
+            raise ValueError("Cargo metadata contains an invalid workspace package")
+        manifest_path = Path(manifest).resolve()
+        try:
+            root = manifest_path.parent.relative_to(repo).as_posix()
+        except ValueError as error:
+            raise ValueError(f"workspace manifest is outside repository: {manifest}") from error
+        if package_id in by_id or any(existing == root for existing, _ in roots):
+            raise ValueError("Cargo metadata contains duplicate workspace package identity")
+        by_id[package_id] = package
+        roots.append((root, package_id))
+    if set(by_id) != member_ids:
+        raise ValueError("Cargo metadata workspace members do not map exactly to packages")
+    roots.sort(key=lambda item: (-len(item[0]), item[0]))
+    reverse: dict[str, set[str]] = {package_id: set() for package_id in member_ids}
+    nodes = resolve.get("nodes")
+    if not isinstance(nodes, list):
+        raise ValueError("Cargo metadata resolve graph has no nodes")
+    for node in nodes:
+        if not isinstance(node, dict) or node.get("id") not in member_ids:
+            continue
+        consumer = node["id"]
+        dependencies = node.get("dependencies")
+        if not isinstance(dependencies, list):
+            raise ValueError("Cargo metadata node has invalid dependencies")
+        for dependency in dependencies:
+            if dependency in member_ids:
+                reverse[dependency].add(consumer)
+    return {"by_id": by_id, "roots": roots, "reverse": reverse}
+
+
+def affected_workspace(
+    repo: Path, paths: list[str], groups: dict[str, list[str]], metadata: dict[str, object]
+) -> dict[str, object]:
+    model = workspace_model(repo, metadata)
+    by_id = model["by_id"]
+    roots = model["roots"]
+    reverse = model["reverse"]
+    assert isinstance(by_id, dict) and isinstance(roots, list) and isinstance(reverse, dict)
+    root_wide = "workspace-root" in groups
+    direct_ids: set[str] = set(by_id) if root_wide else set()
+    for path in groups.get("workspace-rust", []):
+        if path.endswith("Cargo.toml") and not (repo / path).exists():
+            raise ValueError(f"deleted workspace manifest requires explicit recovery: {path}")
+        matches = [package_id for root, package_id in roots if path == root or path.startswith(f"{root}/")]
+        if len(matches) != 1:
+            raise ValueError(f"changed workspace path maps to {len(matches)} packages: {path}")
+        direct_ids.add(matches[0])
+    closure = set(direct_ids)
+    pending = list(sorted(direct_ids))
+    while pending:
+        dependency = pending.pop()
+        for consumer in sorted(reverse[dependency]):
+            if consumer not in closure:
+                closure.add(consumer)
+                pending.append(consumer)
+
+    def names(package_ids: set[str]) -> list[str]:
+        return sorted(str(by_id[package_id]["name"]) for package_id in package_ids)
+
+    library_ids = {
+        package_id
+        for package_id in direct_ids
+        if any(
+            isinstance(target, dict) and "lib" in target.get("kind", [])
+            for target in by_id[package_id].get("targets", [])
+        )
+    }
+    return {
+        "root_wide": root_wide,
+        "direct_packages": names(direct_ids),
+        "reverse_closure_packages": names(closure),
+        "direct_library_packages": [] if root_wide else names(library_ids),
+    }
+
+
+def add_command(planned: list[list[str]], command: list[str]) -> None:
+    if command not in planned:
+        planned.append(command)
+
+
+def validation_commands(
+    repo: Path,
+    profile: str,
+    jobs: int,
+    base_commit: str,
+    groups: dict[str, list[str]],
+    workspace: dict[str, object] | None,
+) -> tuple[list[list[str]], list[str]]:
+    planned: list[list[str]] = []
+    optional_skips: list[str] = []
+    if not groups:
+        return planned, optional_skips
+    add_command(planned, ["git", "diff", "--check", base_commit])
+    existing = lambda paths: [path for path in paths if (repo / path).is_file()]
+    all_paths = sorted(path for paths in groups.values() for path in paths)
+    text_suffixes = {".json", ".lock", ".md", ".proto", ".py", ".rs", ".sh", ".toml", ".tsv", ".txt", ".yaml", ".yml"}
+    text_files = existing(
+        sorted(
+            path
+            for path in all_paths
+            if Path(path).suffix in text_suffixes or path == "tools/validation-v2"
+        )
+    )
+    if text_files:
+        add_command(planned, ["python3", "-c", WHITESPACE_CHECK, *text_files])
+    shell_files = existing([path for path in all_paths if Path(path).suffix == ".sh"])
+    json_files = existing([path for path in all_paths if Path(path).suffix == ".json"])
+    python_files = existing(
+        [
+            path
+            for path in all_paths
+            if Path(path).suffix == ".py" or path == "tools/validation-v2"
         ]
-    return []
+    )
+    for shell_file in shell_files:
+        add_command(planned, ["bash", "-n", shell_file])
+    if json_files:
+        add_command(
+            planned,
+            [
+                "python3",
+                "-c",
+                "import json,sys; [json.load(open(p, encoding='utf-8')) for p in sys.argv[1:]]",
+                *json_files,
+            ],
+        )
+    if python_files:
+        add_command(planned, ["python3", "-m", "py_compile", *python_files])
+    if "workflow" in groups:
+        workflow_files = existing(groups["workflow"])
+        if workflow_files and shutil.which("actionlint"):
+            add_command(planned, ["actionlint", *workflow_files])
+        elif workflow_files:
+            optional_skips.append("actionlint is unavailable; workflow syntax was not validated")
+        else:
+            optional_skips.append("all changed workflow files were deleted; no syntax input remains")
+
+    workspace_changed = workspace is not None
+    if workspace_changed:
+        add_command(planned, ["cargo", "fmt", "--all", "--check"])
+        direct = list(workspace["direct_packages"])
+        closure = list(workspace["reverse_closure_packages"])
+        root_wide = bool(workspace["root_wide"])
+        selected = direct if profile == "quick" else closure
+        if root_wide:
+            add_command(
+                planned,
+                ["cargo", "check", "--locked", "--workspace", "--all-targets", "--jobs", str(jobs)],
+            )
+        elif selected:
+            package_args = [argument for package in selected for argument in ("-p", package)]
+            add_command(
+                planned,
+                ["cargo", "check", "--locked", "--tests", "--jobs", str(jobs), *package_args],
+            )
+        if profile == "final" and workspace["direct_library_packages"]:
+            package_args = [
+                argument
+                for package in workspace["direct_library_packages"]
+                for argument in ("-p", package)
+            ]
+            add_command(
+                planned,
+                ["cargo", "test", "--locked", "--lib", "--jobs", str(jobs), *package_args],
+            )
+
+    checker_manifest = "tools/architecture/handler-contract-check/Cargo.toml"
+    if "architecture-checker" in groups:
+        add_command(planned, ["cargo", "fmt", "--manifest-path", checker_manifest, "--", "--check"])
+        command = "test" if profile == "final" else "check"
+        checker = ["cargo", command, "--locked", "--manifest-path", checker_manifest, "--jobs", str(jobs)]
+        if profile == "final":
+            checker.extend(["--lib", "--", "--skip", "repository_surface_can_be_collected"])
+        add_command(planned, checker)
+    if "wow-test-bot" in groups:
+        add_command(
+            planned,
+            ["cargo", "fmt", "--manifest-path", "tools/wow-test-bot/Cargo.toml", "--", "--check"],
+        )
+        add_command(
+            planned,
+            [
+                "cargo",
+                "check",
+                "--locked",
+                "--manifest-path",
+                "tools/wow-test-bot/Cargo.toml",
+                "--jobs",
+                str(jobs),
+            ],
+        )
+    return planned, optional_skips
+
+
+def build_plan(
+    repo: Path,
+    profile: str,
+    jobs: int,
+    base: str,
+    environment: dict[str, str],
+    timeout: int,
+) -> dict[str, object]:
+    base_commit = resolve_base(repo, base)
+    paths = changed_paths(repo, base_commit)
+    groups = grouped_paths(paths)
+    workspace: dict[str, object] | None = None
+    metadata_outcome: dict[str, object] | None = None
+    if "workspace-rust" in groups or "workspace-root" in groups:
+        metadata, metadata_outcome = cargo_metadata(repo, environment, timeout)
+        workspace = affected_workspace(repo, paths, groups, metadata)
+    planned, optional_skips = validation_commands(
+        repo, profile, jobs, base_commit, groups, workspace
+    )
+    return {
+        "base_input": base,
+        "base_commit": base_commit,
+        "changed_paths": paths,
+        "path_classes": groups,
+        "workspace": workspace,
+        "metadata": metadata_outcome,
+        "optional_skips": optional_skips,
+        "planned_commands": planned,
+    }
 
 
 def command_environment(repo: Path, jobs: int) -> dict[str, str]:
@@ -170,96 +506,10 @@ def run_one(repo: Path, command: list[str], environment: dict[str, str], timeout
     }
 
 
-def fake_tool(path: Path, body: str) -> None:
-    path.write_text("#!/usr/bin/env bash\nset -eu\n" + body)
-    path.chmod(0o755)
-
-
-def self_test(script: Path) -> None:
-    with tempfile.TemporaryDirectory(prefix="validation-v2-self-test-") as directory:
-        repo = Path(directory) / "repo"
-        tools = repo / "tools"
-        fake_bin = Path(directory) / "bin"
-        tools.mkdir(parents=True)
-        fake_bin.mkdir()
-        shutil.copy2(script, tools / "validation-v2")
-        (repo / "rust-toolchain.toml").write_text('[toolchain]\nchannel = "1.98.0"\n')
-        (repo / "Cargo.toml").write_text('[workspace]\nresolver = "2"\n')
-        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-        subprocess.run(["git", "config", "user.email", "validation-v2@example.invalid"], cwd=repo, check=True)
-        subprocess.run(["git", "config", "user.name", "Validation V2"], cwd=repo, check=True)
-        subprocess.run(["git", "add", "."], cwd=repo, check=True)
-        subprocess.run(["git", "commit", "-qm", "fixture"], cwd=repo, check=True)
-        fake_tool(fake_bin / "rustc", 'printf "rustc 1.98.0 (fixture 1970-01-01)\\n"\n')
-        fake_tool(
-            fake_bin / "cargo",
-            'case "${V2_FAKE_CARGO_MODE:-pass}" in\n'
-            '  pass) exit 0 ;;\n'
-            '  fail) exit 23 ;;\n'
-            '  signal) kill -TERM "$$" ;;\n'
-            '  *) exit 24 ;;\n'
-            'esac\n',
-        )
-        base_env = os.environ.copy()
-        base_env["PATH"] = f"{fake_bin}:{base_env['PATH']}"
-        base_env["VALIDATION_V2_LOCK_DIR"] = str(Path(directory) / "locks")
-
-        def invoke(mode: str, behavior: str, manifest: Path, extra: dict[str, str] | None = None):
-            environment = base_env.copy()
-            environment["V2_FAKE_CARGO_MODE"] = behavior
-            environment["VALIDATION_V2_MANIFEST"] = str(manifest)
-            if extra:
-                environment.update(extra)
-            return subprocess.run(
-                [str(tools / "validation-v2"), mode],
-                cwd=repo,
-                env=environment,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-
-        success_manifest = Path(directory) / "success.json"
-        result = invoke("quick", "pass", success_manifest)
-        assert result.returncode == 0, result.stderr
-        success = json.loads(success_manifest.read_text())
-        assert success["profile"] == "quick"
-        assert success["provenance"]["head"]
-        assert success["provenance"]["rust"] == {"active": "1.98.0", "pinned": "1.98.0"}
-        assert [entry["status"] for entry in success["commands"]] == ["passed", "passed"]
-
-        failure_manifest = Path(directory) / "failure.json"
-        result = invoke("quick", "fail", failure_manifest)
-        assert result.returncode == 23
-        failure = json.loads(failure_manifest.read_text())
-        assert failure["commands"][-1]["exit_code"] == 23
-
-        signal_manifest = Path(directory) / "signal.json"
-        result = invoke("quick", "signal", signal_manifest)
-        assert result.returncode == 128 + signal.SIGTERM
-        signalled = json.loads(signal_manifest.read_text())
-        assert signalled["commands"][-1]["signal"] == signal.SIGTERM
-
-        result = invoke("final", "pass", Path(directory) / "invalid.json", {"VALIDATION_V2_CARGO_JOBS": "0"})
-        assert result.returncode == USAGE_ERROR
-        assert "must be between" in result.stderr
-
-        held_path = Path(base_env["VALIDATION_V2_LOCK_DIR"])
-        held_path.mkdir(exist_ok=True)
-        digest = hashlib.sha256(str(repo.resolve()).encode()).hexdigest()[:16]
-        lock = held_path / f"rustycore-validation-v2-{digest}.lock"
-        with lock.open("w+") as stream:
-            stream.write('{"pid":999,"profile":"fixture"}')
-            stream.flush()
-            fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            result = invoke("quick", "pass", Path(directory) / "locked.json")
-        assert result.returncode == LOCKED_ERROR
-        assert "lock contention" in result.stderr
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(prog="tools/validation-v2")
     parser.add_argument("profile", choices=("self-test", "quick", "final"))
+    parser.add_argument("--base", default=DEFAULT_BASE)
     args = parser.parse_args()
     repo = Path(__file__).resolve().parent.parent
     try:
@@ -276,7 +526,7 @@ def main() -> int:
     started = time.monotonic()
     path = manifest_path(repo, args.profile)
     document: dict[str, object] = {
-        "schema": 1,
+        "schema": 2,
         "runner": "rustycore-validation-v2",
         "shadow_only": True,
         "profile": args.profile,
@@ -284,31 +534,40 @@ def main() -> int:
         "resources": {"cargo_jobs": jobs, "command_timeout_seconds": timeout},
         "lock": str(active_lock),
         "started_at": started_at,
+        "plan": None,
         "commands": [],
     }
     exit_code = 0
     try:
         if args.profile == "self-test":
-            internal_started = time.monotonic()
-            self_test(Path(__file__).resolve())
-            document["commands"] = [{
-                "argv": ["internal:self-test"],
-                "duration_seconds": round(time.monotonic() - internal_started, 3),
-                "exit_code": 0,
-                "signal": None,
-                "timed_out": False,
-                "status": "passed",
-            }]
+            environment = command_environment(repo, jobs)
+            outcome = run_one(
+                repo,
+                [sys.executable, str(repo / "tools" / "test_validation_v2.py")],
+                environment,
+                timeout,
+            )
+            document["commands"] = [outcome]
+            exit_code = int(outcome["exit_code"])
         else:
             environment = command_environment(repo, jobs)
+            plan = build_plan(repo, args.profile, jobs, args.base, environment, timeout)
+            document["plan"] = plan
             outcomes = document["commands"]
             assert isinstance(outcomes, list)
-            for command in commands(args.profile, jobs):
+            planned = plan["planned_commands"]
+            assert isinstance(planned, list)
+            for command in planned:
+                assert isinstance(command, list) and all(isinstance(item, str) for item in command)
                 outcome = run_one(repo, command, environment, timeout)
                 outcomes.append(outcome)
                 if outcome["exit_code"] != 0:
                     exit_code = int(outcome["exit_code"])
                     break
+    except ValueError as error:
+        exit_code = USAGE_ERROR
+        document["runner_error"] = f"ValueError: {error}"
+        print(f"validation-v2: {error}", file=sys.stderr)
     except Exception as error:  # Manifest unexpected runner failures before returning.
         exit_code = 70
         document["runner_error"] = f"{type(error).__name__}: {error}"
