@@ -10,6 +10,7 @@ Run it through its single entry point:
 ./tools/validation-v2 self-test
 ./tools/validation-v2 quick --base origin/3.4.3
 ./tools/validation-v2 final --base origin/3.4.3
+./tools/validation-v2 audit --base origin/3.4.3
 ```
 
 `self-test` executes the separate hermetic contract suite in `tools/test_validation_v2.py`; fixture
@@ -28,6 +29,14 @@ test: exhaustive architecture, persistence inventory, capture, databases, and ru
 future explicit `audit` or QA profiles. Commands run sequentially and each exact command appears at
 most once. Neither profile calls a legacy wrapper or uses the network; Cargo is forced offline.
 
+`audit` is the explicit global, read-only budget. It does not use changed-path scope: it runs the
+architecture policy checks, handler contract and exhaustive session/persistence ratchets, all
+workspace targets, standalone QA-bot tests, and the required committed capture contracts. Every
+step has an owner name in the manifest and stops the audit immediately on failure. It never starts
+services, connects to a database, records a fresh capture, regenerates a baseline, invokes Codex,
+or calls either legacy wrapper. Those mutating or live operations require their own explicit QA
+procedure.
+
 Every run acquires a non-blocking, worktree-specific lock and writes a JSON manifest under
 `target/validation-v2/manifests/`. The manifest records repository and toolchain provenance,
 dirty state, kernel, timings, command results, signals, resource limits, and peak child RSS. It
@@ -37,6 +46,12 @@ does not record the environment or command output. Set `VALIDATION_V2_MANIFEST` 
 path. Timestamps, durations, peak RSS, PIDs, and explicitly selected result paths naturally vary;
 the profile, provenance, resource policy, routing, command declarations, statuses, and exit
 semantics are stable for an unchanged checkout.
+
+An `audit` also acquires `/tmp/rustycore-validation-v2-heavy.lock`. That lock is deliberately not
+derived from the checkout path, so audits in independent clones and worktrees cannot overlap on
+one host. Lock diagnostics identify the active run id, PID, repository, HEAD, profile and start
+time. `quick` and `final` never acquire this heavyweight lock. For hermetic tests only, its path
+can be overridden with `VALIDATION_V2_HEAVY_LOCK`.
 
 The conservative defaults are two Cargo jobs and a 900-second per-command timeout. Controlled
 overrides are validated before execution:
