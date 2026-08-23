@@ -385,8 +385,26 @@ impl RealmManager {
         realm: &Realm,
         client_ip: Option<std::net::IpAddr>,
     ) -> Vec<u8> {
-        let selected_ip =
-            select_realm_ip_str(client_ip, &realm.external_address, &realm.local_address);
+        let scanned_networks = wow_core::scan_local_ipv4_networks_like_cpp();
+        self.get_realm_server_addresses_json_with_local_networks_like_cpp(
+            realm,
+            client_ip,
+            &scanned_networks,
+        )
+    }
+
+    fn get_realm_server_addresses_json_with_local_networks_like_cpp(
+        &self,
+        realm: &Realm,
+        client_ip: Option<std::net::IpAddr>,
+        local_networks: &[wow_core::Ipv4NetworkLikeCpp],
+    ) -> Vec<u8> {
+        let selected_ip = select_realm_ip_str_with_local_networks(
+            client_ip,
+            &realm.external_address,
+            &realm.local_address,
+            local_networks,
+        );
         let addresses = RealmListServerIpAddresses {
             families: vec![AddressFamily {
                 family: 1,
@@ -434,17 +452,6 @@ impl RealmManager {
             })
             .collect()
     }
-}
-
-/// Pick the right realm IP for a given client address.
-///
-/// C++ delegates to Trinity::Net::SelectAddressForClient after
-/// Trinity::Net::ScanLocalNetworks. Rust scans on demand and falls back to the
-/// previous /24 LAN approximation only if interface scanning returns no usable
-/// IPv4 networks.
-fn select_realm_ip_str(client_ip: Option<std::net::IpAddr>, external: &str, local: &str) -> String {
-    let scanned_networks = wow_core::scan_local_ipv4_networks_like_cpp();
-    select_realm_ip_str_with_local_networks(client_ip, external, local, &scanned_networks)
 }
 
 fn select_realm_ip_str_with_local_networks(
@@ -1175,15 +1182,11 @@ mod tests {
     fn server_addresses_json_selects_local_or_external_like_cpp() {
         let manager = RealmManager::new();
         let realm = test_realm(9, 5, 6, 3, 1);
+        let fixture_networks = [wow_core::Ipv4NetworkLikeCpp::new(
+            "10.0.0.1".parse().unwrap(),
+            24,
+        )];
 
-        assert_eq!(
-            select_realm_ip_str(
-                Some(std::net::IpAddr::V4("127.0.0.1".parse().unwrap())),
-                &realm.external_address,
-                &realm.local_address,
-            ),
-            realm.local_address
-        );
         assert_eq!(
             select_realm_ip_str_with_local_networks(
                 Some(std::net::IpAddr::V4("127.0.0.1".parse().unwrap())),
@@ -1212,22 +1215,41 @@ mod tests {
             realm.external_address
         );
 
-        let addresses = manager
-            .get_realm_server_addresses_json_like_cpp(&realm, Some("127.0.0.1".parse().unwrap()));
+        let addresses = manager.get_realm_server_addresses_json_with_local_networks_like_cpp(
+            &realm,
+            Some("127.0.0.1".parse().unwrap()),
+            &fixture_networks,
+        );
         let addresses = inflate_payload(&addresses);
         let json = parse_enveloped_json(&addresses, "JSONRealmListServerIPAddresses:");
         assert_eq!(json["families"][0]["family"], 1);
         assert_eq!(json["families"][0]["addresses"][0]["ip"], "10.0.0.10");
         assert_eq!(json["families"][0]["addresses"][0]["port"], 8085);
+
+        let addresses = manager.get_realm_server_addresses_json_with_local_networks_like_cpp(
+            &realm,
+            Some("198.51.100.42".parse().unwrap()),
+            &fixture_networks,
+        );
+        let addresses = inflate_payload(&addresses);
+        let json = parse_enveloped_json(&addresses, "JSONRealmListServerIPAddresses:");
+        assert_eq!(json["families"][0]["addresses"][0]["ip"], "203.0.113.10");
     }
 
     #[test]
     fn server_addresses_json_content_matches_cpp_envelope() {
         let manager = RealmManager::new();
         let realm = test_realm(9, 5, 6, 3, 1);
+        let fixture_networks = [wow_core::Ipv4NetworkLikeCpp::new(
+            "10.0.0.1".parse().unwrap(),
+            24,
+        )];
 
-        let addresses = manager
-            .get_realm_server_addresses_json_like_cpp(&realm, Some("127.0.0.1".parse().unwrap()));
+        let addresses = manager.get_realm_server_addresses_json_with_local_networks_like_cpp(
+            &realm,
+            Some("127.0.0.1".parse().unwrap()),
+            &fixture_networks,
+        );
 
         assert_eq!(
             inflate_payload(&addresses),
