@@ -21,6 +21,9 @@ QA_SERVICE="${QA_SERVICE:-world-server}"
 QA_LIVE_DIR="${QA_LIVE_DIR:-$REPO_ROOT/target/deploy/live}"
 QA_LIVE_NAME="${QA_LIVE_NAME:-world-server}"
 QA_BOT="${QA_BOT:-$REPO_ROOT/tools/wow-test-bot/target/debug/wow-test-bot}"
+# The bot resolves config.json relative to its working directory, so it runs
+# from its own directory exactly as run_rustycore_login_smoke.sh does.
+QA_BOT_DIR="${QA_BOT_DIR:-$REPO_ROOT/tools/wow-test-bot}"
 QA_LOCK="${QA_LOCK:-/tmp/rustycore-qa-runtime.lock}"
 QA_WORLD_PORT="${QA_WORLD_PORT:-8085}"
 QA_INSTANCE_PORT="${QA_INSTANCE_PORT:-8086}"
@@ -296,8 +299,10 @@ run_loot_race() {
 
   local bot_status=0
   load_bot_environment
-  timeout --foreground --signal=TERM --kill-after=30 "${QA_BOT_TIMEOUT_SECONDS}s" \
-    "$QA_BOT" --loot-race-smoke --ack-disposable-overworld-loot-race || bot_status=$?
+  [[ -d "$QA_BOT_DIR" ]] || die "bot directory is missing: $QA_BOT_DIR"
+  ( cd "$QA_BOT_DIR" && exec timeout --foreground --signal=TERM --kill-after=30 \
+      "${QA_BOT_TIMEOUT_SECONDS}s" "$QA_BOT" \
+      --loot-race-smoke --ack-disposable-overworld-loot-race ) || bot_status=$?
   if ((bot_status == 0)); then
     log "Loot-race smoke passed"
   else

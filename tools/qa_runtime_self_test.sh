@@ -23,7 +23,7 @@ check() {
   fi
 }
 
-mkdir -p "$WORK/live" "$WORK/bin" "$WORK/repo"
+mkdir -p "$WORK/live" "$WORK/bin" "$WORK/repo" "$WORK/botdir"
 # A clean fixture repository: the guard under test is "the worktree is clean",
 # not "this development checkout happens to be".
 git -C "$WORK/repo" init -q
@@ -68,6 +68,7 @@ chmod +x "$WORK/bin/systemctl"
 cat >"$WORK/bin/bot" <<'FAKE'
 #!/usr/bin/env bash
 set -euo pipefail
+pwd >"${QA_FAKE_STATE:?}.bot-cwd"
 cat "${QA_FAKE_LIVE:?}" >"${QA_FAKE_STATE:?}.bot-saw"
 # Record only whether a credential arrived, never its value.
 if [[ -n "${WOW_BOT_PASSWORD_TESTBOT2_BOT_LOCAL:-}" ]]; then
@@ -98,6 +99,7 @@ run_qa() {
     QA_FAKE_LIVE="$WORK/live/world-server" \
     QA_GIT_DIR="$WORK/repo" \
     QA_ENV_FILE="$WORK/env.local" \
+    QA_BOT_DIR="$WORK/botdir" \
     "${EXTRA_ENV[@]}" \
     "$QA" "$@"
 }
@@ -144,6 +146,8 @@ check "the bot ran against the candidate build" bot_saw_candidate
 check "the original build was restored" live_is_original
 check "the report records a pass" grep -q '"outcome":"passed"' "$WORK/report.json"
 check "the smoke received its credentials" test -f "$WORK/state.bot-env"
+check "the smoke ran from the bot's own directory" \
+  bash -c '[[ "$(cat "'"$WORK"'/state.bot-cwd")" == "'"$WORK"'/botdir" ]]'
 check "no credential value reached the report" bash -c '! grep -q fixture-secret "'"$WORK"'/report.json"'
 
 # 4b. Without any credential source the run refuses before touching the service.
