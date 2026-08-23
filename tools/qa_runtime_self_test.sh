@@ -69,6 +69,10 @@ cat >"$WORK/bin/bot" <<'FAKE'
 #!/usr/bin/env bash
 set -euo pipefail
 pwd >"${QA_FAKE_STATE:?}.bot-cwd"
+printf '%s\n' "${WOW_BOT_FIXTURE_JOURNAL:-none}" >"${QA_FAKE_STATE:?}.bot-journal"
+printf '%s\n' "${WOW_BOT_LOOT_RACE_SMOKE:-0}" >"${QA_FAKE_STATE:?}.bot-mode"
+# Some runs leave the fixture mutated; the fixture decides which.
+if [[ "${QA_FAKE_LEAVE_JOURNAL:-0}" == "1" ]]; then : >"${WOW_BOT_FIXTURE_JOURNAL:?}"; fi
 cat "${QA_FAKE_LIVE:?}" >"${QA_FAKE_STATE:?}.bot-saw"
 # Record only whether a credential arrived, never its value.
 if [[ -n "${WOW_BOT_PASSWORD_TESTBOT2_BOT_LOCAL:-}" ]]; then
@@ -84,7 +88,18 @@ printf '%s\n' "${QA_FAKE_LIVE:?}"
 FAKE
 chmod +x "$WORK/bin/resolver"
 
+assert_fake() {
+  local name="$1" value="$2"
+  [[ "$value" == "$WORK"/* ]] || {
+    printf 'FAIL: self-test would drive the real %s (%s)\n' "$name" "$value" >&2
+    exit 1
+  }
+}
+
 run_qa() {
+  assert_fake systemctl "$WORK/bin/systemctl"
+  assert_fake smoke "$WORK/bin/bot"
+  assert_fake journals "$WORK/journals"
   env \
     QA_SYSTEMCTL="$WORK/bin/systemctl" \
     QA_SERVICE="fake-world" \
@@ -100,6 +115,8 @@ run_qa() {
     QA_GIT_DIR="$WORK/repo" \
     QA_ENV_FILE="$WORK/env.local" \
     QA_BOT_DIR="$WORK/botdir" \
+    QA_SMOKE="$WORK/bin/bot" \
+    QA_JOURNAL_DIR="$WORK/journals" \
     "${EXTRA_ENV[@]}" \
     "$QA" "$@"
 }
@@ -146,6 +163,12 @@ check "the bot ran against the candidate build" bot_saw_candidate
 check "the original build was restored" live_is_original
 check "the report records a pass" grep -q '"outcome":"passed"' "$WORK/report.json"
 check "the smoke received its credentials" test -f "$WORK/state.bot-env"
+check "the smoke was asked for loot-race mode" \
+  bash -c '[[ "$(cat "'"$WORK"'/state.bot-mode")" == "1" ]]'
+check "the smoke received a fresh absolute journal" \
+  bash -c 'j="$(cat "'"$WORK"'/state.bot-journal")"; [[ "$j" == /* && "$j" == *journals/fixture-* ]]'
+check "a completed run leaves no journal behind" \
+  bash -c '! compgen -G "'"$WORK"'/journals/*.journal" >/dev/null'
 check "the smoke ran from the bot's own directory" \
   bash -c '[[ "$(cat "'"$WORK"'/state.bot-cwd")" == "'"$WORK"'/botdir" ]]'
 check "no credential value reached the report" bash -c '! grep -q fixture-secret "'"$WORK"'/report.json"'
@@ -170,6 +193,18 @@ run_qa --allow-runtime-qa --ack-disposable-overworld-loot-race \
 check "a failing smoke fails the run" test "$status" -eq 3
 check "a failing smoke still restores" live_is_original
 check "the report records the failure" grep -q '"outcome":"failed"' "$WORK/report.json"
+
+# 5b. A run that leaves its journal behind is a pending fixture recovery.
+reset_state
+EXTRA_ENV=(QA_FAKE_LEAVE_JOURNAL=1)
+status=0
+output="$(run_qa --allow-runtime-qa --ack-disposable-overworld-loot-race \
+  --world-exec "$WORK/candidate" loot-race 2>&1)" || status=$?
+check "a surviving journal fails the run" test "$status" -eq 75
+check "a surviving journal is explained" grep -q "still mutated" <<<"$output"
+check "a surviving journal names the recovery command" grep -q -- "--recover-loot-fixture" <<<"$output"
+check "a surviving journal still restored the build" live_is_original
+rm -f "$WORK"/journals/*.journal
 
 # 6. A restore that cannot start the service outranks everything else.
 reset_state
