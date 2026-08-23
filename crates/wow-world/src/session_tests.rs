@@ -35985,7 +35985,13 @@ fn player_exit_visibility_refresh_uses_same_full_diff_like_cpp() {
     session.set_player_position_like_cpp(Position::ZERO);
 
     let (self_tx, _self_rx) = flume::bounded(1);
-    registry.register_or_replace(guid, broadcast_info(guid, self_tx), Default::default());
+    // Cleanup unregisters through the owning control channel (#243), so this
+    // session's own entry must carry its command sender.
+    registry.register_or_replace(
+        guid,
+        broadcast_info_with_command(guid, self_tx, session.session_command_tx()),
+        Default::default(),
+    );
     registry.register_or_replace(
         nearby_guid,
         broadcast_info_with_command(nearby_guid, nearby_tx, nearby_command_tx),
@@ -36172,7 +36178,13 @@ fn loaded_customizations_refresh_already_registered_player_like_cpp() {
 
     session.set_player_guid(Some(guid));
     session.set_player_registry(Arc::clone(&registry));
-    registry.register_or_replace(guid, broadcast_info(guid, send_tx), Default::default());
+    // The session may only publish into the entry its own control channel
+    // owns (#243); login registers with exactly this sender.
+    registry.register_or_replace(
+        guid,
+        broadcast_info_with_command(guid, send_tx, session.session_command_tx()),
+        Default::default(),
+    );
 
     let customizations = vec![
         wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate {
@@ -46695,7 +46707,7 @@ async fn spell_learn_spell_effect_row_preserves_base_grant_without_richer_author
     ));
     player_registry.register_or_replace(
         player_guid,
-        broadcast_info(player_guid, registry_send_tx),
+        broadcast_info_with_command(player_guid, registry_send_tx, session.session_command_tx()),
         Default::default(),
     );
     observer.set_player_guid(Some(observer_guid));
