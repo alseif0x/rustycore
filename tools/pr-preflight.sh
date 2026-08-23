@@ -373,7 +373,6 @@ resolve_protoc() {
     if command -v protoc >/dev/null 2>&1; then
       candidates+=("$(command -v protoc)")
     fi
-    candidates+=(/home/cdmonio/.local/protoc/bin/protoc)
   fi
 
   if ((DRY_RUN)); then

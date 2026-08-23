@@ -241,4 +241,4 @@
 ---
 
 **Última actualización**: 2026-02-27
-**Build**: `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo build --workspace` → ✅ 0 errores, 138 handlers
+**Build**: `PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo build --workspace` → ✅ 0 errores, 138 handlers

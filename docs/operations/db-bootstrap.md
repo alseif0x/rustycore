@@ -182,7 +182,7 @@ is ready for manual client testing.
 Preferred smoke harness:
 
 ```bash
-/home/cdmonio/projects/wow-test-bot/rust-bot/run_rustycore_login_smoke.sh
+tools/wow-test-bot/run_rustycore_login_smoke.sh
 ```
 
 Minimum expected gate:

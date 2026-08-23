@@ -52,7 +52,7 @@ monolithic library suite merely because a file moved or a branch was rebased. Ru
 explicitly when behavior changes, for example:
 
 ```bash
-PROTOC=/home/cdmonio/.local/protoc/bin/protoc \
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc \
   cargo test --locked -p wow-world exact_test_name --lib
 ```
 

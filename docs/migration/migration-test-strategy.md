@@ -17,7 +17,7 @@ Consolidate the `[ ] Test:` items and audit-flagged "no golden vectors" findings
 
 ## 2. Current state (consolidated from §11/§13 of every per-module doc)
 
-- **Baseline.** `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test --workspace` → **395 passed** (AGENTS.md, "Build / test"). Per-crate: `wow-crypto` 46, `wow-world` ~120 (incl. 12 `MapManager`), `wow-packet` ~50, `wow-database` ~30, rest distributed.
+- **Baseline.** `PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test --workspace` → **395 passed** (AGENTS.md, "Build / test"). Per-crate: `wow-crypto` 46, `wow-world` ~120 (incl. 12 `MapManager`), `wow-packet` ~50, `wow-database` ~30, rest distributed.
 - **Test categories present.**
   - Round-trip serialization tests (most `wow-packet` modules).
   - Internal consistency tests (`wow-crypto`: encrypt-then-decrypt matches plaintext, but with no C++ reference output).
@@ -223,7 +223,7 @@ These are the **invariants** the test suite must protect; per-module audits list
 4. **The C++ legacy at `/home/server/woltk-trinity-legacy/` is the canonical reference per AGENTS.md.** Treat it as the test-oracle. Any time a test asks "what should this byte be?", the answer comes from running the corresponding C++ function, not from inspection of the Rust output.
 5. **`_attic/` content is not a vector source.** Per AGENTS.md, `_attic/` is failed integration scaffolding. Do not bake `_attic/` outputs into golden tests; capture from C++ or the running official client only.
 6. **Tests that allocate a `MapManager` need it `Arc<RwLock<…>>` shaped per AGENTS.md** "WorldSession and creature storage" section. The legacy `WorldSession.creatures` field is `#[deprecated]`. New tests should use `MapManager` directly to avoid being rewritten when the migration finishes.
-7. **`PROTOC=/home/cdmonio/.local/protoc/bin/protoc` must be set even for `cargo test`** because `wow-proto` invokes `prost-build` in `build.rs`. CI configs that forget this fail at compile, not at test.
+7. **`PROTOC=/home/ubuntu/.local/protoc/bin/protoc` must be set even for `cargo test`** because `wow-proto` invokes `prost-build` in `build.rs`. CI configs that forget this fail at compile, not at test.
 8. **Per-crate testing is fast** — use `cargo test -p <crate> --lib` for tight loops; `--workspace` is for green-bar verification only.
 
 ---

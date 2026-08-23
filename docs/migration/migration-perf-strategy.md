@@ -241,7 +241,7 @@ Each regression "test" is enforced by `#PERF.15` (CI perf-regression job).
 5. **`tracing` overhead is non-zero even when filtered out.** A `log_network!(trace, ...)` macro call still constructs the format args. For sub-µs hot paths, gate trace-level calls with `if tracing::enabled!(Level::TRACE)`.
 6. **Compare against C++ on the same host with the same libc, same kernel, same MariaDB build.** A C++ build with `-O3 -flto` against a Rust `Release` build with `lto = "thin"` is fair. A C++ build with `-O0` is not, and a Rust `dev` build is not.
 7. **`MapManager` is not yet wired into the live tick path** (AGENTS.md "Creature storage" section). Bench numbers for it today reflect the standalone module, not the in-flight game state. Re-bench after the migration is complete.
-8. **`PROTOC=/home/cdmonio/.local/protoc/bin/protoc`** is required to build the workspace, hence required to run benches. CI configs for perf must set it.
+8. **`PROTOC=/home/ubuntu/.local/protoc/bin/protoc`** is required to build the workspace, hence required to run benches. CI configs for perf must set it.
 9. **Prefer `samply` over `perf` on hosts where `perf_event_paranoid > 1`** and you can't change it. Same flamegraph output, different permissions model.
 10. **The C# legacy at `/home/server/woltk-server-core/Source/`** (the original C# port that this Rust project replaces) is **not** the comparison baseline. The C++ TC at `/home/server/woltk-trinity-legacy/` is. The C# numbers are uninteresting except as a "must-beat-this" floor.
 
