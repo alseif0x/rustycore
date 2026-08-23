@@ -33,6 +33,9 @@ QA_EXE_RESOLVER="${QA_EXE_RESOLVER:-realpath -e --}"
 # Which worktree must be clean for the swapped build to be identifiable. The
 # self-test points this at its own clean fixture repository.
 QA_GIT_DIR="${QA_GIT_DIR:-$REPO_ROOT}"
+# Per-account bot passwords. The login-smoke wrapper loads this file; the bot
+# binary does not, so a run that invokes the binary directly must.
+QA_ENV_FILE="${QA_ENV_FILE:-$REPO_ROOT/tools/wow-test-bot/.env.local}"
 
 DRY_RUN=0
 ALLOW_RUNTIME_QA=0
@@ -201,6 +204,24 @@ write_report() {
     "$1" "$2" "$QA_SERVICE" "$ORIGINAL_SHA" "${3:-}" "${4:-null}" >"$REPORT"
 }
 
+# Values are exported, never echoed: this file holds passwords.
+load_bot_environment() {
+  [[ -f "$QA_ENV_FILE" ]] || return 0
+  set -a
+  # shellcheck disable=SC1090
+  source "$QA_ENV_FILE"
+  set +a
+}
+
+have_bot_credentials() {
+  local name
+  for name in $(compgen -v | grep '^WOW_BOT_PASSWORD' || true); do
+    [[ -n "${!name}" ]] && return 0
+  done
+  # A declared-but-empty password is not a credential.
+  [[ -f "$QA_ENV_FILE" ]] && grep -qE '^WOW_BOT_PASSWORD[A-Z0-9_]*=.' "$QA_ENV_FILE"
+}
+
 require_clean_worktree() {
   [[ -z "$(git -C "$QA_GIT_DIR" status --porcelain=v1 --untracked-files=normal)" ]] \
     || die "runtime QA requires a clean worktree so the swapped build is identifiable"
@@ -232,6 +253,8 @@ run_loot_race() {
   [[ -f "$LIVE_PATH" ]] || die "no live build at $LIVE_PATH"
   [[ -x "$QA_BOT" ]] || die "QA bot is not built: $QA_BOT"
   require_clean_worktree
+  have_bot_credentials || die \
+    "no bot credentials: set WOW_BOT_PASSWORD or provide $QA_ENV_FILE before swapping a build"
 
   local candidate_sha
   candidate_sha="$(sha256_of "$candidate")"
@@ -272,6 +295,7 @@ run_loot_race() {
   log "Candidate serving on PID $pid"
 
   local bot_status=0
+  load_bot_environment
   timeout --foreground --signal=TERM --kill-after=30 "${QA_BOT_TIMEOUT_SECONDS}s" \
     "$QA_BOT" --loot-race-smoke --ack-disposable-overworld-loot-race || bot_status=$?
   if ((bot_status == 0)); then
