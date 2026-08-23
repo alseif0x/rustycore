@@ -2881,6 +2881,7 @@ pub(crate) mod tests {
 #[cfg(test)]
 mod executor_tests {
     use std::collections::HashMap;
+    use std::future::Future;
     use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex as StdMutex};
     use std::time::Duration as StdDuration;
@@ -4296,8 +4297,36 @@ mod executor_tests {
         assert_no_packets(&fixture);
     }
 
-    #[tokio::test]
-    async fn concurrent_sessions_charge_once_grant_once_and_compensate_once_like_cpp() {
+    /// Run one async body on a 32 MiB stack, mirroring `run_player_stack_test`
+    /// in `wow-entities` (`object_accessor.rs`). `#[tokio::test]` runs the body
+    /// on a default 2 MiB thread, which cannot hold two joined debug-profile
+    /// purchase state machines at once.
+    fn run_async_stack_test<F>(test: impl FnOnce() -> F + Send + 'static)
+    where
+        F: Future<Output = ()>,
+    {
+        std::thread::Builder::new()
+            .stack_size(32 * 1024 * 1024)
+            .spawn(move || {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("current-thread runtime")
+                    .block_on(test());
+            })
+            .expect("stack test thread")
+            .join()
+            .unwrap_or_else(|payload| std::panic::resume_unwind(payload));
+    }
+
+    #[test]
+    fn concurrent_sessions_charge_once_grant_once_and_compensate_once_like_cpp() {
+        // `tokio::join!` polls both purchase futures inline, so both live on
+        // this stack at once; the pair does not fit the default test thread.
+        run_async_stack_test(concurrent_sessions_charge_once_grant_once_and_compensate_once);
+    }
+
+    async fn concurrent_sessions_charge_once_grant_once_and_compensate_once() {
         let seeded = vec![
             saga_durable_pet_row_like_cpp(1, SAGA_SPECIES, None),
             saga_durable_pet_row_like_cpp(2, SAGA_SPECIES, None),
