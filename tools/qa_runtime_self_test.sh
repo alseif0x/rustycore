@@ -69,6 +69,10 @@ cat >"$WORK/bin/bot" <<'FAKE'
 #!/usr/bin/env bash
 set -euo pipefail
 cat "${QA_FAKE_LIVE:?}" >"${QA_FAKE_STATE:?}.bot-saw"
+# Record only whether a credential arrived, never its value.
+if [[ -n "${WOW_BOT_PASSWORD_TESTBOT2_BOT_LOCAL:-}" ]]; then
+  printf 'credentials-present\n' >"${QA_FAKE_STATE:?}.bot-env"
+fi
 exit "${QA_FAKE_BOT_STATUS:-0}"
 FAKE
 chmod +x "$WORK/bin/bot"
@@ -93,12 +97,14 @@ run_qa() {
     QA_FAKE_STATE="$WORK/state" \
     QA_FAKE_LIVE="$WORK/live/world-server" \
     QA_GIT_DIR="$WORK/repo" \
+    QA_ENV_FILE="$WORK/env.local" \
     "${EXTRA_ENV[@]}" \
     "$QA" "$@"
 }
 
 reset_state() {
   rm -f "$WORK"/state.* "$WORK/lock"
+  printf 'WOW_BOT_PASSWORD_TESTBOT2_BOT_LOCAL=fixture-secret\n' >"$WORK/env.local"
   printf 'ORIGINAL-BUILD\n' >"$WORK/live/world-server"
   EXTRA_ENV=()
 }
@@ -137,6 +143,19 @@ run_qa --allow-runtime-qa --ack-disposable-overworld-loot-race \
 check "the bot ran against the candidate build" bot_saw_candidate
 check "the original build was restored" live_is_original
 check "the report records a pass" grep -q '"outcome":"passed"' "$WORK/report.json"
+check "the smoke received its credentials" test -f "$WORK/state.bot-env"
+check "no credential value reached the report" bash -c '! grep -q fixture-secret "'"$WORK"'/report.json"'
+
+# 4b. Without any credential source the run refuses before touching the service.
+reset_state
+rm -f "$WORK/env.local"
+status=0
+EXTRA_ENV=(WOW_BOT_PASSWORD= WOW_BOT_PASSWORD_TESTBOT2_BOT_LOCAL=)
+output="$(run_qa --allow-runtime-qa \
+  --ack-disposable-overworld-loot-race --world-exec "$WORK/candidate" loot-race 2>&1)" || status=$?
+check "refuses without credentials" grep -q "no bot credentials" <<<"$output"
+check "the credential refusal stopped nothing" bash -c '[[ ! -f "'"$WORK"'/state.log" ]]'
+check "the credential refusal swapped nothing" live_is_original
 
 # 5. A failing smoke still restores, and the failure is the run's status.
 reset_state
