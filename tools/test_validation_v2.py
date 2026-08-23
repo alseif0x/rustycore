@@ -171,6 +171,33 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     assert child_signal["failure_kind"] == "child-signal"
     assert child_signal["child_signal_reports"] == [{"signal": 6, "name": "SIGABRT"}]
 
+    resolved = runner.resolve_protoc(repo, base_env)
+    assert resolved is not None and resolved.endswith("protoc")
+    assert runner.command_environment(repo, 2)["PROTOC"] == resolved
+
+    wrong_version = dict(base_env)
+    wrong_version["PROTOC"] = str(directory / "bin" / "protoc-wrong")
+    fake_tool(directory / "bin" / "protoc-wrong", 'printf "libprotoc 27.0\n"\n')
+    try:
+        runner.resolve_protoc(repo, wrong_version)
+    except ValueError as error:
+        assert "expected 'libprotoc 28.3'" in str(error), error
+    else:
+        raise AssertionError("a mismatched protoc was accepted")
+
+    absent = {key: value for key, value in base_env.items() if key != "PROTOC"}
+    absent["PATH"] = "/nonexistent"
+    absent["HOME"] = str(directory / "empty-home")
+    assert runner.resolve_protoc(repo, absent) is None
+    cargo_step = [{"section": "compile", "argv": ["cargo", "check"]}]
+    try:
+        runner.require_protoc_for(cargo_step, absent)
+    except ValueError as error:
+        assert "no pinned protoc was found" in str(error), error
+    else:
+        raise AssertionError("a Cargo plan was allowed without protoc")
+    runner.require_protoc_for([{"section": "docs", "argv": ["git", "diff"]}], absent)
+
     # The comparison form is an allowlist: a new field cannot slip through it.
     for mutation, expected in (
         ({"invented_at_top": 1}, "manifest carries unknown field(s): invented_at_top"),
@@ -556,6 +583,7 @@ def main() -> None:
         fake_bin.mkdir()
         shutil.copy2(RUNNER_PATH, tools / "validation-v2")
         (repo / "rust-toolchain.toml").write_text('[toolchain]\nchannel = "1.98.0"\n')
+        (repo / ".protoc-version").write_text("28.3\n")
         (repo / "Cargo.toml").write_text('[workspace]\nresolver = "2"\n')
         subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
         subprocess.run(["git", "config", "user.email", "validation-v2@example.invalid"], cwd=repo, check=True)
@@ -563,6 +591,7 @@ def main() -> None:
         subprocess.run(["git", "add", "."], cwd=repo, check=True)
         subprocess.run(["git", "commit", "-qm", "fixture"], cwd=repo, check=True)
         fake_tool(fake_bin / "rustc", 'printf "rustc 1.98.0 (fixture 1970-01-01)\\n"\n')
+        fake_tool(fake_bin / "protoc", 'printf "libprotoc 28.3\\n"\n')
         environment = os.environ.copy()
         environment["PATH"] = f"{fake_bin}:{environment['PATH']}"
         environment["VALIDATION_V2_LOCK_DIR"] = str(directory / "locks")

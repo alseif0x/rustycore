@@ -79,6 +79,15 @@ which exits non-zero for a missing, unreadable, schema-mismatched, signalled, fa
 manifest — including a `passed` manifest that executed fewer commands than its plan declared. Rust
 CI runs this step after every profile, before the artifact upload.
 
+## protoc
+
+Cargo build scripts need `protoc`, and it is not always on `PATH`. Before planning, the runner
+resolves the version pinned in `.protoc-version`: an explicit `PROTOC`, then `PATH`, then
+`$HOME/.local/protoc/bin/protoc`. A binary that reports a different version is rejected by name
+rather than used, and a plan that compiles Rust without a resolved protoc fails immediately with
+that reason instead of surfacing later as an unreadable prost-build error inside a build log. A
+documentation-only plan needs no protoc.
+
 Every run acquires a non-blocking, worktree-specific lock and writes a JSON manifest under
 `target/validation-v2/manifests/`. The manifest (schema 4) records repository and toolchain
 provenance, dirty state, kernel, timings, command results, signals, failure kinds, OOM-kill

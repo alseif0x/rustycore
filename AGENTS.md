@@ -87,7 +87,7 @@ Work issue #<N> (alseif0x/rustycore).
 4. Git: create the branch LINKED to the issue with `gh issue develop <N> --base 3.4.3`
    (not a bare `git checkout -b`), 1 issue = 1 PR into `3.4.3` (put `Closes #<N>` in the PR body), commit per gap, NO push unless asked.
    Once push is approved, open the PR immediately; creating the PR is not the same as closing/merging it.
-5. For first-party PRs authored by exactly `alseif0x`, use `tools/local-harness.sh final` plus
+5. For first-party PRs authored by exactly `alseif0x`, use `./tools/validation-v2 final` plus
    focused evidence. External PRs retain remote CI/review. Require capture-diff only when bytes,
    metadata, connection choice or observable ordering changed, and runtime QA only for a live
    lifecycle/runtime change.
@@ -155,15 +155,15 @@ Local-first commands for ordinary development:
 
 ```bash
 # During iteration (path-routed lightweight checks):
-./tools/local-harness.sh quick origin/3.4.3
+./tools/validation-v2 quick --base origin/3.4.3
 
 # Before push, after committing to a clean HEAD:
-./tools/local-harness.sh final origin/3.4.3
+./tools/validation-v2 final --base origin/3.4.3
 ```
 
-Run focused tests explicitly when behavior changes. `tools/pr-preflight.sh` remains available for
-an explicitly requested audit, release preparation, capture QA, or architecture investigation; it
-is not the daily pre-push gate. See `docs/operations/local-first-development.md`.
+Run focused tests explicitly when behavior changes. `./tools/validation-v2 audit` is the
+exhaustive budget; it is not the daily pre-push gate and every push to `3.4.3` runs it remotely.
+See `docs/operations/validation-v2.md` and `docs/operations/local-first-development.md`.
 
 For ordinary architecture/module work, use the syntax-only Session ownership ratchet:
 
@@ -413,7 +413,7 @@ git status --short --branch
 # focused tests
 git add <changed files>
 git commit -m "<short faithful summary>"
-./tools/local-harness.sh final origin/3.4.3
+./tools/validation-v2 final --base origin/3.4.3
 git push origin <feature-branch>        # NO push unless asked
 # after push, open the PR into 3.4.3 with `Closes #<N>` in the body.
 # alseif0x PRs use the local evidence above and allocate no hosted validation runner.

@@ -162,36 +162,30 @@ complete five-member roster. A successful run intentionally leaves the winner
 in the party. Remove only that verified row and restart `world-server` before
 reusing the fixture.
 
-For the two-session atomic loot-claim smoke, use the guarded local preflight
-command with the feature-branch world executable pinned. The currently running
-normal PM2 world may be a different build; its executable/profile is snapshotted
-and restored after QA:
+For the two-session atomic loot-claim smoke, run the bot directly:
 
 ```bash
 test -z "$(git status --porcelain=v1 --untracked-files=normal)"
-TARGET_EXEC="$(realpath /absolute/path/to/issue-106/world-server)"
-BOT_EXEC="$(realpath tools/wow-test-bot/target/debug/wow-test-bot)"
-RUST_CAPTURE_DB_CONF=/home/server/trinity-legacy-install/bin/worldserver.conf \
-RUST_CAPTURE_EFFECTIVE_CONFIG=/home/server/trinity-legacy-install/etc/worldserver.conf \
 WOW_BOT_DB_CONF=/home/server/trinity-legacy-install/bin/worldserver.conf \
-WOW_BOT_WORLD_EXEC="$TARGET_EXEC" \
-WOW_BOT_WORLD_EXEC_SHA256="$(sha256sum "$TARGET_EXEC" | awk '{print $1}')" \
-WOW_BOT_EXEC="$BOT_EXEC" \
-WOW_BOT_EXEC_SHA256="$(sha256sum "$BOT_EXEC" | awk '{print $1}')" \
-./tools/pr-preflight.sh --allow-runtime-qa \
-  --ack-disposable-overworld-loot-race qa-loot-race
+  ./tools/wow-test-bot/target/debug/wow-test-bot \
+  --loot-race-smoke --ack-disposable-overworld-loot-race
 ```
 
-The DB fixture guard and the PM2 runtime config are separate pins on this host:
-the former reads the full legacy `bin/worldserver.conf`, while the latter must
-match the Rust PM2 profile's effective `etc/worldserver.conf` exactly.
+**Retired orchestration.** Until #331 this smoke was driven by
+`./tools/pr-preflight.sh --allow-runtime-qa --ack-disposable-overworld-loot-race
+qa-loot-race`, which additionally snapshotted the running PM2 world's
+executable, SHA-256 and restart count, swapped in the feature-branch build, and
+restored the original afterwards. That wrapper retired with the rest of the
+legacy validation stack, and its runtime no longer exists on the development
+host: there is no `pm2` and no legacy `worldserver` in
+`/home/server/trinity-legacy-install/bin`. The bot's own guards are unchanged;
+what is gone is the build swap and restore around them. The reference
+implementation is in the git history of `tools/pr-preflight.sh`
+(`run_qa_loot_race` and the `qa_world_*` helpers).
 
-This live mode is never part of normal CI. Both flags are mandatory because the
-guard temporarily mutates a world GameObject fixture and two disposable
-characters. The wrapper translates that explicit acknowledgement to the
-binary's CLI-only, legacy-named
-`--ack-disposable-overworld-loot-race` guard; direct binary runs must pass
-`--loot-race-smoke --ack-disposable-overworld-loot-race` themselves. The
+This live mode is never part of normal CI. Both guards are mandatory because it
+temporarily mutates a world GameObject fixture and two disposable characters.
+The
 default disposable characters are `TESTBOT2@bot.local` and
 `TESTBOT3@bot.local` (the versioned config maps them to character GUIDs `15`
 and `16`). Setup rechecks each configured GUID's account ownership and requires

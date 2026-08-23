@@ -24,7 +24,7 @@
 <!-- First-party alseif0x PRs use the local harness; external PRs retain remote checks. Add only
 focused tests/evidence required by the behavior actually changed. -->
 
-- [ ] `./tools/local-harness.sh final origin/3.4.3`
+- [ ] `./tools/validation-v2 final --base origin/3.4.3`
 - [ ] Focused tests:
 - [ ] Capture-diff (only packet/metadata/connection/order changes): not needed / result
 - [ ] Runtime QA (only lifecycle/runtime changes): not needed / result

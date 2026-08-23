@@ -218,23 +218,23 @@ PROTOC=/path/to/protoc cargo check -p world-server
 git diff --check
 ```
 
-First-party development uses the path-scoped local harness. Use `quick` while iterating and
-`final` once before publishing the completed commit:
+First-party development uses the canonical runner. Use `quick` while iterating and `final`
+once before publishing the completed commit:
 
 ```bash
-./tools/local-harness.sh quick
-./tools/local-harness.sh final origin/3.4.3
+./tools/validation-v2 quick --base origin/3.4.3
+./tools/validation-v2 final --base origin/3.4.3
 ```
 
-The harness is non-interactive and agent-agnostic: humans, Kimi, Codex, Grok, Claude, and other
-agents use the same commands. The remote trust decision depends only on the PR author's exact
-GitHub login.
+It is non-interactive and agent-agnostic: humans, Kimi, Codex, Grok, Claude, and other agents run
+the same command and read the same exit status. The remote trust decision depends only on the PR
+author's exact GitHub login.
 
 Pull requests authored by `alseif0x` allocate no remote validation runners; external PRs retain
-the full hosted checks. The exhaustive preflight remains available for explicit audits and live
-QA, not daily iteration. See
-[`docs/operations/local-first-development.md`](docs/operations/local-first-development.md) and
-[`docs/operations/pr-preflight.md`](docs/operations/pr-preflight.md).
+the full hosted checks. `./tools/validation-v2 audit` is the exhaustive budget, and every push to
+`3.4.3` runs it remotely. See
+[`docs/operations/validation-v2.md`](docs/operations/validation-v2.md) and
+[`docs/operations/local-first-development.md`](docs/operations/local-first-development.md).
 
 Inventory TSV files are part of the migration state. Keep their column counts valid:
 
@@ -256,7 +256,7 @@ Every meaningful gameplay change should follow this shape:
 6. Update migration docs and inventories.
 7. Run checks.
 8. Commit the slice on its issue-linked feature branch.
-9. Run `./tools/local-harness.sh final origin/3.4.3`.
+9. Run `./tools/validation-v2 final --base origin/3.4.3`.
 10. Push and open a PR into `3.4.3`. First-party remote jobs are intentionally skipped; external
     contributions must pass every required hosted check.
 
