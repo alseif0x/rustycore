@@ -214,6 +214,115 @@ def write_manifest(path: Path, document: dict[str, object]) -> None:
     os.replace(temporary, path)
 
 
+# The determinism contract. Every key a manifest may carry is named here, so a
+# field added later fails the comparison instead of escaping a denylist.
+DROPPED_FIELDS = frozenset(
+    {"run_id", "started_at", "ended_at", "duration_seconds", "peak_child_rss_kib"}
+)
+DROPPED_COMMAND_FIELDS = frozenset({"started_at", "ended_at", "duration_seconds"})
+NORMALISED_FIELDS = {
+    ("provenance", "repository_root"),
+    ("provenance", "kernel"),
+    ("resources", "memory_limit_kib"),
+    ("locks", "repository"),
+    ("locks", "heavy"),
+}
+COMPARED_SHAPE: dict[str, frozenset[str]] = {
+    "": frozenset(
+        {
+            "schema", "runner", "shadow_only", "profile", "status", "exit_code",
+            "runner_signal", "runner_error", "provenance", "resources", "locks",
+            "plan", "commands",
+        }
+    ),
+    "provenance": frozenset({"head", "dirty", "rust", "repository_root", "kernel"}),
+    "provenance.rust": frozenset({"pinned", "active"}),
+    "resources": frozenset({"cargo_jobs", "command_timeout_seconds", "memory_limit_kib"}),
+    "locks": frozenset({"repository", "heavy"}),
+    "plan": frozenset(
+        {
+            "base_input", "base_commit", "changed_paths", "path_classes", "workspace",
+            "metadata", "optional_skips", "planned_steps", "planned_commands",
+        }
+    ),
+    "command": frozenset(
+        {
+            "argv", "section", "exit_code", "signal", "timed_out", "oom_kills",
+            "child_signal_reports", "failure_kind", "status",
+        }
+    ),
+}
+PLACEHOLDER = "<normalised>"
+
+
+def normalise_command(command: object, where: str) -> dict[str, object]:
+    if not isinstance(command, dict):
+        raise ValueError(f"{where} is not an object")
+    unknown = sorted(set(command) - COMPARED_SHAPE["command"] - DROPPED_COMMAND_FIELDS)
+    if unknown:
+        raise ValueError(f"{where} carries unknown field(s): {', '.join(unknown)}")
+    return {
+        key: value for key, value in command.items() if key not in DROPPED_COMMAND_FIELDS
+    }
+
+
+def normalise_manifest(document: object) -> dict[str, object]:
+    """The exact comparison form: volatile dropped, host-shaped placeheld, rest exact."""
+    if not isinstance(document, dict):
+        raise ValueError("manifest is not an object")
+    unknown = sorted(set(document) - COMPARED_SHAPE[""] - DROPPED_FIELDS)
+    if unknown:
+        raise ValueError(f"manifest carries unknown field(s): {', '.join(unknown)}")
+    result: dict[str, object] = {}
+    for key, value in document.items():
+        if key in DROPPED_FIELDS:
+            continue
+        if key in {"provenance", "resources", "locks"}:
+            if not isinstance(value, dict):
+                raise ValueError(f"{key} is not an object")
+            section_unknown = sorted(set(value) - COMPARED_SHAPE[key])
+            if section_unknown:
+                raise ValueError(
+                    f"{key} carries unknown field(s): {', '.join(section_unknown)}"
+                )
+            section = {}
+            for name, item in value.items():
+                if (key, name) in NORMALISED_FIELDS:
+                    section[name] = None if item is None else PLACEHOLDER
+                elif key == "provenance" and name == "rust":
+                    if not isinstance(item, dict) or set(item) != COMPARED_SHAPE[
+                        "provenance.rust"
+                    ]:
+                        raise ValueError("provenance.rust does not match its shape")
+                    section[name] = item
+                else:
+                    section[name] = item
+            result[key] = section
+        elif key == "plan":
+            if value is None:
+                result[key] = None
+                continue
+            if not isinstance(value, dict):
+                raise ValueError("plan is not an object")
+            plan_unknown = sorted(set(value) - COMPARED_SHAPE["plan"])
+            if plan_unknown:
+                raise ValueError(f"plan carries unknown field(s): {', '.join(plan_unknown)}")
+            plan = dict(value)
+            if plan.get("metadata") is not None:
+                plan["metadata"] = normalise_command(plan["metadata"], "plan.metadata")
+            result[key] = plan
+        elif key == "commands":
+            if not isinstance(value, list):
+                raise ValueError("commands is not a list")
+            result[key] = [
+                normalise_command(command, f"command {index}")
+                for index, command in enumerate(value)
+            ]
+        else:
+            result[key] = value
+    return result
+
+
 def nul_paths(repo: Path, *command: str) -> list[str]:
     data = subprocess.check_output(command, cwd=repo)
     try:
@@ -903,18 +1012,41 @@ def verify_manifest(path: Path) -> int:
     return 0
 
 
+def normalise_to_stdout(path: Path) -> int:
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as error:
+        return fail(f"manifest {path} is unreadable: {error}", VERDICT_ERROR)
+    try:
+        document = json.loads(raw)
+    except json.JSONDecodeError as error:
+        return fail(f"manifest {path} is not valid JSON: {error}", VERDICT_ERROR)
+    try:
+        normalised = normalise_manifest(document)
+    except ValueError as error:
+        return fail(f"manifest {path}: {error}", VERDICT_ERROR)
+    print(json.dumps(normalised, indent=2, sort_keys=True))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="tools/validation-v2")
-    parser.add_argument("profile", choices=("self-test", "quick", "final", "audit", "verify"))
+    parser.add_argument(
+        "profile", choices=("self-test", "quick", "final", "audit", "verify", "normalize")
+    )
     parser.add_argument("--base", default=DEFAULT_BASE)
-    parser.add_argument("--manifest", help="manifest to verify with the verify profile")
+    parser.add_argument(
+        "--manifest", help="manifest for the verify and normalize profiles"
+    )
     args = parser.parse_args()
-    if args.profile == "verify":
+    if args.profile in {"verify", "normalize"}:
         if not args.manifest:
-            return fail("verify requires --manifest")
-        return verify_manifest(Path(args.manifest))
+            return fail(f"{args.profile} requires --manifest")
+        if args.profile == "verify":
+            return verify_manifest(Path(args.manifest))
+        return normalise_to_stdout(Path(args.manifest))
     if args.manifest:
-        return fail("--manifest is only valid with the verify profile")
+        return fail("--manifest is only valid with the verify and normalize profiles")
     install_interrupt_handlers()
     repo = Path(__file__).resolve().parent.parent
     try:

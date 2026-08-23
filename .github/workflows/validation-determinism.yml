@@ -1,0 +1,114 @@
+name: Validation determinism
+
+# Twenty isolated runs of one profile on twenty independent hosts, compared
+# through the runner's own normalised manifest form. Manual only: this is
+# evidence for #302, not a gate.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Profile repeated in every job
+        required: true
+        default: self-test
+        type: choice
+        options:
+          - self-test
+          - quick
+          - final
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  repeat:
+    name: Determinism run ${{ matrix.run }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        run:
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+          - 6
+          - 7
+          - 8
+          - 9
+          - 10
+          - 11
+          - 12
+          - 13
+          - 14
+          - 15
+          - 16
+          - 17
+          - 18
+          - 19
+          - 20
+    steps:
+      - name: Check out exact SHA
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install pinned Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
+        with:
+          cache: false
+          rustflags: ""
+
+      - name: Run the profile and normalise its manifest
+        env:
+          PROFILE: ${{ inputs.profile }}
+          VALIDATION_V2_MANIFEST: ${{ runner.temp }}/manifest.json
+        run: |
+          set -euo pipefail
+          base="$(git rev-parse HEAD~1)"
+          ./tools/validation-v2 "$PROFILE" --base "$base"
+          ./tools/validation-v2 verify --manifest "$VALIDATION_V2_MANIFEST"
+          ./tools/validation-v2 normalize --manifest "$VALIDATION_V2_MANIFEST" \
+            > "${RUNNER_TEMP}/normalised.json"
+
+      - name: Upload the normalised manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: determinism-${{ matrix.run }}
+          path: ${{ runner.temp }}/normalised.json
+          if-no-files-found: error
+          retention-days: 14
+
+  compare:
+    name: Compare the twenty runs
+    needs: repeat
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download every normalised manifest
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: determinism-*
+          path: normalised
+
+      - name: One form, or name the difference
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(find normalised -name normalised.json | sort)
+          test "${#files[@]}" -eq 20
+          sha256sum "${files[@]}"
+          unique="$(sha256sum "${files[@]}" | awk '{print $1}' | sort -u | wc -l)"
+          if [ "$unique" -ne 1 ]; then
+            echo "::error::${unique} distinct normalised manifests across 20 runs"
+            for file in "${files[@]:1}"; do
+              diff -u "${files[0]}" "$file" || true
+            done
+            exit 1
+          fi
+          echo "20 runs, one normalised form"

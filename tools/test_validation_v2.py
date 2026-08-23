@@ -58,23 +58,8 @@ def synthetic_metadata(repo: Path) -> dict[str, object]:
 
 
 def stable_manifest(value: object) -> object:
-    """Remove fields that are expected to vary between otherwise identical runs."""
-    volatile = {
-        "run_id",
-        "started_at",
-        "ended_at",
-        "duration_seconds",
-        "peak_child_rss_kib",
-    }
-    if isinstance(value, dict):
-        return {
-            key: stable_manifest(item)
-            for key, item in value.items()
-            if key not in volatile
-        }
-    if isinstance(value, list):
-        return [stable_manifest(item) for item in value]
-    return value
+    """The runner owns the comparison form; the fixture must not keep a rival copy."""
+    return runner.normalise_manifest(value)
 
 
 def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], directory: Path) -> None:
@@ -185,6 +170,56 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     assert child_signal["signal"] is None
     assert child_signal["failure_kind"] == "child-signal"
     assert child_signal["child_signal_reports"] == [{"signal": 6, "name": "SIGABRT"}]
+
+    # The comparison form is an allowlist: a new field cannot slip through it.
+    for mutation, expected in (
+        ({"invented_at_top": 1}, "manifest carries unknown field(s): invented_at_top"),
+        (
+            {"provenance": {**success["provenance"], "hostname": "x"}},
+            "provenance carries unknown field(s): hostname",
+        ),
+        (
+            {"resources": {**success["resources"], "swap_kib": 0}},
+            "resources carries unknown field(s): swap_kib",
+        ),
+        (
+            {"plan": {**success["plan"], "future_field": []}},
+            "plan carries unknown field(s): future_field",
+        ),
+        (
+            {"commands": [{**success["commands"][0], "cpu_seconds": 1}]},
+            "command 0 carries unknown field(s): cpu_seconds",
+        ),
+    ):
+        try:
+            runner.normalise_manifest({**success, **mutation})
+        except ValueError as error:
+            assert str(error) == expected, (str(error), expected)
+        else:
+            raise AssertionError(f"the contract accepted {sorted(mutation)}")
+
+    # Host-shaped values are placeheld, never compared literally.
+    comparison = runner.normalise_manifest(success)
+    assert comparison["provenance"]["repository_root"] == runner.PLACEHOLDER
+    assert comparison["provenance"]["kernel"] == runner.PLACEHOLDER
+    assert comparison["locks"]["repository"] == runner.PLACEHOLDER
+    assert comparison["locks"]["heavy"] is None
+    assert comparison["provenance"]["head"] == success["provenance"]["head"]
+    assert "run_id" not in comparison and "started_at" not in comparison
+    assert all(
+        "duration_seconds" not in command for command in comparison["commands"]
+    )
+
+    normalised = subprocess.run(
+        [str(tools / "validation-v2"), "normalize", "--manifest", str(success_manifest)],
+        cwd=repo,
+        env=base_env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert normalised.returncode == 0, normalised.stderr
+    assert json.loads(normalised.stdout) == comparison
 
     # Classification order, including the OOM case a host cannot be forced into.
     assert runner.classify_failure(0, None, False, 0, []) is None

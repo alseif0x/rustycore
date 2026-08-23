@@ -90,6 +90,57 @@ path. Timestamps, durations, peak RSS, PIDs, and explicitly selected result path
 the profile, provenance, resource policy, routing, command declarations, statuses, and exit
 semantics are stable for an unchanged checkout.
 
+## Determinism
+
+Two runs of the same profile on the same commit must produce the same manifest once the fields
+that cannot repeat are removed. The runner owns that comparison form:
+
+```bash
+./tools/validation-v2 normalize --manifest <path>
+```
+
+The contract is an **allowlist**, not a denylist: every field a manifest may carry is named in the
+runner, so a field added later fails the comparison instead of slipping through it. Dropped:
+`run_id`, `started_at`, `ended_at`, `duration_seconds`, `peak_child_rss_kib`, and the three
+timestamps inside each command. Replaced with a placeholder because they describe the host, not
+the run: `provenance.repository_root`, `provenance.kernel`, `resources.memory_limit_kib`,
+`locks.repository`, `locks.heavy`. Everything else — profile, status, exit code, runner error and
+signal, HEAD, dirty state, both Rust versions, the entire plan, and every command's argv, section,
+status, failure kind, OOM delta and signal reports — is compared exactly.
+
+Twenty local runs, keeping every manifest:
+
+```bash
+dir=$(mktemp -d)
+for run in $(seq 1 20); do
+  VALIDATION_V2_MANIFEST="$dir/$run.json" ./tools/validation-v2 self-test > /dev/null
+  ./tools/validation-v2 normalize --manifest "$dir/$run.json" > "$dir/$run.norm"
+done
+sha256sum "$dir"/*.norm | awk '{print $1}' | sort -u | wc -l   # must print 1
+```
+
+Twenty isolated GitHub runs are the `Validation determinism` workflow: a 20-job matrix on
+independent hosts, each running one profile, verifying its manifest and uploading the normalised
+form, followed by a job that fails with a diff unless all twenty hash identically. It is
+`workflow_dispatch` only — evidence, not a gate.
+
+## Fresh clone
+
+The documented path must work with no state from an older worktree, target directory or generated
+artifact. Cargo is forced offline, so the procedure is the one CI uses:
+
+```bash
+git clone https://github.com/alseif0x/rustycore.git fresh && cd fresh
+cargo fetch --locked
+cargo fetch --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml
+cargo fetch --locked --manifest-path tools/wow-test-bot/Cargo.toml
+./tools/validation-v2 self-test
+./tools/validation-v2 quick --base HEAD~1
+```
+
+`--base HEAD~1` is deliberate: at `origin/3.4.3` a fresh clone has no changed paths, so the
+profiles would plan nothing and prove nothing.
+
 An `audit` also acquires `/tmp/rustycore-validation-v2-heavy.lock`. That lock is deliberately not
 derived from the checkout path, so audits in independent clones and worktrees cannot overlap on
 one host. Lock diagnostics identify the active run id, PID, repository, HEAD, profile and start
