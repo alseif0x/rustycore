@@ -6180,7 +6180,28 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         include_str!("character/visibility.rs"),
         include_str!("character/world_entry.rs"),
     );
-    let session = include_str!("../session/dispatch.rs");
+    // #236 split the former `session.rs` into `session/mod.rs` plus feature
+    // modules, and the committed-money callers stayed in `mod.rs`. Scan the
+    // whole session family so a later move fails on the assertion below
+    // instead of silently scanning a file that no longer holds the segment.
+    let session = concat!(
+        include_str!("../session/mod.rs"),
+        include_str!("../session/admission.rs"),
+        include_str!("../session/connection.rs"),
+        include_str!("../session/directory.rs"),
+        include_str!("../session/dispatch.rs"),
+        include_str!("../session/driver/mod.rs"),
+        include_str!("../session/driver/budget.rs"),
+        include_str!("../session/driver/phases.rs"),
+        include_str!("../session/lifecycle/mod.rs"),
+        include_str!("../session/lifecycle/cleanup.rs"),
+        include_str!("../session/lifecycle/login.rs"),
+        include_str!("../session/lifecycle/logout.rs"),
+        include_str!("../session/mailbox/mod.rs"),
+        include_str!("../session/mailbox/durable.rs"),
+        include_str!("../session/mailbox/protocol.rs"),
+        include_str!("../session/mailbox/pump.rs"),
+    );
     assert_publication_segment(
         character,
         "bank-slot purchase",
