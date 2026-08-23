@@ -1,0 +1,329 @@
+#!/usr/bin/env python3
+"""Small, shadow-only validation runner for RustyCore."""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import resource
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import tomllib
+
+
+USAGE_ERROR = 64
+LOCKED_ERROR = 75
+DEFAULT_JOBS = 2
+MAX_JOBS = 8
+DEFAULT_TIMEOUT = 900
+
+
+def utc_now() -> str:
+    return dt.datetime.now(dt.timezone.utc).isoformat(timespec="milliseconds")
+
+
+def fail(message: str, code: int = USAGE_ERROR) -> int:
+    print(f"validation-v2: {message}", file=sys.stderr)
+    return code
+
+
+def checked_value(name: str, default: int, minimum: int, maximum: int) -> int:
+    raw = os.environ.get(name, str(default))
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise ValueError(f"{name} must be an integer") from error
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}")
+    return value
+
+
+def output(repo: Path, *command: str) -> str:
+    return subprocess.check_output(command, cwd=repo, text=True).strip()
+
+
+def provenance(repo: Path) -> dict[str, object]:
+    root = Path(output(repo, "git", "rev-parse", "--show-toplevel")).resolve()
+    if root != repo:
+        raise ValueError(f"script root {repo} differs from Git root {root}")
+    with (repo / "rust-toolchain.toml").open("rb") as stream:
+        pinned = tomllib.load(stream)["toolchain"]["channel"]
+    active = output(repo, "rustc", "--version").split()[1]
+    if active != pinned:
+        raise ValueError(f"active Rust {active} differs from pinned Rust {pinned}")
+    dirty_lines = output(
+        repo, "git", "status", "--porcelain=v1", "--untracked-files=normal"
+    ).splitlines()
+    return {
+        "repository_root": str(repo),
+        "head": output(repo, "git", "rev-parse", "HEAD"),
+        "dirty": bool(dirty_lines),
+        "rust": {"pinned": pinned, "active": active},
+        "kernel": platform.release(),
+    }
+
+
+def lock_path(repo: Path) -> Path:
+    digest = hashlib.sha256(str(repo).encode()).hexdigest()[:16]
+    directory = Path(os.environ.get("VALIDATION_V2_LOCK_DIR", "/tmp"))
+    return directory / f"rustycore-validation-v2-{digest}.lock"
+
+
+def acquire_lock(repo: Path, profile: str):
+    path = lock_path(repo)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    stream = path.open("a+", encoding="utf-8")
+    try:
+        fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        stream.seek(0)
+        owner = stream.read().strip() or "owner details unavailable"
+        stream.close()
+        raise RuntimeError(f"lock contention at {path}; active run: {owner}")
+    stream.seek(0)
+    stream.truncate()
+    json.dump({"pid": os.getpid(), "profile": profile, "started_at": utc_now()}, stream)
+    stream.flush()
+    return stream, path
+
+
+def manifest_path(repo: Path, profile: str) -> Path:
+    override = os.environ.get("VALIDATION_V2_MANIFEST")
+    if override:
+        return Path(override).resolve()
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    return repo / "target" / "validation-v2" / "manifests" / f"{stamp}-{os.getpid()}-{profile}.json"
+
+
+def write_manifest(path: Path, document: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temporary.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n")
+    os.replace(temporary, path)
+
+
+def commands(profile: str, jobs: int) -> list[list[str]]:
+    quick = [
+        ["git", "diff", "--check"],
+        ["cargo", "fmt", "--all", "--check"],
+    ]
+    if profile == "quick":
+        return quick
+    if profile == "final":
+        return quick + [
+            ["cargo", "test", "--locked", "-p", "wow-core", "--lib", "--jobs", str(jobs)]
+        ]
+    return []
+
+
+def command_environment(repo: Path, jobs: int) -> dict[str, str]:
+    environment = os.environ.copy()
+    worktree = hashlib.sha256(str(repo).encode()).hexdigest()[:16]
+    environment.update(
+        {
+            "CARGO_BUILD_JOBS": str(jobs),
+            "CARGO_NET_OFFLINE": "true",
+            "CARGO_TARGET_DIR": str(repo / "target" / "validation-v2" / "cargo" / worktree),
+        }
+    )
+    return environment
+
+
+def run_one(repo: Path, command: list[str], environment: dict[str, str], timeout: int) -> dict[str, object]:
+    print("+ " + " ".join(command), flush=True)
+    started_at = utc_now()
+    started = time.monotonic()
+    timed_out = False
+    process = subprocess.Popen(command, cwd=repo, env=environment, start_new_session=True)
+    try:
+        return_code = process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        os.killpg(process.pid, signal.SIGTERM)
+        try:
+            return_code = process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            return_code = process.wait()
+    duration = round(time.monotonic() - started, 3)
+    signal_number = -return_code if return_code < 0 else None
+    exit_code = 128 + signal_number if signal_number is not None else return_code
+    return {
+        "argv": command,
+        "started_at": started_at,
+        "ended_at": utc_now(),
+        "duration_seconds": duration,
+        "exit_code": exit_code,
+        "signal": signal_number,
+        "timed_out": timed_out,
+        "status": "passed" if exit_code == 0 else "failed",
+    }
+
+
+def fake_tool(path: Path, body: str) -> None:
+    path.write_text("#!/usr/bin/env bash\nset -eu\n" + body)
+    path.chmod(0o755)
+
+
+def self_test(script: Path) -> None:
+    with tempfile.TemporaryDirectory(prefix="validation-v2-self-test-") as directory:
+        repo = Path(directory) / "repo"
+        tools = repo / "tools"
+        fake_bin = Path(directory) / "bin"
+        tools.mkdir(parents=True)
+        fake_bin.mkdir()
+        shutil.copy2(script, tools / "validation-v2")
+        (repo / "rust-toolchain.toml").write_text('[toolchain]\nchannel = "1.98.0"\n')
+        (repo / "Cargo.toml").write_text('[workspace]\nresolver = "2"\n')
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run(["git", "config", "user.email", "validation-v2@example.invalid"], cwd=repo, check=True)
+        subprocess.run(["git", "config", "user.name", "Validation V2"], cwd=repo, check=True)
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "fixture"], cwd=repo, check=True)
+        fake_tool(fake_bin / "rustc", 'printf "rustc 1.98.0 (fixture 1970-01-01)\\n"\n')
+        fake_tool(
+            fake_bin / "cargo",
+            'case "${V2_FAKE_CARGO_MODE:-pass}" in\n'
+            '  pass) exit 0 ;;\n'
+            '  fail) exit 23 ;;\n'
+            '  signal) kill -TERM "$$" ;;\n'
+            '  *) exit 24 ;;\n'
+            'esac\n',
+        )
+        base_env = os.environ.copy()
+        base_env["PATH"] = f"{fake_bin}:{base_env['PATH']}"
+        base_env["VALIDATION_V2_LOCK_DIR"] = str(Path(directory) / "locks")
+
+        def invoke(mode: str, behavior: str, manifest: Path, extra: dict[str, str] | None = None):
+            environment = base_env.copy()
+            environment["V2_FAKE_CARGO_MODE"] = behavior
+            environment["VALIDATION_V2_MANIFEST"] = str(manifest)
+            if extra:
+                environment.update(extra)
+            return subprocess.run(
+                [str(tools / "validation-v2"), mode],
+                cwd=repo,
+                env=environment,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+        success_manifest = Path(directory) / "success.json"
+        result = invoke("quick", "pass", success_manifest)
+        assert result.returncode == 0, result.stderr
+        success = json.loads(success_manifest.read_text())
+        assert success["profile"] == "quick"
+        assert success["provenance"]["head"]
+        assert success["provenance"]["rust"] == {"active": "1.98.0", "pinned": "1.98.0"}
+        assert [entry["status"] for entry in success["commands"]] == ["passed", "passed"]
+
+        failure_manifest = Path(directory) / "failure.json"
+        result = invoke("quick", "fail", failure_manifest)
+        assert result.returncode == 23
+        failure = json.loads(failure_manifest.read_text())
+        assert failure["commands"][-1]["exit_code"] == 23
+
+        signal_manifest = Path(directory) / "signal.json"
+        result = invoke("quick", "signal", signal_manifest)
+        assert result.returncode == 128 + signal.SIGTERM
+        signalled = json.loads(signal_manifest.read_text())
+        assert signalled["commands"][-1]["signal"] == signal.SIGTERM
+
+        result = invoke("final", "pass", Path(directory) / "invalid.json", {"VALIDATION_V2_CARGO_JOBS": "0"})
+        assert result.returncode == USAGE_ERROR
+        assert "must be between" in result.stderr
+
+        held_path = Path(base_env["VALIDATION_V2_LOCK_DIR"])
+        held_path.mkdir(exist_ok=True)
+        digest = hashlib.sha256(str(repo.resolve()).encode()).hexdigest()[:16]
+        lock = held_path / f"rustycore-validation-v2-{digest}.lock"
+        with lock.open("w+") as stream:
+            stream.write('{"pid":999,"profile":"fixture"}')
+            stream.flush()
+            fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            result = invoke("quick", "pass", Path(directory) / "locked.json")
+        assert result.returncode == LOCKED_ERROR
+        assert "lock contention" in result.stderr
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="tools/validation-v2")
+    parser.add_argument("profile", choices=("self-test", "quick", "final"))
+    args = parser.parse_args()
+    repo = Path(__file__).resolve().parent.parent
+    try:
+        jobs = checked_value("VALIDATION_V2_CARGO_JOBS", DEFAULT_JOBS, 1, MAX_JOBS)
+        timeout = checked_value("VALIDATION_V2_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, 30, 3600)
+        details = provenance(repo)
+        lock_stream, active_lock = acquire_lock(repo, args.profile)
+    except (KeyError, OSError, subprocess.CalledProcessError, ValueError) as error:
+        return fail(str(error))
+    except RuntimeError as error:
+        return fail(str(error), LOCKED_ERROR)
+
+    started_at = utc_now()
+    started = time.monotonic()
+    path = manifest_path(repo, args.profile)
+    document: dict[str, object] = {
+        "schema": 1,
+        "runner": "rustycore-validation-v2",
+        "shadow_only": True,
+        "profile": args.profile,
+        "provenance": details,
+        "resources": {"cargo_jobs": jobs, "command_timeout_seconds": timeout},
+        "lock": str(active_lock),
+        "started_at": started_at,
+        "commands": [],
+    }
+    exit_code = 0
+    try:
+        if args.profile == "self-test":
+            internal_started = time.monotonic()
+            self_test(Path(__file__).resolve())
+            document["commands"] = [{
+                "argv": ["internal:self-test"],
+                "duration_seconds": round(time.monotonic() - internal_started, 3),
+                "exit_code": 0,
+                "signal": None,
+                "timed_out": False,
+                "status": "passed",
+            }]
+        else:
+            environment = command_environment(repo, jobs)
+            outcomes = document["commands"]
+            assert isinstance(outcomes, list)
+            for command in commands(args.profile, jobs):
+                outcome = run_one(repo, command, environment, timeout)
+                outcomes.append(outcome)
+                if outcome["exit_code"] != 0:
+                    exit_code = int(outcome["exit_code"])
+                    break
+    except Exception as error:  # Manifest unexpected runner failures before returning.
+        exit_code = 70
+        document["runner_error"] = f"{type(error).__name__}: {error}"
+        print(f"validation-v2: runner failure: {error}", file=sys.stderr)
+    finally:
+        document["ended_at"] = utc_now()
+        document["duration_seconds"] = round(time.monotonic() - started, 3)
+        document["peak_child_rss_kib"] = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
+        document["status"] = "passed" if exit_code == 0 else "failed"
+        document["exit_code"] = exit_code
+        write_manifest(path, document)
+        print(f"validation-v2: manifest {path}")
+        lock_stream.close()
+    return exit_code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
