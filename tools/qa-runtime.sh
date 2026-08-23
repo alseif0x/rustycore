@@ -21,9 +21,14 @@ QA_SERVICE="${QA_SERVICE:-world-server}"
 QA_LIVE_DIR="${QA_LIVE_DIR:-$REPO_ROOT/target/deploy/live}"
 QA_LIVE_NAME="${QA_LIVE_NAME:-world-server}"
 QA_BOT="${QA_BOT:-$REPO_ROOT/tools/wow-test-bot/target/debug/wow-test-bot}"
-# The bot resolves config.json relative to its working directory, so it runs
-# from its own directory exactly as run_rustycore_login_smoke.sh does.
 QA_BOT_DIR="${QA_BOT_DIR:-$REPO_ROOT/tools/wow-test-bot}"
+# The scenario runs through the maintained wrapper, which owns the bot's
+# environment contract - credentials, working directory, mode selection - rather
+# than this script re-deriving it (#349).
+QA_SMOKE="${QA_SMOKE:-$REPO_ROOT/tools/wow-test-bot/run_rustycore_login_smoke.sh}"
+# Fixture recovery journals. The bot requires an absolute path under a real
+# directory, unused by any previous run.
+QA_JOURNAL_DIR="${QA_JOURNAL_DIR:-/tmp/rustycore-loot-race-qa}"
 QA_LOCK="${QA_LOCK:-/tmp/rustycore-qa-runtime.lock}"
 QA_WORLD_PORT="${QA_WORLD_PORT:-8085}"
 QA_INSTANCE_PORT="${QA_INSTANCE_PORT:-8086}"
@@ -255,6 +260,7 @@ run_loot_race() {
   [[ -x "$candidate" ]] || die "candidate build is not executable: $candidate"
   [[ -f "$LIVE_PATH" ]] || die "no live build at $LIVE_PATH"
   [[ -x "$QA_BOT" ]] || die "QA bot is not built: $QA_BOT"
+  [[ -x "$QA_SMOKE" ]] || die "smoke wrapper is missing: $QA_SMOKE"
   require_clean_worktree
   have_bot_credentials || die \
     "no bot credentials: set WOW_BOT_PASSWORD or provide $QA_ENV_FILE before swapping a build"
@@ -266,7 +272,8 @@ run_loot_race() {
     log "Dry run: nothing is stopped, copied or started"
     printf 'would snapshot  %s\n' "$LIVE_PATH"
     printf 'would install   %s (%s)\n' "$candidate" "$candidate_sha"
-    printf 'would run       %s --loot-race-smoke --ack-disposable-overworld-loot-race\n' "$QA_BOT"
+    printf 'would run       %s with WOW_BOT_LOOT_RACE_SMOKE=1\n' "$QA_SMOKE"
+    printf 'would journal   a fresh path under %s\n' "$QA_JOURNAL_DIR"
     printf 'would restore   the snapshot on every exit path\n'
     return 0
   fi
@@ -300,9 +307,26 @@ run_loot_race() {
   local bot_status=0
   load_bot_environment
   [[ -d "$QA_BOT_DIR" ]] || die "bot directory is missing: $QA_BOT_DIR"
+  mkdir -p "$QA_JOURNAL_DIR"
+  [[ -d "$QA_JOURNAL_DIR" && ! -L "$QA_JOURNAL_DIR" ]] \
+    || die "fixture-journal directory must be a real directory: $QA_JOURNAL_DIR"
+  local journal="$QA_JOURNAL_DIR/fixture-$$-$(date -u +%Y%m%dT%H%M%SZ).journal"
+  [[ ! -e "$journal" && ! -e "${journal}.cleanup-complete" ]] \
+    || die "fixture journal path is not fresh: $journal"
+  log "Fixture recovery journal: $journal"
   ( cd "$QA_BOT_DIR" && exec timeout --foreground --signal=TERM --kill-after=30 \
-      "${QA_BOT_TIMEOUT_SECONDS}s" "$QA_BOT" \
-      --loot-race-smoke --ack-disposable-overworld-loot-race ) || bot_status=$?
+      "${QA_BOT_TIMEOUT_SECONDS}s" env \
+      WOW_BOT_LOOT_RACE_SMOKE=1 \
+      WOW_BOT_ACK_DISPOSABLE_OVERWORLD_LOOT_RACE=1 \
+      WOW_BOT_FIXTURE_JOURNAL="$journal" \
+      WOW_BOT_ENSURE_TEST_ACCOUNTS=0 \
+      "$QA_SMOKE" ) || bot_status=$?
+  # A journal that outlives its run means the world fixture is still mutated.
+  if [[ -e "$journal" ]]; then
+    warn "fixture journal $journal survived the run; the world fixture is still mutated"
+    warn "recover it with: cd $QA_BOT_DIR && WOW_BOT_FIXTURE_JOURNAL=$journal ./target/debug/wow-test-bot --recover-loot-fixture"
+    ((bot_status == 0)) && bot_status=75
+  fi
   if ((bot_status == 0)); then
     log "Loot-race smoke passed"
   else
