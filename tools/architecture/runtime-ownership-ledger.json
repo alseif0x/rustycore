@@ -1397,7 +1397,7 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.player_broadcast_info.fields"
       },
       "audited_summary": {
-        "field_count": 79,
+        "field_count": 75,
         "count_kind": "baseline observation; AST is authoritative"
       },
       "coverage_rule": {
@@ -1405,20 +1405,17 @@
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_field_count": 79,
+        "expected_field_count": 75,
         "validation": "Compare sorted AST field names with the sorted concatenation of every entry.field_names; reject gaps, duplicates, stale names, entry count drift, or total count drift."
       },
       "entries": [
         {
           "id": "directory_identity_addressing",
-          "expected_field_count": 6,
+          "expected_field_count": 3,
           "field_names": [
             "account_id",
-            "command_tx",
             "player_name",
-            "realm_send_tx",
-            "recruiter_id",
-            "send_tx"
+            "recruiter_id"
           ],
           "owner": "Session directory owns incarnation/addressing; canonical Player or admitted Session identity owns identity facts as assigned by the field ledger.",
           "open_retirement_issues": [
@@ -1428,11 +1425,10 @@
         },
         {
           "id": "directory_delivery_and_visibility_handles",
-          "expected_field_count": 5,
+          "expected_field_count": 4,
           "field_names": [
             "advanced_combat_logging_enabled_like_cpp",
             "client_visible_guids_like_cpp",
-            "durable_creature_runtime_commands_like_cpp",
             "visibility_refresh_pending_like_cpp",
             "visible_items"
           ],
@@ -1544,7 +1540,7 @@
           "retirement_condition": "#252 removes every assigned residual through bounded canonical queries and deletes the broad projection without introducing a replacement mirror."
         }
       ],
-      "expected_field_count": 79
+      "expected_field_count": 75
     },
     "session_command": {
       "coverage_source": {
@@ -1827,9 +1823,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 74567,
-          "test_lines": 95668,
-          "total_lines": 170235,
+          "production_lines": 74614,
+          "test_lines": 95686,
+          "total_lines": 170300,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153
@@ -1862,8 +1858,8 @@
         {
           "path": "crates/wow-world/src/handlers/loot/mod.rs",
           "production_lines": 13695,
-          "test_lines": 16233,
-          "total_lines": 29928,
+          "test_lines": 16240,
+          "total_lines": 29935,
           "owner": "wow-world loot handler plus transitional loot/map/persistence coordination.",
           "open_retirement_issues": [
             153
@@ -1874,8 +1870,8 @@
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
           "production_lines": 25040,
-          "test_lines": 21528,
-          "total_lines": 46568,
+          "test_lines": 21536,
+          "total_lines": 46576,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153

@@ -52,7 +52,8 @@ use crate::phasing::{
 };
 use crate::reputation::{ReputationMgrLikeCpp, reputation_to_rank_like_cpp};
 use crate::session::directory::{
-    PlayerBroadcastInfo, PlayerRegistry, PlayerVisibilityCreateSnapshot,
+    PlayerBroadcastInfo, PlayerRegistry, PlayerSessionRegistrationLikeCpp,
+    PlayerVisibilityCreateSnapshot,
 };
 use crate::session::mailbox::{
     CreatureAttackStartLikeCppCommand, GameEventQuestCompleteClientOutcomeLikeCpp,
@@ -34831,116 +34832,117 @@ impl WorldSession {
             lifetime_max_rank,
             honor_level,
         ) = self.canonical_player_honor_stats_snapshot_like_cpp();
+        let info = PlayerBroadcastInfo {
+            map_id,
+            instance_id,
+            position: pos,
+            combat_reach: self.canonical_player_combat_reach_snapshot_like_cpp(),
+            liquid_status: self.player_liquid_status_like_cpp(),
+            is_in_world: self.player_is_in_world_for_registry_like_cpp(),
+            client_visible_guids_like_cpp: self.client_visible_guids_like_cpp.clone(),
+            advanced_combat_logging_enabled_like_cpp: Arc::clone(
+                &self.advanced_combat_logging_enabled_like_cpp,
+            ),
+            visibility_refresh_pending_like_cpp: Arc::clone(
+                &self.visibility_refresh_pending_like_cpp,
+            ),
+            active_loot_rolls: self
+                .represented_loot_rolls
+                .values()
+                .map(|state| state.command_identity.clone())
+                .collect(),
+            in_combat: self.in_combat,
+            pass_on_group_loot: self.pass_on_group_loot,
+            enchanting_skill: self.represented_enchanting_skill,
+            is_alive: self.player_alive_like_cpp,
+            current_health: self.player_health_like_cpp,
+            max_health: self.player_max_health_like_cpp,
+            power_type,
+            current_power,
+            max_power,
+            base_mana: self.represented_player_base_mana_like_cpp,
+            transport: self.player_transport_info_like_cpp(),
+            is_pvp: pvp_flags.contains(UnitPvpFlags::PVP),
+            is_ffa_pvp: pvp_flags.contains(UnitPvpFlags::FFA_PVP),
+            is_ghost,
+            is_afk,
+            is_dnd,
+            auto_reply_msg_like_cpp: self.auto_reply_msg_like_cpp.clone(),
+            in_vehicle: self.player_vehicle_seat_flags_like_cpp.is_some(),
+            has_vehicle_kit_like_cpp: self.player_mount_vehicle_kit_like_cpp.is_some(),
+            party_member_vehicle_seat: self
+                .player_vehicle_seat_id_like_cpp
+                .and_then(|seat_id| i32::try_from(seat_id).ok())
+                .unwrap_or(0),
+            zone_id: self.player_zone_area_like_cpp().0,
+            spec_id: self.loot_specialization_id_like_cpp(),
+            unit_flags: self.player_unit_flags_like_cpp.bits(),
+            unit_flags2,
+            unit_state: self.player_unit_state_for_registry_like_cpp(),
+            is_game_master: self.player_game_master_like_cpp,
+            dungeon_difficulty_id: self.represented_dungeon_difficulty_id_like_cpp,
+            is_contested_pvp,
+            active_expansion: self.expansion,
+            pending_quest_sharing: self
+                .represented_pending_quest_sharing_like_cpp
+                .map(|pending| (pending.sender_guid, pending.quest_id)),
+            known_spells: self.known_spells_like_cpp().to_vec(),
+            active_quest_statuses: self
+                .player_quests
+                .iter()
+                .map(|(quest_id, status)| (*quest_id, status.status))
+                .collect(),
+            active_quest_objective_counts: self
+                .player_quests
+                .iter()
+                .map(|(quest_id, status)| (*quest_id, status.objective_counts.clone()))
+                .collect(),
+            rewarded_quests: self.rewarded_quests.clone(),
+            completed_achievements: self.represented_completed_achievements_like_cpp.clone(),
+            daily_quests_completed: self.daily_quests_completed_like_cpp.clone(),
+            df_quests: self.df_quests_like_cpp.clone(),
+            faction_template_id: self.player_faction_template_like_cpp.unwrap_or(0),
+            reputation_standings,
+            reputation_state_flags,
+            forced_reputation_ranks,
+            forced_reputation_faction_ids,
+            inventory_item_counts: self.represented_inventory_item_counts_like_cpp(),
+            party_member_party_type: self.party_member_party_type_like_cpp(),
+            party_member_phase_states: party_member_phase_states_like_cpp(
+                self.represented_player_phase_shift_like_cpp(),
+            )
+            .unwrap_or_default(),
+            party_member_auras: self.party_member_visible_auras_like_cpp(),
+            party_member_pet_stats: self.party_member_pet_stats_like_cpp(),
+            player_name: name.to_string(),
+            account_id: self.account_id,
+            recruiter_id: self.recruiter_id_like_cpp,
+            race,
+            class,
+            sex: gender,
+            level,
+            gray_level: self.gray_level(level),
+            display_id: default_display_id(race, gender),
+            visible_items: Arc::new(visible_items),
+            customizations: Arc::new(self.loaded_player_customizations_like_cpp.as_ref().clone()),
+            lifetime_honorable_kills,
+            this_week_contribution,
+            yesterday_contribution,
+            today_honorable_kills,
+            yesterday_honorable_kills,
+            lifetime_max_rank,
+            honor_level,
+        };
         reg.register_or_replace(
             guid,
-            PlayerBroadcastInfo {
-                map_id,
-                instance_id,
-                position: pos,
-                combat_reach: self.canonical_player_combat_reach_snapshot_like_cpp(),
-                liquid_status: self.player_liquid_status_like_cpp(),
-                is_in_world: self.player_is_in_world_for_registry_like_cpp(),
+            PlayerSessionRegistrationLikeCpp {
+                info,
                 send_tx: self.send_tx.clone(),
                 realm_send_tx: self.realm_send_tx.as_ref().unwrap_or(&self.send_tx).clone(),
                 command_tx: self.session_command_tx.clone(),
                 durable_creature_runtime_commands_like_cpp: Arc::clone(
                     &self.durable_creature_runtime_commands_like_cpp,
                 ),
-                client_visible_guids_like_cpp: self.client_visible_guids_like_cpp.clone(),
-                advanced_combat_logging_enabled_like_cpp: Arc::clone(
-                    &self.advanced_combat_logging_enabled_like_cpp,
-                ),
-                visibility_refresh_pending_like_cpp: Arc::clone(
-                    &self.visibility_refresh_pending_like_cpp,
-                ),
-                active_loot_rolls: self
-                    .represented_loot_rolls
-                    .values()
-                    .map(|state| state.command_identity.clone())
-                    .collect(),
-                in_combat: self.in_combat,
-                pass_on_group_loot: self.pass_on_group_loot,
-                enchanting_skill: self.represented_enchanting_skill,
-                is_alive: self.player_alive_like_cpp,
-                current_health: self.player_health_like_cpp,
-                max_health: self.player_max_health_like_cpp,
-                power_type,
-                current_power,
-                max_power,
-                base_mana: self.represented_player_base_mana_like_cpp,
-                transport: self.player_transport_info_like_cpp(),
-                is_pvp: pvp_flags.contains(UnitPvpFlags::PVP),
-                is_ffa_pvp: pvp_flags.contains(UnitPvpFlags::FFA_PVP),
-                is_ghost,
-                is_afk,
-                is_dnd,
-                auto_reply_msg_like_cpp: self.auto_reply_msg_like_cpp.clone(),
-                in_vehicle: self.player_vehicle_seat_flags_like_cpp.is_some(),
-                has_vehicle_kit_like_cpp: self.player_mount_vehicle_kit_like_cpp.is_some(),
-                party_member_vehicle_seat: self
-                    .player_vehicle_seat_id_like_cpp
-                    .and_then(|seat_id| i32::try_from(seat_id).ok())
-                    .unwrap_or(0),
-                zone_id: self.player_zone_area_like_cpp().0,
-                spec_id: self.loot_specialization_id_like_cpp(),
-                unit_flags: self.player_unit_flags_like_cpp.bits(),
-                unit_flags2,
-                unit_state: self.player_unit_state_for_registry_like_cpp(),
-                is_game_master: self.player_game_master_like_cpp,
-                dungeon_difficulty_id: self.represented_dungeon_difficulty_id_like_cpp,
-                is_contested_pvp,
-                active_expansion: self.expansion,
-                pending_quest_sharing: self
-                    .represented_pending_quest_sharing_like_cpp
-                    .map(|pending| (pending.sender_guid, pending.quest_id)),
-                known_spells: self.known_spells_like_cpp().to_vec(),
-                active_quest_statuses: self
-                    .player_quests
-                    .iter()
-                    .map(|(quest_id, status)| (*quest_id, status.status))
-                    .collect(),
-                active_quest_objective_counts: self
-                    .player_quests
-                    .iter()
-                    .map(|(quest_id, status)| (*quest_id, status.objective_counts.clone()))
-                    .collect(),
-                rewarded_quests: self.rewarded_quests.clone(),
-                completed_achievements: self.represented_completed_achievements_like_cpp.clone(),
-                daily_quests_completed: self.daily_quests_completed_like_cpp.clone(),
-                df_quests: self.df_quests_like_cpp.clone(),
-                faction_template_id: self.player_faction_template_like_cpp.unwrap_or(0),
-                reputation_standings,
-                reputation_state_flags,
-                forced_reputation_ranks,
-                forced_reputation_faction_ids,
-                inventory_item_counts: self.represented_inventory_item_counts_like_cpp(),
-                party_member_party_type: self.party_member_party_type_like_cpp(),
-                party_member_phase_states: party_member_phase_states_like_cpp(
-                    self.represented_player_phase_shift_like_cpp(),
-                )
-                .unwrap_or_default(),
-                party_member_auras: self.party_member_visible_auras_like_cpp(),
-                party_member_pet_stats: self.party_member_pet_stats_like_cpp(),
-                player_name: name.to_string(),
-                account_id: self.account_id,
-                recruiter_id: self.recruiter_id_like_cpp,
-                race,
-                class,
-                sex: gender,
-                level,
-                gray_level: self.gray_level(level),
-                display_id: default_display_id(race, gender),
-                visible_items: Arc::new(visible_items),
-                customizations: Arc::new(
-                    self.loaded_player_customizations_like_cpp.as_ref().clone(),
-                ),
-                lifetime_honorable_kills,
-                this_week_contribution,
-                yesterday_contribution,
-                today_honorable_kills,
-                yesterday_honorable_kills,
-                lifetime_max_rank,
-                honor_level,
             },
             Arc::clone(&self.durable_loot_money_persistence_like_cpp),
         );

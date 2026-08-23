@@ -21,7 +21,9 @@ use super::{
     send_group_new_leader_like_cpp, send_party_update, send_ready_check_events_like_cpp,
     sender_can_start_ready_check_like_cpp,
 };
-use crate::session::directory::{PlayerBroadcastInfo, PlayerRegistry};
+use crate::session::directory::{
+    PlayerBroadcastInfo, PlayerRegistry, PlayerSessionRegistrationLikeCpp,
+};
 use crate::session::mailbox::{SendRealmPacketLikeCppCommand, SessionCommand};
 use flume::bounded;
 use std::{sync::Arc, time::Duration};
@@ -76,7 +78,10 @@ fn test_session_command_dispatcher(
     (command_tx, observed_rx)
 }
 
-fn broadcast_info(guid: ObjectGuid, send_tx: flume::Sender<Vec<u8>>) -> PlayerBroadcastInfo {
+fn broadcast_info(
+    guid: ObjectGuid,
+    send_tx: flume::Sender<Vec<u8>>,
+) -> PlayerSessionRegistrationLikeCpp {
     let (command_tx, _observed_rx) = test_session_command_dispatcher(guid, send_tx.clone());
     broadcast_info_with_command_tx(guid, send_tx, command_tx)
 }
@@ -90,87 +95,89 @@ fn broadcast_info_with_command_tx(
     guid: ObjectGuid,
     send_tx: flume::Sender<Vec<u8>>,
     command_tx: flume::Sender<SessionCommand>,
-) -> PlayerBroadcastInfo {
-    PlayerBroadcastInfo {
-        map_id: 0,
-        instance_id: 0,
-        position: Position::ZERO,
-        combat_reach: 0.0,
-        liquid_status: 0,
-        is_in_world: true,
+) -> PlayerSessionRegistrationLikeCpp {
+    PlayerSessionRegistrationLikeCpp {
+        info: PlayerBroadcastInfo {
+            map_id: 0,
+            instance_id: 0,
+            position: Position::ZERO,
+            combat_reach: 0.0,
+            liquid_status: 0,
+            is_in_world: true,
+            client_visible_guids_like_cpp: Default::default(),
+            advanced_combat_logging_enabled_like_cpp: Default::default(),
+            visibility_refresh_pending_like_cpp: Default::default(),
+            active_loot_rolls: Vec::new(),
+            in_combat: false,
+            pass_on_group_loot: false,
+            enchanting_skill: 0,
+            is_alive: true,
+            current_health: 100,
+            max_health: 100,
+            power_type: 0,
+            current_power: 0,
+            max_power: 0,
+            base_mana: 0,
+            transport: None,
+            is_pvp: false,
+            is_ffa_pvp: false,
+            is_ghost: false,
+            is_afk: false,
+            is_dnd: false,
+            auto_reply_msg_like_cpp: String::new(),
+            in_vehicle: false,
+            has_vehicle_kit_like_cpp: false,
+            party_member_vehicle_seat: 0,
+            zone_id: 0,
+            spec_id: 0,
+            unit_flags: 0,
+            unit_flags2: 0,
+            unit_state: 0,
+            is_game_master: false,
+            dungeon_difficulty_id: 1,
+            is_contested_pvp: false,
+            active_expansion: 2,
+            pending_quest_sharing: None,
+            known_spells: Vec::new(),
+            active_quest_statuses: Default::default(),
+            active_quest_objective_counts: Default::default(),
+            rewarded_quests: Default::default(),
+            completed_achievements: Default::default(),
+            daily_quests_completed: Default::default(),
+            df_quests: Default::default(),
+            faction_template_id: 0,
+            reputation_standings: Vec::new(),
+            reputation_state_flags: Vec::new(),
+            forced_reputation_ranks: Vec::new(),
+            forced_reputation_faction_ids: Vec::new(),
+            inventory_item_counts: Default::default(),
+            party_member_party_type: [0; 2],
+            party_member_phase_states: Default::default(),
+            party_member_auras: Vec::new(),
+            party_member_pet_stats: None,
+            player_name: format!("Player{}", guid.low_value()),
+            account_id: 1,
+            recruiter_id: 0,
+            race: 1,
+            class: 1,
+            sex: 0,
+            level: 1,
+            gray_level: 0,
+            display_id: 49,
+            visible_items: std::sync::Arc::new([(0, 0, 0); 19]),
+            customizations: std::sync::Arc::default(),
+            lifetime_honorable_kills: 0,
+            this_week_contribution: 0,
+            yesterday_contribution: 0,
+            today_honorable_kills: 0,
+            yesterday_honorable_kills: 0,
+            lifetime_max_rank: 0,
+            honor_level: 0,
+        },
         realm_send_tx: send_tx.clone(),
         send_tx,
         command_tx,
         durable_creature_runtime_commands_like_cpp: Default::default(),
-        client_visible_guids_like_cpp: Default::default(),
-        advanced_combat_logging_enabled_like_cpp: Default::default(),
-        visibility_refresh_pending_like_cpp: Default::default(),
-        active_loot_rolls: Vec::new(),
-        in_combat: false,
-        pass_on_group_loot: false,
-        enchanting_skill: 0,
-        is_alive: true,
-        current_health: 100,
-        max_health: 100,
-        power_type: 0,
-        current_power: 0,
-        max_power: 0,
-        base_mana: 0,
-        transport: None,
-        is_pvp: false,
-        is_ffa_pvp: false,
-        is_ghost: false,
-        is_afk: false,
-        is_dnd: false,
-        auto_reply_msg_like_cpp: String::new(),
-        in_vehicle: false,
-        has_vehicle_kit_like_cpp: false,
-        party_member_vehicle_seat: 0,
-        zone_id: 0,
-        spec_id: 0,
-        unit_flags: 0,
-        unit_flags2: 0,
-        unit_state: 0,
-        is_game_master: false,
-        dungeon_difficulty_id: 1,
-        is_contested_pvp: false,
-        active_expansion: 2,
-        pending_quest_sharing: None,
-        known_spells: Vec::new(),
-        active_quest_statuses: Default::default(),
-        active_quest_objective_counts: Default::default(),
-        rewarded_quests: Default::default(),
-        completed_achievements: Default::default(),
-        daily_quests_completed: Default::default(),
-        df_quests: Default::default(),
-        faction_template_id: 0,
-        reputation_standings: Vec::new(),
-        reputation_state_flags: Vec::new(),
-        forced_reputation_ranks: Vec::new(),
-        forced_reputation_faction_ids: Vec::new(),
-        inventory_item_counts: Default::default(),
-        party_member_party_type: [0; 2],
-        party_member_phase_states: Default::default(),
-        party_member_auras: Vec::new(),
-        party_member_pet_stats: None,
-        player_name: format!("Player{}", guid.low_value()),
-        account_id: 1,
-        recruiter_id: 0,
-        race: 1,
-        class: 1,
-        sex: 0,
-        level: 1,
-        gray_level: 0,
-        display_id: 49,
-        visible_items: std::sync::Arc::new([(0, 0, 0); 19]),
-        customizations: std::sync::Arc::default(),
-        lifetime_honorable_kills: 0,
-        this_week_contribution: 0,
-        yesterday_contribution: 0,
-        today_honorable_kills: 0,
-        yesterday_honorable_kills: 0,
-        lifetime_max_rank: 0,
-        honor_level: 0,
     }
 }
 
@@ -1268,7 +1275,7 @@ async fn party_invite_rejects_gm_target_like_cpp_default_config() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, target_rx) = bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
-    target_info.is_game_master = true;
+    target_info.info.is_game_master = true;
     player_registry.register_or_replace(target, target_info, Default::default());
     let pending_invites = Arc::new(PendingInvites::default());
 
@@ -1302,7 +1309,7 @@ async fn party_invite_rejects_cross_faction_like_cpp_default_config() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, target_rx) = bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
-    target_info.race = 2; // Orc/Horde, while inviter identity below is Human/Alliance.
+    target_info.info.race = 2; // Orc/Horde, while inviter identity below is Human/Alliance.
     player_registry.register_or_replace(target, target_info, Default::default());
     let pending_invites = Arc::new(PendingInvites::default());
 
@@ -1336,7 +1343,7 @@ async fn party_invite_allows_gm_target_when_cpp_config_enabled() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, target_rx) = bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
-    target_info.is_game_master = true;
+    target_info.info.is_game_master = true;
     player_registry.register_or_replace(target, target_info, Default::default());
     let pending_invites = Arc::new(PendingInvites::default());
 
@@ -1370,7 +1377,7 @@ async fn party_invite_allows_cross_faction_when_cpp_config_enabled() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, target_rx) = bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
-    target_info.race = 2;
+    target_info.info.race = 2;
     player_registry.register_or_replace(target, target_info, Default::default());
     let pending_invites = Arc::new(PendingInvites::default());
 
@@ -1485,13 +1492,13 @@ async fn party_invite_rejects_same_map_different_instances_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (inviter_tx, _inviter_rx) = bounded(8);
     let mut inviter_info = broadcast_info(inviter, inviter_tx);
-    inviter_info.map_id = 571;
-    inviter_info.instance_id = 100;
+    inviter_info.info.map_id = 571;
+    inviter_info.info.instance_id = 100;
     player_registry.register_or_replace(inviter, inviter_info, Default::default());
     let (target_tx, target_rx) = bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
-    target_info.map_id = 571;
-    target_info.instance_id = 200;
+    target_info.info.map_id = 571;
+    target_info.info.instance_id = 200;
     player_registry.register_or_replace(target, target_info, Default::default());
     let pending_invites = Arc::new(PendingInvites::default());
 
@@ -1525,9 +1532,9 @@ async fn party_invite_rejects_instance_difficulty_mismatch_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, target_rx) = bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
-    target_info.map_id = 571;
-    target_info.instance_id = 100;
-    target_info.dungeon_difficulty_id = 2;
+    target_info.info.map_id = 571;
+    target_info.info.instance_id = 100;
+    target_info.info.dungeon_difficulty_id = 2;
     player_registry.register_or_replace(target, target_info, Default::default());
     let pending_invites = Arc::new(PendingInvites::default());
 
@@ -1886,7 +1893,7 @@ async fn lfg_uninvite_target_loot_rolls_returns_code_without_removal_like_cpp() 
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, _target_rx) = flume::bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
-    target_info.active_loot_rolls.push(
+    target_info.info.active_loot_rolls.push(
         crate::session::mailbox::LootRollCommandIdentityLikeCpp::new_like_cpp(
             ObjectGuid::create_item(1, 9001),
             1,
@@ -1954,7 +1961,7 @@ async fn lfg_uninvite_member_in_combat_returns_code_without_removal_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, _target_rx) = flume::bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
-    target_info.in_combat = true;
+    target_info.info.in_combat = true;
     player_registry.register_or_replace(target, target_info, Default::default());
     session.set_player_registry(Arc::clone(&player_registry));
     assert!(!session.in_combat);
@@ -1989,9 +1996,9 @@ async fn lfg_uninvite_member_in_combat_on_another_map_passes_gate_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, _target_rx) = flume::bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
-    target_info.in_combat = true;
-    target_info.map_id = 1;
-    target_info.instance_id = 1;
+    target_info.info.in_combat = true;
+    target_info.info.map_id = 1;
+    target_info.info.instance_id = 1;
     player_registry.register_or_replace(target, target_info, Default::default());
     session.set_player_registry(Arc::clone(&player_registry));
 

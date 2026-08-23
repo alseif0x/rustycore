@@ -1567,7 +1567,9 @@ fn secs_to_full_time_string_like_cpp(time_in_secs: u64) -> String {
 mod tests {
     use super::*;
     use crate::session::AuraApplication;
-    use crate::session::directory::{PlayerBroadcastInfo, PlayerRegistry};
+    use crate::session::directory::{
+        PlayerBroadcastInfo, PlayerRegistry, PlayerSessionRegistrationLikeCpp,
+    };
     use crate::session_policy::{
         ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
     };
@@ -1884,7 +1886,10 @@ mod tests {
         session.set_mute_time_like_cpp(mute_until);
     }
 
-    fn broadcast_info(guid: ObjectGuid, send_tx: flume::Sender<Vec<u8>>) -> PlayerBroadcastInfo {
+    fn broadcast_info(
+        guid: ObjectGuid,
+        send_tx: flume::Sender<Vec<u8>>,
+    ) -> PlayerSessionRegistrationLikeCpp {
         let (command_tx, _command_rx) = flume::bounded(8);
         broadcast_info_with_command_tx(guid, send_tx, command_tx)
     }
@@ -1893,9 +1898,9 @@ mod tests {
         guid: ObjectGuid,
         send_tx: flume::Sender<Vec<u8>>,
         position: wow_core::Position,
-    ) -> PlayerBroadcastInfo {
+    ) -> PlayerSessionRegistrationLikeCpp {
         let mut info = broadcast_info(guid, send_tx);
-        info.position = position;
+        info.info.position = position;
         info
     }
 
@@ -1904,9 +1909,9 @@ mod tests {
         send_tx: flume::Sender<Vec<u8>>,
         command_tx: flume::Sender<SessionCommand>,
         position: wow_core::Position,
-    ) -> PlayerBroadcastInfo {
+    ) -> PlayerSessionRegistrationLikeCpp {
         let mut info = broadcast_info_with_command_tx(guid, send_tx, command_tx);
-        info.position = position;
+        info.info.position = position;
         info
     }
 
@@ -1914,87 +1919,89 @@ mod tests {
         guid: ObjectGuid,
         send_tx: flume::Sender<Vec<u8>>,
         command_tx: flume::Sender<SessionCommand>,
-    ) -> PlayerBroadcastInfo {
-        PlayerBroadcastInfo {
-            map_id: 571,
-            instance_id: 0,
-            position: wow_core::Position::ZERO,
-            combat_reach: 0.0,
-            liquid_status: 0,
-            is_in_world: true,
+    ) -> PlayerSessionRegistrationLikeCpp {
+        PlayerSessionRegistrationLikeCpp {
+            info: PlayerBroadcastInfo {
+                map_id: 571,
+                instance_id: 0,
+                position: wow_core::Position::ZERO,
+                combat_reach: 0.0,
+                liquid_status: 0,
+                is_in_world: true,
+                client_visible_guids_like_cpp: Default::default(),
+                advanced_combat_logging_enabled_like_cpp: Default::default(),
+                visibility_refresh_pending_like_cpp: Default::default(),
+                active_loot_rolls: Vec::new(),
+                in_combat: false,
+                pass_on_group_loot: false,
+                enchanting_skill: 0,
+                is_alive: true,
+                current_health: 100,
+                max_health: 100,
+                power_type: 0,
+                current_power: 0,
+                max_power: 0,
+                base_mana: 0,
+                transport: None,
+                is_pvp: false,
+                is_ffa_pvp: false,
+                is_ghost: false,
+                is_afk: false,
+                is_dnd: false,
+                auto_reply_msg_like_cpp: String::new(),
+                in_vehicle: false,
+                has_vehicle_kit_like_cpp: false,
+                party_member_vehicle_seat: 0,
+                zone_id: 0,
+                spec_id: 0,
+                unit_flags: 0,
+                unit_flags2: 0,
+                unit_state: 0,
+                is_game_master: false,
+                dungeon_difficulty_id: 1,
+                is_contested_pvp: false,
+                active_expansion: 2,
+                pending_quest_sharing: None,
+                known_spells: Vec::new(),
+                active_quest_statuses: HashMap::new(),
+                active_quest_objective_counts: HashMap::new(),
+                rewarded_quests: HashSet::new(),
+                completed_achievements: HashSet::new(),
+                daily_quests_completed: HashSet::new(),
+                df_quests: HashSet::new(),
+                faction_template_id: 0,
+                reputation_standings: Vec::new(),
+                reputation_state_flags: Vec::new(),
+                forced_reputation_ranks: Vec::new(),
+                forced_reputation_faction_ids: Vec::new(),
+                inventory_item_counts: HashMap::new(),
+                party_member_party_type: [0; 2],
+                party_member_phase_states: Default::default(),
+                party_member_auras: Vec::new(),
+                party_member_pet_stats: None,
+                player_name: format!("Player{}", guid.counter()),
+                account_id: guid.counter() as u32,
+                recruiter_id: 0,
+                race: 1,
+                class: 1,
+                sex: 0,
+                level: 80,
+                gray_level: 0,
+                display_id: 49,
+                visible_items: std::sync::Arc::new([(0, 0, 0); 19]),
+                customizations: std::sync::Arc::default(),
+                lifetime_honorable_kills: 0,
+                this_week_contribution: 0,
+                yesterday_contribution: 0,
+                today_honorable_kills: 0,
+                yesterday_honorable_kills: 0,
+                lifetime_max_rank: 0,
+                honor_level: 0,
+            },
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
             durable_creature_runtime_commands_like_cpp: Default::default(),
-            client_visible_guids_like_cpp: Default::default(),
-            advanced_combat_logging_enabled_like_cpp: Default::default(),
-            visibility_refresh_pending_like_cpp: Default::default(),
-            active_loot_rolls: Vec::new(),
-            in_combat: false,
-            pass_on_group_loot: false,
-            enchanting_skill: 0,
-            is_alive: true,
-            current_health: 100,
-            max_health: 100,
-            power_type: 0,
-            current_power: 0,
-            max_power: 0,
-            base_mana: 0,
-            transport: None,
-            is_pvp: false,
-            is_ffa_pvp: false,
-            is_ghost: false,
-            is_afk: false,
-            is_dnd: false,
-            auto_reply_msg_like_cpp: String::new(),
-            in_vehicle: false,
-            has_vehicle_kit_like_cpp: false,
-            party_member_vehicle_seat: 0,
-            zone_id: 0,
-            spec_id: 0,
-            unit_flags: 0,
-            unit_flags2: 0,
-            unit_state: 0,
-            is_game_master: false,
-            dungeon_difficulty_id: 1,
-            is_contested_pvp: false,
-            active_expansion: 2,
-            pending_quest_sharing: None,
-            known_spells: Vec::new(),
-            active_quest_statuses: HashMap::new(),
-            active_quest_objective_counts: HashMap::new(),
-            rewarded_quests: HashSet::new(),
-            completed_achievements: HashSet::new(),
-            daily_quests_completed: HashSet::new(),
-            df_quests: HashSet::new(),
-            faction_template_id: 0,
-            reputation_standings: Vec::new(),
-            reputation_state_flags: Vec::new(),
-            forced_reputation_ranks: Vec::new(),
-            forced_reputation_faction_ids: Vec::new(),
-            inventory_item_counts: HashMap::new(),
-            party_member_party_type: [0; 2],
-            party_member_phase_states: Default::default(),
-            party_member_auras: Vec::new(),
-            party_member_pet_stats: None,
-            player_name: format!("Player{}", guid.counter()),
-            account_id: guid.counter() as u32,
-            recruiter_id: 0,
-            race: 1,
-            class: 1,
-            sex: 0,
-            level: 80,
-            gray_level: 0,
-            display_id: 49,
-            visible_items: std::sync::Arc::new([(0, 0, 0); 19]),
-            customizations: std::sync::Arc::default(),
-            lifetime_honorable_kills: 0,
-            this_week_contribution: 0,
-            yesterday_contribution: 0,
-            today_honorable_kills: 0,
-            yesterday_honorable_kills: 0,
-            lifetime_max_rank: 0,
-            honor_level: 0,
         }
     }
 
@@ -2579,7 +2586,7 @@ mod tests {
             other_instance_command_tx,
             wow_core::Position::new(20.0, 0.0, 0.0, 0.0),
         );
-        other_instance_info.instance_id = 1;
+        other_instance_info.info.instance_id = 1;
         player_registry.register_or_replace(
             other_instance,
             other_instance_info,
@@ -2591,7 +2598,7 @@ mod tests {
             not_in_world_command_tx,
             wow_core::Position::new(20.0, 0.0, 0.0, 0.0),
         );
-        not_in_world_info.is_in_world = false;
+        not_in_world_info.info.is_in_world = false;
         player_registry.register_or_replace(not_in_world, not_in_world_info, Default::default());
         set_emotes_text_entries(
             &mut session,
@@ -3197,7 +3204,7 @@ mod tests {
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
-        target_info.player_name = "Target".to_string();
+        target_info.info.player_name = "Target".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
 
         session
@@ -3219,7 +3226,7 @@ mod tests {
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
-        target_info.player_name = "Target".to_string();
+        target_info.info.player_name = "Target".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
 
         session
@@ -3261,7 +3268,7 @@ mod tests {
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
-        target_info.player_name = "Target".to_string();
+        target_info.info.player_name = "Target".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
         session.set_player_level_like_cpp(1);
         session.set_chat_level_requirements_like_cpp(ChatLevelRequirementsLikeCpp {
@@ -3288,7 +3295,7 @@ mod tests {
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
-        target_info.player_name = "Target".to_string();
+        target_info.info.player_name = "Target".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
         session.set_player_level_like_cpp(1);
         session.set_player_game_master_like_cpp(true);
@@ -3591,8 +3598,8 @@ mod tests {
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
-        target_info.player_name = "Target".to_string();
-        target_info.is_game_master = false;
+        target_info.info.player_name = "Target".to_string();
+        target_info.info.is_game_master = false;
         player_registry.register_or_replace(target, target_info, Default::default());
         session.visible_auras.insert(1, gm_silence_aura(1));
 
@@ -3615,8 +3622,8 @@ mod tests {
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
-        target_info.player_name = "Target".to_string();
-        target_info.is_game_master = true;
+        target_info.info.player_name = "Target".to_string();
+        target_info.info.is_game_master = true;
         player_registry.register_or_replace(target, target_info, Default::default());
         session.visible_auras.insert(1, gm_silence_aura(1));
 
@@ -3641,9 +3648,9 @@ mod tests {
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
-        target_info.player_name = "Target".to_string();
-        target_info.is_afk = true;
-        target_info.auto_reply_msg_like_cpp = "back soon".to_string();
+        target_info.info.player_name = "Target".to_string();
+        target_info.info.is_afk = true;
+        target_info.info.auto_reply_msg_like_cpp = "back soon".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
 
         session
@@ -3673,9 +3680,9 @@ mod tests {
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
-        target_info.player_name = "Target".to_string();
-        target_info.is_dnd = true;
-        target_info.auto_reply_msg_like_cpp = "busy".to_string();
+        target_info.info.player_name = "Target".to_string();
+        target_info.info.is_dnd = true;
+        target_info.info.auto_reply_msg_like_cpp = "busy".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
 
         session
@@ -3778,7 +3785,7 @@ mod tests {
         let (target_tx, _target_rx) = flume::bounded(8);
         let (target_command_tx, target_command_rx) = flume::bounded(8);
         let mut target_info = broadcast_info_with_command_tx(target, target_tx, target_command_tx);
-        target_info.player_name = "Target".to_string();
+        target_info.info.player_name = "Target".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
 
         session
@@ -3805,7 +3812,7 @@ mod tests {
         let (target_tx, _target_rx) = flume::bounded(8);
         let (target_command_tx, target_command_rx) = flume::bounded(8);
         let mut target_info = broadcast_info_with_command_tx(target, target_tx, target_command_tx);
-        target_info.player_name = "Target".to_string();
+        target_info.info.player_name = "Target".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
 
         session
@@ -3897,7 +3904,7 @@ mod tests {
         let (target_tx, _target_rx) = flume::bounded(8);
         let (target_command_tx, target_command_rx) = flume::bounded(8);
         let mut target_info = broadcast_info_with_command_tx(target, target_tx, target_command_tx);
-        target_info.player_name = "Target".to_string();
+        target_info.info.player_name = "Target".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
         session.set_player_level_like_cpp(1);
         session.set_chat_level_requirements_like_cpp(ChatLevelRequirementsLikeCpp {

@@ -38,6 +38,31 @@ use wow_packet::packets::party::{
 };
 use wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate;
 
+/// Everything a session hands the directory when it registers.
+///
+/// #270 splits this from [`PlayerBroadcastInfo`]: the projection is the
+/// gameplay state other sessions read, while these four handles are this
+/// session's own delivery channels and durable rail. They live beside the
+/// private registry entry, exactly as #189 placed the durable loot-money
+/// coordinator, so no remote reader can obtain a raw sender from a snapshot.
+#[derive(Clone)]
+pub struct PlayerSessionRegistrationLikeCpp {
+    /// Gameplay projection stored for other sessions to read.
+    pub info: PlayerBroadcastInfo,
+    /// Channel used to push serialised packets to this player's primary
+    /// (instance after `ConnectTo`) socket.
+    pub send_tx: flume::Sender<Vec<u8>>,
+    /// Channel used for opcodes registered on `CONNECTION_TYPE_REALM`.
+    /// Before `ConnectTo`, or in single-socket tests, this may be the same
+    /// channel as [`Self::send_tx`].
+    pub realm_send_tx: flume::Sender<Vec<u8>>,
+    /// Channel used for C++-style cross-session state mutations.
+    pub command_tx: flume::Sender<SessionCommand>,
+    /// Durable FIFO rail for authoritative creature combat transitions.
+    pub durable_creature_runtime_commands_like_cpp:
+        Arc<Mutex<DurableCreatureRuntimeCommandsLikeCpp>>,
+}
+
 /// Information stored for each active player session.
 #[derive(Clone)]
 pub struct PlayerBroadcastInfo {
@@ -61,18 +86,6 @@ pub struct PlayerBroadcastInfo {
     pub liquid_status: u32,
     /// Represented C++ `Player::IsInWorld()` receiver gate for global-message fanout.
     pub is_in_world: bool,
-    /// Channel used to push serialised packets to this player's primary
-    /// (instance after `ConnectTo`) socket.
-    pub send_tx: flume::Sender<Vec<u8>>,
-    /// Channel used for opcodes registered on `CONNECTION_TYPE_REALM`.
-    /// Before `ConnectTo`, or in single-socket tests, this may be the same
-    /// channel as [`Self::send_tx`].
-    pub realm_send_tx: flume::Sender<Vec<u8>>,
-    /// Channel used for C++-style cross-session state mutations.
-    pub command_tx: flume::Sender<SessionCommand>,
-    /// Durable FIFO rail for authoritative creature combat transitions.
-    pub durable_creature_runtime_commands_like_cpp:
-        Arc<Mutex<DurableCreatureRuntimeCommandsLikeCpp>>,
     /// Shared C++ `Player::m_clientGUIDs` membership for this session.
     ///
     /// Producers that must commit a recipient decision at the moment a message
@@ -557,6 +570,15 @@ pub struct PlayerVisibilityCreateSnapshot {
 struct PlayerRegistryEntry {
     generation: u64,
     info: PlayerBroadcastInfo,
+    /// Delivery handles for this incarnation, private to the directory (#270).
+    ///
+    /// They are not part of the projection: publishing gameplay state can no
+    /// longer overwrite a route, and a snapshot cannot hand a remote session a
+    /// raw sender.
+    send_tx: flume::Sender<Vec<u8>>,
+    realm_send_tx: flume::Sender<Vec<u8>>,
+    command_tx: flume::Sender<SessionCommand>,
+    durable_creature_runtime_commands_like_cpp: Arc<Mutex<DurableCreatureRuntimeCommandsLikeCpp>>,
     /// Durable loot-money coordination for this incarnation.
     ///
     /// Issue #189 keeps this beside the entry rather than inside
@@ -610,15 +632,26 @@ impl PlayerRegistry {
     pub fn register_or_replace(
         &self,
         guid: ObjectGuid,
-        info: PlayerBroadcastInfo,
+        registration: PlayerSessionRegistrationLikeCpp,
         durable_loot_money: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
     ) -> PlayerRegistration {
         let generation = self.next_generation();
+        let PlayerSessionRegistrationLikeCpp {
+            info,
+            send_tx,
+            realm_send_tx,
+            command_tx,
+            durable_creature_runtime_commands_like_cpp,
+        } = registration;
         self.entries.insert(
             guid,
             PlayerRegistryEntry {
                 generation,
                 info,
+                send_tx,
+                realm_send_tx,
+                command_tx,
+                durable_creature_runtime_commands_like_cpp,
                 durable_loot_money,
             },
         );
@@ -641,7 +674,7 @@ impl PlayerRegistry {
                 guid,
                 generation: entry.generation,
             },
-            command_tx: entry.info.command_tx.clone(),
+            command_tx: entry.command_tx.clone(),
         })
     }
 
@@ -664,9 +697,7 @@ impl PlayerRegistry {
         command_tx: &flume::Sender<SessionCommand>,
     ) -> bool {
         self.entries
-            .remove_if(&guid, |_, entry| {
-                entry.info.command_tx.same_channel(command_tx)
-            })
+            .remove_if(&guid, |_, entry| entry.command_tx.same_channel(command_tx))
             .is_some()
     }
 
@@ -877,7 +908,7 @@ impl PlayerRegistry {
         let Some(mut entry) = self.entries.get_mut(&guid) else {
             return false;
         };
-        if !entry.info.command_tx.same_channel(command_tx) {
+        if !entry.command_tx.same_channel(command_tx) {
             return false;
         }
         entry.info.party_member_party_type = party_type;
@@ -895,7 +926,7 @@ impl PlayerRegistry {
         let Some(mut entry) = self.entries.get_mut(&guid) else {
             return false;
         };
-        if !entry.info.command_tx.same_channel(command_tx) {
+        if !entry.command_tx.same_channel(command_tx) {
             return false;
         }
         entry.info = info;
@@ -912,7 +943,7 @@ impl PlayerRegistry {
         let Some(mut entry) = self.entries.get_mut(&guid) else {
             return false;
         };
-        if !entry.info.command_tx.same_channel(command_tx) {
+        if !entry.command_tx.same_channel(command_tx) {
             return false;
         }
         entry.info.in_combat = in_combat;
@@ -1285,7 +1316,7 @@ impl PlayerRegistry {
         let Some(mut entry) = self.entries.get_mut(&guid) else {
             return false;
         };
-        if !entry.info.command_tx.same_channel(command_tx) {
+        if !entry.command_tx.same_channel(command_tx) {
             return false;
         }
         entry.info.position = update.position;
@@ -1337,7 +1368,7 @@ impl PlayerRegistry {
         let Some(mut entry) = self.entries.get_mut(&guid) else {
             return false;
         };
-        if !entry.info.command_tx.same_channel(command_tx) {
+        if !entry.command_tx.same_channel(command_tx) {
             return false;
         }
         entry.info.active_loot_rolls = identities;
@@ -1473,7 +1504,7 @@ impl PlayerRegistry {
             .get(&registration.guid)
             .filter(|entry| entry.generation == registration.generation)
             .ok_or(PlayerDirectorySendError::StaleRegistration)?;
-        let tx = entry.info.command_tx.clone();
+        let tx = entry.command_tx.clone();
         drop(entry);
         tx.try_send(command).map_err(|error| match error {
             flume::TrySendError::Full(_) => PlayerDirectorySendError::Full,
@@ -1492,7 +1523,7 @@ impl PlayerRegistry {
             .get(&registration.guid)
             .filter(|entry| entry.generation == registration.generation)
             .ok_or(PlayerDirectorySendError::StaleRegistration)?;
-        let tx = entry.info.send_tx.clone();
+        let tx = entry.send_tx.clone();
         drop(entry);
         tx.try_send(packet).map_err(|error| match error {
             flume::TrySendError::Full(_) => PlayerDirectorySendError::Full,
@@ -1511,7 +1542,7 @@ impl PlayerRegistry {
             .get(&registration.guid)
             .filter(|entry| entry.generation == registration.generation)
             .ok_or(PlayerDirectorySendError::StaleRegistration)?;
-        let tx = entry.info.send_tx.clone();
+        let tx = entry.send_tx.clone();
         drop(entry);
         tx.send(packet)
             .map_err(|_| PlayerDirectorySendError::Disconnected)
@@ -1528,7 +1559,7 @@ impl PlayerRegistry {
             .get(&registration.guid)
             .filter(|entry| entry.generation == registration.generation)
             .ok_or(PlayerDirectorySendError::StaleRegistration)?;
-        let tx = entry.info.realm_send_tx.clone();
+        let tx = entry.realm_send_tx.clone();
         drop(entry);
         tx.send(packet)
             .map_err(|_| PlayerDirectorySendError::Disconnected)
@@ -1545,7 +1576,7 @@ impl PlayerRegistry {
             .get(&registration.guid)
             .filter(|entry| entry.generation == registration.generation)
             .ok_or(PlayerDirectorySendError::StaleRegistration)?;
-        let tx = entry.info.command_tx.clone();
+        let tx = entry.command_tx.clone();
         drop(entry);
         tx.send_async(command)
             .await
@@ -1576,7 +1607,7 @@ impl PlayerRegistry {
             .get(&registration.guid)
             .filter(|entry| entry.generation == registration.generation)
             .ok_or(PlayerDirectorySendError::StaleRegistration)?;
-        let tx = entry.info.command_tx.clone();
+        let tx = entry.command_tx.clone();
         drop(entry);
         tx.send_timeout(command, timeout)
             .map_err(|error| match error {
@@ -1598,7 +1629,7 @@ impl PlayerRegistry {
         else {
             return PlayerDirectoryReliableSendOutcome::StaleOrDisconnected;
         };
-        let tx = entry.info.command_tx.clone();
+        let tx = entry.command_tx.clone();
         drop(entry);
         match tx.try_send(command) {
             Ok(()) => PlayerDirectoryReliableSendOutcome::Queued,
@@ -1620,7 +1651,7 @@ impl PlayerRegistry {
     ) -> Option<Arc<Mutex<DurableCreatureRuntimeCommandsLikeCpp>>> {
         let entry = self.entries.get(&registration.guid)?;
         (entry.generation == registration.generation)
-            .then(|| Arc::clone(&entry.info.durable_creature_runtime_commands_like_cpp))
+            .then(|| Arc::clone(&entry.durable_creature_runtime_commands_like_cpp))
     }
 
     pub fn publish_current_attack_start(
@@ -1725,7 +1756,7 @@ impl PlayerRegistry {
             .filter(|entry| entry.generation == registration.generation)
             .ok_or(PlayerDirectorySendError::StaleRegistration)?;
         let pending = Arc::clone(&entry.info.visibility_refresh_pending_like_cpp);
-        let tx = entry.info.command_tx.clone();
+        let tx = entry.command_tx.clone();
         drop(entry);
         pending.store(true, Ordering::Release);
         let command = SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(
@@ -1749,6 +1780,20 @@ impl PlayerRegistry {
     #[must_use]
     pub fn fixture_snapshot(&self, guid: ObjectGuid) -> Option<PlayerBroadcastInfo> {
         self.entries.get(&guid).map(|entry| entry.info.clone())
+    }
+
+    /// Clone one fixture entry's durable creature rail. The projection no
+    /// longer carries it (#270), and a test that drains the rail is addressing
+    /// the entry, not reading gameplay state.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    #[must_use]
+    pub fn fixture_durable_creature_runtime_commands_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<Arc<Mutex<DurableCreatureRuntimeCommandsLikeCpp>>> {
+        self.entries
+            .get(&guid)
+            .map(|entry| Arc::clone(&entry.durable_creature_runtime_commands_like_cpp))
     }
 
     /// Mutate one fixture entry while keeping storage and its generation
@@ -1791,89 +1836,91 @@ mod tests {
     fn player_broadcast_info_has_instance_id_field_like_cpp() {
         let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
         let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
-        let info = PlayerBroadcastInfo {
-            map_id: 571,
-            instance_id: 42,
-            position: Position::ZERO,
-            combat_reach: 0.0,
-            liquid_status: 0,
-            is_in_world: true,
+        let info = PlayerSessionRegistrationLikeCpp {
+            info: PlayerBroadcastInfo {
+                map_id: 571,
+                instance_id: 42,
+                position: Position::ZERO,
+                combat_reach: 0.0,
+                liquid_status: 0,
+                is_in_world: true,
+                client_visible_guids_like_cpp: Default::default(),
+                advanced_combat_logging_enabled_like_cpp: Default::default(),
+                visibility_refresh_pending_like_cpp: Default::default(),
+                active_loot_rolls: Vec::new(),
+                in_combat: false,
+                pass_on_group_loot: false,
+                enchanting_skill: 0,
+                is_alive: true,
+                current_health: 100,
+                max_health: 100,
+                power_type: 0,
+                current_power: 0,
+                max_power: 0,
+                base_mana: 0,
+                transport: None,
+                is_pvp: false,
+                is_ffa_pvp: false,
+                is_ghost: false,
+                is_afk: false,
+                is_dnd: false,
+                auto_reply_msg_like_cpp: String::new(),
+                in_vehicle: false,
+                has_vehicle_kit_like_cpp: false,
+                party_member_vehicle_seat: 0,
+                zone_id: 0,
+                spec_id: 0,
+                unit_flags: 0,
+                unit_flags2: 0,
+                unit_state: 0,
+                is_game_master: false,
+                dungeon_difficulty_id: 1,
+                is_contested_pvp: false,
+                active_expansion: 2,
+                pending_quest_sharing: None,
+                known_spells: Vec::new(),
+                active_quest_statuses: Default::default(),
+                active_quest_objective_counts: Default::default(),
+                rewarded_quests: Default::default(),
+                completed_achievements: Default::default(),
+                daily_quests_completed: Default::default(),
+                df_quests: Default::default(),
+                faction_template_id: 0,
+                reputation_standings: Vec::new(),
+                reputation_state_flags: Vec::new(),
+                forced_reputation_ranks: Vec::new(),
+                forced_reputation_faction_ids: Vec::new(),
+                inventory_item_counts: Default::default(),
+                party_member_party_type: [0; 2],
+                party_member_phase_states: Default::default(),
+                party_member_auras: Vec::new(),
+                party_member_pet_stats: None,
+                player_name: "TestPlayer".to_string(),
+                account_id: 1,
+                recruiter_id: 0,
+                race: 1,
+                class: 1,
+                sex: 0,
+                level: 1,
+                gray_level: 0,
+                display_id: 49,
+                visible_items: Arc::new([(0, 0, 0); 19]),
+                customizations: Arc::default(),
+                lifetime_honorable_kills: 0,
+                this_week_contribution: 0,
+                yesterday_contribution: 0,
+                today_honorable_kills: 0,
+                yesterday_honorable_kills: 0,
+                lifetime_max_rank: 0,
+                honor_level: 0,
+            },
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
             durable_creature_runtime_commands_like_cpp: Default::default(),
-            client_visible_guids_like_cpp: Default::default(),
-            advanced_combat_logging_enabled_like_cpp: Default::default(),
-            visibility_refresh_pending_like_cpp: Default::default(),
-            active_loot_rolls: Vec::new(),
-            in_combat: false,
-            pass_on_group_loot: false,
-            enchanting_skill: 0,
-            is_alive: true,
-            current_health: 100,
-            max_health: 100,
-            power_type: 0,
-            current_power: 0,
-            max_power: 0,
-            base_mana: 0,
-            transport: None,
-            is_pvp: false,
-            is_ffa_pvp: false,
-            is_ghost: false,
-            is_afk: false,
-            is_dnd: false,
-            auto_reply_msg_like_cpp: String::new(),
-            in_vehicle: false,
-            has_vehicle_kit_like_cpp: false,
-            party_member_vehicle_seat: 0,
-            zone_id: 0,
-            spec_id: 0,
-            unit_flags: 0,
-            unit_flags2: 0,
-            unit_state: 0,
-            is_game_master: false,
-            dungeon_difficulty_id: 1,
-            is_contested_pvp: false,
-            active_expansion: 2,
-            pending_quest_sharing: None,
-            known_spells: Vec::new(),
-            active_quest_statuses: Default::default(),
-            active_quest_objective_counts: Default::default(),
-            rewarded_quests: Default::default(),
-            completed_achievements: Default::default(),
-            daily_quests_completed: Default::default(),
-            df_quests: Default::default(),
-            faction_template_id: 0,
-            reputation_standings: Vec::new(),
-            reputation_state_flags: Vec::new(),
-            forced_reputation_ranks: Vec::new(),
-            forced_reputation_faction_ids: Vec::new(),
-            inventory_item_counts: Default::default(),
-            party_member_party_type: [0; 2],
-            party_member_phase_states: Default::default(),
-            party_member_auras: Vec::new(),
-            party_member_pet_stats: None,
-            player_name: "TestPlayer".to_string(),
-            account_id: 1,
-            recruiter_id: 0,
-            race: 1,
-            class: 1,
-            sex: 0,
-            level: 1,
-            gray_level: 0,
-            display_id: 49,
-            visible_items: Arc::new([(0, 0, 0); 19]),
-            customizations: Arc::default(),
-            lifetime_honorable_kills: 0,
-            this_week_contribution: 0,
-            yesterday_contribution: 0,
-            today_honorable_kills: 0,
-            yesterday_honorable_kills: 0,
-            lifetime_max_rank: 0,
-            honor_level: 0,
         };
-        assert_eq!(info.instance_id, 42);
-        assert_eq!(info.map_id, 571);
+        assert_eq!(info.info.instance_id, 42);
+        assert_eq!(info.info.map_id, 571);
 
         let registry = PlayerRegistry::new();
         let alpha = ObjectGuid::create_player(1, 100);
@@ -1889,7 +1936,7 @@ mod tests {
         assert_eq!(social.dungeon_difficulty_id, 1);
 
         let mut replacement = info.clone();
-        replacement.player_name = "Replacement".to_string();
+        replacement.info.player_name = "Replacement".to_string();
         let replacement_alpha =
             registry.register_or_replace(alpha, replacement, Default::default());
         assert_eq!(
@@ -1903,7 +1950,7 @@ mod tests {
         );
 
         let mut beta_info = info;
-        beta_info.player_name = "Beta".to_string();
+        beta_info.info.player_name = "Beta".to_string();
         registry.register_or_replace(beta, beta_info, Default::default());
         let ordered =
             registry.group_presences_in_order(&[beta, ObjectGuid::create_player(1, 999), alpha]);

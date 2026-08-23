@@ -31,7 +31,7 @@ mod save_plan_order;
 use routing::assert_destroyed_party_update_like_cpp;
 
 use super::*;
-use crate::session::directory::PlayerBroadcastInfo;
+use crate::session::directory::{PlayerBroadcastInfo, PlayerSessionRegistrationLikeCpp};
 use crate::session::mailbox::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyGroupRemovalLikeCppCommand,
     ApplyGroupSubgroupLikeCppCommand, ApplyLootMoneyLikeCppCommand,
@@ -9456,7 +9456,7 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
                     registry_send_tx,
                     viewer.session_command_tx(),
                 );
-                viewer_info.map_id = 571;
+                viewer_info.info.map_id = 571;
                 registry.register_or_replace(viewer_guid, viewer_info, Default::default());
                 source.set_player_registry(registry);
 
@@ -10756,9 +10756,9 @@ fn creature_realm_fanout_uses_validated_position_without_canonical_mirror() {
     let (observer_command_tx, observer_command_rx) = flume::bounded(1);
     let mut observer_info =
         broadcast_info_with_command(observer, observer_send_tx, observer_command_tx);
-    observer_info.map_id = 571;
-    observer_info.instance_id = 0;
-    observer_info.position = source_position;
+    observer_info.info.map_id = 571;
+    observer_info.info.instance_id = 0;
+    observer_info.info.position = source_position;
     registry.register_or_replace(observer, observer_info, Default::default());
 
     source.set_player_guid(Some(source_player));
@@ -13311,7 +13311,7 @@ async fn player_kill_same_faction_objective_skips_opposite_team_victim_like_cpp(
     let (victim_tx, _victim_rx) = flume::bounded(1);
     let registry = Arc::new(PlayerRegistry::default());
     let mut victim_info = broadcast_info(victim_guid, victim_tx);
-    victim_info.race = 2; // Orc/Horde; player test race defaults to Human/Alliance.
+    victim_info.info.race = 2; // Orc/Horde; player test race defaults to Human/Alliance.
     registry.register_or_replace(victim_guid, victim_info, Default::default());
 
     let quest_id = 12_504;
@@ -27592,9 +27592,15 @@ async fn update_visibility_uses_map_sources_without_world_db_like_cpp() {
     );
     let (other_tx, _other_rx) = flume::bounded(1);
     let mut other_info = broadcast_info(other_player_guid, other_tx);
-    other_info.map_id = 571;
-    other_info.position = Position::new(50.0, 50.0, 0.0, 0.0);
-    add_canonical_test_player_on_map(&canonical, other_player_guid, other_info.position, 571, 0);
+    other_info.info.map_id = 571;
+    other_info.info.position = Position::new(50.0, 50.0, 0.0, 0.0);
+    add_canonical_test_player_on_map(
+        &canonical,
+        other_player_guid,
+        other_info.info.position,
+        571,
+        0,
+    );
     registry.register_or_replace(other_player_guid, other_info, Default::default());
 
     session.update_visibility().await;
@@ -33450,10 +33456,10 @@ fn configure_two_player_group_for_reputation_test(
     let (other_tx, _other_rx) = flume::bounded(10);
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut other_info = broadcast_info(other_guid, other_tx);
-    other_info.map_id = 0;
-    other_info.position = Position::new(10.0, 10.0, 0.0, 0.0);
-    other_info.level = 80;
-    other_info.is_alive = true;
+    other_info.info.map_id = 0;
+    other_info.info.position = Position::new(10.0, 10.0, 0.0, 0.0);
+    other_info.info.level = 80;
+    other_info.info.is_alive = true;
     player_registry.register_or_replace(other_guid, other_info, Default::default());
 
     let group_registry = Arc::new(GroupRegistry::default());
@@ -33816,10 +33822,10 @@ fn reputation_gain_applies_recruit_a_friend_bonus_for_non_spell_sources_like_cpp
     let (recruit_tx, _recruit_rx) = flume::bounded(10);
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut recruit_info = broadcast_info(recruit_guid, recruit_tx);
-    recruit_info.map_id = 571;
-    recruit_info.position = Position::new(25.0, 0.0, 0.0, 0.0);
-    recruit_info.account_id = 2;
-    recruit_info.recruiter_id = 0;
+    recruit_info.info.map_id = 571;
+    recruit_info.info.position = Position::new(25.0, 0.0, 0.0, 0.0);
+    recruit_info.info.account_id = 2;
+    recruit_info.info.recruiter_id = 0;
     player_registry.register_or_replace(recruit_guid, recruit_info, Default::default());
 
     let group_registry = Arc::new(GroupRegistry::default());
@@ -33873,9 +33879,9 @@ fn reputation_gain_recruit_a_friend_bonus_requires_configured_distance_like_cpp(
     let (recruit_tx, _recruit_rx) = flume::bounded(10);
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut recruit_info = broadcast_info(recruit_guid, recruit_tx);
-    recruit_info.map_id = 571;
-    recruit_info.position = Position::new(25.0, 0.0, 0.0, 0.0);
-    recruit_info.account_id = 2;
+    recruit_info.info.map_id = 571;
+    recruit_info.info.position = Position::new(25.0, 0.0, 0.0, 0.0);
+    recruit_info.info.account_id = 2;
     player_registry.register_or_replace(recruit_guid, recruit_info, Default::default());
 
     let group_registry = Arc::new(GroupRegistry::default());
@@ -35600,7 +35606,10 @@ fn send_new_item_plan(delivery: SendNewItemDelivery) -> SendNewItemPlan {
     }
 }
 
-fn broadcast_info(guid: ObjectGuid, send_tx: flume::Sender<Vec<u8>>) -> PlayerBroadcastInfo {
+fn broadcast_info(
+    guid: ObjectGuid,
+    send_tx: flume::Sender<Vec<u8>>,
+) -> PlayerSessionRegistrationLikeCpp {
     let (command_tx, _command_rx) = flume::bounded(1);
     broadcast_info_with_command(guid, send_tx, command_tx)
 }
@@ -35609,87 +35618,89 @@ fn broadcast_info_with_command(
     guid: ObjectGuid,
     send_tx: flume::Sender<Vec<u8>>,
     command_tx: flume::Sender<SessionCommand>,
-) -> PlayerBroadcastInfo {
-    PlayerBroadcastInfo {
-        map_id: 0,
-        instance_id: 0,
-        position: Position::new(0.0, 0.0, 0.0, 0.0),
-        combat_reach: 0.0,
-        liquid_status: 0,
-        is_in_world: true,
+) -> PlayerSessionRegistrationLikeCpp {
+    PlayerSessionRegistrationLikeCpp {
+        info: PlayerBroadcastInfo {
+            map_id: 0,
+            instance_id: 0,
+            position: Position::new(0.0, 0.0, 0.0, 0.0),
+            combat_reach: 0.0,
+            liquid_status: 0,
+            is_in_world: true,
+            client_visible_guids_like_cpp: Default::default(),
+            advanced_combat_logging_enabled_like_cpp: Default::default(),
+            visibility_refresh_pending_like_cpp: Default::default(),
+            active_loot_rolls: Vec::new(),
+            in_combat: false,
+            pass_on_group_loot: false,
+            enchanting_skill: 0,
+            is_alive: true,
+            current_health: 100,
+            max_health: 100,
+            power_type: 0,
+            current_power: 0,
+            max_power: 0,
+            base_mana: 0,
+            transport: None,
+            is_pvp: false,
+            is_ffa_pvp: false,
+            is_ghost: false,
+            is_afk: false,
+            is_dnd: false,
+            auto_reply_msg_like_cpp: String::new(),
+            in_vehicle: false,
+            has_vehicle_kit_like_cpp: false,
+            party_member_vehicle_seat: 0,
+            zone_id: 0,
+            spec_id: 0,
+            unit_flags: 0,
+            unit_flags2: 0,
+            unit_state: 0,
+            is_game_master: false,
+            dungeon_difficulty_id: 1,
+            is_contested_pvp: false,
+            active_expansion: 2,
+            pending_quest_sharing: None,
+            known_spells: Vec::new(),
+            active_quest_statuses: Default::default(),
+            active_quest_objective_counts: Default::default(),
+            rewarded_quests: Default::default(),
+            completed_achievements: Default::default(),
+            daily_quests_completed: Default::default(),
+            df_quests: Default::default(),
+            faction_template_id: 0,
+            reputation_standings: Vec::new(),
+            reputation_state_flags: Vec::new(),
+            forced_reputation_ranks: Vec::new(),
+            forced_reputation_faction_ids: Vec::new(),
+            inventory_item_counts: Default::default(),
+            party_member_party_type: [0; 2],
+            party_member_phase_states: Default::default(),
+            party_member_auras: Vec::new(),
+            party_member_pet_stats: None,
+            player_name: format!("Player{}", guid.counter()),
+            account_id: guid.counter() as u32,
+            recruiter_id: 0,
+            race: 1,
+            class: 1,
+            sex: 0,
+            level: 1,
+            gray_level: 0,
+            display_id: 49,
+            visible_items: Arc::new([(0, 0, 0); 19]),
+            customizations: Arc::default(),
+            lifetime_honorable_kills: 0,
+            this_week_contribution: 0,
+            yesterday_contribution: 0,
+            today_honorable_kills: 0,
+            yesterday_honorable_kills: 0,
+            lifetime_max_rank: 0,
+            honor_level: 0,
+        },
         realm_send_tx: send_tx.clone(),
         send_tx,
         command_tx,
         durable_creature_runtime_commands_like_cpp: Default::default(),
-        client_visible_guids_like_cpp: Default::default(),
-        advanced_combat_logging_enabled_like_cpp: Default::default(),
-        visibility_refresh_pending_like_cpp: Default::default(),
-        active_loot_rolls: Vec::new(),
-        in_combat: false,
-        pass_on_group_loot: false,
-        enchanting_skill: 0,
-        is_alive: true,
-        current_health: 100,
-        max_health: 100,
-        power_type: 0,
-        current_power: 0,
-        max_power: 0,
-        base_mana: 0,
-        transport: None,
-        is_pvp: false,
-        is_ffa_pvp: false,
-        is_ghost: false,
-        is_afk: false,
-        is_dnd: false,
-        auto_reply_msg_like_cpp: String::new(),
-        in_vehicle: false,
-        has_vehicle_kit_like_cpp: false,
-        party_member_vehicle_seat: 0,
-        zone_id: 0,
-        spec_id: 0,
-        unit_flags: 0,
-        unit_flags2: 0,
-        unit_state: 0,
-        is_game_master: false,
-        dungeon_difficulty_id: 1,
-        is_contested_pvp: false,
-        active_expansion: 2,
-        pending_quest_sharing: None,
-        known_spells: Vec::new(),
-        active_quest_statuses: Default::default(),
-        active_quest_objective_counts: Default::default(),
-        rewarded_quests: Default::default(),
-        completed_achievements: Default::default(),
-        daily_quests_completed: Default::default(),
-        df_quests: Default::default(),
-        faction_template_id: 0,
-        reputation_standings: Vec::new(),
-        reputation_state_flags: Vec::new(),
-        forced_reputation_ranks: Vec::new(),
-        forced_reputation_faction_ids: Vec::new(),
-        inventory_item_counts: Default::default(),
-        party_member_party_type: [0; 2],
-        party_member_phase_states: Default::default(),
-        party_member_auras: Vec::new(),
-        party_member_pet_stats: None,
-        player_name: format!("Player{}", guid.counter()),
-        account_id: guid.counter() as u32,
-        recruiter_id: 0,
-        race: 1,
-        class: 1,
-        sex: 0,
-        level: 1,
-        gray_level: 0,
-        display_id: 49,
-        visible_items: Arc::new([(0, 0, 0); 19]),
-        customizations: Arc::default(),
-        lifetime_honorable_kills: 0,
-        this_week_contribution: 0,
-        yesterday_contribution: 0,
-        today_honorable_kills: 0,
-        yesterday_honorable_kills: 0,
-        lifetime_max_rank: 0,
-        honor_level: 0,
     }
 }
 
@@ -35892,7 +35903,8 @@ fn player_entry_visibility_refresh_skips_out_of_range_sessions_like_cpp() {
         Default::default(),
     );
     let mut far_info = broadcast_info_with_command(far_guid, far_tx, far_command_tx);
-    far_info.position = Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
+    far_info.info.position =
+        Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
     registry.register_or_replace(far_guid, far_info, Default::default());
 
     session.notify_other_players_visibility_changed_like_cpp();
@@ -35941,7 +35953,7 @@ async fn player_visibility_refresh_survives_full_command_queue_like_cpp() {
 
     let mut receiver_info =
         broadcast_info_with_command(receiver_guid, receiver_send_tx, full_command_tx);
-    receiver_info.visibility_refresh_pending_like_cpp =
+    receiver_info.info.visibility_refresh_pending_like_cpp =
         Arc::clone(&receiver.visibility_refresh_pending_like_cpp);
     source_registry.register_or_replace(receiver_guid, receiver_info, Default::default());
 
@@ -36039,11 +36051,12 @@ fn visible_other_players_skips_out_of_visibility_range_like_cpp() {
     );
 
     let mut nearby_info = broadcast_info(nearby_guid, nearby_tx);
-    nearby_info.map_id = 571;
+    nearby_info.info.map_id = 571;
     registry.register_or_replace(nearby_guid, nearby_info, Default::default());
     let mut far_info = broadcast_info(far_guid, far_tx);
-    far_info.map_id = 571;
-    far_info.position = Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
+    far_info.info.map_id = 571;
+    far_info.info.position =
+        Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
     registry.register_or_replace(far_guid, far_info, Default::default());
 
     let visible = session.visible_other_players_from_registry_like_cpp(
@@ -36073,7 +36086,7 @@ async fn player_visibility_diff_creates_then_removes_registry_player_like_cpp() 
     add_canonical_test_player_on_map(&canonical, viewer_guid, Position::ZERO, 571, 0);
     add_canonical_test_player_on_map(&canonical, target_guid, Position::ZERO, 571, 0);
     let mut target_info = broadcast_info(target_guid, target_tx);
-    target_info.map_id = 571;
+    target_info.info.map_id = 571;
     registry.register_or_replace(target_guid, target_info, Default::default());
 
     session.force_update_visibility_like_cpp().await;
@@ -36107,14 +36120,14 @@ fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
     let guid = ObjectGuid::create_player(1, 51);
     let (send_tx, _send_rx) = flume::bounded(1);
     let mut info = broadcast_info(guid, send_tx);
-    info.class = 8;
-    info.power_type = PowerType::Mana as u8;
-    info.current_health = 1_234;
-    info.max_health = 4_567;
-    info.current_power = 321;
-    info.max_power = 789;
-    info.base_mana = 456;
-    info.transport = Some(wow_packet::packets::movement::TransportInfo {
+    info.info.class = 8;
+    info.info.power_type = PowerType::Mana as u8;
+    info.info.current_health = 1_234;
+    info.info.max_health = 4_567;
+    info.info.current_power = 321;
+    info.info.max_power = 789;
+    info.info.base_mana = 456;
+    info.info.transport = Some(wow_packet::packets::movement::TransportInfo {
         guid: ObjectGuid::create_transport(HighGuid::Transport, 7_004),
         x: 1.0,
         y: 2.0,
@@ -36125,7 +36138,7 @@ fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
         prev_time: Some(122),
         vehicle_id: Some(99),
     });
-    info.customizations = Arc::new(vec![
+    info.info.customizations = Arc::new(vec![
         wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate {
             option_id: 10,
             choice_id: 20,
@@ -36137,7 +36150,7 @@ fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
     ]);
 
     let update =
-        crate::handlers::character::player_visibility_create_update_like_cpp(guid, &info, 571);
+        crate::handlers::character::player_visibility_create_update_like_cpp(guid, &info.info, 571);
     let [
         wow_packet::packets::update::UpdateBlock::CreateObject {
             create_data,
@@ -36156,12 +36169,15 @@ fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
     assert_eq!(create_data.current_power0, 321);
     assert_eq!(create_data.max_mana, 789);
     assert_eq!(create_data.base_mana, 456);
-    assert_eq!(&create_data.customizations, info.customizations.as_ref());
+    assert_eq!(
+        &create_data.customizations,
+        info.info.customizations.as_ref()
+    );
     let transport = movement
         .transport
         .as_ref()
         .expect("non-owner player transport attachment");
-    assert_eq!(transport.guid, info.transport.as_ref().unwrap().guid);
+    assert_eq!(transport.guid, info.info.transport.as_ref().unwrap().guid);
     assert_eq!(transport.x, 1.0);
     assert_eq!(transport.seat, 4);
     assert_eq!(transport.time, 123);
@@ -36215,7 +36231,7 @@ fn visible_other_players_rejects_registry_only_target_like_cpp() {
     add_canonical_test_player_on_map(&canonical, viewer_guid, Position::ZERO, 571, 0);
 
     let mut target_info = broadcast_info(target_guid, target_tx);
-    target_info.map_id = 571;
+    target_info.info.map_id = 571;
     registry.register_or_replace(target_guid, target_info, Default::default());
 
     assert!(
@@ -36260,7 +36276,7 @@ fn visible_other_players_applies_canonical_phase_gate_like_cpp() {
         .phase_shift_mut() = PhaseShift::from_phases([20]);
 
     let mut target = broadcast_info(target_guid, target_tx);
-    target.map_id = 571;
+    target.info.map_id = 571;
     registry.register_or_replace(target_guid, target, Default::default());
 
     assert!(
@@ -36906,10 +36922,10 @@ fn insert_represented_vehicle_target_like_cpp(
 ) {
     let (send_tx, _send_rx) = flume::bounded(4);
     let mut info = broadcast_info(target_guid, send_tx);
-    info.map_id = 571;
-    info.instance_id = 0;
-    info.position = position;
-    info.has_vehicle_kit_like_cpp = has_vehicle_kit_like_cpp;
+    info.info.map_id = 571;
+    info.info.instance_id = 0;
+    info.info.position = position;
+    info.info.has_vehicle_kit_like_cpp = has_vehicle_kit_like_cpp;
     registry.register_or_replace(target_guid, info, Default::default());
 }
 
@@ -38061,9 +38077,9 @@ async fn creature_kill_target_dies_proc_filters_group_reward_distance_like_cpp()
     let (far_tx, _far_rx) = flume::bounded(10);
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut near_info = broadcast_info(near_member, near_tx);
-    near_info.position = Position::new(20.0, 10.0, 0.0, 0.0);
+    near_info.info.position = Position::new(20.0, 10.0, 0.0, 0.0);
     let mut far_info = broadcast_info(far_member, far_tx);
-    far_info.position = Position::new(200.0, 10.0, 0.0, 0.0);
+    far_info.info.position = Position::new(200.0, 10.0, 0.0, 0.0);
     player_registry.register_or_replace(near_member, near_info, Default::default());
     player_registry.register_or_replace(far_member, far_info, Default::default());
     let group_registry = Arc::new(GroupRegistry::default());
@@ -39808,8 +39824,8 @@ async fn spell_duel_effect_requests_duel_and_sets_challenged_state_like_cpp() {
     let registry = Arc::new(PlayerRegistry::default());
     let (target_tx, _target_rx) = flume::bounded(10);
     let mut target_info = broadcast_info(target_guid, target_tx);
-    target_info.map_id = 571;
-    target_info.position = Position::new(12.0, 10.0, 0.0, 0.0);
+    target_info.info.map_id = 571;
+    target_info.info.position = Position::new(12.0, 10.0, 0.0, 0.0);
     target_info.command_tx = target_session.session_command_tx();
     registry.register_or_replace(target_guid, target_info, Default::default());
     session.set_player_registry(registry);
@@ -45048,7 +45064,7 @@ async fn spell_taunt_effect_matches_caster_threat_to_highest_like_cpp() {
     let (observer_command_tx, observer_command_rx) = flume::bounded(4);
     let observer_guid = ObjectGuid::create_player(1, 2793);
     let mut observer = broadcast_info_with_command(observer_guid, observer_tx, observer_command_tx);
-    observer.position = position;
+    observer.info.position = position;
     registry.register_or_replace(observer_guid, observer, Default::default());
     session.set_player_registry(registry);
     session.set_canonical_map_manager(Arc::clone(&canonical));
@@ -55480,10 +55496,10 @@ fn give_xp_runtime_raf_awards_triple_xp_without_spending_rested_bonus_like_cpp()
     let (recruit_tx, _recruit_rx) = flume::bounded(10);
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut recruit_info = broadcast_info(recruit_guid, recruit_tx);
-    recruit_info.map_id = 1;
-    recruit_info.position = Position::new(10.0, 0.0, 0.0, 0.0);
-    recruit_info.account_id = 2;
-    recruit_info.level = 10;
+    recruit_info.info.map_id = 1;
+    recruit_info.info.position = Position::new(10.0, 0.0, 0.0, 0.0);
+    recruit_info.info.account_id = 2;
+    recruit_info.info.level = 10;
     player_registry.register_or_replace(recruit_guid, recruit_info, Default::default());
 
     let group_registry = Arc::new(GroupRegistry::default());
@@ -77028,7 +77044,7 @@ fn gameobject_use_meeting_stone_maps_spell_by_entry_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, _target_rx) = flume::bounded(1);
     let mut target_info = broadcast_info(target_guid, target_tx);
-    target_info.level = 80;
+    target_info.info.level = 80;
     player_registry.register_or_replace(target_guid, target_info, Default::default());
     session.set_player_registry(player_registry);
 
@@ -77171,7 +77187,7 @@ fn gameobject_use_meeting_stone_checks_content_tuning_levels_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, _target_rx) = flume::bounded(1);
     let mut target_info = broadcast_info(target_guid, target_tx);
-    target_info.level = 20;
+    target_info.info.level = 20;
     player_registry.register_or_replace(target_guid, target_info, Default::default());
     session.set_player_registry(player_registry);
     let source = wow_entities::MeetingStoneUseSource {
@@ -80024,9 +80040,9 @@ async fn gameobject_use_goober_kill_credit_filters_group_reward_distance_like_cp
     let (near_tx, _near_rx) = flume::bounded(1);
     let (far_tx, _far_rx) = flume::bounded(1);
     let mut near_info = broadcast_info(near_member, near_tx);
-    near_info.position = Position::new(20.0, 0.0, 0.0, 0.0);
+    near_info.info.position = Position::new(20.0, 0.0, 0.0, 0.0);
     let mut far_info = broadcast_info(far_member, far_tx);
-    far_info.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
+    far_info.info.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
     player_registry.register_or_replace(near_member, near_info, Default::default());
     player_registry.register_or_replace(far_member, far_info, Default::default());
 
@@ -80143,11 +80159,11 @@ fn gameobject_use_goober_state_branch_matches_cpp_custom_anim_and_go_cast() {
     let (other_send_tx, _other_send_rx) = flume::bounded::<Vec<u8>>(1);
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
-    same_info.map_id = 571;
+    same_info.info.map_id = 571;
     same_info.command_tx = same_command_tx;
     player_registry.register_or_replace(same_map_guid, same_info, Default::default());
     let mut other_info = broadcast_info(other_map_guid, other_send_tx);
-    other_info.map_id = 1;
+    other_info.info.map_id = 1;
     other_info.command_tx = other_command_tx;
     player_registry.register_or_replace(other_map_guid, other_info, Default::default());
     session.set_player_guid(Some(player_guid));
@@ -80377,7 +80393,7 @@ async fn process_pending_expires_gameobject_despawn_delay_like_cpp_update() {
     let (same_send_tx, _same_send_rx) = flume::bounded::<Vec<u8>>(1);
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
-    same_info.map_id = 571;
+    same_info.info.map_id = 571;
     same_info.command_tx = same_command_tx;
     player_registry.register_or_replace(same_map_guid, same_info, Default::default());
     session.set_player_guid(Some(player_guid));
@@ -80620,7 +80636,7 @@ async fn represented_gameobject_chest_just_deactivated_consumable_sends_despawn_
     let (same_send_tx, _same_send_rx) = flume::bounded::<Vec<u8>>(1);
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
-    same_info.map_id = 571;
+    same_info.info.map_id = 571;
     same_info.command_tx = same_command_tx;
     player_registry.register_or_replace(same_map_guid, same_info, Default::default());
     session.set_player_guid(Some(player_guid));
@@ -81012,7 +81028,7 @@ fn gameobject_goober_just_deactivated_consumable_stays_not_ready_like_cpp() {
     let (same_send_tx, _same_send_rx) = flume::bounded::<Vec<u8>>(1);
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
-    same_info.map_id = 571;
+    same_info.info.map_id = 571;
     same_info.command_tx = same_command_tx;
     player_registry.register_or_replace(same_map_guid, same_info, Default::default());
     session.set_player_guid(Some(player_guid));
@@ -81202,7 +81218,7 @@ async fn process_pending_ticks_goober_autoclose_then_cleanup_like_cpp_update() {
     let (same_send_tx, _same_send_rx) = flume::bounded::<Vec<u8>>(1);
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
-    same_info.map_id = 571;
+    same_info.info.map_id = 571;
     same_info.command_tx = same_command_tx;
     player_registry.register_or_replace(same_map_guid, same_info, Default::default());
     session.set_player_guid(Some(player_guid));
