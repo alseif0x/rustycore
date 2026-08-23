@@ -250,6 +250,7 @@ def test_planner_contract(repo: Path) -> None:
         "session-persistence-ratchet",
         "qa-bot-tests",
         "workspace-all-target-tests",
+        "world-modules-launcher-check",
         "capture-loot-contract",
         "capture-creature-spell-contract",
     ]
