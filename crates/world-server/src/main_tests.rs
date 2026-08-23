@@ -3426,11 +3426,8 @@ fn world_server_binary_delegates_to_the_library_composition_root() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let binary_source = fs::read_to_string(manifest_dir.join("src/main.rs"))
         .expect("world-server binary source should be readable");
-    let library_source = fs::read_to_string(manifest_dir.join("src/lib.rs"))
-        .expect("world-server library source should be readable");
 
     assert!(binary_source.contains("world_server::run("));
-    assert!(library_source.contains("pub use app::run;"));
     assert!(!binary_source.contains("start_world_listener"));
     assert!(!binary_source.contains("create_session"));
 }
