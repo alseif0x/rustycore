@@ -28,7 +28,10 @@ env:
 
 jobs:
   validation:
-    name: Validation V2 ${{ github.event_name == 'pull_request' && 'final' || github.event.inputs.profile || 'audit' }}
+    # A static name on purpose: a skipped job publishes its check under the raw,
+    # unexpanded expression, so a templated name cannot be a required context.
+    # The profile is reported inside the run instead.
+    name: Validation V2
     # First-party pull requests use explicit local evidence and must not wait
     # for hosted validation. Push/audit enforcement still validates the merged
     # exact SHA on an independent host. External pull requests retain the
@@ -136,6 +139,7 @@ jobs:
           RUSTYCORE_CPP_REFERENCE_ROOT: ${{ runner.temp }}/trinity-reference
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          echo "Profile: ${PROFILE}" >> "$GITHUB_STEP_SUMMARY"
           ./tools/validation-v2 "$PROFILE" --base "$BASE_SHA"
 
       - name: Verify Validation V2 manifest verdict
