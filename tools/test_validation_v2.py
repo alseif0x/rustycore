@@ -57,7 +57,13 @@ def synthetic_metadata(repo: Path) -> dict[str, object]:
 
 def stable_manifest(value: object) -> object:
     """Remove fields that are expected to vary between otherwise identical runs."""
-    volatile = {"started_at", "ended_at", "duration_seconds", "peak_child_rss_kib"}
+    volatile = {
+        "run_id",
+        "started_at",
+        "ended_at",
+        "duration_seconds",
+        "peak_child_rss_kib",
+    }
     if isinstance(value, dict):
         return {
             key: stable_manifest(item)
@@ -92,6 +98,7 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     assert result.returncode == 0, result.stderr
     success = json.loads(success_manifest.read_text())
     assert success["profile"] == "quick"
+    assert len(success["run_id"]) == 20
     assert success["provenance"]["rust"] == {"active": "1.98.0", "pinned": "1.98.0"}
     assert success["plan"]["changed_paths"] == ["docs/guide.md"]
     assert success["plan"]["workspace"] is None
@@ -127,6 +134,23 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     )
     assert direct_signal["exit_code"] == 128 + signal.SIGTERM
     assert direct_signal["signal"] == signal.SIGTERM
+    direct_timeout = runner.run_one(
+        repo, [sys.executable, "-c", "import time; time.sleep(10)"], base_env, 1
+    )
+    assert direct_timeout["timed_out"] is True
+    assert direct_timeout["exit_code"] == 128 + signal.SIGTERM
+
+    steps = [
+        {"section": "pass", "argv": [sys.executable, "-c", "pass"]},
+        {"section": "fail", "argv": [sys.executable, "-c", "raise SystemExit(19)"]},
+        {
+            "section": "must-not-run",
+            "argv": [sys.executable, "-c", "raise SystemExit(99)"],
+        },
+    ]
+    outcomes, exit_code = runner.run_steps(repo, steps, base_env, 30)
+    assert exit_code == 19
+    assert [outcome["section"] for outcome in outcomes] == ["pass", "fail"]
 
     result = invoke(
         "final", directory / "invalid.json", {"VALIDATION_V2_CARGO_JOBS": "0"}
@@ -155,6 +179,27 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
         result = invoke("quick", directory / "locked.json")
     assert result.returncode == runner.LOCKED_ERROR
     assert "lock contention" in result.stderr
+
+    heavy_lock = directory / "host-heavy.lock"
+    base_env["VALIDATION_V2_HEAVY_LOCK"] = str(heavy_lock)
+    with heavy_lock.open("w+") as stream:
+        stream.write(
+            json.dumps(
+                {
+                    "run_id": "other-clone-run",
+                    "repository": str(directory / "different-clone"),
+                    "profile": "audit",
+                }
+            )
+        )
+        stream.flush()
+        fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        result = invoke("quick", directory / "quick-with-heavy-lock.json")
+        assert result.returncode == 0, result.stderr
+        result = invoke("audit", directory / "audit-locked.json")
+    assert result.returncode == runner.LOCKED_ERROR
+    assert "other-clone-run" in result.stderr
+    assert "different-clone" in result.stderr
 
 
 def test_planner_contract(repo: Path) -> None:
@@ -188,6 +233,28 @@ def test_planner_contract(repo: Path) -> None:
     )
     assert not any(command and command[0] == "cargo" for command in docs_commands)
     assert runner.validation_commands(repo, "quick", 2, "base", {}, None)[0] == []
+
+    audit = runner.audit_steps("base", 2)
+    for _ in range(10):
+        assert audit == runner.audit_steps("base", 2)
+    assert len({tuple(step["argv"]) for step in audit}) == len(audit)
+    assert [step["section"] for step in audit] == [
+        "diff-hygiene",
+        "architecture-policy-self-test",
+        "architecture-policy-check",
+        "workspace-format",
+        "handler-contract-format",
+        "qa-bot-format",
+        "handler-contract-unit-tests",
+        "handler-contract-repository-check",
+        "session-persistence-ratchet",
+        "qa-bot-tests",
+        "workspace-all-target-tests",
+        "capture-loot-contract",
+        "capture-creature-spell-contract",
+    ]
+    assert not any("check_architecture.py" in " ".join(command) for command in quick)
+    assert not any("session-ownership-check" in " ".join(command) for command in final)
 
     mixed_paths = [
         "tools/check.sh",
