@@ -103,6 +103,22 @@ jobs:
           tar -xzf "${RUNNER_TEMP}/${actionlint_archive}" -C "${RUNNER_TEMP}" actionlint
           install -m 0755 "${RUNNER_TEMP}/actionlint" "$HOME/.local/bin/actionlint"
 
+          cpp_commit="92796557f9b0ba3d2d1c7c770f535153154cf83e"
+          cpp_relative="src/server/database/Database/Implementation"
+          cpp_root="${RUNNER_TEMP}/trinity-reference"
+          mkdir -p "${cpp_root}/${cpp_relative}"
+          curl --fail --show-error --location --retry 3 --retry-all-errors \
+            -o "${cpp_root}/${cpp_relative}/CharacterDatabase.cpp" \
+            "https://raw.githubusercontent.com/TrinityCoreLegacy/TrinityCore/${cpp_commit}/${cpp_relative}/CharacterDatabase.cpp"
+          curl --fail --show-error --location --retry 3 --retry-all-errors \
+            -o "${cpp_root}/${cpp_relative}/HotfixDatabase.cpp" \
+            "https://raw.githubusercontent.com/TrinityCoreLegacy/TrinityCore/${cpp_commit}/${cpp_relative}/HotfixDatabase.cpp"
+          printf '%s  %s\n' \
+            "1bc7a3647d8cf5646ad9e0a7ed2a6d9e88f6a6de21bd3b329cc52725b40c89f9" \
+            "${cpp_root}/${cpp_relative}/CharacterDatabase.cpp" \
+            "7c224e902a3a11743d60432f0975e86994eabe521dd1d49708db5ad17cb52097" \
+            "${cpp_root}/${cpp_relative}/HotfixDatabase.cpp" | sha256sum --check --strict
+
       - name: Prepare locked offline inputs
         run: |
           cargo fetch --locked
@@ -117,6 +133,7 @@ jobs:
           VALIDATION_V2_CARGO_JOBS: "2"
           VALIDATION_V2_TIMEOUT_SECONDS: "3600"
           VALIDATION_V2_MANIFEST: ${{ runner.temp }}/validation-v2-manifest.json
+          RUSTYCORE_CPP_REFERENCE_ROOT: ${{ runner.temp }}/trinity-reference
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           ./tools/validation-v2 "$PROFILE" --base "$BASE_SHA"
