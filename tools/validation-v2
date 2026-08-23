@@ -11,16 +11,21 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import resource
 import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 import tomllib
 
 
+MANIFEST_SCHEMA = 4
 USAGE_ERROR = 64
+VERDICT_ERROR = 1
+RUNNER_ERROR = 70
 LOCKED_ERROR = 75
 DEFAULT_JOBS = 2
 MAX_JOBS = 8
@@ -29,6 +34,12 @@ DEFAULT_BASE = "origin/3.4.3"
 DEFAULT_HEAVY_LOCK = "/tmp/rustycore-validation-v2-heavy.lock"
 CHECKER_MANIFEST = "tools/architecture/handler-contract-check/Cargo.toml"
 BOT_MANIFEST = "tools/wow-test-bot/Cargo.toml"
+INTERRUPT_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+# Cargo reports a child killed by a signal as its own exit 101, so the signal
+# only survives in the child's own message: "(signal: 6, SIGABRT: ...)".
+CHILD_SIGNAL_PATTERN = re.compile(rb"\(signal:\s*(\d+),\s*(SIG[A-Z0-9]+)")
+MAX_SIGNAL_REPORTS = 5
+TERMINATE_GRACE_SECONDS = 5
 WHITESPACE_CHECK = (
     "from pathlib import Path; import sys; "
     "bad=[f'{path}:{number}' for path in sys.argv[1:] "
@@ -36,6 +47,79 @@ WHITESPACE_CHECK = (
     "if line.endswith((' ', '\\t'))]; "
     "bad and print('\\n'.join(bad), file=sys.stderr); raise SystemExit(bool(bad))"
 )
+
+
+class RunnerInterrupted(Exception):
+    """The runner process itself received a terminating signal."""
+
+    def __init__(self, number: int) -> None:
+        super().__init__(f"runner received {signal_name(number)}")
+        self.number = number
+
+
+def signal_name(number: int) -> str:
+    try:
+        return signal.Signals(number).name
+    except ValueError:
+        return f"SIG{number}"
+
+
+def install_interrupt_handlers() -> None:
+    """Turn a terminating signal into an exception so the manifest is written."""
+
+    def handler(number: int, _frame) -> None:
+        raise RunnerInterrupted(number)
+
+    for number in INTERRUPT_SIGNALS:
+        signal.signal(number, handler)
+
+
+def cgroup_memory_file(name: str) -> Path | None:
+    try:
+        entries = Path("/proc/self/cgroup").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for entry in entries:
+        fields = entry.split(":", 2)
+        if len(fields) == 3 and fields[1] == "":
+            candidate = Path("/sys/fs/cgroup") / fields[2].lstrip("/") / name
+            if candidate.is_file():
+                return candidate
+    return None
+
+
+def oom_kill_count() -> int | None:
+    """Kernel OOM kills charged to this cgroup, or None when unobservable."""
+    for name in ("memory.events.local", "memory.events"):
+        path = cgroup_memory_file(name)
+        if path is None:
+            continue
+        try:
+            for line in path.read_text(encoding="utf-8").splitlines():
+                key, _, value = line.partition(" ")
+                if key == "oom_kill":
+                    return int(value)
+        except (OSError, ValueError):
+            return None
+    return None
+
+
+def memory_limit_kib() -> int | None:
+    path = cgroup_memory_file("memory.max")
+    if path is not None:
+        try:
+            raw = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            raw = "max"
+        if raw.isdigit():
+            return int(raw) // 1024
+    try:
+        for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
+            if line.startswith("MemTotal:"):
+                return int(line.split()[1])
+    except (OSError, IndexError, ValueError):
+        return None
+    return None
 
 
 def utc_now() -> str:
@@ -219,6 +303,10 @@ def cargo_metadata(
         "duration_seconds": round(time.monotonic() - started, 3),
         "exit_code": exit_code,
         "signal": signal_number,
+        "timed_out": False,
+        "oom_kills": None,
+        "child_signal_reports": [],
+        "failure_kind": None if exit_code == 0 else "exit",
         "status": "passed" if exit_code == 0 else "failed",
     }
     if exit_code != 0:
@@ -587,26 +675,110 @@ def command_environment(repo: Path, jobs: int) -> dict[str, str]:
     return environment
 
 
-def run_one(repo: Path, command: list[str], environment: dict[str, str], timeout: int) -> dict[str, object]:
+def terminate_group(process: subprocess.Popen) -> int:
+    """Stop the child's whole process group and return its wait status."""
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except (OSError, ProcessLookupError):
+        return process.wait()
+    try:
+        return process.wait(timeout=TERMINATE_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except (OSError, ProcessLookupError):
+            pass
+        return process.wait()
+
+
+def tee_output(stream, reports: list[dict[str, object]]) -> None:
+    """Stream child output through unchanged while noting reported signals."""
+    target = sys.stdout.buffer
+    for line in iter(stream.readline, b""):
+        target.write(line)
+        target.flush()
+        if len(reports) >= MAX_SIGNAL_REPORTS:
+            continue
+        match = CHILD_SIGNAL_PATTERN.search(line)
+        if match is None:
+            continue
+        report = {"signal": int(match.group(1)), "name": match.group(2).decode("ascii")}
+        if report not in reports:
+            reports.append(report)
+
+
+def classify_failure(
+    exit_code: int,
+    signal_number: int | None,
+    timed_out: bool,
+    oom_kills: int | None,
+    reports: list[dict[str, object]],
+) -> str | None:
+    """Name why a command is not green, or None when it genuinely passed."""
+    if oom_kills:
+        return "oom"
+    if timed_out:
+        return "timeout"
+    if signal_number is not None:
+        return "signal"
+    if exit_code != 0:
+        # Cargo hides a signalled child behind its own exit 101.
+        return "child-signal" if reports else "exit"
+    return None
+
+
+def run_one(
+    repo: Path,
+    command: list[str],
+    environment: dict[str, str],
+    timeout: int,
+    sink: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
     print("+ " + " ".join(command), flush=True)
     started_at = utc_now()
     started = time.monotonic()
     timed_out = False
-    process = subprocess.Popen(command, cwd=repo, env=environment, start_new_session=True)
+    interrupt: BaseException | None = None
+    reports: list[dict[str, object]] = []
+    oom_before = oom_kill_count()
+    process: subprocess.Popen | None = None
+    pump: threading.Thread | None = None
     try:
+        process = subprocess.Popen(
+            command,
+            cwd=repo,
+            env=environment,
+            start_new_session=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        pump = threading.Thread(target=tee_output, args=(process.stdout, reports), daemon=True)
+        pump.start()
         return_code = process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
         timed_out = True
-        os.killpg(process.pid, signal.SIGTERM)
-        try:
-            return_code = process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGKILL)
-            return_code = process.wait()
+        return_code = terminate_group(process)
+    except BaseException as error:  # The runner itself was signalled.
+        if process is None:
+            raise
+        interrupt = error
+        return_code = terminate_group(process)
+    finally:
+        if pump is not None and pump.ident is not None:
+            pump.join(timeout=TERMINATE_GRACE_SECONDS)
+        if process is not None and process.stdout is not None:
+            process.stdout.close()
     duration = round(time.monotonic() - started, 3)
     signal_number = -return_code if return_code < 0 else None
     exit_code = 128 + signal_number if signal_number is not None else return_code
-    return {
+    oom_after = oom_kill_count()
+    oom_kills = (
+        None if oom_before is None or oom_after is None else max(oom_after - oom_before, 0)
+    )
+    failure_kind = classify_failure(exit_code, signal_number, timed_out, oom_kills, reports)
+    if interrupt is not None:
+        failure_kind = "interrupted"
+    outcome = {
         "argv": command,
         "started_at": started_at,
         "ended_at": utc_now(),
@@ -614,8 +786,22 @@ def run_one(repo: Path, command: list[str], environment: dict[str, str], timeout
         "exit_code": exit_code,
         "signal": signal_number,
         "timed_out": timed_out,
-        "status": "passed" if exit_code == 0 else "failed",
+        "oom_kills": oom_kills,
+        "child_signal_reports": reports,
+        "failure_kind": failure_kind,
+        "status": "passed" if failure_kind is None else "failed",
     }
+    if sink is not None:
+        sink.append(outcome)
+    if interrupt is not None:
+        raise interrupt
+    return outcome
+
+
+def failed_exit_code(outcome: dict[str, object]) -> int:
+    """A failed step must never yield a zero runner exit code."""
+    code = int(outcome["exit_code"])
+    return code if code != 0 else RUNNER_ERROR
 
 
 def run_steps(
@@ -623,8 +809,10 @@ def run_steps(
     steps: list[dict[str, object]],
     environment: dict[str, str],
     timeout: int,
+    outcomes: list[dict[str, object]] | None = None,
 ) -> tuple[list[dict[str, object]], int]:
-    outcomes: list[dict[str, object]] = []
+    if outcomes is None:
+        outcomes = []
     for step in steps:
         section = step.get("section")
         command = step.get("argv")
@@ -632,19 +820,94 @@ def run_steps(
             raise ValueError("planned step has an invalid section or argv")
         if not all(isinstance(item, str) for item in command):
             raise ValueError(f"planned step '{section}' contains a non-string argument")
-        outcome = run_one(repo, command, environment, timeout)
+        before = len(outcomes)
+        try:
+            outcome = run_one(repo, command, environment, timeout, sink=outcomes)
+        except BaseException:
+            # An interrupted command is still recorded through the sink.
+            for recorded in outcomes[before:]:
+                recorded["section"] = section
+            raise
         outcome["section"] = section
-        outcomes.append(outcome)
-        if outcome["exit_code"] != 0:
-            return outcomes, int(outcome["exit_code"])
+        if outcome["status"] != "passed":
+            return outcomes, failed_exit_code(outcome)
     return outcomes, 0
+
+
+def manifest_problems(document: object) -> list[str]:
+    """Every reason this manifest may not be read as a green run."""
+    if not isinstance(document, dict):
+        return ["manifest is not a JSON object"]
+    problems: list[str] = []
+    if document.get("schema") != MANIFEST_SCHEMA:
+        problems.append(f"schema is {document.get('schema')!r}, expected {MANIFEST_SCHEMA}")
+    if document.get("runner") != "rustycore-validation-v2":
+        problems.append(f"runner is {document.get('runner')!r}")
+    if document.get("status") != "passed":
+        problems.append(f"status is {document.get('status')!r}")
+    if document.get("exit_code") != 0:
+        problems.append(f"exit code is {document.get('exit_code')!r}")
+    if document.get("runner_error"):
+        problems.append(f"runner error {document.get('runner_error')!r}")
+    if document.get("runner_signal") is not None:
+        problems.append(f"runner died by signal {document.get('runner_signal')!r}")
+    commands = document.get("commands")
+    if not isinstance(commands, list):
+        problems.append("commands are missing")
+        return problems
+    for index, command in enumerate(commands):
+        if not isinstance(command, dict):
+            problems.append(f"command {index} is not an object")
+            continue
+        if command.get("status") != "passed":
+            problems.append(
+                f"command {index} ({command.get('section')}) is {command.get('status')!r}"
+                f" [{command.get('failure_kind')}]"
+            )
+    plan = document.get("plan")
+    if isinstance(plan, dict):
+        planned = plan.get("planned_steps")
+        if isinstance(planned, list) and len(planned) != len(commands):
+            problems.append(
+                f"{len(commands)} of {len(planned)} planned steps were executed"
+            )
+    return problems
+
+
+def verify_manifest(path: Path) -> int:
+    """A missing, unreadable, or non-green manifest is a failed run."""
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return fail(f"manifest {path} is missing; a run without a manifest is a failure", VERDICT_ERROR)
+    except OSError as error:
+        return fail(f"manifest {path} is unreadable: {error}", VERDICT_ERROR)
+    try:
+        document = json.loads(raw)
+    except json.JSONDecodeError as error:
+        return fail(f"manifest {path} is not valid JSON: {error}", VERDICT_ERROR)
+    problems = manifest_problems(document)
+    if problems:
+        for problem in problems:
+            print(f"validation-v2: {path}: {problem}", file=sys.stderr)
+        return VERDICT_ERROR
+    print(f"validation-v2: manifest {path} verified green")
+    return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(prog="tools/validation-v2")
-    parser.add_argument("profile", choices=("self-test", "quick", "final", "audit"))
+    parser.add_argument("profile", choices=("self-test", "quick", "final", "audit", "verify"))
     parser.add_argument("--base", default=DEFAULT_BASE)
+    parser.add_argument("--manifest", help="manifest to verify with the verify profile")
     args = parser.parse_args()
+    if args.profile == "verify":
+        if not args.manifest:
+            return fail("verify requires --manifest")
+        return verify_manifest(Path(args.manifest))
+    if args.manifest:
+        return fail("--manifest is only valid with the verify profile")
+    install_interrupt_handlers()
     repo = Path(__file__).resolve().parent.parent
     try:
         jobs = checked_value("VALIDATION_V2_CARGO_JOBS", DEFAULT_JOBS, 1, MAX_JOBS)
@@ -674,55 +937,76 @@ def main() -> int:
     started = time.monotonic()
     path = manifest_path(repo, args.profile)
     document: dict[str, object] = {
-        "schema": 3,
+        "schema": MANIFEST_SCHEMA,
         "runner": "rustycore-validation-v2",
         "shadow_only": True,
         "run_id": identifier,
         "profile": args.profile,
         "provenance": details,
-        "resources": {"cargo_jobs": jobs, "command_timeout_seconds": timeout},
+        "resources": {
+            "cargo_jobs": jobs,
+            "command_timeout_seconds": timeout,
+            "memory_limit_kib": memory_limit_kib(),
+        },
         "locks": {
             "repository": str(active_lock),
             "heavy": str(active_heavy_lock) if active_heavy_lock is not None else None,
         },
         "started_at": started_at,
+        "runner_signal": None,
         "plan": None,
         "commands": [],
     }
+    outcomes: list[dict[str, object]] = []
+    document["commands"] = outcomes
     exit_code = 0
     try:
+        environment = command_environment(repo, jobs)
         if args.profile == "self-test":
-            environment = command_environment(repo, jobs)
             outcome = run_one(
                 repo,
                 [sys.executable, str(repo / "tools" / "test_validation_v2.py")],
                 environment,
                 timeout,
+                sink=outcomes,
             )
-            document["commands"] = [outcome]
-            exit_code = int(outcome["exit_code"])
+            exit_code = 0 if outcome["status"] == "passed" else failed_exit_code(outcome)
         else:
-            environment = command_environment(repo, jobs)
             plan = build_plan(repo, args.profile, jobs, args.base, environment, timeout)
             document["plan"] = plan
             steps = plan["planned_steps"]
             assert isinstance(steps, list)
-            outcomes, exit_code = run_steps(repo, steps, environment, timeout)
-            document["commands"] = outcomes
+            _, exit_code = run_steps(repo, steps, environment, timeout, outcomes)
+    except RunnerInterrupted as error:
+        exit_code = 128 + error.number
+        document["runner_signal"] = error.number
+        document["runner_error"] = f"RunnerInterrupted: {error}"
+        print(f"validation-v2: {error}", file=sys.stderr)
     except ValueError as error:
         exit_code = USAGE_ERROR
         document["runner_error"] = f"ValueError: {error}"
         print(f"validation-v2: {error}", file=sys.stderr)
     except Exception as error:  # Manifest unexpected runner failures before returning.
-        exit_code = 70
+        exit_code = RUNNER_ERROR
         document["runner_error"] = f"{type(error).__name__}: {error}"
         print(f"validation-v2: runner failure: {error}", file=sys.stderr)
+    except BaseException as error:  # KeyboardInterrupt and every other escape.
+        exit_code = 128 + signal.SIGINT if isinstance(error, KeyboardInterrupt) else RUNNER_ERROR
+        document["runner_error"] = f"{type(error).__name__}: {error}"
+        print(f"validation-v2: runner aborted: {type(error).__name__}", file=sys.stderr)
     finally:
         document["ended_at"] = utc_now()
         document["duration_seconds"] = round(time.monotonic() - started, 3)
         document["peak_child_rss_kib"] = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
-        document["status"] = "passed" if exit_code == 0 else "failed"
         document["exit_code"] = exit_code
+        document["status"] = "passed" if exit_code == 0 else "failed"
+        # Fail closed: a green verdict must survive its own manifest.
+        problems = manifest_problems(document)
+        if problems and exit_code == 0:
+            document["exit_code"] = exit_code = RUNNER_ERROR
+            document["status"] = "failed"
+            document["runner_error"] = f"inconsistent verdict: {'; '.join(problems)}"
+            print(f"validation-v2: {document['runner_error']}", file=sys.stderr)
         write_manifest(path, document)
         print(f"validation-v2: manifest {path}")
         if heavy_stream is not None:

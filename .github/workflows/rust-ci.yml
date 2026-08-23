@@ -138,6 +138,12 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           ./tools/validation-v2 "$PROFILE" --base "$BASE_SHA"
 
+      - name: Verify Validation V2 manifest verdict
+        if: always()
+        env:
+          VALIDATION_V2_MANIFEST: ${{ runner.temp }}/validation-v2-manifest.json
+        run: ./tools/validation-v2 verify --manifest "$VALIDATION_V2_MANIFEST"
+
       - name: Upload Validation V2 manifest
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
