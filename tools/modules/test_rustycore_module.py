@@ -171,8 +171,14 @@ class ModuleManagerTests(unittest.TestCase):
     def test_zero_modules_and_no_config_keep_the_base_behaviour(self) -> None:
         self.assertEqual(self.ws.run("sync").returncode, 0)
         main = (self.ws.root / "crates/world-modules/src/main.rs").read_text(encoding="utf-8")
+        manifest = (self.ws.root / "crates/world-modules/Cargo.toml").read_text(encoding="utf-8")
         self.assertIn("No modules are installed", main)
         self.assertNotIn("ModuleConfig::new", main)
+        self.assertIn(
+            "test = false",
+            manifest,
+            "the generated launcher has no unit tests and must not link a libtest harness",
+        )
 
 
 if __name__ == "__main__":

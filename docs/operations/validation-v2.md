@@ -31,7 +31,10 @@ most once. Neither profile calls a legacy wrapper or uses the network; Cargo is 
 
 `audit` is the explicit global, read-only budget. It does not use changed-path scope: it runs the
 architecture policy checks, handler contract and exhaustive session/persistence ratchets, all
-workspace targets, standalone QA-bot tests, and the required committed capture contracts. Every
+workspace test targets, standalone QA-bot tests, and the required committed capture contracts.
+The generated `world-modules` launcher declares `test = false`: Cargo's explicit `--all-targets`
+override is therefore excluded for that package, and the real launcher is compiled separately
+with `cargo check -p world-modules`. Every
 step has an owner name in the manifest and stops the audit immediately on failure. It never starts
 services, connects to a database, records a fresh capture, regenerates a baseline, invokes Codex,
 or calls either legacy wrapper. Those mutating or live operations require their own explicit QA

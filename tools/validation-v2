@@ -381,7 +381,14 @@ def audit_steps(base_commit: str, jobs: int) -> list[dict[str, object]]:
         ),
         (
             "workspace-all-target-tests",
-            ["cargo", "test", "--locked", "--workspace", "--all-targets", "--jobs", str(jobs)],
+            [
+                "cargo", "test", "--locked", "--workspace", "--all-targets",
+                "--exclude", "world-modules", "--jobs", str(jobs),
+            ],
+        ),
+        (
+            "world-modules-launcher-check",
+            ["cargo", "check", "--locked", "-p", "world-modules", "--jobs", str(jobs)],
         ),
         (
             "capture-loot-contract",
