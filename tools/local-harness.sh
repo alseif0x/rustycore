@@ -218,10 +218,10 @@ if ((workflow_changed == 1)); then
 fi
 
 if ((workspace_rust == 1 || architecture_checker == 1 || wow_test_bot == 1)); then
-  if [[ -x /home/cdmonio/.local/protoc/bin/protoc ]]; then
-    export PROTOC=/home/cdmonio/.local/protoc/bin/protoc
-  elif command -v protoc >/dev/null 2>&1; then
+  if command -v protoc >/dev/null 2>&1; then
     export PROTOC="$(command -v protoc)"
+  elif [[ -x "$HOME/.local/protoc/bin/protoc" ]]; then
+    export PROTOC="$HOME/.local/protoc/bin/protoc"
   fi
 fi
 

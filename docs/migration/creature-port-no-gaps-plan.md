@@ -451,9 +451,9 @@ A Creature slice is done only when all of this is true:
 - `rg -n "C#|c#|RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC|diagnostic" crates/wow-world crates/world-server crates/wow-entities` has no Creature production behavior dependency.
 - No Creature packet, movement, runtime or NPC-service code relies on a diagnostic flag.
 - Tests pass:
-  - `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world`
-  - `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p world-server`
-  - `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-map`
+  - `PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p wow-world`
+  - `PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p world-server`
+  - `PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p wow-map`
   - targeted tests for `wow-entities`, `wow-data`, `wow-ai`, `wow-loot` if touched.
 - Real-client verification passes:
   - login to a creature-dense area,

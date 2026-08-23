@@ -111,7 +111,7 @@ explicitly for protobuf-dependent crates. Run:
 ```bash
 cargo fmt --all -- --check
 git diff --check
-PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p <affected-crate>
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo check -p <affected-crate>
 ./tools/pr-preflight.sh quick origin/3.4.3
 ```
 
@@ -120,11 +120,11 @@ library:
 
 ```bash
 # Library target:
-PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p <package> <focused-test> --lib
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p <package> <focused-test> --lib
 # Binary target such as world-server or bnet-server:
-PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p <package> <focused-test> --bin <binary>
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p <package> <focused-test> --bin <binary>
 # Integration-test target:
-PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p <package> <focused-test> --test <target>
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p <package> <focused-test> --test <target>
 ```
 
 After committing to a clean HEAD and before an authorized push, run:

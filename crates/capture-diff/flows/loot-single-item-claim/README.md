@@ -146,7 +146,7 @@ its descendant.
 REPO_ROOT=/absolute/path/to/your/rustycore-worktree
 cd "$REPO_ROOT"
 test -z "$(git status --porcelain=v1 --untracked-files=normal)"
-PROTOC=/home/cdmonio/.local/protoc/bin/protoc \
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc \
   cargo build --locked -p world-server
 cargo build --locked \
   --manifest-path tools/wow-test-bot/Cargo.toml

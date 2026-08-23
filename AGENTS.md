@@ -15,7 +15,10 @@ RustyCore is a Rust port of a TrinityCore-derived World of Warcraft Wrath/Cata-c
 - `main` is retained as an optional stable pointer (ff-advanced at release checkpoints); it is no
   longer the default and not used for day-to-day work. A pre-rebrand backup is `backup/pre-3.4.3-rebrand`.
 - Rust toolchain: Rust 1.98.0, edition 2024.
-- `protoc`: `/home/cdmonio/.local/protoc/bin/protoc`
+- `protoc`: `/home/ubuntu/.local/protoc/bin/protoc` (it is on `PATH`; the harnesses discover it
+  rather than hard-coding a home, so a different machine needs no edit here)
+- Development host: **aarch64**. GitHub runners are x86_64, so any measurement that depends on the
+  machine — stack budgets, timings, perf numbers — must say which of the two produced it.
 
 Do not trust existing Rust, old AI summaries, or migration docs as correctness proof. Always contrast behavior against the C++ source before implementing or approving a change.
 
@@ -132,9 +135,9 @@ Do not mark anything `manual-test-ready` unless it has actually been installed/r
 Use `PROTOC` explicitly for any command that may compile protobuf-dependent crates:
 
 ```bash
-PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server
-PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world --lib
-PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-map --lib
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo check -p world-server
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p wow-world --lib
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p wow-map --lib
 ```
 
 Fast iteration commands:
