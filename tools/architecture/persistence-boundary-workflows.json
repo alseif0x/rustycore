@@ -678,7 +678,7 @@
       "boundary": "world-server bootstrap composition root",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow uses independent characters, hotfix, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
@@ -1658,7 +1658,7 @@
       "boundary": "world-server session composition boundary",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "This is a shared dependency/type surface for characters, login, world; it does not itself imply a runtime transaction.",
@@ -6920,7 +6920,7 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Pure classification of a finished sqlx error; it issues nothing and imposes no order. Separates a failure to acquire a connection \u2014 which never reached the server, so the statement definitely did not run \u2014 from a failure after the statement was sent, whose outcome is ambiguous and must not be recorded as a revert.",
+      "current_order": "Pure classification of a finished sqlx error; it issues nothing and imposes no order. Separates a failure to acquire a connection — which never reached the server, so the statement definitely did not run — from a failure after the statement was sent, whose outcome is ambiguous and must not be recorded as a revert.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path."
     },
     {
@@ -10222,7 +10222,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -10257,7 +10257,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
@@ -10275,7 +10275,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
@@ -10293,7 +10293,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
@@ -10311,7 +10311,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
@@ -10329,7 +10329,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
@@ -10696,7 +10696,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
@@ -10714,7 +10714,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -10732,7 +10732,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -11045,7 +11045,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -11063,7 +11063,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -11081,7 +11081,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -11100,7 +11100,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow uses independent characters, world connections/pools in source order; no distributed ACID boundary is inferred.",
@@ -11135,7 +11135,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
@@ -11153,7 +11153,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
@@ -11172,7 +11172,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow uses independent characters, login connections/pools in source order; no distributed ACID boundary is inferred.",
@@ -11209,7 +11209,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
@@ -11297,7 +11297,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -11315,7 +11315,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -11439,7 +11439,7 @@
       "boundary": "Player login/logout lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
@@ -13509,7 +13509,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
@@ -13527,7 +13527,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
@@ -13545,7 +13545,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13563,7 +13563,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13581,7 +13581,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13599,7 +13599,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13617,7 +13617,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13635,7 +13635,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13653,7 +13653,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13671,7 +13671,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13689,7 +13689,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13707,7 +13707,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13725,7 +13725,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13743,7 +13743,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13761,7 +13761,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13779,7 +13779,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13797,7 +13797,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13815,7 +13815,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13833,7 +13833,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13851,7 +13851,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13869,7 +13869,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13887,7 +13887,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13905,7 +13905,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13923,7 +13923,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13941,7 +13941,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13959,7 +13959,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13977,7 +13977,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -13995,7 +13995,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14013,7 +14013,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14031,7 +14031,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14049,7 +14049,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14067,7 +14067,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14085,7 +14085,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14103,7 +14103,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14121,7 +14121,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14139,7 +14139,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14157,7 +14157,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14175,7 +14175,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14193,7 +14193,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14211,7 +14211,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14229,7 +14229,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14247,7 +14247,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14265,7 +14265,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14283,7 +14283,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14301,7 +14301,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14336,7 +14336,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14354,7 +14354,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14372,7 +14372,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14390,7 +14390,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14408,7 +14408,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14426,7 +14426,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14444,7 +14444,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14462,7 +14462,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14480,7 +14480,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14566,7 +14566,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14584,7 +14584,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14602,7 +14602,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14637,7 +14637,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14689,7 +14689,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14707,7 +14707,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14725,7 +14725,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14743,7 +14743,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14761,7 +14761,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14847,7 +14847,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14916,7 +14916,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -14934,7 +14934,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
@@ -14952,7 +14952,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -15055,7 +15055,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
@@ -15160,7 +15160,7 @@
       "boundary": "Player lifecycle persistence capability",
       "target_issues": [
         153,
-        200
+        169
       ],
       "stable_boundary": false,
       "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
