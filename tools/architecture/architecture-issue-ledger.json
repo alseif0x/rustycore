@@ -5,7 +5,7 @@
   "external_prerequisites": [
     {
       "number": 177,
-      "state": "open",
+      "state": "closed",
       "title": "[QA] wow-test-bot --login-only incompatible with mandatory ConnectTo flow: realm socket dropped, cross-socket fence kicks session",
       "kind": "external-prerequisite"
     }
@@ -75,6 +75,7 @@
     229,
     230,
     231,
+    270,
     153
   ],
   "issues": [
@@ -188,7 +189,7 @@
     },
     {
       "number": 140,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.MOD.MAILBOX] Extract Session mailbox protocol, durable rails and pump",
       "kind": "slice",
       "parents": [
@@ -405,7 +406,7 @@
     },
     {
       "number": 182,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.7c] Extract logical realm/instance connection routing",
       "kind": "slice",
       "parents": [
@@ -418,7 +419,7 @@
     },
     {
       "number": 183,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.7d] Extract the Session-only phase driver",
       "kind": "slice",
       "parents": [
@@ -431,7 +432,7 @@
     },
     {
       "number": 184,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.MOD.LIFECYCLE] Extract Session login and logout lifecycle modules",
       "kind": "slice",
       "parents": [
@@ -484,7 +485,7 @@
     },
     {
       "number": 188,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.RUNTIME.1] Trace current world/map clocks and phase ownership before convergence",
       "kind": "slice",
       "parents": [
@@ -496,7 +497,7 @@
     },
     {
       "number": 189,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.3] Move durable loot persistence coordination out of wow-network",
       "kind": "slice",
       "parents": [
@@ -505,6 +506,19 @@
       ],
       "depends_on": [
         187
+      ]
+    },
+    {
+      "number": 270,
+      "state": "open",
+      "title": "[ARCH.RUNTIME.PLAYER.A] Retire the four transport endpoints #140 left in PlayerBroadcastInfo",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        140,
+        189
       ]
     },
     {
@@ -535,7 +549,9 @@
       "parents": [
         133
       ],
-      "depends_on": [150]
+      "depends_on": [
+        150
+      ]
     },
     {
       "number": 193,
@@ -545,7 +561,9 @@
       "parents": [
         133
       ],
-      "depends_on": [150]
+      "depends_on": [
+        150
+      ]
     },
     {
       "number": 194,
@@ -555,7 +573,9 @@
       "parents": [
         133
       ],
-      "depends_on": [150]
+      "depends_on": [
+        150
+      ]
     },
     {
       "number": 195,
@@ -617,11 +637,13 @@
       "parents": [
         133
       ],
-      "depends_on": [198]
+      "depends_on": [
+        198
+      ]
     },
     {
       "number": 200,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.4] Earn wow-persistence with the Player lifecycle port",
       "kind": "slice",
       "parents": [
@@ -638,152 +660,228 @@
       "state": "open",
       "title": "[ARCH.DB.1a] Resolve Self constants through the active trait impl",
       "kind": "slice",
-      "parents": [133, 169],
-      "depends_on": [186]
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        186
+      ]
     },
     {
       "number": 205,
       "state": "closed",
       "title": "[ARCH.DB.1b] Respect cfg attributes on trait associated constants",
       "kind": "slice",
-      "parents": [133, 169],
-      "depends_on": [186]
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        186
+      ]
     },
     {
       "number": 206,
       "state": "closed",
       "title": "[ARCH.PERF] Make the architecture gate fast: release profile, one scan, incremental caches",
       "kind": "slice",
-      "parents": [133],
-      "depends_on": [185]
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        185
+      ]
     },
     {
       "number": 208,
       "state": "closed",
       "title": "[ARCH.PERF.1] Cut the gate's dead weight: redundant check, decorative clippy, unused scan",
       "kind": "slice",
-      "parents": [133],
-      "depends_on": [206]
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        206
+      ]
     },
     {
       "number": 210,
       "state": "closed",
       "title": "[ARCH.PERF.2] Take the exact persistence scan off the PR path",
       "kind": "slice",
-      "parents": [133],
-      "depends_on": [208]
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        208
+      ]
     },
     {
       "number": 213,
       "state": "closed",
       "title": "[ARCH.DB.2a] Close the persistence-trace gaps Codex found on #212",
       "kind": "slice",
-      "parents": [133, 169],
-      "depends_on": [186]
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        186
+      ]
     },
     {
       "number": 214,
       "state": "closed",
       "title": "[ARCH.2.0] Extract the test modules that make the hotspots monstrous",
       "kind": "slice",
-      "parents": [133],
-      "depends_on": [181]
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        181
+      ]
     },
     {
       "number": 218,
       "state": "closed",
       "title": "[ARCH.DB.2a] Scope the persistence recorder to a workflow and correlate its transactions",
       "kind": "slice",
-      "parents": [133, 169],
-      "depends_on": [186]
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        186
+      ]
     },
     {
       "number": 220,
       "state": "closed",
       "title": "[ARCH] Charge ordinary external modules to their parent in the hotspot ratchet",
       "kind": "slice",
-      "parents": [133],
-      "depends_on": [214]
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        214
+      ]
     },
     {
       "number": 223,
       "state": "closed",
       "title": "[ARCH.PLAN] Align the modular roadmap, physical metrics and local-first policy",
       "kind": "slice",
-      "parents": [133],
-      "depends_on": [220]
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        220
+      ]
     },
     {
       "number": 224,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.MOD.HANDLERS] Split character, loot and quest into private feature modules",
       "kind": "slice",
-      "parents": [133],
+      "parents": [
+        133
+      ],
       "depends_on": []
     },
     {
       "number": 225,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.MOD.MAP] Split Map and MapManager into private runtime modules",
       "kind": "slice",
-      "parents": [133],
+      "parents": [
+        133
+      ],
       "depends_on": []
     },
     {
       "number": 226,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.MOD.ENTITIES] Split Player and Unit subsystems into private domain modules",
       "kind": "slice",
-      "parents": [133],
+      "parents": [
+        133
+      ],
       "depends_on": []
     },
     {
       "number": 227,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.MOD.PROTOCOL] Split packet and spell-data hotspots by protocol domain",
       "kind": "slice",
-      "parents": [133],
+      "parents": [
+        133
+      ],
       "depends_on": []
     },
     {
       "number": 228,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.MODULES.1] Land the trusted linked module API with player.login to message",
       "kind": "slice",
-      "parents": [133, 99],
+      "parents": [
+        133,
+        99
+      ],
       "depends_on": []
     },
     {
       "number": 229,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.MODULES.2] Compose external Cargo modules deterministically",
       "kind": "slice",
-      "parents": [133, 99],
-      "depends_on": [228]
+      "parents": [
+        133,
+        99
+      ],
+      "depends_on": [
+        228
+      ]
     },
     {
       "number": 230,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.MODULES.3] Ship the agent-neutral module manager and official skeleton",
       "kind": "slice",
-      "parents": [133, 99],
-      "depends_on": [229]
+      "parents": [
+        133,
+        99
+      ],
+      "depends_on": [
+        229
+      ]
     },
     {
       "number": 231,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.MODULES.4] Add typed module configuration and compatibility fixtures",
       "kind": "slice",
-      "parents": [133, 99],
-      "depends_on": [230]
+      "parents": [
+        133,
+        99
+      ],
+      "depends_on": [
+        230
+      ]
     },
     {
       "number": 252,
       "state": "open",
       "title": "[ARCH.RUNTIME.PLAYER] Retire the temporary PlayerBroadcastInfo gameplay mirror",
       "kind": "slice",
-      "parents": [133],
-      "depends_on": [138, 140, 189]
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        138,
+        140,
+        189
+      ]
     }
   ]
 }
