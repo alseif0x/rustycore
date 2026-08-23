@@ -8,6 +8,8 @@
 
 #![cfg(test)]
 
+use std::path::PathBuf;
+
 // Explicit database imports: this module reaches its parent through
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
@@ -16,8 +18,11 @@ use crate::{CharStatements, CharacterDatabase, Database};
 
 use super::*;
 
-fn cpp_character_database_cpp() -> &'static str {
-    "/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp"
+fn cpp_character_database_cpp() -> PathBuf {
+    let root = std::env::var_os("RUSTYCORE_CPP_REFERENCE_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/home/server/woltk-trinity-legacy"));
+    root.join("src/server/database/Database/Implementation/CharacterDatabase.cpp")
 }
 
 fn cpp_string_literals(block: &str) -> String {

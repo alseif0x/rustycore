@@ -315,13 +315,18 @@ impl StatementDef for HotfixStatements {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::{
         HOTFIX_STATEMENT_STRATEGY_LIKE_CPP, HotfixStatementStrategyLikeCpp, HotfixStatements,
     };
     use crate::statements::StatementDef;
 
-    fn cpp_hotfix_database_cpp() -> &'static str {
-        "/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/HotfixDatabase.cpp"
+    fn cpp_hotfix_database_cpp() -> PathBuf {
+        let root = std::env::var_os("RUSTYCORE_CPP_REFERENCE_ROOT")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("/home/server/woltk-trinity-legacy"));
+        root.join("src/server/database/Database/Implementation/HotfixDatabase.cpp")
     }
 
     fn cpp_max_id_tables() -> Vec<String> {
