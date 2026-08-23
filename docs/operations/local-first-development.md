@@ -73,6 +73,17 @@ job; what runs at merge is the enforcement nobody was performing. A failure ther
 already on `3.4.3`, so it should produce a focused issue and a fix on top, not a retroactive review
 cycle over intermediate commits — the same rule the scheduled audit follows.
 
+## Branch protection
+
+`3.4.3` requires strict status checks, linear history, conversation resolution, and two contexts:
+`Validation V2` and `Codex reviewer verdict`. Both skip for the trusted author and run for
+everyone else, and a skipped required check satisfies protection — which is exactly why the
+merge-cadence audit above exists.
+
+The validation job carries a static name on purpose: GitHub publishes a skipped job's check under
+the raw, unexpanded name expression, so a templated name can never be satisfied as a required
+context.
+
 ## Trust boundary
 
 Do not broaden the trusted condition to `COLLABORATOR`, `MEMBER`, or an author-association class.

@@ -423,9 +423,15 @@ git push origin <feature-branch>        # NO push unless asked
 
 Only do this after the slice is genuinely validated. If the tree contains changes from another agent, audit them before building on top of them.
 
-Branch protection on `3.4.3` keeps linear history and conversation resolution. Remote validation
-jobs are author-gated: they skip for the exact trusted login `alseif0x` and remain required for
-external authors. Never broaden trust to an author-association role.
+Branch protection on `3.4.3` requires strict status checks, linear history, conversation
+resolution, and exactly two contexts: **`Validation V2`** and **`Codex reviewer verdict`**. Both
+are author-gated jobs: they report `skipped` for the exact trusted login `alseif0x`, which
+satisfies protection, and they run for every other author. Never broaden trust to an
+author-association role.
+
+The validation job's name is deliberately static. A skipped job publishes its check under the raw,
+unexpanded expression, so a templated name cannot be a required context (#336); the profile it ran
+is in the run summary instead.
 
 ## Local Context Files
 
