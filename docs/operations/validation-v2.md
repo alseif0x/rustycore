@@ -23,6 +23,12 @@ workspace reverse-dependent closure and runs library tests for the directly chan
 packages. A root Cargo, toolchain, protobuf, or build-script change explicitly expands compilation
 to `--workspace --all-targets`; it does not implicitly run every library suite.
 
+A `final` run whose diff touches workspace Rust also enforces the curated hotspot LOC ceilings
+(`check_architecture.py hotspot-ratchet`, about 40 seconds). That is the one architecture ceiling
+an ordinary Rust diff can move; the rest of the scanner and the exhaustive persistence inventory
+stay in `audit`, so a change that renames or relocates a tracked persistence access is still only
+caught at merge cadence.
+
 Documentation-only changes run no Cargo command. The standalone architecture checker and QA bot
 are routed to their own manifests. A final architecture-checker run skips its repository-surface
 test: exhaustive architecture, persistence inventory, capture, databases, and runtime QA belong to

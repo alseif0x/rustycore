@@ -560,6 +560,14 @@ def validation_commands(
     workspace_changed = workspace is not None
     if workspace_changed:
         add_command(planned, ["cargo", "fmt", "--all", "--check"])
+        if profile == "final":
+            # The one architecture ceiling an ordinary Rust diff can move, and
+            # the only one cheap enough to gate on. The exhaustive persistence
+            # inventory and the rest of the scanner stay in `audit`.
+            add_command(
+                planned,
+                ["python3", "tools/architecture/check_architecture.py", "hotspot-ratchet"],
+            )
         direct = list(workspace["direct_packages"])
         closure = list(workspace["reverse_closure_packages"])
         root_wide = bool(workspace["root_wide"])
