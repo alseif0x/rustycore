@@ -10,7 +10,7 @@ base_mana	canonical Player/Unit powers	#252	query immutable CREATE power facts
 class	canonical Player identity	#252	query immutable character identity
 client_visible_guids_like_cpp	canonical Player visibility membership	#252	query versioned receiver visibility membership
 combat_reach	canonical Player/Unit combat geometry	#252	query immutable target geometry
-command_tx	Session mailbox	#140	store only an opaque incarnation-checked mailbox address
+command_tx	Session mailbox	#270	store only an opaque incarnation-checked mailbox address
 completed_achievements	canonical Player achievements	#252	query immutable achievement membership
 current_health	canonical Player/Unit vitals	#252	query immutable party/runtime vitals
 current_power	canonical Player/Unit powers	#252	query immutable party/runtime power
@@ -19,7 +19,7 @@ daily_quests_completed	canonical Player quest log	#252	query immutable daily que
 df_quests	canonical Player quest log	#252	query immutable dungeon-finder quest history
 display_id	canonical Player/Unit presentation	#252	query immutable CREATE display
 dungeon_difficulty_id	canonical Player difficulty selection	#252	query immutable difficulty selection
-durable_creature_runtime_commands_like_cpp	Session durable mailbox rail	#140	move durable rail storage and pump to Session mailbox
+durable_creature_runtime_commands_like_cpp	Session durable mailbox rail	#270	move durable rail storage and pump to Session mailbox
 enchanting_skill	canonical Player skills	#252	query immutable effective skill value
 faction_template_id	canonical Player/Unit faction	#252	query immutable faction identity
 forced_reputation_faction_ids	canonical Player reputation	#252	query immutable forced-reaction membership
@@ -59,12 +59,12 @@ player_name	canonical Player identity	#252	query immutable character identity
 position	canonical Player location under MapRuntime	#252	query immutable spatial position
 power_type	canonical Player/Unit powers	#252	query immutable active power type
 race	canonical Player identity	#252	query immutable character identity
-realm_send_tx	Session connection/mailbox	#140	store only an opaque realm-delivery endpoint
+realm_send_tx	Session connection/mailbox	#270	store only an opaque realm-delivery endpoint
 recruiter_id	Session account relationship	#252	query immutable admitted account relationship
 reputation_standings	canonical Player reputation	#252	query immutable standing
 reputation_state_flags	canonical Player reputation	#252	query immutable reputation flags
 rewarded_quests	canonical Player quest log	#252	query immutable rewarded membership
-send_tx	Session connection/mailbox	#140	store only an opaque instance-delivery endpoint
+send_tx	Session connection/mailbox	#270	store only an opaque instance-delivery endpoint
 sex	canonical Player identity	#252	query immutable character identity
 spec_id	canonical Player specialization	#252	query immutable active specialization
 this_week_contribution	canonical Player PvP progression	#252	query immutable inspect honor facts

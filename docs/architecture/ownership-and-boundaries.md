@@ -320,14 +320,24 @@ owner, public API, mirror, dependency, or direct storage operation.
 | `handler-module-policy.json` | handler logical-module ownership | `check_architecture.py check` and the handler contract check | reviewed by hand |
 | `world-handler-contract.tsv` | the exact world handler contract rows | the handler contract check | its own checker run |
 | `runtime-clock-phase-trace.json` | the traced runtime clock phases | `check_architecture.py check` | reviewed by hand |
-| `architecture-issue-ledger.json` | issue numbers, kinds, parents, dependencies **and mirrored open/closed state** | `check_architecture.py check` and the Session ownership check | hand-maintained |
+| `architecture-issue-ledger.json` | issue numbers, kinds, parents, dependencies and the mirrored open/closed state | `check_architecture.py check` and the Session ownership check | structure by hand; `state`/`title` by `check_architecture.py refresh-issue-state` |
 
-The last row is the one exception to "one producer": its `state` field mirrors GitHub, which
-[#302](https://github.com/alseif0x/rustycore/issues/302) names as something not to keep, and
-[#299](https://github.com/alseif0x/rustycore/issues/299) reports as drifted. Ten guard sites read
-that field (`check_architecture.py:171`, `:636`, `:640`, `:656`, `:1087`, `:1409`, `:1440` among
-them), so removing the mirror is a redesign of those guards rather than a validation change. #299
-owns that decision.
+### Issue state is derived, not maintained
+
+Two guards read mirrored issue state: a dependency exception owned by a completed issue must fail,
+and a `PlayerBroadcastInfo` field whose cutover issue has closed must fail. A stale mirror disarms
+both silently, which is how #258 and then #299 each had to repair the same class of drift by hand.
+
+The mirror is no longer hand-maintained. `check_architecture.py refresh-issue-state` derives every
+`state` and `title` from the live repository and rewrites both ledgers; `--check` reports drift and
+fails without writing, and the weekly `Issue state drift` workflow runs exactly that. The guards
+keep reading the checked-in file.
+
+Deriving beats reading issue state at check time, which was the other option #299 named: `check`
+runs inside `audit`, which is offline and hermetic by contract, and a validator that needs GitHub
+to answer would make every architecture check depend on network and API availability. The refresh
+is the only networked command in this tool, it is never called by `check`, and drift can no longer
+survive a week unnoticed.
 
 ## Audited ownership and hotspot evidence
 
@@ -647,7 +657,8 @@ display is checked against the JSON ledger:
 62. #229 — deterministic external Cargo composition;
 63. #230 — agent-neutral module CLI and skeleton;
 64. #231 — typed module configuration/fixtures;
-65. #153 — terminal architecture audit.
+65. #270 — retire the four PlayerBroadcastInfo transport endpoints;
+66. #153 — terminal architecture audit.
 
 A slice may start once its declared prerequisites are merged and its branch is current. Independent
 physical work remains parallel to semantic authority cuts. Mechanical moves use focused compile and

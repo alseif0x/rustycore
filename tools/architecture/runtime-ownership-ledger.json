@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "baseline_commit": "2d94ee51254ea4628c54ad15fa20d5342d1f2be7",
-  "curated_at": "2026-08-12",
+  "baseline_commit": "6e1299e4f16ac156fc95d90d1b340ecaab0be90c",
+  "curated_at": "2026-08-23",
   "purpose": "Offline semantic ownership, mirror, clock, retirement, and exact persistence-boundary baseline through architecture issue #186.",
   "authorities": {
     "behavior": "C++ under /home/server/woltk-trinity-legacy and committed packet/runtime traces",
@@ -99,10 +99,7 @@
         "mirror_direction": "Logical connection selection in Session points to opaque physical handles in wow-network; no gameplay state may flow back into transport.",
         "target_owner": "wow-network for physical transport and fences; transitional wow_world::session::connection, terminal wow-session, for logical routing.",
         "cutover_issues": [
-          153,
-          177,
-          182,
-          184
+          153
         ],
         "rollback_condition": "Restore the previous logical router while retaining both physical sockets if connection choice, packet bytes, FIFO fences, or stale-incarnation rejection changes.",
         "retirement_condition": "WorldSession stores only opaque transport handles and logical route state; no socket task, writer implementation, or raw network registry is owned by gameplay code."
@@ -129,8 +126,7 @@
         "mirror_direction": "No gameplay mirror is authorized; status and counters are Session-owned protocol state.",
         "target_owner": "transitional wow_world::session::{admission,dispatch}, terminal wow-session with wow-handler metadata contracts.",
         "cutover_issues": [
-          153,
-          183
+          153
         ],
         "rollback_condition": "Restore the prior private module/re-export if opcode metadata, status gates, processing mode, wildcard behavior, budgets, or packet order differs.",
         "retirement_condition": "Admission and dispatch compile as private cohesive modules, retain one concrete dispatcher, and expose no gameplay service locator."
@@ -155,9 +151,7 @@
         "mirror_direction": "Typed owner outcome to Session delivery only. Delayed payloads must not write stale gameplay values back to Player or Map.",
         "target_owner": "transitional wow_world::session::mailbox, terminal wow-session mailbox; durable map outcomes originate in wow-map.",
         "cutover_issues": [
-          140,
-          153,
-          188
+          153
         ],
         "rollback_condition": "Restore the prior protocol location without changing the queue if FIFO, capacity, acknowledgement, incarnation, overload-disconnect, or shutdown behavior changes.",
         "retirement_condition": "wow-network owns no application command payload; gameplay variants are replaced by bounded owner outcomes and Session retains only control/delivery protocol."
@@ -226,10 +220,7 @@
         "target_owner": "wow-session lifecycle orchestration over SQLx-free wow-persistence ports; wow-database remains the sole concrete SQLx/dialect adapter.",
         "cutover_issues": [
           153,
-          169,
-          184,
-          189,
-          200
+          169
         ],
         "rollback_condition": "Revert the port adapter, not the durable data, if statement/transaction/fence/publication traces differ or unknown-commit recovery is weaker.",
         "retirement_condition": "WorldSession imports no pool, row, SQLx transaction/error, raw SQL, or concrete database aggregate; lifecycle uses typed ports with equivalent failure semantics."
@@ -474,9 +465,7 @@
         "target_owner": "wow-map runtime/storage for live map entities and clocks; wow-entities for entity state; Session retains only PlayerHandle and delivery adaptation.",
         "cutover_issues": [
           28,
-          140,
-          153,
-          188
+          153
         ],
         "rollback_condition": "Flip the bounded method back to its previous authoritative implementation if phase trace, recipient set, packet order, or single-tick evidence differs; never enable both writers.",
         "retirement_condition": "Every transition has one canonical Map/Entity writer and clock, its legacy bridge is deleted, and no delivery/await/persistence occurs under Map guards."
@@ -559,9 +548,7 @@
         "mirror_direction": "Character DB loads into represented state; narrow directory snapshots publish outward. Directory or packet payloads may not become a mutable inventory/loot owner.",
         "target_owner": "wow-entities::Player inventory/economy, wow-loot for loot rules/authority, wow-persistence ports for durability, thin wow-world handlers for adaptation.",
         "cutover_issues": [
-          153,
-          189,
-          200
+          153
         ],
         "rollback_condition": "Restore the prior capability adapter if item identity, money, loot eligibility, roll order, transaction order, or packet bytes differ; do not restore raw directory access.",
         "retirement_condition": "Player/loot owners hold one mutable copy, directory projections are bounded and versioned or removed, and SQL/pool types are absent from handlers and Session."
@@ -744,8 +731,7 @@
         "target_owner": "canonical wow-entities::Player submodules and populated domain capabilities such as wow-spell; durability through wow-persistence; handlers remain adapters.",
         "cutover_issues": [
           153,
-          169,
-          200
+          169
         ],
         "rollback_condition": "Restore the previous per-capability adapter if spell/quest criteria, order, persistence, or packets differ; retain completed atomic acquisition/saga boundaries.",
         "retirement_condition": "Each complete responsibility has one Player/domain owner, one durable port, and no duplicate Session/directory mutable mirror."
@@ -841,9 +827,7 @@
         "mirror_direction": "WorldSession currently builds canonical Player snapshots and consumes selected Map outcomes. PlayerBroadcastInfo is an outward temporary projection, never a writer.",
         "target_owner": "wow-entities::Player for mutable player state and per-client visibility membership; wow-map for spatial traversal, scheduling and in-world mutation; Session for routing/delivery only.",
         "cutover_issues": [
-          153,
-          183,
-          188
+          153
         ],
         "rollback_condition": "Re-enable only the previous single owner for the bounded method if phase order, movement ACKs, visibility recipients, combat outcome, or packet order differs.",
         "retirement_condition": "Player/Map are the only mutable owners, Session retains an opaque generation-checked PlayerHandle, and all Session/directory gameplay mirrors for the migrated family are removed."
@@ -928,9 +912,7 @@
         "mirror_direction": "Auth/realm snapshots flow into Session; Player gameplay state must not flow back into identity fields.",
         "target_owner": "terminal wow-session::identity plus typed immutable realm/account policy supplied by world-server composition.",
         "cutover_issues": [
-          153,
-          182,
-          184
+          153
         ],
         "rollback_condition": "Restore the prior private constructor mapping if authentication identity, feature flags, locale/build gates, or character claims differ.",
         "retirement_condition": "Identity is a cohesive Session value with required construction fields and no gameplay/database/catalog ownership."
@@ -955,12 +937,7 @@
         "mirror_direction": "No generic mirror is authorized; any pending gameplay item belongs to a named capability and must leave this family during cutover.",
         "target_owner": "transitional wow_world::session::driver/lifecycle, terminal wow-session driver with explicit phase inputs and outputs.",
         "cutover_issues": [
-          140,
-          153,
-          182,
-          183,
-          184,
-          188
+          153
         ],
         "rollback_condition": "Restore the previous phase driver if command budgets, timer behavior, save/logout order, tick ownership, or packet order differs.",
         "retirement_condition": "The Session driver advances only Session protocol/lifecycle clocks and invokes typed owner capabilities without hidden gameplay mutation."
@@ -1118,8 +1095,7 @@
           ],
           "owner": "world-server composition currently stores concrete adapters; wow-database owns their implementation.",
           "open_retirement_issues": [
-            169,
-            200
+            169
           ],
           "retirement_condition": "Session construction supplies typed wow-persistence capability ports rather than concrete database/pool aggregates."
         },
@@ -1133,7 +1109,7 @@
           ],
           "owner": "world-server composition holds handles; the player directory owner is wow_world::session::directory, the Group owner is wow_social::group, and the Session mailbox is wow_world::session::mailbox.",
           "open_retirement_issues": [
-            140
+            153
           ],
           "retirement_condition": "Only opaque directory, mailbox and Group capability handles are composed; raw storage/payload types are absent."
         },
@@ -1147,9 +1123,7 @@
           ],
           "owner": "world-server composition stores handles; legacy and canonical runtime owners remain distinct and audited by #188.",
           "open_retirement_issues": [
-            140,
-            153,
-            188
+            153
           ],
           "retirement_condition": "Session receives only the minimal typed runtime ports/PlayerHandle and cannot select or tick duplicate map authorities."
         },
@@ -1448,7 +1422,6 @@
           ],
           "owner": "Session directory owns incarnation/addressing; canonical Player or admitted Session identity owns identity facts as assigned by the field ledger.",
           "open_retirement_issues": [
-            140,
             252
           ],
           "retirement_condition": "The directory stores only generation-checked identity/addressing handles; raw senders and broad entries do not escape."
@@ -1465,8 +1438,6 @@
           ],
           "owner": "Player/session publishes receiver-local delivery state into PlayerRegistry; Map selects spatial candidates and Player owns client-visible membership.",
           "open_retirement_issues": [
-            140,
-            188,
             252
           ],
           "retirement_condition": "Only bounded generation/versioned delivery handles remain; visibility membership is Player-owned and spatial traversal is Map-owned."
@@ -1480,7 +1451,6 @@
           ],
           "owner": "PlayerRegistry currently exposes loot snapshots and a durable persistence tracker; loot and persistence owners are separate.",
           "open_retirement_issues": [
-            189,
             252
           ],
           "retirement_condition": "No durable tracker or mutable loot authority is stored in the directory; addressing consumes typed committed outcomes."
@@ -1608,8 +1578,7 @@
           ],
           "owner": "wow-network currently defines the enum; the owning Session task is the sole consumer and logical routing owner.",
           "open_retirement_issues": [
-            140,
-            182
+            153
           ],
           "retirement_condition": "Variants live in the Session mailbox protocol and depend only on opaque transport/control contracts."
         },
@@ -1635,9 +1604,7 @@
           ],
           "owner": "wow-network currently defines payloads; canonical/legacy Map owners commit transitions and Session applies receiver-local delivery/presentation.",
           "open_retirement_issues": [
-            140,
-            153,
-            188
+            153
           ],
           "retirement_condition": "Map-owned typed outcomes replace gameplay payload variants; Session protocol retains only bounded delivery facts and never rewrites stale gameplay state."
         },
@@ -1653,9 +1620,7 @@
           ],
           "owner": "wow-network currently defines payloads; wow-loot and durable persistence coordination own decisions and commit ordering.",
           "open_retirement_issues": [
-            140,
-            153,
-            189
+            153
           ],
           "retirement_condition": "Loot owner outcomes and persistence outcomes cross the Session boundary without embedding mutable loot authority or trackers."
         },
@@ -1669,7 +1634,6 @@
           ],
           "owner": "wow-network currently defines payloads; represented Player/quest capability owns state and Session owns recipient delivery.",
           "open_retirement_issues": [
-            140,
             153
           ],
           "retirement_condition": "Quest capability returns typed outcomes and Session mailbox contains only addressing/delivery data."
@@ -1692,7 +1656,6 @@
           ],
           "owner": "wow_world::session::mailbox defines the payloads; wow_social::group owns Group transitions and Session applies receiver-local facts.",
           "open_retirement_issues": [
-            140,
             153
           ],
           "retirement_condition": "Group/social/Player outcomes are typed at their owner; Session mailbox performs generation-checked delivery without reimplementing invariants."
@@ -1721,8 +1684,7 @@
           "owner": "canonical load/spawn path supplies the source; world-server bridge performs the compatibility insertion.",
           "open_retirement_issues": [
             28,
-            153,
-            188
+            153
           ],
           "retirement_condition": "Legacy creature storage is no longer read for the complete migrated load/spawn/runtime transition."
         },
@@ -1739,9 +1701,7 @@
           "owner": "GlobalLegacy is the production transition writer; named bridge code applies only explicitly modeled outcomes to canonical state.",
           "open_retirement_issues": [
             28,
-            140,
-            153,
-            188
+            153
           ],
           "retirement_condition": "Each method executes directly under canonical Map authority and the corresponding legacy function, write-back, and delivery compatibility rail are deleted."
         },
@@ -1766,9 +1726,7 @@
           "direction": "loot release/state decisions reconcile explicit legacy and canonical creature/GameObject state without shared storage",
           "owner": "current loot handler coordinates both managers; underlying loot and map authorities remain distinct.",
           "open_retirement_issues": [
-            153,
-            188,
-            189
+            153
           ],
           "retirement_condition": "Loot reads and mutations use one canonical entity/view owner and no dual-manager reconciliation remains."
         },
@@ -1778,8 +1736,7 @@
           "direction": "unclassified; no direction or ownership may be inferred",
           "owner": "Current containing function until #188 classifies the writer and phase.",
           "open_retirement_issues": [
-            153,
-            188
+            153
           ],
           "retirement_condition": "Every discovered bridge site is assigned to a named direction/owner and a concrete method cut, or removed."
         }
@@ -1799,9 +1756,7 @@
           "id": "exact_persistence_semantic_policy",
           "owner": "persistence-boundary-workflows.json is the reviewed semantic authority; persistence-boundary-policy.json is its canonical generated projection over the exact snapshot.",
           "open_retirement_issues": [
-            153,
-            189,
-            200
+            153
           ],
           "retirement_condition": "Each non-stable group disappears with its typed capability migration; wow-database remains the sole stable concrete adapter boundary."
         }
@@ -1867,7 +1822,7 @@
         "command": "python3 tools/architecture/check_architecture.py hotspots --limit 20",
         "measurement": "two independent views: every real Rust file is reported physically, while each checked-in row is a logical owner ceiling including its reviewed private descendants; production/test/total remain independent non-growth ceilings",
         "physical_review_signals": "review a productive file around 2,000 lines; above 4,000 lines require a split plan or explicit cohesive exception; these are review signals, not daily blocking limits",
-        "baseline_commit": "c2bb8a8511ed1db170bc56230d6efd35e910b091"
+        "baseline_commit": "6e1299e4f16ac156fc95d90d1b340ecaab0be90c"
       },
       "entries": [
         {
@@ -1877,11 +1832,7 @@
           "total_lines": 170235,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
-            140,
-            153,
-            182,
-            183,
-            184
+            153
           ],
           "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it."
         },
@@ -1893,9 +1844,7 @@
           "owner": "wow-map canonical MapManager/runtime.",
           "open_retirement_issues": [
             28,
-            153,
-            188,
-            225
+            153
           ],
           "retirement_condition": "Map runtime/storage/visibility/respawn submodules have one writer and clock per transition; physical splitting is not combined with authority flips."
         },
@@ -1906,9 +1855,7 @@
           "total_lines": 31197,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "open_retirement_issues": [
-            153,
-            200,
-            224
+            153
           ],
           "retirement_condition": "Character verticals are thin capability adapters with typed owners/ports and no raw directory or concrete persistence access."
         },
@@ -1919,9 +1866,7 @@
           "total_lines": 29928,
           "owner": "wow-world loot handler plus transitional loot/map/persistence coordination.",
           "open_retirement_issues": [
-            153,
-            189,
-            224
+            153
           ],
           "retirement_condition": "Loot handlers adapt typed wow-loot/Player/Map/persistence outcomes and no longer coordinate dual authorities or durable trackers."
         },
@@ -1933,8 +1878,7 @@
           "total_lines": 46568,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
-            153,
-            188
+            153
           ],
           "retirement_condition": "The crate keeps main as a thin entry point and distributes bootstrap/loaders/runtime by cohesive private modules; gameplay algorithms and hidden mutable clocks are absent."
         },
@@ -1945,9 +1889,7 @@
           "total_lines": 18546,
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
           "open_retirement_issues": [
-            153,
-            200,
-            224
+            153
           ],
           "retirement_condition": "Quest handler is a thin adapter over canonical Player/quest/persistence capabilities with exact outcome and packet order."
         },
@@ -1958,8 +1900,7 @@
           "total_lines": 18300,
           "owner": "wow-entities partial canonical Player model.",
           "open_retirement_issues": [
-            153,
-            226
+            153
           ],
           "retirement_condition": "Player submodules own one mutable representation per responsibility with colocated tests; Session and directory mirrors for migrated families are removed."
         },
@@ -1970,7 +1911,6 @@
           "total_lines": 5291,
           "owner": "wow-social atomic Group/PendingInvites authority relocated from wow-network by #137.",
           "open_retirement_issues": [
-            140,
             153
           ],
           "retirement_condition": "Group state, invariants and outcomes stay behind the narrow named service boundary; no transport, SQL or packet type enters wow-social and the transitional wow-network mailbox edge is gone."
