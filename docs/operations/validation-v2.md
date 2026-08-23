@@ -156,7 +156,10 @@ one host. Lock diagnostics identify the active run id, PID, repository, HEAD, pr
 time. `quick` and `final` never acquire this heavyweight lock. For hermetic tests only, its path
 can be overridden with `VALIDATION_V2_HEAVY_LOCK`.
 
-The conservative defaults are two Cargo jobs and a 900-second per-command timeout. Controlled
+The conservative defaults are two Cargo jobs and a 900-second per-command timeout, except that
+`audit` defaults to 3600 seconds: its exhaustive persistence inventory alone runs 870-900 seconds
+on a four-core host, so the ordinary budget would kill it - correctly reported as
+`failure_kind: timeout`, but for no useful reason. Controlled
 overrides are validated before execution:
 
 ```bash
