@@ -26,6 +26,9 @@ DEFAULT_JOBS = 2
 MAX_JOBS = 8
 DEFAULT_TIMEOUT = 900
 DEFAULT_BASE = "origin/3.4.3"
+DEFAULT_HEAVY_LOCK = "/tmp/rustycore-validation-v2-heavy.lock"
+CHECKER_MANIFEST = "tools/architecture/handler-contract-check/Cargo.toml"
+BOT_MANIFEST = "tools/wow-test-bot/Cargo.toml"
 WHITESPACE_CHECK = (
     "from pathlib import Path; import sys; "
     "bad=[f'{path}:{number}' for path in sys.argv[1:] "
@@ -86,8 +89,7 @@ def lock_path(repo: Path) -> Path:
     return directory / f"rustycore-validation-v2-{digest}.lock"
 
 
-def acquire_lock(repo: Path, profile: str):
-    path = lock_path(repo)
+def acquire_lock(path: Path, owner: dict[str, object]):
     path.parent.mkdir(parents=True, exist_ok=True)
     stream = path.open("a+", encoding="utf-8")
     try:
@@ -99,9 +101,18 @@ def acquire_lock(repo: Path, profile: str):
         raise RuntimeError(f"lock contention at {path}; active run: {owner}")
     stream.seek(0)
     stream.truncate()
-    json.dump({"pid": os.getpid(), "profile": profile, "started_at": utc_now()}, stream)
+    json.dump(owner, stream, sort_keys=True)
     stream.flush()
     return stream, path
+
+
+def heavy_lock_path() -> Path:
+    return Path(os.environ.get("VALIDATION_V2_HEAVY_LOCK", DEFAULT_HEAVY_LOCK)).resolve()
+
+
+def run_id(repo: Path, head: str, profile: str, started_at: str) -> str:
+    identity = f"{repo}\0{head}\0{profile}\0{started_at}\0{os.getpid()}"
+    return hashlib.sha256(identity.encode()).hexdigest()[:20]
 
 
 def manifest_path(repo: Path, profile: str) -> Path:
@@ -317,6 +328,83 @@ def add_command(planned: list[list[str]], command: list[str]) -> None:
         planned.append(command)
 
 
+def audit_steps(base_commit: str, jobs: int) -> list[dict[str, object]]:
+    """Declare the global read-only audit without nesting legacy wrappers."""
+    commands = [
+        ("diff-hygiene", ["git", "diff", "--check", base_commit]),
+        (
+            "architecture-policy-self-test",
+            ["python3", "tools/architecture/check_architecture.py", "self-test"],
+        ),
+        (
+            "architecture-policy-check",
+            ["python3", "tools/architecture/check_architecture.py", "check"],
+        ),
+        ("workspace-format", ["cargo", "fmt", "--all", "--check"]),
+        (
+            "handler-contract-format",
+            ["cargo", "fmt", "--manifest-path", CHECKER_MANIFEST, "--", "--check"],
+        ),
+        (
+            "qa-bot-format",
+            ["cargo", "fmt", "--manifest-path", BOT_MANIFEST, "--", "--check"],
+        ),
+        (
+            "handler-contract-unit-tests",
+            [
+                "cargo", "test", "--release", "--locked", "--manifest-path",
+                CHECKER_MANIFEST, "--lib", "--jobs", str(jobs), "--", "--skip",
+                "repository_surface_can_be_collected",
+            ],
+        ),
+        (
+            "handler-contract-repository-check",
+            [
+                "cargo", "run", "--release", "--locked", "--manifest-path",
+                CHECKER_MANIFEST, "--jobs", str(jobs), "--", "check",
+            ],
+        ),
+        (
+            "session-persistence-ratchet",
+            [
+                "cargo", "run", "--release", "--locked", "--manifest-path",
+                CHECKER_MANIFEST, "--bin", "session-ownership-check", "--jobs",
+                str(jobs), "--", "check",
+            ],
+        ),
+        (
+            "qa-bot-tests",
+            [
+                "cargo", "test", "--locked", "--manifest-path", BOT_MANIFEST,
+                "--jobs", str(jobs),
+            ],
+        ),
+        (
+            "workspace-all-target-tests",
+            ["cargo", "test", "--locked", "--workspace", "--all-targets", "--jobs", str(jobs)],
+        ),
+        (
+            "capture-loot-contract",
+            [
+                "cargo", "run", "--locked", "-p", "capture-diff", "--",
+                "verify-required", "loot-single-item-claim",
+            ],
+        ),
+        (
+            "capture-creature-spell-contract",
+            [
+                "cargo", "run", "--locked", "-p", "capture-diff", "--",
+                "verify-required", "creature-spell-casting",
+            ],
+        ),
+    ]
+    steps = [{"section": section, "argv": argv} for section, argv in commands]
+    argv_values = [tuple(step["argv"]) for step in steps]
+    if len(set(argv_values)) != len(argv_values):
+        raise ValueError("audit plan contains duplicate commands")
+    return steps
+
+
 def validation_commands(
     repo: Path,
     profile: str,
@@ -403,18 +491,17 @@ def validation_commands(
                 ["cargo", "test", "--locked", "--lib", "--jobs", str(jobs), *package_args],
             )
 
-    checker_manifest = "tools/architecture/handler-contract-check/Cargo.toml"
     if "architecture-checker" in groups:
-        add_command(planned, ["cargo", "fmt", "--manifest-path", checker_manifest, "--", "--check"])
+        add_command(planned, ["cargo", "fmt", "--manifest-path", CHECKER_MANIFEST, "--", "--check"])
         command = "test" if profile == "final" else "check"
-        checker = ["cargo", command, "--locked", "--manifest-path", checker_manifest, "--jobs", str(jobs)]
+        checker = ["cargo", command, "--locked", "--manifest-path", CHECKER_MANIFEST, "--jobs", str(jobs)]
         if profile == "final":
             checker.extend(["--lib", "--", "--skip", "repository_surface_can_be_collected"])
         add_command(planned, checker)
     if "wow-test-bot" in groups:
         add_command(
             planned,
-            ["cargo", "fmt", "--manifest-path", "tools/wow-test-bot/Cargo.toml", "--", "--check"],
+            ["cargo", "fmt", "--manifest-path", BOT_MANIFEST, "--", "--check"],
         )
         add_command(
             planned,
@@ -423,7 +510,7 @@ def validation_commands(
                 "check",
                 "--locked",
                 "--manifest-path",
-                "tools/wow-test-bot/Cargo.toml",
+                BOT_MANIFEST,
                 "--jobs",
                 str(jobs),
             ],
@@ -442,6 +529,19 @@ def build_plan(
     base_commit = resolve_base(repo, base)
     paths = changed_paths(repo, base_commit)
     groups = grouped_paths(paths)
+    if profile == "audit":
+        steps = audit_steps(base_commit, jobs)
+        return {
+            "base_input": base,
+            "base_commit": base_commit,
+            "changed_paths": paths,
+            "path_classes": groups,
+            "workspace": None,
+            "metadata": None,
+            "optional_skips": [],
+            "planned_steps": steps,
+            "planned_commands": [step["argv"] for step in steps],
+        }
     workspace: dict[str, object] | None = None
     metadata_outcome: dict[str, object] | None = None
     if "workspace-rust" in groups or "workspace-root" in groups:
@@ -450,6 +550,10 @@ def build_plan(
     planned, optional_skips = validation_commands(
         repo, profile, jobs, base_commit, groups, workspace
     )
+    steps = [
+        {"section": f"path-{index:02d}", "argv": command}
+        for index, command in enumerate(planned, start=1)
+    ]
     return {
         "base_input": base,
         "base_commit": base_commit,
@@ -458,6 +562,7 @@ def build_plan(
         "workspace": workspace,
         "metadata": metadata_outcome,
         "optional_skips": optional_skips,
+        "planned_steps": steps,
         "planned_commands": planned,
     }
 
@@ -506,9 +611,31 @@ def run_one(repo: Path, command: list[str], environment: dict[str, str], timeout
     }
 
 
+def run_steps(
+    repo: Path,
+    steps: list[dict[str, object]],
+    environment: dict[str, str],
+    timeout: int,
+) -> tuple[list[dict[str, object]], int]:
+    outcomes: list[dict[str, object]] = []
+    for step in steps:
+        section = step.get("section")
+        command = step.get("argv")
+        if not isinstance(section, str) or not isinstance(command, list):
+            raise ValueError("planned step has an invalid section or argv")
+        if not all(isinstance(item, str) for item in command):
+            raise ValueError(f"planned step '{section}' contains a non-string argument")
+        outcome = run_one(repo, command, environment, timeout)
+        outcome["section"] = section
+        outcomes.append(outcome)
+        if outcome["exit_code"] != 0:
+            return outcomes, int(outcome["exit_code"])
+    return outcomes, 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="tools/validation-v2")
-    parser.add_argument("profile", choices=("self-test", "quick", "final"))
+    parser.add_argument("profile", choices=("self-test", "quick", "final", "audit"))
     parser.add_argument("--base", default=DEFAULT_BASE)
     args = parser.parse_args()
     repo = Path(__file__).resolve().parent.parent
@@ -516,23 +643,41 @@ def main() -> int:
         jobs = checked_value("VALIDATION_V2_CARGO_JOBS", DEFAULT_JOBS, 1, MAX_JOBS)
         timeout = checked_value("VALIDATION_V2_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, 30, 3600)
         details = provenance(repo)
-        lock_stream, active_lock = acquire_lock(repo, args.profile)
+        started_at = utc_now()
+        identifier = run_id(repo, str(details["head"]), args.profile, started_at)
+        owner = {
+            "run_id": identifier,
+            "pid": os.getpid(),
+            "repository": str(repo),
+            "head": details["head"],
+            "profile": args.profile,
+            "started_at": started_at,
+        }
+        lock_stream, active_lock = acquire_lock(lock_path(repo), owner)
+        heavy_stream = None
+        active_heavy_lock = None
+        if args.profile == "audit":
+            active_heavy_lock = heavy_lock_path()
+            heavy_stream, _ = acquire_lock(active_heavy_lock, owner)
     except (KeyError, OSError, subprocess.CalledProcessError, ValueError) as error:
         return fail(str(error))
     except RuntimeError as error:
         return fail(str(error), LOCKED_ERROR)
 
-    started_at = utc_now()
     started = time.monotonic()
     path = manifest_path(repo, args.profile)
     document: dict[str, object] = {
-        "schema": 2,
+        "schema": 3,
         "runner": "rustycore-validation-v2",
         "shadow_only": True,
+        "run_id": identifier,
         "profile": args.profile,
         "provenance": details,
         "resources": {"cargo_jobs": jobs, "command_timeout_seconds": timeout},
-        "lock": str(active_lock),
+        "locks": {
+            "repository": str(active_lock),
+            "heavy": str(active_heavy_lock) if active_heavy_lock is not None else None,
+        },
         "started_at": started_at,
         "plan": None,
         "commands": [],
@@ -553,17 +698,10 @@ def main() -> int:
             environment = command_environment(repo, jobs)
             plan = build_plan(repo, args.profile, jobs, args.base, environment, timeout)
             document["plan"] = plan
-            outcomes = document["commands"]
-            assert isinstance(outcomes, list)
-            planned = plan["planned_commands"]
-            assert isinstance(planned, list)
-            for command in planned:
-                assert isinstance(command, list) and all(isinstance(item, str) for item in command)
-                outcome = run_one(repo, command, environment, timeout)
-                outcomes.append(outcome)
-                if outcome["exit_code"] != 0:
-                    exit_code = int(outcome["exit_code"])
-                    break
+            steps = plan["planned_steps"]
+            assert isinstance(steps, list)
+            outcomes, exit_code = run_steps(repo, steps, environment, timeout)
+            document["commands"] = outcomes
     except ValueError as error:
         exit_code = USAGE_ERROR
         document["runner_error"] = f"ValueError: {error}"
@@ -580,6 +718,8 @@ def main() -> int:
         document["exit_code"] = exit_code
         write_manifest(path, document)
         print(f"validation-v2: manifest {path}")
+        if heavy_stream is not None:
+            heavy_stream.close()
         lock_stream.close()
     return exit_code
 
