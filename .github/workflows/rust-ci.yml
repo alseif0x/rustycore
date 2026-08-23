@@ -4,314 +4,128 @@ on:
   pull_request:
     branches:
       - "3.4.3"
-  # Merge-cadence enforcement. Every required check is skipped for first-party
-  # pull requests (see the author conditions below and
-  # docs/operations/local-first-development.md), and a skipped check satisfies
-  # branch protection, so without this trigger nothing in CI ever runs against
-  # a first-party change — not at review time and not at merge. Two regressions
-  # reached 3.4.3 through that gap: #275 left both ownership ratchets red on
-  # HEAD, and #277 hid ~985 production persistence accesses from the inventory.
-  # Both are exactly what the steps below detect.
   push:
     branches:
       - "3.4.3"
   schedule:
     - cron: "0 6 * * 1"
   workflow_dispatch:
+    inputs:
+      profile:
+        description: Canonical Validation V2 profile
+        required: true
+        default: audit
+        type: choice
+        options:
+          - audit
+          - final
 
 permissions:
   contents: read
-
-# Pull requests supersede themselves: a newer push to the same PR makes the
-# older run worthless. Merges do not — each merge is a distinct commit whose
-# result nobody else will recompute, so keying pushes on the shared branch ref
-# would let a busy day cancel the only enforcement this repository gets.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  fmt:
-    name: Format
-    # Trusted first-party PRs are validated by tools/local-harness.sh. Keep the
-    # required check visible as skipped without allocating a hosted runner.
+  validation:
+    name: Validation V2 ${{ github.event_name == 'pull_request' && 'final' || github.event.inputs.profile || 'audit' }}
+    # First-party pull requests use explicit local evidence and must not wait
+    # for hosted validation. Push/audit enforcement still validates the merged
+    # exact SHA on an independent host. External pull requests retain the
+    # required pre-merge final profile.
     if: github.event_name != 'pull_request' || github.event.pull_request.user.login != 'alseif0x'
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 180
+    concurrency:
+      group: >-
+        validation-v2-${{
+          github.event_name == 'pull_request' && github.event.pull_request.number ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.profile == 'final' && github.run_id) ||
+          'audit'
+        }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Check out exact validation SHA
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          # Architecture baselines are pinned to exact ancestor commits.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+      - name: Install pinned Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
         with:
           cache: false
           rustflags: ""
 
-      - name: Install preflight dependencies
-        run: sudo apt-get update && sudo apt-get install --yes ripgrep
-
-      - name: Validate local preflight harness
-        run: ./tools/pr-preflight.sh self-test
-
-      - name: Check formatting
-        run: |
-          cargo fmt --all --check
-          cargo fmt --manifest-path tools/wow-test-bot/Cargo.toml -- --check
-          cargo fmt --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- --check
-
-  check:
-    name: Check core crates
-    if: github.event_name != 'pull_request' || github.event.pull_request.user.login != 'alseif0x'
-    runs-on: ubuntu-24.04
-    # The exact persistence inventory is intentionally scanned both by its
-    # repository test and by the boundary command before the core build. A
-    # single full scan was measured at ~36 minutes locally when this budget was
-    # set; repeated local runs in August 2026 measured ~11 minutes, and the one
-    # CI run that reached this step took 11m24s. The budget is deliberately not
-    # retuned to the faster figure: two scans plus the core build and clippy
-    # exhausted a 60-minute budget exactly, and one machine's numbers are not
-    # enough to narrow it again.
-    timeout-minutes: 120
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Restore Validation V2 Cargo cache
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
-          # Architecture baselines are pinned to exact ancestor commits.
-          fetch-depth: 0
+          shared-key: validation-v2
+          workspaces: |
+            . -> target
 
-      - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
-        with:
-          cache: false
-          rustflags: ""
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-
-      - name: Install protoc
+      - name: Install pinned orchestration dependencies
+        shell: bash
         run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes ripgrep
+
           protoc_version="$(tr -d '[:space:]' < .protoc-version)"
+          case "$protoc_version" in
+            28.3)
+              protoc_sha256="0ad949f04a6a174da83cdcbdb36dee0a4925272a5b6d83f79a6bf9852076d53f"
+              ;;
+            *)
+              echo "::error::No trusted linux-x86_64 protoc checksum for version ${protoc_version}"
+              exit 1
+              ;;
+          esac
           curl --fail --show-error --location --retry 3 --retry-all-errors \
-            -o /tmp/protoc.zip \
+            -o "${RUNNER_TEMP}/protoc.zip" \
             "https://github.com/protocolbuffers/protobuf/releases/download/v${protoc_version}/protoc-${protoc_version}-linux-x86_64.zip"
-          python3 -m zipfile -e /tmp/protoc.zip "$HOME/.local"
+          printf '%s  %s\n' "$protoc_sha256" "${RUNNER_TEMP}/protoc.zip" | sha256sum --check --strict
+          python3 -m zipfile -e "${RUNNER_TEMP}/protoc.zip" "$HOME/.local"
           chmod +x "$HOME/.local/bin/protoc"
+          test "$("$HOME/.local/bin/protoc" --version)" = "libprotoc ${protoc_version}"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Check architecture boundaries
-        run: |
-          python3 tools/architecture/check_architecture.py check
-          # A full workspace collection is this job's dominant cost, and
-          # `repository_surface_can_be_collected` performs the same one the
-          # ratchet step below already performs. Skip it here: the ratchet
-          # validates the collected surface against the checked snapshot, so
-          # running it twice bought no coverage and doubled the wait.
-          cargo test --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
-            -- --skip repository_surface_can_be_collected
-          cargo run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check
-
-      # Pull requests ratchet the session surface only — seconds. The exact
-      # persistence inventory is a long scan that was 72% of this job, and it
-      # is a change detector on source text: on a branch where 55% of commits
-      # touch session.rs, most of what it reports mid-development is
-      # regeneration churn. It runs below on every push to 3.4.3 and on the
-      # cron, so a leak is caught at merge rather than at review time —
-      # deferred, not dropped. That claim was false between #222 (which removed
-      # the push trigger) and the change that restored it; it is true again.
-      - name: Ratchet the session ownership surface
-        if: github.event_name == 'pull_request'
-        run: |
-          cargo run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
-            --bin session-ownership-check -- check --syntax-only
-
-      # The combined check compares the session surface before the persistence
-      # snapshot, so a session-only mismatch must not launch the long scan
-      # below. Publish the baseline only when the persistence comparison is
-      # what failed.
-      - name: Check persistence and session ownership ratchets
-        id: ratchets
-        if: github.event_name != 'pull_request'
-        run: |
-          set +e
-          report="$(cargo run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check 2>&1)"
-          status=$?
-          printf '%s\n' "$report"
-          if [ "$status" -ne 0 ] && printf '%s' "$report" | grep -q "direct persistence"; then
-            echo "persistence_mismatch=true" >> "$GITHUB_OUTPUT"
-          fi
-          exit "$status"
-
-      # Regenerating the exact persistence baseline takes about 36 minutes, so
-      # a failed ratchet would otherwise send the author back to a long local
-      # scan just to see what the checker now computes. Publish it instead —
-      # but only for a ratchet mismatch, never after an unrelated failure that
-      # the author is already waiting to read.
-      - name: Publish recomputed persistence baseline
-        if: failure() && steps.ratchets.outputs.persistence_mismatch == 'true'
-        run: |
-          cargo run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
-            --bin session-ownership-check -- print-persistence-baseline \
-            > "${RUNNER_TEMP}/persistence-access-snapshot.json"
-          # The semantic policy is a pure function of the reviewed annotations
-          # and this snapshot, so derive it here rather than paying for a
-          # second workspace scan. Publishing the snapshot alone would hand the
-          # author a policy that the next run rejects as stale — and a stale
-          # policy never reaches this step, because only a persistence
-          # mismatch does.
-          cargo run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
-            --bin session-ownership-check -- print-persistence-policy \
-            --from-snapshot "${RUNNER_TEMP}/persistence-access-snapshot.json" \
-            > "${RUNNER_TEMP}/persistence-boundary-policy.json"
-
-      - name: Upload recomputed persistence baseline
-        if: failure() && steps.ratchets.outputs.persistence_mismatch == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: persistence-access-snapshot
-          path: |
-            ${{ runner.temp }}/persistence-access-snapshot.json
-            ${{ runner.temp }}/persistence-boundary-policy.json
-          if-no-files-found: ignore
-
-      - name: Cargo check
-        run: |
-          # The two builds below already type-check these crates: world-server
-          # depends directly on wow-data, wow-database, wow-network and
-          # wow-world, and bnet-server on wow-database. Checking them first
-          # compiled the same crates twice. wow-test-bot stays: it is outside
-          # the workspace and nothing else builds it.
-          cargo check --locked --manifest-path tools/wow-test-bot/Cargo.toml
-          # `-j1` was introduced to stop two large debug binaries from linking
-          # concurrently, but it also serialized every dependency compile in the
-          # job. Link one server at a time instead and keep bounded parallelism
-          # inside each: same peak-memory protection, without the serial build.
-          cargo build --locked -j4 -p bnet-server
-          cargo build --locked -j4 -p world-server
-
-
-  tests:
-    name: Focused library tests
-    if: github.event_name != 'pull_request' || github.event.pull_request.user.login != 'alseif0x'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
-        with:
-          cache: false
-          rustflags: ""
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-
-      - name: Install protoc
-        run: |
-          protoc_version="$(tr -d '[:space:]' < .protoc-version)"
+          actionlint_version="1.7.12"
+          actionlint_archive="actionlint_${actionlint_version}_linux_amd64.tar.gz"
           curl --fail --show-error --location --retry 3 --retry-all-errors \
-            -o /tmp/protoc.zip \
-            "https://github.com/protocolbuffers/protobuf/releases/download/v${protoc_version}/protoc-${protoc_version}-linux-x86_64.zip"
-          python3 -m zipfile -e /tmp/protoc.zip "$HOME/.local"
-          chmod +x "$HOME/.local/bin/protoc"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+            -o "${RUNNER_TEMP}/${actionlint_archive}" \
+            "https://github.com/rhysd/actionlint/releases/download/v${actionlint_version}/${actionlint_archive}"
+          printf '%s  %s\n' \
+            "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8" \
+            "${RUNNER_TEMP}/${actionlint_archive}" | sha256sum --check --strict
+          tar -xzf "${RUNNER_TEMP}/${actionlint_archive}" -C "${RUNNER_TEMP}" actionlint
+          install -m 0755 "${RUNNER_TEMP}/actionlint" "$HOME/.local/bin/actionlint"
 
-      - name: Run focused library and loot-race harness tests
+      - name: Prepare locked offline inputs
         run: |
-          cargo test --locked -p wow-data --lib
-          cargo test --locked -p wow-handler --test inventory_registry
-          cargo test --locked -p wow-packet --lib
-          cargo test --locked -p wow-loot --lib
-          cargo test --locked -p wow-entities --lib
-          cargo test --locked -p wow-map --lib
-          cargo test --locked -p wow-network --lib
-          cargo test --locked -p wow-world --lib
-          cargo test --locked -p wow-world --test production_handler_registry_contract
-          cargo test --locked --manifest-path tools/wow-test-bot/Cargo.toml loot_race::tests
-          cargo test --locked -p capture-diff
-          cargo run --locked -p capture-diff -- verify-required loot-single-item-claim
-          cargo run --locked -p capture-diff -- verify-required creature-spell-casting
+          cargo fetch --locked
+          cargo fetch --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml
+          cargo fetch --locked --manifest-path tools/wow-test-bot/Cargo.toml
 
-  clippy:
-    name: Clippy advisory sweep
-    # Neither pass can fail a build: no crate sets `lints.workspace = true`, so
-    # the workspace lint table is inherited by nothing; no crate denies a lint
-    # in source; there is no `-D warnings`; and the world pass caps lints to
-    # warnings outright. That cost every PR 1.1 minutes to print advice which
-    # gated nothing, so the signal lives here instead — visible and free.
-    # Making it enforcing means clearing wow-world's lint debt first.
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Run canonical Validation V2 profile
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          PROFILE: ${{ github.event_name == 'pull_request' && 'final' || github.event.inputs.profile || 'audit' }}
+          VALIDATION_V2_CARGO_JOBS: "2"
+          VALIDATION_V2_TIMEOUT_SECONDS: "3600"
+          VALIDATION_V2_MANIFEST: ${{ runner.temp }}/validation-v2-manifest.json
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          ./tools/validation-v2 "$PROFILE" --base "$BASE_SHA"
 
-      - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+      - name: Upload Validation V2 manifest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          cache: false
-          rustflags: ""
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: clippy
-
-      - name: Install protoc
-        run: |
-          protoc_version="$(tr -d '[:space:]' < .protoc-version)"
-          curl --fail --show-error --location --retry 3 --retry-all-errors \
-            -o /tmp/protoc.zip \
-            "https://github.com/protocolbuffers/protobuf/releases/download/v${protoc_version}/protoc-${protoc_version}-linux-x86_64.zip"
-          python3 -m zipfile -e /tmp/protoc.zip "$HOME/.local"
-          chmod +x "$HOME/.local/bin/protoc"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Clippy loot authority boundary
-        run: cargo clippy --locked --no-deps --message-format short -p wow-loot -p wow-entities -p wow-map -p wow-network --lib
-
-      - name: Clippy world target with inherited debt capped
-        run: cargo clippy --locked --no-deps --message-format short -p wow-world --lib -- --cap-lints warn
-
-  latest-stable:
-    name: Latest stable compatibility
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    env:
-      RUSTUP_TOOLCHAIN: stable
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install latest stable Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: latest-stable
-
-      - name: Install protoc
-        run: |
-          protoc_version="$(tr -d '[:space:]' < .protoc-version)"
-          curl --fail --show-error --location --retry 3 --retry-all-errors \
-            -o /tmp/protoc.zip \
-            "https://github.com/protocolbuffers/protobuf/releases/download/v${protoc_version}/protoc-${protoc_version}-linux-x86_64.zip"
-          python3 -m zipfile -e /tmp/protoc.zip "$HOME/.local"
-          chmod +x "$HOME/.local/bin/protoc"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Check and link server binaries on latest stable
-        run: |
-          cargo +stable check --locked -p bnet-server -p world-server
-          cargo +stable build --locked -p bnet-server -p world-server
+          name: validation-v2-${{ github.event_name == 'pull_request' && 'final' || github.event.inputs.profile || 'audit' }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/validation-v2-manifest.json
+          if-no-files-found: error
+          retention-days: 14
