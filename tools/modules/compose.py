@@ -229,6 +229,7 @@ license.workspace = true
 [[bin]]
 name = "world-modules"
 path = "src/main.rs"
+test = false
 
 [dependencies]
 anyhow = {{ workspace = true }}
