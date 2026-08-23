@@ -15,6 +15,8 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 
 
 RUNNER_PATH = Path(__file__).with_name("validation-v2").resolve()
@@ -97,6 +99,10 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     result = invoke("quick", success_manifest)
     assert result.returncode == 0, result.stderr
     success = json.loads(success_manifest.read_text())
+    assert success["schema"] == runner.MANIFEST_SCHEMA
+    assert success["runner_signal"] is None
+    assert success["resources"]["cargo_jobs"] == 2
+    assert "memory_limit_kib" in success["resources"]
     assert success["profile"] == "quick"
     assert len(success["run_id"]) == 20
     assert success["provenance"]["rust"] == {"active": "1.98.0", "pinned": "1.98.0"}
@@ -126,6 +132,8 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
         repo, [sys.executable, "-c", "raise SystemExit(23)"], base_env, 30
     )
     assert direct_failure["exit_code"] == 23
+    assert direct_failure["failure_kind"] == "exit"
+    assert direct_failure["status"] == "failed"
     direct_signal = runner.run_one(
         repo,
         [sys.executable, "-c", "import os,signal; os.kill(os.getpid(), signal.SIGTERM)"],
@@ -134,11 +142,61 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     )
     assert direct_signal["exit_code"] == 128 + signal.SIGTERM
     assert direct_signal["signal"] == signal.SIGTERM
+    assert direct_signal["failure_kind"] == "signal"
     direct_timeout = runner.run_one(
         repo, [sys.executable, "-c", "import time; time.sleep(10)"], base_env, 1
     )
     assert direct_timeout["timed_out"] is True
     assert direct_timeout["exit_code"] == 128 + signal.SIGTERM
+    assert direct_timeout["failure_kind"] == "timeout"
+
+    # A child that traps SIGTERM and exits zero during the grace window used to
+    # be recorded as {"timed_out": true, "exit_code": 0, "status": "passed"}.
+    trapped_timeout = runner.run_one(
+        repo,
+        [
+            sys.executable,
+            "-c",
+            "import signal,sys,time; signal.signal(signal.SIGTERM, lambda *_: sys.exit(0));"
+            " time.sleep(30)",
+        ],
+        base_env,
+        1,
+    )
+    assert trapped_timeout["timed_out"] is True
+    assert trapped_timeout["exit_code"] == 0
+    assert trapped_timeout["failure_kind"] == "timeout"
+    assert trapped_timeout["status"] == "failed"
+
+    # Cargo hides a signalled test binary behind its own exit 101.
+    child_signal = runner.run_one(
+        repo,
+        [
+            sys.executable,
+            "-c",
+            "import sys; print('error: test failed, to rerun pass `-p wow-world --lib`');"
+            " print('  process didn\\'t exit successfully: wow_world-df42 (signal: 6,"
+            " SIGABRT: process abort signal)'); sys.exit(101)",
+        ],
+        base_env,
+        30,
+    )
+    assert child_signal["exit_code"] == 101
+    assert child_signal["signal"] is None
+    assert child_signal["failure_kind"] == "child-signal"
+    assert child_signal["child_signal_reports"] == [{"signal": 6, "name": "SIGABRT"}]
+
+    # Classification order, including the OOM case a host cannot be forced into.
+    assert runner.classify_failure(0, None, False, 0, []) is None
+    assert runner.classify_failure(0, None, False, None, []) is None
+    assert runner.classify_failure(0, None, False, 1, []) == "oom"
+    assert runner.classify_failure(137, None, True, 1, []) == "oom"
+    assert runner.classify_failure(137, 9, True, 0, []) == "timeout"
+    assert runner.classify_failure(137, 9, False, 0, []) == "signal"
+    assert runner.classify_failure(101, None, False, 0, [{"signal": 6}]) == "child-signal"
+    assert runner.classify_failure(1, None, False, None, []) == "exit"
+    for probe in (runner.oom_kill_count(), runner.memory_limit_kib()):
+        assert probe is None or isinstance(probe, int)
 
     steps = [
         {"section": "pass", "argv": [sys.executable, "-c", "pass"]},
@@ -151,6 +209,36 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     outcomes, exit_code = runner.run_steps(repo, steps, base_env, 30)
     assert exit_code == 19
     assert [outcome["section"] for outcome in outcomes] == ["pass", "fail"]
+
+    zero_exit_timeout = [
+        {
+            "section": "trapped-timeout",
+            "argv": [
+                sys.executable,
+                "-c",
+                "import signal,sys,time; signal.signal(signal.SIGTERM, lambda *_: sys.exit(0));"
+                " time.sleep(30)",
+            ],
+        },
+        {"section": "must-not-run", "argv": [sys.executable, "-c", "pass"]},
+    ]
+    outcomes, exit_code = runner.run_steps(repo, zero_exit_timeout, base_env, 1)
+    assert exit_code == runner.RUNNER_ERROR
+    assert [outcome["section"] for outcome in outcomes] == ["trapped-timeout"]
+
+    # A terminating signal becomes an exception so the manifest is still written.
+    previous = {number: signal.getsignal(number) for number in runner.INTERRUPT_SIGNALS}
+    try:
+        runner.install_interrupt_handlers()
+        try:
+            os.kill(os.getpid(), signal.SIGTERM)
+        except runner.RunnerInterrupted as interrupted:
+            assert interrupted.number == signal.SIGTERM
+        else:
+            raise AssertionError("SIGTERM did not raise RunnerInterrupted")
+    finally:
+        for number, handler in previous.items():
+            signal.signal(number, handler)
 
     result = invoke(
         "final", directory / "invalid.json", {"VALIDATION_V2_CARGO_JOBS": "0"}
@@ -200,6 +288,130 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     assert result.returncode == runner.LOCKED_ERROR
     assert "other-clone-run" in result.stderr
     assert "different-clone" in result.stderr
+
+
+def test_interrupt_and_verdict_contract(
+    repo: Path, tools: Path, base_env: dict[str, str], directory: Path, fake_bin: Path
+) -> None:
+    """A killed run must leave a failed manifest, and a consumer must reject it."""
+    fake_tool(fake_bin / "actionlint", 'echo VALIDATION_V2_CHILD_READY\nsleep 30\n')
+    workflow = repo / ".github" / "workflows" / "slow.yml"
+    workflow.parent.mkdir(parents=True, exist_ok=True)
+    workflow.write_text("name: fixture\n")
+    manifest = directory / "interrupted.json"
+    environment = base_env.copy()
+    environment["VALIDATION_V2_MANIFEST"] = str(manifest)
+    environment["VALIDATION_V2_TIMEOUT_SECONDS"] = "60"
+    process = subprocess.Popen(
+        [str(tools / "validation-v2"), "quick", "--base", "HEAD"],
+        cwd=repo,
+        env=environment,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    watchdog = threading.Timer(120, process.kill)
+    watchdog.start()
+    try:
+        assert process.stdout is not None
+        for line in process.stdout:
+            if line.strip() == "VALIDATION_V2_CHILD_READY":
+                time.sleep(0.2)
+                process.send_signal(signal.SIGINT)
+                break
+        else:
+            raise AssertionError("the runner never reached the slow command")
+        trailing = process.stdout.read()
+        returncode = process.wait()
+    finally:
+        watchdog.cancel()
+        if process.stdout is not None:
+            process.stdout.close()
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+    assert returncode == 128 + signal.SIGINT, (returncode, trailing)
+    interrupted = json.loads(manifest.read_text())
+    assert interrupted["status"] == "failed"
+    assert interrupted["exit_code"] == 128 + signal.SIGINT
+    assert interrupted["runner_signal"] == signal.SIGINT
+    assert interrupted["commands"], "the interrupted command must still be recorded"
+    last = interrupted["commands"][-1]
+    assert last["failure_kind"] == "interrupted"
+    assert last["status"] == "failed"
+    assert last["argv"][0] == "actionlint"
+    workflow.unlink()
+    (fake_bin / "actionlint").unlink()
+
+    def verify(target: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [str(tools / "validation-v2"), "verify", "--manifest", str(target)],
+            cwd=repo,
+            env=base_env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+    missing = verify(directory / "never-written.json")
+    assert missing.returncode == runner.VERDICT_ERROR
+    assert "is missing" in missing.stderr
+    rejected = verify(manifest)
+    assert rejected.returncode == runner.VERDICT_ERROR
+    assert "runner died by signal" in rejected.stderr
+
+    green_manifest = directory / "verified-green.json"
+    environment["VALIDATION_V2_MANIFEST"] = str(green_manifest)
+    result = subprocess.run(
+        [str(tools / "validation-v2"), "quick", "--base", "HEAD"],
+        cwd=repo,
+        env=environment,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert result.returncode == 0, result.stderr
+    accepted = verify(green_manifest)
+    assert accepted.returncode == 0, accepted.stderr
+
+    green = json.loads(green_manifest.read_text())
+    unreadable = directory / "unreadable.json"
+    unreadable.write_text("{not json")
+    assert verify(unreadable).returncode == runner.VERDICT_ERROR
+
+    tampered = directory / "tampered.json"
+    document = json.loads(json.dumps(green))
+    document["commands"][-1]["status"] = "failed"
+    document["commands"][-1]["failure_kind"] = "oom"
+    tampered.write_text(json.dumps(document))
+    tampered_result = verify(tampered)
+    assert tampered_result.returncode == runner.VERDICT_ERROR
+    assert "oom" in tampered_result.stderr
+
+    truncated = directory / "truncated.json"
+    document = json.loads(json.dumps(green))
+    document["commands"] = document["commands"][:-1]
+    truncated.write_text(json.dumps(document))
+    truncated_result = verify(truncated)
+    assert truncated_result.returncode == runner.VERDICT_ERROR
+    assert "planned steps were executed" in truncated_result.stderr
+
+    stale_schema = directory / "stale-schema.json"
+    document = json.loads(json.dumps(green))
+    document["schema"] = runner.MANIFEST_SCHEMA - 1
+    stale_schema.write_text(json.dumps(document))
+    assert verify(stale_schema).returncode == runner.VERDICT_ERROR
+
+    usage = subprocess.run(
+        [str(tools / "validation-v2"), "verify"],
+        cwd=repo,
+        env=base_env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert usage.returncode == runner.USAGE_ERROR
+    assert "requires --manifest" in usage.stderr
 
 
 def test_planner_contract(repo: Path) -> None:
@@ -318,6 +530,7 @@ def main() -> None:
         environment["PATH"] = f"{fake_bin}:{environment['PATH']}"
         environment["VALIDATION_V2_LOCK_DIR"] = str(directory / "locks")
         test_runner_contract(repo, tools, environment, directory)
+        test_interrupt_and_verdict_contract(repo, tools, environment, directory, fake_bin)
         test_planner_contract(repo)
     print("validation-v2 self-test passed")
 

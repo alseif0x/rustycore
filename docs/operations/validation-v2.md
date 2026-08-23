@@ -40,9 +40,43 @@ services, connects to a database, records a fresh capture, regenerates a baselin
 or calls either legacy wrapper. Those mutating or live operations require their own explicit QA
 procedure.
 
+## Verdict rules
+
+A run is green only when every executed command is green. The runner refuses the failure modes
+that used to read as a pass:
+
+- a step that times out is `failed` even when the child traps `SIGTERM` and exits `0`, and
+  `run_steps` stops on the step's status rather than on its exit code;
+- a failed step whose exit code is nevertheless `0` returns exit `70`, never `0`;
+- a terminating signal to the runner itself (`SIGINT`, `SIGTERM`, `SIGHUP`) is raised as an
+  exception, so the child's process group is stopped, the interrupted command is recorded with
+  `failure_kind: "interrupted"`, and the manifest is written with exit `128 + signal`;
+- before writing, the manifest is re-read against the same rules a consumer applies; an
+  inconsistent green is downgraded to exit `70`.
+
+Each command records why it is not green in `failure_kind`: `oom`, `timeout`, `signal`,
+`child-signal`, `exit`, or `interrupted`. `oom_kills` is the kernel OOM-kill delta charged to the
+runner's cgroup for that command (`null` where cgroup v2 is unobservable), which is what separates
+an OOM kill from a plain `kill -9`. `child_signal_reports` preserves a signalled grandchild that
+Cargo hides behind its own exit `101` — for example `(signal: 6, SIGABRT)` from an aborted test
+binary. `resources.memory_limit_kib` records the cgroup or host memory ceiling next to the peak
+child RSS.
+
+A runner killed outright (`SIGKILL`, OOM killer, cancelled job) cannot write anything, so the
+consumer rule is explicit: **a missing manifest is a failed run.** Verify one with
+
+```bash
+./tools/validation-v2 verify --manifest <path>
+```
+
+which exits non-zero for a missing, unreadable, schema-mismatched, signalled, failed, or truncated
+manifest — including a `passed` manifest that executed fewer commands than its plan declared. Rust
+CI runs this step after every profile, before the artifact upload.
+
 Every run acquires a non-blocking, worktree-specific lock and writes a JSON manifest under
-`target/validation-v2/manifests/`. The manifest records repository and toolchain provenance,
-dirty state, kernel, timings, command results, signals, resource limits, and peak child RSS. It
+`target/validation-v2/manifests/`. The manifest (schema 4) records repository and toolchain
+provenance, dirty state, kernel, timings, command results, signals, failure kinds, OOM-kill
+deltas, resource limits, and peak child RSS. It
 also records the resolved base, complete changed-path set, path classes, direct workspace packages,
 reverse-dependent closure, metadata outcome, optional-linter omissions, and exact command plan. It
 does not record the environment or command output. Set `VALIDATION_V2_MANIFEST` to choose a result
