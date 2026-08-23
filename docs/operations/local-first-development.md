@@ -53,6 +53,11 @@ Validation does not review code and does not start servers.
   required remote gate for external authors is the `Codex Review Gate` workflow.
 - `tools/wow-test-bot/run_rustycore_login_smoke.sh` is the live login smoke. It needs the local
   runtime and MariaDB, and is never part of CI.
+- `tools/qa-runtime.sh` orchestrates QA that needs a *different* build than the one deployed. It
+  snapshots the live build, installs a candidate through `systemctl`, runs the scenario, and
+  restores the original on every exit path; `self-test` exercises that restore against fake
+  services and `snapshot` prints the live identity without touching anything. Destructive
+  scenarios stay behind two explicit flags.
 
 ## What runs remotely
 
