@@ -112,7 +112,7 @@ explicitly for protobuf-dependent crates. Run:
 cargo fmt --all -- --check
 git diff --check
 PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo check -p <affected-crate>
-./tools/pr-preflight.sh quick origin/3.4.3
+./tools/validation-v2 quick --base origin/3.4.3
 ```
 
 Choose the focused test target from `cargo metadata` instead of assuming every package has a
@@ -130,7 +130,7 @@ PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p <package> <focused-te
 After committing to a clean HEAD and before an authorized push, run:
 
 ```bash
-./tools/pr-preflight.sh full origin/3.4.3
+./tools/validation-v2 final --base origin/3.4.3
 ```
 
 Treat the capture-diff harness inside `full` preflight as mandatory for every PR. Run a fresh
