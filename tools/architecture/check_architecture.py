@@ -3672,6 +3672,10 @@ def main() -> int:
         "check", help="check architecture ratchets and report source hotspots"
     )
     subparsers.add_parser("self-test", help="validate policy and focused fixtures")
+    subparsers.add_parser(
+        "hotspot-ratchet",
+        help="enforce only the curated hotspot LOC ceilings",
+    )
     hotspots_parser = subparsers.add_parser(
         "hotspots", help="report source hotspots without enforcing a line limit"
     )
@@ -3680,6 +3684,17 @@ def main() -> int:
 
     try:
         policy = validate_policy(load_json(args.policy))
+        if args.command == "hotspot-ratchet":
+            # The one ceiling an ordinary Rust diff can move. Kept separate from
+            # `check` so the pre-merge gate does not pull the whole scanner into
+            # the normal path.
+            ledger = validate_issue_ledger(load_json(args.ledger))
+            runtime_ledger = validate_runtime_ownership_ledger(
+                load_json(args.runtime_ledger), ledger
+            )
+            audited_hotspots = validate_hotspot_non_growth(runtime_ledger)
+            print(f"Hotspot LOC ratchet: PASS ({audited_hotspots} audited paths)")
+            return 0
         if args.command in {"check", "self-test"}:
             ledger = validate_issue_ledger(load_json(args.ledger))
             handler_module_policy = validate_handler_module_policy(

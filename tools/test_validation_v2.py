@@ -433,6 +433,8 @@ def test_planner_contract(repo: Path) -> None:
     assert all(package in final_check for package in ("a", "b", "c"))
     final_test = next(command for command in final if command[:2] == ["cargo", "test"])
     assert "a" in final_test and "b" not in final_test and "c" not in final_test
+    ratchet = ["python3", "tools/architecture/check_architecture.py", "hotspot-ratchet"]
+    assert ratchet in final and ratchet not in quick
     assert len({tuple(command) for command in final}) == len(final)
 
     root_groups = runner.grouped_paths(["Cargo.lock"])
