@@ -267,13 +267,13 @@ fn packet_spoof_ban_eviction_queues_kick_for_affected_accounts_like_cpp() {
     let guid_b = ObjectGuid::create_player(1, 12);
     let guid_c = ObjectGuid::create_player(1, 13);
     let mut info_a = broadcast_info(guid_a, send_tx_a);
-    info_a.account_id = 7;
+    info_a.info.account_id = 7;
     info_a.command_tx = command_tx_a;
     let mut info_b = broadcast_info(guid_b, send_tx_b);
-    info_b.account_id = 9;
+    info_b.info.account_id = 9;
     info_b.command_tx = command_tx_b;
     let mut info_c = broadcast_info(guid_c, send_tx_c);
-    info_c.account_id = 7;
+    info_c.info.account_id = 7;
     info_c.command_tx = command_tx_c;
 
     registry.register_or_replace(guid_a, info_a, Default::default());
