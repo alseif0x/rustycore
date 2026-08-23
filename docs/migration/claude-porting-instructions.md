@@ -156,8 +156,8 @@ rg -n "can_take_quest|satisfy_quest|represented_.*like_cpp|ConditionType" crates
 
 ```bash
 cargo fmt --check
-PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world --lib
-PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo test -p wow-world --lib
+PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo check -p world-server
 git diff --check
 awk -F '\t' 'NF != 9 { print FNR ":" NF ":" $0; bad=1 } END { if (bad) exit 1; print "TSV_OK" }' docs/migration/inventory/r8-entities-miniphase.tsv
 ```

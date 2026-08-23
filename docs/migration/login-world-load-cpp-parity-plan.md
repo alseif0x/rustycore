@@ -344,7 +344,7 @@ Acceptance:
 
 - No diagnostic behavior flags.
 - `cargo fmt --all`.
-- `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-map -p wow-world -p world-server`.
+- `PROTOC=/home/ubuntu/.local/protoc/bin/protoc cargo check -p wow-map -p wow-world -p world-server`.
 - Targeted tests for touched modules.
 - Server restarted from the built binary.
 - Real client enters world, can move/control/select/interact, and no Error #132 or
