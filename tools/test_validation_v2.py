@@ -171,6 +171,18 @@ def test_runner_contract(repo: Path, tools: Path, base_env: dict[str, str], dire
     assert child_signal["failure_kind"] == "child-signal"
     assert child_signal["child_signal_reports"] == [{"signal": 6, "name": "SIGABRT"}]
 
+    # The audit's own budget must outlast its longest step.
+    assert runner.DEFAULT_TIMEOUT == 900 and runner.AUDIT_TIMEOUT == 3600
+    audit_locked = invoke("audit", directory / "audit-timeout.json")
+    assert audit_locked.returncode in {0, runner.LOCKED_ERROR}, audit_locked.stderr
+    if audit_locked.returncode == 0:
+        recorded = json.loads((directory / "audit-timeout.json").read_text())
+        assert recorded["resources"]["command_timeout_seconds"] == runner.AUDIT_TIMEOUT
+    assert (
+        json.loads(success_manifest.read_text())["resources"]["command_timeout_seconds"]
+        == runner.DEFAULT_TIMEOUT
+    )
+
     resolved = runner.resolve_protoc(repo, base_env)
     assert resolved is not None and resolved.endswith("protoc")
     assert runner.command_environment(repo, 2)["PROTOC"] == resolved
