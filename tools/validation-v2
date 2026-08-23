@@ -30,6 +30,9 @@ LOCKED_ERROR = 75
 DEFAULT_JOBS = 2
 MAX_JOBS = 8
 DEFAULT_TIMEOUT = 900
+# The exhaustive persistence inventory alone runs 870-900s on a four-core host,
+# so the ordinary per-command budget cannot be the audit's.
+AUDIT_TIMEOUT = 3600
 DEFAULT_BASE = "origin/3.4.3"
 DEFAULT_HEAVY_LOCK = "/tmp/rustycore-validation-v2-heavy.lock"
 CHECKER_MANIFEST = "tools/architecture/handler-contract-check/Cargo.toml"
@@ -1113,7 +1116,12 @@ def main() -> int:
     repo = Path(__file__).resolve().parent.parent
     try:
         jobs = checked_value("VALIDATION_V2_CARGO_JOBS", DEFAULT_JOBS, 1, MAX_JOBS)
-        timeout = checked_value("VALIDATION_V2_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, 30, 3600)
+        timeout = checked_value(
+            "VALIDATION_V2_TIMEOUT_SECONDS",
+            AUDIT_TIMEOUT if args.profile == "audit" else DEFAULT_TIMEOUT,
+            30,
+            3600,
+        )
         details = provenance(repo)
         started_at = utc_now()
         identifier = run_id(repo, str(details["head"]), args.profile, started_at)
