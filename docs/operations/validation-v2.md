@@ -1,8 +1,8 @@
-# Validation V2 shadow runner
+# Validation V2 canonical runner
 
-Validation V2 is a clean-room, shadow-only validation path. It does not replace branch protection,
-the current local harness, the exhaustive preflight, architecture audits, capture validation, or
-runtime QA yet.
+Validation V2 is the clean-room validation path shared by local development and GitHub Actions.
+Legacy wrappers remain frozen only for the measured retirement gate tracked by #302; they are not
+called by this runner or by Rust CI.
 
 Run it through its single entry point:
 
@@ -75,7 +75,16 @@ git fetch origin 3.4.3
 ```
 
 Workflow YAML uses `actionlint` when installed. Its absence is an explicit optional skip in the
-manifest while Validation V2 remains shadow-only; promotion must provide that dependency or a
-hermetic replacement.
+manifest locally. GitHub Actions installs the pinned, checksum-verified actionlint release before
+running Validation V2, so changed workflow syntax is always checked remotely.
 
-Promotion from shadow status requires the wider comparison and migration gates tracked by #302.
+Rust CI checks out the exact event SHA with full history, prepares the pinned Rust/protoc/actionlint
+and locked Cargo inputs, then invokes this same executable once. External pull requests run the
+bounded `final` profile against the exact pull-request base SHA. First-party pull requests are
+skipped and do not wait for hosted validation. Pushes to `3.4.3`, the weekly schedule, and explicit
+`audit` dispatches run the exhaustive profile on an independent GitHub host. Every hosted run
+uploads the manifest even on failure; signals and timeouts therefore cannot become silent passes.
+Repository-level Actions concurrency serializes audits, while superseded external-PR final runs
+are cancelled.
+
+Legacy retirement still requires the wider comparison gates tracked by #302.
