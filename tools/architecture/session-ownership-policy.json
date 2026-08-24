@@ -2147,13 +2147,6 @@
           "source_class": "production"
         },
         {
-          "name": "player_melee_los_to_target_like_cpp",
-          "type": "Option < bool >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "player_mount_display_id_like_cpp",
           "type": "i32",
           "visibility": "private",
@@ -73222,7 +73215,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:cba900808172cf42ca37b00acfaac9d9:len=91816|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:7c3de753608455508af5c11cf3e8233b:len=91760|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

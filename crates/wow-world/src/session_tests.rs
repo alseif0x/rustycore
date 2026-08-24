@@ -50564,7 +50564,6 @@ fn combat_tick_los_failure_resets_timer_without_damage_like_cpp() {
         .unwrap();
     session.combat_target = Some(guid);
     session.in_combat = true;
-    session.player_melee_los_to_target_like_cpp = Some(false);
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -50574,7 +50573,19 @@ fn combat_tick_los_failure_resets_timer_without_damage_like_cpp() {
         })
         .unwrap();
 
-    session.tick_combat_sync();
+    // Drive the swing with line of sight denied. The retired
+    // `player_melee_los_to_target_like_cpp` field was the only writer of this
+    // value and had no production writer at all, so #28 made it a parameter of
+    // the lifted function; this is the branch the field existed to reach.
+    let swings = session
+        .mutate_canonical_player_like_cpp(|player| {
+            take_canonical_player_attack_swings_like_cpp(player, 0, true, true, false)
+        })
+        .flatten();
+    assert!(
+        swings.is_none_or(|(swings, _)| swings.is_empty()),
+        "a swing with no line of sight must produce no damage"
+    );
 
     let hp = manager
         .read()

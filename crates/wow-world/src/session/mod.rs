@@ -6083,7 +6083,6 @@ pub struct WorldSession {
     /// Last represented player melee tick used to decrement C++ `m_attackTimer`.
     combat_tick_last_at_like_cpp: Instant,
     /// Represented result of C++ `IsWithinLOSInMap(victim)` for melee swings until LOS runtime is canonical.
-    player_melee_los_to_target_like_cpp: Option<bool>,
     /// C++ `Player::m_swingErrorMsg`; suppresses duplicate `SMSG_ATTACK_SWING_ERROR` packets.
     player_swing_error_msg_like_cpp: Option<u8>,
 
@@ -8166,7 +8165,6 @@ impl WorldSession {
             mmap_pathfinder_like_cpp: None,
             combat_target: None,
             combat_tick_last_at_like_cpp: Instant::now(),
-            player_melee_los_to_target_like_cpp: None,
             player_swing_error_msg_like_cpp: None,
             in_combat: false,
             player_alive_like_cpp: true,
@@ -62460,7 +62458,11 @@ impl WorldSession {
                 ) || is_unit_facing_target_for_melee_like_cpp(position, target_position)
             })
             .unwrap_or(true);
-        let within_los = self.player_melee_los_to_target_like_cpp.unwrap_or(true);
+        // C++ line-of-sight for the player's own swing is not ported yet; the
+        // session passes the same value the retired `Option<bool>` field always
+        // held in production (#28). The parameter stays so the branch is
+        // reachable from a test and from whoever owns the tick.
+        let within_los = true;
         let canonical_attack_update = self.take_canonical_player_attack_swings_like_cpp(
             diff_ms,
             in_melee_range,
