@@ -672,7 +672,9 @@ display is checked against the JSON ledger:
 63. #230 — agent-neutral module CLI and skeleton;
 64. #231 — typed module configuration/fixtures;
 65. #270 — retire the four PlayerBroadcastInfo transport endpoints;
-66. #153 — terminal architecture audit.
+66. #359 — single dispatch mechanism for every opcode;
+67. #297 — promote the Session kernel to `wow-session`;
+68. #153 — terminal architecture audit.
 
 A slice may start once its declared prerequisites are merged and its branch is current. Independent
 physical work remains parallel to semantic authority cuts. Mechanical moves use focused compile and
