@@ -487,29 +487,34 @@ def affected_workspace(
     reverse = model["reverse"]
     assert isinstance(by_id, dict) and isinstance(roots, list) and isinstance(reverse, dict)
     root_wide = "workspace-root" in groups
-    direct_ids: set[str] = set()
+    removed: list[str] = []
+    matched: list[tuple[str, str]] = []
     for path in groups.get("workspace-rust", []):
-        if path.endswith("Cargo.toml") and not (repo / path).exists():
-            # A manifest that is gone from disk and from the resolved workspace
-            # is a crate removal, which can affect anything: plan it root-wide.
-            # A manifest that is gone while its package still resolves is an
-            # inconsistent tree, and still fails closed.
-            directory = path.rsplit("/", 1)[0]
-            if any(root == directory for root, _ in roots):
+        matches = [
+            package_id for root, package_id in roots if path == root or path.startswith(f"{root}/")
+        ]
+        if len(matches) == 1:
+            # The package still resolves, so a missing manifest means the tree
+            # disagrees with the lock file rather than that a crate was removed.
+            if path.endswith("Cargo.toml") and not (repo / path).exists():
                 raise ValueError(
                     f"deleted workspace manifest requires explicit recovery: {path}"
                 )
-            root_wide = True
+            matched.append((path, matches[0]))
             continue
-    if root_wide:
-        direct_ids = set(by_id)
-    for path in groups.get("workspace-rust", []):
-        if path.endswith("Cargo.toml") and not (repo / path).exists():
+        # A path that resolves to no package and no longer exists belonged to a
+        # crate that was removed. A removal can affect anything, so it is planned
+        # root-wide. A path that resolves to no package but is still on disk is
+        # genuinely unclassified, and still fails closed.
+        if not matches and not (repo / path).exists():
+            removed.append(path)
             continue
-        matches = [package_id for root, package_id in roots if path == root or path.startswith(f"{root}/")]
-        if len(matches) != 1:
-            raise ValueError(f"changed workspace path maps to {len(matches)} packages: {path}")
-        direct_ids.add(matches[0])
+        raise ValueError(f"changed workspace path maps to {len(matches)} packages: {path}")
+    if removed:
+        root_wide = True
+    direct_ids: set[str] = set(by_id) if root_wide else set()
+    for _, package_id in matched:
+        direct_ids.add(package_id)
     closure = set(direct_ids)
     pending = list(sorted(direct_ids))
     while pending:

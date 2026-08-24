@@ -581,7 +581,7 @@ def test_planner_contract(repo: Path) -> None:
 
     # A crate that is gone from disk and from the resolved workspace was removed,
     # and a removal can affect anything: plan it root-wide rather than refuse.
-    removed_paths = ["crates/removed/Cargo.toml"]
+    removed_paths = ["crates/removed/Cargo.toml", "crates/removed/src/lib.rs"]
     removed_groups = runner.grouped_paths(removed_paths)
     removed_workspace = runner.affected_workspace(repo, removed_paths, removed_groups, metadata)
     assert removed_workspace["root_wide"] is True
@@ -596,6 +596,23 @@ def test_planner_contract(repo: Path) -> None:
 
     # A manifest deleted while its package still resolves is an inconsistent
     # tree, and still fails closed.
+    # A source file that resolves to no package but is still on disk stays an
+    # error: that is an unclassified path, not a removal.
+    present_unclassified = repo / "crates" / "stray.rs"
+    present_unclassified.write_text("// not part of any package\n")
+    try:
+        runner.affected_workspace(
+            repo,
+            ["crates/stray.rs"],
+            runner.grouped_paths(["crates/stray.rs"]),
+            metadata,
+        )
+    except ValueError as error:
+        assert "maps to 0 packages" in str(error), error
+    else:
+        raise AssertionError("an unclassified present path did not fail closed")
+    present_unclassified.unlink()
+
     deleted_paths = ["crates/a/Cargo.toml"]
     (repo / "crates" / "a" / "Cargo.toml").unlink()
     deleted_groups = runner.grouped_paths(deleted_paths)
