@@ -1,0 +1,3348 @@
+[
+ {
+  "opcode": "AcceptGuildInvite",
+  "value": 13822,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_accept_guild_invite"
+ },
+ {
+  "opcode": "AcceptSocialContract",
+  "value": 14157,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_accept_social_contract"
+ },
+ {
+  "opcode": "AcceptTrade",
+  "value": 12634,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_accept_trade"
+ },
+ {
+  "opcode": "AcceptWargameInvite",
+  "value": 13793,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_accept_wargame_invite"
+ },
+ {
+  "opcode": "AccountNotificationAcknowledged",
+  "value": 14141,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_account_notification_acknowledged"
+ },
+ {
+  "opcode": "ActivateTaxi",
+  "value": 13483,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_activate_taxi"
+ },
+ {
+  "opcode": "AddBattlenetFriend",
+  "value": 13916,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_add_battlenet_friend"
+ },
+ {
+  "opcode": "AddFriend",
+  "value": 14040,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_add_friend"
+ },
+ {
+  "opcode": "AddIgnore",
+  "value": 14044,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_add_ignore"
+ },
+ {
+  "opcode": "AddToy",
+  "value": 12953,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_add_toy"
+ },
+ {
+  "opcode": "AddonList",
+  "value": 13784,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_addon_list"
+ },
+ {
+  "opcode": "AdventureMapStartQuest",
+  "value": 13017,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_adventure_map_start_quest"
+ },
+ {
+  "opcode": "AlterAppearance",
+  "value": 13557,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_alter_appearance"
+ },
+ {
+  "opcode": "AreaSpiritHealerQuery",
+  "value": 13488,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_area_spirit_healer_query"
+ },
+ {
+  "opcode": "AreaSpiritHealerQueue",
+  "value": 13489,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_area_spirit_healer_queue"
+ },
+ {
+  "opcode": "AreaTrigger",
+  "value": 12758,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_area_trigger"
+ },
+ {
+  "opcode": "ArenaTeamAccept",
+  "value": 14009,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_arena_team_accept"
+ },
+ {
+  "opcode": "ArenaTeamDecline",
+  "value": 14010,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_arena_team_decline"
+ },
+ {
+  "opcode": "ArenaTeamDisband",
+  "value": 14013,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_arena_team_disband"
+ },
+ {
+  "opcode": "ArenaTeamLeader",
+  "value": 14014,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_arena_team_leader"
+ },
+ {
+  "opcode": "ArenaTeamLeave",
+  "value": 14011,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_arena_team_leave"
+ },
+ {
+  "opcode": "ArenaTeamRemove",
+  "value": 14012,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_arena_team_remove"
+ },
+ {
+  "opcode": "ArenaTeamRoster",
+  "value": 14008,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_arena_team_roster"
+ },
+ {
+  "opcode": "AssignEquipmentSetSpec",
+  "value": 12807,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_assign_equipment_set_spec"
+ },
+ {
+  "opcode": "AttackStop",
+  "value": 12886,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_attack_stop"
+ },
+ {
+  "opcode": "AttackSwing",
+  "value": 12885,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_attack_swing"
+ },
+ {
+  "opcode": "AuctionHelloRequest",
+  "value": 13514,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_auction_hello_request"
+ },
+ {
+  "opcode": "AuctionListBidderItems",
+  "value": 13520,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_auction_list_bidder_items"
+ },
+ {
+  "opcode": "AuctionListItems",
+  "value": 13517,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_auction_list_items"
+ },
+ {
+  "opcode": "AuctionListOwnerItems",
+  "value": 13519,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_auction_list_owner_items"
+ },
+ {
+  "opcode": "AuctionListPendingSales",
+  "value": 13522,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_auction_list_pending_sales"
+ },
+ {
+  "opcode": "AuctionPlaceBid",
+  "value": 13521,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_auction_place_bid"
+ },
+ {
+  "opcode": "AuctionRemoveItem",
+  "value": 13516,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_auction_remove_item"
+ },
+ {
+  "opcode": "AuctionReplicateItems",
+  "value": 13518,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_auction_replicate_items"
+ },
+ {
+  "opcode": "AuctionSellItem",
+  "value": 13515,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_auction_sell_item"
+ },
+ {
+  "opcode": "AuctionableTokenSell",
+  "value": 14062,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_auctionable_token_sell"
+ },
+ {
+  "opcode": "AuctionableTokenSellAtMarketPrice",
+  "value": 14063,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_auctionable_token_sell_at_market_price"
+ },
+ {
+  "opcode": "AutoEquipItem",
+  "value": 14744,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_auto_equip_item"
+ },
+ {
+  "opcode": "AutoEquipItemSlot",
+  "value": 14749,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_auto_equip_item_slot"
+ },
+ {
+  "opcode": "AutoGuildBankItem",
+  "value": 13494,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_auto_guild_bank_item"
+ },
+ {
+  "opcode": "AutoStoreBagItem",
+  "value": 14745,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_auto_store_bag_item"
+ },
+ {
+  "opcode": "AutoStoreGuildBankItem",
+  "value": 13503,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_auto_store_guild_bank_item"
+ },
+ {
+  "opcode": "AutobankItem",
+  "value": 14743,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_autobank_item"
+ },
+ {
+  "opcode": "AutostoreBankItem",
+  "value": 14742,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_autostore_bank_item"
+ },
+ {
+  "opcode": "BankerActivate",
+  "value": 13491,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_banker_activate"
+ },
+ {
+  "opcode": "BattlePayGetProductList",
+  "value": 14020,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_battle_pay_stub"
+ },
+ {
+  "opcode": "BattlePayGetPurchaseList",
+  "value": 14021,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_battle_pay_stub"
+ },
+ {
+  "opcode": "BattlePetClearFanfare",
+  "value": 12582,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_battle_pet_clear_fanfare"
+ },
+ {
+  "opcode": "BattlePetRequestJournal",
+  "value": 13861,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_battle_pet_request_journal"
+ },
+ {
+  "opcode": "BattlePetRequestJournalLock",
+  "value": 13860,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_battle_pet_request_journal_lock"
+ },
+ {
+  "opcode": "BattlePetSetBattleSlot",
+  "value": 13870,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_battle_pet_set_battle_slot"
+ },
+ {
+  "opcode": "BattlePetSetFlags",
+  "value": 13873,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_battle_pet_set_flags"
+ },
+ {
+  "opcode": "BattlePetSummon",
+  "value": 13866,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_battle_pet_summon"
+ },
+ {
+  "opcode": "BattlePetUpdateDisplayNotify",
+  "value": 12768,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_battle_pet_update_display_notify"
+ },
+ {
+  "opcode": "BattlePetUpdateNotify",
+  "value": 12767,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_battle_pet_update_notify"
+ },
+ {
+  "opcode": "BattlefieldLeave",
+  "value": 12661,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_battlefield_leave"
+ },
+ {
+  "opcode": "BattlefieldList",
+  "value": 12673,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_battlefield_list"
+ },
+ {
+  "opcode": "BattlefieldPort",
+  "value": 13605,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_battlefield_port"
+ },
+ {
+  "opcode": "BattlemasterHello",
+  "value": 12977,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_battlemaster_hello"
+ },
+ {
+  "opcode": "BattlemasterJoin",
+  "value": 13600,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_battlemaster_join"
+ },
+ {
+  "opcode": "BattlemasterJoinArena",
+  "value": 13601,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_battlemaster_join_arena"
+ },
+ {
+  "opcode": "BattlemasterJoinSkirmish",
+  "value": 13602,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_battlemaster_join_skirmish"
+ },
+ {
+  "opcode": "BattlenetChallengeResponse",
+  "value": 14043,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "BattlenetRequest",
+  "value": 14077,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_battlenet_request"
+ },
+ {
+  "opcode": "BeginTrade",
+  "value": 12631,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_begin_trade"
+ },
+ {
+  "opcode": "BinderActivate",
+  "value": 13490,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_binder_activate"
+ },
+ {
+  "opcode": "BugReport",
+  "value": 13959,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_bug_report"
+ },
+ {
+  "opcode": "BusyTrade",
+  "value": 12632,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_busy_trade"
+ },
+ {
+  "opcode": "BuyBackItem",
+  "value": 13476,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_buy_back_item"
+ },
+ {
+  "opcode": "BuyBankSlot",
+  "value": 13492,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_buy_bank_slot"
+ },
+ {
+  "opcode": "BuyItem",
+  "value": 13475,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_buy_item"
+ },
+ {
+  "opcode": "CalendarAddEvent",
+  "value": 13951,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_calendar_add_event"
+ },
+ {
+  "opcode": "CalendarCommunityInvite",
+  "value": 13939,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_calendar_community_invite"
+ },
+ {
+  "opcode": "CalendarComplain",
+  "value": 13947,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_calendar_complain"
+ },
+ {
+  "opcode": "CalendarCopyEvent",
+  "value": 13946,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_calendar_copy_event"
+ },
+ {
+  "opcode": "CalendarEventSignUp",
+  "value": 13949,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_calendar_event_sign_up"
+ },
+ {
+  "opcode": "CalendarGet",
+  "value": 13937,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_calendar_get"
+ },
+ {
+  "opcode": "CalendarGetEvent",
+  "value": 13938,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_calendar_get_event"
+ },
+ {
+  "opcode": "CalendarGetNumPending",
+  "value": 13948,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_calendar_get_num_pending"
+ },
+ {
+  "opcode": "CalendarInvite",
+  "value": 13940,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_calendar_invite"
+ },
+ {
+  "opcode": "CalendarModeratorStatus",
+  "value": 13944,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_calendar_moderator_status"
+ },
+ {
+  "opcode": "CalendarRemoveEvent",
+  "value": 13945,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_calendar_remove_event"
+ },
+ {
+  "opcode": "CalendarRemoveInvite",
+  "value": 13941,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_calendar_remove_invite"
+ },
+ {
+  "opcode": "CalendarRsvp",
+  "value": 13942,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_calendar_rsvp"
+ },
+ {
+  "opcode": "CalendarStatus",
+  "value": 13943,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_calendar_status"
+ },
+ {
+  "opcode": "CalendarUpdateEvent",
+  "value": 13952,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_calendar_update_event"
+ },
+ {
+  "opcode": "CanDuel",
+  "value": 13924,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_can_duel"
+ },
+ {
+  "opcode": "CancelAura",
+  "value": 12719,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_cancel_aura"
+ },
+ {
+  "opcode": "CancelAutoRepeatSpell",
+  "value": 13543,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_cancel_auto_repeat_spell"
+ },
+ {
+  "opcode": "CancelCast",
+  "value": 12959,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_cancel_cast"
+ },
+ {
+  "opcode": "CancelChannelling",
+  "value": 12906,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_cancel_channelling"
+ },
+ {
+  "opcode": "CancelGrowthAura",
+  "value": 12911,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_cancel_growth_aura"
+ },
+ {
+  "opcode": "CancelMountAura",
+  "value": 12927,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_cancel_mount_aura"
+ },
+ {
+  "opcode": "CancelQueuedSpell",
+  "value": 12674,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_cancel_queued_spell"
+ },
+ {
+  "opcode": "CancelTempEnchantment",
+  "value": 13554,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_cancel_temp_enchantment"
+ },
+ {
+  "opcode": "CancelTrade",
+  "value": 12636,
+  "status": "LoggedInOrRecentlyLogout",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_cancel_trade"
+ },
+ {
+  "opcode": "CastSpell",
+  "value": 12956,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_cast_spell"
+ },
+ {
+  "opcode": "ChangeBagSlotFlag",
+  "value": 13000,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "ChangeBankBagSlotFlag",
+  "value": 13001,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_change_bank_bag_slot_flag"
+ },
+ {
+  "opcode": "ChangeRealmTicket",
+  "value": 14081,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_change_realm_ticket"
+ },
+ {
+  "opcode": "ChangeSubGroup",
+  "value": 13903,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_change_sub_group"
+ },
+ {
+  "opcode": "CharCustomize",
+  "value": 13964,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_char_customize"
+ },
+ {
+  "opcode": "CharDelete",
+  "value": 13981,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_char_delete"
+ },
+ {
+  "opcode": "CharacterRenameRequest",
+  "value": 14025,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_character_rename_request"
+ },
+ {
+  "opcode": "ChatAddonMessage",
+  "value": 14318,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_addon_message"
+ },
+ {
+  "opcode": "ChatAddonMessageWhisper",
+  "value": 14319,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_addon_message_whisper"
+ },
+ {
+  "opcode": "ChatChannelAnnouncements",
+  "value": 14307,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_channel_command"
+ },
+ {
+  "opcode": "ChatChannelBan",
+  "value": 14305,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_channel_player_command"
+ },
+ {
+  "opcode": "ChatChannelDeclineInvite",
+  "value": 14310,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_channel_command"
+ },
+ {
+  "opcode": "ChatChannelDisplayList",
+  "value": 14294,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_channel_command"
+ },
+ {
+  "opcode": "ChatChannelInvite",
+  "value": 14303,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_channel_player_command"
+ },
+ {
+  "opcode": "ChatChannelKick",
+  "value": 14304,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_channel_player_command"
+ },
+ {
+  "opcode": "ChatChannelList",
+  "value": 14293,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_channel_command"
+ },
+ {
+  "opcode": "ChatChannelModerator",
+  "value": 14299,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_channel_player_command"
+ },
+ {
+  "opcode": "ChatChannelOwner",
+  "value": 14297,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_channel_command"
+ },
+ {
+  "opcode": "ChatChannelPassword",
+  "value": 14295,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_channel_password"
+ },
+ {
+  "opcode": "ChatChannelSetOwner",
+  "value": 14296,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_channel_player_command"
+ },
+ {
+  "opcode": "ChatChannelSilenceAll",
+  "value": 14308,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_channel_player_command"
+ },
+ {
+  "opcode": "ChatChannelUnban",
+  "value": 14306,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_channel_player_command"
+ },
+ {
+  "opcode": "ChatChannelUnmoderator",
+  "value": 14300,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_channel_player_command"
+ },
+ {
+  "opcode": "ChatChannelUnsilenceAll",
+  "value": 14309,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_channel_player_command"
+ },
+ {
+  "opcode": "ChatJoinChannel",
+  "value": 14280,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_join_channel"
+ },
+ {
+  "opcode": "ChatLeaveChannel",
+  "value": 14281,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_leave_channel"
+ },
+ {
+  "opcode": "ChatMessageAfk",
+  "value": 14291,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_afk"
+ },
+ {
+  "opcode": "ChatMessageChannel",
+  "value": 14287,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_channel_message"
+ },
+ {
+  "opcode": "ChatMessageDnd",
+  "value": 14292,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_dnd"
+ },
+ {
+  "opcode": "ChatMessageEmote",
+  "value": 14312,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_emote"
+ },
+ {
+  "opcode": "ChatMessageGuild",
+  "value": 14289,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_guild"
+ },
+ {
+  "opcode": "ChatMessageInstanceChat",
+  "value": 14316,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_instance"
+ },
+ {
+  "opcode": "ChatMessageOfficer",
+  "value": 14290,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_officer"
+ },
+ {
+  "opcode": "ChatMessageParty",
+  "value": 14314,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_party"
+ },
+ {
+  "opcode": "ChatMessageRaid",
+  "value": 14315,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_raid"
+ },
+ {
+  "opcode": "ChatMessageRaidWarning",
+  "value": 14317,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_raid_warning"
+ },
+ {
+  "opcode": "ChatMessageSay",
+  "value": 14311,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_say"
+ },
+ {
+  "opcode": "ChatMessageWhisper",
+  "value": 14288,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_whisper"
+ },
+ {
+  "opcode": "ChatMessageYell",
+  "value": 14313,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_yell"
+ },
+ {
+  "opcode": "ChatRegisterAddonPrefixes",
+  "value": 14285,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_register_addon_prefixes"
+ },
+ {
+  "opcode": "ChatReportFiltered",
+  "value": 14284,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_report_filtered"
+ },
+ {
+  "opcode": "ChatReportIgnored",
+  "value": 14283,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_report_ignored"
+ },
+ {
+  "opcode": "ChatUnregisterAllAddonPrefixes",
+  "value": 14286,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_chat_unregister_all_addon_prefixes"
+ },
+ {
+  "opcode": "ClearTradeItem",
+  "value": 12638,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_clear_trade_item"
+ },
+ {
+  "opcode": "CloseInteraction",
+  "value": 13459,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_close_interaction"
+ },
+ {
+  "opcode": "CloseQuestChoice",
+  "value": 12962,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "CollectionItemSetFavorite",
+  "value": 13876,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_collection_item_set_favorite"
+ },
+ {
+  "opcode": "CommerceTokenGetLog",
+  "value": 14070,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_commerce_token_get_log"
+ },
+ {
+  "opcode": "Complaint",
+  "value": 13934,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_complaint"
+ },
+ {
+  "opcode": "CompleteCinematic",
+  "value": 13637,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_complete_cinematic"
+ },
+ {
+  "opcode": "CompleteMovie",
+  "value": 13533,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_complete_movie"
+ },
+ {
+  "opcode": "ConfirmBarbersChoice",
+  "value": 12814,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_confirm_barbers_choice"
+ },
+ {
+  "opcode": "ConfirmRespecWipe",
+  "value": 12813,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_confirm_respec_wipe"
+ },
+ {
+  "opcode": "ConnectToFailed",
+  "value": 13780,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_connect_to_failed"
+ },
+ {
+  "opcode": "ConvertRaid",
+  "value": 13905,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_convert_raid"
+ },
+ {
+  "opcode": "CreateCharacter",
+  "value": 13893,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_create_character"
+ },
+ {
+  "opcode": "DbQueryBulk",
+  "value": 13797,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_db_query_bulk"
+ },
+ {
+  "opcode": "DeclineGuildInvites",
+  "value": 13597,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_decline_guild_invites"
+ },
+ {
+  "opcode": "DeclinePetition",
+  "value": 13620,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_decline_petition"
+ },
+ {
+  "opcode": "DelFriend",
+  "value": 14041,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_del_friend"
+ },
+ {
+  "opcode": "DelIgnore",
+  "value": 14045,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_del_ignore"
+ },
+ {
+  "opcode": "DeleteEquipmentSet",
+  "value": 13578,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_delete_equipment_set"
+ },
+ {
+  "opcode": "DestroyItem",
+  "value": 12947,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_destroy_item"
+ },
+ {
+  "opcode": "DfGetJoinStatus",
+  "value": 13846,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_df_get_join_status"
+ },
+ {
+  "opcode": "DfGetSystemInfo",
+  "value": 13845,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_df_get_system_info"
+ },
+ {
+  "opcode": "DiscardedTimeSyncAcks",
+  "value": 14913,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_client_telemetry_null_like_cpp"
+ },
+ {
+  "opcode": "DismissCritter",
+  "value": 13561,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_dismiss_critter"
+ },
+ {
+  "opcode": "DoReadyCheck",
+  "value": 13877,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_do_ready_check"
+ },
+ {
+  "opcode": "DuelResponse",
+  "value": 13538,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_duel_response"
+ },
+ {
+  "opcode": "EjectPassenger",
+  "value": 12860,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_eject_passenger"
+ },
+ {
+  "opcode": "Emote",
+  "value": 13633,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_emote"
+ },
+ {
+  "opcode": "EngineSurvey",
+  "value": 14059,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_client_telemetry_null_like_cpp"
+ },
+ {
+  "opcode": "EnumCharacters",
+  "value": 13801,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_enum_characters"
+ },
+ {
+  "opcode": "FarSight",
+  "value": 13544,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_far_sight"
+ },
+ {
+  "opcode": "GameObjReportUse",
+  "value": 13551,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_game_obj_report_use"
+ },
+ {
+  "opcode": "GameObjUse",
+  "value": 13550,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_game_obj_use"
+ },
+ {
+  "opcode": "GetAccountCharacterList",
+  "value": 14015,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_get_account_character_list"
+ },
+ {
+  "opcode": "GetAccountNotifications",
+  "value": 14140,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_get_account_notifications"
+ },
+ {
+  "opcode": "GetItemPurchaseData",
+  "value": 13615,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_get_item_purchase_data"
+ },
+ {
+  "opcode": "GetUndeleteCharacterCooldownStatus",
+  "value": 14055,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_get_undelete_cooldown_status"
+ },
+ {
+  "opcode": "GmTicketAcknowledgeSurvey",
+  "value": 13968,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_gm_ticket_acknowledge_survey"
+ },
+ {
+  "opcode": "GmTicketGetCaseStatus",
+  "value": 13967,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_gm_ticket_get_case_status"
+ },
+ {
+  "opcode": "GmTicketGetSystemStatus",
+  "value": 13966,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_gm_ticket_get_system_status"
+ },
+ {
+  "opcode": "GossipSelectOption",
+  "value": 13460,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_gossip_select_option"
+ },
+ {
+  "opcode": "GuildBankActivate",
+  "value": 13493,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_guild_bank_activate"
+ },
+ {
+  "opcode": "GuildBankBuyTab",
+  "value": 13507,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_guild_bank_buy_tab"
+ },
+ {
+  "opcode": "GuildBankDepositMoney",
+  "value": 13509,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_guild_bank_deposit_money"
+ },
+ {
+  "opcode": "GuildBankLogQuery",
+  "value": 12418,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_guild_bank_log_query"
+ },
+ {
+  "opcode": "GuildBankQueryTab",
+  "value": 13506,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_guild_bank_query_tab"
+ },
+ {
+  "opcode": "GuildBankRemainingWithdrawMoneyQuery",
+  "value": 12419,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_guild_bank_remaining_withdraw_money_query"
+ },
+ {
+  "opcode": "GuildBankSetTabText",
+  "value": 12422,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_guild_bank_set_tab_text"
+ },
+ {
+  "opcode": "GuildBankTextQuery",
+  "value": 12423,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_guild_bank_text_query"
+ },
+ {
+  "opcode": "GuildBankUpdateTab",
+  "value": 13508,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_guild_bank_update_tab"
+ },
+ {
+  "opcode": "GuildBankWithdrawMoney",
+  "value": 13510,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_guild_bank_withdraw_money"
+ },
+ {
+  "opcode": "GuildDeclineInvitation",
+  "value": 12384,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_guild_decline_invitation"
+ },
+ {
+  "opcode": "GuildSetAchievementTracking",
+  "value": 12399,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_guild_set_achievement_tracking"
+ },
+ {
+  "opcode": "HearthAndResurrect",
+  "value": 13574,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_hearth_and_resurrect"
+ },
+ {
+  "opcode": "HotfixRequest",
+  "value": 13798,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_hotfix_request"
+ },
+ {
+  "opcode": "IgnoreTrade",
+  "value": 12633,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_ignore_trade"
+ },
+ {
+  "opcode": "InitiateRolePoll",
+  "value": 13786,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_initiate_role_poll"
+ },
+ {
+  "opcode": "Inspect",
+  "value": 13609,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_inspect"
+ },
+ {
+  "opcode": "InstanceLockResponse",
+  "value": 13579,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_instance_lock_response"
+ },
+ {
+  "opcode": "ItemPurchaseRefund",
+  "value": 13616,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_item_purchase_refund"
+ },
+ {
+  "opcode": "ItemTextQuery",
+  "value": 12997,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_item_text_query"
+ },
+ {
+  "opcode": "LatencyReport",
+  "value": 14193,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_client_telemetry_null_like_cpp"
+ },
+ {
+  "opcode": "LearnTalent",
+  "value": 13650,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_learn_talent"
+ },
+ {
+  "opcode": "LeaveGroup",
+  "value": 13900,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_leave_group"
+ },
+ {
+  "opcode": "LfgListGetStatus",
+  "value": 13837,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_lfg_list_get_status"
+ },
+ {
+  "opcode": "ListInventory",
+  "value": 13473,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_list_inventory"
+ },
+ {
+  "opcode": "LoadingScreenNotify",
+  "value": 13817,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_loading_screen_notify"
+ },
+ {
+  "opcode": "LogStreamingError",
+  "value": 14189,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_log_streaming_error"
+ },
+ {
+  "opcode": "LogoutCancel",
+  "value": 13528,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_logout_cancel"
+ },
+ {
+  "opcode": "LogoutInstant",
+  "value": 13529,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_logout_instant"
+ },
+ {
+  "opcode": "LogoutRequest",
+  "value": 13526,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_logout_request"
+ },
+ {
+  "opcode": "LootItem",
+  "value": 12817,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_loot_item"
+ },
+ {
+  "opcode": "LootMoney",
+  "value": 12816,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_loot_money"
+ },
+ {
+  "opcode": "LootRelease",
+  "value": 12819,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_loot_release"
+ },
+ {
+  "opcode": "LootRoll",
+  "value": 12820,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_loot_roll"
+ },
+ {
+  "opcode": "LootUnit",
+  "value": 12815,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_loot_unit"
+ },
+ {
+  "opcode": "LowLevelRaid1",
+  "value": 13985,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_low_level_raid1"
+ },
+ {
+  "opcode": "LowLevelRaid2",
+  "value": 13586,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_low_level_raid2"
+ },
+ {
+  "opcode": "MasterLootItem",
+  "value": 12818,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_master_loot_item"
+ },
+ {
+  "opcode": "MinimapPing",
+  "value": 13902,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_minimap_ping"
+ },
+ {
+  "opcode": "MountClearFanfare",
+  "value": 12583,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_mount_clear_fanfare"
+ },
+ {
+  "opcode": "MountSetFavorite",
+  "value": 13875,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_mount_set_favorite"
+ },
+ {
+  "opcode": "MountSpecialAnim",
+  "value": 12928,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_mount_special_anim"
+ },
+ {
+  "opcode": "MoveAddImpulseAck",
+  "value": 14928,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveApplyInertiaAck",
+  "value": 14926,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveApplyMovementForceAck",
+  "value": 14869,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_move_apply_movement_force_ack"
+ },
+ {
+  "opcode": "MoveChangeVehicleSeats",
+  "value": 14900,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_move_change_vehicle_seats"
+ },
+ {
+  "opcode": "MoveCollisionDisableAck",
+  "value": 14905,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_ack_message"
+ },
+ {
+  "opcode": "MoveCollisionEnableAck",
+  "value": 14906,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_ack_message"
+ },
+ {
+  "opcode": "MoveDismissVehicle",
+  "value": 14899,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_move_dismiss_vehicle"
+ },
+ {
+  "opcode": "MoveEnableDoubleJumpAck",
+  "value": 14878,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_ack_message"
+ },
+ {
+  "opcode": "MoveEnableSwimToFlyTransAck",
+  "value": 14884,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_ack_message"
+ },
+ {
+  "opcode": "MoveFallLand",
+  "value": 14843,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveFallLand"
+ },
+ {
+  "opcode": "MoveFallReset",
+  "value": 14873,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveFallReset"
+ },
+ {
+  "opcode": "MoveFeatherFallAck",
+  "value": 14876,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_ack_message"
+ },
+ {
+  "opcode": "MoveForceFlightBackSpeedChangeAck",
+  "value": 14894,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_speed_ack"
+ },
+ {
+  "opcode": "MoveForceFlightSpeedChangeAck",
+  "value": 14893,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_speed_ack"
+ },
+ {
+  "opcode": "MoveForcePitchRateChangeAck",
+  "value": 14898,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_speed_ack"
+ },
+ {
+  "opcode": "MoveForceRootAck",
+  "value": 14862,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_ack_message"
+ },
+ {
+  "opcode": "MoveForceRunBackSpeedChangeAck",
+  "value": 14860,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_speed_ack"
+ },
+ {
+  "opcode": "MoveForceRunSpeedChangeAck",
+  "value": 14859,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_speed_ack"
+ },
+ {
+  "opcode": "MoveForceSwimBackSpeedChangeAck",
+  "value": 14882,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_speed_ack"
+ },
+ {
+  "opcode": "MoveForceSwimSpeedChangeAck",
+  "value": 14861,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_speed_ack"
+ },
+ {
+  "opcode": "MoveForceTurnRateChangeAck",
+  "value": 14883,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_speed_ack"
+ },
+ {
+  "opcode": "MoveForceUnrootAck",
+  "value": 14863,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_ack_message"
+ },
+ {
+  "opcode": "MoveForceWalkSpeedChangeAck",
+  "value": 14881,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_speed_ack"
+ },
+ {
+  "opcode": "MoveGravityDisableAck",
+  "value": 14901,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_ack_message"
+ },
+ {
+  "opcode": "MoveGravityEnableAck",
+  "value": 14902,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_ack_message"
+ },
+ {
+  "opcode": "MoveHeartbeat",
+  "value": 14864,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveHeartbeat"
+ },
+ {
+  "opcode": "MoveHoverAck",
+  "value": 14867,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_ack_message"
+ },
+ {
+  "opcode": "MoveInertiaDisableAck",
+  "value": 14903,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_ack_message"
+ },
+ {
+  "opcode": "MoveInertiaEnableAck",
+  "value": 14904,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_ack_message"
+ },
+ {
+  "opcode": "MoveInitActiveMoverComplete",
+  "value": 14918,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_move_init_active_mover_complete"
+ },
+ {
+  "opcode": "MoveJump",
+  "value": 14826,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveJump"
+ },
+ {
+  "opcode": "MoveKnockBackAck",
+  "value": 14866,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_move_knock_back_ack"
+ },
+ {
+  "opcode": "MoveRemoveInertiaAck",
+  "value": 14927,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveRemoveMovementForceAck",
+  "value": 14870,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_move_remove_movement_force_ack"
+ },
+ {
+  "opcode": "MoveRemoveMovementForces",
+  "value": 14871,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveSeamlessTransferComplete",
+  "value": 14916,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveSetAdvFly",
+  "value": 14930,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveSetAdvFlyingAddImpulseMaxSpeedAck",
+  "value": 14936,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveSetAdvFlyingAirFrictionAck",
+  "value": 14931,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveSetAdvFlyingBankingRateAck",
+  "value": 14937,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveSetAdvFlyingDoubleJumpVelModAck",
+  "value": 14934,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveSetAdvFlyingGlideStartMinHeightAck",
+  "value": 14935,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveSetAdvFlyingLaunchSpeedCoefficientAck",
+  "value": 14944,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveSetAdvFlyingLiftCoefficientAck",
+  "value": 14933,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveSetAdvFlyingMaxVelAck",
+  "value": 14932,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveSetAdvFlyingOverMaxDecelerationAck",
+  "value": 14942,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveSetAdvFlyingPitchingRateDownAck",
+  "value": 14938,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveSetAdvFlyingPitchingRateUpAck",
+  "value": 14939,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveSetAdvFlyingSurfaceFrictionAck",
+  "value": 14941,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveSetAdvFlyingTurnVelocityThresholdAck",
+  "value": 14940,
+  "status": "Authed",
+  "processing": "ThreadSafe",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "MoveSetCanFlyAck",
+  "value": 14887,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_ack_message"
+ },
+ {
+  "opcode": "MoveSetCanTurnWhileFallingAck",
+  "value": 14885,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_ack_message"
+ },
+ {
+  "opcode": "MoveSetCollisionHeightAck",
+  "value": 14907,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_move_set_collision_height_ack"
+ },
+ {
+  "opcode": "MoveSetFacing",
+  "value": 14857,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveSetFacing"
+ },
+ {
+  "opcode": "MoveSetFacingHeartbeat",
+  "value": 14943,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveSetFacingHeartbeat"
+ },
+ {
+  "opcode": "MoveSetFly",
+  "value": 14888,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveSetFly"
+ },
+ {
+  "opcode": "MoveSetIgnoreMovementForcesAck",
+  "value": 14886,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_ack_message"
+ },
+ {
+  "opcode": "MoveSetModMovementForceMagnitudeAck",
+  "value": 14914,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_speed_ack"
+ },
+ {
+  "opcode": "MoveSetPitch",
+  "value": 14858,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveSetPitch"
+ },
+ {
+  "opcode": "MoveSetRunMode",
+  "value": 14834,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveSetRunMode"
+ },
+ {
+  "opcode": "MoveSetVehicleRecIdAck",
+  "value": 14868,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_move_set_vehicle_rec_id_ack"
+ },
+ {
+  "opcode": "MoveSetWalkMode",
+  "value": 14835,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveSetWalkMode"
+ },
+ {
+  "opcode": "MoveSplineDone",
+  "value": 14872,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_move_spline_done"
+ },
+ {
+  "opcode": "MoveStartAscend",
+  "value": 14889,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveStartAscend"
+ },
+ {
+  "opcode": "MoveStartBackward",
+  "value": 14821,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveStartBackward"
+ },
+ {
+  "opcode": "MoveStartDescend",
+  "value": 14896,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveStartDescend"
+ },
+ {
+  "opcode": "MoveStartForward",
+  "value": 14820,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveStartForward"
+ },
+ {
+  "opcode": "MoveStartPitchDown",
+  "value": 14832,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveStartPitchDown"
+ },
+ {
+  "opcode": "MoveStartPitchUp",
+  "value": 14831,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveStartPitchUp"
+ },
+ {
+  "opcode": "MoveStartStrafeLeft",
+  "value": 14823,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveStartStrafeLeft"
+ },
+ {
+  "opcode": "MoveStartStrafeRight",
+  "value": 14824,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveStartStrafeRight"
+ },
+ {
+  "opcode": "MoveStartSwim",
+  "value": 14844,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveStartSwim"
+ },
+ {
+  "opcode": "MoveStartTurnLeft",
+  "value": 14828,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveStartTurnLeft"
+ },
+ {
+  "opcode": "MoveStartTurnRight",
+  "value": 14829,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveStartTurnRight"
+ },
+ {
+  "opcode": "MoveStop",
+  "value": 14822,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveStop"
+ },
+ {
+  "opcode": "MoveStopAscend",
+  "value": 14890,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveStopAscend"
+ },
+ {
+  "opcode": "MoveStopPitch",
+  "value": 14833,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveStopPitch"
+ },
+ {
+  "opcode": "MoveStopStrafe",
+  "value": 14825,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveStopStrafe"
+ },
+ {
+  "opcode": "MoveStopSwim",
+  "value": 14845,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveStopSwim"
+ },
+ {
+  "opcode": "MoveStopTurn",
+  "value": 14830,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveStopTurn"
+ },
+ {
+  "opcode": "MoveTeleportAck",
+  "value": 14842,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_move_teleport_ack"
+ },
+ {
+  "opcode": "MoveTimeSkipped",
+  "value": 14875,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_move_time_skipped"
+ },
+ {
+  "opcode": "MoveUpdateFallSpeed",
+  "value": 14874,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_MoveUpdateFallSpeed"
+ },
+ {
+  "opcode": "MoveWaterWalkAck",
+  "value": 14877,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_movement_ack_message"
+ },
+ {
+  "opcode": "NextCinematicCamera",
+  "value": 13636,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_next_cinematic_camera"
+ },
+ {
+  "opcode": "ObjectUpdateFailed",
+  "value": 12675,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_object_update_failed"
+ },
+ {
+  "opcode": "ObjectUpdateRescued",
+  "value": 12676,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_object_update_rescued"
+ },
+ {
+  "opcode": "OpenItem",
+  "value": 12998,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_open_item"
+ },
+ {
+  "opcode": "OpeningCinematic",
+  "value": 13635,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_opening_cinematic"
+ },
+ {
+  "opcode": "OptOutOfLoot",
+  "value": 13558,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_opt_out_of_loot"
+ },
+ {
+  "opcode": "OverrideScreenFlash",
+  "value": 13598,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_override_screen_flash"
+ },
+ {
+  "opcode": "PartyInvite",
+  "value": 13828,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_party_invite"
+ },
+ {
+  "opcode": "PartyInviteResponse",
+  "value": 13830,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_party_invite_response"
+ },
+ {
+  "opcode": "PartyUninvite",
+  "value": 13898,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_party_uninvite"
+ },
+ {
+  "opcode": "PetCancelAura",
+  "value": 13454,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_pet_cancel_aura"
+ },
+ {
+  "opcode": "Ping",
+  "value": 14184,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_ping"
+ },
+ {
+  "opcode": "PlayerLogin",
+  "value": 13803,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_player_login"
+ },
+ {
+  "opcode": "PushQuestToParty",
+  "value": 13471,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_push_quest_to_party"
+ },
+ {
+  "opcode": "QueryArenaTeam",
+  "value": 13988,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_query_arena_team"
+ },
+ {
+  "opcode": "QueryBattlePetName",
+  "value": 12918,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_query_battle_pet_name"
+ },
+ {
+  "opcode": "QueryCorpseLocationFromClient",
+  "value": 13922,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_query_corpse_location"
+ },
+ {
+  "opcode": "QueryCorpseTransport",
+  "value": 13923,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_query_corpse_transport"
+ },
+ {
+  "opcode": "QueryCountdownTimer",
+  "value": 12714,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_request_countdown_timer"
+ },
+ {
+  "opcode": "QueryCreature",
+  "value": 12912,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_query_creature"
+ },
+ {
+  "opcode": "QueryGameObject",
+  "value": 12913,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_query_game_object"
+ },
+ {
+  "opcode": "QueryInspectAchievements",
+  "value": 13568,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_query_inspect_achievements"
+ },
+ {
+  "opcode": "QueryNextMailTime",
+  "value": 13625,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_query_next_mail_time"
+ },
+ {
+  "opcode": "QueryNpcText",
+  "value": 12914,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_query_npc_text"
+ },
+ {
+  "opcode": "QueryPageText",
+  "value": 12916,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_query_page_text"
+ },
+ {
+  "opcode": "QueryPetName",
+  "value": 12917,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_query_pet_name"
+ },
+ {
+  "opcode": "QueryPetition",
+  "value": 12919,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_query_petition"
+ },
+ {
+  "opcode": "QueryPlayerNames",
+  "value": 14194,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_query_player_names"
+ },
+ {
+  "opcode": "QueryQuestCompletionNpcs",
+  "value": 12663,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_query_quest_completion_npcs"
+ },
+ {
+  "opcode": "QueryQuestInfo",
+  "value": 12915,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_query_quest_info"
+ },
+ {
+  "opcode": "QueryQuestItemUsability",
+  "value": 12664,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "QueryRealmName",
+  "value": 13962,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_query_realm_name"
+ },
+ {
+  "opcode": "QueryTime",
+  "value": 13525,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_query_time"
+ },
+ {
+  "opcode": "QueryVoidStorage",
+  "value": 12707,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_void_storage_query"
+ },
+ {
+  "opcode": "QuestConfirmAccept",
+  "value": 13470,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_quest_confirm_accept"
+ },
+ {
+  "opcode": "QuestGiverAcceptQuest",
+  "value": 13464,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_quest_giver_accept_quest"
+ },
+ {
+  "opcode": "QuestGiverChooseReward",
+  "value": 13466,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_quest_giver_choose_reward"
+ },
+ {
+  "opcode": "QuestGiverCloseQuest",
+  "value": 13641,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_quest_giver_close_quest"
+ },
+ {
+  "opcode": "QuestGiverCompleteQuest",
+  "value": 13465,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_quest_giver_complete_quest"
+ },
+ {
+  "opcode": "QuestGiverHello",
+  "value": 13462,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_quest_giver_hello"
+ },
+ {
+  "opcode": "QuestGiverQueryQuest",
+  "value": 13463,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_quest_giver_query_quest"
+ },
+ {
+  "opcode": "QuestGiverRequestReward",
+  "value": 13467,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_quest_giver_request_reward"
+ },
+ {
+  "opcode": "QuestGiverStatusMultipleQuery",
+  "value": 13469,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_quest_giver_status_multiple_query"
+ },
+ {
+  "opcode": "QuestGiverStatusQuery",
+  "value": 13468,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_quest_giver_status_query"
+ },
+ {
+  "opcode": "QuestGiverStatusTrackedQuery",
+  "value": 13675,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_quest_giver_status_tracked_query"
+ },
+ {
+  "opcode": "QuestLogRemoveQuest",
+  "value": 13614,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_quest_log_remove_quest"
+ },
+ {
+  "opcode": "QuestPoiQuery",
+  "value": 14002,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_quest_poi_query"
+ },
+ {
+  "opcode": "QuestPushResult",
+  "value": 13472,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_quest_push_result"
+ },
+ {
+  "opcode": "QueuedMessagesEnd",
+  "value": 14188,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_queued_messages_end"
+ },
+ {
+  "opcode": "RandomRoll",
+  "value": 13911,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_random_roll"
+ },
+ {
+  "opcode": "ReadyCheckResponse",
+  "value": 13878,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_ready_check_response"
+ },
+ {
+  "opcode": "ReclaimCorpse",
+  "value": 13531,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_reclaim_corpse"
+ },
+ {
+  "opcode": "RepairItem",
+  "value": 13548,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_repair_item"
+ },
+ {
+  "opcode": "RepopRequest",
+  "value": 13606,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_repop_request"
+ },
+ {
+  "opcode": "ReportClientVariables",
+  "value": 14087,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_report_client_variables"
+ },
+ {
+  "opcode": "ReportEnabledAddons",
+  "value": 14086,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_report_enabled_addons"
+ },
+ {
+  "opcode": "ReportFrozenWhileLoadingMap",
+  "value": 13994,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_report_frozen_while_loading_map"
+ },
+ {
+  "opcode": "ReportKeybindingExecutionCounts",
+  "value": 14088,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_report_keybinding_execution_counts"
+ },
+ {
+  "opcode": "ReportServerLag",
+  "value": 13051,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_client_telemetry_null_like_cpp"
+ },
+ {
+  "opcode": "RequestAccountData",
+  "value": 13972,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_request_account_data"
+ },
+ {
+  "opcode": "RequestBattlefieldStatus",
+  "value": 13789,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_request_battlefield_status"
+ },
+ {
+  "opcode": "RequestCemeteryList",
+  "value": 12665,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_request_cemetery_list"
+ },
+ {
+  "opcode": "RequestConquestFormulaConstants",
+  "value": 12980,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_request_conquest_formula_constants"
+ },
+ {
+  "opcode": "RequestForcedReactions",
+  "value": 12805,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_request_forced_reactions"
+ },
+ {
+  "opcode": "RequestHonorStats",
+  "value": 12670,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_request_honor_stats"
+ },
+ {
+  "opcode": "RequestLfgListBlacklist",
+  "value": 12964,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_request_lfg_list_blacklist"
+ },
+ {
+  "opcode": "RequestPartyJoinUpdates",
+  "value": 13816,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_request_party_join_updates"
+ },
+ {
+  "opcode": "RequestPartyMemberStats",
+  "value": 13910,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_request_party_member_stats"
+ },
+ {
+  "opcode": "RequestPlayedTime",
+  "value": 12922,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_request_played_time"
+ },
+ {
+  "opcode": "RequestPvpRewards",
+  "value": 12694,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_request_pvp_rewards"
+ },
+ {
+  "opcode": "RequestRaidInfo",
+  "value": 14034,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_request_raid_info"
+ },
+ {
+  "opcode": "RequestRatedPvpInfo",
+  "value": 13796,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_request_rated_pvp_info"
+ },
+ {
+  "opcode": "RequestStabledPets",
+  "value": 13457,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_request_stabled_pets"
+ },
+ {
+  "opcode": "RequestVehicleExit",
+  "value": 12855,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_request_vehicle_exit"
+ },
+ {
+  "opcode": "RequestVehicleNextSeat",
+  "value": 12857,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_request_vehicle_next_seat"
+ },
+ {
+  "opcode": "RequestVehiclePrevSeat",
+  "value": 12856,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_request_vehicle_prev_seat"
+ },
+ {
+  "opcode": "RequestVehicleSwitchSeat",
+  "value": 12858,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_request_vehicle_switch_seat"
+ },
+ {
+  "opcode": "RequestWorldQuestUpdate",
+  "value": 13021,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_request_world_quest_update"
+ },
+ {
+  "opcode": "ResetInstances",
+  "value": 13930,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_reset_instances"
+ },
+ {
+  "opcode": "ResurrectResponse",
+  "value": 13957,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_resurrect_response"
+ },
+ {
+  "opcode": "RideVehicleInteract",
+  "value": 12859,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_ride_vehicle_interact"
+ },
+ {
+  "opcode": "SaveAccountDataExport",
+  "value": 14161,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "SaveCufProfiles",
+  "value": 12686,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_save_cuf_profiles"
+ },
+ {
+  "opcode": "SaveEquipmentSet",
+  "value": 13577,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_save_equipment_set"
+ },
+ {
+  "opcode": "SelfRes",
+  "value": 13617,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_self_res"
+ },
+ {
+  "opcode": "SellItem",
+  "value": 13474,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_sell_item"
+ },
+ {
+  "opcode": "SendContactList",
+  "value": 14039,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_send_contact_list"
+ },
+ {
+  "opcode": "SendTextEmote",
+  "value": 13448,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_text_emote"
+ },
+ {
+  "opcode": "ServerTimeOffsetRequest",
+  "value": 13980,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_server_time_offset_request"
+ },
+ {
+  "opcode": "SetActionBarToggles",
+  "value": 13618,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_action_bar_toggles"
+ },
+ {
+  "opcode": "SetActionButton",
+  "value": 13661,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_action_button"
+ },
+ {
+  "opcode": "SetActiveMover",
+  "value": 14908,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_active_mover"
+ },
+ {
+  "opcode": "SetAdvancedCombatLogging",
+  "value": 12981,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_set_advanced_combat_logging"
+ },
+ {
+  "opcode": "SetAmmo",
+  "value": 13662,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_ammo"
+ },
+ {
+  "opcode": "SetAssistantLeader",
+  "value": 13906,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_assistant_leader"
+ },
+ {
+  "opcode": "SetContactNotes",
+  "value": 14042,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_contact_notes"
+ },
+ {
+  "opcode": "SetCurrencyFlags",
+  "value": 12652,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_set_currency_flags"
+ },
+ {
+  "opcode": "SetDifficultyId",
+  "value": 12834,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_difficulty_id"
+ },
+ {
+  "opcode": "SetDungeonDifficulty",
+  "value": 13956,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_dungeon_difficulty"
+ },
+ {
+  "opcode": "SetEveryoneIsAssistant",
+  "value": 13850,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_everyone_is_assistant"
+ },
+ {
+  "opcode": "SetFactionAtWar",
+  "value": 13534,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_faction_at_war"
+ },
+ {
+  "opcode": "SetFactionInactive",
+  "value": 13536,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_faction_inactive"
+ },
+ {
+  "opcode": "SetFactionNotAtWar",
+  "value": 13535,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_faction_not_at_war"
+ },
+ {
+  "opcode": "SetGameEventDebugViewState",
+  "value": 12729,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_game_event_debug_view_state"
+ },
+ {
+  "opcode": "SetInsertItemsLeftToRight",
+  "value": 13002,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_set_insert_items_left_to_right"
+ },
+ {
+  "opcode": "SetLootMethod",
+  "value": 13899,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_loot_method"
+ },
+ {
+  "opcode": "SetLootSpecialization",
+  "value": 47837,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_loot_specialization"
+ },
+ {
+  "opcode": "SetPartyAssignment",
+  "value": 13908,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_party_assignment"
+ },
+ {
+  "opcode": "SetPartyLeader",
+  "value": 13901,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_set_party_leader"
+ },
+ {
+  "opcode": "SetPlayerDeclinedNames",
+  "value": 13961,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_player_declined_names"
+ },
+ {
+  "opcode": "SetPreferredCemetery",
+  "value": 12666,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "SetPvp",
+  "value": 12972,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_pvp"
+ },
+ {
+  "opcode": "SetRaidDifficulty",
+  "value": 14051,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_raid_difficulty"
+ },
+ {
+  "opcode": "SetRole",
+  "value": 13785,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_role"
+ },
+ {
+  "opcode": "SetSelection",
+  "value": 13608,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_selection"
+ },
+ {
+  "opcode": "SetSheathed",
+  "value": 13449,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_set_sheathed"
+ },
+ {
+  "opcode": "SetTaxiBenchmarkMode",
+  "value": 13555,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_set_taxi_benchmark_mode"
+ },
+ {
+  "opcode": "SetTitle",
+  "value": 12926,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_set_title"
+ },
+ {
+  "opcode": "SetTradeGold",
+  "value": 12639,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_trade_gold"
+ },
+ {
+  "opcode": "SetTradeItem",
+  "value": 12637,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_trade_item"
+ },
+ {
+  "opcode": "SetTradeSpell",
+  "value": 12640,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_trade_spell"
+ },
+ {
+  "opcode": "SetWatchedFaction",
+  "value": 13537,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_set_watched_faction"
+ },
+ {
+  "opcode": "ShowTradeSkill",
+  "value": 14026,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_show_trade_skill"
+ },
+ {
+  "opcode": "ShowingCloak",
+  "value": 13673,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_showing_cloak"
+ },
+ {
+  "opcode": "ShowingHelm",
+  "value": 13672,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_showing_helm"
+ },
+ {
+  "opcode": "SignPetition",
+  "value": 13619,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_sign_petition"
+ },
+ {
+  "opcode": "SilencePartyTalker",
+  "value": 13909,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_silence_party_talker"
+ },
+ {
+  "opcode": "SocialContractRequest",
+  "value": 14156,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_social_contract_request"
+ },
+ {
+  "opcode": "SpawnTrackingUpdate",
+  "value": 12946,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_spawn_tracking_update"
+ },
+ {
+  "opcode": "SpellClick",
+  "value": 13461,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_spell_click"
+ },
+ {
+  "opcode": "SpiritHealerActivate",
+  "value": 13487,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_spirit_healer_activate"
+ },
+ {
+  "opcode": "StandStateChange",
+  "value": 12684,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_stand_state_change"
+ },
+ {
+  "opcode": "SubmitUserFeedback",
+  "value": 13971,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_submit_user_feedback"
+ },
+ {
+  "opcode": "SupportTicketSubmitBug",
+  "value": 13896,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_support_ticket_submit_bug"
+ },
+ {
+  "opcode": "SupportTicketSubmitComplaint",
+  "value": 13895,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_support_ticket_submit_complaint"
+ },
+ {
+  "opcode": "SupportTicketSubmitSuggestion",
+  "value": 13897,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_support_ticket_submit_suggestion"
+ },
+ {
+  "opcode": "SuspendCommsAck",
+  "value": 14180,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_client_telemetry_null_like_cpp"
+ },
+ {
+  "opcode": "SuspendTokenResponse",
+  "value": 14186,
+  "status": "Transfer",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_suspend_token_response"
+ },
+ {
+  "opcode": "SwapInvItem",
+  "value": 14747,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_swap_inv_item"
+ },
+ {
+  "opcode": "SwapItem",
+  "value": 14746,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_swap_item"
+ },
+ {
+  "opcode": "SwapSubGroups",
+  "value": 13904,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_swap_sub_groups"
+ },
+ {
+  "opcode": "SwapVoidItem",
+  "value": 12709,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_void_storage_swap_item"
+ },
+ {
+  "opcode": "TabardVendorActivate",
+  "value": 12969,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_tabard_vendor_activate"
+ },
+ {
+  "opcode": "TalkToGossip",
+  "value": 13458,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_gossip_hello"
+ },
+ {
+  "opcode": "TaxiNodeStatusQuery",
+  "value": 13480,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_taxi_node_status_query"
+ },
+ {
+  "opcode": "TimeAdjustmentResponse",
+  "value": 14912,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_time_adjustment_response"
+ },
+ {
+  "opcode": "TimeSyncResponse",
+  "value": 14909,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_time_sync_response"
+ },
+ {
+  "opcode": "TimeSyncResponseDropped",
+  "value": 14911,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_time_sync_response"
+ },
+ {
+  "opcode": "TimeSyncResponseFailed",
+  "value": 14910,
+  "status": "LoggedIn",
+  "processing": "ThreadSafe",
+  "handler": "handle_time_sync_response"
+ },
+ {
+  "opcode": "ToggleDifficulty",
+  "value": 13913,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_toggle_difficulty"
+ },
+ {
+  "opcode": "TogglePvp",
+  "value": 12971,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_toggle_pvp"
+ },
+ {
+  "opcode": "TotemDestroyed",
+  "value": 13560,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_totem_destroyed"
+ },
+ {
+  "opcode": "ToyClearFanfare",
+  "value": 12584,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_toy_clear_fanfare"
+ },
+ {
+  "opcode": "TrainerBuySpell",
+  "value": 13486,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_trainer_buy_spell"
+ },
+ {
+  "opcode": "TrainerList",
+  "value": 13485,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_trainer_list"
+ },
+ {
+  "opcode": "Tutorial",
+  "value": 14052,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_tutorial"
+ },
+ {
+  "opcode": "UnacceptTrade",
+  "value": 12635,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_unaccept_trade"
+ },
+ {
+  "opcode": "UnlockVoidStorage",
+  "value": 12706,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_void_storage_unlock"
+ },
+ {
+  "opcode": "UpdateAadcStatus",
+  "value": 14145,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_update_aadc_status"
+ },
+ {
+  "opcode": "UpdateAccountData",
+  "value": 13973,
+  "status": "Authed",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_update_account_data"
+ },
+ {
+  "opcode": "UpdateAreaTriggerVisual",
+  "value": 12958,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_update_area_trigger_visual"
+ },
+ {
+  "opcode": "UpdateClientSettings",
+  "value": 13926,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_unhandled_client_null_like_cpp"
+ },
+ {
+  "opcode": "UpdateRaidTarget",
+  "value": 13907,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_update_raid_target"
+ },
+ {
+  "opcode": "UpdateSpellVisual",
+  "value": 12957,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_update_spell_visual"
+ },
+ {
+  "opcode": "UpdateVasPurchaseStates",
+  "value": 14075,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_vas_stub"
+ },
+ {
+  "opcode": "UseEquipmentSet",
+  "value": 14741,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_use_equipment_set"
+ },
+ {
+  "opcode": "UseToy",
+  "value": 12954,
+  "status": "LoggedIn",
+  "processing": "Inplace",
+  "handler": "handle_use_toy"
+ },
+ {
+  "opcode": "UsedFollow",
+  "value": 12681,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_used_follow"
+ },
+ {
+  "opcode": "ViolenceLevel",
+  "value": 12679,
+  "status": "Authed",
+  "processing": "Inplace",
+  "handler": "handle_violence_level"
+ },
+ {
+  "opcode": "VoidStorageTransfer",
+  "value": 12708,
+  "status": "LoggedIn",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_void_storage_transfer"
+ },
+ {
+  "opcode": "WorldPortResponse",
+  "value": 13818,
+  "status": "Transfer",
+  "processing": "ThreadUnsafe",
+  "handler": "handle_world_port_response"
+ }
+]

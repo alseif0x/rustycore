@@ -215,3 +215,58 @@ fn dispatch_table_has_no_duplicate_registered_opcodes() {
 
     assert!(duplicates.is_empty(), "duplicate handlers: {duplicates:?}");
 }
+
+/// Every opcode the server can dispatch, with the exact `SessionStatus` and
+/// `PacketProcessing` it runs under.
+///
+/// #359 replaces the dispatcher's opcode match with the registration that
+/// already existed. Before that change the two sides had to agree; afterwards
+/// there is one declaration per opcode. This enumeration is what proves the
+/// swap lost nothing: it is generated from the registry as it stood with the
+/// match arms in place, and it must keep matching once they are gone.
+///
+/// It is an enumeration, not a sample: all 478 rows, compared as a set.
+#[test]
+fn every_registered_opcode_keeps_its_handler_status_and_processing_like_cpp() {
+    #[derive(serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
+    struct Row {
+        opcode: String,
+        value: u32,
+        status: String,
+        processing: String,
+        handler: String,
+    }
+
+    let golden: Vec<Row> = serde_json::from_str(include_str!(
+        "../../../tests/fixtures/packet-handler-dispatch-table.json"
+    ))
+    .expect("the dispatch-table fixture is valid JSON");
+
+    let mut actual: Vec<Row> = wow_handler::build_dispatch_table()
+        .values()
+        .map(|entry| Row {
+            opcode: format!("{:?}", entry.opcode),
+            value: entry.opcode as u32,
+            status: format!("{:?}", entry.status),
+            processing: format!("{:?}", entry.processing),
+            handler: entry.handler_name.to_owned(),
+        })
+        .collect();
+    actual.sort();
+
+    assert_eq!(
+        actual.len(),
+        golden.len(),
+        "the registry gained or lost opcodes; regenerate \
+         crates/wow-world/tests/fixtures/packet-handler-dispatch-table.json only after \
+         auditing which opcode changed and why"
+    );
+    for (expected, got) in golden.iter().zip(actual.iter()) {
+        assert_eq!(
+            expected, got,
+            "dispatch metadata changed for {}; an opcode must not silently change its \
+             handler, status or processing mode",
+            expected.opcode
+        );
+    }
+}
