@@ -495,6 +495,33 @@ def validate_policy(policy: Any) -> dict[str, Any]:
             )
         external_exception_map[key] = exception
 
+    reserved = policy.get("reserved_packages", [])
+    if not isinstance(reserved, list):
+        raise ArchitectureError("reserved_packages must be an array")
+    seen_reserved: set[str] = set()
+    for entry in reserved:
+        if not isinstance(entry, dict) or set(entry) != {
+            "package",
+            "issue",
+            "state",
+            "reason",
+        }:
+            raise ArchitectureError(
+                "each reserved_packages entry needs exactly package, issue, state and reason"
+            )
+        name = entry["package"]
+        if name not in package_categories:
+            raise ArchitectureError(f"reserved package {name} is not a classified package")
+        if name in seen_reserved:
+            raise ArchitectureError(f"duplicate reserved package {name}")
+        seen_reserved.add(name)
+        if type(entry["issue"]) is not int or entry["issue"] <= 0:
+            raise ArchitectureError(f"reserved package {name} needs a positive owning issue")
+        if entry["state"] not in {"open", "closed"}:
+            raise ArchitectureError(f"reserved package {name} has an invalid mirrored state")
+        if not isinstance(entry["reason"], str) or not entry["reason"].strip():
+            raise ArchitectureError(f"reserved package {name} needs a reason")
+    policy["_reserved_packages"] = {entry["package"]: entry for entry in reserved}
     policy["_package_categories"] = package_categories
     policy["_restricted_allowed_edges"] = restricted_allowed_edges
     policy["_exception_map"] = exception_map
@@ -752,6 +779,12 @@ def validate_debt_ownership(policy: dict[str, Any], ledger: dict[str, Any]) -> N
             f"{exception.get('kind')} {exception.get('from')} -> {exception.get('to')}"
         )
         _validate_debt_owner(entries, edge, exception.get("tracking_issue"), problems)
+    for entry in policy.get("reserved_packages", []):
+        if entry["state"] != "open":
+            problems.append(
+                f"reserved package {entry['package']} is held for completed issue "
+                f"#{entry['issue']}; fill the crate or remove the reservation"
+            )
     if problems:
         raise ArchitectureError("\n".join(problems))
 
@@ -1879,6 +1912,22 @@ def check_dependencies(
         errors.append(f"unclassified workspace packages: {', '.join(missing)}")
     if stale:
         errors.append(f"classified packages no longer in workspace: {', '.join(stale)}")
+
+    reserved_packages = policy["_reserved_packages"]
+    for name in sorted(reserved_packages):
+        if name not in workspace_packages:
+            errors.append(f"reserved package {name} is no longer a workspace member")
+    for source, target, kind in sorted(workspace_edges):
+        if target in reserved_packages:
+            errors.append(
+                f"reserved package {target} has acquired a dependent: {kind} edge "
+                f"{source} -> {target}; it is a real boundary now, so give it an owner"
+            )
+        if source in reserved_packages:
+            errors.append(
+                f"reserved package {source} has acquired a dependency: {kind} edge "
+                f"{source} -> {target}; an empty name must not grow edges"
+            )
 
     used_restricted_allowed: set[tuple[str, str]] = set()
     used_exceptions: set[tuple[str, str]] = set()
@@ -3685,6 +3734,11 @@ def refresh_issue_state(
     tracked.extend(issue_ledger.get("issues", []))
     tracked.extend(issue_ledger.get("external_prerequisites", []))
     tracked.extend(runtime_ledger.get("external_tracking_issues", []))
+    policy_path = DEFAULT_POLICY
+    policy_document = load_json(policy_path)
+    reserved = policy_document.get("reserved_packages", [])
+    for entry in reserved:
+        tracked.append({"number": entry["issue"], "state": entry["state"]})
     facts = github_issue_facts()
     unknown = sorted(
         entry["number"] for entry in tracked if entry.get("number") not in facts
@@ -3706,9 +3760,12 @@ def refresh_issue_state(
     if not write:
         print(f"{len(drift)} mirrored field(s) are stale", file=sys.stderr)
         return 1
+    for entry in reserved:
+        entry["state"] = facts[entry["issue"]][0]
     for path, document in (
         (issue_ledger_path, issue_ledger),
         (runtime_ledger_path, runtime_ledger),
+        (policy_path, policy_document),
     ):
         path.write_text(
             json.dumps(document, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"

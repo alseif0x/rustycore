@@ -15,7 +15,6 @@ members = [
     "crates/wow-network",
     "crates/wow-proto",
     # ECS + Game Core
-    "crates/wow-ecs",
     "crates/wow-world",
     "crates/wow-map",
     "crates/wow-movement",
@@ -77,7 +76,6 @@ prost-build = "0.13"
 prost-types = "0.13"
 
 # ECS
-hecs = "0.10"
 
 # Logging
 tracing = "0.1"
@@ -161,7 +159,6 @@ wow-database = { path = "crates/wow-database" }
 wow-persistence = { path = "crates/wow-persistence" }
 wow-network = { path = "crates/wow-network" }
 wow-proto = { path = "crates/wow-proto" }
-wow-ecs = { path = "crates/wow-ecs" }
 wow-world = { path = "crates/wow-world" }
 wow-map = { path = "crates/wow-map" }
 wow-movement = { path = "crates/wow-movement" }

@@ -1,0 +1,43 @@
+{
+  "name": "reserved-package-not-classified",
+  "expect": "reject",
+  "error_substring": "is not a classified package",
+  "policy": {
+    "schema_version": 2,
+    "categories": {
+      "foundation": [
+        "wow-math"
+      ],
+      "domain-runtime": [
+        "wow-map",
+        "wow-pvp"
+      ]
+    },
+    "allowed_category_dependencies": {
+      "foundation": [
+        "foundation"
+      ],
+      "domain-runtime": [
+        "domain-runtime",
+        "foundation"
+      ]
+    },
+    "restricted_packages": {},
+    "exceptions": [],
+    "external_dependencies": {
+      "canonical_registry_source": "registry+https://github.com/rust-lang/crates.io-index",
+      "protected_categories": [],
+      "protected_packages": [],
+      "allowed": {},
+      "exceptions": []
+    },
+    "reserved_packages": [
+      {
+        "package": "wow-absent",
+        "issue": 133,
+        "state": "open",
+        "reason": "Fixture reservation for a package no category declares."
+      }
+    ]
+  }
+}
