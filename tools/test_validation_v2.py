@@ -565,10 +565,26 @@ def test_planner_contract(repo: Path) -> None:
     assert not any(command and command[0] == "cargo" for command in docs_commands)
     assert runner.validation_commands(repo, "quick", 2, "base", {}, None)[0] == []
 
+    # No profile may silence a checker test by name. A skipped test is a test
+    # that rots: #363 was nine stale literals hiding behind `--skip`.
+    checker_groups = runner.grouped_paths(
+        ["tools/architecture/handler-contract-check/src/lib.rs"]
+    )
+    checker_commands, _ = runner.validation_commands(
+        repo, "final", 2, "base", checker_groups, None
+    )
+    checker_test = next(
+        command
+        for command in checker_commands
+        if command[:2] == ["cargo", "test"] and "handler-contract-check" in " ".join(command)
+    )
+    assert "--skip" not in checker_test, checker_test
+
     audit = runner.audit_steps("base", 2)
     for _ in range(10):
         assert audit == runner.audit_steps("base", 2)
     assert len({tuple(step["argv"]) for step in audit}) == len(audit)
+    assert not any("--skip" in step["argv"] for step in audit), audit
     assert [step["section"] for step in audit] == [
         "diff-hygiene",
         "architecture-policy-self-test",
