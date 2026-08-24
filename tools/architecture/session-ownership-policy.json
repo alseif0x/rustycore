@@ -8569,6 +8569,20 @@
           "module": "crate::handlers::combat",
           "trait_path": null,
           "kind": "method",
+          "name": "handle_apply_player_melee_result_like_cpp_command_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn handle_apply_player_melee_result_like_cpp_command_like_cpp (& mut self , command : crate :: session :: mailbox :: ApplyPlayerMeleeResultLikeCppCommand ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::combat",
+          "trait_path": null,
+          "kind": "method",
           "name": "handle_attack_stop",
           "visibility": "pub",
           "signature": "async fn handle_attack_stop (& mut self , _pkt : wow_packet :: WorldPacket)",
@@ -31043,6 +31057,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "queue_pending_creature_kill_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn queue_pending_creature_kill_like_cpp (& mut self , killer_guid : ObjectGuid , creature_guid : ObjectGuid , creature_entry : u32 , creature_level : u8 ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "rand_prop_points_store",
           "visibility": "pub",
           "signature": "fn rand_prop_points_store (& self) -> Option < & Arc < RandPropPointsStore > >",
@@ -42868,12 +42895,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_player_attack_swing_error_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn set_player_attack_swing_error_like_cpp (& mut self , error : Option < u8 >)",
           "cfg": [],
           "source_class": "production",
           "guards": [
-            "setter"
+            "setter",
+            "visible"
           ]
         },
         {
@@ -53158,6 +53186,21 @@
           "source_class": "production"
         },
         {
+          "name": "ApplyPlayerMeleeResultLikeCpp",
+          "fields": [
+            {
+              "name": "0",
+              "type": "ApplyPlayerMeleeResultLikeCppCommand",
+              "visibility": "private",
+              "cfg": [],
+              "source_class": "production"
+            }
+          ],
+          "discriminant": null,
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "CancelRepresentedTradeLikeCpp",
           "fields": [
             {
@@ -54139,6 +54182,97 @@
       {
         "definition": {
           "module": "crate::session::mailbox::protocol",
+          "name": "ApplyPlayerMeleeResultLikeCppCommand",
+          "visibility": "pub",
+          "cfg": [],
+          "source_class": "production"
+        },
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "attacker_guid",
+            "type": "ObjectGuid",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "combat_target_after",
+            "type": "Option < Option < ObjectGuid > >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "in_combat_after",
+            "type": "Option < bool >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "instance_id",
+            "type": "u32",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "killed_creature",
+            "type": "Option < PlayerMeleeCreatureKillLikeCpp >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "map_id",
+            "type": "u16",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "swing_error_after",
+            "type": "Option < Option < u8 > >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "swings",
+            "type": "Vec < PlayerMeleeSwingLikeCpp >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "target_level",
+            "type": "u8",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "victim_guid",
+            "type": "Option < ObjectGuid >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "victim_values_update",
+            "type": "Option < wow_entities :: UnitValuesUpdate >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          }
+        ],
+        "variants": [],
+        "alias": null
+      },
+      {
+        "definition": {
+          "module": "crate::session::mailbox::protocol",
           "name": "CancelRepresentedTradeLikeCppCommand",
           "visibility": "pub",
           "cfg": [],
@@ -54619,6 +54753,76 @@
           {
             "name": "recipient",
             "type": "ObjectGuid",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          }
+        ],
+        "variants": [],
+        "alias": null
+      },
+      {
+        "definition": {
+          "module": "crate::session::mailbox::protocol",
+          "name": "PlayerMeleeCreatureKillLikeCpp",
+          "visibility": "pub",
+          "cfg": [],
+          "source_class": "production"
+        },
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "creature_entry",
+            "type": "u32",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "creature_guid",
+            "type": "ObjectGuid",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "creature_level",
+            "type": "u8",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "move_stop",
+            "type": "Option < (wow_core :: Position , u32) >",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          }
+        ],
+        "variants": [],
+        "alias": null
+      },
+      {
+        "definition": {
+          "module": "crate::session::mailbox::protocol",
+          "name": "PlayerMeleeSwingLikeCpp",
+          "visibility": "pub",
+          "cfg": [],
+          "source_class": "production"
+        },
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "damage",
+            "type": "u32",
+            "visibility": "pub",
+            "cfg": [],
+            "source_class": "production"
+          },
+          {
+            "name": "over_damage",
+            "type": "i32",
             "visibility": "pub",
             "cfg": [],
             "source_class": "production"
@@ -56155,6 +56359,14 @@
       },
       {
         "module": "crate::session::mailbox::protocol",
+        "target": "ApplyPlayerMeleeResultLikeCppCommand",
+        "kind": "derive",
+        "fingerprint": "derive (Clone , Debug)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::protocol",
         "target": "CancelRepresentedTradeLikeCppCommand",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
@@ -56228,6 +56440,22 @@
       {
         "module": "crate::session::mailbox::protocol",
         "target": "NotifyLootMoneyRemovedLikeCppCommand",
+        "kind": "derive",
+        "fingerprint": "derive (Clone , Debug)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::protocol",
+        "target": "PlayerMeleeCreatureKillLikeCpp",
+        "kind": "derive",
+        "fingerprint": "derive (Clone , Debug)",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session::mailbox::protocol",
+        "target": "PlayerMeleeSwingLikeCpp",
         "kind": "derive",
         "fingerprint": "derive (Clone , Debug)",
         "cfg": [],

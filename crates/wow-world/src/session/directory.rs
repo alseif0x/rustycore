@@ -18,11 +18,11 @@
 use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
 use crate::session::mailbox::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyLootMoneyLikeCppCommand,
-    CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
-    DurableCreatureRuntimeCommandsLikeCpp, LootRollCommandIdentityLikeCpp,
-    ReconcilePvpCombatExpiryLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
-    SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand, SessionCommand,
-    SharedClientVisibleGuidsLikeCpp,
+    ApplyPlayerMeleeResultLikeCppCommand, CreatureAttackStartLikeCppCommand,
+    CreatureAttackStopLikeCppCommand, DurableCreatureRuntimeCommandsLikeCpp,
+    LootRollCommandIdentityLikeCpp, ReconcilePvpCombatExpiryLikeCppCommand,
+    RefreshVisibleWorldCreaturesLikeCppCommand, SendCreatureSpellCastIfVisibleLikeCppCommand,
+    SendIfVisibleLikeCppCommand, SessionCommand, SharedClientVisibleGuidsLikeCpp,
 };
 use dashmap::DashMap;
 use std::collections::{HashMap, HashSet};
@@ -1699,6 +1699,26 @@ impl PlayerRegistry {
                     .lock()
                     .ok()
                     .map(|mut durable| durable.publish_melee_damage_like_cpp(command))
+            })
+            .unwrap_or(false)
+    }
+
+    /// Publish one map-owned player auto-attack resolution to its attacker.
+    ///
+    /// Generation-checked like every other current-incarnation publish: a
+    /// result resolved for a session that has since reconnected is dropped
+    /// here rather than delivered to the new one.
+    pub fn publish_current_player_melee_result(
+        &self,
+        registration: PlayerRegistration,
+        command: ApplyPlayerMeleeResultLikeCppCommand,
+    ) -> bool {
+        self.with_current_durable_runtime(registration)
+            .and_then(|durable| {
+                durable
+                    .lock()
+                    .ok()
+                    .map(|mut durable| durable.publish_player_melee_result_like_cpp(command))
             })
             .unwrap_or(false)
     }

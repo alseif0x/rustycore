@@ -10678,7 +10678,41 @@ impl WorldSession {
         }
     }
 
-    fn set_player_attack_swing_error_like_cpp(&mut self, error: Option<u8>) {
+    /// Queue one creature kill for the loot and reward phases, deduplicated.
+    ///
+    /// Both writers of this queue — `run_combat_tick` and the delivery handler
+    /// for a map-owned resolution (#28) — must enqueue identically, so the
+    /// dedup lives here instead of being written twice. The queues stay private
+    /// to the session; a handler asks for the transition, not for the fields.
+    pub(crate) fn queue_pending_creature_kill_like_cpp(
+        &mut self,
+        killer_guid: ObjectGuid,
+        creature_guid: ObjectGuid,
+        creature_entry: u32,
+        creature_level: u8,
+    ) {
+        if !self
+            .pending_creature_kill_loot_like_cpp
+            .contains(&creature_guid)
+        {
+            self.pending_creature_kill_loot_like_cpp.push(creature_guid);
+        }
+        if !self
+            .pending_creature_kill_rewards_like_cpp
+            .iter()
+            .any(|reward| reward.creature_guid == creature_guid)
+        {
+            self.pending_creature_kill_rewards_like_cpp
+                .push(PendingCreatureKillRewardLikeCpp {
+                    killer_guid,
+                    creature_guid,
+                    creature_entry,
+                    creature_level,
+                });
+        }
+    }
+
+    pub(crate) fn set_player_attack_swing_error_like_cpp(&mut self, error: Option<u8>) {
         use wow_packet::ServerPacket;
         use wow_packet::packets::combat::AttackSwingError;
 
@@ -62713,26 +62747,12 @@ impl WorldSession {
         }
 
         if now_dead {
-            if !self
-                .pending_creature_kill_loot_like_cpp
-                .contains(&combat_target)
-            {
-                self.pending_creature_kill_loot_like_cpp.push(combat_target);
-            }
-            if !self
-                .pending_creature_kill_rewards_like_cpp
-                .iter()
-                .any(|reward| reward.creature_guid == combat_target)
-            {
-                self.pending_creature_kill_rewards_like_cpp.push(
-                    PendingCreatureKillRewardLikeCpp {
-                        killer_guid: player_guid,
-                        creature_guid: combat_target,
-                        creature_entry: target_entry,
-                        creature_level: target_level,
-                    },
-                );
-            }
+            self.queue_pending_creature_kill_like_cpp(
+                player_guid,
+                combat_target,
+                target_entry,
+                target_level,
+            );
             if let Some((current_pos, spline_id)) = move_stop {
                 output.packets.push(
                     MonsterMoveStop {

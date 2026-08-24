@@ -14,9 +14,10 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use super::protocol::{
-    ApplyCreatureMeleeDamageLikeCppCommand, CreatureAttackStartLikeCppCommand,
-    CreatureAttackStopLikeCppCommand, ReconcilePvpCombatExpiryLikeCppCommand,
-    SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand, SessionCommand,
+    ApplyCreatureMeleeDamageLikeCppCommand, ApplyPlayerMeleeResultLikeCppCommand,
+    CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
+    ReconcilePvpCombatExpiryLikeCppCommand, SendCreatureSpellCastIfVisibleLikeCppCommand,
+    SendIfVisibleLikeCppCommand, SessionCommand,
 };
 
 /// Durable FIFO handoff for map-owned creature transitions that have
@@ -73,6 +74,18 @@ impl DurableCreatureRuntimeCommandsLikeCpp {
         command: ApplyCreatureMeleeDamageLikeCppCommand,
     ) -> bool {
         self.publish_like_cpp(SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command))
+    }
+
+    /// Publish one map-owned player auto-attack resolution.
+    ///
+    /// Durable, not the bounded rail: a dropped result is a lost kill, and with
+    /// it the loot and the experience. The bounded rail is allowed to shed a
+    /// visibility refresh; it is not allowed to shed a death (#28).
+    pub fn publish_player_melee_result_like_cpp(
+        &mut self,
+        command: ApplyPlayerMeleeResultLikeCppCommand,
+    ) -> bool {
+        self.publish_like_cpp(SessionCommand::ApplyPlayerMeleeResultLikeCpp(command))
     }
 
     pub fn publish_send_if_visible_like_cpp(

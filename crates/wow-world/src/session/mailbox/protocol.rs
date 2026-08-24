@@ -151,6 +151,8 @@ pub enum SessionCommand {
     KickLikeCpp(KickLikeCppCommand),
     WorldSessionShutdownFlushLikeCpp(WorldSessionShutdownFlushLikeCppCommand),
     ApplyCreatureMeleeDamageLikeCpp(ApplyCreatureMeleeDamageLikeCppCommand),
+    /// One map-owned player auto-attack resolution, for the attacker (#28).
+    ApplyPlayerMeleeResultLikeCpp(ApplyPlayerMeleeResultLikeCppCommand),
     CreatureAttackStartLikeCpp(CreatureAttackStartLikeCppCommand),
     CreatureAttackStopLikeCpp(CreatureAttackStopLikeCppCommand),
     ReconcilePvpCombatExpiryLikeCpp(ReconcilePvpCombatExpiryLikeCppCommand),
@@ -329,6 +331,51 @@ pub struct ApplyGroupDifficultyLikeCppCommand {
 /// It sets canonical health once and enqueues this command to the victim. The
 /// session side treats the command as presentation-only: the monotonic health
 /// revision suppresses replay, while health/death are reread from canonical
+/// One swing of a map-owned player auto-attack.
+#[derive(Clone, Debug)]
+pub struct PlayerMeleeSwingLikeCpp {
+    pub damage: u32,
+    /// `-1` unless the swing overkilled, matching C++ `SMSG_ATTACKERSTATEUPDATE`.
+    pub over_damage: i32,
+}
+
+/// The creature a map-owned player swing killed.
+#[derive(Clone, Debug)]
+pub struct PlayerMeleeCreatureKillLikeCpp {
+    pub creature_guid: ObjectGuid,
+    pub creature_entry: u32,
+    pub creature_level: u8,
+    /// Stop position and spline id, never serialised bytes.
+    pub move_stop: Option<(wow_core::Position, u32)>,
+}
+
+/// One map-owned player auto-attack resolution, delivered to the attacker.
+///
+/// #28 moves the player melee transition to whoever owns the creature tick, so
+/// the resolution happens once instead of once per session. This carries data,
+/// never packet bytes: the owning session builds every packet, which keeps
+/// viewer-dependent construction and the `client_visible_guids_like_cpp` gate
+/// exactly where they already are.
+///
+/// `Option` fields mean "leave this alone"; `Some(None)` means "clear it".
+#[derive(Clone, Debug)]
+pub struct ApplyPlayerMeleeResultLikeCppCommand {
+    pub attacker_guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub victim_guid: Option<ObjectGuid>,
+    /// `Some` calls the swing-error setter, which is what makes
+    /// `SMSG_ATTACKSWING_ERROR` keep preceding the swing packets.
+    pub swing_error_after: Option<Option<u8>>,
+    pub combat_target_after: Option<Option<ObjectGuid>>,
+    pub in_combat_after: Option<bool>,
+    pub swings: Vec<PlayerMeleeSwingLikeCpp>,
+    pub target_level: u8,
+    /// Creature victims only; canonical player victims mirror their own values.
+    pub victim_values_update: Option<wow_entities::UnitValuesUpdate>,
+    pub killed_creature: Option<PlayerMeleeCreatureKillLikeCpp>,
+}
+
 /// state instead of being written back from this delayed payload.
 #[derive(Clone, Debug)]
 pub struct ApplyCreatureMeleeDamageLikeCppCommand {
