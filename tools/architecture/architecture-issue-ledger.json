@@ -449,7 +449,7 @@
     },
     {
       "number": 359,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.P4.1a] Retire the dispatcher's 479 match arms in favour of the registration that already exists",
       "kind": "slice",
       "parents": [
