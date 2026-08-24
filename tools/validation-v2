@@ -487,10 +487,25 @@ def affected_workspace(
     reverse = model["reverse"]
     assert isinstance(by_id, dict) and isinstance(roots, list) and isinstance(reverse, dict)
     root_wide = "workspace-root" in groups
-    direct_ids: set[str] = set(by_id) if root_wide else set()
+    direct_ids: set[str] = set()
     for path in groups.get("workspace-rust", []):
         if path.endswith("Cargo.toml") and not (repo / path).exists():
-            raise ValueError(f"deleted workspace manifest requires explicit recovery: {path}")
+            # A manifest that is gone from disk and from the resolved workspace
+            # is a crate removal, which can affect anything: plan it root-wide.
+            # A manifest that is gone while its package still resolves is an
+            # inconsistent tree, and still fails closed.
+            directory = path.rsplit("/", 1)[0]
+            if any(root == directory for root, _ in roots):
+                raise ValueError(
+                    f"deleted workspace manifest requires explicit recovery: {path}"
+                )
+            root_wide = True
+            continue
+    if root_wide:
+        direct_ids = set(by_id)
+    for path in groups.get("workspace-rust", []):
+        if path.endswith("Cargo.toml") and not (repo / path).exists():
+            continue
         matches = [package_id for root, package_id in roots if path == root or path.startswith(f"{root}/")]
         if len(matches) != 1:
             raise ValueError(f"changed workspace path maps to {len(matches)} packages: {path}")
