@@ -510,7 +510,7 @@
     },
     {
       "number": 270,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.RUNTIME.PLAYER.A] Retire the four transport endpoints #140 left in PlayerBroadcastInfo",
       "kind": "slice",
       "parents": [

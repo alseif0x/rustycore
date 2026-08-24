@@ -44,18 +44,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ahash"
-version = "0.8.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a15f179cd60c4584b8a8c596927aadc462e27f2ca70c04e0071964a73ba7a75"
-dependencies = [
- "cfg-if",
- "once_cell",
- "version_check",
- "zerocopy",
-]
-
-[[package]]
 name = "aho-corasick"
 version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -821,9 +809,6 @@ name = "hashbrown"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
-dependencies = [
- "ahash",
-]
 
 [[package]]
 name = "hashbrown"
@@ -856,16 +841,6 @@ name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
-
-[[package]]
-name = "hecs"
-version = "0.10.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1cbc675ee8d97b4d206a985137f8ad59666538f56f906474f554467a63c776d"
-dependencies = [
- "hashbrown 0.14.5",
- "spin",
-]
 
 [[package]]
 name = "hex"
@@ -3097,10 +3072,6 @@ dependencies = [
 [[package]]
 name = "wow-achievement"
 version = "0.1.0"
-dependencies = [
- "wow-constants",
- "wow-core",
-]
 
 [[package]]
 name = "wow-ai"
@@ -3138,10 +3109,6 @@ dependencies = [
 [[package]]
 name = "wow-combat"
 version = "0.1.0"
-dependencies = [
- "wow-constants",
- "wow-core",
-]
 
 [[package]]
 name = "wow-config"
@@ -3230,13 +3197,6 @@ dependencies = [
  "wow-config",
  "wow-logging",
  "wow-persistence",
-]
-
-[[package]]
-name = "wow-ecs"
-version = "0.1.0"
-dependencies = [
- "hecs",
 ]
 
 [[package]]
@@ -3379,10 +3339,6 @@ dependencies = [
 [[package]]
 name = "wow-pvp"
 version = "0.1.0"
-dependencies = [
- "wow-constants",
- "wow-core",
-]
 
 [[package]]
 name = "wow-recastdetour"
@@ -3425,11 +3381,6 @@ dependencies = [
 [[package]]
 name = "wow-spell"
 version = "0.1.0"
-dependencies = [
- "bitflags",
- "wow-constants",
- "wow-core",
-]
 
 [[package]]
 name = "wow-world"
