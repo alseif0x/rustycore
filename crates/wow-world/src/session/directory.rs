@@ -41,10 +41,12 @@ use wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate;
 /// Everything a session hands the directory when it registers.
 ///
 /// #270 splits this from [`PlayerBroadcastInfo`]: the projection is the
-/// gameplay state other sessions read, while these four handles are this
-/// session's own delivery channels and durable rail. They live beside the
-/// private registry entry, exactly as #189 placed the durable loot-money
-/// coordinator, so no remote reader can obtain a raw sender from a snapshot.
+/// gameplay state other sessions read, while these handles are this session's
+/// own delivery channels, durable rail, and the visibility/combat-logging state
+/// producers resolve against (#361). They live beside the private registry
+/// entry, exactly as #189 placed the durable loot-money coordinator, so no
+/// remote reader can obtain a handle from a snapshot and no gameplay publish
+/// can replace one.
 #[derive(Clone)]
 pub struct PlayerSessionRegistrationLikeCpp {
     /// Gameplay projection stored for other sessions to read.
@@ -61,6 +63,24 @@ pub struct PlayerSessionRegistrationLikeCpp {
     /// Durable FIFO rail for authoritative creature combat transitions.
     pub durable_creature_runtime_commands_like_cpp:
         Arc<Mutex<DurableCreatureRuntimeCommandsLikeCpp>>,
+    /// Shared C++ `Player::m_clientGUIDs` membership for this session.
+    ///
+    /// Producers that must commit a recipient decision at the moment a message
+    /// is resolved read it here instead of leaving the receiving session to
+    /// re-derive visibility from state that moved on in the meantime.
+    pub client_visible_guids_like_cpp: SharedClientVisibleGuidsLikeCpp,
+    /// Shared C++ advanced-combat-logging preference for this session.
+    ///
+    /// `WorldObject::SendCombatLogMessage` picks the basic or full `SMSG_SPELL_GO`
+    /// frame per receiver while it distributes the cast, so a producer reads this
+    /// when the cast resolves rather than leaving the choice to drain time.
+    pub advanced_combat_logging_enabled_like_cpp: Arc<AtomicBool>,
+    /// Durable/coalesced equivalent of C++'s retained visibility notify bit.
+    ///
+    /// Senders set this before attempting the bounded command queue. The owning
+    /// session consumes it even when the queue was full, so player entry/exit
+    /// visibility cannot be lost under command backpressure.
+    pub visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
 }
 
 /// Information stored for each active player session.
@@ -86,24 +106,6 @@ pub struct PlayerBroadcastInfo {
     pub liquid_status: u32,
     /// Represented C++ `Player::IsInWorld()` receiver gate for global-message fanout.
     pub is_in_world: bool,
-    /// Shared C++ `Player::m_clientGUIDs` membership for this session.
-    ///
-    /// Producers that must commit a recipient decision at the moment a message
-    /// is resolved read it here instead of leaving the receiving session to
-    /// re-derive visibility from state that moved on in the meantime.
-    pub client_visible_guids_like_cpp: SharedClientVisibleGuidsLikeCpp,
-    /// Shared C++ advanced-combat-logging preference for this session.
-    ///
-    /// `WorldObject::SendCombatLogMessage` picks the basic or full `SMSG_SPELL_GO`
-    /// frame per receiver while it distributes the cast, so a producer reads this
-    /// when the cast resolves rather than leaving the choice to drain time.
-    pub advanced_combat_logging_enabled_like_cpp: Arc<AtomicBool>,
-    /// Durable/coalesced equivalent of C++'s retained visibility notify bit.
-    ///
-    /// Senders set this before attempting the bounded command queue. The owning
-    /// session consumes it even when the queue was full, so player entry/exit
-    /// visibility cannot be lost under command backpressure.
-    pub visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
     /// Exact represented pending loot-roll identities owned by this session.
     /// The packet key may be reused, so cross-session routing must clone this
     /// identity into the queued command rather than publishing keys alone.
@@ -579,6 +581,11 @@ struct PlayerRegistryEntry {
     realm_send_tx: flume::Sender<Vec<u8>>,
     command_tx: flume::Sender<SessionCommand>,
     durable_creature_runtime_commands_like_cpp: Arc<Mutex<DurableCreatureRuntimeCommandsLikeCpp>>,
+    /// Shared handles read live at resolve time; beside the entry, not in the
+    /// projection, so publishing gameplay state cannot replace one (#361).
+    client_visible_guids_like_cpp: SharedClientVisibleGuidsLikeCpp,
+    advanced_combat_logging_enabled_like_cpp: Arc<AtomicBool>,
+    visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
     /// Durable loot-money coordination for this incarnation.
     ///
     /// Issue #189 keeps this beside the entry rather than inside
@@ -587,6 +594,32 @@ struct PlayerRegistryEntry {
     /// resolved here only so a remote looter can address the recipient's
     /// coordinator. It creates no second store and no second authority.
     durable_loot_money: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
+}
+
+impl PlayerRegistryEntry {
+    /// One recipient snapshot, built the same way for the bulk and single-GUID
+    /// resolvers so a gate added to one cannot be missed by the other.
+    fn runtime_recipient_like_cpp(&self, guid: ObjectGuid) -> PlayerRuntimeRecipient {
+        PlayerRuntimeRecipient {
+            registration: PlayerRegistration {
+                guid,
+                generation: self.generation,
+            },
+            guid,
+            map_id: self.info.map_id,
+            instance_id: self.info.instance_id,
+            position: self.info.position,
+            combat_reach: self.info.combat_reach,
+            liquid_status: self.info.liquid_status,
+            is_in_world: self.info.is_in_world,
+            is_alive: self.info.is_alive,
+            account_id: self.info.account_id,
+            advanced_combat_logging: self
+                .advanced_combat_logging_enabled_like_cpp
+                .load(Ordering::Relaxed),
+            committed_visibility: self.client_visible_guids_like_cpp.clone(),
+        }
+    }
 }
 
 /// Thread-safe directory of active player sessions, keyed by player GUID.
@@ -642,6 +675,9 @@ impl PlayerRegistry {
             realm_send_tx,
             command_tx,
             durable_creature_runtime_commands_like_cpp,
+            client_visible_guids_like_cpp,
+            advanced_combat_logging_enabled_like_cpp,
+            visibility_refresh_pending_like_cpp,
         } = registration;
         self.entries.insert(
             guid,
@@ -652,6 +688,9 @@ impl PlayerRegistry {
                 realm_send_tx,
                 command_tx,
                 durable_creature_runtime_commands_like_cpp,
+                client_visible_guids_like_cpp,
+                advanced_combat_logging_enabled_like_cpp,
+                visibility_refresh_pending_like_cpp,
                 durable_loot_money,
             },
         );
@@ -706,30 +745,7 @@ impl PlayerRegistry {
     pub fn runtime_recipients(&self) -> Vec<PlayerRuntimeRecipient> {
         self.entries
             .iter()
-            .map(|entry| {
-                let guid = *entry.key();
-                let entry = entry.value();
-                PlayerRuntimeRecipient {
-                    registration: PlayerRegistration {
-                        guid,
-                        generation: entry.generation,
-                    },
-                    guid,
-                    map_id: entry.info.map_id,
-                    instance_id: entry.info.instance_id,
-                    position: entry.info.position,
-                    combat_reach: entry.info.combat_reach,
-                    liquid_status: entry.info.liquid_status,
-                    is_in_world: entry.info.is_in_world,
-                    is_alive: entry.info.is_alive,
-                    account_id: entry.info.account_id,
-                    advanced_combat_logging: entry
-                        .info
-                        .advanced_combat_logging_enabled_like_cpp
-                        .load(Ordering::Relaxed),
-                    committed_visibility: entry.info.client_visible_guids_like_cpp.clone(),
-                }
-            })
+            .map(|entry| entry.value().runtime_recipient_like_cpp(*entry.key()))
             .collect()
     }
 
@@ -737,26 +753,7 @@ impl PlayerRegistry {
     #[must_use]
     pub fn runtime_recipient(&self, guid: ObjectGuid) -> Option<PlayerRuntimeRecipient> {
         let entry = self.entries.get(&guid)?;
-        Some(PlayerRuntimeRecipient {
-            registration: PlayerRegistration {
-                guid,
-                generation: entry.generation,
-            },
-            guid,
-            map_id: entry.info.map_id,
-            instance_id: entry.info.instance_id,
-            position: entry.info.position,
-            combat_reach: entry.info.combat_reach,
-            liquid_status: entry.info.liquid_status,
-            is_in_world: entry.info.is_in_world,
-            is_alive: entry.info.is_alive,
-            account_id: entry.info.account_id,
-            advanced_combat_logging: entry
-                .info
-                .advanced_combat_logging_enabled_like_cpp
-                .load(Ordering::Relaxed),
-            committed_visibility: entry.info.client_visible_guids_like_cpp.clone(),
-        })
+        Some(entry.runtime_recipient_like_cpp(guid))
     }
 
     /// Resolve one connected chat/social identity by case-insensitive player
@@ -1755,7 +1752,7 @@ impl PlayerRegistry {
             .get(&registration.guid)
             .filter(|entry| entry.generation == registration.generation)
             .ok_or(PlayerDirectorySendError::StaleRegistration)?;
-        let pending = Arc::clone(&entry.info.visibility_refresh_pending_like_cpp);
+        let pending = Arc::clone(&entry.visibility_refresh_pending_like_cpp);
         let tx = entry.command_tx.clone();
         drop(entry);
         pending.store(true, Ordering::Release);
@@ -1844,9 +1841,6 @@ mod tests {
                 combat_reach: 0.0,
                 liquid_status: 0,
                 is_in_world: true,
-                client_visible_guids_like_cpp: Default::default(),
-                advanced_combat_logging_enabled_like_cpp: Default::default(),
-                visibility_refresh_pending_like_cpp: Default::default(),
                 active_loot_rolls: Vec::new(),
                 in_combat: false,
                 pass_on_group_loot: false,
@@ -1918,6 +1912,9 @@ mod tests {
             send_tx,
             command_tx,
             durable_creature_runtime_commands_like_cpp: Default::default(),
+            client_visible_guids_like_cpp: Default::default(),
+            advanced_combat_logging_enabled_like_cpp: Default::default(),
+            visibility_refresh_pending_like_cpp: Default::default(),
         };
         assert_eq!(info.info.instance_id, 42);
         assert_eq!(info.info.map_id, 571);

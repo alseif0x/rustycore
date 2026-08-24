@@ -2752,9 +2752,6 @@ mod tests {
                 combat_reach: 0.0,
                 liquid_status: 0,
                 is_in_world: true,
-                client_visible_guids_like_cpp: Default::default(),
-                advanced_combat_logging_enabled_like_cpp: Default::default(),
-                visibility_refresh_pending_like_cpp: Default::default(),
                 active_loot_rolls: Vec::new(),
                 in_combat: false,
                 pass_on_group_loot: false,
@@ -2826,6 +2823,9 @@ mod tests {
             send_tx,
             command_tx,
             durable_creature_runtime_commands_like_cpp: Default::default(),
+            client_visible_guids_like_cpp: Default::default(),
+            advanced_combat_logging_enabled_like_cpp: Default::default(),
+            visibility_refresh_pending_like_cpp: Default::default(),
         }
     }
 

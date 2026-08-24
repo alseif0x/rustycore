@@ -35614,6 +35614,64 @@ fn broadcast_info(
     broadcast_info_with_command(guid, send_tx, command_tx)
 }
 
+/// The three shared handles are registration input beside the private registry
+/// entry, not gameplay state (#361). A session publishes gameplay facts by
+/// replacing the projection, and that publish must not be able to detach or
+/// swap a handle a producer resolves against.
+/// C++ anchor: `Player::m_clientGUIDs` (`Object.h`) and the session's own
+/// visibility/combat-logging state live on the player, never in the copy other
+/// players read while distributing a message.
+#[test]
+fn publishing_gameplay_state_cannot_detach_the_shared_session_handles_like_cpp() {
+    let registry = PlayerRegistry::new();
+    let guid = ObjectGuid::create_player(1, 900);
+    let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(4);
+    let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(4);
+    let registration = broadcast_info_with_command(guid, send_tx, command_tx);
+    let visibility = registration.client_visible_guids_like_cpp.clone();
+    let refresh = Arc::clone(&registration.visibility_refresh_pending_like_cpp);
+    registration
+        .advanced_combat_logging_enabled_like_cpp
+        .store(true, Ordering::Release);
+    let registered = registry.register_or_replace(guid, registration, Default::default());
+
+    let seen = ObjectGuid::create_player(1, 901);
+    visibility.insert(seen);
+
+    // The only thing a gameplay publish can replace is the projection.
+    assert!(registry.fixture_update(guid, |info| info.map_id = 571));
+    assert_eq!(
+        registry.fixture_snapshot(guid).expect("registered").map_id,
+        571,
+        "the projection still carries published gameplay state"
+    );
+
+    let recipient = registry.runtime_recipient(guid).expect("registered");
+    assert_eq!(recipient.map_id, 571);
+    assert!(
+        recipient.committed_visibility.contains(&seen),
+        "the live visibility handle survives a gameplay publish"
+    );
+    assert!(
+        recipient.advanced_combat_logging,
+        "the receiver preference is resolved from the session handle"
+    );
+
+    recipient.committed_visibility.remove(&seen);
+    assert!(
+        !visibility.contains(&seen),
+        "resolving against the directory reaches the session's own set"
+    );
+
+    registry
+        .request_current_visibility_refresh(registered, 571, 0)
+        .expect("a current registration accepts a refresh");
+    assert!(
+        refresh.load(Ordering::Acquire),
+        "the retained notify bit is the session's own handle"
+    );
+}
+
 fn broadcast_info_with_command(
     guid: ObjectGuid,
     send_tx: flume::Sender<Vec<u8>>,
@@ -35627,9 +35685,6 @@ fn broadcast_info_with_command(
             combat_reach: 0.0,
             liquid_status: 0,
             is_in_world: true,
-            client_visible_guids_like_cpp: Default::default(),
-            advanced_combat_logging_enabled_like_cpp: Default::default(),
-            visibility_refresh_pending_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
             in_combat: false,
             pass_on_group_loot: false,
@@ -35701,6 +35756,9 @@ fn broadcast_info_with_command(
         send_tx,
         command_tx,
         durable_creature_runtime_commands_like_cpp: Default::default(),
+        client_visible_guids_like_cpp: Default::default(),
+        advanced_combat_logging_enabled_like_cpp: Default::default(),
+        visibility_refresh_pending_like_cpp: Default::default(),
     }
 }
 
@@ -35953,7 +36011,7 @@ async fn player_visibility_refresh_survives_full_command_queue_like_cpp() {
 
     let mut receiver_info =
         broadcast_info_with_command(receiver_guid, receiver_send_tx, full_command_tx);
-    receiver_info.info.visibility_refresh_pending_like_cpp =
+    receiver_info.visibility_refresh_pending_like_cpp =
         Arc::clone(&receiver.visibility_refresh_pending_like_cpp);
     source_registry.register_or_replace(receiver_guid, receiver_info, Default::default());
 
