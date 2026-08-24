@@ -4677,6 +4677,10 @@ struct BodyAnalyzer<'a, 'b> {
     scopes: Vec<BTreeMap<String, VariableInfo>>,
     local_path_alias_scopes: Vec<BTreeMap<String, Vec<String>>>,
     anonymous_trait_scopes: Vec<BTreeSet<String>>,
+    /// Trait of the impl whose body this is, canonicalised exactly as the
+    /// registration keys it. `Self::CONST` in a trait impl names
+    /// `<Owner as Trait>::CONST`, which the inherent key does not reach (#204).
+    active_trait: Option<String>,
     generic_trait_bounds: BTreeMap<String, BTreeSet<String>>,
     generic_trait_bound_args: BTreeMap<(String, String), Vec<VariableInfo>>,
     generic_trait_bound_associated: BTreeMap<(String, String), BTreeMap<String, VariableInfo>>,
@@ -4748,6 +4752,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             scopes: vec![BTreeMap::new()],
             local_path_alias_scopes: vec![BTreeMap::new()],
             anonymous_trait_scopes: vec![BTreeSet::new()],
+            active_trait: None,
             generic_trait_bounds: BTreeMap::new(),
             generic_trait_bound_args: BTreeMap::new(),
             generic_trait_bound_associated: BTreeMap::new(),
@@ -6810,6 +6815,26 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             && let Some(info) = self.lookup("Self")
         {
             let member = names[1].clone();
+            // Resolution order matches Rust's: this impl's override, then the
+            // trait's default, then an inherent constant of the same name.
+            if let Some(active_trait) = &self.active_trait
+                && let Some(found) = info.nominal_types.iter().find_map(|owner| {
+                    let owner = self.package_function_key(vec![owner.clone()]);
+                    self.symbols
+                        .package_item_values
+                        .get(&format!("<{owner} as {active_trait}>::{member}"))
+                })
+            {
+                return Some(found);
+            }
+            if let Some(active_trait) = &self.active_trait
+                && let Some(found) = self
+                    .symbols
+                    .package_item_values
+                    .get(&format!("{active_trait}::{member}"))
+            {
+                return Some(found);
+            }
             if let Some(found) = info.nominal_types.iter().find_map(|owner| {
                 let owner = self.package_function_key(vec![owner.clone()]);
                 self.symbols
@@ -10929,6 +10954,10 @@ fn analyze_impl(
         analyzer.register_local_constants(&method.block.stmts);
         analyzer.register_generic_bounds(&item_impl.generics);
         analyzer.register_generic_bounds(&method.sig.generics);
+        analyzer.active_trait = item_impl
+            .trait_
+            .as_ref()
+            .map(|(_, path, _)| canonical_path_names(path_names(path), symbols).join("::"));
         let mut self_info = analyzer.info_from_type(&item_impl.self_ty);
         self_info.flow = Flow::default();
         analyzer.bind("Self".to_owned(), self_info.clone());
@@ -18066,6 +18095,64 @@ mod tests {
                 "{enclosing} was classified from inert text"
             );
         }
+    }
+
+    #[test]
+    fn persistence_inventory_resolves_self_constants_through_the_active_trait() {
+        let baseline = inventory(
+            r#"
+                trait Sql {
+                    const SQL: &'static str;
+                    const FALLBACK_SQL: &'static str = "SELECT GET_LOCK('trait-default', 0)";
+                }
+                struct Statements;
+                impl Statements {
+                    const SQL: &'static str = "SELECT 1";
+                }
+                impl Sql for Statements {
+                    const SQL: &'static str = "SELECT GET_LOCK('impl-override', 0)";
+                    fn overridden(&self) {
+                        sqlx::query(Self::SQL);
+                    }
+                    fn defaulted(&self) {
+                        sqlx::query(Self::FALLBACK_SQL);
+                    }
+                }
+                impl Statements {
+                    fn inherent(&self) {
+                        sqlx::query(Self::SQL);
+                    }
+                }
+            "#,
+        )
+        .unwrap();
+        // The trait impl's own constant wins over the inherent one of the same
+        // name; before #204 the inherent key was the only one consulted, so this
+        // advisory lock was invisible and its fingerprint never moved.
+        assert!(
+            baseline.accesses.iter().any(|row| {
+                row.enclosing.contains("overridden")
+                    && row.operation == PersistenceOperation::AdvisoryLock
+            }),
+            "a trait impl's Self::SQL lost its advisory identity"
+        );
+        // A trait default is reachable through Self as well.
+        assert!(
+            baseline.accesses.iter().any(|row| {
+                row.enclosing.contains("defaulted")
+                    && row.operation == PersistenceOperation::AdvisoryLock
+            }),
+            "a trait default constant was not reachable through Self"
+        );
+        // The inherent impl still resolves to the inherent constant, which is
+        // not a lock: trait resolution must not leak across impls.
+        assert!(
+            !baseline.accesses.iter().any(|row| {
+                row.enclosing.contains("inherent")
+                    && row.operation == PersistenceOperation::AdvisoryLock
+            }),
+            "an inherent Self::SQL was classified from a trait impl's constant"
+        );
     }
 
     #[test]
