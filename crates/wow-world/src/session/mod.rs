@@ -61468,6 +61468,132 @@ fn mirror_creature_threat_from_attacker_on_map_like_cpp(
     true
 }
 
+/// Apply one player's melee swings to a canonical player victim.
+///
+/// Lifted out of `run_combat_tick` by #28: the body was already one closure over
+/// `&mut Player`, and whoever owns the tick resolves the same transition. The
+/// arithmetic — `max(1)` per swing, saturating health, `-1` unless the swing
+/// overkills — is unchanged.
+fn apply_player_melee_to_canonical_player_like_cpp(
+    victim: &mut wow_entities::Player,
+    damages: &[u32],
+) -> Option<(Vec<(u32, i32)>, u8)> {
+    if !victim.unit().is_alive() {
+        return None;
+    }
+    let target_level = victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8;
+    let mut sent_swings = Vec::new();
+    for dmg in damages {
+        let damage = (*dmg).max(1);
+        let health_before = victim.unit().data().health;
+        let health_after = health_before.saturating_sub(u64::from(damage));
+        victim.unit_mut().set_health(health_after);
+        let over_damage = if health_after == 0 {
+            u64::from(damage).saturating_sub(health_before) as i32
+        } else {
+            -1
+        };
+        sent_swings.push((damage, over_damage));
+    }
+    Some((sent_swings, target_level))
+}
+
+/// What one player's melee pass did to a legacy creature.
+///
+/// `move_stop` carries the stop position and spline id rather than serialised
+/// bytes: whoever owns the tick applies the transition, and the session that
+/// owns the receiver builds the packet. Keeping construction at the session is
+/// what makes the bytes identical — `MonsterMoveStop` is viewer-independent,
+/// but the values update beside it is not (#28).
+#[derive(Clone, Debug)]
+pub(crate) struct PlayerMeleeCreatureHitLikeCpp {
+    /// `(damage, killed, over_damage)` per swing, in swing order.
+    pub swings: Vec<(u32, bool, i32)>,
+    pub entry: u32,
+    pub level: u8,
+    pub died: bool,
+    pub move_stop: Option<(Position, u32)>,
+    pub values_update: wow_entities::UnitValuesUpdate,
+}
+
+/// Apply one player's melee swings to a legacy creature.
+///
+/// Lifted out of `run_combat_tick` by #28. This is the write path that made
+/// every logged-in session a writer of shared creature combat state; extracting
+/// it is what lets the global loop become its sole owner. Damage arithmetic,
+/// tap assignment, threat, the death branch and the swing record are unchanged.
+fn apply_player_melee_to_legacy_creature_like_cpp(
+    creature: &mut crate::map_manager::WorldCreature,
+    player_guid: ObjectGuid,
+    tap_group_guids: &[ObjectGuid],
+    canonical_damages: Option<&[u32]>,
+) -> Option<PlayerMeleeCreatureHitLikeCpp> {
+    if !creature.is_alive() {
+        return None;
+    }
+    if creature.state() != wow_entities::CreatureAiState::InCombat {
+        creature.enter_combat(player_guid);
+    }
+    let damages: Vec<u32> = match canonical_damages {
+        Some(damages) => damages.to_vec(),
+        None => {
+            if !creature.can_swing() {
+                return None;
+            }
+            vec![creature.roll_damage()?.max(1)]
+        }
+    };
+    let entry = creature.entry();
+    let level = creature.level();
+    let mut swings = Vec::new();
+    let mut died = false;
+    let mut move_stop = None;
+    for dmg in damages {
+        if !creature.is_alive() {
+            break;
+        }
+        let damage = dmg.max(1);
+        let health_before = creature.current_hp();
+        creature
+            .creature
+            .set_tapped_by_player(player_guid, tap_group_guids);
+        died = creature.take_damage_before_death_state_like_cpp(damage);
+        let over_damage = if died {
+            damage.saturating_sub(health_before) as i32
+        } else {
+            -1
+        };
+        creature
+            .creature
+            .unit_mut()
+            .subsystems_mut()
+            .combat
+            .add_threat(player_guid, damage as f32);
+        swings.push((damage, died, over_damage));
+        if died {
+            let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+            combat.clear_threat();
+            combat.clear_attackers();
+            move_stop = creature
+                .stop_move_spline_like_cpp()
+                .map(|stop| (stop.position, stop.spline_id));
+            break;
+        }
+    }
+    if canonical_damages.is_none() {
+        creature.record_swing();
+    }
+    let values_update = creature.creature.unit().values_update();
+    Some(PlayerMeleeCreatureHitLikeCpp {
+        swings,
+        entry,
+        level,
+        died,
+        move_stop,
+        values_update,
+    })
+}
+
 /// Melee geometry, decided the same way whoever owns the tick.
 ///
 /// These were `impl WorldSession` associated functions taking no `self`. The
@@ -62481,26 +62607,10 @@ impl WorldSession {
         if let CombatTargetRuntimeLikeCpp::CanonicalPlayer { .. } = target_runtime {
             let Some((swings, target_level)) = self
                 .mutate_canonical_player_by_guid_like_cpp(combat_target, |victim| {
-                    if !victim.unit().is_alive() {
-                        return None;
-                    }
-                    let damages = canonical_swing_damages.clone().unwrap_or_default();
-                    let target_level =
-                        victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8;
-                    let mut sent_swings = Vec::new();
-                    for dmg in damages {
-                        let damage = dmg.max(1);
-                        let health_before = victim.unit().data().health;
-                        let health_after = health_before.saturating_sub(u64::from(damage));
-                        victim.unit_mut().set_health(health_after);
-                        let over_damage = if health_after == 0 {
-                            u64::from(damage).saturating_sub(health_before) as i32
-                        } else {
-                            -1
-                        };
-                        sent_swings.push((damage, over_damage));
-                    }
-                    Some((sent_swings, target_level))
+                    apply_player_melee_to_canonical_player_like_cpp(
+                        victim,
+                        canonical_swing_damages.as_deref().unwrap_or(&[]),
+                    )
                 })
                 .flatten()
             else {
@@ -62540,70 +62650,21 @@ impl WorldSession {
 
         // Gather combat data from the canonical map-owned creature before
         // emitting combat packets.
-        let Some((swings, target_entry, target_level, now_dead, move_stop, values_update)) = self
+        let Some(PlayerMeleeCreatureHitLikeCpp {
+            swings,
+            entry: target_entry,
+            level: target_level,
+            died: now_dead,
+            move_stop,
+            values_update,
+        }) = self
             .mutate_world_creature(combat_target, |creature| {
-                if !creature.is_alive() {
-                    return None;
-                }
-                if creature.state() != wow_entities::CreatureAiState::InCombat {
-                    creature.enter_combat(player_guid);
-                }
-                let damages = match canonical_swing_damages.as_ref() {
-                    Some(damages) => damages.clone(),
-                    None => {
-                        if !creature.can_swing() {
-                            return None;
-                        }
-                        vec![creature.roll_damage()?.max(1)]
-                    }
-                };
-                let entry = creature.entry();
-                let level = creature.level();
-                let mut sent_swings = Vec::new();
-                let mut died = false;
-                let mut move_stop = None;
-                for dmg in damages {
-                    if !creature.is_alive() {
-                        break;
-                    }
-                    let damage = dmg.max(1);
-                    let health_before = creature.current_hp();
-                    creature
-                        .creature
-                        .set_tapped_by_player(player_guid, &tap_group_guids);
-                    died = creature.take_damage_before_death_state_like_cpp(damage);
-                    let over_damage = if died {
-                        damage.saturating_sub(health_before) as i32
-                    } else {
-                        -1
-                    };
-                    creature
-                        .creature
-                        .unit_mut()
-                        .subsystems_mut()
-                        .combat
-                        .add_threat(player_guid, damage as f32);
-                    sent_swings.push((damage, died, over_damage));
-                    if died {
-                        let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
-                        combat.clear_threat();
-                        combat.clear_attackers();
-                        move_stop = creature.stop_move_spline_like_cpp().map(|stop| {
-                            MonsterMoveStop {
-                                mover_guid: combat_target,
-                                current_pos: stop.position,
-                                spline_id: stop.spline_id,
-                            }
-                            .to_bytes()
-                        });
-                        break;
-                    }
-                }
-                if canonical_swing_damages.is_none() {
-                    creature.record_swing();
-                }
-                let values_update = creature.creature.unit().values_update();
-                Some((sent_swings, entry, level, died, move_stop, values_update))
+                apply_player_melee_to_legacy_creature_like_cpp(
+                    creature,
+                    player_guid,
+                    &tap_group_guids,
+                    canonical_swing_damages.as_deref(),
+                )
             })
             .flatten()
         else {
@@ -62672,8 +62733,15 @@ impl WorldSession {
                     },
                 );
             }
-            if let Some(bytes) = move_stop {
-                output.packets.push(bytes);
+            if let Some((current_pos, spline_id)) = move_stop {
+                output.packets.push(
+                    MonsterMoveStop {
+                        mover_guid: combat_target,
+                        current_pos,
+                        spline_id,
+                    }
+                    .to_bytes(),
+                );
             }
             let stop = SAttackStop {
                 attacker: player_guid,
