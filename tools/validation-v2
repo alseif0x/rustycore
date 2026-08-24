@@ -588,8 +588,7 @@ def audit_steps(base_commit: str, jobs: int) -> list[dict[str, object]]:
             "handler-contract-unit-tests",
             [
                 "cargo", "test", "--release", "--locked", "--manifest-path",
-                CHECKER_MANIFEST, "--lib", "--jobs", str(jobs), "--", "--skip",
-                "repository_surface_can_be_collected",
+                CHECKER_MANIFEST, "--lib", "--jobs", str(jobs),
             ],
         ),
         (
@@ -753,7 +752,11 @@ def validation_commands(
         command = "test" if profile == "final" else "check"
         checker = ["cargo", command, "--locked", "--manifest-path", CHECKER_MANIFEST, "--jobs", str(jobs)]
         if profile == "final":
-            checker.extend(["--lib", "--", "--skip", "repository_surface_can_be_collected"])
+            # No test is skipped by name here. `repository_surface_can_be_collected`
+            # used to be, because it asked for a persistence inventory it never
+            # asserted; it collects the syntax surface it actually reads and runs
+            # in seconds (#363).
+            checker.append("--lib")
         add_command(planned, checker)
     if "wow-test-bot" in groups:
         add_command(

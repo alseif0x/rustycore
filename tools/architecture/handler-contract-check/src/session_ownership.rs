@@ -1874,10 +1874,6 @@ fn collect_workspace_persistence_baseline(
         .map_err(|error| format!("cannot inventory persistence accesses:\n{error}"))
 }
 
-fn collect_repository_baseline(repository_root: &Path) -> Result<SessionSyntaxBaseline, String> {
-    collect_repository_baseline_with_persistence(repository_root, true)
-}
-
 /// Collect the session syntax surface, optionally without the persistence scan.
 ///
 /// The persistence inventory costs a full workspace scan — minutes, and the
@@ -2938,11 +2934,26 @@ mod tests {
         );
     }
 
+    /// The collector sees the repository, and what it sees agrees with the
+    /// baseline the ratchet enforces.
+    ///
+    /// This used to restate nine sizes as literals — 738 fields, 80
+    /// `PlayerBroadcastInfo` fields, 685 registry rows — frozen when #181 first
+    /// baselined the scanner. Every one of those numbers is already owned by
+    /// `session-ownership-policy.json`, so the copies could only rot, and they
+    /// did: by #363 all but one were wrong. It asserts properties now, and the
+    /// counts stay in the one place that ratchets them.
+    ///
+    /// It also asked for the persistence inventory it never looked at, which
+    /// cost a full workspace scan and is why it was skipped by name in both
+    /// validation profiles. The syntax surface is what it asserts, so the
+    /// syntax surface is what it collects.
     #[test]
     fn repository_surface_can_be_collected() {
         let repository_root = crate::repository_root().expect("repository root");
-        let baseline = collect_repository_baseline(&repository_root)
+        let baseline = collect_repository_baseline_with_persistence(&repository_root, false)
             .unwrap_or_else(|error| panic!("repository baseline must parse:\n{error}"));
+
         let raw_session_source =
             fs::read_to_string(repository_root.join("crates/wow-world/src/session/mod.rs"))
                 .expect("read session source");
@@ -2955,39 +2966,69 @@ mod tests {
                 _ => None,
             })
             .expect("WorldSession definition");
-        assert_eq!(raw_fields.len(), 738);
-        let test_only_fields = raw_fields
+
+        // The collector reaches the same struct the parser does, field for field.
+        let raw_names: BTreeSet<String> = raw_fields
+            .iter()
+            .map(|field| {
+                field
+                    .ident
+                    .as_ref()
+                    .expect("WorldSession has named fields")
+                    .to_string()
+            })
+            .collect();
+        let collected_names: BTreeSet<String> = baseline
+            .world_session
+            .fields
+            .iter()
+            .map(|field| field.name.clone())
+            .collect();
+        assert_eq!(collected_names, raw_names);
+
+        // Production and test-fixture partition the surface: no field is both,
+        // none is neither, and the split matches the cfg the source declares.
+        let production = baseline
+            .world_session
+            .fields
+            .iter()
+            .filter(|field| field.source_class == "production")
+            .count();
+        let test_fixture = baseline
+            .world_session
+            .fields
+            .iter()
+            .filter(|field| field.source_class == "test_fixture")
+            .count();
+        assert_eq!(
+            production + test_fixture,
+            baseline.world_session.fields.len()
+        );
+        let raw_test_only = raw_fields
             .iter()
             .filter(|field| {
                 !cfg_context_allows_production(&[], &field.attrs)
                     .expect("repository field cfg is valid")
             })
             .count();
-        assert_eq!(test_only_fields, 11);
-        assert_eq!(baseline.world_session.fields.len(), 738);
-        assert_eq!(
-            baseline
-                .world_session
-                .fields
-                .iter()
-                .filter(|field| field.source_class == "production")
-                .count(),
-            727
-        );
-        assert_eq!(
-            baseline
-                .world_session
-                .fields
-                .iter()
-                .filter(|field| field.source_class == "test_fixture")
-                .count(),
-            11
-        );
-        assert_eq!(baseline.session_resources.fields.len(), 243);
-        assert_eq!(baseline.world_session.impls.len(), 20);
-        assert_eq!(baseline.session_command.variants.len(), 37);
-        assert_eq!(baseline.player_broadcast_info.fields.len(), 80);
-        assert_eq!(baseline.registry_accesses.accesses.len(), 685);
+        assert_eq!(test_fixture, raw_test_only);
+
+        // What it collected is what the checked-in baseline says it should be.
+        // This is the same comparison the gate performs, so a stale test and a
+        // stale ratchet can no longer disagree.
+        let policy = load_policy(&repository_root.join(POLICY_RELATIVE_PATH))
+            .expect("checked-in session ownership policy loads");
+        compare_baseline(&policy.syntax_baseline, &baseline)
+            .expect("the collected surface matches the checked-in baseline");
+
+        // Every surface the baseline tracks was actually collected, so an empty
+        // scan cannot pass the comparison by matching an empty baseline.
+        assert!(!baseline.world_session.fields.is_empty());
+        assert!(!baseline.world_session.impls.is_empty());
+        assert!(!baseline.session_resources.fields.is_empty());
+        assert!(!baseline.session_command.variants.is_empty());
+        assert!(!baseline.player_broadcast_info.fields.is_empty());
+        assert!(!baseline.registry_accesses.accesses.is_empty());
         assert!(baseline.registry_accesses.accesses.iter().all(|record| {
             record.source.starts_with("crates/") && !Path::new(&record.source).is_absolute()
         }));

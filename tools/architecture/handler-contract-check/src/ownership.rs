@@ -1564,11 +1564,34 @@ pub(crate) fn audit_package_source_mounts(
     ))
 }
 
+/// The logical mounts of every source, and which of them are reachable in
+/// production with no `cfg` on the way down.
+///
+/// The collector needs the second answer. Before #359 it had to *be* the crate
+/// root, which made a conditional parent impossible by construction; owning it
+/// by module path instead lost that for free, so the mount chain is now checked
+/// explicitly (#363).
 pub(crate) fn audit_package_source_graph(
     package_root: &Path,
     production_roots: &[PathBuf],
-) -> Result<(BTreeMap<PathBuf, BTreeSet<String>>, usize), String> {
+) -> Result<
+    (
+        BTreeMap<PathBuf, BTreeSet<String>>,
+        usize,
+        BTreeSet<PathBuf>,
+    ),
+    String,
+> {
     let (mounts, explicit_paths) = audit_package_source_mounts(package_root, production_roots)?;
+    let unconditional = mounts
+        .iter()
+        .filter(|(_, contexts)| {
+            contexts
+                .iter()
+                .any(|context| context.production_possible && context.cfg.is_empty())
+        })
+        .map(|(source, _)| source.clone())
+        .collect();
     Ok((
         mounts
             .into_iter()
@@ -1583,6 +1606,7 @@ pub(crate) fn audit_package_source_graph(
             })
             .collect(),
         explicit_paths,
+        unconditional,
     ))
 }
 
@@ -1745,7 +1769,7 @@ fn is_owned_handler_mount(
 pub(crate) fn audit_package_registration_sources(
     package_name: &str,
     sources: &BTreeMap<PathBuf, BTreeSet<String>>,
-    production_lib_roots: &BTreeSet<PathBuf>,
+    unconditional: &BTreeSet<PathBuf>,
 ) -> Result<(), String> {
     let test_owner = CapabilityOwner {
         capability: "handler_registration".to_owned(),
@@ -1754,18 +1778,13 @@ pub(crate) fn audit_package_registration_sources(
         allow_descendants: true,
         tracking_issue: 153,
     };
-    audit_package_registration_sources_with_owner(
-        package_name,
-        sources,
-        production_lib_roots,
-        &test_owner,
-    )
+    audit_package_registration_sources_with_owner(package_name, sources, unconditional, &test_owner)
 }
 
 pub(crate) fn audit_package_registration_sources_with_owner(
     package_name: &str,
     sources: &BTreeMap<PathBuf, BTreeSet<String>>,
-    production_lib_roots: &BTreeSet<PathBuf>,
+    unconditional: &BTreeSet<PathBuf>,
     owner: &CapabilityOwner,
 ) -> Result<(), String> {
     let mut errors = Vec::new();
@@ -1777,9 +1796,12 @@ pub(crate) fn audit_package_registration_sources_with_owner(
         let source = fs::read_to_string(source_path)
             .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
         // The collector is no longer a crate root, so it is identified by its
-        // logical module rather than by being lib.rs (#359).
+        // logical module rather than by being lib.rs (#359) — and, because that
+        // no longer rules out a conditional parent by construction, by having an
+        // unconditional production mount (#363).
         let collector_owner = package_name == REGISTRY_PACKAGE_NAME
-            && logical_paths == &BTreeSet::from([REGISTRY_MODULE_PATH.to_owned()]);
+            && logical_paths == &BTreeSet::from([REGISTRY_MODULE_PATH.to_owned()])
+            && unconditional.contains(source_path);
         match analyze_registration_syntax_outside_handlers(source_path, &source, collector_owner) {
             Ok(report) => exact_collectors += report.exact_packet_handler_collectors,
             Err(error) => errors.push(format!("package {package_name}: {error}")),
@@ -1821,7 +1843,7 @@ pub(crate) fn audit_registration_ownership(
     let mut errors = Vec::new();
     let mut package_names = Vec::new();
     for scope in &scopes {
-        let (sources, explicit_paths) =
+        let (sources, explicit_paths, unconditional) =
             audit_package_source_graph(&scope.root, &scope.production_roots).map_err(|error| {
                 format!(
                     "invalid production source graph for {}: {error}",
@@ -1929,7 +1951,7 @@ pub(crate) fn audit_registration_ownership(
             if let Err(error) = audit_package_registration_sources_with_owner(
                 &scope.name,
                 &sources,
-                &scope.production_lib_roots,
+                &unconditional,
                 owner,
             ) {
                 errors.push(error);
