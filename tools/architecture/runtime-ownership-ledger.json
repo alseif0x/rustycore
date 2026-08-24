@@ -38,7 +38,7 @@
       "member_key": "name",
       "zero_gaps": true,
       "zero_overlap": true,
-      "expected_field_count": 741,
+      "expected_field_count": 740,
       "validation": "Compare the sorted AST names with the sorted concatenation of every family.field_names; reject a missing name, duplicate name, stale name, family count mismatch, or total count mismatch."
     },
     "families": [
@@ -944,7 +944,7 @@
       },
       {
         "id": "unresolved_world_session_residual",
-        "expected_field_count": 96,
+        "expected_field_count": 95,
         "field_names": [
           "active_player_local_flags_like_cpp",
           "active_player_multi_action_bars_like_cpp",
@@ -966,7 +966,6 @@
           "player_interaction_data_like_cpp",
           "player_level",
           "player_liquid_status_like_cpp",
-          "player_melee_los_to_target_like_cpp",
           "player_moved_unit_guid_like_cpp",
           "player_name",
           "player_normal_damage_immune_like_cpp",
@@ -1057,9 +1056,9 @@
         "retirement_condition": "This residual is empty, or every remaining field has an explicit reviewed stable-Session justification and a dedicated exact-membership rule."
       }
     ],
-    "expected_field_count": 741,
-    "expected_unique_field_count": 741,
-    "expected_production_field_count": 729,
+    "expected_field_count": 740,
+    "expected_unique_field_count": 740,
+    "expected_production_field_count": 728,
     "expected_test_fixture_field_count": 12
   },
   "inventories": {
@@ -1548,16 +1547,16 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.session_command.variants"
       },
       "audited_summary": {
-        "variant_count": 37,
+        "variant_count": 38,
         "count_kind": "baseline observation; AST is authoritative"
       },
-      "expected_variant_count": 37,
+      "expected_variant_count": 38,
       "coverage_rule": {
         "mode": "exact_variant_membership",
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_variant_count": 37,
+        "expected_variant_count": 38,
         "validation": "Compare sorted AST variant names with the sorted concatenation of every entry.variants; reject gaps, duplicates, stale variants, entry count drift, or total count drift."
       },
       "entries": [
@@ -1577,9 +1576,10 @@
         },
         {
           "id": "map_runtime_and_visibility_delivery",
-          "expected_variant_count": 15,
+          "expected_variant_count": 16,
           "variants": [
             "ApplyCreatureMeleeDamageLikeCpp",
+            "ApplyPlayerMeleeResultLikeCpp",
             "CreatureAttackStartLikeCpp",
             "CreatureAttackStopLikeCpp",
             "ReconcilePvpCombatExpiryLikeCpp",
@@ -1820,9 +1820,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 72936,
-          "test_lines": 95949,
-          "total_lines": 168885,
+          "production_lines": 73175,
+          "test_lines": 96003,
+          "total_lines": 169178,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153,
@@ -1867,9 +1867,9 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 25040,
-          "test_lines": 21536,
-          "total_lines": 46576,
+          "production_lines": 25071,
+          "test_lines": 21617,
+          "total_lines": 46688,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153

@@ -4619,7 +4619,7 @@ fn legacy_creature_update_threat_victim_like_cpp(
         .iter()
         .filter(|(guid, snapshot)| {
             eligible_candidate_guids.contains(guid)
-                && WorldSession::is_within_melee_range_like_cpp(
+                && is_within_melee_range_like_cpp(
                     creature.position(),
                     creature.creature.unit().world().combat_reach(),
                     snapshot.position,
@@ -6083,7 +6083,6 @@ pub struct WorldSession {
     /// Last represented player melee tick used to decrement C++ `m_attackTimer`.
     combat_tick_last_at_like_cpp: Instant,
     /// Represented result of C++ `IsWithinLOSInMap(victim)` for melee swings until LOS runtime is canonical.
-    player_melee_los_to_target_like_cpp: Option<bool>,
     /// C++ `Player::m_swingErrorMsg`; suppresses duplicate `SMSG_ATTACK_SWING_ERROR` packets.
     player_swing_error_msg_like_cpp: Option<u8>,
 
@@ -8166,7 +8165,6 @@ impl WorldSession {
             mmap_pathfinder_like_cpp: None,
             combat_target: None,
             combat_tick_last_at_like_cpp: Instant::now(),
-            player_melee_los_to_target_like_cpp: None,
             player_swing_error_msg_like_cpp: None,
             in_combat: false,
             player_alive_like_cpp: true,
@@ -10680,50 +10678,41 @@ impl WorldSession {
         }
     }
 
-    fn is_within_melee_range_like_cpp(
-        attacker_position: Position,
-        attacker_combat_reach: f32,
-        target_position: Position,
-        target_combat_reach: f32,
-    ) -> bool {
-        let melee_range =
-            (attacker_combat_reach.max(0.0) + target_combat_reach.max(0.0) + 4.0 / 3.0)
-                .max(NOMINAL_MELEE_RANGE_LIKE_CPP);
-        attacker_position.distance(&target_position) <= melee_range
-    }
-
-    fn is_within_target_boundary_radius_like_cpp(
-        attacker_position: Position,
-        attacker_combat_reach: f32,
-        target_position: Position,
-        target_combat_reach: f32,
-        target_bounding_radius: f32,
-    ) -> bool {
-        let boundary_radius = target_bounding_radius.max(MIN_MELEE_REACH_LIKE_CPP)
-            + attacker_combat_reach.max(0.0)
-            + target_combat_reach.max(0.0);
-        attacker_position.distance(&target_position) < boundary_radius
-    }
-
-    fn is_unit_facing_target_for_melee_like_cpp(
-        unit_position: Position,
-        target_position: Position,
-    ) -> bool {
-        let dx = target_position.x - unit_position.x;
-        let dy = target_position.y - unit_position.y;
-        if dx.abs() <= f32::EPSILON && dy.abs() <= f32::EPSILON {
-            return true;
+    /// Queue one creature kill for the loot and reward phases, deduplicated.
+    ///
+    /// Both writers of this queue — `run_combat_tick` and the delivery handler
+    /// for a map-owned resolution (#28) — must enqueue identically, so the
+    /// dedup lives here instead of being written twice. The queues stay private
+    /// to the session; a handler asks for the transition, not for the fields.
+    pub(crate) fn queue_pending_creature_kill_like_cpp(
+        &mut self,
+        killer_guid: ObjectGuid,
+        creature_guid: ObjectGuid,
+        creature_entry: u32,
+        creature_level: u8,
+    ) {
+        if !self
+            .pending_creature_kill_loot_like_cpp
+            .contains(&creature_guid)
+        {
+            self.pending_creature_kill_loot_like_cpp.push(creature_guid);
         }
-
-        let target_angle = dy.atan2(dx);
-        let mut diff = (target_angle - unit_position.orientation).rem_euclid(std::f32::consts::TAU);
-        if diff > std::f32::consts::PI {
-            diff = std::f32::consts::TAU - diff;
+        if !self
+            .pending_creature_kill_rewards_like_cpp
+            .iter()
+            .any(|reward| reward.creature_guid == creature_guid)
+        {
+            self.pending_creature_kill_rewards_like_cpp
+                .push(PendingCreatureKillRewardLikeCpp {
+                    killer_guid,
+                    creature_guid,
+                    creature_entry,
+                    creature_level,
+                });
         }
-        diff <= std::f32::consts::PI / 3.0
     }
 
-    fn set_player_attack_swing_error_like_cpp(&mut self, error: Option<u8>) {
+    pub(crate) fn set_player_attack_swing_error_like_cpp(&mut self, error: Option<u8>) {
         use wow_packet::ServerPacket;
         use wow_packet::packets::combat::AttackSwingError;
 
@@ -10743,103 +10732,13 @@ impl WorldSession {
         within_los: bool,
     ) -> Option<(Vec<u32>, Option<Option<u8>>)> {
         self.mutate_canonical_player_like_cpp(|player| {
-            let unit = player.unit_mut();
-            let spell_pauses_combat_timer = [
-                wow_entities::CurrentSpellSlot::Generic,
-                wow_entities::CurrentSpellSlot::Channeled,
-            ]
-            .into_iter()
-            .any(|slot| {
-                unit.current_spell(slot)
-                    .is_some_and(|spell| spell.delay_combat_timer_during_cast)
-            });
-            if !spell_pauses_combat_timer {
-                unit.update_attack_timers_like_cpp(diff_ms);
-            }
-            let mut swings = Vec::new();
-            let mut processed_ready_attack = false;
-            let mut base_attack_error_update = None;
-            // C++: Unit::DoMeleeAttackIfReady, Unit.cpp:2087 exits before
-            // processing swings unless UNIT_STATE_MELEE_ATTACKING is present.
-            if !unit.has_unit_state(UnitState::MELEE_ATTACKING.bits()) {
-                return None;
-            }
-            // C++: Unit::DoMeleeAttackIfReady, Unit.cpp:2090 exits while charging.
-            if unit.has_unit_state(UnitState::CHARGING.bits()) {
-                return None;
-            }
-            // C++: Unit::DoMeleeAttackIfReady returns while casting unless
-            // the active channeled spell explicitly allows actions.
-            if unit.has_unit_state(UnitState::CASTING.bits()) {
-                let channeled = unit.current_spell(wow_entities::CurrentSpellSlot::Channeled);
-                if !channeled.is_some_and(|spell| spell.allow_actions_during_channel) {
-                    return None;
-                }
-            }
-            let has_auto_attack_error = !in_melee_range || !facing_target;
-            let melee_state_update_allowed =
-                within_los && unit.can_attacker_state_update_melee_like_cpp(false);
-
-            if unit.is_attack_ready_like_cpp(WeaponAttackType::BaseAttack) {
-                processed_ready_attack = true;
-                if has_auto_attack_error {
-                    base_attack_error_update = Some(Some(if !in_melee_range { 0 } else { 1 }));
-                    unit.set_attack_timer(WeaponAttackType::BaseAttack, 100);
-                } else {
-                    base_attack_error_update = Some(None);
-                    if unit.can_dual_wield_like_cpp()
-                        && unit.attack_timer(WeaponAttackType::OffAttack)
-                            < ATTACK_DISPLAY_DELAY_LIKE_CPP_MS
-                    {
-                        unit.set_attack_timer(
-                            WeaponAttackType::OffAttack,
-                            ATTACK_DISPLAY_DELAY_LIKE_CPP_MS,
-                        );
-                    }
-                    if melee_state_update_allowed {
-                        unit.remove_attacking_interrupt_auras_like_cpp();
-                        if unit
-                            .current_spell(wow_entities::CurrentSpellSlot::Melee)
-                            .is_some()
-                        {
-                            let _ = unit.finish_spell(wow_entities::CurrentSpellSlot::Melee);
-                        } else {
-                            let [min_damage, max_damage] =
-                                unit.weapon_damage(WeaponAttackType::BaseAttack);
-                            swings
-                                .push(min_damage.max(1.0).min(max_damage.max(1.0)).round() as u32);
-                        }
-                    }
-                    unit.reset_attack_timer_like_cpp(WeaponAttackType::BaseAttack);
-                }
-            }
-
-            if unit.can_dual_wield_like_cpp()
-                && unit.is_attack_ready_like_cpp(WeaponAttackType::OffAttack)
-            {
-                processed_ready_attack = true;
-                if has_auto_attack_error {
-                    unit.set_attack_timer(WeaponAttackType::OffAttack, 100);
-                } else {
-                    if unit.attack_timer(WeaponAttackType::BaseAttack)
-                        < ATTACK_DISPLAY_DELAY_LIKE_CPP_MS
-                    {
-                        unit.set_attack_timer(
-                            WeaponAttackType::BaseAttack,
-                            ATTACK_DISPLAY_DELAY_LIKE_CPP_MS,
-                        );
-                    }
-                    if melee_state_update_allowed {
-                        unit.remove_attacking_interrupt_auras_like_cpp();
-                        let [min_damage, max_damage] =
-                            unit.weapon_damage(WeaponAttackType::OffAttack);
-                        swings.push(min_damage.max(1.0).min(max_damage.max(1.0)).round() as u32);
-                    }
-                    unit.reset_attack_timer_like_cpp(WeaponAttackType::OffAttack);
-                }
-            }
-
-            processed_ready_attack.then_some((swings, base_attack_error_update))
+            take_canonical_player_attack_swings_like_cpp(
+                player,
+                diff_ms,
+                in_melee_range,
+                facing_target,
+                within_los,
+            )
         })
         .flatten()
     }
@@ -11452,99 +11351,14 @@ impl WorldSession {
         let Some(managed) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
             return false;
         };
-        let map = managed.map_mut();
-        let Some(attacker) = map.get_typed_player(attacker_guid) else {
-            return false;
-        };
-        let attacker_unit = attacker.unit();
-        let attacker_world = attacker_unit.world();
-        let attacker_combat = &attacker_unit.subsystems().combat;
-
-        let (context, both_player_controlled) =
-            if let Some(victim) = map.get_typed_player(victim_guid) {
-                let victim_unit = victim.unit();
-                let victim_world = victim_unit.world();
-                let victim_combat = &victim_unit.subsystems().combat;
-                (
-                    wow_entities::CombatBeginContextLikeCpp {
-                        same_unit: attacker_guid == victim_guid,
-                        attacker_in_world: attacker_world.object().is_in_world(),
-                        victim_in_world: victim_world.object().is_in_world(),
-                        attacker_alive: attacker_unit.is_alive(),
-                        victim_alive: victim_unit.is_alive(),
-                        same_map: attacker_world.is_in_map(victim_world),
-                        same_phase: attacker_world.in_same_phase(victim_world),
-                        attacker_unit_state: attacker_unit.unit_state(),
-                        victim_unit_state: victim_unit.unit_state(),
-                        attacker_combat_disallowed: attacker_combat.combat_disallowed,
-                        victim_combat_disallowed: victim_combat.combat_disallowed,
-                        relation_represented,
-                        attacker_is_friendly_to_victim,
-                        victim_is_friendly_to_attacker,
-                        attacker_or_owner_player_is_game_master: attacker.is_game_master_like_cpp(),
-                        victim_or_owner_player_is_game_master: victim.is_game_master_like_cpp(),
-                    },
-                    true,
-                )
-            } else if let Some(victim) = map.get_typed_creature(victim_guid) {
-                let victim_unit = victim.unit();
-                let victim_world = victim_unit.world();
-                let victim_combat = &victim_unit.subsystems().combat;
-                (
-                    wow_entities::CombatBeginContextLikeCpp {
-                        same_unit: false,
-                        attacker_in_world: attacker_world.object().is_in_world(),
-                        victim_in_world: victim_world.object().is_in_world(),
-                        attacker_alive: attacker_unit.is_alive(),
-                        victim_alive: victim_unit.is_alive(),
-                        same_map: attacker_world.is_in_map(victim_world),
-                        same_phase: attacker_world.in_same_phase(victim_world),
-                        attacker_unit_state: attacker_unit.unit_state(),
-                        victim_unit_state: victim_unit.unit_state(),
-                        attacker_combat_disallowed: attacker_combat.combat_disallowed,
-                        victim_combat_disallowed: victim_combat.combat_disallowed,
-                        relation_represented,
-                        attacker_is_friendly_to_victim,
-                        victim_is_friendly_to_attacker,
-                        attacker_or_owner_player_is_game_master: attacker.is_game_master_like_cpp(),
-                        victim_or_owner_player_is_game_master: false,
-                    },
-                    false,
-                )
-            } else {
-                return false;
-            };
-
-        if !wow_entities::CombatSubsystem::can_begin_combat_like_cpp(context) {
-            return false;
-        }
-
-        let Some(attacker) = map.get_typed_player_mut(attacker_guid) else {
-            return false;
-        };
-        let attacker_started = attacker
-            .unit_mut()
-            .subsystems_mut()
-            .combat
-            .set_in_combat_with(victim_guid, both_player_controlled, false);
-
-        let victim_started = if let Some(victim) = map.get_typed_player_mut(victim_guid) {
-            victim
-                .unit_mut()
-                .subsystems_mut()
-                .combat
-                .set_in_combat_with(attacker_guid, both_player_controlled, false)
-        } else if let Some(victim) = map.get_typed_creature_mut(victim_guid) {
-            victim
-                .unit_mut()
-                .subsystems_mut()
-                .combat
-                .set_in_combat_with(attacker_guid, both_player_controlled, false)
-        } else {
-            false
-        };
-
-        attacker_started && victim_started
+        begin_combat_ref_on_map_like_cpp(
+            managed.map_mut(),
+            attacker_guid,
+            victim_guid,
+            relation_represented,
+            attacker_is_friendly_to_victim,
+            victim_is_friendly_to_attacker,
+        )
     }
 
     fn canonical_creature_threat_value_like_cpp(
@@ -11556,12 +11370,7 @@ impl WorldSession {
         let manager = self.canonical_map_manager.as_ref()?.clone();
         let manager = manager.lock().ok()?;
         let managed = manager.find_map(map_key.map_id, map_key.instance_id)?;
-        let creature = managed.map().get_typed_creature(creature_guid)?;
-        creature
-            .unit()
-            .subsystems()
-            .combat
-            .threat_value(attacker_guid)
+        creature_threat_value_on_map_like_cpp(managed.map(), creature_guid, attacker_guid)
     }
 
     fn mirror_canonical_creature_threat_from_attacker_like_cpp(
@@ -11570,19 +11379,6 @@ impl WorldSession {
         attacker_guid: ObjectGuid,
         threat_value: f32,
     ) -> bool {
-        if threat_value <= 0.0 {
-            return false;
-        }
-        if !self.begin_canonical_player_combat_ref_like_cpp(
-            attacker_guid,
-            creature_guid,
-            false,
-            false,
-            false,
-        ) {
-            return false;
-        }
-
         let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
             return false;
         };
@@ -11595,37 +11391,12 @@ impl WorldSession {
         let Some(managed) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
             return false;
         };
-        let map = managed.map_mut();
-
-        let threat_ref = {
-            let Some(creature) = map.get_typed_creature_mut(creature_guid) else {
-                return false;
-            };
-            creature
-                .unit_mut()
-                .subsystems_mut()
-                .combat
-                .set_threat(attacker_guid, threat_value);
-            creature
-                .unit()
-                .subsystems()
-                .combat
-                .threat_ref(attacker_guid)
-                .copied()
-        };
-
-        let Some(threat_ref) = threat_ref else {
-            return false;
-        };
-        let Some(attacker) = map.get_typed_player_mut(attacker_guid) else {
-            return false;
-        };
-        attacker
-            .unit_mut()
-            .subsystems_mut()
-            .combat
-            .put_threatened_by_me_ref(creature_guid, threat_ref);
-        true
+        mirror_creature_threat_from_attacker_on_map_like_cpp(
+            managed.map_mut(),
+            creature_guid,
+            attacker_guid,
+            threat_value,
+        )
     }
 
     fn revalidate_canonical_player_combat_refs_like_cpp(&mut self, player_guid: ObjectGuid) {
@@ -61090,7 +60861,7 @@ fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
         let victim_position = victim.unit().world().position();
         let victim_data = victim.unit().data();
         let victim_combat_reach = victim_data.combat_reach;
-        if !WorldSession::is_within_melee_range_like_cpp(
+        if !is_within_melee_range_like_cpp(
             attacker_position,
             attacker_combat_reach,
             victim_position,
@@ -61098,16 +60869,14 @@ fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
         ) {
             return CreatureMeleeApplyResultLikeCpp::OutOfRange;
         }
-        if !WorldSession::is_within_target_boundary_radius_like_cpp(
+        if !is_within_target_boundary_radius_like_cpp(
             attacker_position,
             attacker_combat_reach,
             victim_position,
             victim_combat_reach,
             victim_data.bounding_radius,
-        ) && !WorldSession::is_unit_facing_target_for_melee_like_cpp(
-            attacker_position,
-            victim_position,
-        ) {
+        ) && !is_unit_facing_target_for_melee_like_cpp(attacker_position, victim_position)
+        {
             return CreatureMeleeApplyResultLikeCpp::BadFacing;
         }
         if !victim.unit().is_alive() || victim.unit().data().health == 0 {
@@ -61220,7 +60989,7 @@ fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
         let victim_position = victim.unit().world().position();
         let victim_data = victim.unit().data();
         let victim_combat_reach = victim_data.combat_reach;
-        if !WorldSession::is_within_melee_range_like_cpp(
+        if !is_within_melee_range_like_cpp(
             attacker_position,
             attacker_combat_reach,
             victim_position,
@@ -61228,16 +60997,14 @@ fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
         ) {
             return CreatureMeleeApplyResultLikeCpp::OutOfRange;
         }
-        if !WorldSession::is_within_target_boundary_radius_like_cpp(
+        if !is_within_target_boundary_radius_like_cpp(
             attacker_position,
             attacker_combat_reach,
             victim_position,
             victim_combat_reach,
             victim_data.bounding_radius,
-        ) && !WorldSession::is_unit_facing_target_for_melee_like_cpp(
-            attacker_position,
-            victim_position,
-        ) {
+        ) && !is_unit_facing_target_for_melee_like_cpp(attacker_position, victim_position)
+        {
             return CreatureMeleeApplyResultLikeCpp::BadFacing;
         }
         if !victim.is_alive() {
@@ -61453,6 +61220,459 @@ fn apply_creature_melee_victim_sync_to_legacy_like_cpp(
             sync.victim_health_state_revision_after,
         );
     true
+}
+
+/// One C++ `Unit::DoMeleeAttackIfReady` pass over a canonical player.
+///
+/// Lifted out of `impl WorldSession` by #28: the body was already exactly one
+/// closure over `&mut Player`, and the global legacy loop reaches the same
+/// player through the canonical map rather than through a session. Behaviour,
+/// argument order and C++ anchors are unchanged.
+fn take_canonical_player_attack_swings_like_cpp(
+    player: &mut wow_entities::Player,
+    diff_ms: u32,
+    in_melee_range: bool,
+    facing_target: bool,
+    within_los: bool,
+) -> Option<(Vec<u32>, Option<Option<u8>>)> {
+    let unit = player.unit_mut();
+    let spell_pauses_combat_timer = [
+        wow_entities::CurrentSpellSlot::Generic,
+        wow_entities::CurrentSpellSlot::Channeled,
+    ]
+    .into_iter()
+    .any(|slot| {
+        unit.current_spell(slot)
+            .is_some_and(|spell| spell.delay_combat_timer_during_cast)
+    });
+    if !spell_pauses_combat_timer {
+        unit.update_attack_timers_like_cpp(diff_ms);
+    }
+    let mut swings = Vec::new();
+    let mut processed_ready_attack = false;
+    let mut base_attack_error_update = None;
+    // C++: Unit::DoMeleeAttackIfReady, Unit.cpp:2087 exits before
+    // processing swings unless UNIT_STATE_MELEE_ATTACKING is present.
+    if !unit.has_unit_state(UnitState::MELEE_ATTACKING.bits()) {
+        return None;
+    }
+    // C++: Unit::DoMeleeAttackIfReady, Unit.cpp:2090 exits while charging.
+    if unit.has_unit_state(UnitState::CHARGING.bits()) {
+        return None;
+    }
+    // C++: Unit::DoMeleeAttackIfReady returns while casting unless
+    // the active channeled spell explicitly allows actions.
+    if unit.has_unit_state(UnitState::CASTING.bits()) {
+        let channeled = unit.current_spell(wow_entities::CurrentSpellSlot::Channeled);
+        if !channeled.is_some_and(|spell| spell.allow_actions_during_channel) {
+            return None;
+        }
+    }
+    let has_auto_attack_error = !in_melee_range || !facing_target;
+    let melee_state_update_allowed =
+        within_los && unit.can_attacker_state_update_melee_like_cpp(false);
+
+    if unit.is_attack_ready_like_cpp(WeaponAttackType::BaseAttack) {
+        processed_ready_attack = true;
+        if has_auto_attack_error {
+            base_attack_error_update = Some(Some(if !in_melee_range { 0 } else { 1 }));
+            unit.set_attack_timer(WeaponAttackType::BaseAttack, 100);
+        } else {
+            base_attack_error_update = Some(None);
+            if unit.can_dual_wield_like_cpp()
+                && unit.attack_timer(WeaponAttackType::OffAttack) < ATTACK_DISPLAY_DELAY_LIKE_CPP_MS
+            {
+                unit.set_attack_timer(
+                    WeaponAttackType::OffAttack,
+                    ATTACK_DISPLAY_DELAY_LIKE_CPP_MS,
+                );
+            }
+            if melee_state_update_allowed {
+                unit.remove_attacking_interrupt_auras_like_cpp();
+                if unit
+                    .current_spell(wow_entities::CurrentSpellSlot::Melee)
+                    .is_some()
+                {
+                    let _ = unit.finish_spell(wow_entities::CurrentSpellSlot::Melee);
+                } else {
+                    let [min_damage, max_damage] = unit.weapon_damage(WeaponAttackType::BaseAttack);
+                    swings.push(min_damage.max(1.0).min(max_damage.max(1.0)).round() as u32);
+                }
+            }
+            unit.reset_attack_timer_like_cpp(WeaponAttackType::BaseAttack);
+        }
+    }
+
+    if unit.can_dual_wield_like_cpp() && unit.is_attack_ready_like_cpp(WeaponAttackType::OffAttack)
+    {
+        processed_ready_attack = true;
+        if has_auto_attack_error {
+            unit.set_attack_timer(WeaponAttackType::OffAttack, 100);
+        } else {
+            if unit.attack_timer(WeaponAttackType::BaseAttack) < ATTACK_DISPLAY_DELAY_LIKE_CPP_MS {
+                unit.set_attack_timer(
+                    WeaponAttackType::BaseAttack,
+                    ATTACK_DISPLAY_DELAY_LIKE_CPP_MS,
+                );
+            }
+            if melee_state_update_allowed {
+                unit.remove_attacking_interrupt_auras_like_cpp();
+                let [min_damage, max_damage] = unit.weapon_damage(WeaponAttackType::OffAttack);
+                swings.push(min_damage.max(1.0).min(max_damage.max(1.0)).round() as u32);
+            }
+            unit.reset_attack_timer_like_cpp(WeaponAttackType::OffAttack);
+        }
+    }
+
+    processed_ready_attack.then_some((swings, base_attack_error_update))
+}
+
+/// Read a canonical creature's threat toward one attacker, from an already
+/// locked map.
+///
+/// Lifted by #28: the session variant took the canonical lock itself, so a
+/// caller that already held the map had to drop it and take it again.
+fn creature_threat_value_on_map_like_cpp(
+    map: &wow_map::ManagedMapInnerLikeCpp,
+    creature_guid: ObjectGuid,
+    attacker_guid: ObjectGuid,
+) -> Option<f32> {
+    map.get_typed_creature(creature_guid)?
+        .unit()
+        .subsystems()
+        .combat
+        .threat_value(attacker_guid)
+}
+
+/// C++ `CombatManager::SetInCombatWith` for a player attacker, on an already
+/// locked map.
+///
+/// Lifted by #28 so the global loop can begin a combat reference without a
+/// session. The session variant keeps the lock acquisition and delegates here.
+fn begin_combat_ref_on_map_like_cpp(
+    map: &mut wow_map::ManagedMapInnerLikeCpp,
+    attacker_guid: ObjectGuid,
+    victim_guid: ObjectGuid,
+    relation_represented: bool,
+    attacker_is_friendly_to_victim: bool,
+    victim_is_friendly_to_attacker: bool,
+) -> bool {
+    let Some(attacker) = map.get_typed_player(attacker_guid) else {
+        return false;
+    };
+    let attacker_unit = attacker.unit();
+    let attacker_world = attacker_unit.world();
+    let attacker_combat = &attacker_unit.subsystems().combat;
+
+    let (context, both_player_controlled) = if let Some(victim) = map.get_typed_player(victim_guid)
+    {
+        let victim_unit = victim.unit();
+        let victim_world = victim_unit.world();
+        let victim_combat = &victim_unit.subsystems().combat;
+        (
+            wow_entities::CombatBeginContextLikeCpp {
+                same_unit: attacker_guid == victim_guid,
+                attacker_in_world: attacker_world.object().is_in_world(),
+                victim_in_world: victim_world.object().is_in_world(),
+                attacker_alive: attacker_unit.is_alive(),
+                victim_alive: victim_unit.is_alive(),
+                same_map: attacker_world.is_in_map(victim_world),
+                same_phase: attacker_world.in_same_phase(victim_world),
+                attacker_unit_state: attacker_unit.unit_state(),
+                victim_unit_state: victim_unit.unit_state(),
+                attacker_combat_disallowed: attacker_combat.combat_disallowed,
+                victim_combat_disallowed: victim_combat.combat_disallowed,
+                relation_represented,
+                attacker_is_friendly_to_victim,
+                victim_is_friendly_to_attacker,
+                attacker_or_owner_player_is_game_master: attacker.is_game_master_like_cpp(),
+                victim_or_owner_player_is_game_master: victim.is_game_master_like_cpp(),
+            },
+            true,
+        )
+    } else if let Some(victim) = map.get_typed_creature(victim_guid) {
+        let victim_unit = victim.unit();
+        let victim_world = victim_unit.world();
+        let victim_combat = &victim_unit.subsystems().combat;
+        (
+            wow_entities::CombatBeginContextLikeCpp {
+                same_unit: false,
+                attacker_in_world: attacker_world.object().is_in_world(),
+                victim_in_world: victim_world.object().is_in_world(),
+                attacker_alive: attacker_unit.is_alive(),
+                victim_alive: victim_unit.is_alive(),
+                same_map: attacker_world.is_in_map(victim_world),
+                same_phase: attacker_world.in_same_phase(victim_world),
+                attacker_unit_state: attacker_unit.unit_state(),
+                victim_unit_state: victim_unit.unit_state(),
+                attacker_combat_disallowed: attacker_combat.combat_disallowed,
+                victim_combat_disallowed: victim_combat.combat_disallowed,
+                relation_represented,
+                attacker_is_friendly_to_victim,
+                victim_is_friendly_to_attacker,
+                attacker_or_owner_player_is_game_master: attacker.is_game_master_like_cpp(),
+                victim_or_owner_player_is_game_master: false,
+            },
+            false,
+        )
+    } else {
+        return false;
+    };
+
+    if !wow_entities::CombatSubsystem::can_begin_combat_like_cpp(context) {
+        return false;
+    }
+
+    let Some(attacker) = map.get_typed_player_mut(attacker_guid) else {
+        return false;
+    };
+    let attacker_started = attacker
+        .unit_mut()
+        .subsystems_mut()
+        .combat
+        .set_in_combat_with(victim_guid, both_player_controlled, false);
+
+    let victim_started = if let Some(victim) = map.get_typed_player_mut(victim_guid) {
+        victim
+            .unit_mut()
+            .subsystems_mut()
+            .combat
+            .set_in_combat_with(attacker_guid, both_player_controlled, false)
+    } else if let Some(victim) = map.get_typed_creature_mut(victim_guid) {
+        victim
+            .unit_mut()
+            .subsystems_mut()
+            .combat
+            .set_in_combat_with(attacker_guid, both_player_controlled, false)
+    } else {
+        false
+    };
+
+    attacker_started && victim_started
+}
+
+/// Mirror a legacy creature's threat toward its attacker into the canonical
+/// map, on an already locked map.
+///
+/// Lifted by #28. The session variant acquired the canonical lock twice — once
+/// inside `begin_canonical_player_combat_ref_like_cpp` and again for the mirror
+/// itself. Taking the map as an argument collapses that to one acquisition for
+/// both halves, which is also what lets the sessionless loop call it.
+fn mirror_creature_threat_from_attacker_on_map_like_cpp(
+    map: &mut wow_map::ManagedMapInnerLikeCpp,
+    creature_guid: ObjectGuid,
+    attacker_guid: ObjectGuid,
+    threat_value: f32,
+) -> bool {
+    if threat_value <= 0.0 {
+        return false;
+    }
+    if !begin_combat_ref_on_map_like_cpp(map, attacker_guid, creature_guid, false, false, false) {
+        return false;
+    }
+
+    let threat_ref = {
+        let Some(creature) = map.get_typed_creature_mut(creature_guid) else {
+            return false;
+        };
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .combat
+            .set_threat(attacker_guid, threat_value);
+        creature
+            .unit()
+            .subsystems()
+            .combat
+            .threat_ref(attacker_guid)
+            .copied()
+    };
+
+    let Some(threat_ref) = threat_ref else {
+        return false;
+    };
+    let Some(attacker) = map.get_typed_player_mut(attacker_guid) else {
+        return false;
+    };
+    attacker
+        .unit_mut()
+        .subsystems_mut()
+        .combat
+        .put_threatened_by_me_ref(creature_guid, threat_ref);
+    true
+}
+
+/// Apply one player's melee swings to a canonical player victim.
+///
+/// Lifted out of `run_combat_tick` by #28: the body was already one closure over
+/// `&mut Player`, and whoever owns the tick resolves the same transition. The
+/// arithmetic — `max(1)` per swing, saturating health, `-1` unless the swing
+/// overkills — is unchanged.
+fn apply_player_melee_to_canonical_player_like_cpp(
+    victim: &mut wow_entities::Player,
+    damages: &[u32],
+) -> Option<(Vec<(u32, i32)>, u8)> {
+    if !victim.unit().is_alive() {
+        return None;
+    }
+    let target_level = victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8;
+    let mut sent_swings = Vec::new();
+    for dmg in damages {
+        let damage = (*dmg).max(1);
+        let health_before = victim.unit().data().health;
+        let health_after = health_before.saturating_sub(u64::from(damage));
+        victim.unit_mut().set_health(health_after);
+        let over_damage = if health_after == 0 {
+            u64::from(damage).saturating_sub(health_before) as i32
+        } else {
+            -1
+        };
+        sent_swings.push((damage, over_damage));
+    }
+    Some((sent_swings, target_level))
+}
+
+/// What one player's melee pass did to a legacy creature.
+///
+/// `move_stop` carries the stop position and spline id rather than serialised
+/// bytes: whoever owns the tick applies the transition, and the session that
+/// owns the receiver builds the packet. Keeping construction at the session is
+/// what makes the bytes identical — `MonsterMoveStop` is viewer-independent,
+/// but the values update beside it is not (#28).
+#[derive(Clone, Debug)]
+pub(crate) struct PlayerMeleeCreatureHitLikeCpp {
+    /// `(damage, killed, over_damage)` per swing, in swing order.
+    pub swings: Vec<(u32, bool, i32)>,
+    pub entry: u32,
+    pub level: u8,
+    pub died: bool,
+    pub move_stop: Option<(Position, u32)>,
+    pub values_update: wow_entities::UnitValuesUpdate,
+}
+
+/// Apply one player's melee swings to a legacy creature.
+///
+/// Lifted out of `run_combat_tick` by #28. This is the write path that made
+/// every logged-in session a writer of shared creature combat state; extracting
+/// it is what lets the global loop become its sole owner. Damage arithmetic,
+/// tap assignment, threat, the death branch and the swing record are unchanged.
+fn apply_player_melee_to_legacy_creature_like_cpp(
+    creature: &mut crate::map_manager::WorldCreature,
+    player_guid: ObjectGuid,
+    tap_group_guids: &[ObjectGuid],
+    canonical_damages: Option<&[u32]>,
+) -> Option<PlayerMeleeCreatureHitLikeCpp> {
+    if !creature.is_alive() {
+        return None;
+    }
+    if creature.state() != wow_entities::CreatureAiState::InCombat {
+        creature.enter_combat(player_guid);
+    }
+    let damages: Vec<u32> = match canonical_damages {
+        Some(damages) => damages.to_vec(),
+        None => {
+            if !creature.can_swing() {
+                return None;
+            }
+            vec![creature.roll_damage()?.max(1)]
+        }
+    };
+    let entry = creature.entry();
+    let level = creature.level();
+    let mut swings = Vec::new();
+    let mut died = false;
+    let mut move_stop = None;
+    for dmg in damages {
+        if !creature.is_alive() {
+            break;
+        }
+        let damage = dmg.max(1);
+        let health_before = creature.current_hp();
+        creature
+            .creature
+            .set_tapped_by_player(player_guid, tap_group_guids);
+        died = creature.take_damage_before_death_state_like_cpp(damage);
+        let over_damage = if died {
+            damage.saturating_sub(health_before) as i32
+        } else {
+            -1
+        };
+        creature
+            .creature
+            .unit_mut()
+            .subsystems_mut()
+            .combat
+            .add_threat(player_guid, damage as f32);
+        swings.push((damage, died, over_damage));
+        if died {
+            let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+            combat.clear_threat();
+            combat.clear_attackers();
+            move_stop = creature
+                .stop_move_spline_like_cpp()
+                .map(|stop| (stop.position, stop.spline_id));
+            break;
+        }
+    }
+    if canonical_damages.is_none() {
+        creature.record_swing();
+    }
+    let values_update = creature.creature.unit().values_update();
+    Some(PlayerMeleeCreatureHitLikeCpp {
+        swings,
+        entry,
+        level,
+        died,
+        move_stop,
+        values_update,
+    })
+}
+
+/// Melee geometry, decided the same way whoever owns the tick.
+///
+/// These were `impl WorldSession` associated functions taking no `self`. The
+/// global legacy loop has no session, so #28 lifts them to module level
+/// unchanged; the arithmetic and the C++ anchors are untouched.
+fn is_within_melee_range_like_cpp(
+    attacker_position: Position,
+    attacker_combat_reach: f32,
+    target_position: Position,
+    target_combat_reach: f32,
+) -> bool {
+    let melee_range = (attacker_combat_reach.max(0.0) + target_combat_reach.max(0.0) + 4.0 / 3.0)
+        .max(NOMINAL_MELEE_RANGE_LIKE_CPP);
+    attacker_position.distance(&target_position) <= melee_range
+}
+
+fn is_within_target_boundary_radius_like_cpp(
+    attacker_position: Position,
+    attacker_combat_reach: f32,
+    target_position: Position,
+    target_combat_reach: f32,
+    target_bounding_radius: f32,
+) -> bool {
+    let boundary_radius = target_bounding_radius.max(MIN_MELEE_REACH_LIKE_CPP)
+        + attacker_combat_reach.max(0.0)
+        + target_combat_reach.max(0.0);
+    attacker_position.distance(&target_position) < boundary_radius
+}
+
+fn is_unit_facing_target_for_melee_like_cpp(
+    unit_position: Position,
+    target_position: Position,
+) -> bool {
+    let dx = target_position.x - unit_position.x;
+    let dy = target_position.y - unit_position.y;
+    if dx.abs() <= f32::EPSILON && dy.abs() <= f32::EPSILON {
+        return true;
+    }
+
+    let target_angle = dy.atan2(dx);
+    let mut diff = (target_angle - unit_position.orientation).rem_euclid(std::f32::consts::TAU);
+    if diff > std::f32::consts::PI {
+        diff = std::f32::consts::TAU - diff;
+    }
+    diff <= std::f32::consts::PI / 3.0
 }
 
 /// Runs one global legacy creature melee tick without spawning a loop.
@@ -62379,7 +62599,7 @@ impl WorldSession {
             .unwrap_or(0.0);
         let in_melee_range = player_position
             .map(|position| {
-                Self::is_within_melee_range_like_cpp(
+                is_within_melee_range_like_cpp(
                     position,
                     player_combat_reach,
                     target_position,
@@ -62389,16 +62609,20 @@ impl WorldSession {
             .unwrap_or(true);
         let facing_target = player_position
             .map(|position| {
-                Self::is_within_target_boundary_radius_like_cpp(
+                is_within_target_boundary_radius_like_cpp(
                     position,
                     player_combat_reach,
                     target_position,
                     target_combat_reach,
                     target_bounding_radius,
-                ) || Self::is_unit_facing_target_for_melee_like_cpp(position, target_position)
+                ) || is_unit_facing_target_for_melee_like_cpp(position, target_position)
             })
             .unwrap_or(true);
-        let within_los = self.player_melee_los_to_target_like_cpp.unwrap_or(true);
+        // C++ line-of-sight for the player's own swing is not ported yet; the
+        // session passes the same value the retired `Option<bool>` field always
+        // held in production (#28). The parameter stays so the branch is
+        // reachable from a test and from whoever owns the tick.
+        let within_los = true;
         let canonical_attack_update = self.take_canonical_player_attack_swings_like_cpp(
             diff_ms,
             in_melee_range,
@@ -62417,26 +62641,10 @@ impl WorldSession {
         if let CombatTargetRuntimeLikeCpp::CanonicalPlayer { .. } = target_runtime {
             let Some((swings, target_level)) = self
                 .mutate_canonical_player_by_guid_like_cpp(combat_target, |victim| {
-                    if !victim.unit().is_alive() {
-                        return None;
-                    }
-                    let damages = canonical_swing_damages.clone().unwrap_or_default();
-                    let target_level =
-                        victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8;
-                    let mut sent_swings = Vec::new();
-                    for dmg in damages {
-                        let damage = dmg.max(1);
-                        let health_before = victim.unit().data().health;
-                        let health_after = health_before.saturating_sub(u64::from(damage));
-                        victim.unit_mut().set_health(health_after);
-                        let over_damage = if health_after == 0 {
-                            u64::from(damage).saturating_sub(health_before) as i32
-                        } else {
-                            -1
-                        };
-                        sent_swings.push((damage, over_damage));
-                    }
-                    Some((sent_swings, target_level))
+                    apply_player_melee_to_canonical_player_like_cpp(
+                        victim,
+                        canonical_swing_damages.as_deref().unwrap_or(&[]),
+                    )
                 })
                 .flatten()
             else {
@@ -62476,70 +62684,21 @@ impl WorldSession {
 
         // Gather combat data from the canonical map-owned creature before
         // emitting combat packets.
-        let Some((swings, target_entry, target_level, now_dead, move_stop, values_update)) = self
+        let Some(PlayerMeleeCreatureHitLikeCpp {
+            swings,
+            entry: target_entry,
+            level: target_level,
+            died: now_dead,
+            move_stop,
+            values_update,
+        }) = self
             .mutate_world_creature(combat_target, |creature| {
-                if !creature.is_alive() {
-                    return None;
-                }
-                if creature.state() != wow_entities::CreatureAiState::InCombat {
-                    creature.enter_combat(player_guid);
-                }
-                let damages = match canonical_swing_damages.as_ref() {
-                    Some(damages) => damages.clone(),
-                    None => {
-                        if !creature.can_swing() {
-                            return None;
-                        }
-                        vec![creature.roll_damage()?.max(1)]
-                    }
-                };
-                let entry = creature.entry();
-                let level = creature.level();
-                let mut sent_swings = Vec::new();
-                let mut died = false;
-                let mut move_stop = None;
-                for dmg in damages {
-                    if !creature.is_alive() {
-                        break;
-                    }
-                    let damage = dmg.max(1);
-                    let health_before = creature.current_hp();
-                    creature
-                        .creature
-                        .set_tapped_by_player(player_guid, &tap_group_guids);
-                    died = creature.take_damage_before_death_state_like_cpp(damage);
-                    let over_damage = if died {
-                        damage.saturating_sub(health_before) as i32
-                    } else {
-                        -1
-                    };
-                    creature
-                        .creature
-                        .unit_mut()
-                        .subsystems_mut()
-                        .combat
-                        .add_threat(player_guid, damage as f32);
-                    sent_swings.push((damage, died, over_damage));
-                    if died {
-                        let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
-                        combat.clear_threat();
-                        combat.clear_attackers();
-                        move_stop = creature.stop_move_spline_like_cpp().map(|stop| {
-                            MonsterMoveStop {
-                                mover_guid: combat_target,
-                                current_pos: stop.position,
-                                spline_id: stop.spline_id,
-                            }
-                            .to_bytes()
-                        });
-                        break;
-                    }
-                }
-                if canonical_swing_damages.is_none() {
-                    creature.record_swing();
-                }
-                let values_update = creature.creature.unit().values_update();
-                Some((sent_swings, entry, level, died, move_stop, values_update))
+                apply_player_melee_to_legacy_creature_like_cpp(
+                    creature,
+                    player_guid,
+                    &tap_group_guids,
+                    canonical_swing_damages.as_deref(),
+                )
             })
             .flatten()
         else {
@@ -62588,28 +62747,21 @@ impl WorldSession {
         }
 
         if now_dead {
-            if !self
-                .pending_creature_kill_loot_like_cpp
-                .contains(&combat_target)
-            {
-                self.pending_creature_kill_loot_like_cpp.push(combat_target);
-            }
-            if !self
-                .pending_creature_kill_rewards_like_cpp
-                .iter()
-                .any(|reward| reward.creature_guid == combat_target)
-            {
-                self.pending_creature_kill_rewards_like_cpp.push(
-                    PendingCreatureKillRewardLikeCpp {
-                        killer_guid: player_guid,
-                        creature_guid: combat_target,
-                        creature_entry: target_entry,
-                        creature_level: target_level,
-                    },
+            self.queue_pending_creature_kill_like_cpp(
+                player_guid,
+                combat_target,
+                target_entry,
+                target_level,
+            );
+            if let Some((current_pos, spline_id)) = move_stop {
+                output.packets.push(
+                    MonsterMoveStop {
+                        mover_guid: combat_target,
+                        current_pos,
+                        spline_id,
+                    }
+                    .to_bytes(),
                 );
-            }
-            if let Some(bytes) = move_stop {
-                output.packets.push(bytes);
             }
             let stop = SAttackStop {
                 attacker: player_guid,
@@ -62654,7 +62806,7 @@ impl WorldSession {
     pub(crate) fn runtime_tick_owner_like_cpp(&self) -> RuntimeTickOwner {
         self.map_manager
             .as_ref()
-            .and_then(|mm| mm.read().ok().map(|guard| guard.tick_owner()))
+            .map(crate::map_manager::shared_runtime_tick_owner_like_cpp)
             .unwrap_or(RuntimeTickOwner::Session)
     }
 

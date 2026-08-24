@@ -34,7 +34,8 @@ pub use manager::{
     CreateMapDecision, CreateMapDifficultyContext, CreateMapEntryContext, CreateMapEntryKind,
     CreateMapGroupContext, CreateMapInstanceLockContext, CreateMapPlayerContext,
     CreateMapSideEffect, ExistingInstanceMapContext, InstanceIdAllocator, MIN_GRID_DELAY_MS,
-    MIN_MAP_UPDATE_DELAY_MS, ManagedMap, ManagedMapKind, MapManager, MapUpdater,
+    MIN_MAP_UPDATE_DELAY_MS, ManagedMap, ManagedMapInnerLikeCpp, ManagedMapKind, MapManager,
+    MapUpdater,
 };
 pub use map::{
     AIRelocationPlan, ActiveObjectKind, AddToMapError, AddToMapOutcome,

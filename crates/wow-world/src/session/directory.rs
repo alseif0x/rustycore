@@ -18,11 +18,11 @@
 use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
 use crate::session::mailbox::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyLootMoneyLikeCppCommand,
-    CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
-    DurableCreatureRuntimeCommandsLikeCpp, LootRollCommandIdentityLikeCpp,
-    ReconcilePvpCombatExpiryLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
-    SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand, SessionCommand,
-    SharedClientVisibleGuidsLikeCpp,
+    ApplyPlayerMeleeResultLikeCppCommand, CreatureAttackStartLikeCppCommand,
+    CreatureAttackStopLikeCppCommand, DurableCreatureRuntimeCommandsLikeCpp,
+    LootRollCommandIdentityLikeCpp, ReconcilePvpCombatExpiryLikeCppCommand,
+    RefreshVisibleWorldCreaturesLikeCppCommand, SendCreatureSpellCastIfVisibleLikeCppCommand,
+    SendIfVisibleLikeCppCommand, SessionCommand, SharedClientVisibleGuidsLikeCpp,
 };
 use dashmap::DashMap;
 use std::collections::{HashMap, HashSet};
@@ -426,6 +426,12 @@ pub struct PlayerRuntimeRecipient {
     pub is_in_world: bool,
     pub is_alive: bool,
     pub account_id: u32,
+    /// The attacker's published combat mirror.
+    ///
+    /// Whoever owns the creature tick needs it to notice that a session still
+    /// believes it is in combat with a victim the map has already resolved
+    /// away (#28).
+    pub in_combat: bool,
     pub advanced_combat_logging: bool,
     pub committed_visibility: SharedClientVisibleGuidsLikeCpp,
 }
@@ -614,6 +620,7 @@ impl PlayerRegistryEntry {
             is_in_world: self.info.is_in_world,
             is_alive: self.info.is_alive,
             account_id: self.info.account_id,
+            in_combat: self.info.in_combat,
             advanced_combat_logging: self
                 .advanced_combat_logging_enabled_like_cpp
                 .load(Ordering::Relaxed),
@@ -1692,6 +1699,26 @@ impl PlayerRegistry {
                     .lock()
                     .ok()
                     .map(|mut durable| durable.publish_melee_damage_like_cpp(command))
+            })
+            .unwrap_or(false)
+    }
+
+    /// Publish one map-owned player auto-attack resolution to its attacker.
+    ///
+    /// Generation-checked like every other current-incarnation publish: a
+    /// result resolved for a session that has since reconnected is dropped
+    /// here rather than delivered to the new one.
+    pub fn publish_current_player_melee_result(
+        &self,
+        registration: PlayerRegistration,
+        command: ApplyPlayerMeleeResultLikeCppCommand,
+    ) -> bool {
+        self.with_current_durable_runtime(registration)
+            .and_then(|durable| {
+                durable
+                    .lock()
+                    .ok()
+                    .map(|mut durable| durable.publish_player_melee_result_like_cpp(command))
             })
             .unwrap_or(false)
     }
