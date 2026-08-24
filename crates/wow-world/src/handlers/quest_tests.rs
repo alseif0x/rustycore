@@ -49,7 +49,13 @@ use wow_packet::packets::item::InventoryChangeFailure;
 use wow_packet::packets::quest::QuestGiverQuestFailed;
 use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
 
-const SESSION_DISPATCH_SOURCE: &str = include_str!("../session/dispatch.rs");
+/// The quest opcode registrations.
+///
+/// #359 retired the dispatcher's match arms: an opcode is declared once, in
+/// its `PacketHandlerEntry`, which now carries the call as well as the
+/// admission metadata. These tests used to assert the arm and the registration
+/// separately; there is one side left to assert.
+const QUEST_HANDLER_REGISTRATIONS: &str = include_str!("quest/handlers.rs");
 
 fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded(8);
@@ -6258,8 +6264,10 @@ fn quest_push_inventory_registration_and_dispatcher_contract_like_cpp() {
     assert_eq!(entry.status, SessionStatus::LoggedIn);
     assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
     assert_eq!(entry.handler_name, "handle_quest_push_result");
-    assert!(SESSION_DISPATCH_SOURCE.contains("ClientOpcodes::QuestPushResult =>"));
-    assert!(SESSION_DISPATCH_SOURCE.contains("self.handle_quest_push_result(pkt).await"));
+    assert!(
+        QUEST_HANDLER_REGISTRATIONS.contains("session.handle_quest_push_result(pkt).await"),
+        "the QuestPushResult registration must carry the call itself"
+    );
 }
 
 #[test]
@@ -8516,8 +8524,10 @@ fn push_quest_to_party_registration_and_dispatch_are_wired_like_cpp() {
     assert_eq!(entry.status, SessionStatus::LoggedIn);
     assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
     assert_eq!(entry.handler_name, "handle_push_quest_to_party");
-    assert!(SESSION_DISPATCH_SOURCE.contains("ClientOpcodes::PushQuestToParty =>"));
-    assert!(SESSION_DISPATCH_SOURCE.contains("self.handle_push_quest_to_party(pkt).await"));
+    assert!(
+        QUEST_HANDLER_REGISTRATIONS.contains("session.handle_push_quest_to_party(pkt).await"),
+        "the PushQuestToParty registration must carry the call itself"
+    );
 }
 
 #[test]
@@ -8526,43 +8536,35 @@ fn quest_packet_registration_and_dispatch_are_wired_like_cpp() {
         (
             ClientOpcodes::QuestGiverQueryQuest,
             "handle_quest_giver_query_quest",
-            "ClientOpcodes::QuestGiverQueryQuest =>",
-            "self.handle_quest_giver_query_quest(pkt).await",
+            "session.handle_quest_giver_query_quest(pkt).await",
         ),
         (
             ClientOpcodes::QuestGiverAcceptQuest,
             "handle_quest_giver_accept_quest",
-            "ClientOpcodes::QuestGiverAcceptQuest =>",
-            "self.handle_quest_giver_accept_quest(pkt).await",
+            "session.handle_quest_giver_accept_quest(pkt).await",
         ),
         (
             ClientOpcodes::QuestGiverRequestReward,
             "handle_quest_giver_request_reward",
-            "ClientOpcodes::QuestGiverRequestReward =>",
-            "self.handle_quest_giver_request_reward(pkt).await",
+            "session.handle_quest_giver_request_reward(pkt).await",
         ),
         (
             ClientOpcodes::QuestGiverCompleteQuest,
             "handle_quest_giver_complete_quest",
-            "ClientOpcodes::QuestGiverCompleteQuest =>",
-            "self.handle_quest_giver_complete_quest(pkt).await",
+            "session.handle_quest_giver_complete_quest(pkt).await",
         ),
         (
             ClientOpcodes::QuestGiverChooseReward,
             "handle_quest_giver_choose_reward",
-            "ClientOpcodes::QuestGiverChooseReward =>",
-            "self.handle_quest_giver_choose_reward(pkt).await",
+            "session.handle_quest_giver_choose_reward(pkt).await",
         ),
         (
             ClientOpcodes::QueryQuestInfo,
             "handle_query_quest_info",
-            "ClientOpcodes::QueryQuestInfo =>",
-            "self.handle_query_quest_info(pkt).await",
+            "session.handle_query_quest_info(pkt).await",
         ),
     ];
-    let dispatcher = SESSION_DISPATCH_SOURCE;
-
-    for (opcode, handler_name, match_arm, call) in cases {
+    for (opcode, handler_name, call) in cases {
         let entry = inventory::iter::<PacketHandlerEntry>
             .into_iter()
             .find(|entry| entry.opcode == opcode)
@@ -8571,8 +8573,10 @@ fn quest_packet_registration_and_dispatch_are_wired_like_cpp() {
         assert_eq!(entry.status, SessionStatus::LoggedIn, "{opcode:?}");
         assert_eq!(entry.processing, PacketProcessing::Inplace, "{opcode:?}");
         assert_eq!(entry.handler_name, handler_name, "{opcode:?}");
-        assert!(dispatcher.contains(match_arm), "{opcode:?}");
-        assert!(dispatcher.contains(call), "{opcode:?}");
+        assert!(
+            QUEST_HANDLER_REGISTRATIONS.contains(call),
+            "{opcode:?} must reach its handler from its own registration"
+        );
     }
 }
 
@@ -9708,8 +9712,10 @@ fn quest_log_remove_inventory_registration_and_dispatcher_contract_like_cpp() {
     assert_eq!(entry.status, SessionStatus::LoggedIn);
     assert_eq!(entry.processing, PacketProcessing::Inplace);
     assert_eq!(entry.handler_name, "handle_quest_log_remove_quest");
-    assert!(SESSION_DISPATCH_SOURCE.contains("ClientOpcodes::QuestLogRemoveQuest =>"));
-    assert!(SESSION_DISPATCH_SOURCE.contains("self.handle_quest_log_remove_quest(pkt).await"));
+    assert!(
+        QUEST_HANDLER_REGISTRATIONS.contains("session.handle_quest_log_remove_quest(pkt).await"),
+        "the QuestLogRemoveQuest registration must carry the call itself"
+    );
 }
 
 #[test]

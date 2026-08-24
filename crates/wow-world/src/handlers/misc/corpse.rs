@@ -5,7 +5,9 @@
 
 use tracing::{info, warn};
 use wow_constants::{ClientOpcodes, ConditionType};
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::misc::{
     PortGraveyard, ReclaimCorpse, RepopRequest, RequestCemeteryListResponse, ResurrectResponse,
@@ -17,6 +19,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_resurrect_response",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_resurrect_response(pkt).await })
+        },
     }
 }
 
@@ -26,6 +31,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_repop_request",
+        handler: |session, pkt| Box::pin(async move { session.handle_repop_request(pkt).await }),
     }
 }
 
@@ -35,6 +41,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_reclaim_corpse",
+        handler: |session, pkt| Box::pin(async move { session.handle_reclaim_corpse(pkt).await }),
     }
 }
 
@@ -44,6 +51,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_cemetery_list",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_request_cemetery_list(pkt).await })
+        },
     }
 }
 

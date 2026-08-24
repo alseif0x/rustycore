@@ -7,7 +7,9 @@
 
 use tracing::warn;
 use wow_constants::ClientOpcodes;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::inspect::{
     InspectHonorStatsResponse, InspectItem, InspectResult, QueryInspectAchievements,
@@ -24,6 +26,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_inspect",
+        handler: |session, pkt| Box::pin(async move { session.handle_inspect(pkt).await }),
     }
 }
 
@@ -33,6 +36,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_honor_stats",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_request_honor_stats(pkt).await })
+        },
     }
 }
 
@@ -42,6 +48,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_query_inspect_achievements",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_query_inspect_achievements(pkt).await })
+        },
     }
 }
 

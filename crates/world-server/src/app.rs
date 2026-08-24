@@ -3636,7 +3636,7 @@ async fn run_inner(
     ));
 
     // Build handler dispatch table
-    let table = wow_handler::build_dispatch_table();
+    let table = wow_world::session::registry::build_dispatch_table();
     info!("Loaded {} packet handlers", table.len());
 
     // Build account lookup

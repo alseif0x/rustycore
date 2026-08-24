@@ -3212,12 +3212,6 @@ dependencies = [
 [[package]]
 name = "wow-handler"
 version = "0.1.0"
-dependencies = [
- "inventory",
- "wow-constants",
- "wow-core",
- "wow-packet",
-]
 
 [[package]]
 name = "wow-instances"

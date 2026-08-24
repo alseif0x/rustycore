@@ -2,11 +2,22 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Parser and exact drift comparison for `WorldSession::dispatch_packet`.
+//! Parser for `WorldSession::dispatch_packet`.
+//!
+//! Until #359 the dispatcher was the second declaration of every opcode: an
+//! arm here and a `PacketHandlerEntry` there, compared as exact sets so a
+//! one-sided opcode failed instead of silently dropping packets. The
+//! registration now carries the call, so there is one declaration per opcode
+//! and nothing left to compare.
+//!
+//! What this parses is therefore the inverse property: the dispatcher must
+//! name no opcode and no handler method, and must perform the registered call.
+//! Reintroducing either side fails here rather than being tolerated as drift.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
-use syn::{Expr, ImplItem, ImplItemFn, Item, Pat, Stmt, Type};
+use syn::visit::Visit;
+use syn::{Expr, ImplItem, ImplItemFn, Item, Pat, Type};
 
 use crate::module_policy::CapabilityOwner;
 use crate::ownership::{
@@ -14,19 +25,14 @@ use crate::ownership::{
     extend_cfg_context,
 };
 
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct KnownDispatchDrift {
-    pub(crate) opcode_name: &'static str,
-    pub(crate) tracking_issue: u32,
-}
-
-// Exact-set comparison makes this a drift ratchet: a new one-sided opcode
-// fails until its gameplay defect is repaired rather than silently tolerated.
-pub(crate) const REGISTERED_WITHOUT_DISPATCH_ARM: &[KnownDispatchDrift] = &[];
-pub(crate) const DISPATCH_ARM_WITHOUT_REGISTRATION: &[KnownDispatchDrift] = &[];
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Default, Eq, PartialEq)]
 pub(crate) struct DispatcherContract {
+    /// Opcodes the dispatcher still decides by hand. Must be empty (#359).
     pub(crate) opcode_names: BTreeSet<String>,
+    /// Handler methods the dispatcher calls on `self`. Must be empty (#359).
+    pub(crate) handler_calls: BTreeSet<String>,
+    /// Whether the dispatcher performs the call the registration carries.
+    pub(crate) dispatches_through_registration: bool,
 }
 
 #[derive(Debug)]
@@ -154,58 +160,63 @@ fn dispatch_methods_in_items<'a>(items: &'a [Item]) -> Vec<(&'a syn::ItemImpl, &
     dispatch_methods
 }
 
+/// Walk one method body for every shape #359 retired, plus the one it kept.
+struct DispatchBodyScan {
+    opcode_names: BTreeSet<String>,
+    handler_calls: BTreeSet<String>,
+    dispatches_through_registration: bool,
+    errors: Vec<String>,
+}
+
+impl<'ast> Visit<'ast> for DispatchBodyScan {
+    fn visit_expr_match(&mut self, node: &'ast syn::ExprMatch) {
+        if is_path_named(&node.expr, "opcode") {
+            for arm in &node.arms {
+                if let Err(error) = collect_dispatch_pattern(&arm.pat, &mut self.opcode_names) {
+                    // A pattern this parser cannot read is still an opcode
+                    // decision taken here; record it rather than skipping it.
+                    self.errors.push(error);
+                }
+            }
+        }
+        syn::visit::visit_expr_match(self, node);
+    }
+
+    fn visit_expr_method_call(&mut self, node: &'ast syn::ExprMethodCall) {
+        if is_path_named(&node.receiver, "self") && node.method.to_string().starts_with("handle_") {
+            self.handler_calls.insert(node.method.to_string());
+        }
+        syn::visit::visit_expr_method_call(self, node);
+    }
+
+    fn visit_expr_call(&mut self, node: &'ast syn::ExprCall) {
+        if let Expr::Paren(paren) = node.func.as_ref()
+            && let Expr::Field(field) = paren.expr.as_ref()
+            && is_path_named(&field.base, "entry")
+            && matches!(&field.member, syn::Member::Named(name) if name == "handler")
+        {
+            self.dispatches_through_registration = true;
+        }
+        syn::visit::visit_expr_call(self, node);
+    }
+}
+
 fn dispatcher_contract_from_method(method: &ImplItemFn) -> Result<DispatcherContract, String> {
-    let dispatch_matches: Vec<_> = method
-        .block
-        .stmts
-        .iter()
-        .filter_map(|statement| {
-            let Stmt::Expr(Expr::Match(match_expression), _) = statement else {
-                return None;
-            };
-            is_path_named(&match_expression.expr, "opcode").then_some(match_expression)
-        })
-        .collect();
-    if dispatch_matches.len() != 1 {
-        return Err(format!(
-            "expected exactly one top-level `match opcode` in dispatch_packet, found {}",
-            dispatch_matches.len()
-        ));
+    let mut scan = DispatchBodyScan {
+        opcode_names: BTreeSet::new(),
+        handler_calls: BTreeSet::new(),
+        dispatches_through_registration: false,
+        errors: Vec::new(),
+    };
+    scan.visit_block(&method.block);
+    if !scan.errors.is_empty() {
+        return Err(scan.errors.join("; "));
     }
-
-    let dispatch_match = dispatch_matches[0];
-    if cfg_context_controls_presence(&[], &dispatch_match.attrs)? {
-        return Err("dispatch_packet opcode match must not be conditionally compiled".to_owned());
-    }
-
-    let mut opcode_names = BTreeSet::new();
-    let mut wildcard_arms = 0usize;
-    for (index, arm) in dispatch_match.arms.iter().enumerate() {
-        if cfg_context_controls_presence(&[], &arm.attrs)? {
-            return Err(
-                "dispatch_packet opcode arms must not be conditionally compiled".to_owned(),
-            );
-        }
-        if arm.guard.is_some() {
-            return Err("dispatch_packet opcode arms must not use match guards".to_owned());
-        }
-        if collect_dispatch_pattern(&arm.pat, &mut opcode_names)? {
-            if !matches!(arm.pat, Pat::Wild(_)) {
-                return Err("dispatch_packet wildcard must be a standalone `_` arm".to_owned());
-            }
-            if index + 1 != dispatch_match.arms.len() {
-                return Err("dispatch_packet wildcard arm must be last".to_owned());
-            }
-            wildcard_arms += 1;
-        }
-    }
-    if wildcard_arms != 1 {
-        return Err(format!(
-            "expected exactly one wildcard dispatcher arm, found {wildcard_arms}"
-        ));
-    }
-
-    Ok(DispatcherContract { opcode_names })
+    Ok(DispatcherContract {
+        opcode_names: scan.opcode_names,
+        handler_calls: scan.handler_calls,
+        dispatches_through_registration: scan.dispatches_through_registration,
+    })
 }
 
 #[cfg(test)]
@@ -396,74 +407,48 @@ pub(crate) fn dispatcher_contract_from_mounts(
     Ok(dispatchers.pop().expect("one dispatcher").contract)
 }
 
-fn known_drift_map(
-    label: &str,
-    exceptions: &[KnownDispatchDrift],
-) -> Result<BTreeMap<String, u32>, String> {
-    let mut known = BTreeMap::new();
-    for exception in exceptions {
-        if exception.tracking_issue == 0 {
-            return Err(format!(
-                "{label} exception {} has no tracking issue",
-                exception.opcode_name
-            ));
-        }
-        if known
-            .insert(exception.opcode_name.to_owned(), exception.tracking_issue)
-            .is_some()
-        {
-            return Err(format!(
-                "duplicate {label} exception {}",
-                exception.opcode_name
-            ));
-        }
-    }
-    Ok(known)
-}
-
-pub(crate) fn compare_dispatch_sides(
-    registered: &BTreeSet<String>,
-    dispatched: &BTreeSet<String>,
-    registered_without_arm: &[KnownDispatchDrift],
-    arm_without_registration: &[KnownDispatchDrift],
+/// Reject any return to two declarations per opcode.
+///
+/// #359's property is negative, so it is stated as one: the dispatcher decides
+/// nothing per opcode and names no handler, and the call it does make is the
+/// one the registration carries. A reintroduced arm or a direct `self.handle_*`
+/// call fails here instead of quietly becoming a second source of truth again.
+pub(crate) fn assert_single_dispatch_mechanism(
+    contract: &DispatcherContract,
 ) -> Result<(), String> {
-    let actual_registered_without_arm: BTreeSet<_> =
-        registered.difference(dispatched).cloned().collect();
-    let actual_arm_without_registration: BTreeSet<_> =
-        dispatched.difference(registered).cloned().collect();
-    let known_registered_without_arm =
-        known_drift_map("registered-without-arm", registered_without_arm)?;
-    let known_arm_without_registration =
-        known_drift_map("arm-without-registration", arm_without_registration)?;
-    let expected_registered_without_arm: BTreeSet<_> =
-        known_registered_without_arm.keys().cloned().collect();
-    let expected_arm_without_registration: BTreeSet<_> =
-        known_arm_without_registration.keys().cloned().collect();
-
     let mut errors = Vec::new();
-    for opcode in actual_registered_without_arm.difference(&expected_registered_without_arm) {
+    if !contract.opcode_names.is_empty() {
         errors.push(format!(
-            "registered opcode {opcode} has no dispatcher arm and no tracked exception"
+            "dispatch_packet decides {} opcode(s) by hand ({}); an opcode is declared once, \
+             in its PacketHandlerEntry",
+            contract.opcode_names.len(),
+            contract
+                .opcode_names
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
     }
-    for opcode in expected_registered_without_arm.difference(&actual_registered_without_arm) {
+    if !contract.handler_calls.is_empty() {
         errors.push(format!(
-            "obsolete registered-without-arm exception {opcode} tracked by #{}",
-            known_registered_without_arm[opcode]
+            "dispatch_packet calls {} handler method(s) on self ({}); the registration carries \
+             the call",
+            contract.handler_calls.len(),
+            contract
+                .handler_calls
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
     }
-    for opcode in actual_arm_without_registration.difference(&expected_arm_without_registration) {
-        errors.push(format!(
-            "dispatcher arm {opcode} has no registration and no tracked exception"
-        ));
+    if !contract.dispatches_through_registration {
+        errors.push(
+            "dispatch_packet never calls the registered handler; the single mechanism is gone"
+                .to_owned(),
+        );
     }
-    for opcode in expected_arm_without_registration.difference(&actual_arm_without_registration) {
-        errors.push(format!(
-            "obsolete arm-without-registration exception {opcode} tracked by #{}",
-            known_arm_without_registration[opcode]
-        ));
-    }
-
     if errors.is_empty() {
         Ok(())
     } else {

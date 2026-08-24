@@ -6,7 +6,9 @@
 use tracing::{debug, warn};
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::misc::{
     AddonList, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, NUM_ACCOUNT_DATA_TYPES, RequestAccountData,
@@ -20,6 +22,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_addon_list",
+        handler: |session, pkt| Box::pin(async move { session.handle_addon_list(pkt).await }),
     }
 }
 
@@ -29,6 +32,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_account_data",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_request_account_data(pkt).await })
+        },
     }
 }
 
@@ -38,6 +44,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_update_account_data",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_update_account_data(pkt).await })
+        },
     }
 }
 
@@ -47,6 +56,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_save_cuf_profiles",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_save_cuf_profiles(pkt).await })
+        },
     }
 }
 
@@ -56,6 +68,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_tutorial",
+        handler: |session, pkt| Box::pin(async move { session.handle_tutorial(pkt).await }),
     }
 }
 

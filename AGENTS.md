@@ -361,14 +361,34 @@ When updating docs:
 
 ## Packet Handler Dispatch
 
-The world server uses static registration via the `inventory` crate. A handler runs only if it both:
+The world server uses static registration via the `inventory` crate. **An opcode is declared
+exactly once**: its `PacketHandlerEntry` carries the admission metadata *and* the call. Registering
+it is the only thing needed to make it reachable, and forgetting to register it is the only way to
+lose it (#359 — before that an opcode also needed a dispatcher match arm, and forgetting either
+silently dropped the packet).
 
-- has a dispatcher match arm, and
-- registers a `PacketHandlerEntry` via `inventory::submit!`.
+Each `PacketHandlerEntry` declares opcode, `SessionStatus`, `PacketProcessing` mode, the handler
+name, and a `handler` thunk — a non-capturing closure, so a registration stays one literal:
 
-Forgetting `submit!` can silently drop the opcode even if the match arm exists. Each `PacketHandlerEntry` declares opcode, `SessionStatus`, and `PacketProcessing` mode. See `crates/wow-handler/src/lib.rs`.
+```rust
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::Inspect,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_inspect",
+        handler: |session, pkt| Box::pin(async move { session.handle_inspect(pkt).await }),
+    }
+}
+```
 
-Handler modules live under `crates/wow-world/src/handlers/`.
+`WorldSession::dispatch_packet` decodes the opcode, applies the entry's status gate and then calls
+`(entry.handler)(self, pkt)`. It names no opcode and no handler method; `handler-contract-check`
+fails closed if either comes back.
+
+The registry type lives in `crates/wow-world/src/session/registry.rs` (it names `WorldSession`);
+`crates/wow-handler/src/lib.rs` keeps the shared vocabulary (`SessionStatus`, `PacketProcessing`,
+`HandlerFuture`). Handler modules live under `crates/wow-world/src/handlers/`.
 
 ## Coding Patterns
 

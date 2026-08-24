@@ -11,7 +11,10 @@
 
 use tracing::debug;
 use wow_constants::ClientOpcodes;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+use wow_packet::ClientPacket;
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::battlenet::*;
 
 use crate::session::WorldSession;
@@ -24,6 +27,14 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlenet_request",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::battlenet::BattlenetRequest::read(&mut pkt) {
+                    Ok(req) => session.handle_battlenet_request(req).await,
+                    Err(e) => tracing::warn!("Failed to read BattlenetRequest: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -33,6 +44,14 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_change_realm_ticket",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::battlenet::ChangeRealmTicket::read(&mut pkt) {
+                    Ok(ticket) => session.handle_change_realm_ticket(ticket).await,
+                    Err(e) => tracing::warn!("Failed to read ChangeRealmTicket: {e}"),
+                }
+            })
+        },
     }
 }
 

@@ -5,7 +5,9 @@
 
 use tracing::warn;
 use wow_constants::ClientOpcodes;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::misc::{
     BugReport, Complaint, ComplaintResult, GmTicketAcknowledgeSurvey, GmTicketCaseStatus,
@@ -21,6 +23,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_gm_ticket_get_case_status",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_gm_ticket_get_case_status(pkt).await })
+        },
     }
 }
 
@@ -30,6 +35,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_gm_ticket_get_system_status",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_gm_ticket_get_system_status(pkt).await })
+        },
     }
 }
 
@@ -39,6 +47,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_gm_ticket_acknowledge_survey",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_gm_ticket_acknowledge_survey(pkt).await })
+        },
     }
 }
 
@@ -48,6 +59,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_complaint",
+        handler: |session, pkt| Box::pin(async move { session.handle_complaint(pkt).await }),
     }
 }
 
@@ -57,6 +69,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_submit_user_feedback",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_submit_user_feedback(pkt).await })
+        },
     }
 }
 
@@ -66,6 +81,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_support_ticket_submit_bug",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_support_ticket_submit_bug(pkt).await })
+        },
     }
 }
 
@@ -75,6 +93,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_support_ticket_submit_complaint",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_support_ticket_submit_complaint(pkt).await })
+        },
     }
 }
 
@@ -84,6 +105,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_support_ticket_submit_suggestion",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_support_ticket_submit_suggestion(pkt).await })
+        },
     }
 }
 
@@ -93,6 +117,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_bug_report",
+        handler: |session, pkt| Box::pin(async move { session.handle_bug_report(pkt).await }),
     }
 }
 
@@ -102,6 +127,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_object_update_failed",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_object_update_failed(pkt).await })
+        },
     }
 }
 
@@ -111,6 +139,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_object_update_rescued",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_object_update_rescued(pkt).await })
+        },
     }
 }
 

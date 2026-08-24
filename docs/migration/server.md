@@ -1586,7 +1586,13 @@ split the leeway that C++'s `PROCESS_THREADSAFE` is acceptable as either). Patte
 
 ### Two-step dispatch invariant
 
-The dispatcher requires both (a) an `inventory::submit!` entry and (b) a match arm to actually
+> **Retired by #359.** An opcode is now declared once: its `PacketHandlerEntry` carries the call,
+> `dispatch_packet` has no opcode match, and `handler-contract-check` fails closed if either side
+> comes back. The class table below is the state this audit found, kept as the record of why the
+> second mechanism went; `#SERVER.AUDIT.7` is superseded by the enumeration in
+> `crates/wow-world/tests/fixtures/packet-handler-dispatch-table.json`.
+
+The dispatcher required both (a) an `inventory::submit!` entry and (b) a match arm to actually
 execute a handler. Without (a), `dispatch_table.get(&opcode)` returns `None` and the function
 returns at `session.rs:1390` before the match executes. Without (b), the wildcard `_ => {}`
 branch (`session.rs:1902-1919`) just emits a `trace!` line and does nothing.

@@ -16,7 +16,9 @@ use tracing::{info, warn};
 use wow_constants::ClientOpcodes;
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_database::{CharStatements, PreparedStatement, StatementDef};
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::misc::{RandomRoll, RandomRollClient};
 use wow_packet::packets::party::{
     ClearRaidMarker, DoReadyCheck, GroupDecline, GroupNewLeader, GroupUninvite, InitiateRolePoll,
@@ -96,6 +98,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_party_invite",
+        handler: |session, pkt| Box::pin(async move { session.handle_party_invite(pkt).await }),
     }
 }
 
@@ -105,6 +108,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_party_invite_response",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_party_invite_response(pkt).await })
+        },
     }
 }
 
@@ -114,6 +120,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_party_uninvite",
+        handler: |session, pkt| Box::pin(async move { session.handle_party_uninvite(pkt).await }),
     }
 }
 
@@ -123,6 +130,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_leave_group",
+        handler: |session, pkt| Box::pin(async move { session.handle_leave_group(pkt).await }),
     }
 }
 
@@ -132,6 +140,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_convert_raid",
+        handler: |session, pkt| Box::pin(async move { session.handle_convert_raid(pkt).await }),
     }
 }
 
@@ -141,6 +150,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_change_sub_group",
+        handler: |session, pkt| Box::pin(async move { session.handle_change_sub_group(pkt).await }),
     }
 }
 
@@ -150,6 +160,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_swap_sub_groups",
+        handler: |session, pkt| Box::pin(async move { session.handle_swap_sub_groups(pkt).await }),
     }
 }
 
@@ -159,6 +170,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_loot_method",
+        handler: |session, pkt| Box::pin(async move { session.handle_set_loot_method(pkt).await }),
     }
 }
 
@@ -168,6 +180,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_set_party_leader",
+        handler: |session, pkt| Box::pin(async move { session.handle_set_party_leader(pkt).await }),
     }
 }
 
@@ -177,6 +190,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_assistant_leader",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_set_assistant_leader(pkt).await })
+        },
     }
 }
 
@@ -186,6 +202,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_everyone_is_assistant",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_set_everyone_is_assistant(pkt).await })
+        },
     }
 }
 
@@ -195,6 +214,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_silence_party_talker",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_silence_party_talker(pkt).await })
+        },
     }
 }
 
@@ -204,6 +226,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_party_assignment",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_set_party_assignment(pkt).await })
+        },
     }
 }
 
@@ -213,6 +238,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_role",
+        handler: |session, pkt| Box::pin(async move { session.handle_set_role(pkt).await }),
     }
 }
 
@@ -222,6 +248,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_initiate_role_poll",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_initiate_role_poll(pkt).await })
+        },
     }
 }
 
@@ -231,6 +260,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_update_raid_target",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_update_raid_target(pkt).await })
+        },
     }
 }
 
@@ -240,6 +272,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_party_join_updates",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_request_party_join_updates(pkt).await })
+        },
     }
 }
 
@@ -249,6 +284,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_party_member_stats",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_request_party_member_stats(pkt).await })
+        },
     }
 }
 
@@ -258,6 +296,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_do_ready_check",
+        handler: |session, pkt| Box::pin(async move { session.handle_do_ready_check(pkt).await }),
     }
 }
 
@@ -267,6 +306,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_ready_check_response",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_ready_check_response(pkt).await })
+        },
     }
 }
 
@@ -276,6 +318,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_opt_out_of_loot",
+        handler: |session, pkt| Box::pin(async move { session.handle_opt_out_of_loot(pkt).await }),
     }
 }
 
@@ -285,6 +328,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_low_level_raid1",
+        handler: |session, pkt| Box::pin(async move { session.handle_low_level_raid1(pkt).await }),
     }
 }
 
@@ -294,6 +338,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_low_level_raid2",
+        handler: |session, pkt| Box::pin(async move { session.handle_low_level_raid2(pkt).await }),
     }
 }
 
@@ -303,6 +348,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_minimap_ping",
+        handler: |session, pkt| Box::pin(async move { session.handle_minimap_ping(pkt).await }),
     }
 }
 
@@ -312,6 +358,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_random_roll",
+        handler: |session, pkt| Box::pin(async move { session.handle_random_roll(pkt).await }),
     }
 }
 

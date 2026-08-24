@@ -7,7 +7,9 @@ use tracing::{debug, warn};
 use wow_constants::ClientOpcodes;
 use wow_constants::unit::NPCFlags1;
 use wow_entities::MAX_MONEY_AMOUNT;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::misc::{
     AuctionPlaceBid, AuctionRemoveItem, AuctionReplicateItems, AuctionSellItem,
@@ -30,6 +32,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_list_bidder_items",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_auction_list_bidder_items(pkt).await })
+        },
     }
 }
 
@@ -39,6 +44,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_list_items",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::misc::AuctionListItems::read(&mut pkt) {
+                    Ok(packet) => session.handle_auction_list_items(packet).await,
+                    Err(e) => tracing::warn!("Failed to read AuctionListItems: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -48,6 +61,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_place_bid",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::misc::AuctionPlaceBid::read(&mut pkt) {
+                    Ok(packet) => session.handle_auction_place_bid(packet).await,
+                    Err(e) => tracing::warn!("Failed to read AuctionPlaceBid: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -57,6 +78,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_remove_item",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::misc::AuctionRemoveItem::read(&mut pkt) {
+                    Ok(packet) => session.handle_auction_remove_item(packet).await,
+                    Err(e) => tracing::warn!("Failed to read AuctionRemoveItem: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -66,6 +95,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_sell_item",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::misc::AuctionSellItem::read(&mut pkt) {
+                    Ok(packet) => session.handle_auction_sell_item(packet).await,
+                    Err(e) => tracing::warn!("Failed to read AuctionSellItem: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -75,6 +112,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_replicate_items",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::misc::AuctionReplicateItems::read(&mut pkt) {
+                    Ok(packet) => session.handle_auction_replicate_items(packet).await,
+                    Err(e) => tracing::warn!("Failed to read AuctionReplicateItems: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -84,6 +129,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_list_owner_items",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_auction_list_owner_items(pkt).await })
+        },
     }
 }
 
@@ -93,6 +141,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auction_list_pending_sales",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_auction_list_pending_sales(pkt).await })
+        },
     }
 }
 
@@ -102,6 +153,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auctionable_token_sell",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_auctionable_token_sell(pkt).await })
+        },
     }
 }
 
@@ -111,6 +165,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_auctionable_token_sell_at_market_price",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_auctionable_token_sell_at_market_price(pkt).await })
+        },
     }
 }
 
@@ -120,6 +177,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_commerce_token_get_log",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_commerce_token_get_log(pkt).await })
+        },
     }
 }
 

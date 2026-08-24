@@ -5,7 +5,9 @@
 
 use tracing::warn;
 use wow_constants::ClientOpcodes;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::misc::{
     AcceptTrade, BeginTrade, BusyTrade, CanDuel, ClearTradeItem, DeclinePetition, DuelResponse,
@@ -20,6 +22,7 @@ inventory::submit! {
         status: SessionStatus::LoggedInOrRecentlyLogout,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_cancel_trade",
+        handler: |session, pkt| Box::pin(async move { session.handle_cancel_trade(pkt).await }),
     }
 }
 
@@ -29,6 +32,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_accept_trade",
+        handler: |session, pkt| Box::pin(async move { session.handle_accept_trade(pkt).await }),
     }
 }
 
@@ -38,6 +42,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_clear_trade_item",
+        handler: |session, pkt| Box::pin(async move { session.handle_clear_trade_item(pkt).await }),
     }
 }
 
@@ -47,6 +52,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_trade_item",
+        handler: |session, pkt| Box::pin(async move { session.handle_set_trade_item(pkt).await }),
     }
 }
 
@@ -56,6 +62,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_trade_gold",
+        handler: |session, pkt| Box::pin(async move { session.handle_set_trade_gold(pkt).await }),
     }
 }
 
@@ -65,6 +72,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_trade_spell",
+        handler: |session, pkt| Box::pin(async move { session.handle_set_trade_spell(pkt).await }),
     }
 }
 
@@ -74,6 +82,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_sign_petition",
+        handler: |session, pkt| Box::pin(async move { session.handle_sign_petition(pkt).await }),
     }
 }
 
@@ -83,6 +92,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_decline_petition",
+        handler: |session, pkt| Box::pin(async move { session.handle_decline_petition(pkt).await }),
     }
 }
 
@@ -92,6 +102,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_query_petition",
+        handler: |session, pkt| Box::pin(async move { session.handle_query_petition(pkt).await }),
     }
 }
 
@@ -101,6 +112,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_unaccept_trade",
+        handler: |session, pkt| Box::pin(async move { session.handle_unaccept_trade(pkt).await }),
     }
 }
 
@@ -110,6 +122,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_busy_trade",
+        handler: |session, pkt| Box::pin(async move { session.handle_busy_trade(pkt).await }),
     }
 }
 
@@ -119,6 +132,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_begin_trade",
+        handler: |session, pkt| Box::pin(async move { session.handle_begin_trade(pkt).await }),
     }
 }
 
@@ -128,6 +142,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_can_duel",
+        handler: |session, pkt| Box::pin(async move { session.handle_can_duel(pkt).await }),
     }
 }
 
@@ -137,6 +152,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_duel_response",
+        handler: |session, pkt| Box::pin(async move { session.handle_duel_response(pkt).await }),
     }
 }
 
@@ -146,6 +162,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_ignore_trade",
+        handler: |session, pkt| Box::pin(async move { session.handle_ignore_trade(pkt).await }),
     }
 }
 

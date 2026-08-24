@@ -4,13 +4,15 @@
 
 //! Opcode handler registration and dispatch for the world server.
 //!
-//! Uses the `inventory` crate for static registration of packet handlers.
-//! Handler functions live in their respective game crates; this crate provides
-//! the dispatch table that maps opcodes to handler metadata.
-
-use std::collections::HashMap;
-
-use wow_constants::ClientOpcodes;
+//! This crate owns the vocabulary an opcode registration is written in:
+//! when a handler may run ([`SessionStatus`]), how it is processed
+//! ([`PacketProcessing`]) and the shape of the future it returns
+//! ([`HandlerFuture`]).
+//!
+//! The registry itself lives beside the session it dispatches to
+//! (`wow_world::session::registry`, #359): an entry names the concrete
+//! session type in its handler thunk, and that type is defined in the crate
+//! that depends on this one.
 
 /// Status requirements for a packet handler.
 ///
@@ -38,39 +40,8 @@ pub enum PacketProcessing {
     ThreadSafe,
 }
 
-/// A registered packet handler entry.
+/// The future a packet handler returns.
 ///
-/// Collected at startup via the `inventory` crate to build the dispatch table.
-pub struct PacketHandlerEntry {
-    pub opcode: ClientOpcodes,
-    pub status: SessionStatus,
-    pub processing: PacketProcessing,
-    pub handler_name: &'static str,
-}
-
-// Enable static collection via inventory
-inventory::collect!(PacketHandlerEntry);
-
-/// Build the dispatch table from all statically registered handlers.
-///
-/// Returns a map from `ClientOpcodes` to the handler entry.
-pub fn build_dispatch_table() -> HashMap<ClientOpcodes, &'static PacketHandlerEntry> {
-    inventory::iter::<PacketHandlerEntry>
-        .into_iter()
-        .map(|entry| (entry.opcode, entry))
-        .collect()
-}
-
-/// Check if a handler is registered for the given opcode.
-pub fn contains_handler(opcode: ClientOpcodes) -> bool {
-    inventory::iter::<PacketHandlerEntry>
-        .into_iter()
-        .any(|entry| entry.opcode == opcode)
-}
-
-/// Get the handler entry for a specific opcode.
-pub fn get_handler(opcode: ClientOpcodes) -> Option<&'static PacketHandlerEntry> {
-    inventory::iter::<PacketHandlerEntry>
-        .into_iter()
-        .find(|entry| entry.opcode == opcode)
-}
+/// Handlers are `async` methods on the session, so a registration stores a
+/// boxed future rather than an `async fn` pointer, which has no nameable type.
+pub type HandlerFuture<'a, T> = std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;

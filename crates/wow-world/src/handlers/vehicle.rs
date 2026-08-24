@@ -12,7 +12,10 @@
 
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+use wow_packet::ClientPacket;
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::vehicle::{
     EjectPassenger, MoveChangeVehicleSeats, MoveDismissVehicle, RequestVehicleExit,
     RequestVehicleNextSeat, RequestVehiclePrevSeat, RequestVehicleSwitchSeat, RideVehicleInteract,
@@ -175,6 +178,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_dismiss_vehicle",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::vehicle::MoveDismissVehicle::read(&mut pkt) {
+                    Ok(packet) => session.handle_move_dismiss_vehicle(packet).await,
+                    Err(e) => tracing::warn!("Failed to read MoveDismissVehicle: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -234,6 +245,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_vehicle_prev_seat",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::vehicle::RequestVehiclePrevSeat::read(&mut pkt) {
+                    Ok(packet) => session.handle_request_vehicle_prev_seat(packet).await,
+                    Err(e) => tracing::warn!("Failed to read RequestVehiclePrevSeat: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -243,6 +262,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_vehicle_next_seat",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::vehicle::RequestVehicleNextSeat::read(&mut pkt) {
+                    Ok(packet) => session.handle_request_vehicle_next_seat(packet).await,
+                    Err(e) => tracing::warn!("Failed to read RequestVehicleNextSeat: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -252,6 +279,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_change_vehicle_seats",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::vehicle::MoveChangeVehicleSeats::read(&mut pkt) {
+                    Ok(packet) => session.handle_move_change_vehicle_seats(packet).await,
+                    Err(e) => tracing::warn!("Failed to read MoveChangeVehicleSeats: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -261,6 +296,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_vehicle_switch_seat",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::vehicle::RequestVehicleSwitchSeat::read(&mut pkt) {
+                    Ok(packet) => session.handle_request_vehicle_switch_seat(packet).await,
+                    Err(e) => tracing::warn!("Failed to read RequestVehicleSwitchSeat: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -270,6 +313,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_ride_vehicle_interact",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::vehicle::RideVehicleInteract::read(&mut pkt) {
+                    Ok(packet) => session.handle_ride_vehicle_interact(packet).await,
+                    Err(e) => tracing::warn!("Failed to read RideVehicleInteract: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -279,6 +330,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_eject_passenger",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::vehicle::EjectPassenger::read(&mut pkt) {
+                    Ok(packet) => session.handle_eject_passenger(packet).await,
+                    Err(e) => tracing::warn!("Failed to read EjectPassenger: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -288,6 +347,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_vehicle_exit",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::vehicle::RequestVehicleExit::read(&mut pkt) {
+                    Ok(packet) => session.handle_request_vehicle_exit(packet).await,
+                    Err(e) => tracing::warn!("Failed to read RequestVehicleExit: {e}"),
+                }
+            })
+        },
     }
 }
 

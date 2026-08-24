@@ -6,6 +6,7 @@
 //! Loot packet entry points and their handler registrations.
 
 use super::*;
+use wow_packet::ClientPacket;
 
 inventory::submit! {
     PacketHandlerEntry {
@@ -13,6 +14,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_unit",
+        handler: |session, pkt| Box::pin(async move { session.handle_loot_unit(pkt).await }),
     }
 }
 
@@ -22,6 +24,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_item",
+        handler: |session, pkt| Box::pin(async move { session.handle_loot_item(pkt).await }),
     }
 }
 
@@ -31,6 +34,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_money",
+        handler: |session, pkt| Box::pin(async move { session.handle_loot_money(pkt).await }),
     }
 }
 
@@ -40,6 +44,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_release",
+        handler: |session, pkt| Box::pin(async move { session.handle_loot_release(pkt).await }),
     }
 }
 
@@ -49,6 +54,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_roll",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::loot::LootRoll::read(&mut pkt) {
+                    Ok(roll) => session.handle_loot_roll(roll).await,
+                    Err(e) => tracing::warn!("Failed to read LootRoll: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -58,15 +71,69 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_master_loot_item",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::loot::MasterLootItem::read(&mut pkt) {
+                    Ok(master_loot_item) => session.handle_master_loot_item(master_loot_item).await,
+                    Err(e) => tracing::warn!("Failed to read MasterLootItem: {e}"),
+                }
+            })
+        },
     }
 }
 
+// The inspected TrinityCore opcode table assigns the shared unresolved 0xBADD
+// placeholder to CMSG_CLEAR_RAID_MARKER (uint8 payload),
+// CMSG_SET_LOOT_SPECIALIZATION (uint32), CMSG_SET_SAVED_INSTANCE_EXTEND
+// (int32+uint32+bit), CMSG_CANCEL_MOD_SPEED_NO_CONTROL_AURAS (packed GUID) and
+// CMSG_CLIENT_PORT_GRAVEYARD (empty). Rust keeps one enum variant and splits by
+// payload length until the real opcode table is resolved, so this one
+// registration carries all five payload shapes.
 inventory::submit! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetLootSpecialization,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_loot_specialization",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                if session
+                    .try_handle_cancel_mod_speed_no_control_auras_like_cpp(pkt.clone())
+                    .await
+                {
+                    return;
+                }
+                if session
+                    .try_handle_client_port_graveyard_like_cpp(pkt.clone())
+                    .await
+                {
+                    return;
+                }
+                if pkt.remaining() == 1 {
+                    session.handle_clear_raid_marker(pkt).await;
+                } else if pkt.remaining() == 4 {
+                    match wow_packet::packets::loot::SetLootSpecialization::read(&mut pkt) {
+                        Ok(set_loot_specialization) => {
+                            session
+                                .handle_set_loot_specialization(set_loot_specialization)
+                                .await;
+                        }
+                        Err(e) => tracing::warn!("Failed to read SetLootSpecialization: {e}"),
+                    }
+                } else if pkt.remaining() == 9 {
+                    match wow_packet::packets::misc::SetSavedInstanceExtend::read(&mut pkt) {
+                        Ok(query) => session.handle_set_saved_instance_extend(query).await,
+                        Err(e) => tracing::warn!("Failed to read SetSavedInstanceExtend: {e}"),
+                    }
+                } else {
+                    tracing::warn!(
+                        opcode = ?ClientOpcodes::SetLootSpecialization,
+                        remaining = pkt.remaining(),
+                        "unresolved 0xBADD payload shape"
+                    );
+                }
+            })
+        },
     }
 }
 

@@ -416,7 +416,7 @@ Each line below is one trait. Bodies will fill in as game-side hookpoints land.
 
 <!-- REFINE.023:END known-divergences -->
 
-- **Two-step dispatch is mandatory** in this codebase. Even after a hook trait exists, every callsite in the rest of the workspace needs a literal `script_mgr.on_x(...)` line — the same trap as the packet handlers' `match arm + inventory::submit!` rule (see `AGENTS.md`). Forgetting either silently does nothing.
+- **Two-step dispatch is mandatory** in this codebase. Even after a hook trait exists, every callsite in the rest of the workspace needs a literal `script_mgr.on_x(...)` line. Packet handlers used to have the same trap, until #359 collapsed them to one declaration per opcode (see `AGENTS.md`); hooks still have it, so forgetting the callsite silently does nothing.
 - The C++ pattern of `new boss_lord_marrowgar()` inside `AddSC_boss_lord_marrowgar()` performs the registration as a side effect of object construction. The Rust analog is `inventory::submit! { MyAi { } as &dyn CreatureScript }` at module scope; both are *fully static* and run once.
 - C++ `ScriptObject` ctor takes `char const*` and stores `std::string` — names are interned per script. Rust will use `&'static str`; do **not** allow runtime-generated names.
 - C++ `FOREACH_SCRIPT(T)` holds a `LockModuleReferenceLock` to keep modules pinned during dispatch. If hot-reload is dropped (recommended), the lock is unnecessary.

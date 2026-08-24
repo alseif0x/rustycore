@@ -36,7 +36,9 @@ use wow_core::ObjectGuid;
 use wow_data::{DISABLE_TYPE_SPELL, DisableWorldObjectRefLikeCpp};
 use wow_database::{CharStatements, SqlTransaction, WorldStatements};
 use wow_entities::INVENTORY_SLOT_BAG_0;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_loot::{
     LootConditionRowLikeCpp, condition_compare_values_like_cpp,
     loot_condition_reference_ids_like_cpp, loot_condition_reference_self_references_like_cpp,
@@ -100,6 +102,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_cast_spell",
+        handler: |session, pkt| Box::pin(async move { session.handle_cast_spell(pkt).await }),
     }
 }
 
@@ -109,6 +112,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_cancel_cast",
+        handler: |session, pkt| Box::pin(async move { session.handle_cancel_cast(pkt).await }),
     }
 }
 
@@ -118,6 +122,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_cancel_aura",
+        handler: |session, pkt| Box::pin(async move { session.handle_cancel_aura(pkt).await }),
     }
 }
 
@@ -127,6 +132,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_cancel_auto_repeat_spell",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_cancel_auto_repeat_spell(pkt).await })
+        },
     }
 }
 
@@ -136,6 +144,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_cancel_channelling",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_cancel_channelling(pkt).await })
+        },
     }
 }
 
@@ -145,6 +156,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_cancel_growth_aura",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_cancel_growth_aura(pkt).await })
+        },
     }
 }
 
@@ -154,6 +168,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_cancel_mount_aura",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_cancel_mount_aura(pkt).await })
+        },
     }
 }
 
@@ -163,6 +180,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_cancel_queued_spell",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_cancel_queued_spell(pkt).await })
+        },
     }
 }
 
@@ -172,6 +192,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_open_item",
+        handler: |session, pkt| Box::pin(async move { session.handle_open_item(pkt).await }),
     }
 }
 
@@ -181,6 +202,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_self_res",
+        handler: |session, pkt| Box::pin(async move { session.handle_self_res(pkt).await }),
     }
 }
 
@@ -190,6 +212,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_pet_cancel_aura",
+        handler: |session, pkt| Box::pin(async move { session.handle_pet_cancel_aura(pkt).await }),
     }
 }
 
@@ -199,6 +222,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_totem_destroyed",
+        handler: |session, pkt| Box::pin(async move { session.handle_totem_destroyed(pkt).await }),
     }
 }
 
@@ -208,6 +232,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_spell_click",
+        handler: |session, pkt| Box::pin(async move { session.handle_spell_click(pkt).await }),
     }
 }
 

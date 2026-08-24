@@ -5,7 +5,7 @@
 //! Proves that the production-linked handler registry matches the reviewed
 //! snapshot without any `#[cfg(test)]` registrations leaking into the contract.
 
-use wow_handler::PacketHandlerEntry;
+use wow_world::session::registry::PacketHandlerEntry;
 
 const CONTRACT_SNAPSHOT: &str =
     include_str!("../../../tools/architecture/world-handler-contract.tsv");

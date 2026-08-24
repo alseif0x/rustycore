@@ -5,7 +5,9 @@
 
 use tracing::warn;
 use wow_constants::ClientOpcodes;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::reputation::{
     RequestForcedReactions, SetFactionAtWarRequest, SetFactionInactive, SetFactionNotAtWarRequest,
@@ -18,6 +20,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_forced_reactions",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_request_forced_reactions(pkt).await })
+        },
     }
 }
 
@@ -27,6 +32,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_faction_at_war",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_set_faction_at_war(pkt).await })
+        },
     }
 }
 
@@ -36,6 +44,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_faction_not_at_war",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_set_faction_not_at_war(pkt).await })
+        },
     }
 }
 
@@ -45,6 +56,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_faction_inactive",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_set_faction_inactive(pkt).await })
+        },
     }
 }
 
@@ -54,6 +68,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_watched_faction",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_set_watched_faction(pkt).await })
+        },
     }
 }
 

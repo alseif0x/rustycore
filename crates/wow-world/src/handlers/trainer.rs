@@ -38,7 +38,9 @@ use wow_data::{
     TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP, TRAINER_SPELL_STATE_KNOWN_LIKE_CPP,
     TRAINER_SPELL_STATE_UNAVAILABLE_LIKE_CPP, TrainerLikeCpp, TrainerStoreLikeCpp,
 };
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::spell::PlaySpellVisualKit;
 use wow_packet::packets::trainer::{
     TrainerBuyFailed, TrainerBuySpellRequest, TrainerListPacket, TrainerListSpell,
@@ -220,6 +222,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_trainer_list",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::gossip::Hello::read(&mut pkt) {
+                    Ok(hello) => session.handle_trainer_list(hello).await,
+                    Err(e) => tracing::warn!("Failed to read TrainerList: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -229,6 +239,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_trainer_buy_spell",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_trainer_buy_spell(pkt).await })
+        },
     }
 }
 
@@ -3446,11 +3459,11 @@ mod tests {
     }
 
     #[test]
-    fn buy_registration_and_dispatch_arm_are_both_active_while_legacy_shortcuts_stay_disabled() {
+    fn buy_registration_carries_the_call_while_legacy_shortcuts_stay_disabled() {
         let trainer = include_str!("trainer.rs");
-        let session = include_str!("../session/dispatch.rs");
         assert!(trainer.contains("opcode: ClientOpcodes::TrainerBuySpell"));
-        assert!(session.contains("ClientOpcodes::TrainerBuySpell =>"));
+        // #359: the registration is the only declaration; it carries the call.
+        assert!(trainer.contains("session.handle_trainer_buy_spell(pkt).await"));
 
         let buy = trainer
             .split("pub async fn handle_trainer_buy_spell")

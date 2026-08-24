@@ -17,7 +17,9 @@ use wow_constants::unit::NPCFlags1;
 use wow_constants::{ClientOpcodes, EnchantmentSlot, ItemContext, ItemFieldFlags, ItemModifier};
 use wow_database::{CharStatements, SqlTransaction};
 use wow_entities::INVENTORY_SLOT_BAG_0;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::update::{ItemCreateData, ItemEnchantmentValuesUpdate, UpdateObject};
 use wow_packet::packets::void_storage::{
     QueryVoidStorage, SwapVoidItem, UnlockVoidStorage, VoidItemSwapResponse, VoidStorageFailed,
@@ -39,6 +41,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_void_storage_unlock",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_void_storage_unlock(pkt).await })
+        },
     }
 }
 
@@ -48,6 +53,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_void_storage_query",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_void_storage_query(pkt).await })
+        },
     }
 }
 
@@ -57,6 +65,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_void_storage_transfer",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_void_storage_transfer(pkt).await })
+        },
     }
 }
 
@@ -66,6 +77,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_void_storage_swap_item",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_void_storage_swap_item(pkt).await })
+        },
     }
 }
 

@@ -7,11 +7,14 @@
 //! SetContactNotes, SocialContractRequest.
 
 use std::sync::Arc;
+use wow_packet::ClientPacket;
 
 use tracing::{info, warn};
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::social::{
     AcceptSocialContract, AccountNotificationAcknowledged, AddIgnore, ContactInfo, ContactListPkt,
     DelIgnore, FriendStatusPkt, FriendsResult, SetContactNotes, SocialContractRequestResponse,
@@ -46,6 +49,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_add_friend",
+        handler: |session, pkt| Box::pin(async move { session.handle_add_friend(pkt).await }),
     }
 }
 
@@ -55,6 +59,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_add_ignore",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::social::AddIgnore::read(&mut pkt) {
+                    Ok(ignore) => session.handle_add_ignore(ignore).await,
+                    Err(e) => tracing::warn!("Failed to read AddIgnore: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -64,6 +76,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_del_friend",
+        handler: |session, pkt| Box::pin(async move { session.handle_del_friend(pkt).await }),
     }
 }
 
@@ -73,6 +86,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_del_ignore",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::social::DelIgnore::read(&mut pkt) {
+                    Ok(ignore) => session.handle_del_ignore(ignore).await,
+                    Err(e) => tracing::warn!("Failed to read DelIgnore: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -82,6 +103,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_send_contact_list",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_send_contact_list(pkt).await })
+        },
     }
 }
 
@@ -91,6 +115,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_contact_notes",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::social::SetContactNotes::read(&mut pkt) {
+                    Ok(contact) => session.handle_set_contact_notes(contact).await,
+                    Err(e) => tracing::warn!("Failed to read SetContactNotes: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -100,6 +132,14 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_social_contract_request",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::social::SocialContractRequest::read(&mut pkt) {
+                    Ok(_) => session.handle_social_contract_request().await,
+                    Err(e) => tracing::warn!("Failed to read SocialContractRequest: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -109,6 +149,14 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_accept_social_contract",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::social::AcceptSocialContract::read(&mut pkt) {
+                    Ok(accept) => session.handle_accept_social_contract(accept).await,
+                    Err(e) => tracing::warn!("Failed to read AcceptSocialContract: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -118,6 +166,14 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_account_notification_acknowledged",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::social::AccountNotificationAcknowledged::read(&mut pkt) {
+                    Ok(packet) => session.handle_account_notification_acknowledged(packet).await,
+                    Err(e) => tracing::warn!("Failed to read AccountNotificationAcknowledged: {e}"),
+                }
+            })
+        },
     }
 }
 
