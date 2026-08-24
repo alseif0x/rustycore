@@ -55604,13 +55604,6 @@
           "source_class": "production"
         },
         {
-          "name": "advanced_combat_logging_enabled_like_cpp",
-          "type": "Arc < AtomicBool >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "auto_reply_msg_like_cpp",
           "type": "String",
           "visibility": "pub",
@@ -55627,13 +55620,6 @@
         {
           "name": "class",
           "type": "u8",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "client_visible_guids_like_cpp",
-          "type": "SharedClientVisibleGuidsLikeCpp",
           "visibility": "pub",
           "cfg": [],
           "source_class": "production"
@@ -56054,13 +56040,6 @@
         {
           "name": "unit_state",
           "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "visibility_refresh_pending_like_cpp",
-          "type": "Arc < AtomicBool >",
           "visibility": "pub",
           "cfg": [],
           "source_class": "production"

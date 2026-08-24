@@ -4,11 +4,9 @@ active_expansion	Session admission identity	#252	query immutable admitted-client
 active_loot_rolls	wow-loot roll authority	#252	query exact active roll identities from loot owner
 active_quest_objective_counts	canonical Player quest log	#252	query immutable quest objective state
 active_quest_statuses	canonical Player quest log	#252	query immutable quest status
-advanced_combat_logging_enabled_like_cpp	canonical Player presentation preferences	#252	query receiver preference at resolution
 auto_reply_msg_like_cpp	canonical Player social presence	#252	query immutable AFK/DND response
 base_mana	canonical Player/Unit powers	#252	query immutable CREATE power facts
 class	canonical Player identity	#252	query immutable character identity
-client_visible_guids_like_cpp	canonical Player visibility membership	#252	query versioned receiver visibility membership
 combat_reach	canonical Player/Unit combat geometry	#252	query immutable target geometry
 completed_achievements	canonical Player achievements	#252	query immutable achievement membership
 current_health	canonical Player/Unit vitals	#252	query immutable party/runtime vitals
@@ -69,7 +67,6 @@ transport	canonical Player location under MapRuntime	#252	query immutable transp
 unit_flags	canonical Player/Unit state flags	#252	query immutable targetability flags
 unit_flags2	canonical Player/Unit state flags	#252	query immutable secondary flags
 unit_state	canonical Player/Unit state machine	#252	query immutable unit-state mask
-visibility_refresh_pending_like_cpp	canonical Player visibility scheduling	#252	consume versioned visibility refresh intent
 visible_items	canonical Player inventory presentation	#252	query immutable equipped-item presentation
 yesterday_contribution	canonical Player PvP progression	#252	query immutable inspect honor facts
 yesterday_honorable_kills	canonical Player PvP progression	#252	query immutable inspect honor facts

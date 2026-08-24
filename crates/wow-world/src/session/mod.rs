@@ -34839,13 +34839,6 @@ impl WorldSession {
             combat_reach: self.canonical_player_combat_reach_snapshot_like_cpp(),
             liquid_status: self.player_liquid_status_like_cpp(),
             is_in_world: self.player_is_in_world_for_registry_like_cpp(),
-            client_visible_guids_like_cpp: self.client_visible_guids_like_cpp.clone(),
-            advanced_combat_logging_enabled_like_cpp: Arc::clone(
-                &self.advanced_combat_logging_enabled_like_cpp,
-            ),
-            visibility_refresh_pending_like_cpp: Arc::clone(
-                &self.visibility_refresh_pending_like_cpp,
-            ),
             active_loot_rolls: self
                 .represented_loot_rolls
                 .values()
@@ -34942,6 +34935,13 @@ impl WorldSession {
                 command_tx: self.session_command_tx.clone(),
                 durable_creature_runtime_commands_like_cpp: Arc::clone(
                     &self.durable_creature_runtime_commands_like_cpp,
+                ),
+                client_visible_guids_like_cpp: self.client_visible_guids_like_cpp.clone(),
+                advanced_combat_logging_enabled_like_cpp: Arc::clone(
+                    &self.advanced_combat_logging_enabled_like_cpp,
+                ),
+                visibility_refresh_pending_like_cpp: Arc::clone(
+                    &self.visibility_refresh_pending_like_cpp,
                 ),
             },
             Arc::clone(&self.durable_loot_money_persistence_like_cpp),
