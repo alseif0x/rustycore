@@ -35,6 +35,8 @@ DEFAULT_TIMEOUT = 900
 AUDIT_TIMEOUT = 3600
 DEFAULT_BASE = "origin/3.4.3"
 DEFAULT_HEAVY_LOCK = "/tmp/rustycore-validation-v2-heavy.lock"
+RUNNER_PATH = "tools/validation-v2"
+RUNNER_CONTRACT_SUITE = "tools/test_validation_v2.py"
 CHECKER_MANIFEST = "tools/architecture/handler-contract-check/Cargo.toml"
 BOT_MANIFEST = "tools/wow-test-bot/Cargo.toml"
 INTERRUPT_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
@@ -527,19 +529,32 @@ def affected_workspace(
     def names(package_ids: set[str]) -> list[str]:
         return sorted(str(by_id[package_id]["name"]) for package_id in package_ids)
 
-    library_ids = {
-        package_id
-        for package_id in direct_ids
-        if any(
-            isinstance(target, dict) and "lib" in target.get("kind", [])
-            for target in by_id[package_id].get("targets", [])
-        )
-    }
+    def library_ids(package_ids: set[str]) -> set[str]:
+        return {
+            package_id
+            for package_id in package_ids
+            if any(
+                isinstance(target, dict) and "lib" in target.get("kind", [])
+                for target in by_id[package_id].get("targets", [])
+            )
+        }
+
+    # A root-wide path widens the compile check to the whole workspace, and it
+    # used to blank this list — so the broader the change, the fewer tests ran
+    # (#364). It keeps at least the tests the same diff would have got without
+    # its root-wide path, and falls back to every library when the root-wide
+    # path is the only thing that changed, which is exactly when anything can
+    # break.
+    matched_library_ids = library_ids({package_id for _, package_id in matched})
+    if root_wide:
+        tested_library_ids = matched_library_ids or library_ids(set(by_id))
+    else:
+        tested_library_ids = library_ids(direct_ids)
     return {
         "root_wide": root_wide,
         "direct_packages": names(direct_ids),
         "reverse_closure_packages": names(closure),
-        "direct_library_packages": [] if root_wide else names(library_ids),
+        "direct_library_packages": names(tested_library_ids),
     }
 
 
@@ -680,6 +695,13 @@ def validation_commands(
         )
     if python_files:
         add_command(planned, ["python3", "-m", "py_compile", *python_files])
+        # Changing the gate must run the gate's own contract suite. A syntax
+        # check is what let #364 — a plan that compiled the workspace and tested
+        # nothing — be written here in the first place.
+        if any(path in {RUNNER_PATH, RUNNER_CONTRACT_SUITE} for path in python_files) and (
+            repo / RUNNER_CONTRACT_SUITE
+        ).exists():
+            add_command(planned, ["python3", RUNNER_CONTRACT_SUITE])
     if "workflow" in groups:
         workflow_files = existing(groups["workflow"])
         if workflow_files and shutil.which("actionlint"):
