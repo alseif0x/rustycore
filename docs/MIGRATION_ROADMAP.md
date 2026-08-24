@@ -76,7 +76,7 @@ Combat            ─                ─             ─
 ```
 crates/
   bnet-server       wow-database      wow-pvp
-  world-server      wow-ecs           wow-recastdetour
+  world-server      wow-social           wow-recastdetour
   wow-achievement   wow-handler       wow-script
   wow-ai            wow-logging       wow-scripts
   wow-chat          wow-loot          wow-social

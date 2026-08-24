@@ -6,5 +6,3 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-wow-core = { workspace = true }
-wow-constants = { workspace = true }

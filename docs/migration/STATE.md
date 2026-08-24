@@ -498,7 +498,7 @@ fanout, or a per-Player `RestMgr`/`Player::Update` owner. The aggregate
 Content **Scripts** (`wow-scripts` 40 ln vs ~294k LOC C++) · Battlegrounds/Arena/Battlefield/
 OutdoorPvP · Instances lock/save/difficulty toggle · full Conditions eval · full Phasing
 refresh · Weather · Warden · Calendar · Petitions · Pet/Totem AI. Empty crates:
-`wow-combat`/`wow-spell`/`wow-achievement`/`wow-social`/`wow-pvp`/`wow-ecs` (1 line each).
+`wow-combat`/`wow-spell`/`wow-achievement`/`wow-social`/`wow-pvp` (1 line each; `wow-ecs` was removed by #298).
 
 ---
 
