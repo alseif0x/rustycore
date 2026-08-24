@@ -4619,7 +4619,7 @@ fn legacy_creature_update_threat_victim_like_cpp(
         .iter()
         .filter(|(guid, snapshot)| {
             eligible_candidate_guids.contains(guid)
-                && WorldSession::is_within_melee_range_like_cpp(
+                && is_within_melee_range_like_cpp(
                     creature.position(),
                     creature.creature.unit().world().combat_reach(),
                     snapshot.position,
@@ -10680,49 +10680,6 @@ impl WorldSession {
         }
     }
 
-    fn is_within_melee_range_like_cpp(
-        attacker_position: Position,
-        attacker_combat_reach: f32,
-        target_position: Position,
-        target_combat_reach: f32,
-    ) -> bool {
-        let melee_range =
-            (attacker_combat_reach.max(0.0) + target_combat_reach.max(0.0) + 4.0 / 3.0)
-                .max(NOMINAL_MELEE_RANGE_LIKE_CPP);
-        attacker_position.distance(&target_position) <= melee_range
-    }
-
-    fn is_within_target_boundary_radius_like_cpp(
-        attacker_position: Position,
-        attacker_combat_reach: f32,
-        target_position: Position,
-        target_combat_reach: f32,
-        target_bounding_radius: f32,
-    ) -> bool {
-        let boundary_radius = target_bounding_radius.max(MIN_MELEE_REACH_LIKE_CPP)
-            + attacker_combat_reach.max(0.0)
-            + target_combat_reach.max(0.0);
-        attacker_position.distance(&target_position) < boundary_radius
-    }
-
-    fn is_unit_facing_target_for_melee_like_cpp(
-        unit_position: Position,
-        target_position: Position,
-    ) -> bool {
-        let dx = target_position.x - unit_position.x;
-        let dy = target_position.y - unit_position.y;
-        if dx.abs() <= f32::EPSILON && dy.abs() <= f32::EPSILON {
-            return true;
-        }
-
-        let target_angle = dy.atan2(dx);
-        let mut diff = (target_angle - unit_position.orientation).rem_euclid(std::f32::consts::TAU);
-        if diff > std::f32::consts::PI {
-            diff = std::f32::consts::TAU - diff;
-        }
-        diff <= std::f32::consts::PI / 3.0
-    }
-
     fn set_player_attack_swing_error_like_cpp(&mut self, error: Option<u8>) {
         use wow_packet::ServerPacket;
         use wow_packet::packets::combat::AttackSwingError;
@@ -10743,103 +10700,13 @@ impl WorldSession {
         within_los: bool,
     ) -> Option<(Vec<u32>, Option<Option<u8>>)> {
         self.mutate_canonical_player_like_cpp(|player| {
-            let unit = player.unit_mut();
-            let spell_pauses_combat_timer = [
-                wow_entities::CurrentSpellSlot::Generic,
-                wow_entities::CurrentSpellSlot::Channeled,
-            ]
-            .into_iter()
-            .any(|slot| {
-                unit.current_spell(slot)
-                    .is_some_and(|spell| spell.delay_combat_timer_during_cast)
-            });
-            if !spell_pauses_combat_timer {
-                unit.update_attack_timers_like_cpp(diff_ms);
-            }
-            let mut swings = Vec::new();
-            let mut processed_ready_attack = false;
-            let mut base_attack_error_update = None;
-            // C++: Unit::DoMeleeAttackIfReady, Unit.cpp:2087 exits before
-            // processing swings unless UNIT_STATE_MELEE_ATTACKING is present.
-            if !unit.has_unit_state(UnitState::MELEE_ATTACKING.bits()) {
-                return None;
-            }
-            // C++: Unit::DoMeleeAttackIfReady, Unit.cpp:2090 exits while charging.
-            if unit.has_unit_state(UnitState::CHARGING.bits()) {
-                return None;
-            }
-            // C++: Unit::DoMeleeAttackIfReady returns while casting unless
-            // the active channeled spell explicitly allows actions.
-            if unit.has_unit_state(UnitState::CASTING.bits()) {
-                let channeled = unit.current_spell(wow_entities::CurrentSpellSlot::Channeled);
-                if !channeled.is_some_and(|spell| spell.allow_actions_during_channel) {
-                    return None;
-                }
-            }
-            let has_auto_attack_error = !in_melee_range || !facing_target;
-            let melee_state_update_allowed =
-                within_los && unit.can_attacker_state_update_melee_like_cpp(false);
-
-            if unit.is_attack_ready_like_cpp(WeaponAttackType::BaseAttack) {
-                processed_ready_attack = true;
-                if has_auto_attack_error {
-                    base_attack_error_update = Some(Some(if !in_melee_range { 0 } else { 1 }));
-                    unit.set_attack_timer(WeaponAttackType::BaseAttack, 100);
-                } else {
-                    base_attack_error_update = Some(None);
-                    if unit.can_dual_wield_like_cpp()
-                        && unit.attack_timer(WeaponAttackType::OffAttack)
-                            < ATTACK_DISPLAY_DELAY_LIKE_CPP_MS
-                    {
-                        unit.set_attack_timer(
-                            WeaponAttackType::OffAttack,
-                            ATTACK_DISPLAY_DELAY_LIKE_CPP_MS,
-                        );
-                    }
-                    if melee_state_update_allowed {
-                        unit.remove_attacking_interrupt_auras_like_cpp();
-                        if unit
-                            .current_spell(wow_entities::CurrentSpellSlot::Melee)
-                            .is_some()
-                        {
-                            let _ = unit.finish_spell(wow_entities::CurrentSpellSlot::Melee);
-                        } else {
-                            let [min_damage, max_damage] =
-                                unit.weapon_damage(WeaponAttackType::BaseAttack);
-                            swings
-                                .push(min_damage.max(1.0).min(max_damage.max(1.0)).round() as u32);
-                        }
-                    }
-                    unit.reset_attack_timer_like_cpp(WeaponAttackType::BaseAttack);
-                }
-            }
-
-            if unit.can_dual_wield_like_cpp()
-                && unit.is_attack_ready_like_cpp(WeaponAttackType::OffAttack)
-            {
-                processed_ready_attack = true;
-                if has_auto_attack_error {
-                    unit.set_attack_timer(WeaponAttackType::OffAttack, 100);
-                } else {
-                    if unit.attack_timer(WeaponAttackType::BaseAttack)
-                        < ATTACK_DISPLAY_DELAY_LIKE_CPP_MS
-                    {
-                        unit.set_attack_timer(
-                            WeaponAttackType::BaseAttack,
-                            ATTACK_DISPLAY_DELAY_LIKE_CPP_MS,
-                        );
-                    }
-                    if melee_state_update_allowed {
-                        unit.remove_attacking_interrupt_auras_like_cpp();
-                        let [min_damage, max_damage] =
-                            unit.weapon_damage(WeaponAttackType::OffAttack);
-                        swings.push(min_damage.max(1.0).min(max_damage.max(1.0)).round() as u32);
-                    }
-                    unit.reset_attack_timer_like_cpp(WeaponAttackType::OffAttack);
-                }
-            }
-
-            processed_ready_attack.then_some((swings, base_attack_error_update))
+            take_canonical_player_attack_swings_like_cpp(
+                player,
+                diff_ms,
+                in_melee_range,
+                facing_target,
+                within_los,
+            )
         })
         .flatten()
     }
@@ -11556,12 +11423,7 @@ impl WorldSession {
         let manager = self.canonical_map_manager.as_ref()?.clone();
         let manager = manager.lock().ok()?;
         let managed = manager.find_map(map_key.map_id, map_key.instance_id)?;
-        let creature = managed.map().get_typed_creature(creature_guid)?;
-        creature
-            .unit()
-            .subsystems()
-            .combat
-            .threat_value(attacker_guid)
+        creature_threat_value_on_map_like_cpp(managed.map(), creature_guid, attacker_guid)
     }
 
     fn mirror_canonical_creature_threat_from_attacker_like_cpp(
@@ -61090,7 +60952,7 @@ fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
         let victim_position = victim.unit().world().position();
         let victim_data = victim.unit().data();
         let victim_combat_reach = victim_data.combat_reach;
-        if !WorldSession::is_within_melee_range_like_cpp(
+        if !is_within_melee_range_like_cpp(
             attacker_position,
             attacker_combat_reach,
             victim_position,
@@ -61098,16 +60960,14 @@ fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
         ) {
             return CreatureMeleeApplyResultLikeCpp::OutOfRange;
         }
-        if !WorldSession::is_within_target_boundary_radius_like_cpp(
+        if !is_within_target_boundary_radius_like_cpp(
             attacker_position,
             attacker_combat_reach,
             victim_position,
             victim_combat_reach,
             victim_data.bounding_radius,
-        ) && !WorldSession::is_unit_facing_target_for_melee_like_cpp(
-            attacker_position,
-            victim_position,
-        ) {
+        ) && !is_unit_facing_target_for_melee_like_cpp(attacker_position, victim_position)
+        {
             return CreatureMeleeApplyResultLikeCpp::BadFacing;
         }
         if !victim.unit().is_alive() || victim.unit().data().health == 0 {
@@ -61220,7 +61080,7 @@ fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
         let victim_position = victim.unit().world().position();
         let victim_data = victim.unit().data();
         let victim_combat_reach = victim_data.combat_reach;
-        if !WorldSession::is_within_melee_range_like_cpp(
+        if !is_within_melee_range_like_cpp(
             attacker_position,
             attacker_combat_reach,
             victim_position,
@@ -61228,16 +61088,14 @@ fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
         ) {
             return CreatureMeleeApplyResultLikeCpp::OutOfRange;
         }
-        if !WorldSession::is_within_target_boundary_radius_like_cpp(
+        if !is_within_target_boundary_radius_like_cpp(
             attacker_position,
             attacker_combat_reach,
             victim_position,
             victim_combat_reach,
             victim_data.bounding_radius,
-        ) && !WorldSession::is_unit_facing_target_for_melee_like_cpp(
-            attacker_position,
-            victim_position,
-        ) {
+        ) && !is_unit_facing_target_for_melee_like_cpp(attacker_position, victim_position)
+        {
             return CreatureMeleeApplyResultLikeCpp::BadFacing;
         }
         if !victim.is_alive() {
@@ -61453,6 +61311,175 @@ fn apply_creature_melee_victim_sync_to_legacy_like_cpp(
             sync.victim_health_state_revision_after,
         );
     true
+}
+
+/// One C++ `Unit::DoMeleeAttackIfReady` pass over a canonical player.
+///
+/// Lifted out of `impl WorldSession` by #28: the body was already exactly one
+/// closure over `&mut Player`, and the global legacy loop reaches the same
+/// player through the canonical map rather than through a session. Behaviour,
+/// argument order and C++ anchors are unchanged.
+fn take_canonical_player_attack_swings_like_cpp(
+    player: &mut wow_entities::Player,
+    diff_ms: u32,
+    in_melee_range: bool,
+    facing_target: bool,
+    within_los: bool,
+) -> Option<(Vec<u32>, Option<Option<u8>>)> {
+    let unit = player.unit_mut();
+    let spell_pauses_combat_timer = [
+        wow_entities::CurrentSpellSlot::Generic,
+        wow_entities::CurrentSpellSlot::Channeled,
+    ]
+    .into_iter()
+    .any(|slot| {
+        unit.current_spell(slot)
+            .is_some_and(|spell| spell.delay_combat_timer_during_cast)
+    });
+    if !spell_pauses_combat_timer {
+        unit.update_attack_timers_like_cpp(diff_ms);
+    }
+    let mut swings = Vec::new();
+    let mut processed_ready_attack = false;
+    let mut base_attack_error_update = None;
+    // C++: Unit::DoMeleeAttackIfReady, Unit.cpp:2087 exits before
+    // processing swings unless UNIT_STATE_MELEE_ATTACKING is present.
+    if !unit.has_unit_state(UnitState::MELEE_ATTACKING.bits()) {
+        return None;
+    }
+    // C++: Unit::DoMeleeAttackIfReady, Unit.cpp:2090 exits while charging.
+    if unit.has_unit_state(UnitState::CHARGING.bits()) {
+        return None;
+    }
+    // C++: Unit::DoMeleeAttackIfReady returns while casting unless
+    // the active channeled spell explicitly allows actions.
+    if unit.has_unit_state(UnitState::CASTING.bits()) {
+        let channeled = unit.current_spell(wow_entities::CurrentSpellSlot::Channeled);
+        if !channeled.is_some_and(|spell| spell.allow_actions_during_channel) {
+            return None;
+        }
+    }
+    let has_auto_attack_error = !in_melee_range || !facing_target;
+    let melee_state_update_allowed =
+        within_los && unit.can_attacker_state_update_melee_like_cpp(false);
+
+    if unit.is_attack_ready_like_cpp(WeaponAttackType::BaseAttack) {
+        processed_ready_attack = true;
+        if has_auto_attack_error {
+            base_attack_error_update = Some(Some(if !in_melee_range { 0 } else { 1 }));
+            unit.set_attack_timer(WeaponAttackType::BaseAttack, 100);
+        } else {
+            base_attack_error_update = Some(None);
+            if unit.can_dual_wield_like_cpp()
+                && unit.attack_timer(WeaponAttackType::OffAttack) < ATTACK_DISPLAY_DELAY_LIKE_CPP_MS
+            {
+                unit.set_attack_timer(
+                    WeaponAttackType::OffAttack,
+                    ATTACK_DISPLAY_DELAY_LIKE_CPP_MS,
+                );
+            }
+            if melee_state_update_allowed {
+                unit.remove_attacking_interrupt_auras_like_cpp();
+                if unit
+                    .current_spell(wow_entities::CurrentSpellSlot::Melee)
+                    .is_some()
+                {
+                    let _ = unit.finish_spell(wow_entities::CurrentSpellSlot::Melee);
+                } else {
+                    let [min_damage, max_damage] = unit.weapon_damage(WeaponAttackType::BaseAttack);
+                    swings.push(min_damage.max(1.0).min(max_damage.max(1.0)).round() as u32);
+                }
+            }
+            unit.reset_attack_timer_like_cpp(WeaponAttackType::BaseAttack);
+        }
+    }
+
+    if unit.can_dual_wield_like_cpp() && unit.is_attack_ready_like_cpp(WeaponAttackType::OffAttack)
+    {
+        processed_ready_attack = true;
+        if has_auto_attack_error {
+            unit.set_attack_timer(WeaponAttackType::OffAttack, 100);
+        } else {
+            if unit.attack_timer(WeaponAttackType::BaseAttack) < ATTACK_DISPLAY_DELAY_LIKE_CPP_MS {
+                unit.set_attack_timer(
+                    WeaponAttackType::BaseAttack,
+                    ATTACK_DISPLAY_DELAY_LIKE_CPP_MS,
+                );
+            }
+            if melee_state_update_allowed {
+                unit.remove_attacking_interrupt_auras_like_cpp();
+                let [min_damage, max_damage] = unit.weapon_damage(WeaponAttackType::OffAttack);
+                swings.push(min_damage.max(1.0).min(max_damage.max(1.0)).round() as u32);
+            }
+            unit.reset_attack_timer_like_cpp(WeaponAttackType::OffAttack);
+        }
+    }
+
+    processed_ready_attack.then_some((swings, base_attack_error_update))
+}
+
+/// Read a canonical creature's threat toward one attacker, from an already
+/// locked map.
+///
+/// Lifted by #28: the session variant took the canonical lock itself, so a
+/// caller that already held the map had to drop it and take it again.
+fn creature_threat_value_on_map_like_cpp(
+    map: &wow_map::ManagedMapInnerLikeCpp,
+    creature_guid: ObjectGuid,
+    attacker_guid: ObjectGuid,
+) -> Option<f32> {
+    map.get_typed_creature(creature_guid)?
+        .unit()
+        .subsystems()
+        .combat
+        .threat_value(attacker_guid)
+}
+
+/// Melee geometry, decided the same way whoever owns the tick.
+///
+/// These were `impl WorldSession` associated functions taking no `self`. The
+/// global legacy loop has no session, so #28 lifts them to module level
+/// unchanged; the arithmetic and the C++ anchors are untouched.
+fn is_within_melee_range_like_cpp(
+    attacker_position: Position,
+    attacker_combat_reach: f32,
+    target_position: Position,
+    target_combat_reach: f32,
+) -> bool {
+    let melee_range = (attacker_combat_reach.max(0.0) + target_combat_reach.max(0.0) + 4.0 / 3.0)
+        .max(NOMINAL_MELEE_RANGE_LIKE_CPP);
+    attacker_position.distance(&target_position) <= melee_range
+}
+
+fn is_within_target_boundary_radius_like_cpp(
+    attacker_position: Position,
+    attacker_combat_reach: f32,
+    target_position: Position,
+    target_combat_reach: f32,
+    target_bounding_radius: f32,
+) -> bool {
+    let boundary_radius = target_bounding_radius.max(MIN_MELEE_REACH_LIKE_CPP)
+        + attacker_combat_reach.max(0.0)
+        + target_combat_reach.max(0.0);
+    attacker_position.distance(&target_position) < boundary_radius
+}
+
+fn is_unit_facing_target_for_melee_like_cpp(
+    unit_position: Position,
+    target_position: Position,
+) -> bool {
+    let dx = target_position.x - unit_position.x;
+    let dy = target_position.y - unit_position.y;
+    if dx.abs() <= f32::EPSILON && dy.abs() <= f32::EPSILON {
+        return true;
+    }
+
+    let target_angle = dy.atan2(dx);
+    let mut diff = (target_angle - unit_position.orientation).rem_euclid(std::f32::consts::TAU);
+    if diff > std::f32::consts::PI {
+        diff = std::f32::consts::TAU - diff;
+    }
+    diff <= std::f32::consts::PI / 3.0
 }
 
 /// Runs one global legacy creature melee tick without spawning a loop.
@@ -62379,7 +62406,7 @@ impl WorldSession {
             .unwrap_or(0.0);
         let in_melee_range = player_position
             .map(|position| {
-                Self::is_within_melee_range_like_cpp(
+                is_within_melee_range_like_cpp(
                     position,
                     player_combat_reach,
                     target_position,
@@ -62389,13 +62416,13 @@ impl WorldSession {
             .unwrap_or(true);
         let facing_target = player_position
             .map(|position| {
-                Self::is_within_target_boundary_radius_like_cpp(
+                is_within_target_boundary_radius_like_cpp(
                     position,
                     player_combat_reach,
                     target_position,
                     target_combat_reach,
                     target_bounding_radius,
-                ) || Self::is_unit_facing_target_for_melee_like_cpp(position, target_position)
+                ) || is_unit_facing_target_for_melee_like_cpp(position, target_position)
             })
             .unwrap_or(true);
         let within_los = self.player_melee_los_to_target_like_cpp.unwrap_or(true);

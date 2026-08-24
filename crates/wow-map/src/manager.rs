@@ -183,6 +183,14 @@ pub struct MapUpdateTailSummaryLikeCpp {
     pub metrics: MapUpdateMetricsSummaryLikeCpp,
 }
 
+/// The concrete `Map` a canonical `ManagedMap` owns.
+///
+/// Named so code outside `wow-map` can take `&mut` to it without spelling the
+/// loader/lifecycle parameters. #28 needs it because helpers that used to take
+/// the canonical lock themselves now take the map, so the caller acquires the
+/// lock once instead of once per helper.
+pub type ManagedMapInnerLikeCpp = Map<NoopTerrainGridLoader, NoopGridLifecycle>;
+
 #[derive(Debug)]
 pub struct ManagedMap {
     map: Map<NoopTerrainGridLoader, NoopGridLifecycle>,

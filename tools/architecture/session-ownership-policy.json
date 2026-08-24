@@ -26772,17 +26772,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "is_unit_facing_target_for_melee_like_cpp",
-          "visibility": "private",
-          "signature": "fn is_unit_facing_target_for_melee_like_cpp (unit_position : Position , target_position : Position ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "is_valid_battleground_queue_type_id_like_cpp",
           "visibility": "private",
           "signature": "fn is_valid_battleground_queue_type_id_like_cpp (& self , queue_type_id : RepresentedBattlegroundQueueTypeIdLikeCpp ,) -> bool",
@@ -26802,28 +26791,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "is_within_melee_range_like_cpp",
-          "visibility": "private",
-          "signature": "fn is_within_melee_range_like_cpp (attacker_position : Position , attacker_combat_reach : f32 , target_position : Position , target_combat_reach : f32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "is_within_target_boundary_radius_like_cpp",
-          "visibility": "private",
-          "signature": "fn is_within_target_boundary_radius_like_cpp (attacker_position : Position , attacker_combat_reach : f32 , target_position : Position , target_combat_reach : f32 , target_bounding_radius : f32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
         },
         {
           "module": "crate::session",
