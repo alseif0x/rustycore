@@ -36,6 +36,9 @@ impl WorldSession {
             SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command) => {
                 self.handle_apply_creature_melee_damage_like_cpp_command_like_cpp(command);
             }
+            SessionCommand::ApplyPlayerMeleeResultLikeCpp(command) => {
+                self.handle_apply_player_melee_result_like_cpp_command_like_cpp(command);
+            }
             SessionCommand::CreatureAttackStartLikeCpp(command) => {
                 self.handle_creature_attack_start_like_cpp_command_like_cpp(command);
             }

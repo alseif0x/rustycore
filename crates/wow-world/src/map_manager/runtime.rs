@@ -841,6 +841,13 @@ impl MapManager {
     }
 
     /// Sets the tick owner.
+    ///
+    /// Production calls this exactly once, at startup
+    /// (`crates/world-server/src/app.rs`), *before* the global legacy creature
+    /// loop is spawned. Flipping it after the loop is running is the only
+    /// window in which both the loop and a session can tick the same creature,
+    /// so the single call site is asserted by a test rather than left to
+    /// convention (#28).
     pub fn set_tick_owner(&mut self, owner: RuntimeTickOwner) {
         self.tick_owner = owner;
     }

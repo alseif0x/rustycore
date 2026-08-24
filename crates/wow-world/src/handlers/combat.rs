@@ -56,6 +56,115 @@ inventory::submit! {
 // ── Handler implementations ───────────────────────────────────────
 
 impl WorldSession {
+    /// Deliver one map-owned player auto-attack resolution to its attacker.
+    ///
+    /// #28 moved the transition itself to whoever owns the creature tick, so
+    /// this is delivery only: it applies no damage and decides no swing. The
+    /// order below is `run_combat_tick`'s tail verbatim, and the order is what
+    /// keeps the bytes identical — `SMSG_ATTACKSWING_ERROR` before the swings,
+    /// the values update gated on what this client already has, the kill queues
+    /// before `SMSG_ATTACKSTOP`.
+    pub(crate) fn handle_apply_player_melee_result_like_cpp_command_like_cpp(
+        &mut self,
+        command: crate::session::mailbox::ApplyPlayerMeleeResultLikeCppCommand,
+    ) {
+        use wow_packet::ServerPacket;
+        use wow_packet::packets::combat::{
+            AttackerStateUpdate, HIT_INFO_NORMAL_SWING, VICTIM_STATE_HIT,
+        };
+        use wow_packet::packets::movement::MonsterMoveStop;
+
+        // Re-gate on arrival: a command resolved for one incarnation must not
+        // land on a reconnect, another character, or another map.
+        if self.state() != crate::session::SessionState::LoggedIn {
+            return;
+        }
+        if self.player_guid() != Some(command.attacker_guid) {
+            return;
+        }
+        if self.player_map_id_like_cpp() != command.map_id {
+            return;
+        }
+        let session_instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        if session_instance_id != command.instance_id {
+            return;
+        }
+
+        if let Some(swing_error) = command.swing_error_after {
+            self.set_player_attack_swing_error_like_cpp(swing_error);
+        }
+
+        // The construction below is `run_combat_tick`'s tail verbatim; the
+        // constants and field order are what make the bytes identical.
+        if let Some(victim_guid) = command.victim_guid {
+            for swing in &command.swings {
+                self.send_raw_packet(
+                    &AttackerStateUpdate {
+                        attacker: command.attacker_guid,
+                        victim: victim_guid,
+                        hit_info: HIT_INFO_NORMAL_SWING,
+                        damage: swing.damage as i32,
+                        over_damage: swing.over_damage,
+                        victim_state: VICTIM_STATE_HIT,
+                        school_mask: 1,
+                        target_level: command.target_level,
+                        expansion: 2,
+                    }
+                    .to_bytes(),
+                );
+            }
+        }
+
+        if let (Some(values_update), Some(victim_guid)) =
+            (command.victim_values_update.as_ref(), command.victim_guid)
+            && self.client_visible_guids_like_cpp.contains(&victim_guid)
+            && let Some(update) = self.represented_unit_values_update_to_update_object_like_cpp(
+                victim_guid,
+                command.map_id,
+                values_update,
+            )
+        {
+            self.send_raw_packet(&update.to_bytes());
+        }
+
+        if let Some(kill) = command.killed_creature.as_ref() {
+            self.queue_pending_creature_kill_like_cpp(
+                command.attacker_guid,
+                kill.creature_guid,
+                kill.creature_entry,
+                kill.creature_level,
+            );
+            if let Some((current_pos, spline_id)) = kill.move_stop {
+                self.send_raw_packet(
+                    &MonsterMoveStop {
+                        mover_guid: kill.creature_guid,
+                        current_pos,
+                        spline_id,
+                    }
+                    .to_bytes(),
+                );
+            }
+            self.send_raw_packet(
+                &SAttackStop {
+                    attacker: command.attacker_guid,
+                    victim: kill.creature_guid,
+                    now_dead: true,
+                }
+                .to_bytes(),
+            );
+        }
+
+        if let Some(combat_target) = command.combat_target_after {
+            self.combat_target = combat_target;
+        }
+        if let Some(in_combat) = command.in_combat_after {
+            self.set_in_combat_like_cpp(in_combat);
+        }
+    }
+
     /// CMSG_ATTACK_SWING — client requests to attack a target.
     ///
     /// The target must be a known creature in the current map.

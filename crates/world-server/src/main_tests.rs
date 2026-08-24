@@ -34,7 +34,7 @@ use super::{
     build_loaded_grid_area_trigger_record_like_cpp,
     build_loaded_grid_creature_respawn_record_like_cpp,
     build_loaded_grid_creature_spawn_group_spawn_record_like_cpp,
-    build_loaded_grid_gameobject_respawn_record_like_cpp,
+    build_loaded_grid_gameobject_respawn_record_like_cpp, build_tap_group_index_like_cpp,
     canonical_map_update_tick_set_inactive_like_cpp, clear_online_accounts_sql_like_cpp,
     collect_legacy_creature_aggro_candidates_like_cpp,
     collect_legacy_creature_aggro_candidates_with_canonical_like_cpp,
@@ -3752,6 +3752,92 @@ fn updates_enable_databases_mask_matches_cpp() {
         DATABASE_MASK_ALL_LIKE_CPP,
         DATABASE_LOGIN_LIKE_CPP
     ));
+}
+
+/// The sessionless tap index must answer what the session answered.
+///
+/// `WorldSession::current_group_member_guids_for_tap_like_cpp` reads the
+/// session's own `group_guid` mirror plus the registry. The tick owner has no
+/// session, so it asks the membership authority directly — and the two must
+/// agree, member for member, or relocating the melee phase would silently
+/// change who is tapped in (#28).
+#[test]
+fn sessionless_tap_group_index_matches_the_session_answer_like_cpp() {
+    use wow_social::group::{GroupInfo, GroupRegistry};
+
+    let leader = ObjectGuid::create_player(1, 6_001);
+    let second = ObjectGuid::create_player(1, 6_002);
+    let third = ObjectGuid::create_player(1, 6_003);
+    let ungrouped = ObjectGuid::create_player(1, 6_004);
+
+    let registry = Arc::new(GroupRegistry::default());
+    let mut group = GroupInfo::new(leader);
+    assert!(group.add_member(second));
+    assert!(group.add_member(third));
+    let group_guid = group.group_guid;
+    registry.register_group_like_cpp(group_guid, group);
+
+    let index = build_tap_group_index_like_cpp(Some(&registry));
+
+    // Every member sees the others and never itself — the exact contract of
+    // `current_group_member_guids_for_tap_like_cpp`.
+    for (member, expected) in [
+        (leader, vec![second, third]),
+        (second, vec![leader, third]),
+        (third, vec![leader, second]),
+    ] {
+        let mut actual = index.get(&member).cloned().unwrap_or_default();
+        actual.sort();
+        let mut expected = expected;
+        expected.sort();
+        assert_eq!(actual, expected, "tap group for {member:?}");
+        assert!(!actual.contains(&member), "a member never taps itself in");
+    }
+
+    assert!(
+        index.get(&ungrouped).is_none(),
+        "an ungrouped player has no tap group, as the session returns an empty vec"
+    );
+    assert!(
+        build_tap_group_index_like_cpp(None).is_empty(),
+        "no registry means no tap groups, not a panic"
+    );
+}
+
+/// The tick owner is decided once, before the loop that reads it starts.
+///
+/// A flip after `spawn_legacy_creature_runtime_update_loop_like_cpp` is the only
+/// remaining window in which the loop and a session can both tick the same
+/// creature, so the single production call site is asserted rather than left to
+/// convention (#28).
+#[test]
+fn set_tick_owner_has_exactly_one_production_call_site_before_the_loop_spawns() {
+    let app = include_str!("app.rs");
+    let calls: Vec<_> = app.match_indices("set_tick_owner(").collect();
+    assert_eq!(
+        calls.len(),
+        1,
+        "production must decide the tick owner exactly once, found {}",
+        calls.len()
+    );
+    let spawn = app
+        .find("spawn_legacy_creature_runtime_update_loop_like_cpp(")
+        .expect("the global legacy creature loop is spawned in app.rs");
+    assert!(
+        calls[0].0 < spawn,
+        "the owner must be set before the loop that reads it is spawned"
+    );
+
+    for source in [
+        include_str!("lib.rs"),
+        include_str!("runtime/delivery.rs"),
+        include_str!("runtime/map.rs"),
+    ] {
+        assert!(
+            !source.contains("set_tick_owner("),
+            "only app.rs may decide the tick owner"
+        );
+    }
 }
 
 #[test]

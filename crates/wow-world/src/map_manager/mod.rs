@@ -1875,6 +1875,31 @@ pub struct MapManager {
 /// Shared reference type for the MapManager.
 pub type SharedMapManager = Arc<RwLock<MapManager>>;
 
+/// Read the runtime tick owner from a shared manager under one poison policy.
+///
+/// The owner decided who ticks creatures, and the two readers disagreed about a
+/// poisoned lock. The session read it as `mm.read().ok()` falling back to
+/// [`RuntimeTickOwner::Session`], while every tick body reads through the poison
+/// with `unwrap_or_else(|poisoned| poisoned.into_inner())`. A poisoned legacy
+/// lock therefore told the session "you own the tick" and the global loop "you
+/// own the tick" at the same time, and the creature resolved twice (#28).
+///
+/// One function, one policy: read through the poison, exactly as the tick
+/// bodies do. A poisoned lock means some thread panicked mid-mutation, which is
+/// a reason to disconnect a session — not a reason to silently hand ownership
+/// back to it.
+///
+/// Returning a `Copy` value is the other half of the guarantee. The owner cannot
+/// be read while holding a guard, so no caller can acquire the canonical map
+/// lock underneath a legacy one just to find out who owns the tick.
+#[must_use]
+pub fn shared_runtime_tick_owner_like_cpp(manager: &SharedMapManager) -> RuntimeTickOwner {
+    manager
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .tick_owner()
+}
+
 /// Convert world X coordinate to grid X coordinate.
 /// Uses floor() to handle negative coordinates correctly.
 pub fn world_to_grid_x(world_x: f32) -> i16 {
