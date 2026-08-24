@@ -76,6 +76,8 @@
     230,
     231,
     270,
+    359,
+    297,
     153
   ],
   "issues": [
@@ -443,6 +445,30 @@
         183,
         187,
         200
+      ]
+    },
+    {
+      "number": 359,
+      "state": "open",
+      "title": "[ARCH.P4.1a] Retire the dispatcher's 479 match arms in favour of the registration that already exists",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        152
+      ]
+    },
+    {
+      "number": 297,
+      "state": "open",
+      "title": "[ARCH.P4.1] Promote the Session kernel to a wow-session crate",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        359
       ]
     },
     {

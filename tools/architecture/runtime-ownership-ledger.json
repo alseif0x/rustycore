@@ -1828,9 +1828,11 @@
           "total_lines": 170300,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
-            153
+            153,
+            297,
+            359
           ],
-          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it."
+          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #297 owns the kernel promotion and #359 the dispatcher decoupling that unblocks it; #252 owns the gameplay mirror. Until they land this row is a reviewed exception to the epic's 4,000-line signal, not a target."
         },
         {
           "path": "crates/wow-map/src/map/mod.rs",
