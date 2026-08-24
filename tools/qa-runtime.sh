@@ -44,6 +44,18 @@ QA_GIT_DIR="${QA_GIT_DIR:-$REPO_ROOT}"
 # Per-account bot passwords. The login-smoke wrapper loads this file; the bot
 # binary does not, so a run that invokes the binary directly must.
 QA_ENV_FILE="${QA_ENV_FILE:-$REPO_ROOT/tools/wow-test-bot/.env.local}"
+# The deterministic loot fixtures. `loot-item` kills one creature, so the guard
+# lowers that creature's HealthModifier before the world starts and restores it
+# afterwards. The guard itself is the shared, PM2-free one the capture wrappers
+# use; #373 makes this the second caller rather than a second copy.
+QA_FIXTURE_GUARD="${QA_FIXTURE_GUARD:-$REPO_ROOT/crates/capture-diff/scripts/loot-fixture-common.sh}"
+QA_LOOT_FIXTURE_DB_CONF="${QA_LOOT_FIXTURE_DB_CONF:-/home/server/trinity-legacy-install/etc/worldserver.conf}"
+QA_LOOT_FIXTURE_ENTRY="${QA_LOOT_FIXTURE_ENTRY:-21779}"
+QA_LOOT_FIXTURE_EXPECTED_HEALTH_MODIFIER="${QA_LOOT_FIXTURE_EXPECTED_HEALTH_MODIFIER:-1}"
+QA_LOOT_FIXTURE_TEMP_HEALTH_MODIFIER="${QA_LOOT_FIXTURE_TEMP_HEALTH_MODIFIER:-0.0001}"
+# The chest scenario's guard still lives inside the PM2-driven capture wrapper
+# and was never extracted (#373). Checked before anything is stopped.
+QA_LOOT_RACE_CHEST_SPAWN="${QA_LOOT_RACE_CHEST_SPAWN:-9106001}"
 
 DRY_RUN=0
 ALLOW_RUNTIME_QA=0
@@ -56,6 +68,15 @@ RESTORE_FROM=""
 ORIGINAL_SHA=""
 LIVE_PATH=""
 
+# Globals the shared fixture guard reads. It restores only what it armed, so a
+# run that never reached the mutation leaves these alone.
+LOOT_FIXTURE_DB_CONF=""
+LOOT_FIXTURE_ENTRY=""
+LOOT_FIXTURE_EXPECTED_HEALTH_MODIFIER=""
+LOOT_FIXTURE_TEMP_HEALTH_MODIFIER=""
+LOOT_FIXTURE_SNAPSHOT_READY=0
+LOOT_FIXTURE_CLEANUP_MARKER=""
+
 usage() {
   cat <<'USAGE'
 RustyCore guarded runtime QA
@@ -66,7 +87,9 @@ Usage:
 Commands:
   self-test     Exercise every guard and the restore path against fake services.
   snapshot      Print the live world build identity and exit. Touches nothing.
-  loot-race     Swap in a build, run the destructive two-session loot smoke, restore.
+  loot-race     Swap in a build, run the destructive two-session chest smoke, restore.
+  loot-item     Swap in a build, guard one creature's health, run the destructive
+                creature-kill capture, restore both the fixture and the build.
 
 Options:
   --dry-run                              Print the plan; start, stop and copy nothing.
@@ -197,13 +220,51 @@ restore_live_build() {
     restore_status=1
     warn "$QA_SERVICE did not come back up within ${QA_READY_TIMEOUT_SECONDS}s"
   fi
+  # The world fixture is restored under the same trap as the build: a scenario
+  # that mutates creature health and dies must not leave a one-hit-point
+  # creature in the world (#373). The guard restores only what it armed.
+  if ((LOOT_FIXTURE_SNAPSHOT_READY == 1)); then
+    log "Restoring the loot fixture"
+    if restore_creature_health_fixture_guard; then
+      log "Loot fixture restored"
+    else
+      restore_status=1
+      warn "the loot fixture was NOT restored; creature ${LOOT_FIXTURE_ENTRY} may still have HealthModifier ${LOOT_FIXTURE_TEMP_HEALTH_MODIFIER}"
+    fi
+  fi
   if ((restore_status != 0)); then
-    printf 'error: THE LIVE BUILD WAS NOT RESTORED CLEANLY. Original kept at %s\n' \
+    printf 'error: THE LIVE BUILD OR FIXTURE WAS NOT RESTORED CLEANLY. Original kept at %s\n' \
       "$RESTORE_FROM" >&2
     exit 70
   fi
   log "Original build restored and serving"
   exit "$status"
+}
+
+# Load the shared fixture guard. It is source-only and documents the globals a
+# caller must define; this sets them from the QA knobs above.
+assert_chest_fixture_present() {
+  arm_loot_fixture_guard
+  local chest_rows
+  chest_rows="$(loot_fixture_world_mysql -e \
+    "SELECT COUNT(*) FROM gameobject WHERE guid = ${QA_LOOT_RACE_CHEST_SPAWN}")" \
+    || die "could not query the chest fixture spawn"
+  [[ "$chest_rows" == "1" ]] || die \
+    "chest fixture spawn ${QA_LOOT_RACE_CHEST_SPAWN} is absent, and this harness cannot install it: that guard still lives in crates/capture-diff/scripts/capture-rust.sh, which drives PM2 (#373). Use the loot-item command for a creature kill, or install the chest fixture first."
+}
+
+arm_loot_fixture_guard() {
+  [[ -r "$QA_FIXTURE_GUARD" ]] || die "fixture guard is missing: $QA_FIXTURE_GUARD"
+  [[ -r "$QA_LOOT_FIXTURE_DB_CONF" ]] \
+    || die "fixture guard needs a readable world config: $QA_LOOT_FIXTURE_DB_CONF"
+  LOOT_FIXTURE_DB_CONF="$QA_LOOT_FIXTURE_DB_CONF"
+  LOOT_FIXTURE_ENTRY="$QA_LOOT_FIXTURE_ENTRY"
+  LOOT_FIXTURE_EXPECTED_HEALTH_MODIFIER="$QA_LOOT_FIXTURE_EXPECTED_HEALTH_MODIFIER"
+  LOOT_FIXTURE_TEMP_HEALTH_MODIFIER="$QA_LOOT_FIXTURE_TEMP_HEALTH_MODIFIER"
+  # shellcheck source=/dev/null
+  source "$QA_FIXTURE_GUARD"
+  load_loot_fixture_database_credentials \
+    || die "could not load fixture database credentials from $QA_LOOT_FIXTURE_DB_CONF"
 }
 
 write_report() {
@@ -278,6 +339,11 @@ run_loot_race() {
     return 0
   fi
 
+  # This scenario needs a wrapper-installed chest spawn, and the guard that
+  # installs it was never extracted from the PM2-driven capture wrapper (#373).
+  # Checked before the service is stopped, not after the swap.
+  assert_chest_fixture_present
+
   local identity
   identity="$(live_identity)"
   packet_dump_absent || die "a packet dump directory is configured; refusing to run QA"
@@ -337,6 +403,108 @@ run_loot_race() {
   return "$bot_status"
 }
 
+# One creature kill, under the guarded swap.
+#
+# #373: this is what #28's stop-condition probe needs and the chest scenario
+# cannot provide. The fixture is a temporarily lowered HealthModifier on one
+# creature template, applied before the candidate starts — the map reads it at
+# startup — and restored by the same trap that restores the build.
+run_loot_item() {
+  ((ALLOW_RUNTIME_QA == 1)) || die \
+    "loot-item stops and starts $QA_SERVICE; rerun with --allow-runtime-qa"
+  ((ACK_LOOT_RACE == 1)) || die \
+    "loot-item kills an exact overworld creature fixture and mutates two disposable characters; rerun with --ack-disposable-overworld-loot-race"
+
+  LIVE_PATH="$QA_LIVE_DIR/$QA_LIVE_NAME"
+  local candidate="${WORLD_EXEC:-$REPO_ROOT/target/release/world-server}"
+  [[ -x "$candidate" ]] || die "candidate build is not executable: $candidate"
+  [[ -f "$LIVE_PATH" ]] || die "no live build at $LIVE_PATH"
+  [[ -x "$QA_BOT" ]] || die "QA bot is not built: $QA_BOT"
+  [[ -x "$QA_SMOKE" ]] || die "smoke wrapper is missing: $QA_SMOKE"
+  require_clean_worktree
+  have_bot_credentials || die \
+    "no bot credentials: set WOW_BOT_PASSWORD or provide $QA_ENV_FILE before swapping a build"
+  arm_loot_fixture_guard
+
+  local candidate_sha
+  candidate_sha="$(sha256_of "$candidate")"
+
+  if ((DRY_RUN == 1)); then
+    log "Dry run: nothing is stopped, copied, mutated or started"
+    printf 'would snapshot  %s\n' "$LIVE_PATH"
+    printf 'would install   %s (%s)\n' "$candidate" "$candidate_sha"
+    printf 'would guard     creature %s HealthModifier %s -> %s\n' \
+      "$QA_LOOT_FIXTURE_ENTRY" "$QA_LOOT_FIXTURE_EXPECTED_HEALTH_MODIFIER" \
+      "$QA_LOOT_FIXTURE_TEMP_HEALTH_MODIFIER"
+    printf 'would run       %s with WOW_BOT_LOOT_ITEM_CAPTURE=1\n' "$QA_SMOKE"
+    printf 'would restore   the fixture and the snapshot on every exit path\n'
+    return 0
+  fi
+
+  local identity
+  identity="$(live_identity)"
+  packet_dump_absent || die "a packet dump directory is configured; refusing to run QA"
+  ORIGINAL_SHA="$(cut -f3 <<<"$identity")"
+  local pid
+  pid="$(cut -f1 <<<"$identity")"
+  ports_ready "$pid" || die "ports $QA_WORLD_PORT/$QA_INSTANCE_PORT are not owned by PID $pid"
+  log "Live build $ORIGINAL_SHA serving on PID $pid"
+
+  RESTORE_FROM="$(mktemp "${TMPDIR:-/tmp}/rustycore-live-build.XXXXXX")"
+  cp -- "$LIVE_PATH" "$RESTORE_FROM"
+  [[ "$(sha256_of "$RESTORE_FROM")" == "$ORIGINAL_SHA" ]] || die "snapshot copy does not match"
+  RESTORE_PENDING=1
+  trap restore_live_build EXIT
+  trap 'exit 130' HUP INT TERM
+
+  # The fixture must be in place before the world starts: the map generates the
+  # creature's health from the template at load time.
+  # shellcheck disable=SC2086
+  $QA_SYSTEMCTL stop "$QA_SERVICE"
+  log "Arming the loot fixture"
+  apply_creature_health_fixture_guard || die "could not arm the loot fixture"
+
+  log "Installing the candidate build $candidate_sha"
+  cp -- "$candidate" "$LIVE_PATH"
+  # shellcheck disable=SC2086
+  $QA_SYSTEMCTL start "$QA_SERVICE"
+  local candidate_pid
+  candidate_pid="$(wait_until_serving)" || die "$QA_SERVICE did not come up with the candidate"
+  log "Candidate serving on PID $candidate_pid"
+
+  local bot_status=0
+  load_bot_environment
+  [[ -d "$QA_BOT_DIR" ]] || die "bot directory is missing: $QA_BOT_DIR"
+  mkdir -p "$QA_JOURNAL_DIR"
+  chmod 700 "$QA_JOURNAL_DIR"
+  [[ -d "$QA_JOURNAL_DIR" && ! -L "$QA_JOURNAL_DIR" ]] \
+    || die "fixture-journal directory must be a real directory: $QA_JOURNAL_DIR"
+  local journal="$QA_JOURNAL_DIR/fixture-$$-$(date -u +%Y%m%dT%H%M%SZ).journal"
+  [[ ! -e "$journal" && ! -e "${journal}.cleanup-complete" ]] \
+    || die "fixture journal path is not fresh: $journal"
+  log "Fixture recovery journal: $journal"
+  ( cd "$QA_BOT_DIR" && exec timeout --foreground --signal=TERM --kill-after=30 \
+      "${QA_BOT_TIMEOUT_SECONDS}s" env \
+      WOW_BOT_LOOT_ITEM_CAPTURE=1 \
+      WOW_BOT_ACK_DISPOSABLE_OVERWORLD_LOOT_RACE=1 \
+      WOW_BOT_FIXTURE_JOURNAL="$journal" \
+      WOW_BOT_ENSURE_TEST_ACCOUNTS=0 \
+      "$QA_SMOKE" ) || bot_status=$?
+  if [[ -e "$journal" ]]; then
+    warn "fixture journal $journal survived the run; the world fixture is still mutated"
+    warn "recover it with: cd $QA_BOT_DIR && WOW_BOT_FIXTURE_JOURNAL=$journal ./target/debug/wow-test-bot --recover-loot-fixture"
+    ((bot_status == 0)) && bot_status=75
+  fi
+  if ((bot_status == 0)); then
+    log "Loot-item capture passed"
+  else
+    warn "loot-item capture failed with status $bot_status"
+  fi
+  write_report loot-item "$([[ $bot_status -eq 0 ]] && echo passed || echo failed)" \
+    "$candidate_sha" "$bot_status"
+  return "$bot_status"
+}
+
 while (($#)); do
   case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
@@ -367,6 +535,13 @@ case "$COMMAND" in
     exec 9>"$QA_LOCK"
     flock -n 9 || die "another runtime QA run holds $QA_LOCK"
     run_loot_race
+    ;;
+  loot-item)
+    require_command ss
+    require_command timeout
+    exec 9>"$QA_LOCK"
+    flock -n 9 || die "another runtime QA run holds $QA_LOCK"
+    run_loot_item
     ;;
   help) usage ;;
   *) usage >&2; die "unknown command: $COMMAND" ;;

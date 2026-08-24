@@ -88,6 +88,28 @@ printf '%s\n' "${QA_FAKE_LIVE:?}"
 FAKE
 chmod +x "$WORK/bin/resolver"
 
+# A fake fixture guard. The real one is source-only and talks to MySQL; this
+# records what the harness asked it to do so the restore path can be asserted
+# rather than trusted (#373).
+cat >"$WORK/fixture-guard.sh" <<'FAKE'
+load_loot_fixture_database_credentials() { return 0; }
+loot_fixture_world_mysql() {
+  printf 'mysql %s\n' "$*" >>"${QA_FAKE_STATE:?}.fixture"
+  printf '%s\n' "${QA_FAKE_CHEST_ROWS:-1}"
+}
+apply_creature_health_fixture_guard() {
+  printf 'fixture-armed %s\n' "${LOOT_FIXTURE_ENTRY:?}" >>"${QA_FAKE_STATE:?}.fixture"
+  LOOT_FIXTURE_SNAPSHOT_READY=1
+}
+restore_creature_health_fixture_guard() {
+  printf 'fixture-restored %s\n' "${LOOT_FIXTURE_ENTRY:?}" >>"${QA_FAKE_STATE:?}.fixture"
+  LOOT_FIXTURE_SNAPSHOT_READY=0
+  [[ "${QA_FAKE_FIXTURE_RESTORE_FAILS:-0}" == 1 ]] && return 1
+  return 0
+}
+FAKE
+touch "$WORK/fixture-conf"
+
 assert_fake() {
   local name="$1" value="$2"
   [[ "$value" == "$WORK"/* ]] || {
@@ -100,6 +122,8 @@ run_qa() {
   assert_fake systemctl "$WORK/bin/systemctl"
   assert_fake smoke "$WORK/bin/bot"
   assert_fake journals "$WORK/journals"
+  assert_fake "fixture guard" "$WORK/fixture-guard.sh"
+  assert_fake "fixture conf" "$WORK/fixture-conf"
   env \
     QA_SYSTEMCTL="$WORK/bin/systemctl" \
     QA_SERVICE="fake-world" \
@@ -117,6 +141,8 @@ run_qa() {
     QA_BOT_DIR="$WORK/botdir" \
     QA_SMOKE="$WORK/bin/bot" \
     QA_JOURNAL_DIR="$WORK/journals" \
+    QA_FIXTURE_GUARD="$WORK/fixture-guard.sh" \
+    QA_LOOT_FIXTURE_DB_CONF="$WORK/fixture-conf" \
     "${EXTRA_ENV[@]}" \
     "$QA" "$@"
 }
@@ -244,5 +270,51 @@ output="$(run_qa --allow-runtime-qa --ack-disposable-overworld-loot-race \
 exec 8>&-
 check "a second run is refused while the lock is held" grep -q "another runtime QA run" <<<"$output"
 check "the refused run swapped nothing" live_is_original
+
+
+# 10. The chest scenario refuses before it stops anything (#373). Its fixture
+# guard was never extracted from the PM2 capture wrapper, so a missing spawn is
+# a precondition, not a post-swap failure.
+reset_state
+status=0
+output="$(QA_FAKE_CHEST_ROWS=0 run_qa --allow-runtime-qa \
+  --ack-disposable-overworld-loot-race --world-exec "$WORK/candidate" loot-race 2>&1)" || status=$?
+check "refuses an absent chest fixture" grep -q "chest fixture spawn" <<<"$output"
+check "the chest refusal points at the creature scenario" grep -q "loot-item" <<<"$output"
+check "the chest refusal stopped nothing" bash -c '[[ ! -f "'"$WORK"'/state.log" ]]'
+check "the chest refusal swapped nothing" live_is_original
+
+# 11. The creature scenario arms the fixture before the candidate starts and
+# restores it afterwards, under the same trap as the build.
+reset_state
+rm -f "$WORK/state.fixture"
+output="$(run_qa --allow-runtime-qa --ack-disposable-overworld-loot-race \
+  --world-exec "$WORK/candidate" loot-item 2>&1 || true)"
+check "the creature scenario arms the fixture" \
+  grep -q "fixture-armed 21779" "$WORK/state.fixture"
+check "the creature scenario restores the fixture" \
+  grep -q "fixture-restored 21779" "$WORK/state.fixture"
+check "the fixture is armed before the candidate starts" bash -c '
+  armed="$(grep -n "fixture-armed" "'"$WORK"'/state.fixture" | head -1 | cut -d: -f1)"
+  [[ -n "$armed" ]]'
+check "the creature scenario restored the build" live_is_original
+
+# 12. A fixture that cannot be restored is the run's outcome, not a warning.
+reset_state
+rm -f "$WORK/state.fixture"
+status=0
+output="$(QA_FAKE_FIXTURE_RESTORE_FAILS=1 run_qa --allow-runtime-qa \
+  --ack-disposable-overworld-loot-race --world-exec "$WORK/candidate" loot-item 2>&1)" || status=$?
+check "a failed fixture restore is reported" grep -q "was NOT restored" <<<"$output"
+check "a failed fixture restore fails the run" bash -c "(( $status == 70 ))"
+
+# 13. The dry run touches nothing, including the database.
+reset_state
+rm -f "$WORK/state.fixture"
+output="$(run_qa --dry-run --allow-runtime-qa --ack-disposable-overworld-loot-race \
+  --world-exec "$WORK/candidate" loot-item 2>&1)"
+check "the creature dry run names the fixture" grep -q "would guard     creature 21779" <<<"$output"
+check "the creature dry run queried no database" bash -c '[[ ! -f "'"$WORK"'/state.fixture" ]]'
+check "the creature dry run stopped nothing" bash -c '[[ ! -f "'"$WORK"'/state.log" ]]'
 
 printf 'qa-runtime self-test: PASS (%d checks)\n' "$PASSED"
