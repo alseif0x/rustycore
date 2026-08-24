@@ -34,7 +34,7 @@ use super::{
     build_loaded_grid_area_trigger_record_like_cpp,
     build_loaded_grid_creature_respawn_record_like_cpp,
     build_loaded_grid_creature_spawn_group_spawn_record_like_cpp,
-    build_loaded_grid_gameobject_respawn_record_like_cpp,
+    build_loaded_grid_gameobject_respawn_record_like_cpp, build_tap_group_index_like_cpp,
     canonical_map_update_tick_set_inactive_like_cpp, clear_online_accounts_sql_like_cpp,
     collect_legacy_creature_aggro_candidates_like_cpp,
     collect_legacy_creature_aggro_candidates_with_canonical_like_cpp,
@@ -3752,6 +3752,56 @@ fn updates_enable_databases_mask_matches_cpp() {
         DATABASE_MASK_ALL_LIKE_CPP,
         DATABASE_LOGIN_LIKE_CPP
     ));
+}
+
+/// The sessionless tap index must answer what the session answered.
+///
+/// `WorldSession::current_group_member_guids_for_tap_like_cpp` reads the
+/// session's own `group_guid` mirror plus the registry. The tick owner has no
+/// session, so it asks the membership authority directly — and the two must
+/// agree, member for member, or relocating the melee phase would silently
+/// change who is tapped in (#28).
+#[test]
+fn sessionless_tap_group_index_matches_the_session_answer_like_cpp() {
+    use wow_social::group::{GroupInfo, GroupRegistry};
+
+    let leader = ObjectGuid::create_player(1, 6_001);
+    let second = ObjectGuid::create_player(1, 6_002);
+    let third = ObjectGuid::create_player(1, 6_003);
+    let ungrouped = ObjectGuid::create_player(1, 6_004);
+
+    let registry = Arc::new(GroupRegistry::default());
+    let mut group = GroupInfo::new(leader);
+    assert!(group.add_member(second));
+    assert!(group.add_member(third));
+    let group_guid = group.group_guid;
+    registry.register_group_like_cpp(group_guid, group);
+
+    let index = build_tap_group_index_like_cpp(Some(&registry));
+
+    // Every member sees the others and never itself — the exact contract of
+    // `current_group_member_guids_for_tap_like_cpp`.
+    for (member, expected) in [
+        (leader, vec![second, third]),
+        (second, vec![leader, third]),
+        (third, vec![leader, second]),
+    ] {
+        let mut actual = index.get(&member).cloned().unwrap_or_default();
+        actual.sort();
+        let mut expected = expected;
+        expected.sort();
+        assert_eq!(actual, expected, "tap group for {member:?}");
+        assert!(!actual.contains(&member), "a member never taps itself in");
+    }
+
+    assert!(
+        index.get(&ungrouped).is_none(),
+        "an ungrouped player has no tap group, as the session returns an empty vec"
+    );
+    assert!(
+        build_tap_group_index_like_cpp(None).is_empty(),
+        "no registry means no tap groups, not a panic"
+    );
 }
 
 /// The tick owner is decided once, before the loop that reads it starts.

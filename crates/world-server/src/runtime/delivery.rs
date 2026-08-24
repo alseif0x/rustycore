@@ -870,6 +870,37 @@ pub(crate) fn deliver_creature_attack_start_commands_like_cpp(
 /// Apply map-owned creature-vs-creature assistance starts directly to the
 /// canonical map. Player victims use their session command because that
 /// transition also owns session combat state; a creature victim has no
+/// Who shares a tap with each grouped player, for one tick.
+///
+/// `WorldSession::current_group_member_guids_for_tap_like_cpp` answers this from
+/// the session's own `group_guid` mirror plus the registry. The tick owner has
+/// no session, so it asks the membership authority directly and builds the
+/// whole index once per tick rather than per creature (#28).
+///
+/// No map lock is held, and the cost is proportional to grouped players. If it
+/// ever shows up hot, the follow-up is a published group projection — not
+/// re-growing the session mirror.
+pub(crate) fn build_tap_group_index_like_cpp(
+    group_registry: Option<&Arc<wow_social::group::GroupRegistry>>,
+) -> std::collections::HashMap<ObjectGuid, Vec<ObjectGuid>> {
+    let mut index = std::collections::HashMap::new();
+    let Some(group_registry) = group_registry else {
+        return index;
+    };
+    for group in group_registry.snapshots() {
+        for member in &group.members {
+            let others: Vec<ObjectGuid> = group
+                .members
+                .iter()
+                .copied()
+                .filter(|other| other != member)
+                .collect();
+            index.insert(*member, others);
+        }
+    }
+    index
+}
+
 /// `PlayerRegistry` recipient.
 pub(crate) fn apply_canonical_creature_attack_starts_like_cpp(
     commands: &[wow_world::session::mailbox::CreatureAttackStartLikeCppCommand],

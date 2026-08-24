@@ -426,6 +426,12 @@ pub struct PlayerRuntimeRecipient {
     pub is_in_world: bool,
     pub is_alive: bool,
     pub account_id: u32,
+    /// The attacker's published combat mirror.
+    ///
+    /// Whoever owns the creature tick needs it to notice that a session still
+    /// believes it is in combat with a victim the map has already resolved
+    /// away (#28).
+    pub in_combat: bool,
     pub advanced_combat_logging: bool,
     pub committed_visibility: SharedClientVisibleGuidsLikeCpp,
 }
@@ -614,6 +620,7 @@ impl PlayerRegistryEntry {
             is_in_world: self.info.is_in_world,
             is_alive: self.info.is_alive,
             account_id: self.info.account_id,
+            in_combat: self.info.in_combat,
             advanced_combat_logging: self
                 .advanced_combat_logging_enabled_like_cpp
                 .load(Ordering::Relaxed),
