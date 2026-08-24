@@ -514,11 +514,51 @@ def test_planner_contract(repo: Path) -> None:
     assert ratchet in final and ratchet not in quick
     assert len({tuple(command) for command in final}) == len(final)
 
+    # A root-wide path widens the check to the whole workspace. It must not
+    # narrow the tests to nothing: the broader the change, the weaker that made
+    # the gate (#364). With nothing else changed, every library is tested.
     root_groups = runner.grouped_paths(["Cargo.lock"])
     root_workspace = runner.affected_workspace(repo, ["Cargo.lock"], root_groups, metadata)
     assert root_workspace["root_wide"] is True
     assert root_workspace["direct_packages"] == ["a", "b", "c"]
-    assert root_workspace["direct_library_packages"] == []
+    assert root_workspace["direct_library_packages"] == ["a", "b", "c"]
+
+    # With a crate changed alongside it, the root-wide path must not lose the
+    # tests that crate would have got on its own.
+    lock_and_crate = ["Cargo.lock", "crates/a/src/lib.rs"]
+    lock_and_crate_groups = runner.grouped_paths(lock_and_crate)
+    lock_and_crate_workspace = runner.affected_workspace(
+        repo, lock_and_crate, lock_and_crate_groups, metadata
+    )
+    assert lock_and_crate_workspace["root_wide"] is True
+    assert lock_and_crate_workspace["direct_library_packages"] == ["a"]
+
+    # The property both cases exist for: a plan that compiles the workspace
+    # must also run tests. A green gate that ran none is the defect #364 names.
+    for planned_workspace, planned_groups in (
+        (root_workspace, root_groups),
+        (lock_and_crate_workspace, lock_and_crate_groups),
+    ):
+        planned, _ = runner.validation_commands(
+            repo, "final", 2, "base", planned_groups, planned_workspace
+        )
+        assert any(
+            command[:5] == ["cargo", "check", "--locked", "--workspace", "--all-targets"]
+            for command in planned
+        )
+        assert any(command[:2] == ["cargo", "test"] for command in planned), planned
+    # Changing the gate must run the gate's own contract suite, not just a
+    # syntax check (#364).
+    harness_suite = repo / "tools" / "test_validation_v2.py"
+    harness_suite.parent.mkdir(parents=True, exist_ok=True)
+    harness_suite.write_text("fixture\n")
+    for changed in (["tools/validation-v2"], ["tools/test_validation_v2.py"]):
+        harness_groups = runner.grouped_paths(changed)
+        harness_commands, _ = runner.validation_commands(
+            repo, "final", 2, "base", harness_groups, None
+        )
+        assert ["python3", "tools/test_validation_v2.py"] in harness_commands, harness_commands
+
     docs_commands, _ = runner.validation_commands(
         repo, "quick", 2, "base", runner.grouped_paths(["docs/guide.md"]), None
     )
@@ -593,6 +633,10 @@ def test_planner_contract(repo: Path) -> None:
         command[:5] == ["cargo", "check", "--locked", "--workspace", "--all-targets"]
         for command in removed_commands
     )
+    # A removal resolves to no package, so there is nothing narrower to keep:
+    # it tests every library rather than none (#364).
+    assert removed_workspace["direct_library_packages"] == ["a", "b", "c"]
+    assert any(command[:2] == ["cargo", "test"] for command in removed_commands)
 
     # A manifest deleted while its package still resolves is an inconsistent
     # tree, and still fails closed.
