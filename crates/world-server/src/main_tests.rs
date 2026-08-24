@@ -269,9 +269,6 @@ fn player_broadcast_info_fixture_like_cpp(
             in_combat: false,
             liquid_status: 0,
             is_in_world: true,
-            client_visible_guids_like_cpp: Default::default(),
-            advanced_combat_logging_enabled_like_cpp: Default::default(),
-            visibility_refresh_pending_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
             pass_on_group_loot: false,
             enchanting_skill: 0,
@@ -342,6 +339,9 @@ fn player_broadcast_info_fixture_like_cpp(
         send_tx,
         command_tx,
         durable_creature_runtime_commands_like_cpp: Default::default(),
+        client_visible_guids_like_cpp: Default::default(),
+        advanced_combat_logging_enabled_like_cpp: Default::default(),
+        visibility_refresh_pending_like_cpp: Default::default(),
     }
 }
 
@@ -6917,9 +6917,6 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
                 in_combat: false,
                 liquid_status: 0,
                 is_in_world: true,
-                client_visible_guids_like_cpp: Default::default(),
-                advanced_combat_logging_enabled_like_cpp: Default::default(),
-                visibility_refresh_pending_like_cpp: Default::default(),
                 active_loot_rolls: Vec::new(),
                 pass_on_group_loot: false,
                 enchanting_skill: 0,
@@ -6990,6 +6987,9 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
             send_tx,
             command_tx,
             durable_creature_runtime_commands_like_cpp: Default::default(),
+            client_visible_guids_like_cpp: Default::default(),
+            advanced_combat_logging_enabled_like_cpp: Default::default(),
+            visibility_refresh_pending_like_cpp: Default::default(),
         },
         Default::default(),
     );
@@ -10570,11 +10570,9 @@ fn creature_spell_start_go_is_one_atomic_observer_command_without_victim_drain_l
     let (observer_info, _observer_command_rx) =
         make_registry_player_like_cpp(571, 0, Position::new(25.0, 0.0, 0.0, 0.0), true);
     victim_info
-        .info
         .client_visible_guids_like_cpp
         .insert(make_source_guid());
     observer_info
-        .info
         .client_visible_guids_like_cpp
         .insert(make_source_guid());
     registry.register_or_replace(victim_guid, victim_info, Default::default());
@@ -10634,11 +10632,9 @@ fn creature_spell_plan_skips_invisible_observer_but_reaches_victim_like_cpp() {
     // Both viewers already have the caster at client; only range separates
     // them here.
     victim_info
-        .info
         .client_visible_guids_like_cpp
         .insert(make_source_guid());
     invisible_observer_info
-        .info
         .client_visible_guids_like_cpp
         .insert(make_source_guid());
     registry.register_or_replace(victim_guid, victim_info, Default::default());
@@ -10685,10 +10681,9 @@ fn creature_spell_plan_commits_have_at_client_at_resolution_like_cpp() {
     let (unaware_info, _unaware_command_rx) =
         make_registry_player_like_cpp(571, 0, Position::new(25.0, 0.0, 0.0, 0.0), true);
     victim_info
-        .info
         .client_visible_guids_like_cpp
         .insert(make_source_guid());
-    let unaware_visibility = unaware_info.info.client_visible_guids_like_cpp.clone();
+    let unaware_visibility = unaware_info.client_visible_guids_like_cpp.clone();
     registry.register_or_replace(victim_guid, victim_info, Default::default());
     registry.register_or_replace(unaware_guid, unaware_info, Default::default());
 
