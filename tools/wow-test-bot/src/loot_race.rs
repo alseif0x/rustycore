@@ -3823,7 +3823,7 @@ fn validate_guarded_fixture_health(health_modifier: f32, generated_max_health: u
         || generated_max_health != 1
     {
         bail!(
-            "loot fixture must be loaded through the pre-start health guard: expected HealthModifier {GUARDED_FIXTURE_HEALTH_MODIFIER} and generated base health 1, got modifier {health_modifier} and health {generated_max_health}; restart the exact world artifact with RUST_CAPTURE_LOOT_FIXTURE_GUARD=1"
+            "loot fixture must be loaded through the pre-start health guard: expected HealthModifier {GUARDED_FIXTURE_HEALTH_MODIFIER} and generated base health 1, got modifier {health_modifier} and health {generated_max_health}; run this through ./tools/qa-runtime.sh loot-item, which arms the guard before the world starts and restores it afterwards (#373)"
         );
     }
     Ok(())
