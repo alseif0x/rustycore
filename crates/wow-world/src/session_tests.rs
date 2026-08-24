@@ -23,6 +23,8 @@ mod driver;
 mod lifecycle;
 #[path = "session/tests/lifecycle_persistence.rs"]
 mod lifecycle_persistence;
+#[path = "session/tests/mailbox_pump.rs"]
+mod mailbox_pump;
 #[path = "session/tests/routing.rs"]
 mod routing;
 #[path = "session/tests/save_plan_order.rs"]
@@ -135,6 +137,16 @@ fn represented_test_give_player_xp_hook_like_cpp(
         _ => {}
     }
 }
+
+/// How far to backdate a creature's clock so a scheduled assistance call is due.
+///
+/// `schedule_assistance_like_cpp` stores `now_ms() + family_assistance_delay_ms`
+/// as an absolute deadline on that creature's own clock, so backdating by
+/// `delay + 1` only makes it due if the test scheduled within one millisecond of
+/// the clock starting. That held on an idle machine and failed under load
+/// (#369). The margin is the delay plus room for the test to have taken its
+/// time getting there.
+const ASSISTANCE_DELAY_ELAPSED_LIKE_CPP: Duration = Duration::from_millis(1_500 + 250);
 
 fn make_session() -> (
     WorldSession,
@@ -82651,7 +82663,7 @@ fn legacy_creature_call_assistance_accepts_represented_creature_victim_like_cpp(
         .unwrap()
         .find_creature_mut(0, 0, caller_guid)
         .unwrap()
-        .backdate_runtime_clock_for_test(Duration::from_millis(1_501));
+        .backdate_runtime_clock_for_test(ASSISTANCE_DELAY_ELAPSED_LIKE_CPP);
     let assisted = run_legacy_creature_aggro_tick_once_with_config_like_cpp(&manager, &[], config);
 
     assert_eq!(assisted.assistance_starts, 1);
@@ -82794,13 +82806,13 @@ fn legacy_creature_call_assistance_engages_same_faction_after_delay_like_cpp() {
         .unwrap()
         .find_creature_mut(0, 0, caller_guid)
         .unwrap()
-        .backdate_runtime_clock_for_test(Duration::from_millis(1_501));
+        .backdate_runtime_clock_for_test(ASSISTANCE_DELAY_ELAPSED_LIKE_CPP);
     {
         let mut manager = manager.write().unwrap();
         let dead_assistant = manager
             .find_creature_mut(0, 0, dead_assistant_guid)
             .unwrap();
-        dead_assistant.backdate_runtime_clock_for_test(Duration::from_millis(1_501));
+        dead_assistant.backdate_runtime_clock_for_test(ASSISTANCE_DELAY_ELAPSED_LIKE_CPP);
         dead_assistant
             .creature
             .unit_mut()
@@ -82808,14 +82820,14 @@ fn legacy_creature_call_assistance_engages_same_faction_after_delay_like_cpp() {
         let passive = manager
             .find_creature_mut(0, 0, passive_before_due_guid)
             .unwrap();
-        passive.backdate_runtime_clock_for_test(Duration::from_millis(1_501));
+        passive.backdate_runtime_clock_for_test(ASSISTANCE_DELAY_ELAPSED_LIKE_CPP);
         passive
             .creature
             .set_react_state(wow_entities::ReactState::Passive);
         let controlled = manager
             .find_creature_mut(0, 0, controlled_assistant_guid)
             .unwrap();
-        controlled.backdate_runtime_clock_for_test(Duration::from_millis(1_501));
+        controlled.backdate_runtime_clock_for_test(ASSISTANCE_DELAY_ELAPSED_LIKE_CPP);
         controlled
             .creature
             .unit_mut()
@@ -82991,7 +83003,7 @@ fn legacy_creature_overlapping_assistance_uses_later_valid_event_like_cpp() {
                 vec![assistant_guid],
                 1_500,
             ));
-            caller.backdate_runtime_clock_for_test(Duration::from_millis(1_501));
+            caller.backdate_runtime_clock_for_test(ASSISTANCE_DELAY_ELAPSED_LIKE_CPP);
         })
         .unwrap();
     session
@@ -83001,7 +83013,7 @@ fn legacy_creature_overlapping_assistance_uses_later_valid_event_like_cpp() {
                 vec![assistant_guid],
                 1_500,
             ));
-            caller.backdate_runtime_clock_for_test(Duration::from_millis(1_501));
+            caller.backdate_runtime_clock_for_test(ASSISTANCE_DELAY_ELAPSED_LIKE_CPP);
         })
         .unwrap();
     session

@@ -5489,6 +5489,12 @@
           "source_class": "production"
         },
         {
+          "module": "crate::session_commands",
+          "trait_path": null,
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "module": "crate::spell_acquisition::adapter",
           "trait_path": null,
           "cfg": [],
@@ -48985,6 +48991,20 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
+        },
+        {
+          "module": "crate::session_commands",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_session_command_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn apply_session_command_like_cpp (& mut self , command : SessionCommand)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
         },
         {
           "module": "crate::spell_acquisition::adapter",
