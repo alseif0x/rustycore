@@ -657,7 +657,7 @@
     },
     {
       "number": 204,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.1a] Resolve Self constants through the active trait impl",
       "kind": "slice",
       "parents": [
