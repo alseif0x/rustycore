@@ -67,7 +67,9 @@ use wow_entities::{
     normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
 };
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::auth::{
     ConnectTo, ConnectToAddress, ConnectToFailed, ConnectToKey, ConnectToSerial, ResumeComms,
 };

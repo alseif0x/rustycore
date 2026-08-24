@@ -29,7 +29,9 @@ mod travel;
 
 use wow_constants::{ClientOpcodes, ItemExtendedCostFlags};
 use wow_database::{CharStatements, PreparedStatement};
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::chat::{
     JoinChannel, MAX_CHANNEL_NAME_STR_LIKE_CPP, MAX_CHANNEL_PASS_STR_LIKE_CPP,
 };

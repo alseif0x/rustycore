@@ -6,7 +6,9 @@
 use tracing::{debug, info, warn};
 use wow_constants::{ClientOpcodes, ConditionSourceType, ConditionType};
 use wow_core::ObjectGuid;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::misc::{
     ActivateTaxi, ActivateTaxiReply, ERR_TAXITOOFARAWAY_LIKE_CPP, SetTaxiBenchmarkMode,
@@ -21,6 +23,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_activate_taxi",
+        handler: |session, pkt| Box::pin(async move { session.handle_activate_taxi(pkt).await }),
     }
 }
 
@@ -30,6 +33,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_area_trigger",
+        handler: |session, pkt| Box::pin(async move { session.handle_area_trigger(pkt).await }),
     }
 }
 
@@ -39,6 +43,9 @@ inventory::submit! {
         status: SessionStatus::Transfer,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_world_port_response",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_world_port_response(pkt).await })
+        },
     }
 }
 
@@ -48,6 +55,9 @@ inventory::submit! {
         status: SessionStatus::Transfer,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_suspend_token_response",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_suspend_token_response(pkt).await })
+        },
     }
 }
 
@@ -57,6 +67,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_taxi_node_status_query",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_taxi_node_status_query(pkt).await })
+        },
     }
 }
 
@@ -66,6 +79,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_set_taxi_benchmark_mode",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_set_taxi_benchmark_mode(pkt).await })
+        },
     }
 }
 
@@ -75,6 +91,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_update_area_trigger_visual",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_update_area_trigger_visual(pkt).await })
+        },
     }
 }
 

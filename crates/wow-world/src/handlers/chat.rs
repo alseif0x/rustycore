@@ -23,7 +23,9 @@ use wow_chat::validation::validate_message_like_cpp;
 use wow_constants::{ClientOpcodes, UnitState};
 use wow_core::ObjectGuid;
 use wow_core::guid::HighGuid;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::chat::{
     CTextEmote, ChatAddonMessage, ChatAddonMessageTargeted, ChatAddonMessageWhisper, ChatMessage,
     ChatMessageAfk, ChatMessageChannel, ChatMessageDnd, ChatMessageEmote, ChatMessageWhisper,
@@ -66,6 +68,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_say",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::Say).await })
+        },
     }
 }
 
@@ -75,6 +80,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_yell",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::Yell).await })
+        },
     }
 }
 
@@ -84,6 +92,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_party",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::Party).await })
+        },
     }
 }
 
@@ -93,6 +104,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_guild",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::Guild).await })
+        },
     }
 }
 
@@ -102,6 +116,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_officer",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::Officer).await })
+        },
     }
 }
 
@@ -111,6 +128,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_raid",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::Raid).await })
+        },
     }
 }
 
@@ -120,6 +140,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_raid_warning",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::RaidWarning).await })
+        },
     }
 }
 
@@ -129,6 +152,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_instance",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_chat_message(pkt, wow_packet::packets::chat::ChatMsg::InstanceChat).await })
+        },
     }
 }
 
@@ -138,6 +164,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_whisper",
+        handler: |session, pkt| Box::pin(async move { session.handle_chat_whisper(pkt).await }),
     }
 }
 
@@ -147,6 +174,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_channel_message",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_chat_channel_message(pkt).await })
+        },
     }
 }
 
@@ -156,6 +186,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_afk",
+        handler: |session, pkt| Box::pin(async move { session.handle_chat_afk(pkt).await }),
     }
 }
 
@@ -165,6 +196,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_dnd",
+        handler: |session, pkt| Box::pin(async move { session.handle_chat_dnd(pkt).await }),
     }
 }
 
@@ -174,6 +206,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_update_aadc_status",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_update_aadc_status(pkt).await })
+        },
     }
 }
 
@@ -183,6 +218,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_report_ignored",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_chat_report_ignored(pkt).await })
+        },
     }
 }
 
@@ -192,6 +230,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_report_filtered",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_chat_report_filtered(pkt).await })
+        },
     }
 }
 
@@ -201,6 +242,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_emote",
+        handler: |session, pkt| Box::pin(async move { session.handle_chat_emote(pkt).await }),
     }
 }
 
@@ -210,6 +252,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_emote",
+        handler: |session, pkt| Box::pin(async move { session.handle_emote(pkt).await }),
     }
 }
 
@@ -219,6 +262,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_text_emote",
+        handler: |session, pkt| Box::pin(async move { session.handle_text_emote(pkt).await }),
     }
 }
 
@@ -228,6 +272,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_register_addon_prefixes",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_chat_register_addon_prefixes(pkt).await })
+        },
     }
 }
 
@@ -237,6 +284,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_addon_message",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_chat_addon_message(pkt).await })
+        },
     }
 }
 
@@ -246,6 +296,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_addon_message_whisper",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_chat_addon_message_whisper(pkt).await })
+        },
     }
 }
 

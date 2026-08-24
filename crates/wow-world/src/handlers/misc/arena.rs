@@ -5,7 +5,9 @@
 
 use tracing::{debug, warn};
 use wow_constants::ClientOpcodes;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::misc::{
     ArenaTeamAccept, ArenaTeamDecline, ArenaTeamDisband, ArenaTeamLeader, ArenaTeamLeave,
@@ -18,6 +20,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_arena_team_roster",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_arena_team_roster(pkt).await })
+        },
     }
 }
 
@@ -27,6 +32,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_arena_team_accept",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_arena_team_accept(pkt).await })
+        },
     }
 }
 
@@ -36,6 +44,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_arena_team_decline",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_arena_team_decline(pkt).await })
+        },
     }
 }
 
@@ -45,6 +56,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_arena_team_leave",
+        handler: |session, pkt| Box::pin(async move { session.handle_arena_team_leave(pkt).await }),
     }
 }
 
@@ -54,6 +66,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_arena_team_remove",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_arena_team_remove(pkt).await })
+        },
     }
 }
 
@@ -63,6 +78,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_arena_team_disband",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_arena_team_disband(pkt).await })
+        },
     }
 }
 
@@ -72,6 +90,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_arena_team_leader",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_arena_team_leader(pkt).await })
+        },
     }
 }
 
@@ -81,6 +102,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_query_arena_team",
+        handler: |session, pkt| Box::pin(async move { session.handle_query_arena_team(pkt).await }),
     }
 }
 

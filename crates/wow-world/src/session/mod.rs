@@ -13,6 +13,7 @@ mod dispatch;
 mod driver;
 mod lifecycle;
 pub mod mailbox;
+pub mod registry;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 #[cfg(test)]
@@ -214,7 +215,9 @@ use wow_entities::{
     BagValuesUpdate, CONTAINER_DATA_BITS, CONTAINER_DATA_SLOTS_FIRST_BIT,
     CONTAINER_DATA_SLOTS_PARENT_BIT, ContainerDataUpdate, ContainerDataValues,
 };
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus, build_dispatch_table};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use registry::{PacketHandlerEntry, build_dispatch_table};
 use wow_loot::{
     LootClaimLease, LootStoreKind, LootStores, OwnedLootAuthority, OwnedLootAuthorityLifecycle,
     OwnedLootAuthorityStamp, OwnedLootScope, OwnedLootSnapshot,

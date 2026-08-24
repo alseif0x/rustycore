@@ -9,7 +9,7 @@
 //! final `wow-world` test binary. This module snapshots the effective registry:
 //! opcode value/name, handler name, session status, and processing mode.
 
-use wow_handler::PacketHandlerEntry;
+use crate::session::registry::PacketHandlerEntry;
 
 const CONTRACT_SNAPSHOT: &str =
     include_str!("../../../tools/architecture/world-handler-contract.tsv");

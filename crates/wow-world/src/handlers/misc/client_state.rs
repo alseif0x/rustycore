@@ -5,7 +5,9 @@
 
 use tracing::warn;
 use wow_constants::ClientOpcodes;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::misc::{
     LoadingScreenNotify, SetAdvancedCombatLogging, SetCurrencyFlags, ViolenceLevel,
@@ -17,6 +19,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loading_screen_notify",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_loading_screen_notify(pkt).await })
+        },
     }
 }
 
@@ -26,6 +31,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_add_battlenet_friend",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_add_battlenet_friend(pkt).await })
+        },
     }
 }
 
@@ -35,6 +43,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_unhandled_client_null_like_cpp",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_unhandled_client_null_like_cpp(pkt).await })
+        },
     }
 }
 
@@ -44,6 +55,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_set_insert_items_left_to_right",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_set_insert_items_left_to_right(pkt).await })
+        },
     }
 }
 
@@ -53,6 +67,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_unhandled_client_null_like_cpp",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_unhandled_client_null_like_cpp(pkt).await })
+        },
     }
 }
 
@@ -62,6 +79,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_unhandled_client_null_like_cpp",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_unhandled_client_null_like_cpp(pkt).await })
+        },
     }
 }
 
@@ -71,6 +91,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_unhandled_client_null_like_cpp",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_unhandled_client_null_like_cpp(pkt).await })
+        },
     }
 }
 
@@ -80,6 +103,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_unhandled_client_null_like_cpp",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_unhandled_client_null_like_cpp(pkt).await })
+        },
     }
 }
 
@@ -89,6 +115,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_unhandled_client_null_like_cpp",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_unhandled_client_null_like_cpp(pkt).await })
+        },
     }
 }
 
@@ -98,6 +127,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_unhandled_client_null_like_cpp",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_unhandled_client_null_like_cpp(pkt).await })
+        },
     }
 }
 
@@ -107,6 +139,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_client_telemetry_null_like_cpp",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_client_telemetry_null_like_cpp(pkt).await })
+        },
     }
 }
 
@@ -116,6 +151,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_client_telemetry_null_like_cpp",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_client_telemetry_null_like_cpp(pkt).await })
+        },
     }
 }
 
@@ -125,6 +163,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_client_telemetry_null_like_cpp",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_client_telemetry_null_like_cpp(pkt).await })
+        },
     }
 }
 
@@ -134,6 +175,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_client_telemetry_null_like_cpp",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_client_telemetry_null_like_cpp(pkt).await })
+        },
     }
 }
 
@@ -143,6 +187,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_client_telemetry_null_like_cpp",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_client_telemetry_null_like_cpp(pkt).await })
+        },
     }
 }
 
@@ -154,6 +201,9 @@ macro_rules! register_unhandled_threadsafe_null_handler {
                 status: SessionStatus::Authed,
                 processing: PacketProcessing::ThreadSafe,
                 handler_name: "handle_unhandled_client_null_like_cpp",
+                handler: |session, pkt| {
+                    Box::pin(async move { session.handle_unhandled_client_null_like_cpp(pkt).await })
+                },
             }
         }
     };
@@ -185,6 +235,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_violence_level",
+        handler: |session, pkt| Box::pin(async move { session.handle_violence_level(pkt).await }),
     }
 }
 
@@ -194,6 +245,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_override_screen_flash",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_override_screen_flash(pkt).await })
+        },
     }
 }
 
@@ -203,6 +257,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_queued_messages_end",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_queued_messages_end(pkt).await })
+        },
     }
 }
 
@@ -212,6 +269,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_action_bar_toggles",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_set_action_bar_toggles(pkt).await })
+        },
     }
 }
 
@@ -221,6 +281,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_set_advanced_combat_logging",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_set_advanced_combat_logging(pkt).await })
+        },
     }
 }
 
@@ -230,6 +293,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_set_currency_flags",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_set_currency_flags(pkt).await })
+        },
     }
 }
 
@@ -239,6 +305,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_ammo",
+        handler: |session, pkt| Box::pin(async move { session.handle_set_ammo(pkt).await }),
     }
 }
 
@@ -248,6 +315,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_game_event_debug_view_state",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_set_game_event_debug_view_state(pkt).await })
+        },
     }
 }
 
@@ -257,6 +327,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_showing_helm",
+        handler: |session, pkt| Box::pin(async move { session.handle_showing_helm(pkt).await }),
     }
 }
 
@@ -266,6 +337,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_showing_cloak",
+        handler: |session, pkt| Box::pin(async move { session.handle_showing_cloak(pkt).await }),
     }
 }
 
@@ -275,6 +347,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_get_account_character_list",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_get_account_character_list(pkt).await })
+        },
     }
 }
 
@@ -284,6 +359,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_get_account_notifications",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_get_account_notifications(pkt).await })
+        },
     }
 }
 
@@ -293,6 +371,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_report_client_variables",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_report_client_variables(pkt).await })
+        },
     }
 }
 
@@ -302,6 +383,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_report_enabled_addons",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_report_enabled_addons(pkt).await })
+        },
     }
 }
 
@@ -311,6 +395,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_report_frozen_while_loading_map",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_report_frozen_while_loading_map(pkt).await })
+        },
     }
 }
 
@@ -320,6 +407,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_log_streaming_error",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_log_streaming_error(pkt).await })
+        },
     }
 }
 
@@ -329,6 +419,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_complete_cinematic",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_complete_cinematic(pkt).await })
+        },
     }
 }
 
@@ -338,6 +431,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_next_cinematic_camera",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_next_cinematic_camera(pkt).await })
+        },
     }
 }
 
@@ -347,6 +443,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_complete_movie",
+        handler: |session, pkt| Box::pin(async move { session.handle_complete_movie(pkt).await }),
     }
 }
 
@@ -356,6 +453,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_logout_instant",
+        handler: |session, pkt| Box::pin(async move { session.handle_logout_instant(pkt).await }),
     }
 }
 
@@ -365,6 +463,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_spawn_tracking_update",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_spawn_tracking_update(pkt).await })
+        },
     }
 }
 
@@ -374,6 +475,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_time_adjustment_response",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_time_adjustment_response(pkt).await })
+        },
     }
 }
 
@@ -383,6 +487,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_update_spell_visual",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_update_spell_visual(pkt).await })
+        },
     }
 }
 
@@ -392,6 +499,7 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_used_follow",
+        handler: |session, pkt| Box::pin(async move { session.handle_used_follow(pkt).await }),
     }
 }
 
@@ -401,6 +509,9 @@ inventory::submit! {
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_report_keybinding_execution_counts",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_report_keybinding_execution_counts(pkt).await })
+        },
     }
 }
 
@@ -410,6 +521,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_countdown_timer",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_request_countdown_timer(pkt).await })
+        },
     }
 }
 
