@@ -62654,7 +62654,7 @@ impl WorldSession {
     pub(crate) fn runtime_tick_owner_like_cpp(&self) -> RuntimeTickOwner {
         self.map_manager
             .as_ref()
-            .and_then(|mm| mm.read().ok().map(|guard| guard.tick_owner()))
+            .map(crate::map_manager::shared_runtime_tick_owner_like_cpp)
             .unwrap_or(RuntimeTickOwner::Session)
     }
 

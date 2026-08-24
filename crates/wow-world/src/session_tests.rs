@@ -81474,6 +81474,49 @@ async fn two_sessions_sharing_legacy_map_manager_see_same_creature_state() {
 
 // ── RuntimeTickOwner / RuntimeOutput tests (#NEXT.RUNTIME.L3.001) ─────────
 
+/// A poisoned legacy lock must not hand the tick back to the session while the
+/// global loop still believes it owns it.
+///
+/// The two readers used to disagree: the session read the owner as
+/// `mm.read().ok()` and fell back to `Session` on poison, while every tick body
+/// reads through the poison with `unwrap_or_else(|p| p.into_inner())`. Under a
+/// poisoned lock that told both of them they owned the creature tick, and it
+/// resolved twice (#28).
+#[test]
+fn poisoned_legacy_lock_does_not_hand_the_tick_back_to_the_session_like_cpp() {
+    use crate::map_manager::{RuntimeTickOwner, shared_runtime_tick_owner_like_cpp};
+
+    let manager = shared_map_manager();
+    manager
+        .write()
+        .unwrap()
+        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+    // Poison the lock the way a panicking tick would.
+    let poisoning = Arc::clone(&manager);
+    let _ = std::thread::spawn(move || {
+        let _guard = poisoning.write().unwrap();
+        panic!("poison the legacy map manager");
+    })
+    .join();
+    assert!(manager.is_poisoned(), "the fixture must actually poison it");
+
+    // What every tick body sees, reading through the poison.
+    let tick_body_owner = manager
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .tick_owner();
+    assert_eq!(tick_body_owner, RuntimeTickOwner::GlobalLegacy);
+
+    // What the shared reader — and therefore the session — sees. Before #28
+    // this returned `Session`, so both sides ticked the same creature.
+    assert_eq!(
+        shared_runtime_tick_owner_like_cpp(&manager),
+        tick_body_owner,
+        "both readers must agree about who owns the tick, poisoned or not"
+    );
+}
+
 #[test]
 fn runtime_tick_owner_default_is_session() {
     use crate::map_manager::RuntimeTickOwner;

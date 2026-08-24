@@ -3754,6 +3754,42 @@ fn updates_enable_databases_mask_matches_cpp() {
     ));
 }
 
+/// The tick owner is decided once, before the loop that reads it starts.
+///
+/// A flip after `spawn_legacy_creature_runtime_update_loop_like_cpp` is the only
+/// remaining window in which the loop and a session can both tick the same
+/// creature, so the single production call site is asserted rather than left to
+/// convention (#28).
+#[test]
+fn set_tick_owner_has_exactly_one_production_call_site_before_the_loop_spawns() {
+    let app = include_str!("app.rs");
+    let calls: Vec<_> = app.match_indices("set_tick_owner(").collect();
+    assert_eq!(
+        calls.len(),
+        1,
+        "production must decide the tick owner exactly once, found {}",
+        calls.len()
+    );
+    let spawn = app
+        .find("spawn_legacy_creature_runtime_update_loop_like_cpp(")
+        .expect("the global legacy creature loop is spawned in app.rs");
+    assert!(
+        calls[0].0 < spawn,
+        "the owner must be set before the loop that reads it is spawned"
+    );
+
+    for source in [
+        include_str!("lib.rs"),
+        include_str!("runtime/delivery.rs"),
+        include_str!("runtime/map.rs"),
+    ] {
+        assert!(
+            !source.contains("set_tick_owner("),
+            "only app.rs may decide the tick owner"
+        );
+    }
+}
+
 #[test]
 fn legacy_creature_global_runtime_config_defaults_to_cpp_map_owned_runtime() {
     let _guard = TEST_LOCK.lock().expect("test lock poisoned");

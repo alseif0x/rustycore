@@ -1821,8 +1821,8 @@
         {
           "path": "crates/wow-world/src/session/mod.rs",
           "production_lines": 72936,
-          "test_lines": 95949,
-          "total_lines": 168885,
+          "test_lines": 95992,
+          "total_lines": 168928,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153,
@@ -1868,8 +1868,8 @@
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
           "production_lines": 25040,
-          "test_lines": 21536,
-          "total_lines": 46576,
+          "test_lines": 21567,
+          "total_lines": 46607,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153
