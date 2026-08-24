@@ -17,7 +17,9 @@ use wow_entities::{
     GAMEOBJECT_TYPE_SPELL_FOCUS, GAMEOBJECT_TYPE_SPELLCASTER, GAMEOBJECT_TYPE_TRAP,
     GAMEOBJECT_TYPE_UI_LINK, GameObjectTemplateData, MAX_GAMEOBJECT_DATA,
 };
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::CloseInteraction;
@@ -32,6 +34,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_close_interaction",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_close_interaction(pkt).await })
+        },
     }
 }
 
@@ -41,6 +46,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_game_obj_use",
+        handler: |session, pkt| Box::pin(async move { session.handle_game_obj_use(pkt).await }),
     }
 }
 
@@ -50,6 +56,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_game_obj_report_use",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_game_obj_report_use(pkt).await })
+        },
     }
 }
 

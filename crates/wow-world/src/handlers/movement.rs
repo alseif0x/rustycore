@@ -15,11 +15,14 @@
 //! Reference: C++ `WorldSession::HandleMovementOpcode`.
 
 use tracing::{info, trace, warn};
+use wow_packet::ClientPacket;
 
 use wow_constants::ClientOpcodes;
 use wow_constants::movement::MovementFlag;
 use wow_constants::unit::UnitStandStateType;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ServerPacket;
 use wow_packet::packets::movement::{
     ClientPlayerMovement, MoveApplyMovementForceAck, MoveInitActiveMoverComplete, MoveKnockBackAck,
@@ -83,6 +86,7 @@ macro_rules! register_move {
                 status: SessionStatus::LoggedIn,
                 processing: PacketProcessing::ThreadSafe,
                 handler_name: concat!("handle_movement_", stringify!($opcode)),
+                handler: |session, pkt| Box::pin(async move { session.handle_movement(pkt).await }),
             }
         }
     };
@@ -2890,6 +2894,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_active_mover",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::movement::SetActiveMover::read(&mut pkt) {
+                    Ok(mover) => session.handle_set_active_mover(mover).await,
+                    Err(e) => tracing::warn!("Failed to read SetActiveMover: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -2901,6 +2913,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_init_active_mover_complete",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::movement::MoveInitActiveMoverComplete::read(&mut pkt) {
+                    Ok(init) => session.handle_move_init_active_mover_complete(init).await,
+                    Err(e) => tracing::warn!("Failed to read MoveInitActiveMoverComplete: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -2910,6 +2930,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_set_vehicle_rec_id_ack",
+        handler: |session, mut pkt| {
+            Box::pin(async move { let opcode = pkt.client_opcode().unwrap_or(ClientOpcodes::MoveSetVehicleRecIdAck); match wow_packet::packets::vehicle::MoveSetVehicleRecIdAck::read(&mut pkt) { Ok(ack) => session.handle_move_set_vehicle_rec_id_ack(opcode, ack).await, Err(e) => tracing::warn!("Failed to read MoveSetVehicleRecIdAck: {e}"), } })
+        },
     }
 }
 
@@ -2921,6 +2944,9 @@ macro_rules! register_movement_ack_message {
                 status: SessionStatus::LoggedIn,
                 processing: PacketProcessing::ThreadSafe,
                 handler_name: "handle_movement_ack_message",
+                handler: |session, mut pkt| {
+                    Box::pin(async move { let opcode = pkt.client_opcode().unwrap_or(ClientOpcodes::$opcode); match wow_packet::packets::movement::MovementAckMessage::read(&mut pkt) { Ok(ack) => session.handle_movement_ack_message(opcode, ack).await, Err(e) => tracing::warn!("Failed to read MovementAckMessage: {e}"), } })
+                },
             }
         }
     };
@@ -2934,6 +2960,9 @@ macro_rules! register_movement_speed_ack {
                 status: SessionStatus::LoggedIn,
                 processing: PacketProcessing::ThreadSafe,
                 handler_name: "handle_movement_speed_ack",
+                handler: |session, mut pkt| {
+                    Box::pin(async move { let opcode = pkt.client_opcode().unwrap_or(ClientOpcodes::$opcode); match wow_packet::packets::movement::MovementSpeedAck::read(&mut pkt) { Ok(ack) => session.handle_movement_speed_ack(opcode, ack).await, Err(e) => tracing::warn!("Failed to read MovementSpeedAck: {e}"), } })
+                },
             }
         }
     };
@@ -2973,6 +3002,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_knock_back_ack",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::movement::MoveKnockBackAck::read(&mut pkt) {
+                    Ok(ack) => session.handle_move_knock_back_ack(ack).await,
+                    Err(e) => tracing::warn!("Failed to read MoveKnockBackAck: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -2982,6 +3019,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_set_collision_height_ack",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::movement::MoveSetCollisionHeightAck::read(&mut pkt) {
+                    Ok(ack) => session.handle_move_set_collision_height_ack(ack).await,
+                    Err(e) => tracing::warn!("Failed to read MoveSetCollisionHeightAck: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -2991,6 +3036,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_apply_movement_force_ack",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::movement::MoveApplyMovementForceAck::read(&mut pkt) {
+                    Ok(ack) => session.handle_move_apply_movement_force_ack(ack).await,
+                    Err(e) => tracing::warn!("Failed to read MoveApplyMovementForceAck: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -3000,6 +3053,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_remove_movement_force_ack",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::movement::MoveRemoveMovementForceAck::read(&mut pkt) {
+                    Ok(ack) => session.handle_move_remove_movement_force_ack(ack).await,
+                    Err(e) => tracing::warn!("Failed to read MoveRemoveMovementForceAck: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -3009,6 +3070,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_move_time_skipped",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::movement::MoveTimeSkipped::read(&mut pkt) {
+                    Ok(skipped) => session.handle_move_time_skipped(skipped).await,
+                    Err(e) => tracing::warn!("Failed to read MoveTimeSkipped: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -3018,6 +3087,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_spline_done",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::movement::MoveSplineDone::read(&mut pkt) {
+                    Ok(done) => session.handle_move_spline_done(done).await,
+                    Err(e) => tracing::warn!("Failed to read MoveSplineDone: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -3027,5 +3104,13 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_teleport_ack",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::movement::MoveTeleportAck::read(&mut pkt) {
+                    Ok(ack) => session.handle_move_teleport_ack(ack).await,
+                    Err(e) => tracing::warn!("Failed to read MoveTeleportAck: {e}"),
+                }
+            })
+        },
     }
 }

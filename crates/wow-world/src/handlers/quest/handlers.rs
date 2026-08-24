@@ -6,6 +6,7 @@
 //! Quest packet entry points and their handler registrations.
 
 use super::*;
+use wow_packet::ClientPacket;
 
 inventory::submit! {
     PacketHandlerEntry {
@@ -13,6 +14,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_adventure_map_start_quest",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_adventure_map_start_quest(pkt).await })
+        },
     }
 }
 
@@ -22,6 +26,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_quest_giver_status_query",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_quest_giver_status_query(pkt).await })
+        },
     }
 }
 
@@ -31,6 +38,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_quest_giver_hello",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_quest_giver_hello(pkt).await })
+        },
     }
 }
 
@@ -40,6 +50,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_quest_giver_query_quest",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_quest_giver_query_quest(pkt).await })
+        },
     }
 }
 
@@ -49,6 +62,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_quest_giver_accept_quest",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_quest_giver_accept_quest(pkt).await })
+        },
     }
 }
 
@@ -58,6 +74,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_quest_log_remove_quest",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_quest_log_remove_quest(pkt).await })
+        },
     }
 }
 
@@ -67,6 +86,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_query_quest_info",
+        handler: |session, pkt| Box::pin(async move { session.handle_query_quest_info(pkt).await }),
     }
 }
 
@@ -76,6 +96,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_query_quest_completion_npcs",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::query::QueryQuestCompletionNpcs::read(&mut pkt) {
+                    Ok(query) => session.handle_query_quest_completion_npcs(query).await,
+                    Err(e) => tracing::warn!("Failed to read QueryQuestCompletionNpcs: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -85,6 +113,14 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_quest_poi_query",
+        handler: |session, mut pkt| {
+            Box::pin(async move {
+                match wow_packet::packets::query::QuestPoiQuery::read(&mut pkt) {
+                    Ok(query) => session.handle_quest_poi_query(query).await,
+                    Err(e) => tracing::warn!("Failed to read QuestPoiQuery: {e}"),
+                }
+            })
+        },
     }
 }
 
@@ -94,6 +130,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_quest_giver_request_reward",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_quest_giver_request_reward(pkt).await })
+        },
     }
 }
 
@@ -103,6 +142,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_quest_giver_complete_quest",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_quest_giver_complete_quest(pkt).await })
+        },
     }
 }
 
@@ -112,6 +154,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_quest_giver_choose_reward",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_quest_giver_choose_reward(pkt).await })
+        },
     }
 }
 
@@ -121,6 +166,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_quest_giver_close_quest",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_quest_giver_close_quest(pkt).await })
+        },
     }
 }
 
@@ -130,6 +178,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_world_quest_update",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_request_world_quest_update(pkt).await })
+        },
     }
 }
 
@@ -139,6 +190,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_quest_confirm_accept",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_quest_confirm_accept(pkt).await })
+        },
     }
 }
 
@@ -148,6 +202,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_quest_push_result",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_quest_push_result(pkt).await })
+        },
     }
 }
 
@@ -157,6 +214,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_push_quest_to_party",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_push_quest_to_party(pkt).await })
+        },
     }
 }
 

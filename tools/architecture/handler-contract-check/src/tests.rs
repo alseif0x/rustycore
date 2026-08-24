@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 
 use super::check_repository;
 use crate::dispatcher::{
-    DispatcherContract, KnownDispatchDrift, compare_dispatch_sides,
-    dispatcher_contract_from_mounts, dispatcher_contract_from_source,
+    DispatcherContract, assert_single_dispatch_mechanism, dispatcher_contract_from_mounts,
+    dispatcher_contract_from_source,
 };
 use crate::module_policy::{CapabilityOwner, parse_handler_module_policy};
 use crate::ownership::{
@@ -32,7 +32,7 @@ fn repository_handler_contract_passes() {
     let report = check_repository()
         .unwrap_or_else(|error| panic!("invalid repository handler contract:\n{error}"));
     assert!(report.starts_with("handler contract: PASS"), "{report}");
-    assert!(report.contains("0 exact drift exceptions"), "{report}");
+    assert!(report.contains("one dispatch mechanism"), "{report}");
     assert!(report.contains("23 #[path] modules verified"), "{report}");
 }
 
@@ -61,28 +61,18 @@ fn dispatcher_parser_uses_grouped_top_level_patterns_not_body_mentions() {
             opcode_names: ["Alpha".to_owned(), "Beta".to_owned()]
                 .into_iter()
                 .collect(),
+            handler_calls: BTreeSet::new(),
+            dispatches_through_registration: false,
         }
     );
 }
 
 #[test]
-fn dispatcher_parser_rejects_unreachable_conditional_guarded_and_duplicate_arms() {
-    let cases = [
-        (
-            r#"
-                impl WorldSession {
-                    async fn dispatch_packet(&mut self) {
-                        match opcode {
-                            _ => {}
-                            ClientOpcodes::Alpha => {}
-                        }
-                    }
-                }
-            "#,
-            "wildcard arm must be last",
-        ),
-        (
-            r#"
+fn dispatcher_parser_detects_every_shape_that_reintroduces_an_opcode_arm() {
+    // #359 left one rule, so these shapes no longer need one rejection each:
+    // a `match opcode` arm in any form is the second declaration coming back.
+    for source in [
+        r#"
                 impl WorldSession {
                     async fn dispatch_packet(&mut self) {
                         match opcode {
@@ -91,10 +81,7 @@ fn dispatcher_parser_rejects_unreachable_conditional_guarded_and_duplicate_arms(
                     }
                 }
             "#,
-            "wildcard must be a standalone `_` arm",
-        ),
-        (
-            r#"
+        r#"
                 impl WorldSession {
                     async fn dispatch_packet(&mut self) {
                         match opcode {
@@ -105,10 +92,7 @@ fn dispatcher_parser_rejects_unreachable_conditional_guarded_and_duplicate_arms(
                     }
                 }
             "#,
-            "opcode arms must not be conditionally compiled",
-        ),
-        (
-            r#"
+        r#"
                 impl WorldSession {
                     async fn dispatch_packet(&mut self) {
                         match opcode {
@@ -118,10 +102,33 @@ fn dispatcher_parser_rejects_unreachable_conditional_guarded_and_duplicate_arms(
                     }
                 }
             "#,
-            "opcode arms must not use match guards",
-        ),
-        (
-            r#"
+        r#"
+                impl WorldSession {
+                    async fn dispatch_packet(&mut self) {
+                        async fn nested() {
+                            match opcode {
+                                ClientOpcodes::Alpha => {}
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            "#,
+    ] {
+        let contract =
+            dispatcher_contract_from_source(source).expect("an opcode arm parses as an arm");
+        let error = assert_single_dispatch_mechanism(&contract)
+            .expect_err("a reintroduced opcode arm must fail");
+        assert!(
+            error.contains("decides 1 opcode(s) by hand (Alpha)"),
+            "{error}"
+        );
+    }
+
+    // A duplicated opcode is still a parse-level error: the arm table it would
+    // rebuild cannot even be read unambiguously.
+    let error = dispatcher_contract_from_source(
+        r#"
                 impl WorldSession {
                     async fn dispatch_packet(&mut self) {
                         match opcode {
@@ -131,18 +138,9 @@ fn dispatcher_parser_rejects_unreachable_conditional_guarded_and_duplicate_arms(
                     }
                 }
             "#,
-            "duplicate opcode arm Alpha",
-        ),
-    ];
-
-    for (source, expected_error) in cases {
-        let error =
-            dispatcher_contract_from_source(source).expect_err("unsafe dispatcher shape must fail");
-        assert!(
-            error.contains(expected_error),
-            "expected {expected_error:?}, got {error:?}"
-        );
-    }
+    )
+    .expect_err("a duplicate opcode arm must fail");
+    assert!(error.contains("duplicate opcode arm Alpha"), "{error}");
 }
 
 fn dispatcher_owner() -> CapabilityOwner {
@@ -480,61 +478,45 @@ fn handler_module_policy_is_strict_and_registration_uses_declared_owner() {
 }
 
 #[test]
-fn dispatch_comparison_rejects_new_and_obsolete_mismatches() {
-    fn names(values: &[&str]) -> BTreeSet<String> {
-        values.iter().map(|value| (*value).to_owned()).collect()
-    }
-
-    let registered = names(&["Alpha", "RegisteredOnly"]);
-    let dispatched = names(&["Alpha", "DispatchedOnly"]);
-    let tracked_registered_only = [KnownDispatchDrift {
-        opcode_name: "RegisteredOnly",
-        tracking_issue: 142,
-    }];
-    let tracked_dispatched_only = [KnownDispatchDrift {
-        opcode_name: "DispatchedOnly",
-        tracking_issue: 142,
-    }];
+fn single_mechanism_check_rejects_a_reintroduced_arm_or_direct_handler_call() {
+    let ok = DispatcherContract {
+        opcode_names: BTreeSet::new(),
+        handler_calls: BTreeSet::new(),
+        dispatches_through_registration: true,
+    };
     assert!(
-        compare_dispatch_sides(
-            &registered,
-            &dispatched,
-            &tracked_registered_only,
-            &tracked_dispatched_only,
-        )
-        .is_ok(),
-        "the exact tracked baseline must pass"
+        assert_single_dispatch_mechanism(&ok).is_ok(),
+        "one mechanism and the registered call must pass"
     );
 
-    let error = compare_dispatch_sides(&registered, &dispatched, &[], &[])
-        .expect_err("new mismatches must fail");
+    let arm_back = DispatcherContract {
+        opcode_names: ["Alpha".to_owned()].into_iter().collect(),
+        dispatches_through_registration: true,
+        ..Default::default()
+    };
+    let error = assert_single_dispatch_mechanism(&arm_back)
+        .expect_err("a reintroduced opcode arm must fail");
     assert!(
-        error.contains(
-            "registered opcode RegisteredOnly has no dispatcher arm and no tracked exception"
-        ),
-        "{error}"
-    );
-    assert!(
-        error
-            .contains("dispatcher arm DispatchedOnly has no registration and no tracked exception"),
+        error.contains("decides 1 opcode(s) by hand (Alpha)"),
         "{error}"
     );
 
-    let corrected = names(&["Alpha", "RegisteredOnly"]);
-    let error = compare_dispatch_sides(
-        &registered,
-        &corrected,
-        &tracked_registered_only,
-        &tracked_dispatched_only,
-    )
-    .expect_err("stale mismatch exceptions must fail");
+    let handler_back = DispatcherContract {
+        handler_calls: ["handle_alpha".to_owned()].into_iter().collect(),
+        dispatches_through_registration: true,
+        ..Default::default()
+    };
+    let error = assert_single_dispatch_mechanism(&handler_back)
+        .expect_err("a direct handler call must fail");
     assert!(
-        error.contains("obsolete registered-without-arm exception RegisteredOnly tracked by #142"),
+        error.contains("calls 1 handler method(s) on self (handle_alpha)"),
         "{error}"
     );
+
+    let error = assert_single_dispatch_mechanism(&DispatcherContract::default())
+        .expect_err("a dispatcher that never calls the registration must fail");
     assert!(
-        error
-            .contains("obsolete arm-without-registration exception DispatchedOnly tracked by #142"),
+        error.contains("never calls the registered handler"),
         "{error}"
     );
 }
@@ -1415,7 +1397,7 @@ fn ownership_rejects_module_declarations_inside_item_bodies() {
 }
 
 #[test]
-fn ownership_allows_only_the_exact_wow_handler_collector() {
+fn ownership_allows_only_the_exact_registry_module_collector() {
     let fixture = source_graph_fixture("collector-owner");
     let crate_root = fixture.join("src/lib.rs");
     fs::create_dir_all(crate_root.parent().expect("crate root parent"))
@@ -1425,15 +1407,22 @@ fn ownership_allows_only_the_exact_wow_handler_collector() {
             .expect("write exact collector");
         crate_root.canonicalize().expect("canonical collector root")
     };
-    let sources = BTreeMap::from([(canonical_root, BTreeSet::from(["crate".to_owned()]))]);
-    let production_lib_roots = sources.keys().cloned().collect();
+    // #359 moved the collector out of wow-handler: the entry names WorldSession,
+    // so it lives in the dispatcher owner's registry module.
+    let sources = BTreeMap::from([(
+        canonical_root.clone(),
+        BTreeSet::from(["crate::session::registry".to_owned()]),
+    )]);
+    let production_lib_roots: BTreeSet<_> = sources.keys().cloned().collect();
 
-    audit_package_registration_sources("wow-handler", &sources, &production_lib_roots)
-        .expect("one exact unconditional collector in the owner must pass");
-    let error = audit_package_registration_sources("wow-handler", &sources, &BTreeSet::new())
-        .expect_err(
-            "a logical crate root that is not a Cargo lib target must not own the collector",
-        );
+    audit_package_registration_sources("wow-world", &sources, &production_lib_roots)
+        .expect("one exact unconditional collector in the registry module must pass");
+    let elsewhere = BTreeMap::from([(
+        canonical_root,
+        BTreeSet::from(["crate::session::driver".to_owned()]),
+    )]);
+    let error = audit_package_registration_sources("wow-world", &elsewhere, &production_lib_roots)
+        .expect_err("another session module must not own the collector");
     assert!(
         error.contains("inventory registration macro inventory::collect!"),
         "{error}"
@@ -1477,7 +1466,7 @@ fn ownership_allows_only_the_exact_wow_handler_collector() {
     ] {
         fs::write(&crate_root, source).expect("write collector mutant");
         let error =
-            audit_package_registration_sources("wow-handler", &sources, &production_lib_roots)
+            audit_package_registration_sources("wow-world", &sources, &production_lib_roots)
                 .expect_err("collector mutant must fail closed");
         assert!(
             error.contains(expected_error),
@@ -1488,7 +1477,7 @@ fn ownership_allows_only_the_exact_wow_handler_collector() {
     fs::write(&crate_root, "inventory::collect!(PacketHandlerEntry);\n")
         .expect("restore exact collector");
     let error = audit_package_registration_sources("world-server", &sources, &production_lib_roots)
-        .expect_err("the exact collector is forbidden outside wow-handler");
+        .expect_err("the exact collector is forbidden outside the registry module");
     assert!(
         error.contains("inventory registration macro inventory::collect!"),
         "{error}"

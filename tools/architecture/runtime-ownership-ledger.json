@@ -1820,9 +1820,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 74611,
-          "test_lines": 95744,
-          "total_lines": 170355,
+          "production_lines": 73057,
+          "test_lines": 95801,
+          "total_lines": 168858,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153,
@@ -1845,9 +1845,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20433,
+          "production_lines": 20865,
           "test_lines": 10764,
-          "total_lines": 31197,
+          "total_lines": 31629,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "open_retirement_issues": [
             153
@@ -1856,9 +1856,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/loot/mod.rs",
-          "production_lines": 13695,
+          "production_lines": 13764,
           "test_lines": 16240,
-          "total_lines": 29935,
+          "total_lines": 30004,
           "owner": "wow-world loot handler plus transitional loot/map/persistence coordination.",
           "open_retirement_issues": [
             153
@@ -1879,9 +1879,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/quest/mod.rs",
-          "production_lines": 8368,
-          "test_lines": 10178,
-          "total_lines": 18546,
+          "production_lines": 8430,
+          "test_lines": 10184,
+          "total_lines": 18614,
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
           "open_retirement_issues": [
             153

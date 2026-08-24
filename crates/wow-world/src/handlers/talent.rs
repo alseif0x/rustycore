@@ -9,7 +9,9 @@ use wow_constants::ClientOpcodes;
 use wow_constants::unit::NPCFlags1;
 #[cfg(test)]
 use wow_database::StatementDef;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::talent::{
     ConfirmRespecWipe, LearnTalent, LearnTalents, SPEC_RESET_TALENTS_LIKE_CPP,
 };
@@ -34,6 +36,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_confirm_respec_wipe",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_confirm_respec_wipe(pkt).await })
+        },
     }
 }
 
@@ -43,6 +48,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_learn_talent",
+        handler: |session, pkt| Box::pin(async move { session.handle_learn_talent(pkt).await }),
     }
 }
 

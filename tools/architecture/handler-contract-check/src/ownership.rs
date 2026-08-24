@@ -31,6 +31,14 @@ use crate::registrations::{
 };
 
 const HANDLER_PACKAGE_NAME: &str = "wow-handler";
+/// Where the one `inventory::collect!(PacketHandlerEntry)` lives.
+///
+/// #359 moved the registry beside the session it dispatches to: an entry now
+/// carries a `fn(&mut WorldSession, WorldPacket)` thunk, and `wow-handler` is
+/// the crate `wow-world` depends on, so it cannot name that type. `wow-handler`
+/// keeps the vocabulary; the collector belongs to the dispatcher owner.
+const REGISTRY_PACKAGE_NAME: &str = "wow-world";
+const REGISTRY_MODULE_PATH: &str = "crate::session::registry";
 const WOW_PROTO_PACKAGE_NAME: &str = "wow-proto";
 const WOW_PROTO_GENERATED_INCLUDE_SUFFIXES: &[&str] = &[
     "/bgs.protocol.rs",
@@ -1768,17 +1776,18 @@ pub(crate) fn audit_package_registration_sources_with_owner(
         }
         let source = fs::read_to_string(source_path)
             .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
-        let collector_owner = package_name == HANDLER_PACKAGE_NAME
-            && production_lib_roots.contains(source_path)
-            && logical_paths == &BTreeSet::from(["crate".to_owned()]);
+        // The collector is no longer a crate root, so it is identified by its
+        // logical module rather than by being lib.rs (#359).
+        let collector_owner = package_name == REGISTRY_PACKAGE_NAME
+            && logical_paths == &BTreeSet::from([REGISTRY_MODULE_PATH.to_owned()]);
         match analyze_registration_syntax_outside_handlers(source_path, &source, collector_owner) {
             Ok(report) => exact_collectors += report.exact_packet_handler_collectors,
             Err(error) => errors.push(format!("package {package_name}: {error}")),
         }
     }
-    if package_name == HANDLER_PACKAGE_NAME && exact_collectors != 1 {
+    if package_name == REGISTRY_PACKAGE_NAME && exact_collectors != 1 {
         errors.push(format!(
-            "package {HANDLER_PACKAGE_NAME} must define exactly one unconditional module-level \
+            "{REGISTRY_MODULE_PATH} must define exactly one unconditional module-level \
              inventory::collect!(PacketHandlerEntry), found {exact_collectors}"
         ));
     }

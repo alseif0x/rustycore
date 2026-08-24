@@ -27,10 +27,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use dispatcher::{
-    DISPATCH_ARM_WITHOUT_REGISTRATION, REGISTERED_WITHOUT_DISPATCH_ARM, compare_dispatch_sides,
-    dispatcher_contract_from_mounts,
-};
+use dispatcher::{assert_single_dispatch_mechanism, dispatcher_contract_from_mounts};
 use module_policy::load_handler_module_policy;
 use ownership::{audit_registration_ownership, workspace_source_mounts};
 use registrations::{EXPECTED_REGISTRATION_MACROS, analyze_handler_mounts};
@@ -74,13 +71,8 @@ pub fn check_repository() -> Result<String, String> {
         .map_err(|error| format!("invalid workspace module graph: {error}"))?;
     let dispatcher = dispatcher_contract_from_mounts(&mounts, dispatcher_owner)
         .map_err(|error| format!("invalid world-session dispatcher: {error}"))?;
-    compare_dispatch_sides(
-        &snapshot.opcode_names,
-        &dispatcher.opcode_names,
-        REGISTERED_WITHOUT_DISPATCH_ARM,
-        DISPATCH_ARM_WITHOUT_REGISTRATION,
-    )
-    .map_err(|error| format!("world handler dispatch/registration drift:\n{error}"))?;
+    assert_single_dispatch_mechanism(&dispatcher)
+        .map_err(|error| format!("world handler dispatch mechanism:\n{error}"))?;
 
     let source_report = analyze_handler_mounts(&mounts, registration_owner)
         .map_err(|error| format!("invalid handler registration source contract:\n{error}"))?;
@@ -113,11 +105,9 @@ pub fn check_repository() -> Result<String, String> {
         ));
     }
 
-    let tracked_drift =
-        REGISTERED_WITHOUT_DISPATCH_ARM.len() + DISPATCH_ARM_WITHOUT_REGISTRATION.len();
     Ok(format!(
         "handler contract: PASS ({} snapshot rows; {} direct + {} macro registrations; \
-         {tracked_drift} exact drift exceptions; {} production packages / {} sources clean; \
+         one dispatch mechanism; {} production packages / {} sources clean; \
          {} workspace packages / {} production sources checked for handler-capable macro/source \
          generation surfaces; {} #[path] modules verified: {})",
         snapshot.row_count,

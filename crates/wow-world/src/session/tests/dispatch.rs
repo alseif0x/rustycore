@@ -216,6 +216,17 @@ fn dispatch_table_has_no_duplicate_registered_opcodes() {
     assert!(duplicates.is_empty(), "duplicate handlers: {duplicates:?}");
 }
 
+/// One row of the frozen dispatch table.
+#[cfg(test)]
+#[derive(serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
+struct DispatchTableRow {
+    opcode: String,
+    value: u32,
+    status: String,
+    processing: String,
+    handler: String,
+}
+
 /// Every opcode the server can dispatch, with the exact `SessionStatus` and
 /// `PacketProcessing` it runs under.
 ///
@@ -228,23 +239,14 @@ fn dispatch_table_has_no_duplicate_registered_opcodes() {
 /// It is an enumeration, not a sample: all 478 rows, compared as a set.
 #[test]
 fn every_registered_opcode_keeps_its_handler_status_and_processing_like_cpp() {
-    #[derive(serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
-    struct Row {
-        opcode: String,
-        value: u32,
-        status: String,
-        processing: String,
-        handler: String,
-    }
-
-    let golden: Vec<Row> = serde_json::from_str(include_str!(
+    let golden: Vec<DispatchTableRow> = serde_json::from_str(include_str!(
         "../../../tests/fixtures/packet-handler-dispatch-table.json"
     ))
     .expect("the dispatch-table fixture is valid JSON");
 
-    let mut actual: Vec<Row> = wow_handler::build_dispatch_table()
+    let mut actual: Vec<DispatchTableRow> = crate::session::registry::build_dispatch_table()
         .values()
-        .map(|entry| Row {
+        .map(|entry| DispatchTableRow {
             opcode: format!("{:?}", entry.opcode),
             value: entry.opcode as u32,
             status: format!("{:?}", entry.status),

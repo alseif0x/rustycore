@@ -5,7 +5,9 @@
 
 use tracing::warn;
 use wow_constants::ClientOpcodes;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::chat::{
     ChannelCommand, ChannelNotify, ChannelPassword, ChannelPlayerCommand, JoinChannel,
@@ -20,6 +22,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_join_channel",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_chat_join_channel(pkt).await })
+        },
     }
 }
 
@@ -29,6 +34,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_leave_channel",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_chat_leave_channel(pkt).await })
+        },
     }
 }
 
@@ -40,6 +48,9 @@ macro_rules! register_chat_channel_command_handler {
                 status: SessionStatus::LoggedIn,
                 processing: PacketProcessing::ThreadUnsafe,
                 handler_name: "handle_chat_channel_command",
+                handler: |session, pkt| {
+                    Box::pin(async move { session.handle_chat_channel_command(pkt).await })
+                },
             }
         }
     };
@@ -59,6 +70,9 @@ macro_rules! register_chat_channel_player_command_handler {
                 status: SessionStatus::LoggedIn,
                 processing: PacketProcessing::ThreadUnsafe,
                 handler_name: "handle_chat_channel_player_command",
+                handler: |session, pkt| {
+                    Box::pin(async move { session.handle_chat_channel_player_command(pkt).await })
+                },
             }
         }
     };
@@ -80,6 +94,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_channel_password",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_chat_channel_password(pkt).await })
+        },
     }
 }
 
@@ -89,6 +106,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_unregister_all_addon_prefixes",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_chat_unregister_all_addon_prefixes(pkt).await })
+        },
     }
 }
 

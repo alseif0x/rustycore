@@ -7,7 +7,9 @@ use tracing::{info, warn};
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
 use wow_database::SqlTransaction;
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::instance::{
     InstanceInfo, InstanceLockInfo, InstanceLockResponse, InstanceReset, InstanceResetFailed,
@@ -25,6 +27,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_raid_info",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_request_raid_info(pkt).await })
+        },
     }
 }
 
@@ -34,6 +39,7 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_reset_instances",
+        handler: |session, pkt| Box::pin(async move { session.handle_reset_instances(pkt).await }),
     }
 }
 
@@ -43,6 +49,9 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_instance_lock_response",
+        handler: |session, pkt| {
+            Box::pin(async move { session.handle_instance_lock_response(pkt).await })
+        },
     }
 }
 

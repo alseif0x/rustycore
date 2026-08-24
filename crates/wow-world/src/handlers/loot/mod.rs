@@ -77,7 +77,9 @@ use wow_entities::{
     INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, Item, ItemPosCount,
     LootState, MAX_MONEY_AMOUNT, is_bag_pos, make_item_pos,
 };
-use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
+
+use crate::session::registry::PacketHandlerEntry;
 use wow_loot::{
     GeneratedLootItem, LootClaimCommitError, LootClaimError, LootClaimLease, LootClaimPayload,
     LootConditionId, LootConditionRowLikeCpp, LootFillError, LootFillOptions,
