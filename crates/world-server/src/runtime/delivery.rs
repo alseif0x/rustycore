@@ -809,6 +809,118 @@ pub(crate) fn legacy_visibility_distance_like_cpp(
 /// the visible combat-start packet. This helper routes that already-resolved
 /// engagement to the victim session outside all map locks. The transition is
 /// authoritative and one-shot, so it is published to the session's durable
+/// Per-map accumulated time for the player melee phase, shared across ticks.
+pub(crate) type SharedPlayerMeleePhaseStateLikeCpp =
+    Arc<Mutex<wow_world::session::PlayerMeleePhaseStateLikeCpp>>;
+
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) struct RuntimePlayerMeleeDeliverySummaryLikeCpp {
+    pub commands_seen: usize,
+    pub candidates_seen: usize,
+    pub candidates_queued: usize,
+    pub candidates_skipped_missing_attacker: usize,
+    pub candidates_skipped_not_in_world: usize,
+    pub candidates_skipped_wrong_map: usize,
+    pub candidates_skipped_wrong_instance: usize,
+    pub candidates_dropped_durable: usize,
+}
+
+/// Who is swinging this frame, from the registry, before any map lock.
+///
+/// No `in_combat` pre-filter: that field is a session-published mirror, and
+/// filtering the phase on it would let a stale mirror silently stop a player's
+/// swings from resolving — the failure #28 exists to prevent. The aggro phase
+/// already reads every in-world player per tick, so this is not a new cost
+/// class.
+pub(crate) fn collect_player_melee_attackers_like_cpp(
+    registry: &wow_world::session::directory::PlayerRegistry,
+    tap_index: &std::collections::HashMap<ObjectGuid, Vec<ObjectGuid>>,
+) -> Vec<wow_world::session::PlayerMeleeAttackerSnapshotLikeCpp> {
+    registry
+        .runtime_recipients()
+        .into_iter()
+        .filter(|recipient| recipient.is_in_world)
+        .map(
+            |recipient| wow_world::session::PlayerMeleeAttackerSnapshotLikeCpp {
+                registration: recipient.registration,
+                player_guid: recipient.guid,
+                map_id: recipient.map_id,
+                instance_id: recipient.instance_id,
+                in_combat_mirror: recipient.in_combat,
+                tap_group_guids: tap_index.get(&recipient.guid).cloned().unwrap_or_default(),
+            },
+        )
+        .collect()
+}
+
+/// Route each resolution to the one session that swung it.
+///
+/// The attacker is the sole recipient, matching the session's `send_tx`-only
+/// fanout today: no distance or visibility gate, because none existed. It rides
+/// the durable rail — a dropped result is a lost kill, and with it the loot.
+pub(crate) fn deliver_player_melee_results_like_cpp(
+    commands: &[wow_world::session::mailbox::ApplyPlayerMeleeResultLikeCppCommand],
+    registry: &wow_world::session::directory::PlayerRegistry,
+) -> RuntimePlayerMeleeDeliverySummaryLikeCpp {
+    let mut summary = RuntimePlayerMeleeDeliverySummaryLikeCpp::default();
+    for command in commands {
+        summary.commands_seen += 1;
+        let Some(recipient) = registry.runtime_recipient(command.attacker_guid) else {
+            summary.candidates_skipped_missing_attacker += 1;
+            continue;
+        };
+        summary.candidates_seen += 1;
+        if !recipient.is_in_world {
+            summary.candidates_skipped_not_in_world += 1;
+            continue;
+        }
+        if recipient.map_id != command.map_id {
+            summary.candidates_skipped_wrong_map += 1;
+            continue;
+        }
+        if recipient.instance_id != command.instance_id {
+            summary.candidates_skipped_wrong_instance += 1;
+            continue;
+        }
+        if registry.publish_current_player_melee_result(recipient.registration, command.clone()) {
+            summary.candidates_queued += 1;
+        } else {
+            summary.candidates_dropped_durable += 1;
+        }
+    }
+    summary
+}
+
+/// One player melee phase: collect, resolve, deliver.
+pub(crate) fn run_legacy_player_melee_tick_and_deliver_once_like_cpp(
+    legacy_map_manager: &SharedMapManager,
+    canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    registry: &wow_world::session::directory::PlayerRegistry,
+    group_registry: Option<&Arc<wow_social::group::GroupRegistry>>,
+    diff_ms: u32,
+    phase_state: &SharedPlayerMeleePhaseStateLikeCpp,
+) -> (
+    wow_world::session::LegacyPlayerMeleeTickOutcomeLikeCpp,
+    RuntimePlayerMeleeDeliverySummaryLikeCpp,
+) {
+    let tap_index = build_tap_group_index_like_cpp(group_registry);
+    let attackers = collect_player_melee_attackers_like_cpp(registry, &tap_index);
+    let outcome = {
+        let mut state = phase_state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        wow_world::session::run_legacy_player_melee_tick_once_like_cpp(
+            legacy_map_manager,
+            canonical_map_manager,
+            &attackers,
+            diff_ms,
+            &mut state,
+        )
+    };
+    let delivery = deliver_player_melee_results_like_cpp(&outcome.commands, registry);
+    (outcome, delivery)
+}
+
 /// FIFO rail without waiting on its bounded visual-command queue.
 pub(crate) fn deliver_creature_attack_start_commands_like_cpp(
     commands: &[wow_world::session::mailbox::CreatureAttackStartLikeCppCommand],
@@ -1307,6 +1419,8 @@ pub(crate) fn run_legacy_creature_spell_tick_and_deliver_once_like_cpp(
 /// map locks during channel delivery.
 #[derive(Debug)]
 pub(crate) struct LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
+    pub player_melee: wow_world::session::LegacyPlayerMeleeTickOutcomeLikeCpp,
+    pub player_melee_delivery: RuntimePlayerMeleeDeliverySummaryLikeCpp,
     pub lifecycle: wow_world::session::LegacyCreatureLifecycleTickOutcomeLikeCpp,
     pub lifecycle_delivery: RuntimeVisibilityRefreshDeliverySummaryLikeCpp,
     pub movement: wow_world::session::LegacyCreatureMovementTickOutcomeLikeCpp,
@@ -1333,7 +1447,25 @@ pub(crate) fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
     registry: &wow_world::session::directory::PlayerRegistry,
     respawn_db_mutation_order: Option<&SharedRespawnDbMutationOrderLikeCpp>,
     respawn_db_writer_tx: Option<&RespawnDbWriterSenderLikeCpp>,
+    group_registry: Option<&Arc<wow_social::group::GroupRegistry>>,
+    player_melee_phase_state: &SharedPlayerMeleePhaseStateLikeCpp,
 ) -> LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
+    // Phase 0: player auto-attack, before the respawn ordering gate is taken.
+    //
+    // Two reasons it goes first and outside that guard. The DB-order mutex must
+    // not be held across a phase that takes both map locks, and a creature a
+    // player just killed has to be dead before lifecycle enumerates corpses —
+    // otherwise its corpse waits a whole tick (#28).
+    let (player_melee, player_melee_delivery) =
+        run_legacy_player_melee_tick_and_deliver_once_like_cpp(
+            legacy_map_manager,
+            canonical_map_manager,
+            registry,
+            group_registry,
+            diff_ms,
+            player_melee_phase_state,
+        );
+
     // Hold the same ordering gate as the canonical tick from before the
     // lifecycle mutation until every resulting statement is in the shared
     // mailbox. This makes DB operation order match runtime mutation order.
@@ -1390,6 +1522,8 @@ pub(crate) fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
         );
 
     LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
+        player_melee,
+        player_melee_delivery,
         lifecycle,
         lifecycle_delivery,
         movement,
@@ -1429,8 +1563,15 @@ pub(crate) fn spawn_legacy_creature_runtime_update_loop_like_cpp(
     respawn_db_writer_tx: Option<RespawnDbWriterSenderLikeCpp>,
     respawn_db_mutation_order: SharedRespawnDbMutationOrderLikeCpp,
     respawn_db_producer_stop: SharedRespawnDbProducerStopLikeCpp,
+    group_registry: Option<Arc<wow_social::group::GroupRegistry>>,
     player_registry: Arc<PlayerRegistry>,
 ) -> tokio::task::JoinHandle<()> {
+    // Per-map accumulated time for the melee phase's combat-reference sweep.
+    // Owned by the loop task, cloned into each `spawn_blocking`, never held
+    // across a map guard.
+    let player_melee_phase_state: SharedPlayerMeleePhaseStateLikeCpp = Arc::new(Mutex::new(
+        wow_world::session::PlayerMeleePhaseStateLikeCpp::default(),
+    ));
     if !enabled {
         return tokio::spawn(async move {
             let mut interval =
@@ -1480,6 +1621,8 @@ pub(crate) fn spawn_legacy_creature_runtime_update_loop_like_cpp(
             let registry_for_tick = Arc::clone(&player_registry);
             let respawn_db_mutation_order_for_tick = Arc::clone(&respawn_db_mutation_order);
             let respawn_db_writer_tx_for_tick = respawn_db_writer_tx.clone();
+            let group_registry_for_tick = group_registry.clone();
+            let player_melee_phase_state_for_tick = Arc::clone(&player_melee_phase_state);
 
             let tick_result = tokio::task::spawn_blocking(move || {
                 run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
@@ -1494,6 +1637,8 @@ pub(crate) fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                     registry_for_tick.as_ref(),
                     Some(&respawn_db_mutation_order_for_tick),
                     respawn_db_writer_tx_for_tick.as_ref(),
+                    group_registry_for_tick.as_ref(),
+                    &player_melee_phase_state_for_tick,
                 )
             })
             .await;

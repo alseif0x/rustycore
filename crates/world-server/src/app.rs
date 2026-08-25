@@ -4960,6 +4960,7 @@ async fn run_inner(
         Some(respawn_db_writer_tx.clone()),
         Arc::clone(&respawn_db_mutation_order),
         Arc::clone(&respawn_db_producer_stop),
+        Some(Arc::clone(&group_registry)),
         Arc::clone(&player_registry),
     );
 
