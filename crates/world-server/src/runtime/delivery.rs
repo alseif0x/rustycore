@@ -658,15 +658,15 @@ pub(crate) fn collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
                 player_level: snapshot.level,
                 player_gray_level: snapshot.gray_level,
                 player_unit_flags: snapshot.unit_flags,
-                player_unit_flags2: snapshot.unit_flags2,
+                player_unit_flags2: 0,
                 player_unit_state: snapshot.unit_state,
                 player_is_game_master: snapshot.is_game_master,
-                player_is_contested_pvp: snapshot.is_contested_pvp,
+                player_is_contested_pvp: false,
                 player_faction_template_id: snapshot.faction_template_id,
-                player_reputation_standings: snapshot.reputation_standings,
-                player_reputation_state_flags: snapshot.reputation_state_flags,
+                player_reputation_standings: Vec::new(),
+                player_reputation_state_flags: Vec::new(),
                 player_forced_reputation_ranks: snapshot.forced_reputation_ranks,
-                player_forced_reputation_faction_ids: snapshot.forced_reputation_faction_ids,
+                player_forced_reputation_faction_ids: Vec::new(),
                 player_school_immunity_mask: 0,
                 player_damage_immunity_mask: 0,
                 player_has_confuse_aura: false,
@@ -689,6 +689,24 @@ pub(crate) fn collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
             };
             candidate.map_difficulty_id = managed.difficulty();
             candidate.player_visibility_represented = true;
+            candidate.player_unit_flags2 =
+                wow_world::canonical_player_access::canonical_player_unit_flags2_like_cpp(player);
+            candidate.player_is_contested_pvp =
+                wow_world::canonical_player_access::canonical_player_is_contested_pvp_like_cpp(
+                    player,
+                );
+            candidate.player_reputation_standings =
+                wow_world::canonical_player_access::canonical_player_reputation_standings_like_cpp(
+                    player,
+                );
+            candidate.player_reputation_state_flags =
+                wow_world::canonical_player_access::canonical_player_reputation_state_flags_like_cpp(
+                    player,
+                );
+            candidate.player_forced_reputation_faction_ids =
+                wow_world::canonical_player_access::canonical_player_forced_reputation_faction_ids_like_cpp(
+                    player,
+                );
             candidate.player_phase_shift = player.unit().world().phase_shift().clone();
             candidate.player_visibility_detection =
                 player.unit().visibility_detection_like_cpp().clone();
