@@ -138,8 +138,15 @@ impl WorldSession {
             if self.creature_tick % 4 == 0 && owner == RuntimeTickOwner::Session {
                 self.tick_creatures_sync();
             }
-            // Combat tick every 2 ticks (~100ms)
-            if self.creature_tick % 2 == 0 {
+            // Combat tick every 2 ticks (~100ms), and only when this session
+            // owns the tick.
+            //
+            // Under `GlobalLegacy` the map owns this transition (#28), so the
+            // swing resolves once from the loop's real map diff instead of once
+            // per session on each session's own pass clock. Gated, not deleted:
+            // `RustyCore.LegacyCreatureGlobalRuntime = 0` keeps the owner at
+            // `Session`, and player auto-attack must keep working there.
+            if self.creature_tick % 2 == 0 && owner == RuntimeTickOwner::Session {
                 self.tick_combat_sync();
             }
             // Aura expiry tick every 4 ticks (~200ms) — always, regardless of owner.
