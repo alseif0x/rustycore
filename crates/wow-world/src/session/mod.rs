@@ -5358,6 +5358,12 @@ struct PlayerTransportLoginStateLikeCpp {
 /// Receives deserialized packets from the socket layer via a channel,
 /// dispatches them to registered handlers, and sends responses back.
 pub struct WorldSession {
+    /// The realm/instance transport, owned by `wow-session` (#297).
+    ///
+    /// The first piece of this type to earn its own crate: it compiles without
+    /// gameplay, databases or catalogs, so the compiler now prevents transport
+    /// decisions from reaching a `Player`, a `Map` or a query.
+    connection: wow_session::SessionConnection,
     // Account info
     pub account_id: u32,
     battlenet_account_id: u32,
@@ -5388,12 +5394,9 @@ pub struct WorldSession {
     mute_time_like_cpp: i64,
 
     // Inbound packet queue (from WorldSocket)
-    packet_rx: flume::Receiver<WorldPacket>,
 
     // Outbound channel (serialized bytes back to WorldSocket)
-    send_tx: flume::Sender<Vec<u8>>,
     // FIFO completion fence paired with the current physical send channel.
-    send_write_fence_like_cpp: Option<SocketWriteFenceLikeCpp>,
 
     // Cross-session commands executed by this session's own update loop.
     session_command_tx: flume::Sender<SessionCommand>,
@@ -5735,23 +5738,8 @@ pub struct WorldSession {
     /// C++ `WorldSession::m_playerLogout`: true only while the logout routine is executing.
     player_logout_like_cpp: bool,
 
-    /// The ConnectToKey.Raw value for the pending instance connection.
-    connect_to_key: Option<i64>,
-
-    /// The last ConnectToSerial used (for retry logic).
-    connect_to_serial: Option<wow_packet::packets::auth::ConnectToSerial>,
-
     /// Session manager for ConnectTo flow (shared with instance listener).
     session_mgr: Option<Arc<SessionManager>>,
-
-    /// Instance server address (IP for ConnectTo packet).
-    instance_address: [u8; 4],
-
-    /// Instance server port.
-    instance_port: u16,
-
-    /// Oneshot receiver for instance link delivery.
-    instance_link_rx: Option<tokio::sync::oneshot::Receiver<InstanceLink>>,
 
     // ── Time sync ─────────────────────────────────────────────────
     /// Next sequence index for TimeSyncRequest.
@@ -6023,13 +6011,6 @@ pub struct WorldSession {
     // After ConnectTo completes, the session uses the instance socket for
     // game packets but MUST keep the realm socket alive — the WoW client
     // disconnects if either connection drops.
-    /// Realm packet receiver — kept alive after ConnectTo to prevent realm
-    /// socket closure.  Also drained in `update()` for realm-type packets.
-    realm_packet_rx: Option<flume::Receiver<WorldPacket>>,
-    /// Realm send channel — kept alive so the realm writer task persists.
-    realm_send_tx: Option<flume::Sender<Vec<u8>>>,
-    /// FIFO completion fence paired with `realm_send_tx` after ConnectTo.
-    realm_send_write_fence_like_cpp: Option<SocketWriteFenceLikeCpp>,
 
     // ── Movement & World position ─────────────────────────────────
     /// Server-side position of the player (updated from CMSG_MOVE_*).
@@ -7770,6 +7751,11 @@ impl WorldSession {
     ) -> Self {
         let (session_command_tx, session_command_rx) = flume::bounded(256);
 
+        // The instance endpoint keeps the pre-#297 default; the kernel does not
+        // hardcode a world-server address of its own.
+        let mut connection = wow_session::SessionConnection::new(send_tx, packet_rx);
+        connection.set_instance_endpoint([127, 0, 0, 1], 8086);
+
         Self {
             account_id,
             battlenet_account_id: account_id,
@@ -7798,9 +7784,7 @@ impl WorldSession {
             session_key,
             locale,
             mute_time_like_cpp: 0,
-            packet_rx,
-            send_tx,
-            send_write_fence_like_cpp: None,
+            connection,
             session_command_tx,
             session_command_rx,
             durable_creature_runtime_commands_like_cpp: Default::default(),
@@ -7986,12 +7970,7 @@ impl WorldSession {
             player_loading: None,
             player_login_claim_like_cpp: None,
             player_logout_like_cpp: false,
-            connect_to_key: None,
-            connect_to_serial: None,
             session_mgr: None,
-            instance_address: [127, 0, 0, 1],
-            instance_port: 8086,
-            instance_link_rx: None,
             time_sync_next_counter: 0,
             time_sync_timer_ms: 0,
             time_sync_pending_requests: HashMap::new(),
@@ -8144,9 +8123,6 @@ impl WorldSession {
             represented_spell_history_packets_like_cpp: (Vec::new(), Vec::new()),
             cuf_profiles_like_cpp: vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP],
             cuf_profiles_loaded_like_cpp: false,
-            realm_packet_rx: None,
-            realm_send_tx: None,
-            realm_send_write_fence_like_cpp: None,
             player_position: None,
             player_movement_flags_like_cpp: MovementFlag::NONE,
             represented_can_swim_to_fly_transition_like_cpp: false,
@@ -10718,7 +10694,7 @@ impl WorldSession {
 
         if let Some(reason) = error {
             if self.player_swing_error_msg_like_cpp != Some(reason) {
-                let _ = self.send_tx.send(AttackSwingError { reason }.to_bytes());
+                let _ = self.send_tx().send(AttackSwingError { reason }.to_bytes());
             }
         }
         self.player_swing_error_msg_like_cpp = error;
@@ -34594,8 +34570,8 @@ impl WorldSession {
             guid,
             PlayerSessionRegistrationLikeCpp {
                 info,
-                send_tx: self.send_tx.clone(),
-                realm_send_tx: self.realm_send_tx.as_ref().unwrap_or(&self.send_tx).clone(),
+                send_tx: self.send_tx().clone(),
+                realm_send_tx: self.realm_route_tx().clone(),
                 command_tx: self.session_command_tx.clone(),
                 durable_creature_runtime_commands_like_cpp: Arc::clone(
                     &self.durable_creature_runtime_commands_like_cpp,
@@ -34864,7 +34840,7 @@ impl WorldSession {
 
     /// Get a clone of the send channel.
     pub fn send_tx(&self) -> &flume::Sender<Vec<u8>> {
-        &self.send_tx
+        self.connection.send_tx()
     }
 
     pub(crate) fn is_addon_registered_like_cpp(&self, prefix: &str) -> bool {
@@ -37957,7 +37933,7 @@ impl WorldSession {
                 "RUST_LOGIN_TRACE send_packet"
             );
         }
-        if self.send_tx.send(data).is_err() {
+        if self.send_tx().send(data).is_err() {
             warn!("Send channel closed for account {}", self.account_id);
             return false;
         }
@@ -37980,7 +37956,7 @@ impl WorldSession {
                 "RUST_LOGIN_TRACE try_send_packet"
             );
         }
-        match self.send_tx.try_send(data) {
+        match self.send_tx().try_send(data) {
             Ok(()) => true,
             Err(flume::TrySendError::Full(_)) => {
                 warn!(
@@ -38135,7 +38111,7 @@ impl WorldSession {
                 "RUST_LOGIN_TRACE send_raw_packet"
             );
         }
-        if self.send_tx.send(data.to_vec()).is_err() {
+        if self.send_tx().send(data.to_vec()).is_err() {
             warn!("Send channel closed for account {}", self.account_id);
         }
     }
@@ -47808,7 +47784,7 @@ impl WorldSession {
         pet: wow_packet::packets::misc::BattlePetJournalPet,
     ) -> bool {
         let packet_enqueued = self
-            .send_tx
+            .send_tx()
             .send(wow_packet::ServerPacket::to_bytes(
                 &wow_packet::packets::misc::BattlePetUpdates {
                     pets: vec![pet],
@@ -53873,7 +53849,7 @@ impl WorldSession {
             .unwrap_or(0);
 
         if self.client_visible_guids_like_cpp.contains(&pet_guid)
-            && self.send_tx.send(packet_bytes.clone()).is_err()
+            && self.send_tx().send(packet_bytes.clone()).is_err()
         {
             warn!("Send channel closed for account {}", self.account_id);
         }
@@ -53922,7 +53898,7 @@ impl WorldSession {
             sequence_index,
         }
         .to_bytes();
-        if self.send_tx.send(self_packet).is_err() {
+        if self.send_tx().send(self_packet).is_err() {
             warn!("Send channel closed for account {}", self.account_id);
         }
 
@@ -54067,7 +54043,7 @@ impl WorldSession {
             speed,
         }
         .to_bytes();
-        if self.send_tx.send(self_packet).is_err() {
+        if self.send_tx().send(self_packet).is_err() {
             warn!("Send channel closed for account {}", self.account_id);
         }
 
@@ -63080,7 +63056,7 @@ impl WorldSession {
     /// the channel is full — behaviour is identical to the previous direct sends.
     pub(crate) fn flush_runtime_output(&self, out: RuntimeOutput) {
         for pkt in out.packets {
-            let _ = self.send_tx.send(pkt);
+            let _ = self.send_tx().send(pkt);
         }
     }
 
@@ -63250,7 +63226,7 @@ impl WorldSession {
                 attacker: guid,
                 victim: player_guid,
             };
-            let _ = self.send_tx.send(start.to_bytes());
+            let _ = self.send_tx().send(start.to_bytes());
             self.combat_target = Some(guid);
             self.set_in_combat_like_cpp(true);
         }
@@ -68246,7 +68222,7 @@ impl WorldSession {
             .flatten();
 
         if let Some(packet) = packet {
-            let _ = self.send_tx.send(packet);
+            let _ = self.send_tx().send(packet);
         }
 
         Ok(())
@@ -68815,7 +68791,7 @@ impl WorldSession {
         // Process creature death outside the mutable borrow
         if let Some((entry, guid, move_stop)) = kill_info {
             if let Some(bytes) = move_stop {
-                let _ = self.send_tx.send(bytes);
+                let _ = self.send_tx().send(bytes);
             }
             self.ensure_represented_creature_kill_loot_like_cpp(guid)
                 .await;

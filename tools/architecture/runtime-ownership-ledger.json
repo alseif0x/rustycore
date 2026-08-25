@@ -1808,15 +1808,15 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 73489,
+          "production_lines": 73352,
           "test_lines": 96326,
-          "total_lines": 169815,
+          "total_lines": 169678,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153,
             297
           ],
-          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 owns the kernel promotion those unblock, and #252 the gameplay mirror. Until they land this row is a reviewed exception to the epic's 4,000-line signal, not a target. #252 begins retiring that mirror family by family: the honor block is the first cut, so production drops 73601->73573 while tests rise 96177->96309 for the three focused directory cases proving inspect now reads the canonical owner live."
+          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 owns the kernel promotion those unblock, and #252 the gameplay mirror. Until they land this row is a reviewed exception to the epic's 4,000-line signal, not a target. #252 begins retiring that mirror family by family: the honor block is the first cut, so production drops 73601->73573 while tests rise 96177->96309 for the three focused directory cases proving inspect now reads the canonical owner live. #297 promoted the transport kernel to the wow-session crate, the first module to leave this type under the epic's P4 rule; production drops 73489 -> 73352."
         },
         {
           "path": "crates/wow-map/src/map/mod.rs",

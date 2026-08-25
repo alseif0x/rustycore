@@ -462,15 +462,8 @@
           "source_class": "production"
         },
         {
-          "name": "connect_to_key",
-          "type": "Option < i64 >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "connect_to_serial",
-          "type": "Option < wow_packet :: packets :: auth :: ConnectToSerial >",
+          "name": "connection",
+          "type": "wow_session :: SessionConnection",
           "visibility": "private",
           "cfg": [],
           "source_class": "production"
@@ -956,13 +949,6 @@
           "source_class": "production"
         },
         {
-          "name": "instance_address",
-          "type": "[u8 ; 4]",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "instance_ignore_level_like_cpp",
           "type": "bool",
           "visibility": "private",
@@ -977,23 +963,9 @@
           "source_class": "production"
         },
         {
-          "name": "instance_link_rx",
-          "type": "Option < tokio :: sync :: oneshot :: Receiver < InstanceLink > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "instance_lock_mgr",
           "type": "Option < Arc < std :: sync :: RwLock < wow_instances :: InstanceLockMgr > > >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "instance_port",
-          "type": "u16",
-          "visibility": "private",
           "cfg": [],
           "source_class": "production"
         },
@@ -1729,13 +1701,6 @@
         {
           "name": "object_accessor",
           "type": "Option < SharedObjectAccessor >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "packet_rx",
-          "type": "flume :: Receiver < WorldPacket >",
           "visibility": "private",
           "cfg": [],
           "source_class": "production"
@@ -2588,29 +2553,8 @@
           "source_class": "production"
         },
         {
-          "name": "realm_packet_rx",
-          "type": "Option < flume :: Receiver < WorldPacket > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "realm_region",
           "type": "u8",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "realm_send_tx",
-          "type": "Option < flume :: Sender < Vec < u8 > > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "realm_send_write_fence_like_cpp",
-          "type": "Option < SocketWriteFenceLikeCpp >",
           "visibility": "private",
           "cfg": [],
           "source_class": "production"
@@ -4523,20 +4467,6 @@
         {
           "name": "selection_guid",
           "type": "Option < wow_core :: ObjectGuid >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "send_tx",
-          "type": "flume :: Sender < Vec < u8 > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "send_write_fence_like_cpp",
-          "type": "Option < SocketWriteFenceLikeCpp >",
           "visibility": "private",
           "cfg": [],
           "source_class": "production"
@@ -23512,6 +23442,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "clear_realm_packet_rx",
+          "visibility": "pub (crate)",
+          "signature": "fn clear_realm_packet_rx (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "clear_represented_active_trade_partner_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn clear_represented_active_trade_partner_like_cpp (& mut self)",
@@ -23917,6 +23860,19 @@
           "name": "condition_store",
           "visibility": "pub",
           "signature": "fn condition_store (& self) -> Option < & Arc < ConditionEntriesByTypeStore > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "connect_to_key",
+          "visibility": "pub (crate)",
+          "signature": "fn connect_to_key (& self) -> Option < i64 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -25868,6 +25824,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "has_connect_to_serial",
+          "visibility": "pub (crate)",
+          "signature": "fn has_connect_to_serial (& self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "has_currency",
           "visibility": "pub (crate)",
           "signature": "fn has_currency (& self , currency_id : u32 , amount : u32) -> bool",
@@ -25908,6 +25877,19 @@
           "name": "has_item_currency_cost_like_cpp",
           "visibility": "pub",
           "signature": "fn has_item_currency_cost_like_cpp (& self , item_id : u32) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "has_parked_realm_send_channel",
+          "visibility": "pub (crate)",
+          "signature": "fn has_parked_realm_send_channel (& self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -26210,6 +26192,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "install_realm_packet_channel",
+          "visibility": "pub (crate)",
+          "signature": "fn install_realm_packet_channel (& mut self , rx : flume :: Receiver < wow_packet :: WorldPacket > ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "install_realm_send_channel_for_test",
           "visibility": "pub (crate)",
           "signature": "fn install_realm_send_channel_for_test (& mut self , tx : flume :: Sender < Vec < u8 > >)",
@@ -26454,6 +26449,19 @@
           "name": "is_arena_allowed_enchantment",
           "visibility": "pub",
           "signature": "fn is_arena_allowed_enchantment (& self , enchantment_id : u32) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "is_awaiting_instance_link",
+          "visibility": "pub (crate)",
+          "signature": "fn is_awaiting_instance_link (& self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -29134,6 +29142,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "packet_rx",
+          "visibility": "pub (crate)",
+          "signature": "fn packet_rx (& self) -> & flume :: Receiver < wow_packet :: WorldPacket >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "packet_spoof_ban_affected_account_ids_like_cpp",
           "visibility": "private",
           "signature": "async fn packet_spoof_ban_affected_account_ids_like_cpp (& self , login_db : & LoginDatabase , plan : & PacketSpoofPendingBanLikeCpp ,) -> Vec < u32 >",
@@ -31123,6 +31144,32 @@
           "name": "realm_names_for_address_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn realm_names_for_address_like_cpp (& self , realm_address : u32 ,) -> Option < (& str , & str) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "realm_packet_rx",
+          "visibility": "pub (crate)",
+          "signature": "fn realm_packet_rx (& self) -> Option < flume :: Receiver < wow_packet :: WorldPacket > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "realm_route_tx",
+          "visibility": "pub (crate)",
+          "signature": "fn realm_route_tx (& self) -> & flume :: Sender < Vec < u8 > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -42665,6 +42712,20 @@
           "name": "set_offhand_check_at_spell_unlearn_like_cpp",
           "visibility": "pub",
           "signature": "fn set_offhand_check_at_spell_unlearn_like_cpp (& mut self , enabled : bool)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_packet_rx",
+          "visibility": "pub (crate)",
+          "signature": "fn set_packet_rx (& mut self , rx : flume :: Receiver < wow_packet :: WorldPacket >)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -73894,7 +73955,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:7c3de753608455508af5c11cf3e8233b:len=91760|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:ea537bcf6966e07e9b1aad4115420ac9:len=90906|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
