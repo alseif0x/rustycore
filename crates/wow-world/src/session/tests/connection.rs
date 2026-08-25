@@ -78,10 +78,10 @@ async fn restore_realm_channels_reinstates_the_realm_primary_and_clears_connect_
     session.send_raw_packet(&[0xCC]);
     assert_eq!(realm_rx.try_recv().unwrap(), vec![0xCC]);
     assert!(instance_rx.try_recv().is_err());
-    assert!(session.connect_to_key.is_none());
-    assert!(session.connect_to_serial.is_none());
-    assert!(session.instance_link_rx.is_none());
-    assert!(session.realm_send_tx.is_none());
+    assert!(session.connect_to_key().is_none());
+    assert!(!session.has_connect_to_serial());
+    assert!(!session.is_awaiting_instance_link());
+    assert!(!session.has_parked_realm_send_channel());
 
     // Restoring twice is idempotent: there is no parked realm channel left to
     // promote, so the primary must not be swapped for a dropped one.
@@ -102,8 +102,8 @@ async fn closed_instance_link_clears_pending_connect_to_state_like_cpp() {
 
     session.poll_instance_link().await;
 
-    assert!(session.instance_link_rx.is_none());
-    assert!(session.connect_to_key.is_none());
+    assert!(!session.is_awaiting_instance_link());
+    assert!(session.connect_to_key().is_none());
     assert!(session.player_loading().is_none());
 }
 
@@ -116,7 +116,7 @@ async fn pending_instance_link_leaves_the_primary_untouched_like_cpp() {
 
     session.poll_instance_link().await;
 
-    assert!(session.instance_link_rx.is_some());
+    assert!(session.is_awaiting_instance_link());
     session.send_raw_packet(&[0xEE]);
     assert_eq!(primary_rx.try_recv().unwrap(), vec![0xEE]);
     drop(link_tx);

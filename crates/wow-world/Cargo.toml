@@ -38,12 +38,14 @@ wow-recastdetour = { workspace = true }
 wow-packet = { workspace = true }
 wow-persistence = { workspace = true }
 wow-handler = { workspace = true }
+wow-session = { workspace = true }
 wow-instances = { workspace = true }
 wow-script = { workspace = true }
 wow-social = { workspace = true }
 sqlx = { workspace = true }
 
 [dev-dependencies]
+wow-session = { workspace = true, features = ["test-support"] }
 # Real Detour navmesh fixtures for the live creature-pathfinding regressions.
 wow-recastdetour = { workspace = true, features = ["test-fixtures"] }
 serde = { workspace = true }

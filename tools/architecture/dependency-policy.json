@@ -39,7 +39,8 @@
       "wow-packet",
       "wow-proto",
       "wow-recastdetour",
-      "wow-scripts"
+      "wow-scripts",
+      "wow-session"
     ],
     "composition": [
       "bnet-server",
@@ -98,6 +99,10 @@
     "wow-packet": [
       "wow-constants",
       "wow-core"
+    ],
+    "wow-session": [
+      "wow-network",
+      "wow-packet"
     ]
   },
   "exceptions": [
@@ -111,7 +116,7 @@
       "from": "wow-data",
       "to": "wow-database",
       "tracking_issue": 153,
-      "reason": "Static-data loaders still own concrete world/hotfix/characters access. The #186 exact inventory assigns these sites to #153, which must materialize typed data-source children before this edge can be removed. Closed since this was written: #186 — the residue is owned by #153."
+      "reason": "Static-data loaders still own concrete world/hotfix/characters access. The #186 exact inventory assigns these sites to #153, which must materialize typed data-source children before this edge can be removed. Closed since this was written: #186 \u2014 the residue is owned by #153."
     },
     {
       "from": "wow-data",
@@ -135,7 +140,7 @@
       "from": "wow-instances",
       "to": "wow-database",
       "tracking_issue": 153,
-      "reason": "Instance-lock state still loads and appends concrete characters statements. #187 freezes its ordering; #153 must materialize the typed capability child that removes this edge. Closed since this was written: #187 — the residue is owned by #153."
+      "reason": "Instance-lock state still loads and appends concrete characters statements. #187 freezes its ordering; #153 must materialize the typed capability child that removes this edge. Closed since this was written: #187 \u2014 the residue is owned by #153."
     },
     {
       "from": "wow-packet",
@@ -171,13 +176,13 @@
       "from": "wow-world",
       "to": "wow-database",
       "tracking_issue": 153,
-      "reason": "The #186 exact inventory assigns concrete gameplay persistence to #189 loot, #199 group, #200 Player lifecycle, and measured #153 capability children; #153 owns removal of the final residual wow-database edge. Closed since this was written: #186, #189, #199, #200 — the residue is owned by #153."
+      "reason": "The #186 exact inventory assigns concrete gameplay persistence to #189 loot, #199 group, #200 Player lifecycle, and measured #153 capability children; #153 owns removal of the final residual wow-database edge. Closed since this was written: #186, #189, #199, #200 \u2014 the residue is owned by #153."
     },
     {
       "from": "wow-world",
       "to": "wow-handler",
       "tracking_issue": 153,
-      "reason": "WorldSession still owns concrete packet admission and dispatch. #152 extracts those private submodules, #140 extracts the command pump, and #182-#184 complete the transitional Session shell; none removes this Cargo edge. The #153 post-shell re-audit owns the terminal PacketRouter inversion and final handler-registry boundary decision. Closed since this was written: #140, #152, #182, #184 — the residue is owned by #153."
+      "reason": "WorldSession still owns concrete packet admission and dispatch. #152 extracts those private submodules, #140 extracts the command pump, and #182-#184 complete the transitional Session shell; none removes this Cargo edge. The #153 post-shell re-audit owns the terminal PacketRouter inversion and final handler-registry boundary decision. Closed since this was written: #140, #152, #182, #184 \u2014 the residue is owned by #153."
     },
     {
       "from": "wow-world",
@@ -189,19 +194,25 @@
       "from": "wow-world",
       "to": "wow-network",
       "tracking_issue": 153,
-      "reason": "After #134 removed the listener megabag, gameplay still depends on network-owned directory, mailbox, durable-rail, and Group types. The Player path is #150 then #192-#196, #138, #191 and #190; the Group path is #151 then #197-#199, #195 and #137. Physical session-link and write-fence transport contracts remain through #182-#184, so #153 owns the terminal boundary decision after the shell lands. Closed since this was written: #134, #137, #138, #150, #151, #182, #184, #190, #191, #192, #195, #196, #197, #199 — the residue is owned by #153."
+      "reason": "After #134 removed the listener megabag, gameplay still depends on network-owned directory, mailbox, durable-rail, and Group types. The Player path is #150 then #192-#196, #138, #191 and #190; the Group path is #151 then #197-#199, #195 and #137. Physical session-link and write-fence transport contracts remain through #182-#184, so #153 owns the terminal boundary decision after the shell lands. Closed since this was written: #134, #137, #138, #150, #151, #182, #184, #190, #191, #192, #195, #196, #197, #199 \u2014 the residue is owned by #153."
     },
     {
       "from": "wow-world",
       "to": "wow-packet",
       "tracking_issue": 153,
-      "reason": "WorldSession and concrete handlers still own packet-boundary adaptation. #152 extracts admission/dispatch and #140 plus #182-#184 complete the transitional Session shell without moving packet encoding out of wow-world; #153 owns the terminal router and packet-boundary decision. Closed since this was written: #140, #152, #182, #184 — the residue is owned by #153."
+      "reason": "WorldSession and concrete handlers still own packet-boundary adaptation. #152 extracts admission/dispatch and #140 plus #182-#184 complete the transitional Session shell without moving packet encoding out of wow-world; #153 owns the terminal router and packet-boundary decision. Closed since this was written: #140, #152, #182, #184 \u2014 the residue is owned by #153."
     },
     {
       "from": "wow-world",
       "to": "wow-recastdetour",
       "tracking_issue": 133,
       "reason": "The mixed world application crate still reaches the concrete pathfinding adapter."
+    },
+    {
+      "from": "wow-world",
+      "to": "wow-session",
+      "tracking_issue": 153,
+      "reason": "#297 promotes the session transport kernel to its own crate under the epic's P4 rule: the kernel is earned only when it compiles without wow-world, gameplay, databases or catalogs, which it does \u2014 `cargo tree -p wow-session` reaches none of wow-world, wow-database, wow-data, wow-entities, wow-map or sqlx. That rule does permit the network and packet primitives it decides over, so the crate classifies as adapter-platform and this edge takes the same shape as the existing wow-world -> wow-network one. It is the intended direction rather than debt: the application consuming its own extracted kernel. The terminal step \u2014 the kernel depending on transport ports instead of concrete wow-network types, which would make it application-layer and retire this edge \u2014 is the boundary decision #153 owns, carried by #378."
     }
   ],
   "external_dependencies": {
@@ -214,7 +225,8 @@
     "protected_packages": [
       "wow-data",
       "wow-network",
-      "wow-packet"
+      "wow-packet",
+      "wow-session"
     ],
     "allowed": {
       "wow-achievement": {
@@ -356,6 +368,14 @@
       "wow-script": {
         "normal": [
           "inventory"
+        ],
+        "build": []
+      },
+      "wow-session": {
+        "normal": [
+          "flume",
+          "tokio",
+          "tracing"
         ],
         "build": []
       },
