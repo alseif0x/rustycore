@@ -457,7 +457,7 @@
           "suppress_creature_movement_queued_at_or_before_like_cpp"
         ],
         "current_storage": "WorldSession holds legacy and canonical map handles plus represented creature/GameObject/visibility state while world-server runs both global loops and explicit bridges.",
-        "sole_writer": "Production GlobalLegacy owns legacy creature transitions; the canonical map loop owns canonical phases. Session may request work but must not tick the same transition; test-only Session ownership is diagnostic.",
+        "sole_writer": "Production GlobalLegacy owns legacy creature transitions, including the player->creature melee swing since #28: the phase resolves it once from the loop's map diff and the session path is gated off under that owner. The canonical map loop owns canonical phases. Session may request work but must not tick the same transition; test-only Session ownership is diagnostic, and `RustyCore.LegacyCreatureGlobalRuntime = 0` keeps it as the supported diagnostic path.",
         "readers": "World-server runtime/delivery, Session handlers, visibility/fanout, loot, combat, movement, and map tests.",
         "clock_lifetime": "Process/map-instance lifetime. Exactly one writer/clock per transition; current canonical and legacy loops use configured map intervals and explicit phase order.",
         "persistence_publication_order": "Map/creature state commits under the owner, then ordered effects/recipients are collected and delivered after locks. Respawn persistence preserves its existing durable order.",

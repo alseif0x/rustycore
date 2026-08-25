@@ -292,33 +292,48 @@ bot runs are local QA evidence rather than required GitHub status checks.
 The runtime currently has three coexisting world models. This is important; old notes that describe a single pending `MapManager` integration are stale.
 
 1. Legacy `wow_world::MapManager`
-   - Shared as `Arc<RwLock<...>>` from `crates/world-server/src/main.rs`.
+   - Shared as `Arc<RwLock<...>>` from the world-server composition root.
    - Shared across sessions.
-   - Runs represented creature AI/combat through session-driven ticks such as `tick_creatures_sync` and `tick_combat_sync`.
-   - Has no independent global clock; it advances when logged-in sessions tick it.
+   - **Has its own global clock.** `spawn_legacy_creature_runtime_update_loop_like_cpp`
+     (`crates/world-server/src/runtime/delivery.rs`) is started from `app.rs` at the configured
+     map-update interval and is enabled by default; `RustyCore.LegacyCreatureGlobalRuntime = 0`
+     turns it off for local diagnostics.
+   - Who ticks a creature is decided by `RuntimeTickOwner` (`crate::map_manager`), set once at
+     startup before that loop spawns. Under `GlobalLegacy` the loop owns creature lifecycle,
+     movement, aggro, spells, creature melee and — since #28 — the player->creature melee swing;
+     the session driver skips those. Under `Session` the session driver runs them, which is the
+     supported diagnostic path.
+   - Session still owns aura expiry unconditionally.
 
 2. Canonical `wow_map::MapManager`
    - Owns the global canonical map tick loop (`spawn_canonical_map_update_loop`, about 10ms).
    - Has a C++-like `Map::Update` structure and map/spawn/respawn infrastructure.
    - Creature runtime update currently uses default context and does not dispatch real AI/combat side effects such as `AiUpdateTick` or `MeleeAttackIfReady`.
 
-3. Global world loop
-   - Ticks the canonical `wow_map::MapManager`.
-   - Does not tick the legacy `wow_world::MapManager`.
+3. There is no separate "global world loop"
+   - The production binary spawns exactly two periodic game-state clocks: the canonical map
+     update loop and the legacy creature runtime loop above. `world_update_loop_step_like_cpp`
+     exists but is called only from tests.
+   - The two loops measure their own wall-clock diff independently, so a creature's position and
+     its movement generator can advance on different clocks (#371).
 
-Regression anchors from `#NEXT.R8.ENTITIES.764`:
+Regression anchors:
 
 - `canonical_map_update_visits_creature_with_no_real_ai_combat_effect_like_cpp`
 - `two_sessions_sharing_legacy_map_manager_see_same_creature_state`
+- `two_players_attacking_one_creature_resolve_once_under_the_map_owner_like_cpp` (#28)
+- `the_player_melee_phase_is_inert_under_the_session_owner_like_cpp` (#28)
 
 The old statement that `WorldSession` owns a `creatures: HashMap<ObjectGuid, CreatureAI>` field is false. Do not build new work around that field.
 
 Incremental live-runtime roadmap from handoff:
 
 1. Characterize current split. Done in `#NEXT.R8.ENTITIES.764`.
-2. Give the legacy map a sessionless clock.
-3. Add creature movement fanout from global tick via per-map session registry.
-4. Move combat resolution to global clock, resolving once rather than per session.
+2. Give the legacy map a sessionless clock. **Done** — see the global loop above.
+3. Add creature movement fanout from global tick via per-map session registry. **Done.**
+4. Move combat resolution to global clock, resolving once rather than per session. **Done for
+   the player melee swing in #28**; one diff and one clock identity across every phase is not,
+   and is tracked in #371.
 5. Unify respawn from per-session queue into canonical runtime.
 6. Move to a single source of truth for creatures, method by method.
 7. Add real `SendObjectUpdates`, scripts, weather, threat, and remaining fanout.
