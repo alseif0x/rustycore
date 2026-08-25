@@ -3363,6 +3363,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "wow-session"
+version = "0.1.0"
+dependencies = [
+ "flume",
+ "tokio",
+ "tracing",
+ "wow-network",
+ "wow-packet",
+]
+
+[[package]]
 name = "wow-social"
 version = "0.1.0"
 dependencies = [
@@ -3413,6 +3424,7 @@ dependencies = [
  "wow-persistence",
  "wow-recastdetour",
  "wow-script",
+ "wow-session",
  "wow-social",
 ]
 

@@ -206,7 +206,7 @@ async fn closed_instance_link_releases_character_login_claim_like_cpp() {
     first.poll_instance_link().await;
 
     assert_eq!(first.player_loading(), None);
-    assert_eq!(first.connect_to_key, None);
+    assert_eq!(first.connect_to_key(), None);
     assert!(
         second.try_claim_character_login_like_cpp(guid),
         "a failed instance handoff must not strand the process-wide login claim"

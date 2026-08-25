@@ -78,9 +78,20 @@
     270,
     359,
     297,
+    378,
     153
   ],
   "issues": [
+    {
+      "number": 99,
+      "state": "open",
+      "title": "[ARCH.MODULES] External module ecosystem: linked Rust first, sandboxed Wasm later",
+      "kind": "epic",
+      "parents": [
+        133
+      ],
+      "depends_on": []
+    },
     {
       "number": 131,
       "state": "closed",
@@ -95,26 +106,6 @@
       "title": "[ARCH] Modularize RustyCore: physical structure, ownership and extension seams",
       "kind": "epic",
       "parents": [],
-      "depends_on": []
-    },
-    {
-      "number": 169,
-      "state": "open",
-      "title": "[ARCH.DB] Establish SQLx-free persistence ownership and dialect adapters",
-      "kind": "epic",
-      "parents": [
-        133
-      ],
-      "depends_on": []
-    },
-    {
-      "number": 99,
-      "state": "open",
-      "title": "[ARCH.MODULES] External module ecosystem: linked Rust first, sandboxed Wasm later",
-      "kind": "epic",
-      "parents": [
-        133
-      ],
       "depends_on": []
     },
     {
@@ -395,6 +386,16 @@
       "depends_on": []
     },
     {
+      "number": 169,
+      "state": "open",
+      "title": "[ARCH.DB] Establish SQLx-free persistence ownership and dialect adapters",
+      "kind": "epic",
+      "parents": [
+        133
+      ],
+      "depends_on": []
+    },
+    {
       "number": 181,
       "state": "closed",
       "title": "[ARCH.2.1c] Baseline ownership and install submodule ratchets",
@@ -445,30 +446,6 @@
         183,
         187,
         200
-      ]
-    },
-    {
-      "number": 359,
-      "state": "closed",
-      "title": "[ARCH.P4.1a] Retire the dispatcher's 479 match arms in favour of the registration that already exists",
-      "kind": "slice",
-      "parents": [
-        133
-      ],
-      "depends_on": [
-        152
-      ]
-    },
-    {
-      "number": 297,
-      "state": "open",
-      "title": "[ARCH.P4.1] Promote the Session kernel to a wow-session crate",
-      "kind": "slice",
-      "parents": [
-        133
-      ],
-      "depends_on": [
-        359
       ]
     },
     {
@@ -532,19 +509,6 @@
       ],
       "depends_on": [
         187
-      ]
-    },
-    {
-      "number": 270,
-      "state": "closed",
-      "title": "[ARCH.RUNTIME.PLAYER.A] Retire the four transport endpoints #140 left in PlayerBroadcastInfo",
-      "kind": "slice",
-      "parents": [
-        133
-      ],
-      "depends_on": [
-        140,
-        189
       ]
     },
     {
@@ -907,6 +871,55 @@
         138,
         140,
         189
+      ]
+    },
+    {
+      "number": 270,
+      "state": "closed",
+      "title": "[ARCH.RUNTIME.PLAYER.A] Retire the four transport endpoints #140 left in PlayerBroadcastInfo",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        140,
+        189
+      ]
+    },
+    {
+      "number": 297,
+      "state": "open",
+      "title": "[ARCH.P4.1] Promote the Session kernel to a wow-session crate",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        359
+      ]
+    },
+    {
+      "number": 359,
+      "state": "closed",
+      "title": "[ARCH.P4.1a] Retire the dispatcher's 479 match arms in favour of the registration that already exists",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        152
+      ]
+    },
+    {
+      "number": 378,
+      "state": "open",
+      "title": "[ARCH.P4.2] Move the remaining five session modules into wow-session",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        297
       ]
     }
   ]

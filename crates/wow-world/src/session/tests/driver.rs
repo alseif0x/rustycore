@@ -89,7 +89,7 @@ async fn ingestion_stops_at_the_shared_budget_like_cpp() {
     // budget: overfilling it would block the test, not the driver. Install an
     // unbounded primary channel so the bound under test is the driver's.
     let (pkt_tx, pkt_rx) = flume::unbounded();
-    session.packet_rx = pkt_rx;
+    session.set_packet_rx(pkt_rx);
     let surplus = 7;
     for _ in 0..MAX_PACKETS_PER_UPDATE + surplus {
         pkt_tx.send(benign_packet()).unwrap();
@@ -109,9 +109,9 @@ async fn ingestion_stops_at_the_shared_budget_like_cpp() {
 async fn realm_and_primary_ingestion_share_one_budget_like_cpp() {
     let (mut session, _bounded_tx, _send_rx) = make_session();
     let (pkt_tx, pkt_rx) = flume::unbounded();
-    session.packet_rx = pkt_rx;
+    session.set_packet_rx(pkt_rx);
     let (realm_tx, realm_rx) = flume::unbounded();
-    session.realm_packet_rx = Some(realm_rx);
+    session.install_realm_packet_channel(realm_rx);
     for _ in 0..MAX_PACKETS_PER_UPDATE {
         pkt_tx.send(benign_packet()).unwrap();
     }

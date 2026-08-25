@@ -42,7 +42,7 @@ impl WorldSession {
 
         // Drain the primary (instance) packet channel
         while processed < MAX_PACKETS_PER_UPDATE {
-            let pkt = match self.packet_rx.try_recv() {
+            let pkt = match self.packet_rx().try_recv() {
                 Ok(p) => p,
                 Err(flume::TryRecvError::Empty) => break,
                 Err(flume::TryRecvError::Disconnected) => {
@@ -77,7 +77,7 @@ impl WorldSession {
         // Also drain the realm socket channel (after ConnectTo, realm-type
         // packets like BattlenetRequest, Ping, etc. arrive here)
         self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DrainRealmPackets);
-        if let Some(realm_rx) = self.realm_packet_rx.clone() {
+        if let Some(realm_rx) = self.realm_packet_rx() {
             while processed < MAX_PACKETS_PER_UPDATE {
                 match realm_rx.try_recv() {
                     Ok(pkt) => {
@@ -107,7 +107,7 @@ impl WorldSession {
                         );
                         // Realm dropped — don't disconnect immediately, the
                         // instance socket may still be fine.
-                        self.realm_packet_rx = None;
+                        self.clear_realm_packet_rx();
                         break;
                     }
                 }
