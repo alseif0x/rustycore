@@ -11527,6 +11527,8 @@ fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp() {
         &registry,
         None,
         None,
+        None,
+        &Arc::new(Mutex::new(Default::default())),
     );
 
     assert!(!outcome.aggro.skipped_owner_not_global);
@@ -12341,6 +12343,8 @@ async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_mel
                 registry_for_task.as_ref(),
                 None,
                 None,
+                None,
+                &Arc::new(Mutex::new(Default::default())),
             )
         })
         .await
@@ -12581,6 +12585,7 @@ async fn legacy_creature_runtime_loop_smoke_delivers_visible_work_like_cpp() {
         None,
         Arc::new(Mutex::new(())),
         Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        None,
         Arc::clone(&registry),
     );
 
@@ -12670,6 +12675,7 @@ async fn legacy_respawn_producer_stop_runs_final_lifecycle_flush_like_cpp() {
         Some(writer_tx),
         Arc::new(Mutex::new(())),
         producer_stop,
+        None,
         Arc::new(PlayerRegistry::default()),
     );
 

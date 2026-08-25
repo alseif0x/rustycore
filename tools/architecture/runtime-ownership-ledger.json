@@ -1867,9 +1867,9 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 25071,
-          "test_lines": 21617,
-          "total_lines": 46688,
+          "production_lines": 25217,
+          "test_lines": 21623,
+          "total_lines": 46840,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153

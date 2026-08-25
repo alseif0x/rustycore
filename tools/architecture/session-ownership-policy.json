@@ -56868,7 +56868,7 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "& group_registry",
-          "count": 2
+          "count": 3
         },
         {
           "package": "world-server",
@@ -56881,7 +56881,7 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "Arc :: clone (& group_registry)",
-          "count": 1
+          "count": 2
         },
         {
           "package": "world-server",
@@ -56920,6 +56920,19 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "Arc :: clone (& group_registry)",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::app",
+          "source": "crates/world-server/src/app.rs",
+          "enclosing": "fn run_inner",
+          "registry": "GroupRegistry",
+          "operation": "argument_escape",
+          "symbol": "spawn_legacy_creature_runtime_update_loop_like_cpp",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "Some (Arc :: clone (& group_registry))",
           "count": 1
         },
         {
@@ -57043,6 +57056,19 @@
           "package": "world-server",
           "module": "crate::runtime::delivery",
           "source": "crates/world-server/src/runtime/delivery.rs",
+          "enclosing": "fn collect_player_melee_attackers_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::delivery",
+          "source": "crates/world-server/src/runtime/delivery.rs",
           "enclosing": "fn deliver_creature_attack_start_commands_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
@@ -57070,6 +57096,19 @@
           "module": "crate::runtime::delivery",
           "source": "crates/world-server/src/runtime/delivery.rs",
           "enclosing": "fn deliver_creature_melee_damage_commands_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::delivery",
+          "source": "crates/world-server/src/runtime/delivery.rs",
+          "enclosing": "fn deliver_player_melee_results_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
           "symbol": "registry",
@@ -57381,6 +57420,45 @@
           "package": "world-server",
           "module": "crate::runtime::delivery",
           "source": "crates/world-server/src/runtime/delivery.rs",
+          "enclosing": "fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "run_legacy_player_melee_tick_and_deliver_once_like_cpp",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::delivery",
+          "source": "crates/world-server/src/runtime/delivery.rs",
+          "enclosing": "fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "type_reference",
+          "symbol": "group_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "Option < & Arc < wow_social :: group :: GroupRegistry > >",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::delivery",
+          "source": "crates/world-server/src/runtime/delivery.rs",
+          "enclosing": "fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "argument_escape",
+          "symbol": "run_legacy_player_melee_tick_and_deliver_once_like_cpp",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "group_registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::delivery",
+          "source": "crates/world-server/src/runtime/delivery.rs",
           "enclosing": "fn run_legacy_creature_spell_tick_and_deliver_once_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
@@ -57401,6 +57479,71 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::delivery",
+          "source": "crates/world-server/src/runtime/delivery.rs",
+          "enclosing": "fn run_legacy_player_melee_tick_and_deliver_once_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "& wow_world :: session :: directory :: PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::delivery",
+          "source": "crates/world-server/src/runtime/delivery.rs",
+          "enclosing": "fn run_legacy_player_melee_tick_and_deliver_once_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "collect_player_melee_attackers_like_cpp",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::delivery",
+          "source": "crates/world-server/src/runtime/delivery.rs",
+          "enclosing": "fn run_legacy_player_melee_tick_and_deliver_once_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "deliver_player_melee_results_like_cpp",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::delivery",
+          "source": "crates/world-server/src/runtime/delivery.rs",
+          "enclosing": "fn run_legacy_player_melee_tick_and_deliver_once_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "type_reference",
+          "symbol": "group_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "Option < & Arc < wow_social :: group :: GroupRegistry > >",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::delivery",
+          "source": "crates/world-server/src/runtime/delivery.rs",
+          "enclosing": "fn run_legacy_player_melee_tick_and_deliver_once_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "argument_escape",
+          "symbol": "build_tap_group_index_like_cpp",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "group_registry",
           "count": 1
         },
         {
@@ -57453,6 +57596,58 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "registry_for_tick . as_ref ()",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::delivery",
+          "source": "crates/world-server/src/runtime/delivery.rs",
+          "enclosing": "fn spawn_legacy_creature_runtime_update_loop_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "type_reference",
+          "symbol": "group_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "Option < Arc < wow_social :: group :: GroupRegistry > >",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::delivery",
+          "source": "crates/world-server/src/runtime/delivery.rs",
+          "enclosing": "fn spawn_legacy_creature_runtime_update_loop_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_registry_for_tick",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "group_registry_for_tick:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::delivery",
+          "source": "crates/world-server/src/runtime/delivery.rs",
+          "enclosing": "fn spawn_legacy_creature_runtime_update_loop_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "clone",
+          "symbol": "clone",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "clone()",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::delivery",
+          "source": "crates/world-server/src/runtime/delivery.rs",
+          "enclosing": "fn spawn_legacy_creature_runtime_update_loop_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "argument_escape",
+          "symbol": "run_legacy_creature_runtime_tick_and_deliver_once_like_cpp",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "group_registry_for_tick . as_ref ()",
           "count": 1
         },
         {
@@ -64320,8 +64515,8 @@
               "side": "canonical",
               "kind": "value_reference",
               "symbol": "canonical_map_manager",
-              "fingerprint": "fnv1a64x2:8c3f81c1fbeaa7c4226df303db197967:len=249",
-              "multiplicity": 5
+              "fingerprint": "fnv1a64x2:44547e7dcdd64528255f5356b0e887d3:len=299",
+              "multiplicity": 6
             },
             {
               "side": "canonical",
@@ -64341,8 +64536,8 @@
               "side": "legacy",
               "kind": "value_reference",
               "symbol": "legacy_map_manager",
-              "fingerprint": "fnv1a64x2:889c593b2c4182e2098e8b0f79381fcd:len=249",
-              "multiplicity": 5
+              "fingerprint": "fnv1a64x2:1771bde5cefdbc4cd5b701936006d917:len=299",
+              "multiplicity": 6
             },
             {
               "side": "legacy",
@@ -64352,7 +64547,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp (legacy_map_manager : & SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , map_store : & wow_data :: MapStore , mmap_config : & MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < & WorldMMapPathfinderWorkerLikeCpp > , aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , diff_ms : u32 , now : std :: time :: Instant , registry : & wow_world :: session :: directory :: PlayerRegistry , respawn_db_mutation_order : Option < & SharedRespawnDbMutationOrderLikeCpp > , respawn_db_writer_tx : Option < & RespawnDbWriterSenderLikeCpp > ,) -> LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp|body=fnv1a64x2:11f646d0fc4cac90e84a3edeee2b8c33:len=1650|evidence=fnv1a64x2:0b31df77a734870075874f30b6d27af3:len=1410",
+          "fingerprint": "signature=fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp (legacy_map_manager : & SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , map_store : & wow_data :: MapStore , mmap_config : & MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < & WorldMMapPathfinderWorkerLikeCpp > , aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , diff_ms : u32 , now : std :: time :: Instant , registry : & wow_world :: session :: directory :: PlayerRegistry , respawn_db_mutation_order : Option < & SharedRespawnDbMutationOrderLikeCpp > , respawn_db_writer_tx : Option < & RespawnDbWriterSenderLikeCpp > , group_registry : Option < & Arc < wow_social :: group :: GroupRegistry > > , player_melee_phase_state : & SharedPlayerMeleePhaseStateLikeCpp ,) -> LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp|body=fnv1a64x2:78743d0cb71b8c2288eb41ea3e2eefa5:len=1903|evidence=fnv1a64x2:212c310529e798b0c8eaf9190c425f83:len=1598",
           "cfg": [],
           "multiplicity": 1
         },
@@ -64416,6 +64611,48 @@
           "package": "world-server",
           "module": "crate::runtime::delivery",
           "path": "crates/world-server/src/runtime/delivery.rs",
+          "enclosing": "fn::run_legacy_player_melee_tick_and_deliver_once_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "SharedCanonicalMapManager",
+              "fingerprint": "fnv1a64x2:8d7dcef49208e0d2cf3f8511772d0fad:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "canonical_map_manager",
+              "fingerprint": "fnv1a64x2:bc1ccf86e6629ce4647fd817847f34e7:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "type_reference",
+              "symbol": "SharedMapManager",
+              "fingerprint": "fnv1a64x2:7d2c912bd3b9f676e6912fae6fbff8e1:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "legacy_map_manager",
+              "fingerprint": "fnv1a64x2:234341f18e29fa8aff360b65382e3a15:len=49",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=fn run_legacy_player_melee_tick_and_deliver_once_like_cpp (legacy_map_manager : & SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , registry : & wow_world :: session :: directory :: PlayerRegistry , group_registry : Option < & Arc < wow_social :: group :: GroupRegistry > > , diff_ms : u32 , phase_state : & SharedPlayerMeleePhaseStateLikeCpp ,) -> (wow_world :: session :: LegacyPlayerMeleeTickOutcomeLikeCpp , RuntimePlayerMeleeDeliverySummaryLikeCpp ,)|body=fnv1a64x2:e9fd307b24eb4b5ab883651dcb5aea59:len=531|evidence=fnv1a64x2:144fe3b484ffbb2d92aa2cfef39fecda:len=375",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::runtime::delivery",
+          "path": "crates/world-server/src/runtime/delivery.rs",
           "enclosing": "fn::spawn_legacy_creature_runtime_update_loop_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -64464,7 +64701,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn spawn_legacy_creature_runtime_update_loop_like_cpp (enabled : bool , legacy_map_manager : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , map_store : Arc < wow_data :: MapStore > , mmap_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , tick_interval_ms : u32 , respawn_db_writer_tx : Option < RespawnDbWriterSenderLikeCpp > , respawn_db_mutation_order : SharedRespawnDbMutationOrderLikeCpp , respawn_db_producer_stop : SharedRespawnDbProducerStopLikeCpp , player_registry : Arc < PlayerRegistry > ,) -> tokio :: task :: JoinHandle < () >|body=fnv1a64x2:2eedeba409329c93ce4a7a8d036383ec:len=5217|evidence=fnv1a64x2:2b8c7c1326a715313472ba63083b932a:len=557",
+          "fingerprint": "signature=fn spawn_legacy_creature_runtime_update_loop_like_cpp (enabled : bool , legacy_map_manager : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , map_store : Arc < wow_data :: MapStore > , mmap_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , tick_interval_ms : u32 , respawn_db_writer_tx : Option < RespawnDbWriterSenderLikeCpp > , respawn_db_mutation_order : SharedRespawnDbMutationOrderLikeCpp , respawn_db_producer_stop : SharedRespawnDbProducerStopLikeCpp , group_registry : Option < Arc < wow_social :: group :: GroupRegistry > > , player_registry : Arc < PlayerRegistry > ,) -> tokio :: task :: JoinHandle < () >|body=fnv1a64x2:4225a85972826980e1474d22eae9f6a3:len=5602|evidence=fnv1a64x2:2b8c7c1326a715313472ba63083b932a:len=557",
           "cfg": [],
           "multiplicity": 1
         },
@@ -66020,7 +66257,7 @@
               "multiplicity": 3
             }
           ],
-          "fingerprint": "signature=async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_melee_like_cpp ()|body=fnv1a64x2:2e0a54aac6093c768b6a1c835e6701b1:len=11568|evidence=fnv1a64x2:46d2670ed02aa533062dda01dd3ba2b4:len=8209",
+          "fingerprint": "signature=async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_melee_like_cpp ()|body=fnv1a64x2:10a695455b7a91807e9582fdd8c36693:len=11629|evidence=fnv1a64x2:46d2670ed02aa533062dda01dd3ba2b4:len=8209",
           "cfg": [
             "cfg (test)"
           ],
@@ -67045,7 +67282,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp ()|body=fnv1a64x2:2c51502214ff1147a0c3cf1475a4aab4:len=5105|evidence=fnv1a64x2:ea60d78f4b0d8ba2468430b3bb634361:len=3116",
+          "fingerprint": "signature=fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp ()|body=fnv1a64x2:2c380878c9912def7231e171f07dfd1e:len=5166|evidence=fnv1a64x2:ea60d78f4b0d8ba2468430b3bb634361:len=3116",
           "cfg": [
             "cfg (test)"
           ],
@@ -67355,7 +67592,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=async fn legacy_creature_runtime_loop_smoke_delivers_visible_work_like_cpp ()|body=fnv1a64x2:faa875de5d16b08fbf0a0d231640a75e:len=3552|evidence=fnv1a64x2:78ca35ecfdef9242c119589582afc691:len=5683",
+          "fingerprint": "signature=async fn legacy_creature_runtime_loop_smoke_delivers_visible_work_like_cpp ()|body=fnv1a64x2:9ff010957667eff14be52a054dc931f6:len=3559|evidence=fnv1a64x2:78ca35ecfdef9242c119589582afc691:len=5683",
           "cfg": [
             "cfg (test)"
           ],
@@ -67511,7 +67748,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=async fn legacy_respawn_producer_stop_runs_final_lifecycle_flush_like_cpp ()|body=fnv1a64x2:aef611eac45632b16b31217517f313f8:len=2270|evidence=fnv1a64x2:875a45c4321809a7230c52e997d852ac:len=2169",
+          "fingerprint": "signature=async fn legacy_respawn_producer_stop_runs_final_lifecycle_flush_like_cpp ()|body=fnv1a64x2:7b734d12c9e3ceb145b8ef7bc8ca59ee:len=2277|evidence=fnv1a64x2:875a45c4321809a7230c52e997d852ac:len=2169",
           "cfg": [
             "cfg (test)"
           ],
