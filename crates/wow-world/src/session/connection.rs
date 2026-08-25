@@ -67,21 +67,33 @@ impl WorldSession {
     }
 
     /// The pending ConnectTo key, if a redirect is in flight.
+    /// Test-only, like the kernel query it forwards to: production reads
+    /// transport state through the operations above, never field by field.
+    #[cfg(test)]
     pub(crate) fn connect_to_key(&self) -> Option<i64> {
         self.connection.connect_to_key()
     }
 
     /// Whether a ConnectTo serial is still recorded.
+    /// Test-only, like the kernel query it forwards to: production reads
+    /// transport state through the operations above, never field by field.
+    #[cfg(test)]
     pub(crate) fn has_connect_to_serial(&self) -> bool {
         self.connection.has_connect_to_serial()
     }
 
     /// Whether an instance link receiver is installed and still awaited.
+    /// Test-only, like the kernel query it forwards to: production reads
+    /// transport state through the operations above, never field by field.
+    #[cfg(test)]
     pub(crate) fn is_awaiting_instance_link(&self) -> bool {
         self.connection.is_awaiting_instance_link()
     }
 
     /// Whether a realm send channel is parked.
+    /// Test-only, like the kernel query it forwards to: production reads
+    /// transport state through the operations above, never field by field.
+    #[cfg(test)]
     pub(crate) fn has_parked_realm_send_channel(&self) -> bool {
         self.connection.has_parked_realm_send_channel()
     }
@@ -97,6 +109,9 @@ impl WorldSession {
     }
 
     /// Replace the primary receive channel.
+    /// Test-only, like the kernel query it forwards to: production reads
+    /// transport state through the operations above, never field by field.
+    #[cfg(test)]
     pub(crate) fn set_packet_rx(&mut self, rx: flume::Receiver<wow_packet::WorldPacket>) {
         self.connection.set_packet_rx(rx);
     }

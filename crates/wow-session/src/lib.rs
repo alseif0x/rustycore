@@ -392,8 +392,13 @@ impl SessionConnection {
         self.connect_to_serial = None;
     }
 
-    /// Replace the primary receive channel. Runtime installs the real client
-    /// channel after construction.
+    /// Replace the primary receive channel.
+    ///
+    /// Behind `test-support` alongside the other installers: the real channel
+    /// arrives with the session at construction or through the instance-link
+    /// swap, so no production caller replaces it. The earlier doc here claimed a
+    /// runtime caller that does not exist.
+    #[cfg(feature = "test-support")]
     pub fn set_packet_rx(&mut self, rx: flume::Receiver<WorldPacket>) {
         self.packet_rx = rx;
     }

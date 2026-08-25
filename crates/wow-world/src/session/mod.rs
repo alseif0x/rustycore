@@ -217,16 +217,19 @@ use wow_entities::{
 };
 use wow_handler::{PacketProcessing, SessionStatus};
 
+// Only the test modules mounted into this file name these directly; the
+// production surface reaches them through `wow-session` since #297.
+#[cfg(test)]
+use wow_network::{SocketWriteFenceLikeCpp, SocketWriteFenceWaitResultLikeCpp};
+
 use registry::{PacketHandlerEntry, build_dispatch_table};
 use wow_loot::{
     LootClaimLease, LootStoreKind, LootStores, OwnedLootAuthority, OwnedLootAuthorityLifecycle,
     OwnedLootAuthorityStamp, OwnedLootScope, OwnedLootSnapshot,
 };
 use wow_map::coords::SIZE_OF_GRID_CELL;
-use wow_network::session_mgr::{InstanceLink, SessionManager};
-use wow_network::{
-    SocketTimeoutsLikeCpp, SocketWriteFenceLikeCpp, SocketWriteFenceWaitResultLikeCpp,
-};
+use wow_network::SocketTimeoutsLikeCpp;
+use wow_network::session_mgr::SessionManager;
 use wow_packet::packets::chat::{ChatMsg, ChatPkt, PrintNotification};
 use wow_packet::packets::gossip::ClientGossipText;
 use wow_packet::packets::item::{

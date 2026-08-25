@@ -23873,8 +23873,10 @@
           "name": "connect_to_key",
           "visibility": "pub (crate)",
           "signature": "fn connect_to_key (& self) -> Option < i64 >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -25827,8 +25829,10 @@
           "name": "has_connect_to_serial",
           "visibility": "pub (crate)",
           "signature": "fn has_connect_to_serial (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -25890,8 +25894,10 @@
           "name": "has_parked_realm_send_channel",
           "visibility": "pub (crate)",
           "signature": "fn has_parked_realm_send_channel (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -26464,8 +26470,10 @@
           "name": "is_awaiting_instance_link",
           "visibility": "pub (crate)",
           "signature": "fn is_awaiting_instance_link (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -42728,8 +42736,10 @@
           "name": "set_packet_rx",
           "visibility": "pub (crate)",
           "signature": "fn set_packet_rx (& mut self , rx : flume :: Receiver < wow_packet :: WorldPacket >)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"

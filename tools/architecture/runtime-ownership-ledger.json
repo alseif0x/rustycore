@@ -38,7 +38,7 @@
       "member_key": "name",
       "zero_gaps": true,
       "zero_overlap": true,
-      "expected_field_count": 740,
+      "expected_field_count": 730,
       "validation": "Compare the sorted AST names with the sorted concatenation of every family.field_names; reject a missing name, duplicate name, stale name, family count mismatch, or total count mismatch."
     },
     "families": [
@@ -81,18 +81,18 @@
           "session_key",
           "session_mgr"
         ],
-        "current_storage": "Physical socket channels/fences and ConnectTo state are stored directly on WorldSession; socket tasks and SessionManager remain in wow-network. Since #182 the logical attach/switch/restore transitions and realm-vs-primary routing over those fields live in the private wow_world::session::connection module rather than session/mod.rs.",
-        "sole_writer": "The connection/session task owns logical routing state; wow-network connection tasks own physical channel and fence lifecycle.",
+        "current_storage": "Since #297 the realm/instance channels, both write fences and the ConnectTo state live in `wow_session::SessionConnection`, and WorldSession keeps a single `connection` handle to it. Socket tasks and SessionManager remain in wow-network. What is left beside the handle in this family is session identity and the network-owned manager, not transport storage.",
+        "sole_writer": "`wow_session::SessionConnection` owns logical routing state and is the only writer of it; wow-network connection tasks own physical channel and fence lifecycle. The session performs only the steps the kernel reports back to it, such as continuing a login.",
         "readers": "WorldSession send/routing helpers, ConnectTo/login flow, shutdown, and network writers.",
         "clock_lifetime": "One authenticated connection with realm and optional instance links; physical links live until disconnect and both sockets must remain alive after ConnectTo.",
         "persistence_publication_order": "No durable state. Connection selection precedes enqueue; FIFO write-fence completion follows enqueue.",
         "mirror_direction": "Logical connection selection in Session points to opaque physical handles in wow-network; no gameplay state may flow back into transport.",
-        "target_owner": "wow-network for physical transport and fences; transitional wow_world::session::connection, terminal wow-session, for logical routing.",
+        "target_owner": "wow-network for physical transport and fences; wow-session for logical routing, which #297 landed. The terminal shape is the kernel depending on transport ports rather than concrete wow-network types, which #153 owns; #378 moves the remaining session modules in.",
         "cutover_issues": [
           153
         ],
         "rollback_condition": "Restore the previous logical router while retaining both physical sockets if connection choice, packet bytes, FIFO fences, or stale-incarnation rejection changes.",
-        "retirement_condition": "WorldSession stores only opaque transport handles and logical route state; no socket task, writer implementation, or raw network registry is owned by gameplay code."
+        "retirement_condition": "WorldSession stores only opaque transport handles and logical route state; no socket task, writer implementation, or raw network registry is owned by gameplay code. #297 retired the eleven transport fields into wow-session, leaving the `connection` handle; the residual rows here are session identity and the network-owned manager."
       },
       {
         "id": "packet_admission_dispatch",
@@ -1798,15 +1798,15 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 73356,
-          "test_lines": 96326,
-          "total_lines": 169682,
+          "production_lines": 73374,
+          "test_lines": 96328,
+          "total_lines": 169702,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153,
             378
           ],
-          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 owns the kernel promotion those unblock, and #252 the gameplay mirror. Until they land this row is a reviewed exception to the epic's 4,000-line signal, not a target. #252 begins retiring that mirror family by family: the honor block is the first cut, so production drops 73601->73573 while tests rise 96177->96309 for the three focused directory cases proving inspect now reads the canonical owner live. #297 promoted the transport kernel to the wow-session crate, the first module to leave this type under the epic's P4 rule; production drops 73489 -> 73352."
+          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 owns the kernel promotion those unblock, and #252 the gameplay mirror. Until they land this row is a reviewed exception to the epic's 4,000-line signal, not a target. #252 begins retiring that mirror family by family: the honor block is the first cut, so production drops 73601->73573 while tests rise 96177->96309 for the three focused directory cases proving inspect now reads the canonical owner live. #297 promoted the transport kernel to the wow-session crate, the first module to leave this type under the epic's P4 rule; production drops 73489 -> 73356."
         },
         {
           "path": "crates/wow-map/src/map/mod.rs",
