@@ -1505,9 +1505,29 @@ impl WorldSession {
                 continue;
             }
 
+            // The receiver's standings come off its canonical `Player` since #252.
+            // `None` means unknown, not zero: mid far-teleport the owner has left
+            // the old map and has not reached the destination. Evaluating a
+            // standing gate against an empty set would tell the sender the
+            // receiver's reputation is too low when it may well qualify, so report
+            // the eligibility as unrepresented instead.
+            let Some(receiver_reputation_standings) = receiver.reputation_standings.as_ref() else {
+                self.record_represented_push_quest_to_party_outcome_like_cpp(
+                    RepresentedPushQuestToPartyOutcomeLikeCpp {
+                        sender_guid,
+                        quest_id: packet.quest_id,
+                        target_guid: Some(receiver_guid),
+                        reason: RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverEligibilityUnrepresented,
+                        quest_pool_active_check_unrepresented: false,
+                        group_runtime_unrepresented: false,
+                        receiver_fanout_unrepresented: false,
+                    },
+                );
+                continue;
+            };
+
             let receiver_reputation_standing_like_cpp = |faction_id: u32| -> i32 {
-                receiver
-                    .reputation_standings
+                receiver_reputation_standings
                     .iter()
                     .find_map(|(stored_faction_id, standing)| {
                         (*stored_faction_id == faction_id).then_some(*standing)

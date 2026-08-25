@@ -16,8 +16,8 @@
 //! rails stay there until issue #140 relocates them.
 
 use crate::canonical_player_access::{
-    canonical_player_honor_stats_like_cpp, canonical_player_reputation_standings_like_cpp,
-    with_canonical_player_at_like_cpp,
+    HonorStatsLikeCpp, canonical_player_honor_stats_like_cpp,
+    canonical_player_reputation_standings_like_cpp, with_canonical_player_at_like_cpp,
 };
 use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
 use crate::session::SharedCanonicalMapManager;
@@ -344,7 +344,11 @@ pub struct PlayerQuestSharingSnapshot {
     pub level: u8,
     pub class: u8,
     pub race: u8,
-    pub reputation_standings: Vec<(u32, i32)>,
+    /// `None` when the receiver's canonical `Player` could not be resolved —
+    /// unknown, not empty. A receiver mid far-teleport has no resident owner,
+    /// and treating that as "no reputation" would fail every standing gate
+    /// against a real standing the caller cannot see (#252).
+    pub reputation_standings: Option<Vec<(u32, i32)>>,
     pub active_expansion: u8,
 }
 
@@ -498,13 +502,6 @@ pub struct PlayerInspectSnapshot {
     pub sex: u8,
     pub level: u8,
     pub visible_items: Arc<[(i32, u16, u16); 19]>,
-    pub lifetime_honorable_kills: u32,
-    pub this_week_contribution: u32,
-    pub yesterday_contribution: u32,
-    pub today_honorable_kills: u16,
-    pub yesterday_honorable_kills: u16,
-    pub lifetime_max_rank: u32,
-    pub honor_level: u32,
 }
 
 /// Owned player facts required by the legacy creature aggro compatibility cut.
@@ -938,71 +935,56 @@ impl PlayerRegistry {
 
     /// Resolve the bounded connected-player view required by inspect handlers.
     #[must_use]
-    /// Resolve one inspect target.
+    /// Resolve one inspect target's directory-owned identity and placement.
     ///
-    /// The honor block is no longer mirrored (#252): it is read straight off the
-    /// target's canonical `Player`, addressed by the placement this entry
-    /// already stores. The registry guard is dropped before that read, so the
-    /// canonical mutex is never taken under a registry shard guard.
-    pub fn inspect_snapshot(
+    /// Takes no canonical manager: the honor block moved to
+    /// [`Self::inspect_honor_stats`] (#252), so the inspect and achievement
+    /// opcodes — neither of which reads honor — no longer serialize with the
+    /// canonical map update loop to populate a block they discard.
+    pub fn inspect_snapshot(&self, guid: ObjectGuid) -> Option<PlayerInspectSnapshot> {
+        let entry = self.entries.get(&guid)?;
+        let info = &entry.info;
+        Some(PlayerInspectSnapshot {
+            guid,
+            map_id: info.map_id,
+            position: info.position,
+            faction_template_id: info.faction_template_id,
+            player_name: info.player_name.clone(),
+            race: info.race,
+            class: info.class,
+            sex: info.sex,
+            level: info.level,
+            visible_items: Arc::clone(&info.visible_items),
+        })
+    }
+
+    /// Read one target's honor block off its canonical `Player`.
+    ///
+    /// `None` means unknown, not zero, and a caller must not substitute a
+    /// default. During a far teleport the canonical `Player` is removed from the
+    /// old map before the destination world-port response lands, so a target
+    /// mid-transfer has no resident owner. C++ `HandleInspectHonorStats` answers
+    /// nothing when it cannot resolve the target; fabricating zeros would report
+    /// a real honor level as lost rather than as unavailable.
+    ///
+    /// The registry guard is dropped before the canonical mutex is taken.
+    pub fn inspect_honor_stats(
         &self,
         guid: ObjectGuid,
         canonical_map_manager: Option<&SharedCanonicalMapManager>,
-    ) -> Option<PlayerInspectSnapshot> {
-        let (mut snapshot, instance_id) = {
+    ) -> Option<HonorStatsLikeCpp> {
+        let (map_id, instance_id) = {
             let entry = self.entries.get(&guid)?;
-            let info = &entry.info;
-            (
-                PlayerInspectSnapshot {
-                    guid,
-                    map_id: info.map_id,
-                    position: info.position,
-                    faction_template_id: info.faction_template_id,
-                    player_name: info.player_name.clone(),
-                    race: info.race,
-                    class: info.class,
-                    sex: info.sex,
-                    level: info.level,
-                    visible_items: Arc::clone(&info.visible_items),
-                    lifetime_honorable_kills: 0,
-                    this_week_contribution: 0,
-                    yesterday_contribution: 0,
-                    today_honorable_kills: 0,
-                    yesterday_honorable_kills: 0,
-                    lifetime_max_rank: 0,
-                    honor_level: 0,
-                },
-                info.instance_id,
-            )
+            (entry.info.map_id, entry.info.instance_id)
         };
 
-        if let Some(manager) = canonical_map_manager
-            && let Some((
-                lifetime_honorable_kills,
-                this_week_contribution,
-                yesterday_contribution,
-                today_honorable_kills,
-                yesterday_honorable_kills,
-                lifetime_max_rank,
-                honor_level,
-            )) = with_canonical_player_at_like_cpp(
-                manager,
-                guid,
-                u32::from(snapshot.map_id),
-                instance_id,
-                canonical_player_honor_stats_like_cpp,
-            )
-        {
-            snapshot.lifetime_honorable_kills = lifetime_honorable_kills;
-            snapshot.this_week_contribution = this_week_contribution;
-            snapshot.yesterday_contribution = yesterday_contribution;
-            snapshot.today_honorable_kills = today_honorable_kills;
-            snapshot.yesterday_honorable_kills = yesterday_honorable_kills;
-            snapshot.lifetime_max_rank = lifetime_max_rank;
-            snapshot.honor_level = honor_level;
-        }
-
-        Some(snapshot)
+        with_canonical_player_at_like_cpp(
+            canonical_map_manager?,
+            guid,
+            u32::from(map_id),
+            instance_id,
+            canonical_player_honor_stats_like_cpp,
+        )
     }
 
     /// Snapshot only the presence facts used by loot and group-reward gates.
@@ -1313,7 +1295,7 @@ impl PlayerRegistry {
                     level: info.level,
                     class: info.class,
                     race: info.race,
-                    reputation_standings: Vec::new(),
+                    reputation_standings: None,
                     active_expansion: info.active_expansion,
                 },
                 info.map_id,
@@ -1321,16 +1303,14 @@ impl PlayerRegistry {
             )
         };
 
-        if let Some(manager) = canonical_map_manager
-            && let Some(standings) = with_canonical_player_at_like_cpp(
+        if let Some(manager) = canonical_map_manager {
+            snapshot.reputation_standings = with_canonical_player_at_like_cpp(
                 manager,
                 guid,
                 u32::from(map_id),
                 instance_id,
                 canonical_player_reputation_standings_like_cpp,
-            )
-        {
-            snapshot.reputation_standings = standings;
+            );
         }
 
         Some(snapshot)
@@ -2066,7 +2046,7 @@ mod tests {
     /// from the inspected `Player`'s `m_activePlayerData`/`m_playerData`; it does
     /// not consult a per-session cache of another player's state.
     #[test]
-    fn inspect_snapshot_reads_honor_level_from_the_canonical_player_like_cpp() {
+    fn inspect_honor_stats_reads_the_level_from_the_canonical_player_like_cpp() {
         let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
         let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
         let guid = ObjectGuid::create_player(1, 700);
@@ -2079,10 +2059,10 @@ mod tests {
             Default::default(),
         );
 
-        let snapshot = registry
-            .inspect_snapshot(guid, Some(&canonical))
-            .expect("registered inspect target");
-        assert_eq!(snapshot.honor_level, 7);
+        let (.., honor_level) = registry
+            .inspect_honor_stats(guid, Some(&canonical))
+            .expect("canonical owner resolves");
+        assert_eq!(honor_level, 7);
     }
 
     /// Retiring the mirror also retires its staleness window.
@@ -2092,7 +2072,7 @@ mod tests {
     /// value. Reading the canonical owner makes that window unrepresentable:
     /// nothing republishes here, and the new value is still observed.
     #[test]
-    fn inspect_snapshot_sees_a_canonical_honor_change_without_a_registry_sync_like_cpp() {
+    fn inspect_honor_stats_sees_a_canonical_change_without_a_registry_sync_like_cpp() {
         let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
         let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
         let guid = ObjectGuid::create_player(1, 701);
@@ -2106,9 +2086,9 @@ mod tests {
         );
         assert_eq!(
             registry
-                .inspect_snapshot(guid, Some(&canonical))
-                .expect("registered inspect target")
-                .honor_level,
+                .inspect_honor_stats(guid, Some(&canonical))
+                .expect("canonical owner resolves")
+                .6,
             3
         );
 
@@ -2124,19 +2104,24 @@ mod tests {
 
         assert_eq!(
             registry
-                .inspect_snapshot(guid, Some(&canonical))
-                .expect("registered inspect target")
-                .honor_level,
+                .inspect_honor_stats(guid, Some(&canonical))
+                .expect("canonical owner resolves")
+                .6,
             9,
             "inspect must read the canonical owner, not a copy taken at registration"
         );
     }
 
-    /// Negative branch: with no canonical manager, or with the target absent
-    /// from it, the resolver still answers with the directory-owned identity and
-    /// reports zero honor rather than failing the inspect outright.
+    /// An unresolvable canonical owner reports *unknown*, never a fabricated zero.
+    ///
+    /// This is the far-teleport window: `initiate_far_teleport_like_cpp` removes
+    /// the canonical `Player` from the old map before the destination world-port
+    /// response lands, while the directory registration stays. Answering zeros
+    /// there would tell the client a real honor level had dropped to nothing, so
+    /// the resolver returns `None` and the handler answers nothing — the branch
+    /// C++ `HandleInspectHonorStats` takes when it cannot resolve the target.
     #[test]
-    fn inspect_snapshot_reports_zero_honor_without_a_canonical_owner_like_cpp() {
+    fn inspect_honor_stats_reports_unknown_rather_than_zero_without_an_owner_like_cpp() {
         let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
         let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
         let guid = ObjectGuid::create_player(1, 702);
@@ -2148,16 +2133,46 @@ mod tests {
             Default::default(),
         );
 
-        let without_manager = registry
-            .inspect_snapshot(guid, None)
-            .expect("identity is directory-owned and still resolves");
-        assert_eq!(without_manager.honor_level, 0);
-        assert_eq!(without_manager.map_id, 571);
+        assert!(registry.inspect_honor_stats(guid, None).is_none());
+
+        // Registered, but no canonical owner resident: exactly the transfer window.
+        let empty: SharedCanonicalMapManager = Arc::new(Mutex::new(wow_map::MapManager::default()));
+        assert!(registry.inspect_honor_stats(guid, Some(&empty)).is_none());
+
+        // The directory-owned identity is unaffected and still resolves.
+        let identity = registry
+            .inspect_snapshot(guid)
+            .expect("identity stays directory-owned");
+        assert_eq!(identity.map_id, 571);
+    }
+
+    /// The quest-share receiver's standings are unknown, not empty, when its
+    /// canonical owner cannot be resolved (#252).
+    ///
+    /// The consumer turns `None` into `ReceiverEligibilityUnrepresented` instead
+    /// of evaluating a standing gate against an empty set, which would report a
+    /// qualifying receiver as short on reputation.
+    #[test]
+    fn quest_sharing_snapshot_reports_unknown_standings_without_an_owner_like_cpp() {
+        let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
+        let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
+        let guid = ObjectGuid::create_player(1, 703);
+
+        let registry = PlayerRegistry::new();
+        registry.register_or_replace(
+            guid,
+            registration_for_test(571, 42, send_tx, command_tx),
+            Default::default(),
+        );
 
         let empty: SharedCanonicalMapManager = Arc::new(Mutex::new(wow_map::MapManager::default()));
-        let absent_from_map = registry
-            .inspect_snapshot(guid, Some(&empty))
-            .expect("identity is directory-owned and still resolves");
-        assert_eq!(absent_from_map.honor_level, 0);
+        assert!(
+            registry
+                .quest_sharing_snapshot(guid, Some(&empty))
+                .expect("registered receiver")
+                .reputation_standings
+                .is_none(),
+            "an absent canonical owner must not read as \"no reputation\""
+        );
     }
 }

@@ -71596,14 +71596,16 @@ fn player_registry_reputation_snapshot_syncs_from_canonical_player_like_cpp() {
             .quest_sharing_snapshot(player_guid, Some(&canonical))
             .expect("quest sharing snapshot")
             .reputation_standings,
-        vec![(72, 1234)]
+        Some(vec![(72, 1234)])
     );
+    // Without a canonical owner the standings are unknown, not empty: the
+    // consumer must not read an absent owner as "no reputation" (#252).
     assert!(
         player_registry
             .quest_sharing_snapshot(player_guid, None)
             .expect("identity stays directory-owned and still resolves")
             .reputation_standings
-            .is_empty()
+            .is_none()
     );
 }
 

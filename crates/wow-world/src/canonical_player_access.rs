@@ -42,7 +42,7 @@ pub(crate) fn with_canonical_player_at_like_cpp<R>(
 }
 
 /// The seven honor counters an inspect response carries, in C++ field order.
-pub(crate) type HonorStatsLikeCpp = (u32, u32, u32, u16, u16, u32, u32);
+pub type HonorStatsLikeCpp = (u32, u32, u32, u16, u16, u32, u32);
 
 /// Read the honor block off a canonical `Player`.
 ///

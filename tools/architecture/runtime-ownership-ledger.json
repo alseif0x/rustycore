@@ -1808,9 +1808,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 73509,
-          "test_lines": 96289,
-          "total_lines": 169798,
+          "production_lines": 73489,
+          "test_lines": 96326,
+          "total_lines": 169815,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153,
@@ -1866,9 +1866,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/quest/mod.rs",
-          "production_lines": 8431,
+          "production_lines": 8451,
           "test_lines": 10290,
-          "total_lines": 18721,
+          "total_lines": 18741,
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
           "open_retirement_issues": [
             153
