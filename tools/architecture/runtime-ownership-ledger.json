@@ -1449,7 +1449,7 @@
         },
         {
           "id": "directory_gameplay_projection",
-          "expected_field_count": 32,
+          "expected_field_count": 29,
           "field_names": [
             "active_quest_objective_counts",
             "active_quest_statuses",
@@ -1459,13 +1459,11 @@
             "current_power",
             "daily_quests_completed",
             "df_quests",
-            "forced_reputation_faction_ids",
             "forced_reputation_ranks",
             "has_vehicle_kit_like_cpp",
             "in_combat",
             "in_vehicle",
             "inventory_item_counts",
-            "is_contested_pvp",
             "is_ffa_pvp",
             "is_pvp",
             "known_spells",
@@ -1480,7 +1478,6 @@
             "position",
             "power_type",
             "reputation_standings",
-            "reputation_state_flags",
             "rewarded_quests",
             "transport"
           ],
@@ -1492,7 +1489,7 @@
         },
         {
           "id": "player_broadcast_remaining_assigned_mirrors",
-          "expected_field_count": 27,
+          "expected_field_count": 26,
           "field_names": [
             "active_expansion",
             "auto_reply_msg_like_cpp",
@@ -1518,7 +1515,6 @@
             "sex",
             "spec_id",
             "unit_flags",
-            "unit_flags2",
             "unit_state",
             "zone_id"
           ],
@@ -1529,7 +1525,7 @@
           "retirement_condition": "#252 removes every assigned residual through bounded canonical queries and deletes the broad projection without introducing a replacement mirror."
         }
       ],
-      "expected_field_count": 65
+      "expected_field_count": 61
     },
     "session_command": {
       "coverage_source": {
@@ -1813,9 +1809,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 73573,
-          "test_lines": 96309,
-          "total_lines": 169882,
+          "production_lines": 73502,
+          "test_lines": 96282,
+          "total_lines": 169784,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153,
@@ -1860,14 +1856,14 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 25217,
-          "test_lines": 21623,
-          "total_lines": 46840,
+          "production_lines": 25231,
+          "test_lines": 21682,
+          "total_lines": 46913,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "The crate keeps main as a thin entry point and distributes bootstrap/loaders/runtime by cohesive private modules; gameplay algorithms and hidden mutable clocks are absent."
+          "retirement_condition": "The crate keeps main as a thin entry point and distributes bootstrap/loaders/runtime by cohesive private modules; gameplay algorithms and hidden mutable clocks are absent. #252's aggro-family cut moves the reputation/flag reads into the collector's existing canonical pass, adding 14 production lines here while deleting more from the mirror, plus 59 test lines for the positive and no-owner cases."
         },
         {
           "path": "crates/wow-world/src/handlers/quest/mod.rs",

@@ -55886,13 +55886,6 @@
           "source_class": "production"
         },
         {
-          "name": "forced_reputation_faction_ids",
-          "type": "Vec < u32 >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "forced_reputation_ranks",
           "type": "Vec < (u32 , wow_data :: reputation :: ReputationRankLikeCpp) >",
           "visibility": "pub",
@@ -55950,13 +55943,6 @@
         },
         {
           "name": "is_alive",
-          "type": "bool",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "is_contested_pvp",
           "type": "bool",
           "visibility": "pub",
           "cfg": [],
@@ -56138,13 +56124,6 @@
           "source_class": "production"
         },
         {
-          "name": "reputation_state_flags",
-          "type": "Vec < (u32 , u32) >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "rewarded_quests",
           "type": "HashSet < u32 >",
           "visibility": "pub",
@@ -56174,13 +56153,6 @@
         },
         {
           "name": "unit_flags",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "unit_flags2",
           "type": "u32",
           "visibility": "pub",
           "cfg": [],

@@ -35721,11 +35721,9 @@ fn broadcast_info_with_command(
             zone_id: 0,
             spec_id: 0,
             unit_flags: 0,
-            unit_flags2: 0,
             unit_state: 0,
             is_game_master: false,
             dungeon_difficulty_id: 1,
-            is_contested_pvp: false,
             active_expansion: 2,
             pending_quest_sharing: None,
             known_spells: Vec::new(),
@@ -35737,9 +35735,7 @@ fn broadcast_info_with_command(
             df_quests: Default::default(),
             faction_template_id: 0,
             reputation_standings: Vec::new(),
-            reputation_state_flags: Vec::new(),
             forced_reputation_ranks: Vec::new(),
-            forced_reputation_faction_ids: Vec::new(),
             inventory_item_counts: Default::default(),
             party_member_party_type: [0; 2],
             party_member_phase_states: Default::default(),
@@ -40494,12 +40490,6 @@ async fn teleport_to_instance_rejects_access_requirements_before_transfer_like_c
         );
     }
     assert!(
-        player_registry
-            .fixture_snapshot(player_guid)
-            .expect("player registry snapshot")
-            .is_contested_pvp
-    );
-    assert!(
         canonical.lock().unwrap().find_map(631, 0).is_none(),
         "teleport preflight must not create the target instance before the client transfer"
     );
@@ -40679,12 +40669,6 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
             Some(0.0)
         );
     }
-    assert!(
-        !player_registry
-            .fixture_snapshot(player_guid)
-            .expect("player registry snapshot")
-            .is_contested_pvp
-    );
     assert_eq!(session.combat_target, None);
     assert!(!session.in_combat);
     assert!(
@@ -71660,18 +71644,11 @@ fn player_registry_relation_snapshot_syncs_from_session_and_canonical_like_cpp()
         .fixture_snapshot(player_guid)
         .expect("player snapshot");
     assert_eq!(snapshot.faction_template_id, 1);
-    assert_eq!(snapshot.unit_flags2, UnitFlags2::IGNORE_REPUTATION.bits());
-    assert_eq!(
-        snapshot.reputation_state_flags,
-        vec![(72, wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP)]
-    );
     assert_eq!(
         snapshot.forced_reputation_ranks,
         vec![(87, wow_data::reputation::ReputationRankLikeCpp::Hostile)]
     );
-    assert_eq!(snapshot.forced_reputation_faction_ids, vec![87]);
     assert_eq!(snapshot.combat_reach, 1.25);
-    assert!(snapshot.is_contested_pvp);
 }
 
 #[test]

@@ -7,7 +7,7 @@
 
 pub(crate) mod battle_pet_account;
 pub(crate) mod battle_pet_purchase;
-pub(crate) mod canonical_player_access;
+pub mod canonical_player_access;
 pub mod conditions;
 pub mod entity_update_bridge;
 pub mod handlers;

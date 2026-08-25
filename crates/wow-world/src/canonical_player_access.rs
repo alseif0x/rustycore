@@ -65,3 +65,48 @@ pub(crate) fn canonical_player_honor_stats_like_cpp(player: &Player) -> HonorSta
         player.data().honor_level.max(0) as u32,
     )
 }
+
+/// C++ `Unit::m_unitData->Flags2` for one canonical player.
+#[must_use]
+pub fn canonical_player_unit_flags2_like_cpp(player: &Player) -> u32 {
+    player.unit().unit_flags2_like_cpp().bits()
+}
+
+/// C++ `PLAYER_FLAGS_CONTESTED_PVP`.
+///
+/// Re-exported so a caller outside this crate can set up the flag it reads back
+/// through [`canonical_player_is_contested_pvp_like_cpp`] without a second
+/// literal drifting from the definition.
+pub const PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP: u32 =
+    crate::session::PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP;
+
+/// C++ `PLAYER_FLAGS_CONTESTED_PVP` on one canonical player.
+#[must_use]
+pub fn canonical_player_is_contested_pvp_like_cpp(player: &Player) -> bool {
+    player.has_player_flag(crate::session::PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP)
+}
+
+/// C++ `ReputationMgr` per-faction state flags for one canonical player.
+#[must_use]
+pub fn canonical_player_reputation_state_flags_like_cpp(player: &Player) -> Vec<(u32, u32)> {
+    player
+        .gameplay_state()
+        .reputations
+        .iter()
+        .map(|record| (record.faction_id, record.flags))
+        .collect()
+}
+
+/// C++ `ReputationMgr::_forcedReactions` faction keys for one canonical player.
+///
+/// Sorted, because the aggro scan compares this against an ordered expectation.
+#[must_use]
+pub fn canonical_player_forced_reputation_faction_ids_like_cpp(player: &Player) -> Vec<u32> {
+    let mut faction_ids: Vec<u32> = player
+        .forced_reputation_faction_ids_like_cpp()
+        .iter()
+        .copied()
+        .collect();
+    faction_ids.sort_unstable();
+    faction_ids
+}

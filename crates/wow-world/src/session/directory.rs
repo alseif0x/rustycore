@@ -158,16 +158,12 @@ pub struct PlayerBroadcastInfo {
     pub spec_id: u32,
     /// Represented `Unit::GetUnitFlags()` snapshot for global creature targetability gates.
     pub unit_flags: u32,
-    /// Represented `Unit::GetUnitFlags2()` snapshot for reputation-ignore gates.
-    pub unit_flags2: u32,
     /// Represented `Unit::GetUnitState()` snapshot for fake-death/unattackable targetability gates.
     pub unit_state: u32,
     /// Represented `Player::IsGameMaster()` snapshot; C++ rejects GM players as attack targets.
     pub is_game_master: bool,
     /// Represented `Player::GetDungeonDifficultyID()` snapshot for cross-session party invite gates.
     pub dungeon_difficulty_id: u32,
-    /// Represented `PLAYER_FLAGS_CONTESTED_PVP` snapshot for contested-guard attackability.
-    pub is_contested_pvp: bool,
     /// Active expansion derived from canonical `WorldSession::expansion` for receiver-only quest gates.
     pub active_expansion: u8,
     /// Represented non-empty `Player::GetPlayerSharingQuest()` snapshot for party quest sharing.
@@ -193,12 +189,8 @@ pub struct PlayerBroadcastInfo {
     /// Represented current reputation standing by faction for remote `SatisfyQuestReputation`.
     /// Missing factions are interpreted as standing 0 like C++ no-state path.
     pub reputation_standings: Vec<(u32, i32)>,
-    /// Represented reputation flags by faction, including `REPUTATION_FLAG_AT_WAR`.
-    pub reputation_state_flags: Vec<(u32, u32)>,
     /// Represented `Player::GetReputationMgr().GetForcedRankIfAny()` ranks.
     pub forced_reputation_ranks: Vec<(u32, wow_data::reputation::ReputationRankLikeCpp)>,
-    /// Represented forced-reaction membership mirrored on the canonical player.
-    pub forced_reputation_faction_ids: Vec<u32>,
     /// Direct inventory item counts, keyed by item entry, used for remote quest-loot gates.
     pub inventory_item_counts: HashMap<u32, u32>,
     /// C++ `PlayerData::PartyType[2]` snapshot for SMSG_PARTY_MEMBER_FULL_STATE.
@@ -529,15 +521,11 @@ pub struct PlayerAggroCandidateSnapshot {
     pub level: u8,
     pub gray_level: u8,
     pub unit_flags: u32,
-    pub unit_flags2: u32,
     pub unit_state: u32,
     pub is_game_master: bool,
-    pub is_contested_pvp: bool,
     pub faction_template_id: u32,
     pub reputation_standings: Vec<(u32, i32)>,
-    pub reputation_state_flags: Vec<(u32, u32)>,
     pub forced_reputation_ranks: Vec<(u32, wow_data::reputation::ReputationRankLikeCpp)>,
-    pub forced_reputation_faction_ids: Vec<u32>,
 }
 
 /// Owned CREATE payload facts for one spatially eligible player.
@@ -1461,15 +1449,11 @@ impl PlayerRegistry {
                     level: info.level,
                     gray_level: info.gray_level,
                     unit_flags: info.unit_flags,
-                    unit_flags2: info.unit_flags2,
                     unit_state: info.unit_state,
                     is_game_master: info.is_game_master,
-                    is_contested_pvp: info.is_contested_pvp,
                     faction_template_id: info.faction_template_id,
                     reputation_standings: info.reputation_standings.clone(),
-                    reputation_state_flags: info.reputation_state_flags.clone(),
                     forced_reputation_ranks: info.forced_reputation_ranks.clone(),
-                    forced_reputation_faction_ids: info.forced_reputation_faction_ids.clone(),
                 })
             })
             .collect()
@@ -1928,11 +1912,9 @@ mod tests {
                 zone_id: 0,
                 spec_id: 0,
                 unit_flags: 0,
-                unit_flags2: 0,
                 unit_state: 0,
                 is_game_master: false,
                 dungeon_difficulty_id: 1,
-                is_contested_pvp: false,
                 active_expansion: 2,
                 pending_quest_sharing: None,
                 known_spells: Vec::new(),
@@ -1944,9 +1926,7 @@ mod tests {
                 df_quests: Default::default(),
                 faction_template_id: 0,
                 reputation_standings: Vec::new(),
-                reputation_state_flags: Vec::new(),
                 forced_reputation_ranks: Vec::new(),
-                forced_reputation_faction_ids: Vec::new(),
                 inventory_item_counts: Default::default(),
                 party_member_party_type: [0; 2],
                 party_member_phase_states: Default::default(),
