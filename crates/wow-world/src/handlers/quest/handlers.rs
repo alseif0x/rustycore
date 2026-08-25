@@ -1114,6 +1114,7 @@ impl WorldSession {
             return;
         };
 
+        let canonical_map_manager = self.canonical_map_manager.clone();
         let receiver_snapshots = group_info
             .members
             .iter()
@@ -1121,7 +1122,7 @@ impl WorldSession {
             .filter(|member_guid| Some(*member_guid) != sender_guid)
             .filter_map(|member_guid| {
                 player_registry
-                    .quest_sharing_snapshot(member_guid)
+                    .quest_sharing_snapshot(member_guid, canonical_map_manager.as_ref())
                     .map(|receiver| (member_guid, receiver))
             })
             .collect::<Vec<_>>();
@@ -1504,9 +1505,29 @@ impl WorldSession {
                 continue;
             }
 
+            // The receiver's standings come off its canonical `Player` since #252.
+            // `None` means unknown, not zero: mid far-teleport the owner has left
+            // the old map and has not reached the destination. Evaluating a
+            // standing gate against an empty set would tell the sender the
+            // receiver's reputation is too low when it may well qualify, so report
+            // the eligibility as unrepresented instead.
+            let Some(receiver_reputation_standings) = receiver.reputation_standings.as_ref() else {
+                self.record_represented_push_quest_to_party_outcome_like_cpp(
+                    RepresentedPushQuestToPartyOutcomeLikeCpp {
+                        sender_guid,
+                        quest_id: packet.quest_id,
+                        target_guid: Some(receiver_guid),
+                        reason: RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverEligibilityUnrepresented,
+                        quest_pool_active_check_unrepresented: false,
+                        group_runtime_unrepresented: false,
+                        receiver_fanout_unrepresented: false,
+                    },
+                );
+                continue;
+            };
+
             let receiver_reputation_standing_like_cpp = |faction_id: u32| -> i32 {
-                receiver
-                    .reputation_standings
+                receiver_reputation_standings
                     .iter()
                     .find_map(|(stored_faction_id, standing)| {
                         (*stored_faction_id == faction_id).then_some(*standing)

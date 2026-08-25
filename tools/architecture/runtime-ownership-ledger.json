@@ -1449,7 +1449,7 @@
         },
         {
           "id": "directory_gameplay_projection",
-          "expected_field_count": 32,
+          "expected_field_count": 28,
           "field_names": [
             "active_quest_objective_counts",
             "active_quest_statuses",
@@ -1459,13 +1459,11 @@
             "current_power",
             "daily_quests_completed",
             "df_quests",
-            "forced_reputation_faction_ids",
             "forced_reputation_ranks",
             "has_vehicle_kit_like_cpp",
             "in_combat",
             "in_vehicle",
             "inventory_item_counts",
-            "is_contested_pvp",
             "is_ffa_pvp",
             "is_pvp",
             "known_spells",
@@ -1479,8 +1477,6 @@
             "pending_quest_sharing",
             "position",
             "power_type",
-            "reputation_standings",
-            "reputation_state_flags",
             "rewarded_quests",
             "transport"
           ],
@@ -1492,7 +1488,7 @@
         },
         {
           "id": "player_broadcast_remaining_assigned_mirrors",
-          "expected_field_count": 34,
+          "expected_field_count": 26,
           "field_names": [
             "active_expansion",
             "auto_reply_msg_like_cpp",
@@ -1504,7 +1500,6 @@
             "enchanting_skill",
             "faction_template_id",
             "gray_level",
-            "honor_level",
             "instance_id",
             "is_afk",
             "is_alive",
@@ -1513,20 +1508,13 @@
             "is_ghost",
             "is_in_world",
             "level",
-            "lifetime_honorable_kills",
-            "lifetime_max_rank",
             "liquid_status",
             "map_id",
             "race",
             "sex",
             "spec_id",
-            "this_week_contribution",
-            "today_honorable_kills",
             "unit_flags",
-            "unit_flags2",
             "unit_state",
-            "yesterday_contribution",
-            "yesterday_honorable_kills",
             "zone_id"
           ],
           "owner": "Temporary PlayerBroadcastInfo projection; every canonical owner and cutover condition is assigned explicitly in docs/architecture/player-broadcast-info-retirement.tsv.",
@@ -1536,7 +1524,7 @@
           "retirement_condition": "#252 removes every assigned residual through bounded canonical queries and deletes the broad projection without introducing a replacement mirror."
         }
       ],
-      "expected_field_count": 72
+      "expected_field_count": 60
     },
     "session_command": {
       "coverage_source": {
@@ -1820,15 +1808,15 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 73601,
-          "test_lines": 96177,
-          "total_lines": 169778,
+          "production_lines": 73489,
+          "test_lines": 96326,
+          "total_lines": 169815,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153,
             297
           ],
-          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 owns the kernel promotion those unblock, and #252 the gameplay mirror. Until they land this row is a reviewed exception to the epic's 4,000-line signal, not a target."
+          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 owns the kernel promotion those unblock, and #252 the gameplay mirror. Until they land this row is a reviewed exception to the epic's 4,000-line signal, not a target. #252 begins retiring that mirror family by family: the honor block is the first cut, so production drops 73601->73573 while tests rise 96177->96309 for the three focused directory cases proving inspect now reads the canonical owner live."
         },
         {
           "path": "crates/wow-map/src/map/mod.rs",
@@ -1867,25 +1855,25 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 25217,
-          "test_lines": 21623,
-          "total_lines": 46840,
+          "production_lines": 25235,
+          "test_lines": 21680,
+          "total_lines": 46915,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "The crate keeps main as a thin entry point and distributes bootstrap/loaders/runtime by cohesive private modules; gameplay algorithms and hidden mutable clocks are absent."
+          "retirement_condition": "The crate keeps main as a thin entry point and distributes bootstrap/loaders/runtime by cohesive private modules; gameplay algorithms and hidden mutable clocks are absent. #252's aggro-family cut moves the reputation/flag reads into the collector's existing canonical pass, adding 14 production lines here while deleting more from the mirror, plus 59 test lines for the positive and no-owner cases."
         },
         {
           "path": "crates/wow-world/src/handlers/quest/mod.rs",
-          "production_lines": 8430,
-          "test_lines": 10184,
-          "total_lines": 18614,
+          "production_lines": 8451,
+          "test_lines": 10290,
+          "total_lines": 18741,
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "Quest handler is a thin adapter over canonical Player/quest/persistence capabilities with exact outcome and packet order."
+          "retirement_condition": "Quest handler is a thin adapter over canonical Player/quest/persistence capabilities with exact outcome and packet order. #252's reputation cut adds a canonical party-member fixture here (+95 test lines): the quest-share harness now installs the receiver's canonical Player, because the gate reads standings off that owner instead of a mirrored copy."
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",

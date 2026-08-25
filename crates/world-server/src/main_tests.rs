@@ -292,11 +292,9 @@ fn player_broadcast_info_fixture_like_cpp(
             zone_id: 0,
             spec_id: 0,
             unit_flags: 0,
-            unit_flags2: 0,
             unit_state: 0,
             is_game_master: false,
             dungeon_difficulty_id: 1,
-            is_contested_pvp: false,
             active_expansion: 2,
             pending_quest_sharing: None,
             known_spells: Vec::new(),
@@ -307,10 +305,7 @@ fn player_broadcast_info_fixture_like_cpp(
             daily_quests_completed: Default::default(),
             df_quests: Default::default(),
             faction_template_id: 0,
-            reputation_standings: Vec::new(),
-            reputation_state_flags: Vec::new(),
             forced_reputation_ranks: Vec::new(),
-            forced_reputation_faction_ids: Vec::new(),
             inventory_item_counts: Default::default(),
             party_member_party_type: [0; 2],
             party_member_phase_states: Default::default(),
@@ -327,13 +322,6 @@ fn player_broadcast_info_fixture_like_cpp(
             display_id: 49,
             visible_items: std::sync::Arc::new([(0, 0, 0); 19]),
             customizations: std::sync::Arc::default(),
-            lifetime_honorable_kills: 0,
-            this_week_contribution: 0,
-            yesterday_contribution: 0,
-            today_honorable_kills: 0,
-            yesterday_honorable_kills: 0,
-            lifetime_max_rank: 0,
-            honor_level: 0,
         },
         realm_send_tx: send_tx.clone(),
         send_tx,
@@ -7026,11 +7014,9 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
                 zone_id: 0,
                 spec_id: 0,
                 unit_flags: 0,
-                unit_flags2: 0,
                 unit_state: 0,
                 is_game_master: false,
                 dungeon_difficulty_id: 1,
-                is_contested_pvp: false,
                 active_expansion: 2,
                 pending_quest_sharing: None,
                 known_spells: Vec::new(),
@@ -7041,10 +7027,7 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
                 daily_quests_completed: Default::default(),
                 df_quests: Default::default(),
                 faction_template_id: 0,
-                reputation_standings: Vec::new(),
-                reputation_state_flags: Vec::new(),
                 forced_reputation_ranks: Vec::new(),
-                forced_reputation_faction_ids: Vec::new(),
                 inventory_item_counts: Default::default(),
                 party_member_party_type: [0; 2],
                 party_member_phase_states: Default::default(),
@@ -7061,13 +7044,6 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
                 display_id: 49,
                 visible_items: std::sync::Arc::new([(0, 0, 0); 19]),
                 customizations: std::sync::Arc::default(),
-                lifetime_honorable_kills: 0,
-                this_week_contribution: 0,
-                yesterday_contribution: 0,
-                today_honorable_kills: 0,
-                yesterday_honorable_kills: 0,
-                lifetime_max_rank: 0,
-                honor_level: 0,
             },
             realm_send_tx: send_tx.clone(),
             send_tx,
@@ -11053,15 +11029,9 @@ fn collect_legacy_creature_aggro_candidates_uses_living_in_world_players_like_cp
         make_registry_player_like_cpp(571, 2, Position::new(1.0, 2.0, 3.0, 0.0), true);
     in_world_info.info.combat_reach = 1.5;
     in_world_info.info.liquid_status = wow_world::session::LIQUID_MAP_IN_WATER_LIKE_CPP;
-    in_world_info.info.unit_flags2 = wow_constants::unit::UnitFlags2::IGNORE_REPUTATION.bits();
     in_world_info.info.faction_template_id = 1;
-    in_world_info.info.reputation_standings = vec![(72, -6_000)];
-    in_world_info.info.reputation_state_flags =
-        vec![(72, wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP)];
     in_world_info.info.forced_reputation_ranks =
         vec![(87, wow_data::reputation::ReputationRankLikeCpp::Hostile)];
-    in_world_info.info.forced_reputation_faction_ids = vec![87];
-    in_world_info.info.is_contested_pvp = true;
     let (not_in_world_info, _) =
         make_registry_player_like_cpp(571, 2, Position::new(9.0, 9.0, 9.0, 0.0), false);
     let (mut dead_in_world_info, _) =
@@ -11086,25 +11056,11 @@ fn collect_legacy_creature_aggro_candidates_uses_living_in_world_players_like_cp
     );
     assert_eq!(candidates[0].player_level, 1);
     assert_eq!(candidates[0].player_gray_level, 0);
-    assert_eq!(
-        candidates[0].player_unit_flags2,
-        wow_constants::unit::UnitFlags2::IGNORE_REPUTATION.bits()
-    );
     assert_eq!(candidates[0].player_faction_template_id, 1);
-    assert_eq!(
-        candidates[0].player_reputation_standings,
-        vec![(72, -6_000)]
-    );
-    assert_eq!(
-        candidates[0].player_reputation_state_flags,
-        vec![(72, wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP)]
-    );
     assert_eq!(
         candidates[0].player_forced_reputation_ranks,
         vec![(87, wow_data::reputation::ReputationRankLikeCpp::Hostile)]
     );
-    assert_eq!(candidates[0].player_forced_reputation_faction_ids, vec![87]);
-    assert!(candidates[0].player_is_contested_pvp);
 }
 
 #[test]
@@ -11193,6 +11149,107 @@ fn collect_legacy_creature_aggro_candidates_hydrates_canonical_visibility_like_c
     assert_eq!(candidates[0].player_school_immunity_mask, 0x1);
     assert!(candidates[0].player_has_confuse_aura);
     assert!(candidates[0].player_has_breakable_stun_aura);
+}
+
+/// The aggro scan's reputation/flag inputs come off the canonical player (#252).
+///
+/// These four values used to be copied into `PlayerBroadcastInfo` at registration
+/// and refreshed on every registry sync. They are read in the collector's existing
+/// canonical pass now, which takes the map lock once for the whole batch, so the
+/// redirect adds no lock and no nesting.
+///
+/// C++ anchor: `Creature::CanCreatureAttack`/`Unit::IsValidAttackTarget` consult the
+/// inspected `Player`'s own reputation state and unit flags, not a per-session copy.
+#[test]
+fn collect_legacy_creature_aggro_candidates_reads_reputation_and_flags_from_canonical_like_cpp() {
+    let registry = PlayerRegistry::default();
+    let player_guid = ObjectGuid::create_player(1, 69);
+    let position = Position::new(1.0, 2.0, 3.0, 0.0);
+    let (info, _) = make_registry_player_like_cpp(571, 2, position, true);
+    registry.register_or_replace(player_guid, info, Default::default());
+
+    let canonical: wow_world::SharedCanonicalMapManager =
+        Arc::new(Mutex::new(wow_map::MapManager::default()));
+    canonical
+        .lock()
+        .unwrap()
+        .create_map_entry(571, 2, 2, wow_map::ManagedMapKind::World);
+    add_canonical_test_player_on_map_like_cpp(&canonical, player_guid, position, 571, 2, 100);
+    {
+        let mut guard = canonical.lock().unwrap();
+        let player = guard
+            .find_map_mut(571, 2)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(player_guid)
+            .unwrap();
+        player
+            .unit_mut()
+            .set_unit_flags2_like_cpp(wow_constants::UnitFlags2::IGNORE_REPUTATION);
+        player.set_player_flag(
+            wow_world::canonical_player_access::PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP,
+        );
+        player
+            .gameplay_state_mut()
+            .reputations
+            .push(wow_entities::PlayerReputationRecord {
+                faction_id: 72,
+                standing: -6000,
+                flags: wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP,
+            });
+        player.set_forced_reputation_rank_like_cpp(87, true);
+    }
+
+    let candidates = collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
+        &registry,
+        Some(&canonical),
+    );
+
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(
+        candidates[0].player_unit_flags2,
+        wow_constants::UnitFlags2::IGNORE_REPUTATION.bits()
+    );
+    assert!(candidates[0].player_is_contested_pvp);
+    assert_eq!(
+        candidates[0].player_reputation_standings,
+        vec![(72, -6_000)]
+    );
+    assert_eq!(
+        candidates[0].player_reputation_state_flags,
+        vec![(72, wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP)]
+    );
+    assert_eq!(candidates[0].player_forced_reputation_faction_ids, vec![87]);
+}
+
+/// Negative branch: with no canonical owner resolved, the four values report their
+/// defaults rather than a remembered copy.
+///
+/// This is what the retired mirror already did — every one of its four producers
+/// was an `unwrap_or_default()` on the same canonical read — so the behaviour is
+/// preserved, and a candidate whose player has left the map can no longer carry a
+/// stale reputation or flag set into the scan.
+#[test]
+fn collect_legacy_creature_aggro_candidates_default_reputation_and_flags_without_canonical_like_cpp()
+ {
+    let registry = PlayerRegistry::default();
+    let player_guid = ObjectGuid::create_player(1, 70);
+    let position = Position::new(1.0, 2.0, 3.0, 0.0);
+    let (info, _) = make_registry_player_like_cpp(571, 2, position, true);
+    registry.register_or_replace(player_guid, info, Default::default());
+
+    let candidates = collect_legacy_creature_aggro_candidates_like_cpp(&registry);
+
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(candidates[0].player_unit_flags2, 0);
+    assert!(!candidates[0].player_is_contested_pvp);
+    assert!(candidates[0].player_reputation_standings.is_empty());
+    assert!(candidates[0].player_reputation_state_flags.is_empty());
+    assert!(
+        candidates[0]
+            .player_forced_reputation_faction_ids
+            .is_empty()
+    );
 }
 
 #[test]

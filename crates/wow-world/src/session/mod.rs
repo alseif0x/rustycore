@@ -911,7 +911,7 @@ const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u32 = 14;
 const DIFFICULTY_10_N_LIKE_CPP: u32 = 3;
 const MAP_INSTANCE_LIKE_CPP: u8 = 1;
 const MAP_RAID_LIKE_CPP: u8 = 2;
-const PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP: u32 = 0x0000_0100;
+pub(crate) const PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP: u32 = 0x0000_0100;
 const PLAYER_FLAGS_IN_PVP_LIKE_CPP: u32 = 0x0000_0200;
 const PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP: u32 = 0x0002_0000;
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
@@ -22092,30 +22092,27 @@ impl WorldSession {
             >= count
     }
 
+    /// Read this session's own canonical `Player`.
+    ///
+    /// Resolving the GUID and map key is the only session-local part; the read
+    /// itself is the placement-addressed accessor a remote reader uses too
+    /// (#252), so one player's canonical state cannot be reached two ways.
     fn canonical_player_snapshot_like_cpp<R>(&self, f: impl FnOnce(&Player) -> R) -> Option<R> {
-        let Some(guid) = self.player_guid() else {
-            return None;
-        };
+        let guid = self.player_guid()?;
         let key = self.current_canonical_player_map_key_like_cpp();
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
-            return None;
-        };
-        let Ok(manager) = manager.lock() else {
-            return None;
-        };
+        let manager = self.canonical_map_manager.as_ref()?;
         let map_id = key
             .as_ref()
             .map(|key| key.map_id)
             .unwrap_or_else(|| u32::from(self.player_map_id_like_cpp()));
         let instance_id = key.as_ref().map(|key| key.instance_id).unwrap_or(0);
-        let Some(map) = manager.find_map(map_id, instance_id) else {
-            return None;
-        };
-        let Some(player) = map.map().get_typed_player(guid) else {
-            return None;
-        };
-
-        Some(f(player))
+        crate::canonical_player_access::with_canonical_player_at_like_cpp(
+            manager,
+            guid,
+            map_id,
+            instance_id,
+            f,
+        )
     }
 
     pub(crate) fn canonical_player_power_snapshot_like_cpp(
@@ -22149,49 +22146,6 @@ impl WorldSession {
         .unwrap_or((false, false))
     }
 
-    pub(crate) fn canonical_player_reputation_standings_snapshot_like_cpp(
-        &self,
-    ) -> Vec<(u32, i32)> {
-        self.canonical_player_snapshot_like_cpp(|player| {
-            player
-                .gameplay_state()
-                .reputations
-                .iter()
-                .map(|record| (record.faction_id, record.standing))
-                .collect()
-        })
-        .unwrap_or_default()
-    }
-
-    pub(crate) fn canonical_player_reputation_state_flags_snapshot_like_cpp(
-        &self,
-    ) -> Vec<(u32, u32)> {
-        self.canonical_player_snapshot_like_cpp(|player| {
-            player
-                .gameplay_state()
-                .reputations
-                .iter()
-                .map(|record| (record.faction_id, record.flags))
-                .collect()
-        })
-        .unwrap_or_default()
-    }
-
-    pub(crate) fn canonical_player_forced_reputation_faction_ids_snapshot_like_cpp(
-        &self,
-    ) -> Vec<u32> {
-        self.canonical_player_snapshot_like_cpp(|player| {
-            let mut faction_ids: Vec<u32> = player
-                .forced_reputation_faction_ids_like_cpp()
-                .iter()
-                .copied()
-                .collect();
-            faction_ids.sort_unstable();
-            faction_ids
-        })
-        .unwrap_or_default()
-    }
-
     pub(crate) fn player_forced_reputation_ranks_snapshot_like_cpp(
         &self,
     ) -> Vec<(u32, wow_data::reputation::ReputationRankLikeCpp)> {
@@ -22200,13 +22154,6 @@ impl WorldSession {
             .iter()
             .map(|(faction_id, rank)| (*faction_id, *rank))
             .collect()
-    }
-
-    pub(crate) fn canonical_player_contested_pvp_flag_like_cpp(&self) -> bool {
-        self.canonical_player_snapshot_like_cpp(|player| {
-            player.has_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP)
-        })
-        .unwrap_or(false)
     }
 
     fn reset_contested_pvp_like_cpp(&mut self) {
@@ -22223,13 +22170,6 @@ impl WorldSession {
         });
         self.player_contested_pvp_timer_like_cpp = 0;
         self.sync_player_registry_state_like_cpp();
-    }
-
-    pub(crate) fn canonical_player_unit_flags2_snapshot_like_cpp(&self) -> u32 {
-        self.canonical_player_snapshot_like_cpp(|player| {
-            player.unit().unit_flags2_like_cpp().bits()
-        })
-        .unwrap_or(0)
     }
 
     pub(crate) fn canonical_player_combat_reach_snapshot_like_cpp(&self) -> f32 {
@@ -22256,28 +22196,6 @@ impl WorldSession {
                 party_member_power_to_u16_like_cpp(player.get_max_power(power)),
             )
         })
-    }
-
-    pub(crate) fn canonical_player_honor_stats_snapshot_like_cpp(
-        &self,
-    ) -> (u32, u32, u32, u16, u16, u32, u32) {
-        self.canonical_player_snapshot_like_cpp(|player| {
-            (
-                // C++ reads these six values from `m_activePlayerData`, but
-                // Rust's canonical `ActivePlayerDataValues` does not model the
-                // historic honor counters yet. Keep the packet field order
-                // represented and leave the counters zero until that L4/PvP
-                // state is ported.
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                player.data().honor_level.max(0) as u32,
-            )
-        })
-        .unwrap_or_default()
     }
 
     pub(crate) fn canonical_player_reputation_standing_like_cpp(
@@ -34574,14 +34492,7 @@ impl WorldSession {
             .current_canonical_player_map_key_like_cpp()
             .map(|k| k.instance_id)
             .unwrap_or(0);
-        let reputation_standings = self.canonical_player_reputation_standings_snapshot_like_cpp();
-        let reputation_state_flags =
-            self.canonical_player_reputation_state_flags_snapshot_like_cpp();
         let forced_reputation_ranks = self.player_forced_reputation_ranks_snapshot_like_cpp();
-        let forced_reputation_faction_ids =
-            self.canonical_player_forced_reputation_faction_ids_snapshot_like_cpp();
-        let is_contested_pvp = self.canonical_player_contested_pvp_flag_like_cpp();
-        let unit_flags2 = self.canonical_player_unit_flags2_snapshot_like_cpp();
         let pvp_flags = self
             .canonical_player_pvp_flags_like_cpp(guid)
             .unwrap_or_default();
@@ -34597,15 +34508,6 @@ impl WorldSession {
         let (power_type, current_power, max_power) = self
             .canonical_player_party_power_snapshot_like_cpp()
             .unwrap_or_else(|| (party_member_power_type_for_class_like_cpp(class), 0, 0));
-        let (
-            lifetime_honorable_kills,
-            this_week_contribution,
-            yesterday_contribution,
-            today_honorable_kills,
-            yesterday_honorable_kills,
-            lifetime_max_rank,
-            honor_level,
-        ) = self.canonical_player_honor_stats_snapshot_like_cpp();
         let info = PlayerBroadcastInfo {
             map_id,
             instance_id,
@@ -34644,11 +34546,9 @@ impl WorldSession {
             zone_id: self.player_zone_area_like_cpp().0,
             spec_id: self.loot_specialization_id_like_cpp(),
             unit_flags: self.player_unit_flags_like_cpp.bits(),
-            unit_flags2,
             unit_state: self.player_unit_state_for_registry_like_cpp(),
             is_game_master: self.player_game_master_like_cpp,
             dungeon_difficulty_id: self.represented_dungeon_difficulty_id_like_cpp,
-            is_contested_pvp,
             active_expansion: self.expansion,
             pending_quest_sharing: self
                 .represented_pending_quest_sharing_like_cpp
@@ -34669,10 +34569,7 @@ impl WorldSession {
             daily_quests_completed: self.daily_quests_completed_like_cpp.clone(),
             df_quests: self.df_quests_like_cpp.clone(),
             faction_template_id: self.player_faction_template_like_cpp.unwrap_or(0),
-            reputation_standings,
-            reputation_state_flags,
             forced_reputation_ranks,
-            forced_reputation_faction_ids,
             inventory_item_counts: self.represented_inventory_item_counts_like_cpp(),
             party_member_party_type: self.party_member_party_type_like_cpp(),
             party_member_phase_states: party_member_phase_states_like_cpp(
@@ -34692,13 +34589,6 @@ impl WorldSession {
             display_id: default_display_id(race, gender),
             visible_items: Arc::new(visible_items),
             customizations: Arc::new(self.loaded_player_customizations_like_cpp.as_ref().clone()),
-            lifetime_honorable_kills,
-            this_week_contribution,
-            yesterday_contribution,
-            today_honorable_kills,
-            yesterday_honorable_kills,
-            lifetime_max_rank,
-            honor_level,
         };
         reg.register_or_replace(
             guid,
@@ -34795,11 +34685,9 @@ impl WorldSession {
             info.zone_id = self.player_zone_area_like_cpp().0;
             info.spec_id = self.loot_specialization_id_like_cpp();
             info.unit_flags = self.player_unit_flags_like_cpp.bits();
-            info.unit_flags2 = self.canonical_player_unit_flags2_snapshot_like_cpp();
             info.unit_state = unit_state_for_registry;
             info.is_game_master = self.player_game_master_like_cpp;
             info.dungeon_difficulty_id = self.represented_dungeon_difficulty_id_like_cpp;
-            info.is_contested_pvp = self.canonical_player_contested_pvp_flag_like_cpp();
             info.active_expansion = self.expansion;
             info.level = self.player_level_like_cpp();
             info.gray_level = self.gray_level(info.level);
@@ -34823,13 +34711,7 @@ impl WorldSession {
             info.daily_quests_completed = self.daily_quests_completed_like_cpp.clone();
             info.df_quests = self.df_quests_like_cpp.clone();
             info.faction_template_id = self.player_faction_template_like_cpp.unwrap_or(0);
-            info.reputation_standings =
-                self.canonical_player_reputation_standings_snapshot_like_cpp();
-            info.reputation_state_flags =
-                self.canonical_player_reputation_state_flags_snapshot_like_cpp();
             info.forced_reputation_ranks = self.player_forced_reputation_ranks_snapshot_like_cpp();
-            info.forced_reputation_faction_ids =
-                self.canonical_player_forced_reputation_faction_ids_snapshot_like_cpp();
             info.inventory_item_counts = self.represented_inventory_item_counts_like_cpp();
             info.party_member_party_type = self.party_member_party_type_like_cpp();
             info.party_member_phase_states =
@@ -34839,22 +34721,6 @@ impl WorldSession {
             info.party_member_pet_stats = self.party_member_pet_stats_like_cpp();
             info.customizations =
                 Arc::new(self.loaded_player_customizations_like_cpp.as_ref().clone());
-            let (
-                lifetime_honorable_kills,
-                this_week_contribution,
-                yesterday_contribution,
-                today_honorable_kills,
-                yesterday_honorable_kills,
-                lifetime_max_rank,
-                honor_level,
-            ) = self.canonical_player_honor_stats_snapshot_like_cpp();
-            info.lifetime_honorable_kills = lifetime_honorable_kills;
-            info.this_week_contribution = this_week_contribution;
-            info.yesterday_contribution = yesterday_contribution;
-            info.today_honorable_kills = today_honorable_kills;
-            info.yesterday_honorable_kills = yesterday_honorable_kills;
-            info.lifetime_max_rank = lifetime_max_rank;
-            info.honor_level = honor_level;
             registry.publish_broadcast_info_for_control_channel(
                 guid,
                 &self.session_command_tx,

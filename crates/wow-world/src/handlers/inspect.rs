@@ -127,20 +127,33 @@ impl WorldSession {
             None => return,
         };
 
-        let entry = match registry.inspect_snapshot(request.target) {
-            Some(entry) => entry,
-            None => return,
+        // C++ `HandleInspectHonorStats` returns without answering when it cannot
+        // resolve the target. `None` here means the same thing — including the far
+        // teleport window, where the canonical `Player` has left the old map and
+        // not yet reached the destination — so we must not answer with zeros and
+        // report a real honor level as lost (#252).
+        let Some((
+            lifetime_hk,
+            this_week_contribution,
+            yesterday_contribution,
+            today_hk,
+            yesterday_hk,
+            lifetime_max_rank,
+            honor_level,
+        )) = registry.inspect_honor_stats(request.target, self.canonical_map_manager.as_ref())
+        else {
+            return;
         };
 
         let response = InspectHonorStatsResponse {
             target: request.target,
-            lifetime_hk: entry.lifetime_honorable_kills,
-            today_contribution: entry.this_week_contribution,
-            yesterday_contribution: entry.yesterday_contribution,
-            today_hk: entry.today_honorable_kills,
-            yesterday_hk: entry.yesterday_honorable_kills,
-            lifetime_max_rank: entry.lifetime_max_rank,
-            honor_level: entry.honor_level,
+            lifetime_hk,
+            today_contribution: this_week_contribution,
+            yesterday_contribution,
+            today_hk,
+            yesterday_hk,
+            lifetime_max_rank,
+            honor_level,
         };
 
         self.send_packet(&response);
