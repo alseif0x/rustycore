@@ -26195,8 +26195,10 @@
           "name": "install_realm_packet_channel",
           "visibility": "pub (crate)",
           "signature": "fn install_realm_packet_channel (& mut self , rx : flume :: Receiver < wow_packet :: WorldPacket > ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]

@@ -45,6 +45,7 @@ wow-social = { workspace = true }
 sqlx = { workspace = true }
 
 [dev-dependencies]
+wow-session = { workspace = true, features = ["test-support"] }
 # Real Detour navmesh fixtures for the live creature-pathfinding regressions.
 wow-recastdetour = { workspace = true, features = ["test-fixtures"] }
 serde = { workspace = true }

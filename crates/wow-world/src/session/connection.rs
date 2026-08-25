@@ -102,6 +102,10 @@ impl WorldSession {
     }
 
     /// Park a realm receive channel directly.
+    ///
+    /// Test-only, like the kernel setter it forwards to: parking a channel
+    /// outside the atomic instance-link transition is not a production state.
+    #[cfg(test)]
     pub(crate) fn install_realm_packet_channel(
         &mut self,
         rx: flume::Receiver<wow_packet::WorldPacket>,
@@ -135,7 +139,7 @@ impl WorldSession {
     /// Send a server packet on the **realm** connection.
     pub fn send_packet_realm(&self, pkt: &impl wow_packet::ServerPacket) {
         self.connection
-            .send_raw_packet_realm(&pkt.to_bytes(), self.account_id);
+            .send_realm_bytes(pkt.to_bytes(), self.account_id);
     }
 
     /// Send pre-serialized packet bytes on the realm connection.

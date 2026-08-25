@@ -5,6 +5,11 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+# Setters that build transport states the real ConnectTo transition never
+# produces. Enabled by dependents' dev-dependencies, never in a production build.
+test-support = []
+
 [dependencies]
 flume.workspace = true
 tokio.workspace = true

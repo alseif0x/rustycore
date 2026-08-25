@@ -261,7 +261,17 @@ impl SessionConnection {
     /// socket, not the instance socket. Falls back to the primary channel if no
     /// realm channel exists (pre-ConnectTo or single-connection mode).
     pub fn send_raw_packet_realm(&self, data: &[u8], account: u32) {
-        if self.realm_route_tx().send(data.to_vec()).is_err() {
+        self.send_realm_bytes(data.to_vec(), account);
+    }
+
+    /// Send an already-owned buffer on the **realm** connection.
+    ///
+    /// A typed send has just serialized into a fresh `Vec`, so it moves that
+    /// buffer here instead of handing out a slice for this side to copy again.
+    /// The borrowed [`Self::send_raw_packet_realm`] keeps its copying semantics
+    /// for callers that only hold a slice.
+    pub fn send_realm_bytes(&self, data: Vec<u8>, account: u32) {
+        if self.realm_route_tx().send(data).is_err() {
             warn!("Realm send channel closed for account {account}");
         }
     }
@@ -389,21 +399,28 @@ impl SessionConnection {
     }
 
     /// Park a realm receive channel without going through a ConnectTo flow.
+    ///
+    /// Behind `test-support`. A plain `#[cfg(test)]` gate would not reach the
+    /// crates that need this, but leaving it on the stable API would let a
+    /// production caller park a sender without its matching receiver and fence —
+    /// a transport state the atomic instance-link transition never produces.
+    #[cfg(feature = "test-support")]
     pub fn install_realm_packet_channel(&mut self, rx: flume::Receiver<WorldPacket>) {
         self.realm_packet_rx = Some(rx);
     }
 
     /// Park a realm send channel without going through a ConnectTo flow.
     ///
-    /// Not `#[cfg(test)]`: this crate is compiled as a dependency, so a
-    /// test-only gate here would not exist for the crates that need it. It is a
-    /// plain setter, and the ordering paths it feeds are what the callers assert
-    /// on.
+    /// Behind `test-support`; see [`Self::install_realm_packet_channel`].
+    #[cfg(feature = "test-support")]
     pub fn install_realm_send_channel(&mut self, tx: flume::Sender<Vec<u8>>) {
         self.realm_send_tx = Some(tx);
     }
 
     /// Park a realm write fence, the companion of [`Self::install_realm_send_channel`].
+    ///
+    /// Behind `test-support`; see [`Self::install_realm_packet_channel`].
+    #[cfg(feature = "test-support")]
     pub fn install_realm_send_write_fence(&mut self, fence: SocketWriteFenceLikeCpp) {
         self.realm_send_write_fence_like_cpp = Some(fence);
     }

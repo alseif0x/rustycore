@@ -674,7 +674,8 @@ display is checked against the JSON ledger:
 65. #270 — retire the four PlayerBroadcastInfo transport endpoints;
 66. #359 — single dispatch mechanism for every opcode;
 67. #297 — promote the Session kernel to `wow-session`;
-68. #153 — terminal architecture audit.
+68. #378 — move the remaining five session modules into `wow-session`;
+69. #153 — terminal architecture audit.
 
 A slice may start once its declared prerequisites are merged and its branch is current. Independent
 physical work remains parallel to semantic authority cuts. Mechanical moves use focused compile and

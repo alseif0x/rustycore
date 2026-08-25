@@ -99,6 +99,10 @@
     "wow-packet": [
       "wow-constants",
       "wow-core"
+    ],
+    "wow-session": [
+      "wow-network",
+      "wow-packet"
     ]
   },
   "exceptions": [
@@ -208,7 +212,7 @@
       "from": "wow-world",
       "to": "wow-session",
       "tracking_issue": 153,
-      "reason": "#297 promotes the session transport kernel to its own crate under the epic's P4 rule: the kernel is earned only when it compiles without wow-world, gameplay, databases or catalogs, which it does \u2014 `cargo tree -p wow-session` reaches none of wow-world, wow-database, wow-data, wow-entities, wow-map or sqlx. That rule does permit the network and packet primitives it decides over, so the crate classifies as adapter-platform and this edge takes the same shape as the existing wow-world -> wow-network one. It is the intended direction rather than debt: the application consuming its own extracted kernel. The terminal step \u2014 the kernel depending on transport ports instead of concrete wow-network types, which would make it application-layer and retire this edge \u2014 is the boundary decision #153 owns."
+      "reason": "#297 promotes the session transport kernel to its own crate under the epic's P4 rule: the kernel is earned only when it compiles without wow-world, gameplay, databases or catalogs, which it does \u2014 `cargo tree -p wow-session` reaches none of wow-world, wow-database, wow-data, wow-entities, wow-map or sqlx. That rule does permit the network and packet primitives it decides over, so the crate classifies as adapter-platform and this edge takes the same shape as the existing wow-world -> wow-network one. It is the intended direction rather than debt: the application consuming its own extracted kernel. The terminal step \u2014 the kernel depending on transport ports instead of concrete wow-network types, which would make it application-layer and retire this edge \u2014 is the boundary decision #153 owns, carried by #378."
     }
   ],
   "external_dependencies": {
@@ -221,7 +225,8 @@
     "protected_packages": [
       "wow-data",
       "wow-network",
-      "wow-packet"
+      "wow-packet",
+      "wow-session"
     ],
     "allowed": {
       "wow-achievement": {
@@ -363,6 +368,14 @@
       "wow-script": {
         "normal": [
           "inventory"
+        ],
+        "build": []
+      },
+      "wow-session": {
+        "normal": [
+          "flume",
+          "tokio",
+          "tracing"
         ],
         "build": []
       },
