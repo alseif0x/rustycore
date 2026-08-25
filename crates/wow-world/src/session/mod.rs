@@ -22146,20 +22146,6 @@ impl WorldSession {
         .unwrap_or((false, false))
     }
 
-    pub(crate) fn canonical_player_reputation_standings_snapshot_like_cpp(
-        &self,
-    ) -> Vec<(u32, i32)> {
-        self.canonical_player_snapshot_like_cpp(|player| {
-            player
-                .gameplay_state()
-                .reputations
-                .iter()
-                .map(|record| (record.faction_id, record.standing))
-                .collect()
-        })
-        .unwrap_or_default()
-    }
-
     pub(crate) fn player_forced_reputation_ranks_snapshot_like_cpp(
         &self,
     ) -> Vec<(u32, wow_data::reputation::ReputationRankLikeCpp)> {
@@ -34506,7 +34492,6 @@ impl WorldSession {
             .current_canonical_player_map_key_like_cpp()
             .map(|k| k.instance_id)
             .unwrap_or(0);
-        let reputation_standings = self.canonical_player_reputation_standings_snapshot_like_cpp();
         let forced_reputation_ranks = self.player_forced_reputation_ranks_snapshot_like_cpp();
         let pvp_flags = self
             .canonical_player_pvp_flags_like_cpp(guid)
@@ -34584,7 +34569,6 @@ impl WorldSession {
             daily_quests_completed: self.daily_quests_completed_like_cpp.clone(),
             df_quests: self.df_quests_like_cpp.clone(),
             faction_template_id: self.player_faction_template_like_cpp.unwrap_or(0),
-            reputation_standings,
             forced_reputation_ranks,
             inventory_item_counts: self.represented_inventory_item_counts_like_cpp(),
             party_member_party_type: self.party_member_party_type_like_cpp(),
@@ -34727,8 +34711,6 @@ impl WorldSession {
             info.daily_quests_completed = self.daily_quests_completed_like_cpp.clone();
             info.df_quests = self.df_quests_like_cpp.clone();
             info.faction_template_id = self.player_faction_template_like_cpp.unwrap_or(0);
-            info.reputation_standings =
-                self.canonical_player_reputation_standings_snapshot_like_cpp();
             info.forced_reputation_ranks = self.player_forced_reputation_ranks_snapshot_like_cpp();
             info.inventory_item_counts = self.represented_inventory_item_counts_like_cpp();
             info.party_member_party_type = self.party_member_party_type_like_cpp();

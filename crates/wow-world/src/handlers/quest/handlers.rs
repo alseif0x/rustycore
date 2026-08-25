@@ -1114,6 +1114,7 @@ impl WorldSession {
             return;
         };
 
+        let canonical_map_manager = self.canonical_map_manager.clone();
         let receiver_snapshots = group_info
             .members
             .iter()
@@ -1121,7 +1122,7 @@ impl WorldSession {
             .filter(|member_guid| Some(*member_guid) != sender_guid)
             .filter_map(|member_guid| {
                 player_registry
-                    .quest_sharing_snapshot(member_guid)
+                    .quest_sharing_snapshot(member_guid, canonical_map_manager.as_ref())
                     .map(|receiver| (member_guid, receiver))
             })
             .collect::<Vec<_>>();

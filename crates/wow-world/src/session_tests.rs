@@ -35734,7 +35734,6 @@ fn broadcast_info_with_command(
             daily_quests_completed: Default::default(),
             df_quests: Default::default(),
             faction_template_id: 0,
-            reputation_standings: Vec::new(),
             forced_reputation_ranks: Vec::new(),
             inventory_item_counts: Default::default(),
             party_member_party_type: [0; 2],
@@ -71590,12 +71589,21 @@ fn player_registry_reputation_snapshot_syncs_from_canonical_player_like_cpp() {
 
     session.register_in_player_registry();
 
+    // #252: the standings are no longer mirrored, so prove the resolver reads
+    // them off the canonical owner, and defaults when there is no owner to read.
     assert_eq!(
         player_registry
-            .fixture_snapshot(player_guid)
-            .expect("player snapshot")
+            .quest_sharing_snapshot(player_guid, Some(&canonical))
+            .expect("quest sharing snapshot")
             .reputation_standings,
         vec![(72, 1234)]
+    );
+    assert!(
+        player_registry
+            .quest_sharing_snapshot(player_guid, None)
+            .expect("identity stays directory-owned and still resolves")
+            .reputation_standings
+            .is_empty()
     );
 }
 

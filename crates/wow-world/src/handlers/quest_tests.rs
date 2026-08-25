@@ -6483,6 +6483,70 @@ async fn push_quest_to_party_non_pooled_quest_passes_pool_check_to_group_boundar
     assert!(send_rx.try_recv().is_err());
 }
 
+/// Put one party member's canonical `Player` on the shared map.
+///
+/// Mirrors what a live session does at world entry; the quest-share gates read
+/// reputation off this owner since #252.
+fn insert_canonical_party_player_like_cpp(
+    session: &WorldSession,
+    canonical: &crate::session::SharedCanonicalMapManager,
+    map_id: u32,
+    instance_id: u32,
+) {
+    let player_guid = session.player_guid().expect("party member guid");
+    let position = session
+        .player_position_like_cpp()
+        .expect("party member position");
+    let mut player = wow_entities::Player::new(Some(u64::from(session.account_id)), false);
+    player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    player
+        .unit_mut()
+        .world_mut()
+        .set_map(map_id, instance_id)
+        .unwrap();
+    player.unit_mut().world_mut().relocate(position);
+    player.unit_mut().world_mut().object_mut().add_to_world();
+    canonical
+        .lock()
+        .unwrap()
+        .create_world_map(map_id, instance_id)
+        .map_mut()
+        .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
+        .unwrap();
+}
+
+/// Set one faction standing on a party member's canonical `Player`.
+fn set_canonical_party_reputation_like_cpp(
+    canonical: &crate::session::SharedCanonicalMapManager,
+    guid: ObjectGuid,
+    faction_id: u32,
+    standing: i32,
+) {
+    let mut guard = canonical.lock().unwrap();
+    let player = guard
+        .find_map_mut(571, 0)
+        .expect("resident party map")
+        .map_mut()
+        .get_typed_player_mut(guid)
+        .expect("canonical party member");
+    player
+        .gameplay_state_mut()
+        .reputations
+        .retain(|record| record.faction_id != faction_id);
+    player
+        .gameplay_state_mut()
+        .reputations
+        .push(wow_entities::PlayerReputationRecord {
+            faction_id,
+            standing,
+            flags: 0,
+        });
+}
+
 fn install_represented_party(
     session: &mut WorldSession,
     sender_guid: ObjectGuid,
@@ -6495,6 +6559,16 @@ fn install_represented_party(
     receiver_session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
     receiver_session.set_player_position_like_cpp(Position::new(11.0, 0.0, 0.0, 0.0));
     receiver_session.set_player_registry(Arc::clone(&player_registry));
+
+    // Production keeps every in-world player on the shared canonical map, and
+    // #252 reads the receiver's reputation off that owner instead of a mirrored
+    // copy. Install it here so the harness exercises the same path.
+    let canonical: crate::session::SharedCanonicalMapManager =
+        Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
+    insert_canonical_party_player_like_cpp(&receiver_session, &canonical, 571, 0);
+    receiver_session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+
     receiver_session.register_in_player_registry();
 
     let group_registry = Arc::new(GroupRegistry::default());
@@ -7144,13 +7218,16 @@ async fn push_quest_to_party_grouped_receiver_low_min_reputation_emits_low_facti
     add_active_quest(&mut session, shared_quest_id);
     let (player_registry, receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    assert!(player_registry.fixture_update(receiver_guid, |receiver| {
-        receiver.reputation_standings = vec![(72, 99)];
-    }));
     receiver_session.sync_player_registry_state_like_cpp();
-    assert!(player_registry.fixture_update(receiver_guid, |receiver| {
-        receiver.reputation_standings = vec![(72, 99)];
-    }));
+    set_canonical_party_reputation_like_cpp(
+        receiver_session
+            .canonical_map_manager
+            .as_ref()
+            .expect("canonical map manager"),
+        receiver_guid,
+        72,
+        99,
+    );
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -7188,9 +7265,15 @@ async fn push_quest_to_party_grouped_receiver_equal_max_reputation_emits_low_fac
     let (player_registry, receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
     receiver_session.sync_player_registry_state_like_cpp();
-    assert!(player_registry.fixture_update(receiver_guid, |receiver| {
-        receiver.reputation_standings = vec![(72, 100)];
-    }));
+    set_canonical_party_reputation_like_cpp(
+        receiver_session
+            .canonical_map_manager
+            .as_ref()
+            .expect("canonical map manager"),
+        receiver_guid,
+        72,
+        100,
+    );
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -7671,9 +7754,15 @@ async fn push_quest_to_party_reputation_precedes_previous_prerequisite_like_cpp(
     let (player_registry, receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
     receiver_session.sync_player_registry_state_like_cpp();
-    assert!(player_registry.fixture_update(receiver_guid, |receiver| {
-        receiver.reputation_standings = vec![(72, 99)];
-    }));
+    set_canonical_party_reputation_like_cpp(
+        receiver_session
+            .canonical_map_manager
+            .as_ref()
+            .expect("canonical map manager"),
+        receiver_guid,
+        72,
+        99,
+    );
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -7717,9 +7806,15 @@ async fn push_quest_to_party_class_precedes_reputation_like_cpp() {
         install_represented_party(&mut session, sender_guid, receiver_guid);
     receiver_session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
     receiver_session.sync_player_registry_state_like_cpp();
-    assert!(player_registry.fixture_update(receiver_guid, |receiver| {
-        receiver.reputation_standings = vec![(72, -42000)];
-    }));
+    set_canonical_party_reputation_like_cpp(
+        receiver_session
+            .canonical_map_manager
+            .as_ref()
+            .expect("canonical map manager"),
+        receiver_guid,
+        72,
+        -42000,
+    );
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 

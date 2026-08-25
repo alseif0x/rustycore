@@ -56117,13 +56117,6 @@
           "source_class": "production"
         },
         {
-          "name": "reputation_standings",
-          "type": "Vec < (u32 , i32) >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "rewarded_quests",
           "type": "HashSet < u32 >",
           "visibility": "pub",

@@ -110,3 +110,17 @@ pub fn canonical_player_forced_reputation_faction_ids_like_cpp(player: &Player) 
     faction_ids.sort_unstable();
     faction_ids
 }
+
+/// C++ `ReputationMgr` per-faction standings for one canonical player.
+///
+/// Missing factions are absent from the list; C++ treats an absent faction as
+/// standing 0 at the point of use, so the shape matches the no-state path.
+#[must_use]
+pub fn canonical_player_reputation_standings_like_cpp(player: &Player) -> Vec<(u32, i32)> {
+    player
+        .gameplay_state()
+        .reputations
+        .iter()
+        .map(|record| (record.faction_id, record.standing))
+        .collect()
+}

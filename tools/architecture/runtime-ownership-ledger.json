@@ -1449,7 +1449,7 @@
         },
         {
           "id": "directory_gameplay_projection",
-          "expected_field_count": 29,
+          "expected_field_count": 28,
           "field_names": [
             "active_quest_objective_counts",
             "active_quest_statuses",
@@ -1477,7 +1477,6 @@
             "pending_quest_sharing",
             "position",
             "power_type",
-            "reputation_standings",
             "rewarded_quests",
             "transport"
           ],
@@ -1525,7 +1524,7 @@
           "retirement_condition": "#252 removes every assigned residual through bounded canonical queries and deletes the broad projection without introducing a replacement mirror."
         }
       ],
-      "expected_field_count": 61
+      "expected_field_count": 60
     },
     "session_command": {
       "coverage_source": {
@@ -1809,9 +1808,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 73502,
-          "test_lines": 96282,
-          "total_lines": 169784,
+          "production_lines": 73509,
+          "test_lines": 96289,
+          "total_lines": 169798,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153,
@@ -1856,9 +1855,9 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 25231,
-          "test_lines": 21682,
-          "total_lines": 46913,
+          "production_lines": 25235,
+          "test_lines": 21680,
+          "total_lines": 46915,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153
@@ -1867,14 +1866,14 @@
         },
         {
           "path": "crates/wow-world/src/handlers/quest/mod.rs",
-          "production_lines": 8430,
-          "test_lines": 10184,
-          "total_lines": 18614,
+          "production_lines": 8431,
+          "test_lines": 10279,
+          "total_lines": 18710,
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "Quest handler is a thin adapter over canonical Player/quest/persistence capabilities with exact outcome and packet order."
+          "retirement_condition": "Quest handler is a thin adapter over canonical Player/quest/persistence capabilities with exact outcome and packet order. #252's reputation cut adds a canonical party-member fixture here (+95 test lines): the quest-share harness now installs the receiver's canonical Player, because the gate reads standings off that owner instead of a mirrored copy."
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",

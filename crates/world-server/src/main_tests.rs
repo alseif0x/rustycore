@@ -305,7 +305,6 @@ fn player_broadcast_info_fixture_like_cpp(
             daily_quests_completed: Default::default(),
             df_quests: Default::default(),
             faction_template_id: 0,
-            reputation_standings: Vec::new(),
             forced_reputation_ranks: Vec::new(),
             inventory_item_counts: Default::default(),
             party_member_party_type: [0; 2],
@@ -7028,7 +7027,6 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
                 daily_quests_completed: Default::default(),
                 df_quests: Default::default(),
                 faction_template_id: 0,
-                reputation_standings: Vec::new(),
                 forced_reputation_ranks: Vec::new(),
                 inventory_item_counts: Default::default(),
                 party_member_party_type: [0; 2],
@@ -11032,7 +11030,6 @@ fn collect_legacy_creature_aggro_candidates_uses_living_in_world_players_like_cp
     in_world_info.info.combat_reach = 1.5;
     in_world_info.info.liquid_status = wow_world::session::LIQUID_MAP_IN_WATER_LIKE_CPP;
     in_world_info.info.faction_template_id = 1;
-    in_world_info.info.reputation_standings = vec![(72, -6_000)];
     in_world_info.info.forced_reputation_ranks =
         vec![(87, wow_data::reputation::ReputationRankLikeCpp::Hostile)];
     let (not_in_world_info, _) =
@@ -11060,10 +11057,6 @@ fn collect_legacy_creature_aggro_candidates_uses_living_in_world_players_like_cp
     assert_eq!(candidates[0].player_level, 1);
     assert_eq!(candidates[0].player_gray_level, 0);
     assert_eq!(candidates[0].player_faction_template_id, 1);
-    assert_eq!(
-        candidates[0].player_reputation_standings,
-        vec![(72, -6_000)]
-    );
     assert_eq!(
         candidates[0].player_forced_reputation_ranks,
         vec![(87, wow_data::reputation::ReputationRankLikeCpp::Hostile)]
@@ -11219,6 +11212,10 @@ fn collect_legacy_creature_aggro_candidates_reads_reputation_and_flags_from_cano
     );
     assert!(candidates[0].player_is_contested_pvp);
     assert_eq!(
+        candidates[0].player_reputation_standings,
+        vec![(72, -6_000)]
+    );
+    assert_eq!(
         candidates[0].player_reputation_state_flags,
         vec![(72, wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP)]
     );
@@ -11246,6 +11243,7 @@ fn collect_legacy_creature_aggro_candidates_default_reputation_and_flags_without
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].player_unit_flags2, 0);
     assert!(!candidates[0].player_is_contested_pvp);
+    assert!(candidates[0].player_reputation_standings.is_empty());
     assert!(candidates[0].player_reputation_state_flags.is_empty());
     assert!(
         candidates[0]

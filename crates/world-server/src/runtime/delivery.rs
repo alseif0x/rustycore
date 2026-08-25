@@ -663,7 +663,7 @@ pub(crate) fn collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
                 player_is_game_master: snapshot.is_game_master,
                 player_is_contested_pvp: false,
                 player_faction_template_id: snapshot.faction_template_id,
-                player_reputation_standings: snapshot.reputation_standings,
+                player_reputation_standings: Vec::new(),
                 player_reputation_state_flags: Vec::new(),
                 player_forced_reputation_ranks: snapshot.forced_reputation_ranks,
                 player_forced_reputation_faction_ids: Vec::new(),
@@ -693,6 +693,10 @@ pub(crate) fn collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
                 wow_world::canonical_player_access::canonical_player_unit_flags2_like_cpp(player);
             candidate.player_is_contested_pvp =
                 wow_world::canonical_player_access::canonical_player_is_contested_pvp_like_cpp(
+                    player,
+                );
+            candidate.player_reputation_standings =
+                wow_world::canonical_player_access::canonical_player_reputation_standings_like_cpp(
                     player,
                 );
             candidate.player_reputation_state_flags =

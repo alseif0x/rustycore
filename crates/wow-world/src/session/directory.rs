@@ -16,7 +16,8 @@
 //! rails stay there until issue #140 relocates them.
 
 use crate::canonical_player_access::{
-    canonical_player_honor_stats_like_cpp, with_canonical_player_at_like_cpp,
+    canonical_player_honor_stats_like_cpp, canonical_player_reputation_standings_like_cpp,
+    with_canonical_player_at_like_cpp,
 };
 use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
 use crate::session::SharedCanonicalMapManager;
@@ -186,9 +187,6 @@ pub struct PlayerBroadcastInfo {
     pub df_quests: HashSet<u32>,
     /// Represented `Unit::GetFactionTemplateEntry()` id for C++ hostility/reputation checks.
     pub faction_template_id: u32,
-    /// Represented current reputation standing by faction for remote `SatisfyQuestReputation`.
-    /// Missing factions are interpreted as standing 0 like C++ no-state path.
-    pub reputation_standings: Vec<(u32, i32)>,
     /// Represented `Player::GetReputationMgr().GetForcedRankIfAny()` ranks.
     pub forced_reputation_ranks: Vec<(u32, wow_data::reputation::ReputationRankLikeCpp)>,
     /// Direct inventory item counts, keyed by item entry, used for remote quest-loot gates.
@@ -524,7 +522,6 @@ pub struct PlayerAggroCandidateSnapshot {
     pub unit_state: u32,
     pub is_game_master: bool,
     pub faction_template_id: u32,
-    pub reputation_standings: Vec<(u32, i32)>,
     pub forced_reputation_ranks: Vec<(u32, wow_data::reputation::ReputationRankLikeCpp)>,
 }
 
@@ -1288,26 +1285,55 @@ impl PlayerRegistry {
     /// Snapshot the exact receiver facts used by represented quest sharing.
     /// The projection cannot grow outside the retirement ledger in issue #196.
     #[must_use]
-    pub fn quest_sharing_snapshot(&self, guid: ObjectGuid) -> Option<PlayerQuestSharingSnapshot> {
-        let entry = self.entries.get(&guid)?;
-        let info = &entry.info;
-        Some(PlayerQuestSharingSnapshot {
-            registration: PlayerRegistration {
+    /// Resolve one quest-share receiver.
+    ///
+    /// Reputation standings are read off the receiver's canonical `Player`
+    /// (#252) rather than mirrored. The registry guard is dropped before the
+    /// canonical mutex is taken, so the two are never held together.
+    pub fn quest_sharing_snapshot(
+        &self,
+        guid: ObjectGuid,
+        canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    ) -> Option<PlayerQuestSharingSnapshot> {
+        let (mut snapshot, map_id, instance_id) = {
+            let entry = self.entries.get(&guid)?;
+            let info = &entry.info;
+            (
+                PlayerQuestSharingSnapshot {
+                    registration: PlayerRegistration {
+                        guid,
+                        generation: entry.generation,
+                    },
+                    pending_quest_sharing: info.pending_quest_sharing,
+                    is_alive: info.is_alive,
+                    rewarded_quests: info.rewarded_quests.clone(),
+                    active_quest_statuses: info.active_quest_statuses.clone(),
+                    df_quests: info.df_quests.clone(),
+                    daily_quests_completed: info.daily_quests_completed.clone(),
+                    level: info.level,
+                    class: info.class,
+                    race: info.race,
+                    reputation_standings: Vec::new(),
+                    active_expansion: info.active_expansion,
+                },
+                info.map_id,
+                info.instance_id,
+            )
+        };
+
+        if let Some(manager) = canonical_map_manager
+            && let Some(standings) = with_canonical_player_at_like_cpp(
+                manager,
                 guid,
-                generation: entry.generation,
-            },
-            pending_quest_sharing: info.pending_quest_sharing,
-            is_alive: info.is_alive,
-            rewarded_quests: info.rewarded_quests.clone(),
-            active_quest_statuses: info.active_quest_statuses.clone(),
-            df_quests: info.df_quests.clone(),
-            daily_quests_completed: info.daily_quests_completed.clone(),
-            level: info.level,
-            class: info.class,
-            race: info.race,
-            reputation_standings: info.reputation_standings.clone(),
-            active_expansion: info.active_expansion,
-        })
+                u32::from(map_id),
+                instance_id,
+                canonical_player_reputation_standings_like_cpp,
+            )
+        {
+            snapshot.reputation_standings = standings;
+        }
+
+        Some(snapshot)
     }
 
     /// Read one connected player's race for PvP quest-credit team comparison.
@@ -1452,7 +1478,6 @@ impl PlayerRegistry {
                     unit_state: info.unit_state,
                     is_game_master: info.is_game_master,
                     faction_template_id: info.faction_template_id,
-                    reputation_standings: info.reputation_standings.clone(),
                     forced_reputation_ranks: info.forced_reputation_ranks.clone(),
                 })
             })
@@ -1925,7 +1950,6 @@ mod tests {
                 daily_quests_completed: Default::default(),
                 df_quests: Default::default(),
                 faction_template_id: 0,
-                reputation_standings: Vec::new(),
                 forced_reputation_ranks: Vec::new(),
                 inventory_item_counts: Default::default(),
                 party_member_party_type: [0; 2],

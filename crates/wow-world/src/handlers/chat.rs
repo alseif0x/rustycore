@@ -2018,7 +2018,6 @@ mod tests {
                 daily_quests_completed: HashSet::new(),
                 df_quests: HashSet::new(),
                 faction_template_id: 0,
-                reputation_standings: Vec::new(),
                 forced_reputation_ranks: Vec::new(),
                 inventory_item_counts: HashMap::new(),
                 party_member_party_type: [0; 2],

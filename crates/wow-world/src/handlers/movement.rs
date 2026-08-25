@@ -2793,7 +2793,6 @@ mod tests {
                 daily_quests_completed: Default::default(),
                 df_quests: Default::default(),
                 faction_template_id: 0,
-                reputation_standings: Vec::new(),
                 forced_reputation_ranks: Vec::new(),
                 inventory_item_counts: Default::default(),
                 party_member_party_type: [0; 2],

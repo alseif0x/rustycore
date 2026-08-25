@@ -51,7 +51,6 @@ position	canonical Player location under MapRuntime	#252	query immutable spatial
 power_type	canonical Player/Unit powers	#252	query immutable active power type
 race	canonical Player identity	#252	query immutable character identity
 recruiter_id	Session account relationship	#252	query immutable admitted account relationship
-reputation_standings	canonical Player reputation	#252	query immutable standing
 rewarded_quests	canonical Player quest log	#252	query immutable rewarded membership
 sex	canonical Player identity	#252	query immutable character identity
 spec_id	canonical Player specialization	#252	query immutable active specialization
