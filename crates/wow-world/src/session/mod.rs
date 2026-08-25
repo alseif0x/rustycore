@@ -22092,30 +22092,27 @@ impl WorldSession {
             >= count
     }
 
+    /// Read this session's own canonical `Player`.
+    ///
+    /// Resolving the GUID and map key is the only session-local part; the read
+    /// itself is the placement-addressed accessor a remote reader uses too
+    /// (#252), so one player's canonical state cannot be reached two ways.
     fn canonical_player_snapshot_like_cpp<R>(&self, f: impl FnOnce(&Player) -> R) -> Option<R> {
-        let Some(guid) = self.player_guid() else {
-            return None;
-        };
+        let guid = self.player_guid()?;
         let key = self.current_canonical_player_map_key_like_cpp();
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
-            return None;
-        };
-        let Ok(manager) = manager.lock() else {
-            return None;
-        };
+        let manager = self.canonical_map_manager.as_ref()?;
         let map_id = key
             .as_ref()
             .map(|key| key.map_id)
             .unwrap_or_else(|| u32::from(self.player_map_id_like_cpp()));
         let instance_id = key.as_ref().map(|key| key.instance_id).unwrap_or(0);
-        let Some(map) = manager.find_map(map_id, instance_id) else {
-            return None;
-        };
-        let Some(player) = map.map().get_typed_player(guid) else {
-            return None;
-        };
-
-        Some(f(player))
+        crate::canonical_player_access::with_canonical_player_at_like_cpp(
+            manager,
+            guid,
+            map_id,
+            instance_id,
+            f,
+        )
     }
 
     pub(crate) fn canonical_player_power_snapshot_like_cpp(
@@ -22256,28 +22253,6 @@ impl WorldSession {
                 party_member_power_to_u16_like_cpp(player.get_max_power(power)),
             )
         })
-    }
-
-    pub(crate) fn canonical_player_honor_stats_snapshot_like_cpp(
-        &self,
-    ) -> (u32, u32, u32, u16, u16, u32, u32) {
-        self.canonical_player_snapshot_like_cpp(|player| {
-            (
-                // C++ reads these six values from `m_activePlayerData`, but
-                // Rust's canonical `ActivePlayerDataValues` does not model the
-                // historic honor counters yet. Keep the packet field order
-                // represented and leave the counters zero until that L4/PvP
-                // state is ported.
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                player.data().honor_level.max(0) as u32,
-            )
-        })
-        .unwrap_or_default()
     }
 
     pub(crate) fn canonical_player_reputation_standing_like_cpp(
@@ -34597,15 +34572,6 @@ impl WorldSession {
         let (power_type, current_power, max_power) = self
             .canonical_player_party_power_snapshot_like_cpp()
             .unwrap_or_else(|| (party_member_power_type_for_class_like_cpp(class), 0, 0));
-        let (
-            lifetime_honorable_kills,
-            this_week_contribution,
-            yesterday_contribution,
-            today_honorable_kills,
-            yesterday_honorable_kills,
-            lifetime_max_rank,
-            honor_level,
-        ) = self.canonical_player_honor_stats_snapshot_like_cpp();
         let info = PlayerBroadcastInfo {
             map_id,
             instance_id,
@@ -34692,13 +34658,6 @@ impl WorldSession {
             display_id: default_display_id(race, gender),
             visible_items: Arc::new(visible_items),
             customizations: Arc::new(self.loaded_player_customizations_like_cpp.as_ref().clone()),
-            lifetime_honorable_kills,
-            this_week_contribution,
-            yesterday_contribution,
-            today_honorable_kills,
-            yesterday_honorable_kills,
-            lifetime_max_rank,
-            honor_level,
         };
         reg.register_or_replace(
             guid,
@@ -34839,22 +34798,6 @@ impl WorldSession {
             info.party_member_pet_stats = self.party_member_pet_stats_like_cpp();
             info.customizations =
                 Arc::new(self.loaded_player_customizations_like_cpp.as_ref().clone());
-            let (
-                lifetime_honorable_kills,
-                this_week_contribution,
-                yesterday_contribution,
-                today_honorable_kills,
-                yesterday_honorable_kills,
-                lifetime_max_rank,
-                honor_level,
-            ) = self.canonical_player_honor_stats_snapshot_like_cpp();
-            info.lifetime_honorable_kills = lifetime_honorable_kills;
-            info.this_week_contribution = this_week_contribution;
-            info.yesterday_contribution = yesterday_contribution;
-            info.today_honorable_kills = today_honorable_kills;
-            info.yesterday_honorable_kills = yesterday_honorable_kills;
-            info.lifetime_max_rank = lifetime_max_rank;
-            info.honor_level = honor_level;
             registry.publish_broadcast_info_for_control_channel(
                 guid,
                 &self.session_command_tx,

@@ -76,13 +76,14 @@ impl WorldSession {
             None => return,
         };
 
-        let entry = match registry.inspect_snapshot(target_guid) {
-            Some(entry) => entry,
-            None => {
-                warn!("Inspect: target {:?} not found in registry", target_guid);
-                return;
-            }
-        };
+        let entry =
+            match registry.inspect_snapshot(target_guid, self.canonical_map_manager.as_ref()) {
+                Some(entry) => entry,
+                None => {
+                    warn!("Inspect: target {:?} not found in registry", target_guid);
+                    return;
+                }
+            };
 
         // Build item list from visible_items: [(item_id, enchant_display, subclass); 19]
         let mut items: Vec<InspectItem> = Vec::new();
@@ -127,10 +128,11 @@ impl WorldSession {
             None => return,
         };
 
-        let entry = match registry.inspect_snapshot(request.target) {
-            Some(entry) => entry,
-            None => return,
-        };
+        let entry =
+            match registry.inspect_snapshot(request.target, self.canonical_map_manager.as_ref()) {
+                Some(entry) => entry,
+                None => return,
+            };
 
         let response = InspectHonorStatsResponse {
             target: request.target,
@@ -167,10 +169,11 @@ impl WorldSession {
             None => return,
         };
 
-        let target = match registry.inspect_snapshot(request.guid) {
-            Some(target) => target,
-            None => return,
-        };
+        let target =
+            match registry.inspect_snapshot(request.guid, self.canonical_map_manager.as_ref()) {
+                Some(target) => target,
+                None => return,
+            };
 
         let self_position = match self.player_position_like_cpp() {
             Some(position) => position,

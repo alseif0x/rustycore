@@ -22,7 +22,6 @@ forced_reputation_faction_ids	canonical Player reputation	#252	query immutable f
 forced_reputation_ranks	canonical Player reputation	#252	query immutable forced ranks
 gray_level	canonical Player progression	#252	query immutable effective gray level
 has_vehicle_kit_like_cpp	canonical Player/Unit vehicle state	#252	query immutable vehicle capability
-honor_level	canonical Player PvP progression	#252	query immutable inspect honor facts
 in_combat	canonical Player/Unit combat state	#252	query immutable combat state
 in_vehicle	canonical Player/Unit vehicle state	#252	query immutable vehicle membership
 instance_id	MapRuntime player membership	#252	query immutable map incarnation
@@ -38,8 +37,6 @@ is_in_world	MapRuntime player membership	#252	query immutable in-world membershi
 is_pvp	canonical Player PvP state	#252	query immutable PvP state
 known_spells	canonical Player spellbook	#252	query minimum immutable spell membership
 level	canonical Player progression	#252	query immutable level
-lifetime_honorable_kills	canonical Player PvP progression	#252	query immutable inspect honor facts
-lifetime_max_rank	canonical Player PvP progression	#252	query immutable inspect honor facts
 liquid_status	MapRuntime environment state	#252	query immutable player environment result
 map_id	MapRuntime player membership	#252	query immutable map identity
 max_health	canonical Player/Unit vitals	#252	query immutable party/runtime vitals
@@ -61,13 +58,9 @@ reputation_state_flags	canonical Player reputation	#252	query immutable reputati
 rewarded_quests	canonical Player quest log	#252	query immutable rewarded membership
 sex	canonical Player identity	#252	query immutable character identity
 spec_id	canonical Player specialization	#252	query immutable active specialization
-this_week_contribution	canonical Player PvP progression	#252	query immutable inspect honor facts
-today_honorable_kills	canonical Player PvP progression	#252	query immutable inspect honor facts
 transport	canonical Player location under MapRuntime	#252	query immutable transport passenger state
 unit_flags	canonical Player/Unit state flags	#252	query immutable targetability flags
 unit_flags2	canonical Player/Unit state flags	#252	query immutable secondary flags
 unit_state	canonical Player/Unit state machine	#252	query immutable unit-state mask
 visible_items	canonical Player inventory presentation	#252	query immutable equipped-item presentation
-yesterday_contribution	canonical Player PvP progression	#252	query immutable inspect honor facts
-yesterday_honorable_kills	canonical Player PvP progression	#252	query immutable inspect honor facts
 zone_id	canonical Player location under MapRuntime	#252	query immutable zone identity

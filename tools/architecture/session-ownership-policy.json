@@ -55914,13 +55914,6 @@
           "source_class": "production"
         },
         {
-          "name": "honor_level",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "in_combat",
           "type": "bool",
           "visibility": "pub",
@@ -56021,20 +56014,6 @@
         {
           "name": "level",
           "type": "u8",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "lifetime_honorable_kills",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "lifetime_max_rank",
-          "type": "u32",
           "visibility": "pub",
           "cfg": [],
           "source_class": "production"
@@ -56187,20 +56166,6 @@
           "source_class": "production"
         },
         {
-          "name": "this_week_contribution",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "today_honorable_kills",
-          "type": "u16",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "transport",
           "type": "Option < TransportInfo >",
           "visibility": "pub",
@@ -56231,20 +56196,6 @@
         {
           "name": "visible_items",
           "type": "Arc < [(i32 , u16 , u16) ; 19] >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "yesterday_contribution",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "yesterday_honorable_kills",
-          "type": "u16",
           "visibility": "pub",
           "cfg": [],
           "source_class": "production"

@@ -15,7 +15,11 @@
 //! remain in `wow-network`, and the Session mailbox protocol plus its durable
 //! rails stay there until issue #140 relocates them.
 
+use crate::canonical_player_access::{
+    canonical_player_honor_stats_like_cpp, with_canonical_player_at_like_cpp,
+};
 use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
+use crate::session::SharedCanonicalMapManager;
 use crate::session::mailbox::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyLootMoneyLikeCppCommand,
     ApplyPlayerMeleeResultLikeCppCommand, CreatureAttackStartLikeCppCommand,
@@ -230,20 +234,6 @@ pub struct PlayerBroadcastInfo {
     pub visible_items: Arc<[(i32, u16, u16); 19]>,
     /// C++ `PlayerData::Customizations` snapshot used by non-owner CREATE blocks.
     pub customizations: Arc<Vec<ChrCustomizationChoiceValuesUpdate>>,
-    /// C++ `ActivePlayerData::LifetimeHonorableKills` snapshot for inspect honor stats.
-    pub lifetime_honorable_kills: u32,
-    /// C++ `ActivePlayerData::ThisWeekContribution` snapshot for inspect honor stats.
-    pub this_week_contribution: u32,
-    /// C++ `ActivePlayerData::YesterdayContribution` snapshot for inspect honor stats.
-    pub yesterday_contribution: u32,
-    /// C++ `ActivePlayerData::TodayHonorableKills` snapshot for inspect honor stats.
-    pub today_honorable_kills: u16,
-    /// C++ `ActivePlayerData::YesterdayHonorableKills` snapshot for inspect honor stats.
-    pub yesterday_honorable_kills: u16,
-    /// C++ `ActivePlayerData::LifetimeMaxRank` snapshot for inspect honor stats.
-    pub lifetime_max_rank: u32,
-    /// C++ `PlayerData::HonorLevel` snapshot for inspect honor stats.
-    pub honor_level: u32,
 }
 
 /// Identity of one concrete connected-session registration.
@@ -963,28 +953,71 @@ impl PlayerRegistry {
 
     /// Resolve the bounded connected-player view required by inspect handlers.
     #[must_use]
-    pub fn inspect_snapshot(&self, guid: ObjectGuid) -> Option<PlayerInspectSnapshot> {
-        let entry = self.entries.get(&guid)?;
-        let info = &entry.info;
-        Some(PlayerInspectSnapshot {
-            guid,
-            map_id: info.map_id,
-            position: info.position,
-            faction_template_id: info.faction_template_id,
-            player_name: info.player_name.clone(),
-            race: info.race,
-            class: info.class,
-            sex: info.sex,
-            level: info.level,
-            visible_items: Arc::clone(&info.visible_items),
-            lifetime_honorable_kills: info.lifetime_honorable_kills,
-            this_week_contribution: info.this_week_contribution,
-            yesterday_contribution: info.yesterday_contribution,
-            today_honorable_kills: info.today_honorable_kills,
-            yesterday_honorable_kills: info.yesterday_honorable_kills,
-            lifetime_max_rank: info.lifetime_max_rank,
-            honor_level: info.honor_level,
-        })
+    /// Resolve one inspect target.
+    ///
+    /// The honor block is no longer mirrored (#252): it is read straight off the
+    /// target's canonical `Player`, addressed by the placement this entry
+    /// already stores. The registry guard is dropped before that read, so the
+    /// canonical mutex is never taken under a registry shard guard.
+    pub fn inspect_snapshot(
+        &self,
+        guid: ObjectGuid,
+        canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    ) -> Option<PlayerInspectSnapshot> {
+        let (mut snapshot, instance_id) = {
+            let entry = self.entries.get(&guid)?;
+            let info = &entry.info;
+            (
+                PlayerInspectSnapshot {
+                    guid,
+                    map_id: info.map_id,
+                    position: info.position,
+                    faction_template_id: info.faction_template_id,
+                    player_name: info.player_name.clone(),
+                    race: info.race,
+                    class: info.class,
+                    sex: info.sex,
+                    level: info.level,
+                    visible_items: Arc::clone(&info.visible_items),
+                    lifetime_honorable_kills: 0,
+                    this_week_contribution: 0,
+                    yesterday_contribution: 0,
+                    today_honorable_kills: 0,
+                    yesterday_honorable_kills: 0,
+                    lifetime_max_rank: 0,
+                    honor_level: 0,
+                },
+                info.instance_id,
+            )
+        };
+
+        if let Some(manager) = canonical_map_manager
+            && let Some((
+                lifetime_honorable_kills,
+                this_week_contribution,
+                yesterday_contribution,
+                today_honorable_kills,
+                yesterday_honorable_kills,
+                lifetime_max_rank,
+                honor_level,
+            )) = with_canonical_player_at_like_cpp(
+                manager,
+                guid,
+                u32::from(snapshot.map_id),
+                instance_id,
+                canonical_player_honor_stats_like_cpp,
+            )
+        {
+            snapshot.lifetime_honorable_kills = lifetime_honorable_kills;
+            snapshot.this_week_contribution = this_week_contribution;
+            snapshot.yesterday_contribution = yesterday_contribution;
+            snapshot.today_honorable_kills = today_honorable_kills;
+            snapshot.yesterday_honorable_kills = yesterday_honorable_kills;
+            snapshot.lifetime_max_rank = lifetime_max_rank;
+            snapshot.honor_level = honor_level;
+        }
+
+        Some(snapshot)
     }
 
     /// Snapshot only the presence facts used by loot and group-reward gates.
@@ -1853,17 +1886,20 @@ impl PlayerRegistry {
 mod tests {
     use super::*;
 
-    /// cross-instance delivery can be filtered (Slice 4A.1b).
-    /// C++ anchor: `GridNotifiersImpl.h : MessageDistDeliverer::Visit` — instance
-    /// separation via `InSamePhase` + map instance ID check.
-    #[test]
-    fn player_broadcast_info_has_instance_id_field_like_cpp() {
-        let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
-        let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
-        let info = PlayerSessionRegistrationLikeCpp {
+    /// Build one registration for the directory tests.
+    ///
+    /// The channels are passed in so the caller keeps the receivers alive; a
+    /// helper that made them locally would disconnect every sender on return.
+    fn registration_for_test(
+        map_id: u16,
+        instance_id: u32,
+        send_tx: flume::Sender<Vec<u8>>,
+        command_tx: flume::Sender<SessionCommand>,
+    ) -> PlayerSessionRegistrationLikeCpp {
+        PlayerSessionRegistrationLikeCpp {
             info: PlayerBroadcastInfo {
-                map_id: 571,
-                instance_id: 42,
+                map_id,
+                instance_id,
                 position: Position::ZERO,
                 combat_reach: 0.0,
                 liquid_status: 0,
@@ -1927,13 +1963,6 @@ mod tests {
                 display_id: 49,
                 visible_items: Arc::new([(0, 0, 0); 19]),
                 customizations: Arc::default(),
-                lifetime_honorable_kills: 0,
-                this_week_contribution: 0,
-                yesterday_contribution: 0,
-                today_honorable_kills: 0,
-                yesterday_honorable_kills: 0,
-                lifetime_max_rank: 0,
-                honor_level: 0,
             },
             realm_send_tx: send_tx.clone(),
             send_tx,
@@ -1942,7 +1971,17 @@ mod tests {
             client_visible_guids_like_cpp: Default::default(),
             advanced_combat_logging_enabled_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
-        };
+        }
+    }
+
+    /// cross-instance delivery can be filtered (Slice 4A.1b).
+    /// C++ anchor: `GridNotifiersImpl.h : MessageDistDeliverer::Visit` — instance
+    /// separation via `InSamePhase` + map instance ID check.
+    #[test]
+    fn player_broadcast_info_has_instance_id_field_like_cpp() {
+        let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
+        let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
+        let info = registration_for_test(571, 42, send_tx, command_tx);
         assert_eq!(info.info.instance_id, 42);
         assert_eq!(info.info.map_id, 571);
 
@@ -1983,5 +2022,138 @@ mod tests {
             vec![beta, alpha],
             "connected Group projections preserve authoritative member order"
         );
+    }
+
+    /// Place one canonical `Player` on an exact map instance with a known honor
+    /// level, so an inspect resolver has a real owner to read.
+    fn canonical_map_with_player_for_test(
+        guid: ObjectGuid,
+        map_id: u32,
+        instance_id: u32,
+        honor_level: i32,
+    ) -> SharedCanonicalMapManager {
+        let mut player = wow_entities::Player::new(Some(1), false);
+        player.unit_mut().world_mut().object_mut().create(guid);
+        player.unit_mut().world_mut().set_name("Inspected");
+        player
+            .unit_mut()
+            .world_mut()
+            .set_map(map_id, instance_id)
+            .unwrap();
+        player.unit_mut().world_mut().object_mut().add_to_world();
+        player.set_honor_level_like_cpp(honor_level);
+
+        let canonical: SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        canonical
+            .lock()
+            .unwrap()
+            .create_world_map(map_id, instance_id)
+            .map_mut()
+            .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
+            .unwrap();
+        canonical
+    }
+
+    /// The inspect honor block comes off the target's canonical `Player`, not off
+    /// a mirrored copy (#252).
+    ///
+    /// C++ anchor: `Player::SendInspectResult` reads the honor fields straight
+    /// from the inspected `Player`'s `m_activePlayerData`/`m_playerData`; it does
+    /// not consult a per-session cache of another player's state.
+    #[test]
+    fn inspect_snapshot_reads_honor_level_from_the_canonical_player_like_cpp() {
+        let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
+        let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
+        let guid = ObjectGuid::create_player(1, 700);
+        let canonical = canonical_map_with_player_for_test(guid, 571, 42, 7);
+
+        let registry = PlayerRegistry::new();
+        registry.register_or_replace(
+            guid,
+            registration_for_test(571, 42, send_tx, command_tx),
+            Default::default(),
+        );
+
+        let snapshot = registry
+            .inspect_snapshot(guid, Some(&canonical))
+            .expect("registered inspect target");
+        assert_eq!(snapshot.honor_level, 7);
+    }
+
+    /// Retiring the mirror also retires its staleness window.
+    ///
+    /// The honor level used to be copied in at registration and refreshed only
+    /// on the next registry sync, so an inspect between the two showed the old
+    /// value. Reading the canonical owner makes that window unrepresentable:
+    /// nothing republishes here, and the new value is still observed.
+    #[test]
+    fn inspect_snapshot_sees_a_canonical_honor_change_without_a_registry_sync_like_cpp() {
+        let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
+        let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
+        let guid = ObjectGuid::create_player(1, 701);
+        let canonical = canonical_map_with_player_for_test(guid, 571, 42, 3);
+
+        let registry = PlayerRegistry::new();
+        registry.register_or_replace(
+            guid,
+            registration_for_test(571, 42, send_tx, command_tx),
+            Default::default(),
+        );
+        assert_eq!(
+            registry
+                .inspect_snapshot(guid, Some(&canonical))
+                .expect("registered inspect target")
+                .honor_level,
+            3
+        );
+
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(571, 42)
+            .expect("resident map instance")
+            .map_mut()
+            .get_typed_player_mut(guid)
+            .expect("canonical player")
+            .set_honor_level_like_cpp(9);
+
+        assert_eq!(
+            registry
+                .inspect_snapshot(guid, Some(&canonical))
+                .expect("registered inspect target")
+                .honor_level,
+            9,
+            "inspect must read the canonical owner, not a copy taken at registration"
+        );
+    }
+
+    /// Negative branch: with no canonical manager, or with the target absent
+    /// from it, the resolver still answers with the directory-owned identity and
+    /// reports zero honor rather than failing the inspect outright.
+    #[test]
+    fn inspect_snapshot_reports_zero_honor_without_a_canonical_owner_like_cpp() {
+        let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
+        let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
+        let guid = ObjectGuid::create_player(1, 702);
+
+        let registry = PlayerRegistry::new();
+        registry.register_or_replace(
+            guid,
+            registration_for_test(571, 42, send_tx, command_tx),
+            Default::default(),
+        );
+
+        let without_manager = registry
+            .inspect_snapshot(guid, None)
+            .expect("identity is directory-owned and still resolves");
+        assert_eq!(without_manager.honor_level, 0);
+        assert_eq!(without_manager.map_id, 571);
+
+        let empty: SharedCanonicalMapManager = Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let absent_from_map = registry
+            .inspect_snapshot(guid, Some(&empty))
+            .expect("identity is directory-owned and still resolves");
+        assert_eq!(absent_from_map.honor_level, 0);
     }
 }

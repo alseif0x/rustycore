@@ -1492,7 +1492,7 @@
         },
         {
           "id": "player_broadcast_remaining_assigned_mirrors",
-          "expected_field_count": 34,
+          "expected_field_count": 27,
           "field_names": [
             "active_expansion",
             "auto_reply_msg_like_cpp",
@@ -1504,7 +1504,6 @@
             "enchanting_skill",
             "faction_template_id",
             "gray_level",
-            "honor_level",
             "instance_id",
             "is_afk",
             "is_alive",
@@ -1513,20 +1512,14 @@
             "is_ghost",
             "is_in_world",
             "level",
-            "lifetime_honorable_kills",
-            "lifetime_max_rank",
             "liquid_status",
             "map_id",
             "race",
             "sex",
             "spec_id",
-            "this_week_contribution",
-            "today_honorable_kills",
             "unit_flags",
             "unit_flags2",
             "unit_state",
-            "yesterday_contribution",
-            "yesterday_honorable_kills",
             "zone_id"
           ],
           "owner": "Temporary PlayerBroadcastInfo projection; every canonical owner and cutover condition is assigned explicitly in docs/architecture/player-broadcast-info-retirement.tsv.",
@@ -1536,7 +1529,7 @@
           "retirement_condition": "#252 removes every assigned residual through bounded canonical queries and deletes the broad projection without introducing a replacement mirror."
         }
       ],
-      "expected_field_count": 72
+      "expected_field_count": 65
     },
     "session_command": {
       "coverage_source": {
@@ -1820,15 +1813,15 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 73601,
-          "test_lines": 96177,
-          "total_lines": 169778,
+          "production_lines": 73573,
+          "test_lines": 96309,
+          "total_lines": 169882,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153,
             297
           ],
-          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 owns the kernel promotion those unblock, and #252 the gameplay mirror. Until they land this row is a reviewed exception to the epic's 4,000-line signal, not a target."
+          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 owns the kernel promotion those unblock, and #252 the gameplay mirror. Until they land this row is a reviewed exception to the epic's 4,000-line signal, not a target. #252 begins retiring that mirror family by family: the honor block is the first cut, so production drops 73601->73573 while tests rise 96177->96309 for the three focused directory cases proving inspect now reads the canonical owner live."
         },
         {
           "path": "crates/wow-map/src/map/mod.rs",
