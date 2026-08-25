@@ -1867,8 +1867,8 @@
         {
           "path": "crates/wow-world/src/handlers/quest/mod.rs",
           "production_lines": 8431,
-          "test_lines": 10279,
-          "total_lines": 18710,
+          "test_lines": 10290,
+          "total_lines": 18721,
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
           "open_retirement_issues": [
             153

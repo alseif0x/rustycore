@@ -22778,19 +22778,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "canonical_player_contested_pvp_flag_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn canonical_player_contested_pvp_flag_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "canonical_player_display_ids_like_cpp",
           "visibility": "private",
           "signature": "fn canonical_player_display_ids_like_cpp (& self) -> Option < (u32 , u32) >",
@@ -22835,19 +22822,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "canonical_player_forced_reputation_faction_ids_snapshot_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn canonical_player_forced_reputation_faction_ids_snapshot_like_cpp (& self ,) -> Vec < u32 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "canonical_player_has_player_flag_like_cpp",
           "visibility": "private",
           "signature": "fn canonical_player_has_player_flag_like_cpp (& self , guid : ObjectGuid , flag : u32 ,) -> Option < bool >",
@@ -22862,19 +22836,6 @@
           "name": "canonical_player_health_snapshot_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn canonical_player_health_snapshot_like_cpp (& self) -> Option < (u32 , u32) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "canonical_player_honor_stats_snapshot_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn canonical_player_honor_stats_snapshot_like_cpp (& self ,) -> (u32 , u32 , u32 , u16 , u16 , u32 , u32)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -22959,51 +22920,12 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "canonical_player_reputation_standings_snapshot_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn canonical_player_reputation_standings_snapshot_like_cpp (& self ,) -> Vec < (u32 , i32) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "canonical_player_reputation_state_flags_snapshot_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn canonical_player_reputation_state_flags_snapshot_like_cpp (& self ,) -> Vec < (u32 , u32) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "canonical_player_snapshot_like_cpp",
           "visibility": "private",
           "signature": "fn canonical_player_snapshot_like_cpp < R > (& self , f : impl FnOnce (& Player) -> R) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "canonical_player_unit_flags2_snapshot_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn canonical_player_unit_flags2_snapshot_like_cpp (& self) -> u32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
         },
         {
           "module": "crate::session",

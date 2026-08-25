@@ -6487,17 +6487,19 @@ async fn push_quest_to_party_non_pooled_quest_passes_pool_check_to_group_boundar
 ///
 /// Mirrors what a live session does at world entry; the quest-share gates read
 /// reputation off this owner since #252.
+///
+/// Takes the three values it needs rather than `&WorldSession`: the session type
+/// carries database handles, so accepting it here would register this fixture as
+/// a direct persistence accessor in the ownership inventory for no reason.
 fn insert_canonical_party_player_like_cpp(
-    session: &WorldSession,
+    account_id: u32,
+    player_guid: ObjectGuid,
+    position: Position,
     canonical: &crate::session::SharedCanonicalMapManager,
     map_id: u32,
     instance_id: u32,
 ) {
-    let player_guid = session.player_guid().expect("party member guid");
-    let position = session
-        .player_position_like_cpp()
-        .expect("party member position");
-    let mut player = wow_entities::Player::new(Some(u64::from(session.account_id)), false);
+    let mut player = wow_entities::Player::new(Some(u64::from(account_id)), false);
     player
         .unit_mut()
         .world_mut()
@@ -6565,7 +6567,16 @@ fn install_represented_party(
     // copy. Install it here so the harness exercises the same path.
     let canonical: crate::session::SharedCanonicalMapManager =
         Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
-    insert_canonical_party_player_like_cpp(&receiver_session, &canonical, 571, 0);
+    insert_canonical_party_player_like_cpp(
+        receiver_session.account_id,
+        receiver_guid,
+        receiver_session
+            .player_position_like_cpp()
+            .expect("party member position"),
+        &canonical,
+        571,
+        0,
+    );
     receiver_session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_canonical_map_manager(Arc::clone(&canonical));
 
