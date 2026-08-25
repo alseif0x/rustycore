@@ -888,7 +888,7 @@
     },
     {
       "number": 297,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.P4.1] Promote the Session kernel to a wow-session crate",
       "kind": "slice",
       "parents": [
@@ -912,7 +912,7 @@
     },
     {
       "number": 378,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.P4.2] Move the remaining five session modules into wow-session",
       "kind": "slice",
       "parents": [

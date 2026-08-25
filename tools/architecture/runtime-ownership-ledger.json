@@ -87,7 +87,7 @@
         "clock_lifetime": "One authenticated connection with realm and optional instance links; physical links live until disconnect and both sockets must remain alive after ConnectTo.",
         "persistence_publication_order": "No durable state. Connection selection precedes enqueue; FIFO write-fence completion follows enqueue.",
         "mirror_direction": "Logical connection selection in Session points to opaque physical handles in wow-network; no gameplay state may flow back into transport.",
-        "target_owner": "wow-network for physical transport and fences; wow-session for logical routing, which #297 landed. The terminal shape is the kernel depending on transport ports rather than concrete wow-network types, which #153 owns; #378 moves the remaining session modules in.",
+        "target_owner": "wow-network for physical transport and fences; wow-session for logical routing, which #297 landed. #378 classified the five remaining module families as application/gameplay adapters that cannot enter P4 before their named authority or port cuts. The terminal shape is the kernel depending on transport ports rather than concrete wow-network types, which #153 owns.",
         "cutover_issues": [
           153
         ],
@@ -1803,10 +1803,9 @@
           "total_lines": 169702,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
-            153,
-            378
+            153
           ],
-          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 owns the kernel promotion those unblock, and #252 the gameplay mirror. Until they land this row is a reviewed exception to the epic's 4,000-line signal, not a target. #252 begins retiring that mirror family by family: the honor block is the first cut, so production drops 73601->73573 while tests rise 96177->96309 for the three focused directory cases proving inspect now reads the canonical owner live. #297 promoted the transport kernel to the wow-session crate, the first module to leave this type under the epic's P4 rule; production drops 73489 -> 73356."
+          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 promoted the transport-only kernel, and #252 owns the gameplay mirror. #378 then classified the five remaining module families: they stay as application/gameplay adapters until #252, #371, #169 and the terminal #153 audit remove their measured authority or port blockers. This row remains a reviewed exception to the epic's 4,000-line signal, not a target for forced relocation. #252 begins retiring that mirror family by family: the honor block is the first cut, so production drops 73601->73573 while tests rise 96177->96309 for the three focused directory cases proving inspect now reads the canonical owner live. #297 promoted the transport kernel to the wow-session crate, the first module to leave this type under the epic's P4 rule; production drops 73489 -> 73356."
         },
         {
           "path": "crates/wow-map/src/map/mod.rs",
