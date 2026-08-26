@@ -49,6 +49,7 @@
     139,
     152,
     200,
+    286,
     189,
     192,
     193,
@@ -643,6 +644,20 @@
       "depends_on": [
         186,
         187
+      ]
+    },
+    {
+      "number": 286,
+      "state": "open",
+      "title": "[ARCH.DB.4b] Move the Player character-save statement plan behind the lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        187,
+        200
       ]
     },
     {

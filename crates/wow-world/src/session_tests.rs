@@ -53249,40 +53249,32 @@ fn player_save_transaction_plan_orders_represented_statements_like_cpp() {
         },
     );
 
-    let plan = session
-        .current_player_save_to_db_statement_plan_like_cpp(&snapshot, 1_000)
-        .expect("determinate tracker should allow a full-save plan");
-    let sqls: Vec<&str> = plan.statements.iter().map(PreparedStatement::sql).collect();
+    let request = session
+        .current_player_character_save_request_like_cpp(&snapshot, 1_000)
+        .expect("determinate tracker should allow a full-save request");
 
+    assert_eq!(request.player_guid, guid.counter() as u64);
+    assert_eq!(request.character.level, 70);
+    assert_eq!(request.character.xp, 12_345);
+    assert_eq!(request.character.money, 67_890);
     assert_eq!(
-        &sqls[..11],
-        &[
-            CharStatements::UPD_CHARACTER_POSITION_PRESERVE_TRAVEL.sql(),
-            CharStatements::UPD_CHAR_LEVEL.sql(),
-            CharStatements::UPD_CHAR_MONEY.sql(),
-            CharStatements::UPD_CHAR_REST_STATE.sql(),
-            CharStatements::UPD_CHAR_HEALTH.sql(),
-            CharStatements::UPD_CHAR_POWERS.sql(),
-            CharStatements::UPD_CHAR_TALENT_RESET_STATE.sql(),
-            CharStatements::UPD_CHAR_EXPLORED_ZONES.sql(),
-            CharStatements::DEL_CHAR_SKILLS.sql(),
-            CharStatements::INS_CHAR_SKILLS.sql(),
-            CharStatements::UPD_CHAR_DIFFICULTIES.sql(),
-        ],
-        "C++ Player::SaveToDB appends represented character statements to one CharacterDatabaseTransaction in save order"
+        request.character.powers,
+        Some([321, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     );
     assert_eq!(
-        sqls.last().copied(),
-        Some(CharStatements::UPD_CHAR_PLAYED_TIME.sql())
+        request.skills.as_deref(),
+        Some(
+            [wow_persistence::PlayerSkillSaveLikeCpp {
+                skill_id: 762,
+                value: 75,
+                max: 75,
+                profession_slot: -1,
+            }]
+            .as_slice()
+        )
     );
-    assert!(
-        !sqls.iter().any(|sql| {
-            *sql == CharStatements::INS_CHAR_QUEST_STATUS.sql()
-                || *sql == CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql()
-                || *sql == CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES.sql()
-        }),
-        "C++ _SaveQuestStatus only writes m_QuestStatusSave dirty entries; represented full-save must preserve unchanged objective rows until Rust owns that dirty set"
-    );
+    // The SQLx-free request has no quest-status field: C++ `_SaveQuestStatus`
+    // consumes only its dirty set, which this represented snapshot does not own.
 }
 
 #[test]
@@ -53346,7 +53338,7 @@ async fn indeterminate_money_state_blocks_full_save_reconciliation_like_cpp() {
     assert!(tracker.is_indeterminate_like_cpp());
     assert!(
         session
-            .current_player_save_to_db_statement_plan_like_cpp(
+            .current_player_character_save_request_like_cpp(
                 &PlayerSaveToDbSnapshotLikeCpp {
                     guid: ObjectGuid::create_player(1, 50_013),
                     map_id: 0,
@@ -53469,18 +53461,20 @@ fn player_save_plan_marks_dirty_state_only_after_commit_like_cpp() {
             )
         });
 
-    let plan = session
-        .current_player_save_to_db_statement_plan_like_cpp(&snapshot, 1_000)
-        .expect("determinate tracker should allow a full-save plan");
+    let request = session
+        .current_player_character_save_request_like_cpp(&snapshot, 1_000)
+        .expect("determinate tracker should allow a full-save request");
+    let committed = request.committed_groups_like_cpp();
 
-    assert!(plan.tutorials_changed_committed_like_cpp);
-    assert!(plan.player_spells_committed_like_cpp);
-    assert!(plan.statements.iter().any(|statement| {
-        statement.sql() == CharStatements::INS_CHAR_SPELL.sql()
-            && statement.params().get(1) == Some(&wow_database::SqlParam::I32(13_337))
-    }));
-    assert!(plan.equipment_sets_committed_like_cpp);
-    assert!(plan.reputation_committed_like_cpp);
+    assert!(committed.tutorials_changed);
+    assert!(committed.player_spells);
+    assert!(matches!(
+        &request.spells,
+        Some(wow_persistence::PlayerSpellSaveGroupLikeCpp::Complete { rows, .. })
+            if rows.iter().any(|spell| spell.spell_id == 13_337)
+    ));
+    assert!(committed.equipment_sets);
+    assert!(committed.reputation);
     assert!(session.tutorials_changed_like_cpp);
     assert!(!session.tutorials_loaded_from_db_like_cpp);
     assert_eq!(
@@ -53508,7 +53502,7 @@ fn player_save_plan_marks_dirty_state_only_after_commit_like_cpp() {
         "failed transaction must leave reputation state dirty for retry"
     );
 
-    session.mark_current_player_save_to_db_committed_like_cpp(&plan);
+    session.mark_current_player_save_to_db_committed_like_cpp(&committed);
 
     assert!(!session.tutorials_changed_like_cpp);
     assert_eq!(
@@ -53565,16 +53559,11 @@ fn player_save_requires_complete_skill_authority_before_delete_all_like_cpp() {
     assert!(session.player_skill_records_loaded_like_cpp());
     assert!(session.complete_player_skill_records_like_cpp().is_none());
 
-    let partial_plan = session
-        .current_player_save_to_db_statement_plan_like_cpp(&snapshot, 1_000)
+    let partial_request = session
+        .current_player_character_save_request_like_cpp(&snapshot, 1_000)
         .expect("partial skill authority skips the table instead of blocking other saves");
-    assert!(!partial_plan.player_skills_committed_like_cpp);
-    assert!(
-        !partial_plan
-            .statements
-            .iter()
-            .any(|statement| statement.sql() == CharStatements::DEL_CHAR_SKILLS.sql())
-    );
+    assert!(partial_request.skills.is_none());
+    assert!(!partial_request.committed_groups_like_cpp().player_skills);
 
     assert!(
         session.set_complete_player_skill_records_like_cpp(
@@ -53582,20 +53571,16 @@ fn player_save_requires_complete_skill_authority_before_delete_all_like_cpp() {
             1,
         )
     );
-    let complete_plan = session
-        .current_player_save_to_db_statement_plan_like_cpp(&snapshot, 1_000)
+    let complete_request = session
+        .current_player_character_save_request_like_cpp(&snapshot, 1_000)
         .expect("complete skill authority is safe to persist");
-    assert!(complete_plan.player_skills_committed_like_cpp);
+    assert!(complete_request.committed_groups_like_cpp().player_skills);
     assert!(
-        complete_plan
-            .statements
-            .iter()
-            .any(|statement| statement.sql() == CharStatements::DEL_CHAR_SKILLS.sql())
+        complete_request
+            .skills
+            .as_ref()
+            .is_some_and(|skills| skills.iter().any(|skill| skill.skill_id == 164))
     );
-    assert!(complete_plan.statements.iter().any(|statement| {
-        statement.sql() == CharStatements::INS_CHAR_SKILLS.sql()
-            && statement.params().get(1) == Some(&wow_database::SqlParam::U16(164))
-    }));
 }
 
 #[test]

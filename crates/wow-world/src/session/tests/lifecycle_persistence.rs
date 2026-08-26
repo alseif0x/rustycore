@@ -12,13 +12,14 @@ use super::*;
 use std::sync::Mutex;
 use wow_persistence::{
     AccountCollectionSaveLikeCpp, AccountMaskBlockLikeCpp, LogicalDatabaseLikeCpp,
-    PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerLifecyclePortLikeCpp,
-    PlayerOfflineMarkLikeCpp,
+    PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerCharacterSaveRequestLikeCpp,
+    PlayerCharacterSaveResultLikeCpp, PlayerLifecyclePortLikeCpp, PlayerOfflineMarkLikeCpp,
 };
 
 struct RecordingPortLikeCpp {
     seen: Mutex<Vec<PlayerOfflineMarkLikeCpp>>,
     collections: Mutex<Vec<AccountCollectionSaveLikeCpp>>,
+    character_saves: Mutex<Vec<PlayerCharacterSaveRequestLikeCpp>>,
     outcome: PersistenceOutcomeLikeCpp,
 }
 
@@ -27,6 +28,7 @@ impl RecordingPortLikeCpp {
         Arc::new(Self {
             seen: Mutex::new(Vec::new()),
             collections: Mutex::new(Vec::new()),
+            character_saves: Mutex::new(Vec::new()),
             outcome,
         })
     }
@@ -35,6 +37,9 @@ impl RecordingPortLikeCpp {
     }
     fn collection_saves(&self) -> Vec<AccountCollectionSaveLikeCpp> {
         self.collections.lock().unwrap().clone()
+    }
+    fn character_saves(&self) -> Vec<PlayerCharacterSaveRequestLikeCpp> {
+        self.character_saves.lock().unwrap().clone()
     }
 }
 
@@ -56,6 +61,16 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         let outcome = self.outcome.clone();
         Box::pin(async move { outcome })
     }
+
+    fn save_character_like_cpp<'a>(
+        &'a self,
+        request: PlayerCharacterSaveRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerCharacterSaveResultLikeCpp> {
+        let committed = request.committed_groups_like_cpp();
+        self.character_saves.lock().unwrap().push(request);
+        let outcome = self.outcome.clone();
+        Box::pin(async move { PlayerCharacterSaveResultLikeCpp { outcome, committed } })
+    }
 }
 
 fn session_with_port(
@@ -65,6 +80,86 @@ fn session_with_port(
     let port = RecordingPortLikeCpp::new(outcome);
     session.set_player_lifecycle_port_like_cpp(port.clone());
     (session, port)
+}
+
+fn character_save_session_with_port(
+    outcome: PersistenceOutcomeLikeCpp,
+    guid_counter: i64,
+) -> (WorldSession, Arc<RecordingPortLikeCpp>) {
+    let (mut session, port) = session_with_port(outcome);
+    session.set_player_guid(Some(ObjectGuid::create_player(1, guid_counter)));
+    session.set_state(SessionState::LoggedIn);
+    session.set_player_map_position_like_cpp(
+        0,
+        Position {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+            orientation: 0.5,
+        },
+    );
+    session.tutorials_changed_like_cpp = true;
+    session.tutorials_loaded_coherently_like_cpp = true;
+    (session, port)
+}
+
+#[tokio::test]
+async fn character_save_reaches_the_sqlx_free_port_and_cleans_only_after_apply_like_cpp() {
+    let (mut session, port) = character_save_session_with_port(
+        PersistenceOutcomeLikeCpp::Applied { rows: 12 },
+        0x7500_0001,
+    );
+
+    session.save_current_player_to_db_like_cpp().await;
+
+    let saves = port.character_saves();
+    assert_eq!(saves.len(), 1);
+    assert!(saves[0].tutorials.is_some());
+    assert_eq!(saves[0].player_guid, 0x7500_0001);
+    assert!(!session.tutorials_changed_like_cpp);
+    assert!(session.tutorials_loaded_from_db_like_cpp);
+}
+
+#[tokio::test]
+async fn definite_character_save_rollback_preserves_dirty_state_like_cpp() {
+    let (mut session, port) = character_save_session_with_port(
+        PersistenceOutcomeLikeCpp::Failed {
+            reason: "constraint failure before COMMIT".to_owned(),
+        },
+        0x7500_0002,
+    );
+
+    session.save_current_player_to_db_like_cpp().await;
+
+    assert_eq!(port.character_saves().len(), 1);
+    assert!(session.tutorials_changed_like_cpp);
+    assert!(!session.tutorials_loaded_from_db_like_cpp);
+    assert!(
+        !session
+            .durable_loot_money_persistence_tracker_like_cpp()
+            .is_indeterminate_like_cpp()
+    );
+}
+
+#[tokio::test]
+async fn unknown_character_save_commit_fences_and_preserves_dirty_state_like_cpp() {
+    let (mut session, port) = character_save_session_with_port(
+        PersistenceOutcomeLikeCpp::Unknown {
+            reason: "connection lost after COMMIT".to_owned(),
+        },
+        0x7500_0003,
+    );
+
+    session.save_current_player_to_db_like_cpp().await;
+
+    assert_eq!(port.character_saves().len(), 1);
+    assert!(session.tutorials_changed_like_cpp);
+    assert!(!session.tutorials_loaded_from_db_like_cpp);
+    assert!(
+        session
+            .durable_loot_money_persistence_tracker_like_cpp()
+            .is_indeterminate_like_cpp()
+    );
 }
 
 /// Each offline mark reaches the port as its own request, naming the logical

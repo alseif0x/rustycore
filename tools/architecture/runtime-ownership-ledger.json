@@ -201,7 +201,7 @@
           "tutorials_loaded_from_db_like_cpp",
           "world_db"
         ],
-        "current_storage": "Concrete database handles, lifecycle flags/timers, persistence trackers, and durable snapshots are stored directly on WorldSession.",
+        "current_storage": "Concrete database handles remain on WorldSession for residual workflows. The Player character-save plan, offline marks and account collections cross the SQLx-free player_lifecycle_port_like_cpp; lifecycle flags/timers, persistence trackers and durable snapshots remain Session-owned.",
         "sole_writer": "The owning Session/lifecycle flow mutates session flags; concrete Character/Login/World database adapters execute durable work, sometimes through detached workers or sagas.",
         "readers": "Login/load, logout/save, periodic save, recovery, handlers, and post-commit publication paths.",
         "clock_lifetime": "Selected-character/session lifetime with periodic save and logout clocks; durable commands may outlive one handler call and must recover after restart.",
@@ -213,7 +213,7 @@
           169
         ],
         "rollback_condition": "Revert the port adapter, not the durable data, if statement/transaction/fence/publication traces differ or unknown-commit recovery is weaker.",
-        "retirement_condition": "WorldSession imports no pool, row, SQLx transaction/error, raw SQL, or concrete database aggregate; lifecycle uses typed ports with equivalent failure semantics."
+        "retirement_condition": "WorldSession imports no pool, row, SQLx transaction/error, raw SQL, or concrete database aggregate; lifecycle uses typed ports with equivalent failure semantics. #286 moves the ordered represented character-save plan and its Applied/Failed/Unknown boundary to the productive Player lifecycle port without changing the remaining concrete workflows."
       },
       {
         "id": "immutable_catalogs_configuration_and_services",
@@ -1657,14 +1657,14 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 73301,
-          "test_lines": 96359,
-          "total_lines": 169660,
+          "production_lines": 73517,
+          "test_lines": 96368,
+          "total_lines": 169885,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 promoted the transport-only kernel, and #252 owns the gameplay mirror. #378 then classified the five remaining module families: they stay as application/gameplay adapters until #252, #371, #169 and the terminal #153 audit remove their measured authority or port blockers. This row remains a reviewed exception to the epic's 4,000-line signal, not a target for forced relocation. #252 begins retiring that mirror family by family: the honor block is the first cut, so production drops 73601->73573 while tests rise 96177->96309 for the three focused directory cases proving inspect now reads the canonical owner live. #297 promoted the transport kernel to the wow-session crate, the first module to leave this type under the epic's P4 rule; production drops 73489 -> 73356. #371 retires the wall-clock comparisons, reducing production 73374 -> 73301, and adds the focused single-diff regression, raising tests 96328 -> 96359."
+          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 promoted the transport-only kernel, and #252 owns the gameplay mirror. #378 then classified the five remaining module families: they stay as application/gameplay adapters until #252, #371, #169 and the terminal #153 audit remove their measured authority or port blockers. This row remains a reviewed exception to the epic's 4,000-line signal, not a target for forced relocation. #252 begins retiring that mirror family by family: the honor block is the first cut, so production drops 73601->73573 while tests rise 96177->96309 for the three focused directory cases proving inspect now reads the canonical owner live. #297 promoted the transport kernel to the wow-session crate, the first module to leave this type under the epic's P4 rule; production drops 73489 -> 73356. #371 retires the wall-clock comparisons, reducing production 73374 -> 73301, and adds the focused single-diff regression, raising tests 96328 -> 96359. #286 replaces the forbidden statement-shaped port shortcut with an explicit semantic snapshot of every represented Player save group. That required enumeration grows production 73301 -> 73517 and focused tests 96359 -> 96368, while the SQL statement decomposition, transaction and driver errors move behind the stable MariaDB adapter; #153 still owns removal of the residual Session authority."
         },
         {
           "path": "crates/wow-map/src/map/mod.rs",

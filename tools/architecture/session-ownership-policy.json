@@ -24332,6 +24332,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "current_player_character_save_request_like_cpp",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn current_player_character_save_request_like_cpp (& mut self , snapshot : & PlayerSaveToDbSnapshotLikeCpp , now_unix_secs : i64 ,) -> Option < PlayerCharacterSaveRequestLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "current_player_is_group_visible_for_owner_like_cpp",
           "visibility": "private",
           "signature": "fn current_player_is_group_visible_for_owner_like_cpp (& self , owner_guid : ObjectGuid) -> bool",
@@ -24384,17 +24397,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "current_player_save_to_db_statement_plan_like_cpp",
-          "visibility": "private",
-          "signature": "fn current_player_save_to_db_statement_plan_like_cpp (& mut self , snapshot : & PlayerSaveToDbSnapshotLikeCpp , now_unix_secs : i64 ,) -> Option < PlayerSaveToDbStatementPlanLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
         },
         {
           "module": "crate::session",
@@ -28218,11 +28220,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "mark_current_player_save_to_db_committed_like_cpp",
-          "visibility": "private",
-          "signature": "fn mark_current_player_save_to_db_committed_like_cpp (& mut self , plan : & PlayerSaveToDbStatementPlanLikeCpp ,)",
+          "visibility": "pub (in crate :: session)",
+          "signature": "fn mark_current_player_save_to_db_committed_like_cpp (& mut self , committed : & PlayerCharacterCommittedGroupsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -28251,11 +28255,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "mark_player_spells_saved_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (in crate :: session)",
           "signature": "fn mark_player_spells_saved_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
