@@ -175,6 +175,8 @@ pub enum PlayerLoginAuxiliaryLoadRequestLikeCpp {
     Customizations { player_guid: u64 },
     CompletedAchievements { player_guid: u64 },
     InstanceTimeRestrictions { account_id: u32 },
+    SpellCooldowns { player_guid: u64 },
+    SpellCharges { player_guid: u64 },
 }
 
 impl PlayerLoginAuxiliaryLoadRequestLikeCpp {
@@ -195,11 +197,29 @@ pub struct PlayerInstanceTimeRestrictionLoadRowLikeCpp {
     pub release_time: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerSpellCooldownLoadRowLikeCpp {
+    pub spell_id: u32,
+    pub item_id: u32,
+    pub cooldown_end: i64,
+    pub category_id: u32,
+    pub category_end: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerSpellChargeLoadRowLikeCpp {
+    pub category_id: u32,
+    pub recharge_start: i64,
+    pub recharge_end: i64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlayerLoginAuxiliaryLoadedLikeCpp {
     Customizations(Vec<PlayerCustomizationLoadRowLikeCpp>),
     CompletedAchievements(Vec<u32>),
     InstanceTimeRestrictions(Vec<PlayerInstanceTimeRestrictionLoadRowLikeCpp>),
+    SpellCooldowns(Vec<PlayerSpellCooldownLoadRowLikeCpp>),
+    SpellCharges(Vec<PlayerSpellChargeLoadRowLikeCpp>),
 }
 
 /// Read-only lifecycle loads have no unknown-COMMIT state: they either
@@ -851,6 +871,8 @@ mod tests {
             PlayerLoginAuxiliaryLoadRequestLikeCpp::Customizations { player_guid: 1 },
             PlayerLoginAuxiliaryLoadRequestLikeCpp::CompletedAchievements { player_guid: 1 },
             PlayerLoginAuxiliaryLoadRequestLikeCpp::InstanceTimeRestrictions { account_id: 2 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellCooldowns { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellCharges { player_guid: 1 },
         ] {
             assert_eq!(
                 request.logical_database(),

@@ -2510,7 +2510,7 @@ impl WorldSession {
         let login_favorite_spells =
             favorite_known_spells_for_send_like_cpp(&login_known_spells, &favorite_spell_rows);
         let (spell_history_entries, spell_charge_entries) = self
-            .load_character_spell_history_packets_like_cpp(&char_db, guid)
+            .load_character_spell_history_packets_like_cpp(guid)
             .await;
         // Persist the login snapshot so the before-add init helper can re-send spell
         // history/charges on far teleport without a DB round trip. #NEXT.R8.ENTITIES.1229.
