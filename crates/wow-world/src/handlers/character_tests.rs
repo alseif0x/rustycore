@@ -43,6 +43,247 @@ use wow_packet::packets::loot::{
     CreatureLoot, LOOT_TYPE_CORPSE_LIKE_CPP, LootEntry, LootEntryFlags,
 };
 use wow_packet::packets::quest::quest_giver_status;
+use wow_persistence::{
+    AccountCollectionLoadOutcomeLikeCpp, AccountCollectionLoadRequestLikeCpp,
+    AccountCollectionLoadedLikeCpp, AccountCollectionRowsLikeCpp, AccountCollectionSaveLikeCpp,
+    AccountHeirloomLoadRowLikeCpp, AccountMaskBlockLikeCpp, AccountMountLoadRowLikeCpp,
+    AccountToyLoadRowLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
+    PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
+    PlayerLifecyclePortLikeCpp, PlayerOfflineMarkLikeCpp,
+};
+
+struct CollectionLoadPortLikeCpp {
+    requests: std::sync::Mutex<Vec<AccountCollectionLoadRequestLikeCpp>>,
+    outcomes: std::sync::Mutex<std::collections::VecDeque<AccountCollectionLoadOutcomeLikeCpp>>,
+}
+
+impl CollectionLoadPortLikeCpp {
+    fn new(outcomes: impl IntoIterator<Item = AccountCollectionLoadOutcomeLikeCpp>) -> Arc<Self> {
+        Arc::new(Self {
+            requests: std::sync::Mutex::new(Vec::new()),
+            outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
+        })
+    }
+
+    fn requests(&self) -> Vec<AccountCollectionLoadRequestLikeCpp> {
+        self.requests.lock().unwrap().clone()
+    }
+}
+
+impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
+    fn mark_offline_like_cpp<'a>(
+        &'a self,
+        _mark: PlayerOfflineMarkLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async {
+            PersistenceOutcomeLikeCpp::Failed {
+                reason: "collection-load-only fixture".to_owned(),
+            }
+        })
+    }
+
+    fn load_account_collection_like_cpp<'a>(
+        &'a self,
+        request: AccountCollectionLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, AccountCollectionLoadOutcomeLikeCpp> {
+        self.requests.lock().unwrap().push(request);
+        let outcome = self
+            .outcomes
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("one typed load outcome per request");
+        Box::pin(async move { outcome })
+    }
+
+    fn save_account_collection_like_cpp<'a>(
+        &'a self,
+        _save: AccountCollectionSaveLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async {
+            PersistenceOutcomeLikeCpp::Failed {
+                reason: "collection-load-only fixture".to_owned(),
+            }
+        })
+    }
+
+    fn save_character_like_cpp<'a>(
+        &'a self,
+        request: PlayerCharacterSaveRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerCharacterSaveResultLikeCpp> {
+        let committed = request.committed_groups_like_cpp();
+        Box::pin(async move {
+            PlayerCharacterSaveResultLikeCpp {
+                outcome: PersistenceOutcomeLikeCpp::Failed {
+                    reason: "collection-load-only fixture".to_owned(),
+                },
+                committed,
+            }
+        })
+    }
+}
+
+#[tokio::test]
+async fn account_collection_loads_cross_the_typed_port_in_login_order_like_cpp() {
+    let port = CollectionLoadPortLikeCpp::new([
+        AccountCollectionLoadOutcomeLikeCpp::Loaded(AccountCollectionLoadedLikeCpp::Toys(vec![
+            AccountToyLoadRowLikeCpp {
+                item_id: -1,
+                is_favorite: true,
+                has_fanfare: true,
+            },
+            AccountToyLoadRowLikeCpp {
+                item_id: 42,
+                is_favorite: true,
+                has_fanfare: false,
+            },
+        ])),
+        AccountCollectionLoadOutcomeLikeCpp::Loaded(AccountCollectionLoadedLikeCpp::Heirlooms(
+            vec![
+                AccountHeirloomLoadRowLikeCpp {
+                    item_id: -1,
+                    flags: 1,
+                },
+                AccountHeirloomLoadRowLikeCpp {
+                    item_id: 43,
+                    flags: 2,
+                },
+            ],
+        )),
+        AccountCollectionLoadOutcomeLikeCpp::Loaded(
+            AccountCollectionLoadedLikeCpp::ItemAppearances {
+                appearance_blocks: AccountCollectionRowsLikeCpp::Loaded(vec![
+                    AccountMaskBlockLikeCpp {
+                        block_index: 1,
+                        mask: 2,
+                    },
+                ]),
+                favorite_appearance_ids: AccountCollectionRowsLikeCpp::Loaded(vec![9]),
+            },
+        ),
+        AccountCollectionLoadOutcomeLikeCpp::Loaded(
+            AccountCollectionLoadedLikeCpp::TransmogIllusions {
+                illusion_blocks: vec![AccountMaskBlockLikeCpp {
+                    block_index: 2,
+                    mask: 4,
+                }],
+            },
+        ),
+        AccountCollectionLoadOutcomeLikeCpp::Loaded(AccountCollectionLoadedLikeCpp::Mounts(vec![
+            AccountMountLoadRowLikeCpp {
+                mount_spell_id: -1,
+                flags: 1,
+            },
+            AccountMountLoadRowLikeCpp {
+                mount_spell_id: 123,
+                flags: 2,
+            },
+        ])),
+    ]);
+    let (mut session, _) = make_session_with_send_capacity(1);
+    session.set_battlenet_account_id(77);
+    session.set_player_lifecycle_port_like_cpp(port.clone());
+
+    session.load_account_toys_like_cpp().await;
+    session.load_account_heirlooms_like_cpp().await;
+    session.load_account_item_appearances_like_cpp().await;
+    session.load_account_transmog_illusions_like_cpp().await;
+    assert!(session.load_account_mounts_like_cpp().await);
+
+    assert_eq!(session.account_toy_rows_like_cpp(), vec![(42, true, false)]);
+    assert_eq!(session.account_heirloom_rows_like_cpp(), vec![(43, 2)]);
+    assert_eq!(
+        session.account_transmog_active_player_rows_like_cpp(),
+        vec![0, 2]
+    );
+    assert!(!session.set_appearance_is_favorite_like_cpp(9, true));
+    assert!(session.has_transmog_illusion_like_cpp(66));
+    assert_eq!(
+        session.account_mount_rows_like_cpp(),
+        vec![AccountMount {
+            spell_id: 123,
+            flags: 2,
+        }]
+    );
+    assert_eq!(
+        port.requests(),
+        vec![
+            AccountCollectionLoadRequestLikeCpp::Toys {
+                bnet_account_id: 77
+            },
+            AccountCollectionLoadRequestLikeCpp::Heirlooms {
+                bnet_account_id: 77
+            },
+            AccountCollectionLoadRequestLikeCpp::ItemAppearances {
+                bnet_account_id: 77
+            },
+            AccountCollectionLoadRequestLikeCpp::TransmogIllusions {
+                bnet_account_id: 77
+            },
+            AccountCollectionLoadRequestLikeCpp::Mounts {
+                bnet_account_id: 77
+            },
+        ]
+    );
+}
+
+#[tokio::test]
+async fn account_item_appearance_load_preserves_independent_query_failure_like_cpp() {
+    let port = CollectionLoadPortLikeCpp::new([AccountCollectionLoadOutcomeLikeCpp::Loaded(
+        AccountCollectionLoadedLikeCpp::ItemAppearances {
+            appearance_blocks: AccountCollectionRowsLikeCpp::Failed {
+                reason: "appearance read failed".to_owned(),
+            },
+            favorite_appearance_ids: AccountCollectionRowsLikeCpp::Loaded(vec![91]),
+        },
+    )]);
+    let (mut session, _) = make_session_with_send_capacity(1);
+    session.set_battlenet_account_id(77);
+    session.set_player_lifecycle_port_like_cpp(port);
+
+    session.load_account_item_appearances_like_cpp().await;
+
+    assert!(
+        session
+            .account_transmog_active_player_rows_like_cpp()
+            .is_empty()
+    );
+    assert!(!session.set_appearance_is_favorite_like_cpp(91, true));
+}
+
+#[tokio::test]
+async fn account_collection_empty_and_adapter_failure_clear_represented_rows_like_cpp() {
+    let port = CollectionLoadPortLikeCpp::new([
+        AccountCollectionLoadOutcomeLikeCpp::Loaded(AccountCollectionLoadedLikeCpp::Toys(
+            Vec::new(),
+        )),
+        AccountCollectionLoadOutcomeLikeCpp::Failed {
+            reason: "heirloom read failed".to_owned(),
+        },
+    ]);
+    let (mut session, _) = make_session_with_send_capacity(1);
+    session.set_battlenet_account_id(77);
+    session.load_represented_account_toys_like_cpp([(42, true, false)]);
+    session.load_represented_account_heirlooms_like_cpp([(43, 2)]);
+    session.set_player_lifecycle_port_like_cpp(port.clone());
+
+    session.load_account_toys_like_cpp().await;
+    session.load_account_heirlooms_like_cpp().await;
+
+    assert!(session.account_toy_rows_like_cpp().is_empty());
+    assert!(session.account_heirloom_rows_like_cpp().is_empty());
+    assert_eq!(
+        port.requests(),
+        vec![
+            AccountCollectionLoadRequestLikeCpp::Toys {
+                bnet_account_id: 77
+            },
+            AccountCollectionLoadRequestLikeCpp::Heirlooms {
+                bnet_account_id: 77
+            },
+        ]
+    );
+}
 
 fn test_item_enchantments_db_string(entries: &[(usize, i32, u32, i16)]) -> String {
     let mut fields = vec!["0".to_string(); wow_entities::MAX_ENCHANTMENT_SLOT * 3];

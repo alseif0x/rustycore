@@ -51,6 +51,7 @@
     200,
     286,
     384,
+    386,
     189,
     192,
     193,
@@ -940,7 +941,7 @@
     },
     {
       "number": 384,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.4c] Retire Session save builders made obsolete by the lifecycle port",
       "kind": "slice",
       "parents": [
@@ -949,6 +950,19 @@
       ],
       "depends_on": [
         286
+      ]
+    },
+    {
+      "number": 386,
+      "state": "open",
+      "title": "[ARCH.DB.4d] Move account collection loads behind the Player lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        384
       ]
     }
   ]

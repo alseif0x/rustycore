@@ -13,7 +13,10 @@
 use std::sync::Arc;
 
 use wow_persistence::{
-    AccountCollectionSaveLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
+    AccountCollectionLoadOutcomeLikeCpp, AccountCollectionLoadRequestLikeCpp,
+    AccountCollectionLoadedLikeCpp, AccountCollectionRowsLikeCpp, AccountCollectionSaveLikeCpp,
+    AccountHeirloomLoadRowLikeCpp, AccountMaskBlockLikeCpp, AccountMountLoadRowLikeCpp,
+    AccountToyLoadRowLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
     PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
     PlayerCufProfileSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp, PlayerEquipmentSetStateLikeCpp,
     PlayerEquipmentSetTypeLikeCpp, PlayerLifecyclePortLikeCpp, PlayerOfflineMarkLikeCpp,
@@ -1063,6 +1066,43 @@ pub fn build_tutorials_save_statement_like_cpp(
     stmt
 }
 
+fn account_collection_load_statements_like_cpp(
+    request: AccountCollectionLoadRequestLikeCpp,
+) -> Vec<PreparedStatement> {
+    let (bnet_account_id, statements) = match request {
+        AccountCollectionLoadRequestLikeCpp::Mounts { bnet_account_id } => {
+            (bnet_account_id, vec![LoginStatements::SEL_ACCOUNT_MOUNTS])
+        }
+        AccountCollectionLoadRequestLikeCpp::Toys { bnet_account_id } => {
+            (bnet_account_id, vec![LoginStatements::SEL_ACCOUNT_TOYS])
+        }
+        AccountCollectionLoadRequestLikeCpp::Heirlooms { bnet_account_id } => (
+            bnet_account_id,
+            vec![LoginStatements::SEL_ACCOUNT_HEIRLOOMS],
+        ),
+        AccountCollectionLoadRequestLikeCpp::ItemAppearances { bnet_account_id } => (
+            bnet_account_id,
+            vec![
+                LoginStatements::SEL_BNET_ITEM_APPEARANCES,
+                LoginStatements::SEL_BNET_ITEM_FAVORITE_APPEARANCES,
+            ],
+        ),
+        AccountCollectionLoadRequestLikeCpp::TransmogIllusions { bnet_account_id } => (
+            bnet_account_id,
+            vec![LoginStatements::SEL_BNET_TRANSMOG_ILLUSIONS],
+        ),
+    };
+
+    statements
+        .into_iter()
+        .map(|statement| {
+            let mut prepared = PreparedStatement::new(statement.sql());
+            prepared.set_u32(0, bnet_account_id);
+            prepared
+        })
+        .collect()
+}
+
 /// Binds the port to the two logical databases the offline marks address.
 pub struct MariaDbPlayerLifecycleAdapterLikeCpp {
     character_db: Arc<CharacterDatabase>,
@@ -1112,6 +1152,161 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                 Err(error) => PersistenceOutcomeLikeCpp::Failed {
                     reason: error.to_string(),
                 },
+            }
+        })
+    }
+
+    fn load_account_collection_like_cpp<'a>(
+        &'a self,
+        request: AccountCollectionLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, AccountCollectionLoadOutcomeLikeCpp> {
+        Box::pin(async move {
+            let statements = account_collection_load_statements_like_cpp(request);
+            match request {
+                AccountCollectionLoadRequestLikeCpp::Mounts { .. } => {
+                    match self.login_db.query(&statements[0]).await {
+                        Ok(mut result) => {
+                            let mut rows = Vec::new();
+                            if !result.is_empty() {
+                                loop {
+                                    rows.push(AccountMountLoadRowLikeCpp {
+                                        mount_spell_id: result.try_read::<i32>(0).unwrap_or(0),
+                                        flags: result.try_read::<u8>(1).unwrap_or(0),
+                                    });
+                                    if !result.next_row() {
+                                        break;
+                                    }
+                                }
+                            }
+                            AccountCollectionLoadOutcomeLikeCpp::Loaded(
+                                AccountCollectionLoadedLikeCpp::Mounts(rows),
+                            )
+                        }
+                        Err(error) => AccountCollectionLoadOutcomeLikeCpp::Failed {
+                            reason: error.to_string(),
+                        },
+                    }
+                }
+                AccountCollectionLoadRequestLikeCpp::Toys { .. } => {
+                    match self.login_db.query(&statements[0]).await {
+                        Ok(mut result) => {
+                            let mut rows = Vec::new();
+                            if !result.is_empty() {
+                                loop {
+                                    rows.push(AccountToyLoadRowLikeCpp {
+                                        item_id: result.try_read::<i32>(0).unwrap_or(0),
+                                        is_favorite: result.try_read::<bool>(1).unwrap_or(false),
+                                        has_fanfare: result.try_read::<bool>(2).unwrap_or(false),
+                                    });
+                                    if !result.next_row() {
+                                        break;
+                                    }
+                                }
+                            }
+                            AccountCollectionLoadOutcomeLikeCpp::Loaded(
+                                AccountCollectionLoadedLikeCpp::Toys(rows),
+                            )
+                        }
+                        Err(error) => AccountCollectionLoadOutcomeLikeCpp::Failed {
+                            reason: error.to_string(),
+                        },
+                    }
+                }
+                AccountCollectionLoadRequestLikeCpp::Heirlooms { .. } => {
+                    match self.login_db.query(&statements[0]).await {
+                        Ok(mut result) => {
+                            let mut rows = Vec::new();
+                            if !result.is_empty() {
+                                loop {
+                                    rows.push(AccountHeirloomLoadRowLikeCpp {
+                                        item_id: result.try_read::<i32>(0).unwrap_or(0),
+                                        flags: result.try_read::<u32>(1).unwrap_or(0),
+                                    });
+                                    if !result.next_row() {
+                                        break;
+                                    }
+                                }
+                            }
+                            AccountCollectionLoadOutcomeLikeCpp::Loaded(
+                                AccountCollectionLoadedLikeCpp::Heirlooms(rows),
+                            )
+                        }
+                        Err(error) => AccountCollectionLoadOutcomeLikeCpp::Failed {
+                            reason: error.to_string(),
+                        },
+                    }
+                }
+                AccountCollectionLoadRequestLikeCpp::ItemAppearances { .. } => {
+                    let appearance_blocks = match self.login_db.query(&statements[0]).await {
+                        Ok(mut result) => {
+                            let mut rows = Vec::new();
+                            if !result.is_empty() {
+                                loop {
+                                    rows.push(AccountMaskBlockLikeCpp {
+                                        block_index: result.try_read::<u32>(0).unwrap_or(0),
+                                        mask: result.try_read::<u32>(1).unwrap_or(0),
+                                    });
+                                    if !result.next_row() {
+                                        break;
+                                    }
+                                }
+                            }
+                            AccountCollectionRowsLikeCpp::Loaded(rows)
+                        }
+                        Err(error) => AccountCollectionRowsLikeCpp::Failed {
+                            reason: error.to_string(),
+                        },
+                    };
+                    let favorite_appearance_ids = match self.login_db.query(&statements[1]).await {
+                        Ok(mut result) => {
+                            let mut rows = Vec::new();
+                            if !result.is_empty() {
+                                loop {
+                                    rows.push(result.try_read::<u32>(0).unwrap_or(0));
+                                    if !result.next_row() {
+                                        break;
+                                    }
+                                }
+                            }
+                            AccountCollectionRowsLikeCpp::Loaded(rows)
+                        }
+                        Err(error) => AccountCollectionRowsLikeCpp::Failed {
+                            reason: error.to_string(),
+                        },
+                    };
+                    AccountCollectionLoadOutcomeLikeCpp::Loaded(
+                        AccountCollectionLoadedLikeCpp::ItemAppearances {
+                            appearance_blocks,
+                            favorite_appearance_ids,
+                        },
+                    )
+                }
+                AccountCollectionLoadRequestLikeCpp::TransmogIllusions { .. } => {
+                    match self.login_db.query(&statements[0]).await {
+                        Ok(mut result) => {
+                            let mut rows = Vec::new();
+                            if !result.is_empty() {
+                                loop {
+                                    rows.push(AccountMaskBlockLikeCpp {
+                                        block_index: result.try_read::<u32>(0).unwrap_or(0),
+                                        mask: result.try_read::<u32>(1).unwrap_or(0),
+                                    });
+                                    if !result.next_row() {
+                                        break;
+                                    }
+                                }
+                            }
+                            AccountCollectionLoadOutcomeLikeCpp::Loaded(
+                                AccountCollectionLoadedLikeCpp::TransmogIllusions {
+                                    illusion_blocks: rows,
+                                },
+                            )
+                        }
+                        Err(error) => AccountCollectionLoadOutcomeLikeCpp::Failed {
+                            reason: error.to_string(),
+                        },
+                    }
+                }
             }
         })
     }
@@ -1320,6 +1515,61 @@ mod tests {
             },
             reputations: Vec::new(),
             cuf_profiles: None,
+        }
+    }
+
+    #[test]
+    fn account_collection_load_requests_map_to_exact_login_statements_like_cpp() {
+        let cases = [
+            (
+                AccountCollectionLoadRequestLikeCpp::Toys {
+                    bnet_account_id: 77,
+                },
+                vec![LoginStatements::SEL_ACCOUNT_TOYS.sql()],
+            ),
+            (
+                AccountCollectionLoadRequestLikeCpp::Heirlooms {
+                    bnet_account_id: 77,
+                },
+                vec![LoginStatements::SEL_ACCOUNT_HEIRLOOMS.sql()],
+            ),
+            (
+                AccountCollectionLoadRequestLikeCpp::Mounts {
+                    bnet_account_id: 77,
+                },
+                vec![LoginStatements::SEL_ACCOUNT_MOUNTS.sql()],
+            ),
+            (
+                AccountCollectionLoadRequestLikeCpp::ItemAppearances {
+                    bnet_account_id: 77,
+                },
+                vec![
+                    LoginStatements::SEL_BNET_ITEM_APPEARANCES.sql(),
+                    LoginStatements::SEL_BNET_ITEM_FAVORITE_APPEARANCES.sql(),
+                ],
+            ),
+            (
+                AccountCollectionLoadRequestLikeCpp::TransmogIllusions {
+                    bnet_account_id: 77,
+                },
+                vec![LoginStatements::SEL_BNET_TRANSMOG_ILLUSIONS.sql()],
+            ),
+        ];
+
+        for (request, expected_sql) in cases {
+            let statements = account_collection_load_statements_like_cpp(request);
+            assert_eq!(
+                statements
+                    .iter()
+                    .map(PreparedStatement::sql)
+                    .collect::<Vec<_>>(),
+                expected_sql
+            );
+            assert!(
+                statements
+                    .iter()
+                    .all(|statement| { statement.params() == [crate::SqlParam::U32(77)] })
+            );
         }
     }
 

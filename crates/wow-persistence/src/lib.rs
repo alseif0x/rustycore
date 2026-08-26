@@ -61,6 +61,80 @@ pub enum LogicalDatabaseLikeCpp {
     Login,
 }
 
+/// One account-collection read requested by the Player login lifecycle.
+///
+/// C++ prepares these Login-database reads in `AccountInfoQueryHolder` and
+/// passes their rows to `CollectionMgr`. The request names the business
+/// collection only; statement identity and row decoding remain adapter work.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AccountCollectionLoadRequestLikeCpp {
+    Mounts { bnet_account_id: u32 },
+    Toys { bnet_account_id: u32 },
+    Heirlooms { bnet_account_id: u32 },
+    ItemAppearances { bnet_account_id: u32 },
+    TransmogIllusions { bnet_account_id: u32 },
+}
+
+impl AccountCollectionLoadRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Login
+    }
+}
+
+/// Raw semantic rows returned by one account-collection read.
+///
+/// Signed identifiers deliberately stay signed here. Existing gameplay owns
+/// the C++-faithful validation and must be able to distinguish malformed rows
+/// rather than receiving a value fabricated by the database adapter.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AccountCollectionLoadedLikeCpp {
+    Mounts(Vec<AccountMountLoadRowLikeCpp>),
+    Toys(Vec<AccountToyLoadRowLikeCpp>),
+    Heirlooms(Vec<AccountHeirloomLoadRowLikeCpp>),
+    ItemAppearances {
+        appearance_blocks: AccountCollectionRowsLikeCpp<Vec<AccountMaskBlockLikeCpp>>,
+        favorite_appearance_ids: AccountCollectionRowsLikeCpp<Vec<u32>>,
+    },
+    TransmogIllusions {
+        illusion_blocks: Vec<AccountMaskBlockLikeCpp>,
+    },
+}
+
+/// Result of one physical read inside a semantic collection load. Item
+/// appearances use two independent C++ queries and preserve partial success.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AccountCollectionRowsLikeCpp<T> {
+    Loaded(T),
+    Failed { reason: String },
+}
+
+/// A read has no indeterminate COMMIT state: it either produced typed rows or
+/// failed. Callers preserve their existing fail-closed publication behavior.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AccountCollectionLoadOutcomeLikeCpp {
+    Loaded(AccountCollectionLoadedLikeCpp),
+    Failed { reason: String },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AccountMountLoadRowLikeCpp {
+    pub mount_spell_id: i32,
+    pub flags: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AccountToyLoadRowLikeCpp {
+    pub item_id: i32,
+    pub is_favorite: bool,
+    pub has_fanfare: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AccountHeirloomLoadRowLikeCpp {
+    pub item_id: i32,
+    pub flags: u32,
+}
+
 /// The normalized result of one lifecycle write.
 ///
 /// `Unknown` is not a failure and not a success. The frozen contract requires
@@ -475,6 +549,13 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
         mark: PlayerOfflineMarkLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 
+    /// Load one account-wide collection from the Login database. The caller
+    /// retains collection validation and represented-state publication.
+    fn load_account_collection_like_cpp<'a>(
+        &'a self,
+        request: AccountCollectionLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, AccountCollectionLoadOutcomeLikeCpp>;
+
     /// Persist one account-wide collection in its own Login-database
     /// transaction, as C++ does during logout.
     fn save_account_collection_like_cpp<'a>(
@@ -508,6 +589,19 @@ mod tests {
             PlayerOfflineMarkLikeCpp::LoginAccount { account_id: 1 }.logical_database(),
             LogicalDatabaseLikeCpp::Login
         );
+    }
+
+    #[test]
+    fn every_account_collection_load_names_the_login_database_like_cpp() {
+        for request in [
+            AccountCollectionLoadRequestLikeCpp::Mounts { bnet_account_id: 1 },
+            AccountCollectionLoadRequestLikeCpp::Toys { bnet_account_id: 1 },
+            AccountCollectionLoadRequestLikeCpp::Heirlooms { bnet_account_id: 1 },
+            AccountCollectionLoadRequestLikeCpp::ItemAppearances { bnet_account_id: 1 },
+            AccountCollectionLoadRequestLikeCpp::TransmogIllusions { bnet_account_id: 1 },
+        ] {
+            assert_eq!(request.logical_database(), LogicalDatabaseLikeCpp::Login);
+        }
     }
 
     #[test]
