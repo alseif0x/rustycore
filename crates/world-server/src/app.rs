@@ -583,6 +583,7 @@ async fn run_inner(
         world_safe_loc_report.missing_maps.len(),
         world_safe_loc_report.invalid_positions.len()
     );
+    let world_safe_loc_store = Arc::new(world_safe_loc_store);
     let ui_map_x_map_art_store = Arc::new(
         wow_data::UiMapXMapArtStore::load_with_hotfixes(&data_dir, &locale, &hotfix_db)
             .await
@@ -4483,6 +4484,7 @@ async fn run_inner(
         chr_specialization_store: Some(Arc::clone(&chr_specialization_store)),
         dungeon_encounter_store: Some(Arc::clone(&dungeon_encounter_store)),
         map_store: Some(Arc::clone(&map_store)),
+        world_safe_loc_store: Some(Arc::clone(&world_safe_loc_store)),
         map_difficulty_store: Some(Arc::clone(&map_difficulty_store)),
         map_difficulty_x_condition_store: Some(Arc::clone(&map_difficulty_x_condition_store)),
         access_requirement_store: Some(Arc::clone(&access_requirement_store)),

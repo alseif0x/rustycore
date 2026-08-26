@@ -20,10 +20,11 @@ use wow_persistence::{
     PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
     PlayerCufProfileSaveLikeCpp, PlayerCustomizationLoadRowLikeCpp, PlayerEquipmentSetSaveLikeCpp,
     PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp,
-    PlayerInstanceTimeRestrictionLoadRowLikeCpp, PlayerLifecyclePortLikeCpp,
-    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
-    PlayerLoginAuxiliaryLoadedLikeCpp, PlayerOfflineMarkLikeCpp, PlayerSpellSaveGroupLikeCpp,
-    PlayerSpellStateLikeCpp, PlayerVoidStorageSaveLikeCpp,
+    PlayerHomebindPersistenceRequestLikeCpp, PlayerInstanceTimeRestrictionLoadRowLikeCpp,
+    PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
+    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginAuxiliaryLoadedLikeCpp,
+    PlayerOfflineMarkLikeCpp, PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp,
+    PlayerVoidStorageSaveLikeCpp,
 };
 
 use crate::params::PreparedStatement;
@@ -1131,6 +1132,61 @@ fn player_login_auxiliary_load_statement_like_cpp(
     }
 }
 
+fn player_homebind_persistence_statement_like_cpp(
+    request: PlayerHomebindPersistenceRequestLikeCpp,
+) -> PreparedStatement {
+    match request {
+        PlayerHomebindPersistenceRequestLikeCpp::DeleteInvalid { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::DEL_PLAYER_HOMEBIND);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerHomebindPersistenceRequestLikeCpp::InsertRepaired {
+            player_guid,
+            map_id,
+            area_id,
+            x,
+            y,
+            z,
+            orientation,
+        } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::INS_PLAYER_HOMEBIND);
+            statement.set_u64(0, player_guid);
+            statement.set_u16(1, map_id);
+            statement.set_u16(2, area_id);
+            statement.set_f32(3, x);
+            statement.set_f32(4, y);
+            statement.set_f32(5, z);
+            statement.set_f32(6, orientation);
+            statement
+        }
+        PlayerHomebindPersistenceRequestLikeCpp::UpdateLive {
+            player_guid,
+            map_id,
+            area_id,
+            x,
+            y,
+            z,
+            orientation,
+        } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::UPD_PLAYER_HOMEBIND);
+            // C++ PreparedStatement::setUInt16 narrows these uint32 values at
+            // this concrete adapter boundary.
+            statement.set_u16(0, map_id as u16);
+            statement.set_u16(1, area_id as u16);
+            statement.set_f32(2, x);
+            statement.set_f32(3, y);
+            statement.set_f32(4, z);
+            statement.set_f32(5, orientation);
+            statement.set_u64(6, player_guid);
+            statement
+        }
+    }
+}
+
 /// Binds the port to the two logical databases the offline marks address.
 pub struct MariaDbPlayerLifecycleAdapterLikeCpp {
     character_db: Arc<CharacterDatabase>,
@@ -1177,6 +1233,21 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                 // or it did not; there is no COMMIT whose outcome could be
                 // indeterminate. `Unknown` is reserved for the transactional
                 // paths #200 migrates next, so do not manufacture it here.
+                Err(error) => PersistenceOutcomeLikeCpp::Failed {
+                    reason: error.to_string(),
+                },
+            }
+        })
+    }
+
+    fn persist_homebind_like_cpp<'a>(
+        &'a self,
+        request: PlayerHomebindPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async move {
+            let statement = player_homebind_persistence_statement_like_cpp(request);
+            match self.character_db.execute(&statement).await {
+                Ok(rows) => PersistenceOutcomeLikeCpp::Applied { rows },
                 Err(error) => PersistenceOutcomeLikeCpp::Failed {
                     reason: error.to_string(),
                 },
@@ -1539,7 +1610,67 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::SqlParam;
     use wow_persistence::*;
+
+    #[test]
+    fn homebind_requests_map_to_cpp_statements_binds_and_live_narrowing() {
+        let delete = player_homebind_persistence_statement_like_cpp(
+            PlayerHomebindPersistenceRequestLikeCpp::DeleteInvalid { player_guid: 7 },
+        );
+        assert_eq!(delete.sql(), CharStatements::DEL_PLAYER_HOMEBIND.sql());
+        assert_eq!(delete.params(), vec![SqlParam::U64(7)]);
+
+        let insert = player_homebind_persistence_statement_like_cpp(
+            PlayerHomebindPersistenceRequestLikeCpp::InsertRepaired {
+                player_guid: 8,
+                map_id: 530,
+                area_id: 3430,
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+                orientation: 4.0,
+            },
+        );
+        assert_eq!(insert.sql(), CharStatements::INS_PLAYER_HOMEBIND.sql());
+        assert_eq!(
+            insert.params(),
+            vec![
+                SqlParam::U64(8),
+                SqlParam::U16(530),
+                SqlParam::U16(3430),
+                SqlParam::F32(1.0),
+                SqlParam::F32(2.0),
+                SqlParam::F32(3.0),
+                SqlParam::F32(4.0),
+            ]
+        );
+
+        let update = player_homebind_persistence_statement_like_cpp(
+            PlayerHomebindPersistenceRequestLikeCpp::UpdateLive {
+                player_guid: 9,
+                map_id: u32::from(u16::MAX) + 2,
+                area_id: u32::from(u16::MAX) + 3,
+                x: 5.0,
+                y: 6.0,
+                z: 7.0,
+                orientation: 8.0,
+            },
+        );
+        assert_eq!(update.sql(), CharStatements::UPD_PLAYER_HOMEBIND.sql());
+        assert_eq!(
+            update.params(),
+            vec![
+                SqlParam::U16(1),
+                SqlParam::U16(2),
+                SqlParam::F32(5.0),
+                SqlParam::F32(6.0),
+                SqlParam::F32(7.0),
+                SqlParam::F32(8.0),
+                SqlParam::U64(9),
+            ]
+        );
+    }
 
     fn equipment_row() -> PlayerEquipmentSetSaveLikeCpp {
         PlayerEquipmentSetSaveLikeCpp {

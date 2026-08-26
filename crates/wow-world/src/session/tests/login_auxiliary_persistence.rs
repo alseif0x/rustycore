@@ -12,10 +12,10 @@ use wow_persistence::{
     AccountCollectionLoadOutcomeLikeCpp, AccountCollectionLoadRequestLikeCpp,
     AccountCollectionSaveLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
     PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
-    PlayerCustomizationLoadRowLikeCpp, PlayerInstanceTimeRestrictionLoadRowLikeCpp,
-    PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
-    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginAuxiliaryLoadedLikeCpp,
-    PlayerOfflineMarkLikeCpp,
+    PlayerCustomizationLoadRowLikeCpp, PlayerHomebindPersistenceRequestLikeCpp,
+    PlayerInstanceTimeRestrictionLoadRowLikeCpp, PlayerLifecyclePortLikeCpp,
+    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
+    PlayerLoginAuxiliaryLoadedLikeCpp, PlayerOfflineMarkLikeCpp,
 };
 
 struct AuxiliaryLoadPortLikeCpp {
@@ -42,6 +42,17 @@ impl PlayerLifecyclePortLikeCpp for AuxiliaryLoadPortLikeCpp {
     fn mark_offline_like_cpp<'a>(
         &'a self,
         _mark: PlayerOfflineMarkLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async {
+            PersistenceOutcomeLikeCpp::Failed {
+                reason: "auxiliary-load-only fixture".to_owned(),
+            }
+        })
+    }
+
+    fn persist_homebind_like_cpp<'a>(
+        &'a self,
+        _request: PlayerHomebindPersistenceRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
         Box::pin(async {
             PersistenceOutcomeLikeCpp::Failed {

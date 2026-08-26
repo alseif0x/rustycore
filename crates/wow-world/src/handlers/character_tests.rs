@@ -51,9 +51,9 @@ use wow_persistence::{
     MapCorpseLoadOutcomeLikeCpp as PersistedMapCorpseLoadOutcomeLikeCpp,
     MapCorpseLoadRequestLikeCpp, MapCorpseLoadRowLikeCpp, MapCorpsePersistencePortLikeCpp,
     PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerCharacterSaveRequestLikeCpp,
-    PlayerCharacterSaveResultLikeCpp, PlayerLifecyclePortLikeCpp,
-    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
-    PlayerOfflineMarkLikeCpp,
+    PlayerCharacterSaveResultLikeCpp, PlayerHomebindPersistenceRequestLikeCpp,
+    PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
+    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerOfflineMarkLikeCpp,
 };
 
 struct MapCorpseLoadPortFixtureLikeCpp {
@@ -120,6 +120,17 @@ impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
         })
     }
 
+    fn persist_homebind_like_cpp<'a>(
+        &'a self,
+        _request: PlayerHomebindPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async {
+            PersistenceOutcomeLikeCpp::Failed {
+                reason: "collection-load-only fixture".to_owned(),
+            }
+        })
+    }
+
     fn load_account_collection_like_cpp<'a>(
         &'a self,
         request: AccountCollectionLoadRequestLikeCpp,
@@ -167,6 +178,88 @@ impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
                     reason: "collection-load-only fixture".to_owned(),
                 },
                 committed,
+            }
+        })
+    }
+}
+
+struct HomebindPortFixtureLikeCpp {
+    requests: std::sync::Mutex<Vec<PlayerHomebindPersistenceRequestLikeCpp>>,
+    outcomes: std::sync::Mutex<std::collections::VecDeque<PersistenceOutcomeLikeCpp>>,
+}
+
+impl HomebindPortFixtureLikeCpp {
+    fn new(outcomes: impl IntoIterator<Item = PersistenceOutcomeLikeCpp>) -> Arc<Self> {
+        Arc::new(Self {
+            requests: std::sync::Mutex::new(Vec::new()),
+            outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
+        })
+    }
+
+    fn requests(&self) -> Vec<PlayerHomebindPersistenceRequestLikeCpp> {
+        self.requests.lock().unwrap().clone()
+    }
+}
+
+impl PlayerLifecyclePortLikeCpp for HomebindPortFixtureLikeCpp {
+    fn mark_offline_like_cpp<'a>(
+        &'a self,
+        _mark: PlayerOfflineMarkLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
+    }
+
+    fn persist_homebind_like_cpp<'a>(
+        &'a self,
+        request: PlayerHomebindPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        self.requests.lock().unwrap().push(request);
+        let outcome = self
+            .outcomes
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("one typed homebind outcome per request");
+        Box::pin(async move { outcome })
+    }
+
+    fn load_account_collection_like_cpp<'a>(
+        &'a self,
+        _request: AccountCollectionLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, AccountCollectionLoadOutcomeLikeCpp> {
+        Box::pin(async {
+            AccountCollectionLoadOutcomeLikeCpp::Failed {
+                reason: "homebind-only fixture".to_owned(),
+            }
+        })
+    }
+
+    fn load_login_auxiliary_like_cpp<'a>(
+        &'a self,
+        _request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerLoginAuxiliaryLoadOutcomeLikeCpp> {
+        Box::pin(async {
+            PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+                reason: "homebind-only fixture".to_owned(),
+            }
+        })
+    }
+
+    fn save_account_collection_like_cpp<'a>(
+        &'a self,
+        _save: AccountCollectionSaveLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
+    }
+
+    fn save_character_like_cpp<'a>(
+        &'a self,
+        _request: PlayerCharacterSaveRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerCharacterSaveResultLikeCpp> {
+        Box::pin(async {
+            PlayerCharacterSaveResultLikeCpp {
+                outcome: PersistenceOutcomeLikeCpp::Applied { rows: 0 },
+                committed: wow_persistence::PlayerCharacterCommittedGroupsLikeCpp::default(),
             }
         })
     }
@@ -1967,6 +2060,121 @@ fn invalid_homebind_repair_selects_cpp_create_mode_and_graveyard_order() {
         Some(&scenario_garrison_store),
         2,
     ));
+}
+
+#[test]
+fn default_homebind_reads_primary_then_neutral_pandaren_from_startup_store_like_cpp() {
+    fn map(id: u32) -> wow_data::MapEntry {
+        wow_data::MapEntry {
+            id,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        }
+    }
+    let maps = wow_data::MapStore::from_entries([map(1), map(870)]);
+    let primary = wow_data::WorldSafeLocRow {
+        id: 4,
+        map_id: 1,
+        x: 1.0,
+        y: 2.0,
+        z: 3.0,
+        facing_degrees: 90.0,
+    };
+    let fallback = wow_data::WorldSafeLocRow {
+        id: 3295,
+        map_id: 870,
+        x: 4.0,
+        y: 5.0,
+        z: 6.0,
+        facing_degrees: 180.0,
+    };
+
+    let (mut session, _, _) = make_bank_slot_session(4);
+    let (store, report) =
+        wow_data::WorldSafeLocStore::from_rows_like_cpp([fallback, primary], &maps);
+    assert_eq!(report.loaded, 2);
+    session.set_world_safe_loc_store_like_cpp(Arc::new(store));
+    assert_eq!(
+        session
+            .load_default_graveyard_homebind_like_cpp(24)
+            .expect("neutral Pandaren uses faction primary first"),
+        CharacterLoginLocationLikeCpp {
+            map_id: 1,
+            bind_area_id: None,
+            position: Position::new(1.0, 2.0, 3.0, 90_f32.to_radians()),
+        }
+    );
+
+    let (fallback_only, report) =
+        wow_data::WorldSafeLocStore::from_rows_like_cpp([fallback], &maps);
+    assert_eq!(report.loaded, 1);
+    session.set_world_safe_loc_store_like_cpp(Arc::new(fallback_only));
+    assert_eq!(
+        session
+            .load_default_graveyard_homebind_like_cpp(24)
+            .expect("neutral Pandaren keeps C++ 3295 fallback")
+            .map_id,
+        870
+    );
+}
+
+#[tokio::test]
+async fn homebind_repair_writes_typed_delete_and_insert_requests_nonfatally_like_cpp() {
+    let (mut session, _, _) = make_bank_slot_session(4);
+    let port = HomebindPortFixtureLikeCpp::new([
+        PersistenceOutcomeLikeCpp::Failed {
+            reason: "delete failed".to_owned(),
+        },
+        PersistenceOutcomeLikeCpp::Failed {
+            reason: "insert failed".to_owned(),
+        },
+    ]);
+    session.set_player_lifecycle_port_like_cpp(port.clone());
+    let guid = ObjectGuid::create_player(1, 77);
+
+    session
+        .delete_invalid_character_homebind_like_cpp(guid)
+        .await;
+    let create_position = PlayerCreatePositionLikeCpp {
+        map_id: 0,
+        position: Position::new(1.0, 2.0, 3.0, 4.0),
+        transport_guid: None,
+    };
+    let repaired = session
+        .repair_character_homebind_like_cpp(
+            guid,
+            1,
+            PlayerCreateInfoLikeCpp {
+                create_position,
+                create_position_npe: None,
+            },
+            wow_data::PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
+            true,
+        )
+        .await
+        .expect("nonfatal persistence failure does not discard selected homebind");
+    assert_eq!(repaired.map_id, 0);
+    assert_eq!(
+        port.requests(),
+        vec![
+            PlayerHomebindPersistenceRequestLikeCpp::DeleteInvalid {
+                player_guid: guid.counter() as u64,
+            },
+            PlayerHomebindPersistenceRequestLikeCpp::InsertRepaired {
+                player_guid: guid.counter() as u64,
+                map_id: 0,
+                area_id: 0,
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+                orientation: 4.0,
+            },
+        ]
+    );
 }
 
 #[test]
@@ -7218,6 +7426,11 @@ fn committed_bank_relocation_updates_runtime_only_after_explicit_apply() {
 async fn binder_activate_sets_current_homebind_and_sends_bind_packets_like_cpp() {
     let (mut session, instance_rx, canonical) = make_bank_slot_session(16);
     insert_bank_test_player_in_world(&session, &canonical);
+    let player_guid = session.player_guid().expect("loaded player");
+    let homebind_port = HomebindPortFixtureLikeCpp::new([PersistenceOutcomeLikeCpp::Failed {
+        reason: "detached write failure".to_owned(),
+    }]);
+    session.set_player_lifecycle_port_like_cpp(homebind_port.clone());
     let (realm_tx, realm_rx) = flume::bounded::<Vec<u8>>(16);
     session.install_realm_send_channel_for_test(realm_tx);
     let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 30);
@@ -7293,6 +7506,25 @@ async fn binder_activate_sets_current_homebind_and_sends_bind_packets_like_cpp()
     assert!(
         (cast_time_lower_bound..=cast_time_upper_bound).contains(&cast_time_ms),
         "C++ SpellGo CastTime is the wrapping getMSTime() server timestamp"
+    );
+    for _ in 0..20 {
+        if !homebind_port.requests().is_empty() {
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(
+        homebind_port.requests(),
+        vec![PlayerHomebindPersistenceRequestLikeCpp::UpdateLive {
+            player_guid: player_guid.counter() as u64,
+            map_id: 571,
+            area_id: 34,
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            orientation: 0.0,
+        }],
+        "detached persistence failure does not suppress the immediate C++ bind packets"
     );
 }
 

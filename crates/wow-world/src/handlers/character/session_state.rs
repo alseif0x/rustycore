@@ -9,9 +9,7 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::{
-    CharStatements, CharacterDatabase, LoginStatements, SqlResult, WorldStatements,
-};
+use wow_database::{CharStatements, LoginStatements, SqlResult, WorldStatements};
 
 use super::*;
 
@@ -2115,19 +2113,24 @@ impl WorldSession {
         .unwrap_or(map_area_id)
     }
 
-    pub(super) async fn delete_invalid_character_homebind_like_cpp(
-        &self,
-        char_db: &CharacterDatabase,
-        guid: ObjectGuid,
-    ) {
-        let mut delete = char_db.prepare(CharStatements::DEL_PLAYER_HOMEBIND);
-        delete.set_u64(0, guid.counter() as u64);
-        if let Err(error) = char_db.execute(&delete).await {
-            warn!(
+    pub(super) async fn delete_invalid_character_homebind_like_cpp(&self, guid: ObjectGuid) {
+        let Some(port) = self.player_lifecycle_port_like_cpp() else {
+            return;
+        };
+        match port
+            .persist_homebind_like_cpp(
+                wow_persistence::PlayerHomebindPersistenceRequestLikeCpp::DeleteInvalid {
+                    player_guid: guid.counter() as u64,
+                },
+            )
+            .await
+        {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
                 player_guid = guid.counter(),
-                %error,
-                "failed to delete invalid character homebind like C++ Player::_LoadHomeBind"
-            );
+                "failed to delete invalid character homebind like C++ Player::_LoadHomeBind: {reason}"
+            ),
         }
     }
 

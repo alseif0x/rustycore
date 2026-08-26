@@ -785,64 +785,22 @@ impl WorldSession {
         customizations
     }
 
-    pub(super) async fn load_default_graveyard_homebind_like_cpp(
+    pub(super) fn load_default_graveyard_homebind_like_cpp(
         &self,
         race: u8,
     ) -> Option<CharacterLoginLocationLikeCpp> {
         let [primary_safe_loc_id, neutral_pandaren_safe_loc_id] =
             default_graveyard_safe_loc_ids_for_race_like_cpp(race);
         let primary_safe_loc_id = primary_safe_loc_id?;
-        let world_db = Arc::clone(self.world_db()?);
-        let stmt = world_db.prepare(WorldStatements::SEL_WORLD_SAFE_LOCS);
-        let mut result = match world_db.query(&stmt).await {
-            Ok(result) => result,
-            Err(error) => {
-                warn!(
-                    primary_safe_loc_id,
-                    %error,
-                    "failed to query C++ default graveyard while repairing character homebind"
-                );
-                return None;
-            }
-        };
-        if result.is_empty() {
-            return None;
-        }
-
-        let mut neutral_pandaren_fallback = None;
-        loop {
-            let safe_loc_id = result.try_read::<u32>(0).unwrap_or(0);
-            if safe_loc_id == primary_safe_loc_id
-                || neutral_pandaren_safe_loc_id == Some(safe_loc_id)
-            {
-                let map_id = result.try_read::<u32>(1).unwrap_or(u32::MAX);
-                let position = Position::new(
-                    result.try_read::<f32>(2).unwrap_or(f32::NAN),
-                    result.try_read::<f32>(3).unwrap_or(f32::NAN),
-                    result.try_read::<f32>(4).unwrap_or(f32::NAN),
-                    result.try_read::<f32>(5).unwrap_or(0.0).to_radians(),
-                );
-                if self
-                    .map_store()
-                    .is_some_and(|store| store.get(map_id).is_some())
-                    && position.is_valid_map_coord_like_cpp()
-                {
-                    let homebind = CharacterLoginLocationLikeCpp {
-                        map_id,
-                        bind_area_id: None,
-                        position,
-                    };
-                    if safe_loc_id == primary_safe_loc_id {
-                        return Some(homebind);
-                    }
-                    neutral_pandaren_fallback = Some(homebind);
-                }
-            }
-            if !result.next_row() {
-                break;
-            }
-        }
-        neutral_pandaren_fallback
+        let store = self.world_safe_loc_store_like_cpp()?;
+        store
+            .get(primary_safe_loc_id)
+            .or_else(|| neutral_pandaren_safe_loc_id.and_then(|id| store.get(id)))
+            .map(|safe_loc| CharacterLoginLocationLikeCpp {
+                map_id: safe_loc.map_id,
+                bind_area_id: None,
+                position: safe_loc.position,
+            })
     }
 
     /// Load the map's persisted corpses once, including the two auxiliary

@@ -52965,7 +52965,7 @@ fn logout_save_snapshot_uses_pending_near_teleport_destination_like_cpp() {
 }
 
 #[test]
-fn player_homebind_update_statement_matches_cpp_bind_order() {
+fn player_homebind_update_request_preserves_wide_semantic_values_for_adapter() {
     let guid = ObjectGuid::create_player(1, 5007);
     let homebind = RepresentedHomebindLikeCpp {
         map_id: 571,
@@ -52973,23 +52973,23 @@ fn player_homebind_update_statement_matches_cpp_bind_order() {
         position: Position::new(11.0, 22.0, 33.0, 1.5),
     };
 
-    let stmt = WorldSession::build_player_homebind_update_statement_like_cpp(
-        homebind,
-        guid.counter() as u64,
+    let request =
+        WorldSession::player_homebind_update_request_like_cpp(homebind, guid.counter() as u64);
+
+    assert_eq!(
+        request,
+        wow_persistence::PlayerHomebindPersistenceRequestLikeCpp::UpdateLive {
+            player_guid: guid.counter() as u64,
+            map_id: 571,
+            area_id: 495,
+            x: 11.0,
+            y: 22.0,
+            z: 33.0,
+            orientation: 1.5,
+        }
     );
 
-    assert_eq!(stmt.sql(), CharStatements::UPD_PLAYER_HOMEBIND.sql());
-    assert!(matches!(stmt.params()[0], wow_database::SqlParam::U16(571)));
-    assert!(matches!(stmt.params()[1], wow_database::SqlParam::U16(495)));
-    assert!(matches!(stmt.params()[2], wow_database::SqlParam::F32(v) if v == 11.0));
-    assert!(matches!(stmt.params()[3], wow_database::SqlParam::F32(v) if v == 22.0));
-    assert!(matches!(stmt.params()[4], wow_database::SqlParam::F32(v) if v == 33.0));
-    assert!(matches!(stmt.params()[5], wow_database::SqlParam::F32(v) if v == 1.5));
-    assert!(
-        matches!(stmt.params()[6], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
-    );
-
-    let narrowed = WorldSession::build_player_homebind_update_statement_like_cpp(
+    let wide = WorldSession::player_homebind_update_request_like_cpp(
         RepresentedHomebindLikeCpp {
             map_id: u32::MAX - 2,
             area_id: u32::MAX - 1,
@@ -52998,12 +52998,12 @@ fn player_homebind_update_statement_matches_cpp_bind_order() {
         guid.counter() as u64,
     );
     assert!(matches!(
-        narrowed.params()[0],
-        wow_database::SqlParam::U16(65_533)
-    ));
-    assert!(matches!(
-        narrowed.params()[1],
-        wow_database::SqlParam::U16(65_534)
+        wide,
+        wow_persistence::PlayerHomebindPersistenceRequestLikeCpp::UpdateLive {
+            map_id,
+            area_id,
+            ..
+        } if map_id == u32::MAX - 2 && area_id == u32::MAX - 1
     ));
 }
 

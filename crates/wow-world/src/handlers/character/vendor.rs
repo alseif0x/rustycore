@@ -9,9 +9,7 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::{
-    CharStatements, CharacterDatabase, SqlTransaction, WorldDatabase, WorldStatements,
-};
+use wow_database::{CharStatements, SqlTransaction, WorldDatabase, WorldStatements};
 
 use super::*;
 
@@ -2444,7 +2442,6 @@ impl WorldSession {
 
     async fn persist_repaired_character_homebind_like_cpp(
         &self,
-        char_db: &CharacterDatabase,
         guid: ObjectGuid,
         homebind: CharacterLoginLocationLikeCpp,
     ) {
@@ -2458,26 +2455,34 @@ impl WorldSession {
             return;
         };
 
-        let mut insert = char_db.prepare(CharStatements::INS_PLAYER_HOMEBIND);
-        insert.set_u64(0, guid.counter() as u64);
-        insert.set_u16(1, map_id);
-        insert.set_u16(2, bind_area_id);
-        insert.set_f32(3, homebind.position.x);
-        insert.set_f32(4, homebind.position.y);
-        insert.set_f32(5, homebind.position.z);
-        insert.set_f32(6, homebind.position.orientation);
-        if let Err(error) = char_db.execute(&insert).await {
-            warn!(
+        let Some(port) = self.player_lifecycle_port_like_cpp() else {
+            return;
+        };
+        match port
+            .persist_homebind_like_cpp(
+                wow_persistence::PlayerHomebindPersistenceRequestLikeCpp::InsertRepaired {
+                    player_guid: guid.counter() as u64,
+                    map_id,
+                    area_id: bind_area_id,
+                    x: homebind.position.x,
+                    y: homebind.position.y,
+                    z: homebind.position.z,
+                    orientation: homebind.position.orientation,
+                },
+            )
+            .await
+        {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
                 player_guid = guid.counter(),
-                %error,
-                "failed to persist repaired character homebind like C++ Player::_LoadHomeBind"
-            );
+                "failed to persist repaired character homebind like C++ Player::_LoadHomeBind: {reason}"
+            ),
         }
     }
 
     pub(super) async fn repair_character_homebind_like_cpp(
         &self,
-        char_db: &CharacterDatabase,
         guid: ObjectGuid,
         race: u8,
         player_create_info: PlayerCreateInfoLikeCpp,
@@ -2490,13 +2495,13 @@ impl WorldSession {
             None
         };
         if replacement.is_none() {
-            replacement = self.load_default_graveyard_homebind_like_cpp(race).await;
+            replacement = self.load_default_graveyard_homebind_like_cpp(race);
         }
         let mut replacement = replacement?;
         replacement.bind_area_id =
             Some(self.resolved_homebind_area_id_like_cpp(replacement.map_id, replacement.position));
 
-        self.persist_repaired_character_homebind_like_cpp(char_db, guid, replacement)
+        self.persist_repaired_character_homebind_like_cpp(guid, replacement)
             .await;
         Some(replacement)
     }
