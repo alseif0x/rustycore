@@ -5,17 +5,13 @@
 
 //! Account-scoped character enumeration, offline marking and account collections.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::LoginStatements;
 use wow_packet::ClientPacket;
 
 use wow_persistence::{
-    AccountCollectionSaveLikeCpp, AccountHeirloomRowLikeCpp, AccountMaskBlockLikeCpp,
-    AccountMountRowLikeCpp, AccountToyRowLikeCpp, PersistenceOutcomeLikeCpp,
-    PlayerOfflineMarkLikeCpp,
+    AccountCollectionLoadOutcomeLikeCpp, AccountCollectionLoadRequestLikeCpp,
+    AccountCollectionLoadedLikeCpp, AccountCollectionRowsLikeCpp, AccountCollectionSaveLikeCpp,
+    AccountHeirloomRowLikeCpp, AccountMaskBlockLikeCpp, AccountMountRowLikeCpp,
+    AccountToyRowLikeCpp, PersistenceOutcomeLikeCpp, PlayerOfflineMarkLikeCpp,
 };
 
 use super::*;
@@ -1766,7 +1762,7 @@ impl WorldSession {
 
     pub(super) async fn load_account_mounts_like_cpp(&mut self) -> bool {
         self.set_account_mounts_like_cpp(Vec::new());
-        let Some(login_db) = self.login_db() else {
+        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             return false;
         };
 
@@ -1778,23 +1774,34 @@ impl WorldSession {
             );
             return false;
         }
-
-        let mut stmt = login_db.prepare(LoginStatements::SEL_ACCOUNT_MOUNTS);
-        stmt.set_u32(0, bnet_account_id);
-
-        let mut result = match login_db.query(&stmt).await {
-            Ok(result) => result,
-            Err(e) => {
+        let rows = match port
+            .load_account_collection_like_cpp(AccountCollectionLoadRequestLikeCpp::Mounts {
+                bnet_account_id,
+            })
+            .await
+        {
+            AccountCollectionLoadOutcomeLikeCpp::Loaded(
+                AccountCollectionLoadedLikeCpp::Mounts(rows),
+            ) => rows,
+            AccountCollectionLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
                     bnet_account = bnet_account_id,
-                    "Failed to load account mounts: {e}"
+                    "Failed to load account mounts: {reason}"
+                );
+                return false;
+            }
+            AccountCollectionLoadOutcomeLikeCpp::Loaded(_) => {
+                warn!(
+                    account = self.account_id,
+                    bnet_account = bnet_account_id,
+                    "Player lifecycle port returned the wrong account collection for mounts"
                 );
                 return false;
             }
         };
 
-        if result.is_empty() {
+        if rows.is_empty() {
             info!(
                 account = self.account_id,
                 bnet_account = bnet_account_id,
@@ -1806,14 +1813,10 @@ impl WorldSession {
         let mut mounts = Vec::new();
         let mut skipped_invalid_spell_id = 0usize;
         let mut skipped_missing_mount_db2 = 0usize;
-        loop {
-            let spell_id = result.try_read::<i32>(0).unwrap_or(0);
-            let flags = result.try_read::<u8>(1).unwrap_or(0);
+        for row in rows {
+            let spell_id = row.mount_spell_id;
             if spell_id <= 0 {
                 skipped_invalid_spell_id += 1;
-                if !result.next_row() {
-                    break;
-                }
                 continue;
             }
 
@@ -1824,13 +1827,12 @@ impl WorldSession {
                         .is_some()
                 });
             if has_mount {
-                mounts.push(AccountMount { spell_id, flags });
+                mounts.push(AccountMount {
+                    spell_id,
+                    flags: row.flags,
+                });
             } else {
                 skipped_missing_mount_db2 += 1;
-            }
-
-            if !result.next_row() {
-                break;
             }
         }
 
@@ -1847,37 +1849,41 @@ impl WorldSession {
     }
 
     pub(super) async fn load_account_toys_like_cpp(&mut self) {
-        let Some(login_db) = self.login_db() else {
+        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             self.load_represented_account_toys_like_cpp([]);
             return;
         };
 
         let bnet_account_id = self.battlenet_account_id();
-        let mut stmt = login_db.prepare(LoginStatements::SEL_ACCOUNT_TOYS);
-        stmt.set_u32(0, bnet_account_id);
-        let rows = match login_db.query(&stmt).await {
-            Ok(mut result) => {
-                let mut rows = Vec::new();
-                if !result.is_empty() {
-                    loop {
-                        let item_id = result.try_read::<i32>(0).unwrap_or(0);
-                        let is_favorite = result.try_read::<bool>(1).unwrap_or(false);
-                        let has_fanfare = result.try_read::<bool>(2).unwrap_or(false);
-                        if let Ok(item_id) = u32::try_from(item_id) {
-                            rows.push((item_id, is_favorite, has_fanfare));
-                        }
-                        if !result.next_row() {
-                            break;
-                        }
-                    }
-                }
-                rows
-            }
-            Err(error) => {
+        let rows = match port
+            .load_account_collection_like_cpp(AccountCollectionLoadRequestLikeCpp::Toys {
+                bnet_account_id,
+            })
+            .await
+        {
+            AccountCollectionLoadOutcomeLikeCpp::Loaded(AccountCollectionLoadedLikeCpp::Toys(
+                rows,
+            )) => rows
+                .into_iter()
+                .filter_map(|row| {
+                    u32::try_from(row.item_id)
+                        .ok()
+                        .map(|item_id| (item_id, row.is_favorite, row.has_fanfare))
+                })
+                .collect(),
+            AccountCollectionLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
                     bnet_account = bnet_account_id,
-                    "Failed to load account toys: {error}"
+                    "Failed to load account toys: {reason}"
+                );
+                Vec::new()
+            }
+            AccountCollectionLoadOutcomeLikeCpp::Loaded(_) => {
+                warn!(
+                    account = self.account_id,
+                    bnet_account = bnet_account_id,
+                    "Player lifecycle port returned the wrong account collection for toys"
                 );
                 Vec::new()
             }
@@ -1887,36 +1893,41 @@ impl WorldSession {
     }
 
     pub(super) async fn load_account_heirlooms_like_cpp(&mut self) {
-        let Some(login_db) = self.login_db() else {
+        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             self.load_represented_account_heirlooms_like_cpp([]);
             return;
         };
 
         let bnet_account_id = self.battlenet_account_id();
-        let mut stmt = login_db.prepare(LoginStatements::SEL_ACCOUNT_HEIRLOOMS);
-        stmt.set_u32(0, bnet_account_id);
-        let rows = match login_db.query(&stmt).await {
-            Ok(mut result) => {
-                let mut rows = Vec::new();
-                if !result.is_empty() {
-                    loop {
-                        let item_id = result.try_read::<i32>(0).unwrap_or(0);
-                        let flags = result.try_read::<u32>(1).unwrap_or(0);
-                        if let Ok(item_id) = u32::try_from(item_id) {
-                            rows.push((item_id, flags));
-                        }
-                        if !result.next_row() {
-                            break;
-                        }
-                    }
-                }
-                rows
-            }
-            Err(error) => {
+        let rows = match port
+            .load_account_collection_like_cpp(AccountCollectionLoadRequestLikeCpp::Heirlooms {
+                bnet_account_id,
+            })
+            .await
+        {
+            AccountCollectionLoadOutcomeLikeCpp::Loaded(
+                AccountCollectionLoadedLikeCpp::Heirlooms(rows),
+            ) => rows
+                .into_iter()
+                .filter_map(|row| {
+                    u32::try_from(row.item_id)
+                        .ok()
+                        .map(|item_id| (item_id, row.flags))
+                })
+                .collect(),
+            AccountCollectionLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
                     bnet_account = bnet_account_id,
-                    "Failed to load account heirlooms: {error}"
+                    "Failed to load account heirlooms: {reason}"
+                );
+                Vec::new()
+            }
+            AccountCollectionLoadOutcomeLikeCpp::Loaded(_) => {
+                warn!(
+                    account = self.account_id,
+                    bnet_account = bnet_account_id,
+                    "Player lifecycle port returned the wrong account collection for heirlooms"
                 );
                 Vec::new()
             }
@@ -1926,63 +1937,66 @@ impl WorldSession {
     }
 
     pub(super) async fn load_account_item_appearances_like_cpp(&mut self) {
-        let Some(login_db) = self.login_db() else {
+        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             self.load_represented_account_item_appearances_like_cpp([], []);
             return;
         };
 
         let bnet_account_id = self.battlenet_account_id();
-        let mut appearance_stmt = login_db.prepare(LoginStatements::SEL_BNET_ITEM_APPEARANCES);
-        appearance_stmt.set_u32(0, bnet_account_id);
-        let appearance_blocks = match login_db.query(&appearance_stmt).await {
-            Ok(mut result) => {
-                let mut blocks = Vec::new();
-                if !result.is_empty() {
-                    loop {
-                        let block_index = result.try_read::<u32>(0).unwrap_or(0);
-                        let appearance_mask = result.try_read::<u32>(1).unwrap_or(0);
-                        blocks.push((block_index, appearance_mask));
-                        if !result.next_row() {
-                            break;
-                        }
+        let (appearance_blocks, favorite_appearances) = match port
+            .load_account_collection_like_cpp(
+                AccountCollectionLoadRequestLikeCpp::ItemAppearances { bnet_account_id },
+            )
+            .await
+        {
+            AccountCollectionLoadOutcomeLikeCpp::Loaded(
+                AccountCollectionLoadedLikeCpp::ItemAppearances {
+                    appearance_blocks,
+                    favorite_appearance_ids,
+                },
+            ) => {
+                let appearance_blocks = match appearance_blocks {
+                    AccountCollectionRowsLikeCpp::Loaded(rows) => rows
+                        .into_iter()
+                        .map(|row| (row.block_index, row.mask))
+                        .collect(),
+                    AccountCollectionRowsLikeCpp::Failed { reason } => {
+                        warn!(
+                            account = self.account_id,
+                            bnet_account = bnet_account_id,
+                            "Failed to load account item appearances: {reason}"
+                        );
+                        Vec::new()
                     }
-                }
-                blocks
+                };
+                let favorite_appearances = match favorite_appearance_ids {
+                    AccountCollectionRowsLikeCpp::Loaded(rows) => rows,
+                    AccountCollectionRowsLikeCpp::Failed { reason } => {
+                        warn!(
+                            account = self.account_id,
+                            bnet_account = bnet_account_id,
+                            "Failed to load account favorite item appearances: {reason}"
+                        );
+                        Vec::new()
+                    }
+                };
+                (appearance_blocks, favorite_appearances)
             }
-            Err(error) => {
+            AccountCollectionLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
                     bnet_account = bnet_account_id,
-                    "Failed to load account item appearances: {error}"
+                    "Failed to load account item appearances: {reason}"
                 );
-                Vec::new()
+                (Vec::new(), Vec::new())
             }
-        };
-
-        let mut favorite_stmt =
-            login_db.prepare(LoginStatements::SEL_BNET_ITEM_FAVORITE_APPEARANCES);
-        favorite_stmt.set_u32(0, bnet_account_id);
-        let favorite_appearances = match login_db.query(&favorite_stmt).await {
-            Ok(mut result) => {
-                let mut favorites = Vec::new();
-                if !result.is_empty() {
-                    loop {
-                        let item_modified_appearance_id = result.try_read::<u32>(0).unwrap_or(0);
-                        favorites.push(item_modified_appearance_id);
-                        if !result.next_row() {
-                            break;
-                        }
-                    }
-                }
-                favorites
-            }
-            Err(error) => {
+            AccountCollectionLoadOutcomeLikeCpp::Loaded(_) => {
                 warn!(
                     account = self.account_id,
                     bnet_account = bnet_account_id,
-                    "Failed to load account favorite item appearances: {error}"
+                    "Player lifecycle port returned the wrong account collection for item appearances"
                 );
-                Vec::new()
+                (Vec::new(), Vec::new())
             }
         };
 
@@ -1993,34 +2007,37 @@ impl WorldSession {
     }
 
     pub(super) async fn load_account_transmog_illusions_like_cpp(&mut self) {
-        let Some(login_db) = self.login_db() else {
+        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             self.load_represented_account_transmog_illusions_like_cpp([]);
             return;
         };
 
         let bnet_account_id = self.battlenet_account_id();
-        let mut stmt = login_db.prepare(LoginStatements::SEL_BNET_TRANSMOG_ILLUSIONS);
-        stmt.set_u32(0, bnet_account_id);
-        let illusion_blocks = match login_db.query(&stmt).await {
-            Ok(mut result) => {
-                let mut blocks = Vec::new();
-                if !result.is_empty() {
-                    loop {
-                        let block_index = result.try_read::<u32>(0).unwrap_or(0);
-                        let illusion_mask = result.try_read::<u32>(1).unwrap_or(0);
-                        blocks.push((block_index, illusion_mask));
-                        if !result.next_row() {
-                            break;
-                        }
-                    }
-                }
-                blocks
-            }
-            Err(error) => {
+        let illusion_blocks = match port
+            .load_account_collection_like_cpp(
+                AccountCollectionLoadRequestLikeCpp::TransmogIllusions { bnet_account_id },
+            )
+            .await
+        {
+            AccountCollectionLoadOutcomeLikeCpp::Loaded(
+                AccountCollectionLoadedLikeCpp::TransmogIllusions { illusion_blocks },
+            ) => illusion_blocks
+                .into_iter()
+                .map(|row| (row.block_index, row.mask))
+                .collect(),
+            AccountCollectionLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
                     bnet_account = bnet_account_id,
-                    "Failed to load account transmog illusions: {error}"
+                    "Failed to load account transmog illusions: {reason}"
+                );
+                Vec::new()
+            }
+            AccountCollectionLoadOutcomeLikeCpp::Loaded(_) => {
+                warn!(
+                    account = self.account_id,
+                    bnet_account = bnet_account_id,
+                    "Player lifecycle port returned the wrong account collection for transmog illusions"
                 );
                 Vec::new()
             }

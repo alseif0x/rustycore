@@ -11,6 +11,7 @@ use super::*;
 
 use std::sync::Mutex;
 use wow_persistence::{
+    AccountCollectionLoadOutcomeLikeCpp, AccountCollectionLoadRequestLikeCpp,
     AccountCollectionSaveLikeCpp, AccountMaskBlockLikeCpp, LogicalDatabaseLikeCpp,
     PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerCharacterSaveRequestLikeCpp,
     PlayerCharacterSaveResultLikeCpp, PlayerLifecyclePortLikeCpp, PlayerOfflineMarkLikeCpp,
@@ -18,6 +19,7 @@ use wow_persistence::{
 
 struct RecordingPortLikeCpp {
     seen: Mutex<Vec<PlayerOfflineMarkLikeCpp>>,
+    collection_loads: Mutex<Vec<AccountCollectionLoadRequestLikeCpp>>,
     collections: Mutex<Vec<AccountCollectionSaveLikeCpp>>,
     character_saves: Mutex<Vec<PlayerCharacterSaveRequestLikeCpp>>,
     outcome: PersistenceOutcomeLikeCpp,
@@ -27,6 +29,7 @@ impl RecordingPortLikeCpp {
     fn new(outcome: PersistenceOutcomeLikeCpp) -> Arc<Self> {
         Arc::new(Self {
             seen: Mutex::new(Vec::new()),
+            collection_loads: Mutex::new(Vec::new()),
             collections: Mutex::new(Vec::new()),
             character_saves: Mutex::new(Vec::new()),
             outcome,
@@ -51,6 +54,18 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         self.seen.lock().unwrap().push(mark);
         let outcome = self.outcome.clone();
         Box::pin(async move { outcome })
+    }
+
+    fn load_account_collection_like_cpp<'a>(
+        &'a self,
+        request: AccountCollectionLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, AccountCollectionLoadOutcomeLikeCpp> {
+        self.collection_loads.lock().unwrap().push(request);
+        Box::pin(async {
+            AccountCollectionLoadOutcomeLikeCpp::Failed {
+                reason: "recording port has no collection load fixture".to_owned(),
+            }
+        })
     }
 
     fn save_account_collection_like_cpp<'a>(
