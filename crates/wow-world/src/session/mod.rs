@@ -5407,6 +5407,9 @@ pub struct WorldSession {
     /// Characters-database persistence uses a distinct typed capability.
     session_account_state_port_like_cpp:
         Option<Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>>,
+    /// SQLx-free adapter for canonical `Map::LoadCorpseData` hydration.
+    map_corpse_persistence_port_like_cpp:
+        Option<Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>,
 
     // World database (for creature templates, spawns, etc.)
     world_db: Option<Arc<WorldDatabase>>,
@@ -7772,6 +7775,7 @@ impl WorldSession {
             login_db: None,
             player_lifecycle_port_like_cpp: None,
             session_account_state_port_like_cpp: None,
+            map_corpse_persistence_port_like_cpp: None,
             world_db: None,
             trainer_store_like_cpp: None,
             bank_bag_slot_prices_store: None,
@@ -16395,6 +16399,19 @@ impl WorldSession {
         port: Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>,
     ) {
         self.session_account_state_port_like_cpp = Some(port);
+    }
+
+    pub fn set_map_corpse_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>,
+    ) {
+        self.map_corpse_persistence_port_like_cpp = Some(port);
+    }
+
+    pub(crate) fn map_corpse_persistence_port_like_cpp(
+        &self,
+    ) -> Option<&Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>> {
+        self.map_corpse_persistence_port_like_cpp.as_ref()
     }
 
     /// Attach this session to the one canonical journal owner for its

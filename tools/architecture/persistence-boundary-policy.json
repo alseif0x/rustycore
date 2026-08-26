@@ -13450,6 +13450,156 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::map_corpse_adapter:crates/wow-database/src/map_corpse_adapter.rs::fn map_corpse_load_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/map_corpse_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::map_corpse_adapter"
+      ],
+      "enclosings": [
+        "fn map_corpse_load_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free canonical-map corpse hydration (#392) currently owns the complete wow-database workflow fn map_corpse_load_statements_like_cpp in crates/wow-database/src/map_corpse_adapter.rs.",
+      "connection_affinity": "Pure Characters-database statement construction; all three statements share the exact map and instance identity binds.",
+      "current_order": "Builds the base corpse, phase and customization statements in C++ Map::LoadCorpseData order.",
+      "failure_and_unknown_commit": "No I/O occurs here; the adapter classifies the later base and auxiliary query outcomes.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::map_corpse_adapter:crates/wow-database/src/map_corpse_adapter.rs::impl MariaDbMapCorpsePersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/map_corpse_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::map_corpse_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbMapCorpsePersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free canonical-map corpse hydration (#392) currently owns the complete wow-database workflow impl MariaDbMapCorpsePersistenceAdapterLikeCpp::new in crates/wow-database/src/map_corpse_adapter.rs.",
+      "connection_affinity": "Composition binds the semantic map-corpse port to exactly one Characters adapter.",
+      "current_order": "Construction performs no database operation; the later port call owns the three-query order.",
+      "failure_and_unknown_commit": "No I/O or commit occurs during adapter construction.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::map_corpse_adapter:crates/wow-database/src/map_corpse_adapter.rs::impl wow_persistence::MapCorpsePersistencePortLikeCpp for MariaDbMapCorpsePersistenceAdapterLikeCpp::load_map_corpses_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/map_corpse_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::map_corpse_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::MapCorpsePersistencePortLikeCpp for MariaDbMapCorpsePersistenceAdapterLikeCpp::load_map_corpses_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free canonical-map corpse hydration (#392) currently owns the complete wow-database workflow impl wow_persistence::MapCorpsePersistencePortLikeCpp for MariaDbMapCorpsePersistenceAdapterLikeCpp::load_map_corpses_like_cpp in crates/wow-database/src/map_corpse_adapter.rs.",
+      "connection_affinity": "All reads use the configured Characters adapter; the read-only workflow claims no transaction or cross-database affinity.",
+      "current_order": "Queries base corpses first, skips auxiliaries for an empty base result, then queries phases before customizations exactly like C++.",
+      "failure_and_unknown_commit": "A base failure returns Failed with no rows; phase and customization failures are classified independently and do not discard successfully loaded base rows.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::map_corpse_adapter:crates/wow-database/src/map_corpse_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/map_corpse_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::map_corpse_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free canonical-map corpse hydration (#392) currently owns the complete wow-database workflow module in crates/wow-database/src/map_corpse_adapter.rs.",
+      "connection_affinity": "This stable adapter module is confined to the Characters database named by its semantic request.",
+      "current_order": "The module boundary owns statement mapping and driver execution; map application retains validation and publication order.",
+      "failure_and_unknown_commit": "Typed outcomes keep concrete driver errors inside the adapter and preserve independent auxiliary failures.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::map_corpse_adapter:crates/wow-database/src/map_corpse_adapter.rs::struct MariaDbMapCorpsePersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/map_corpse_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::map_corpse_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbMapCorpsePersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free canonical-map corpse hydration (#392) currently owns the complete wow-database workflow struct MariaDbMapCorpsePersistenceAdapterLikeCpp in crates/wow-database/src/map_corpse_adapter.rs.",
+      "connection_affinity": "The concrete adapter stores exactly one Characters-database handle and exposes it only through the typed port.",
+      "current_order": "Storage alone performs no operation; the port method preserves C++ Map::LoadCorpseData order.",
+      "failure_and_unknown_commit": "The handle is private and no driver error type crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::params:crates/wow-database/src/params.rs::impl PreparedStatement",
       "source_class": "production",
       "packages": [
@@ -20853,39 +21003,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::character::lifecycle:crates/wow-world/src/handlers/character/lifecycle.rs::impl WorldSession::load_map_corpse_data_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/character/lifecycle.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::character::lifecycle"
-      ],
-      "enclosings": [
-        "impl WorldSession::load_map_corpse_data_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "Player login/logout lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::load_map_corpse_data_like_cpp in crates/wow-world/src/handlers/character/lifecycle.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153,
-        169
-      ],
-      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-world:crate::handlers::character::lifecycle:crates/wow-world/src/handlers/character/lifecycle.rs::module",
       "source_class": "production",
       "packages": [
@@ -27897,6 +28014,7 @@
       ],
       "sources": [
         "crates/wow-database/src/database.rs",
+        "crates/wow-database/src/map_corpse_adapter.rs",
         "crates/wow-database/src/params.rs",
         "crates/wow-database/src/persistence_trace.rs",
         "crates/wow-database/src/player_lifecycle_adapter.rs",

@@ -10443,6 +10443,81 @@
     },
     {
       "package": "wow-database",
+      "module": "crate::map_corpse_adapter",
+      "source": "crates/wow-database/src/map_corpse_adapter.rs",
+      "enclosing": "fn map_corpse_load_statements_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free canonical-map corpse hydration (#392)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure Characters-database statement construction; all three statements share the exact map and instance identity binds.",
+      "current_order": "Builds the base corpse, phase and customization statements in C++ Map::LoadCorpseData order.",
+      "failure_and_unknown_commit": "No I/O occurs here; the adapter classifies the later base and auxiliary query outcomes."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::map_corpse_adapter",
+      "source": "crates/wow-database/src/map_corpse_adapter.rs",
+      "enclosing": "impl wow_persistence::MapCorpsePersistencePortLikeCpp for MariaDbMapCorpsePersistenceAdapterLikeCpp::load_map_corpses_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free canonical-map corpse hydration (#392)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "All reads use the configured Characters adapter; the read-only workflow claims no transaction or cross-database affinity.",
+      "current_order": "Queries base corpses first, skips auxiliaries for an empty base result, then queries phases before customizations exactly like C++.",
+      "failure_and_unknown_commit": "A base failure returns Failed with no rows; phase and customization failures are classified independently and do not discard successfully loaded base rows."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::map_corpse_adapter",
+      "source": "crates/wow-database/src/map_corpse_adapter.rs",
+      "enclosing": "impl MariaDbMapCorpsePersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free canonical-map corpse hydration (#392)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Composition binds the semantic map-corpse port to exactly one Characters adapter.",
+      "current_order": "Construction performs no database operation; the later port call owns the three-query order.",
+      "failure_and_unknown_commit": "No I/O or commit occurs during adapter construction."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::map_corpse_adapter",
+      "source": "crates/wow-database/src/map_corpse_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free canonical-map corpse hydration (#392)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "This stable adapter module is confined to the Characters database named by its semantic request.",
+      "current_order": "The module boundary owns statement mapping and driver execution; map application retains validation and publication order.",
+      "failure_and_unknown_commit": "Typed outcomes keep concrete driver errors inside the adapter and preserve independent auxiliary failures."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::map_corpse_adapter",
+      "source": "crates/wow-database/src/map_corpse_adapter.rs",
+      "enclosing": "struct MariaDbMapCorpsePersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free canonical-map corpse hydration (#392)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The concrete adapter stores exactly one Characters-database handle and exposes it only through the typed port.",
+      "current_order": "Storage alone performs no operation; the port method preserves C++ Map::LoadCorpseData order.",
+      "failure_and_unknown_commit": "The handle is private and no driver error type crosses the port."
+    },
+    {
+      "package": "wow-database",
       "module": "crate::session_account_state_adapter",
       "source": "crates/wow-database/src/session_account_state_adapter.rs",
       "enclosing": "fn account_data_load_statement_like_cpp",
@@ -10921,24 +10996,6 @@
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::lifecycle",
-      "source": "crates/wow-world/src/handlers/character/lifecycle.rs",
-      "enclosing": "impl WorldSession::load_map_corpse_data_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Player login/logout lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
