@@ -4,6 +4,6 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
-# Intentionally dependency-free. This crate owns the SQLx-free lifecycle
-# capability; the MariaDB/SQLx adapter lives in `wow-database`.
+# Intentionally dependency-free. This crate owns SQLx-free persistence
+# capabilities; their MariaDB/SQLx adapters live in `wow-database`.
 [dependencies]
