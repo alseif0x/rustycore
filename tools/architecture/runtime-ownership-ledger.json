@@ -1655,13 +1655,13 @@
         {
           "path": "crates/wow-world/src/session/mod.rs",
           "production_lines": 72679,
-          "test_lines": 95257,
-          "total_lines": 167936,
+          "test_lines": 95272,
+          "total_lines": 167951,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 promoted the transport-only kernel, and #252 owns the gameplay mirror. #378 then classified the five remaining module families: they stay as application/gameplay adapters until #252, #371, #169 and the terminal #153 audit remove their measured authority or port blockers. This row remains a reviewed exception to the epic's 4,000-line signal, not a target for forced relocation. #252 begins retiring that mirror family by family: the honor block is the first cut, so production drops 73601->73573 while tests rise 96177->96309 for the three focused directory cases proving inspect now reads the canonical owner live. #297 promoted the transport kernel to the wow-session crate, the first module to leave this type under the epic's P4 rule; production drops 73489 -> 73356. #371 retires the wall-clock comparisons, reducing production 73374 -> 73301, and adds the focused single-diff regression, raising tests 96328 -> 96359. #286 replaces the forbidden statement-shaped port shortcut with an explicit semantic snapshot of every represented Player save group. That required enumeration grows production 73301 -> 73517 and focused tests 96359 -> 96368, while the SQL statement decomposition, transaction and driver errors move behind the stable MariaDB adapter. #384 then retires the now-unreachable Session statement builders and their SQL-shaped tests, reducing production 73517 -> 72679 and tests 96368 -> 95257; semantic state coverage and the lifecycle adapter's exact statement-plan tests remain. #153 still owns removal of the residual Session authority."
+          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 promoted the transport-only kernel, and #252 owns the gameplay mirror. #378 then classified the five remaining module families: they stay as application/gameplay adapters until #252, #371, #169 and the terminal #153 audit remove their measured authority or port blockers. This row remains a reviewed exception to the epic's 4,000-line signal, not a target for forced relocation. #252 begins retiring that mirror family by family: the honor block is the first cut, so production drops 73601->73573 while tests rise 96177->96309 for the three focused directory cases proving inspect now reads the canonical owner live. #297 promoted the transport kernel to the wow-session crate, the first module to leave this type under the epic's P4 rule; production drops 73489 -> 73356. #371 retires the wall-clock comparisons, reducing production 73374 -> 73301, and adds the focused single-diff regression, raising tests 96328 -> 96359. #286 replaces the forbidden statement-shaped port shortcut with an explicit semantic snapshot of every represented Player save group. That required enumeration grows production 73301 -> 73517 and focused tests 96359 -> 96368, while the SQL statement decomposition, transaction and driver errors move behind the stable MariaDB adapter. #384 then retires the now-unreachable Session statement builders and their SQL-shaped tests, reducing production 73517 -> 72679 and tests 96368 -> 95257; semantic state coverage and the lifecycle adapter's exact statement-plan tests remain. #386 adds the typed collection-load operation to the shared lifecycle-port fixture, increasing tests 95257 -> 95272 without adding Session production authority. #153 still owns removal of the residual Session authority."
         },
         {
           "path": "crates/wow-map/src/map/mod.rs",
@@ -1676,14 +1676,14 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20865,
-          "test_lines": 10764,
-          "total_lines": 31629,
+          "production_lines": 20872,
+          "test_lines": 10964,
+          "total_lines": 31836,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "Character verticals are thin capability adapters with typed owners/ports and no raw directory or concrete persistence access."
+          "retirement_condition": "Character verticals are thin capability adapters with typed owners/ports and no raw directory or concrete persistence access. #386 removes the five concrete Login-database collection reads while preserving gameplay filtering in the character adapter; explicit typed-result handling raises production 20865 -> 20872 and focused success, empty, malformed-row, full-failure and partial-failure coverage raises tests 10764 -> 10964."
         },
         {
           "path": "crates/wow-world/src/handlers/loot/mod.rs",

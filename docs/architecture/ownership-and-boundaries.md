@@ -144,7 +144,7 @@ last-writer-wins policy.
 |---|---|---|---|---|---|
 | Authenticated world connection | `wow-network::accept` and the connection task | socket/authentication task | `WorldSession` dispatch boundary | one connection; created after authentication and dropped on disconnect | Remains a network responsibility. #134 narrowed the listener to transport-owned configuration and authenticated connection outputs. |
 | Reserved-but-empty crates | `wow-achievement`, `wow-combat`, `wow-pvp` and `wow-spell` (`domain-runtime`) contain no code | nothing writes them yet | nothing reads them, and nothing they read either: #298 removed the phantom Cargo edges the four still declared after #288 removed `wow-ecs`'s | none - they hold no state and run on no clock | The reservation is now checked, not described: `dependency-policy.json#reserved_packages` names the owning issue for each (`wow-combat` #29, `wow-spell` #30, `wow-pvp` and `wow-achievement` #48), `check_architecture.py` fails when one acquires a dependent or a dependency and when its owning issue closes with the crate still empty, and `refresh-issue-state` keeps that owner state derived rather than hand-maintained. `wow-ecs` was resolved by removal: the terminal architecture makes `wow-entities::Player` the sole mutable owner, no entity-storage slice was ever planned, and the name can be re-created the day one is. |
-| Player lifecycle persistence capability | `wow_persistence`: offline marks, account collections, the semantic `PlayerCharacterSaveRequestLikeCpp` snapshot and the three-way `PersistenceOutcomeLikeCpp`, behind `PlayerLifecyclePortLikeCpp`. The crate has **no dependencies at all** — no pool, row, transaction, statement or SQL string | `wow_database::player_lifecycle_adapter` is the only implementation and the only place that decomposes the snapshot into MariaDB statements/parameters, owns the pool and classifies driver errors | private `wow_world::session::lifecycle::persistence` holds the port; it snapshots already-represented Player groups and never names a statement or constructs a transaction | composed in `world-server` before any session is accepted, so a build that cannot persist lifecycle state fails at startup rather than dropping writes | #200 earned the crate with offline marks; #287 moved the five account-collection transactions; #286 moved the represented Character save as one ordered transaction and preserved Applied/Failed/Unknown publication semantics; #384 retired its now-unreachable Session statement-builder/test surface. The executable SQL order remains frozen in the adapter contract from #187/#286. |
+| Player lifecycle persistence capability | `wow_persistence`: offline marks, typed account-collection load/save requests and outcomes, the semantic `PlayerCharacterSaveRequestLikeCpp` snapshot and the three-way `PersistenceOutcomeLikeCpp`, behind `PlayerLifecyclePortLikeCpp`. The crate has **no dependencies at all** — no pool, row, transaction, statement or SQL string | `wow_database::player_lifecycle_adapter` is the only implementation and the only place that maps the semantic requests/snapshot to MariaDB statements/parameters, owns the pools and classifies driver errors | private `wow_world::session::lifecycle::persistence` holds the port; Session callers retain gameplay validation and never name a statement or construct a transaction | composed in `world-server` before any session is accepted, so a build that cannot persist lifecycle state fails at startup rather than dropping writes | #200 earned the crate with offline marks; #287 moved the five account-collection writes; #286 moved the represented Character save as one ordered transaction; #384 retired its unreachable Session statement builders; #386 moves the five collection reads and preserves the two independent item-appearance failure branches. Executable SQL order remains frozen in the adapter contract from #187/#286/#386. |
 | Session login/logout lifecycle | private `wow_world::session::lifecycle`: `login` (the single-live-session character claim), `logout` (timed logout finalize and the disconnect save), `cleanup` (registry/visibility/map/accessor teardown) | the owning Session task on its exit paths | the Session driver's logout timer, the disconnect path in the composition root, and the login handlers | claim held from before the login sequence commits until any exit path; cleanup tears down publication before ownership, and the disconnect save keeps the represented player alive until it has run — C++ `LogoutPlayer(true)` saves while `_player` still exists | #184 extracted the exact current behaviour, concrete DB calls included, behind one private seam. #200 replaces that persistence seam once #187 freezes the focused Player contract. |
 | Session phase driver | private `wow_world::session::driver`: the ordered pass (`update` ingestion + Session timers, `process_pending` async phases), the shared ingestion budget in `driver::budget`, and the frozen phase trace in `driver::phases` | the one Session task; there is no second scheduler | the composition root that spawns the Session task calls the pass and owns cadence, cancellation and the idle sleep | one pass per loop iteration; ingestion is bounded by a single shared budget so a busy realm channel cannot starve the instance channel, and exit is decided inside the pass (disconnected channel, idle deadline, logout timer) | #183 extracted the driver from `session/mod.rs`. It is deliberately not the world/Map/gameplay tick owner — those clocks are unchanged and traced in `runtime-clock-phase-trace.md` (#188). #28 and #153 own semantic convergence. |
 | Logical realm/instance connection | `wow_session::SessionConnection` since #297: the attach/switch/restore state machine, realm-vs-primary send selection and the two cross-socket ordering fences, in a crate that cannot reach gameplay, a map or a database. `wow_world::session::connection` is now a delegation shim that performs the session steps the kernel reports back | the owning Session task, which is the only writer of the logical primary | `send_packet_realm`/`send_raw_packet_realm` callers, the Session driver polling the instance link, and logout restore | connection lifetime; after `SMSG_CONNECT_TO` the instance channel becomes primary and the realm channel is parked, never closed — the client drops the session if either socket dies | #182 extracted the transition implementation out of `session/mod.rs` and #297 moved it into the `wow-session` crate, taking the eleven channel, fence and ConnectTo fields with it; `WorldSession` now holds one opaque `connection` handle. `account_id` and `player_loading` deliberately stayed behind — identity and login-loading state are not transport. #378 classified the five remaining module families and proved that each is still an application/gameplay adapter with a named authority or port blocker; #153 owns replacing the concrete `wow-network` types with ports. |
@@ -573,11 +573,12 @@ composition-side `SessionResources` has 243 fields, of which 186 are optional;
 reachable payload types. The factory has 247 `set_*` and one `install_*` call: two setters are
 multiline calls that the earlier text-only count missed. The generated-input surface has 44 exact
 records, and direct access to `PlayerRegistry`, `GroupRegistry`, or `PendingInvites` is frozen as
-570 exact AST rows. After #384 retired the unreachable Session-side character-save builders and
-their SQL-shaped tests, the workspace-wide persistence inventory contains 21,650 exact rows—11,568
-production and 10,082 test-fixture—with multiplicity 23,869 (13,065 production and 10,804 test).
-The reviewed #384 semantic delta is 809 removed rows and zero additions; its workflow annotations
-fall from 910 to 863, while the workflows targeting #169 fall from 94 to 47. Six generated-source
+570 exact AST rows. After #386 moved the five account-collection reads behind the lifecycle port,
+the workspace-wide persistence inventory contains 21,645 exact rows—11,552 production and 10,093
+test-fixture—with multiplicity 23,877 (13,062 production and 10,815 test). The reviewed #386 delta
+removes 48 concrete-access occurrences from `wow-world`, adds 45 production occurrences only
+inside the stable `wow-database` adapter and adds 11 exact adapter-test occurrences. Its workflow
+annotations fall from 863 to 859, while workflows targeting #169 fall from 47 to 42. Six generated-source
 inputs are an orthogonal subset, not a third source class. Schema
 v3 covers SQLx and concrete `wow_database` types/imports, typed statements/results/errors,
 prepare/query/execute/direct/raw/nonliteral/interpolated SQL, pool access, transaction construction/append/commit,
@@ -586,7 +587,7 @@ pinned—a literal, a `concat!`, or a name bound to one of those. SQL assembled 
 chains, `format!` templates, branches, helper returns, projections) is deliberately recorded as
 interpolated or nonliteral without a content claim: deciding which string an expression produces
 has no natural stopping point, so the connection-affinity and ordering facts for those call sites
-come from the reviewed workflow annotation covering them. The 911 semantic groups classify every
+come from the reviewed workflow annotation covering them. The 864 semantic groups classify every
 row exactly once by logical database,
 capability owner, connection/transaction affinity, current order, failure/unknown-commit behavior
 and open removal/decision issue; unmatched, overlapping or stale groups fail. The legacy/canonical
@@ -675,37 +676,38 @@ display is checked against the JSON ledger:
 38. #200 — Player lifecycle persistence port;
 39. #286 — represented Player character-save plan through that SQLx-free port;
 40. #384 — retire obsolete Session character-save builders after the port cut;
-41. #189 — durable loot persistence coordination;
-42. #192 — runtime/fanout directory consumers;
-43. #193 — combat/loot directory consumers;
-44. #194 — quest/spell/movement directory consumers;
-45. #197 — atomic group invite/create transitions;
-46. #198 — atomic group membership/leadership transitions;
-47. #199 — Group persistence/publication closure;
-48. #195 — social/group session addressing;
-49. #196 — PlayerRegistry storage closure;
-50. #138 — opaque session-directory relocation;
-51. #191 — mailbox protocol relocation;
-52. #137 — encapsulated Group owner move;
-53. #190 — durable creature-runtime rail relocation;
-54. #140 — Session mailbox pump;
-55. #252 — retire the temporary PlayerBroadcastInfo gameplay mirror;
-56. #182 — logical realm/instance routing;
-57. #183 — Session-only phase driver;
-58. #184 — login/logout lifecycle modules;
-59. #224 — character/loot/quest physical modules;
-60. #225 — Map/MapManager physical modules;
-61. #226 — Player/Unit physical modules;
-62. #227 — packet/spell-data physical modules;
-63. #228 — trusted linked external module API;
-64. #229 — deterministic external Cargo composition;
-65. #230 — agent-neutral module CLI and skeleton;
-66. #231 — typed module configuration/fixtures;
-67. #270 — retire the four PlayerBroadcastInfo transport endpoints;
-68. #359 — single dispatch mechanism for every opcode;
-69. #297 — promote the Session kernel to `wow-session`;
-70. #378 — move the remaining five session modules into `wow-session`;
-71. #153 — terminal architecture audit.
+41. #386 — account collection loads through the SQLx-free Player lifecycle port;
+42. #189 — durable loot persistence coordination;
+43. #192 — runtime/fanout directory consumers;
+44. #193 — combat/loot directory consumers;
+45. #194 — quest/spell/movement directory consumers;
+46. #197 — atomic group invite/create transitions;
+47. #198 — atomic group membership/leadership transitions;
+48. #199 — Group persistence/publication closure;
+49. #195 — social/group session addressing;
+50. #196 — PlayerRegistry storage closure;
+51. #138 — opaque session-directory relocation;
+52. #191 — mailbox protocol relocation;
+53. #137 — encapsulated Group owner move;
+54. #190 — durable creature-runtime rail relocation;
+55. #140 — Session mailbox pump;
+56. #252 — retire the temporary PlayerBroadcastInfo gameplay mirror;
+57. #182 — logical realm/instance routing;
+58. #183 — Session-only phase driver;
+59. #184 — login/logout lifecycle modules;
+60. #224 — character/loot/quest physical modules;
+61. #225 — Map/MapManager physical modules;
+62. #226 — Player/Unit physical modules;
+63. #227 — packet/spell-data physical modules;
+64. #228 — trusted linked external module API;
+65. #229 — deterministic external Cargo composition;
+66. #230 — agent-neutral module CLI and skeleton;
+67. #231 — typed module configuration/fixtures;
+68. #270 — retire the four PlayerBroadcastInfo transport endpoints;
+69. #359 — single dispatch mechanism for every opcode;
+70. #297 — promote the Session kernel to `wow-session`;
+71. #378 — move the remaining five session modules into `wow-session`;
+72. #153 — terminal architecture audit.
 
 A slice may start once its declared prerequisites are merged and its branch is current. Independent
 physical work remains parallel to semantic authority cuts. Mechanical moves use focused compile and
