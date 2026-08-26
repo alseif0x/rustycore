@@ -54,7 +54,7 @@
       "cpp_anchor": "Map::Update creature frame: Unit -> threat -> AI -> melee",
       "availability": "production",
       "cadence": "configured map update interval, MissedTickBehavior::Delay",
-      "diff_source": "measured elapsed wall clock; the constant interval was a real defect corrected by M2.3",
+      "diff_source": "measured elapsed wall clock, propagated once into creature logical elapsed time; the constant interval was a real defect corrected by M2.3 and the per-creature wall-clock epoch was retired by #371",
       "owns": [
         "legacy creature lifecycle",
         "movement and spline launch",

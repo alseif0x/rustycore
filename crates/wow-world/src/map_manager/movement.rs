@@ -228,17 +228,21 @@ impl WorldCreature {
             return false;
         }
 
-        // C++ stores `m_corpseRemoveTime` in the absolute GameTime domain;
-        // the legacy AI mirror is elapsed milliseconds from `clock_started_at`.
+        // C++ stores `m_corpseRemoveTime` in the absolute GameTime domain.
+        // Translate only the remaining duration into the creature's logical
+        // Map-tick clock; wall time is not an ongoing runtime clock source.
         let corpse_remove_at = instant_from_respawn_time_like_cpp(
             self.creature.corpse_remove_time(),
             now,
             game_time_secs,
         );
-        let corpse_remove_time_ms = corpse_remove_at
-            .checked_duration_since(self.clock_started_at)
+        let remaining_ms = corpse_remove_at
+            .checked_duration_since(now)
             .map(|duration| duration.as_millis().min(u128::from(u64::MAX)) as u64)
             .unwrap_or(0);
+        let corpse_remove_time_ms = self
+            .runtime_elapsed_ms_like_cpp()
+            .saturating_add(remaining_ms);
         self.creature
             .set_ai_corpse_despawn_at(Some(corpse_remove_time_ms));
         true
@@ -281,7 +285,7 @@ impl WorldCreature {
             .ai_ownership()
             .move_target
             .map(|_| {
-                self.now_ms()
+                self.runtime_elapsed_ms_like_cpp()
                     .saturating_sub(self.creature.ai_ownership().move_start_ms)
                     >= u64::from(self.creature.ai_ownership().move_duration_ms)
             })
@@ -293,7 +297,7 @@ impl WorldCreature {
             return self.position();
         };
         let elapsed =
-            self.now_ms()
+            self.runtime_elapsed_ms_like_cpp()
                 .saturating_sub(self.creature.ai_ownership().move_start_ms) as f32;
         let total = self.creature.ai_ownership().move_duration_ms as f32;
         if total <= 0.0 {
@@ -313,7 +317,7 @@ impl WorldCreature {
         let dist = self.position().distance(&dst);
         let walk_speed = 2.5f32;
         let duration_ms = ((dist / walk_speed) * 1000.0) as u32;
-        let now_ms = self.now_ms();
+        let now_ms = self.runtime_elapsed_ms_like_cpp();
         let ai = self.creature.ai_ownership_mut();
         ai.move_target = Some(dst);
         ai.move_start_ms = now_ms;
@@ -341,7 +345,7 @@ impl WorldCreature {
             .filter(|spline| !spline.finalized() && !spline.on_transport)
             .and_then(MoveSpline::compute_position);
 
-        let now_ms = self.now_ms();
+        let now_ms = self.runtime_elapsed_ms_like_cpp();
         let mut spline = self
             .active_move_spline
             .take()
@@ -525,7 +529,7 @@ impl WorldCreature {
         // generator's `PathGenerator` (`RandomMovementGenerator.cpp:95`), so the
         // next query starts from an empty corridor.
         self.active_random_path_poly_refs.clear();
-        let now_ms = self.now_ms();
+        let now_ms = self.runtime_elapsed_ms_like_cpp();
         let ai = self.creature.ai_ownership_mut();
         ai.move_target = None;
         ai.move_start_ms = now_ms;
@@ -1873,7 +1877,7 @@ impl WorldCreature {
         init.move_to(current);
         init.set_facing_angle(facing_angle);
 
-        let now_ms = self.now_ms();
+        let now_ms = self.runtime_elapsed_ms_like_cpp();
         let mut spline = self
             .active_move_spline
             .take()
@@ -2038,7 +2042,7 @@ impl WorldCreature {
 
         if !spline.finalized() {
             let elapsed_ms = self
-                .now_ms()
+                .runtime_elapsed_ms_like_cpp()
                 .saturating_sub(self.creature.ai_ownership().move_start_ms)
                 .min(i32::MAX as u64) as i32;
             let diff_ms = elapsed_ms.saturating_sub(spline.time_passed_ms());
@@ -2081,7 +2085,7 @@ impl WorldCreature {
         }
 
         let elapsed_ms = self
-            .now_ms()
+            .runtime_elapsed_ms_like_cpp()
             .saturating_sub(self.creature.ai_ownership().move_start_ms)
             .min(i32::MAX as u64) as i32;
         let diff_ms = elapsed_ms.saturating_sub(spline.time_passed_ms());
@@ -2142,7 +2146,7 @@ impl WorldCreature {
             && self.can_wander()
             && self.creature.ai_ownership().wander_radius > 0.0
             && self
-                .now_ms()
+                .runtime_elapsed_ms_like_cpp()
                 .saturating_sub(self.creature.ai_ownership().move_start_ms)
                 >= self.creature.ai_ownership().wander_delay_ms
     }
@@ -2177,7 +2181,7 @@ impl WorldCreature {
     }
 
     pub fn reset_wander_timer(&mut self) -> bool {
-        let now_ms = self.now_ms();
+        let now_ms = self.runtime_elapsed_ms_like_cpp();
         let wander_delay_ms = self.runtime_rng_like_cpp.gen_range(4_000..=10_000);
         let ai = self.creature.ai_ownership_mut();
         ai.move_start_ms = now_ms;
@@ -2204,7 +2208,7 @@ impl WorldCreature {
     }
 
     pub fn schedule_after_random_movement_like_cpp(&mut self) -> bool {
-        let now_ms = self.now_ms();
+        let now_ms = self.runtime_elapsed_ms_like_cpp();
         if self.creature.ai_ownership().wander_steps_remaining > 0 {
             let ai = self.creature.ai_ownership_mut();
             ai.move_start_ms = now_ms;

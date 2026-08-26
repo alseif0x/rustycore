@@ -176,7 +176,7 @@ impl WorldCreature {
             respawn_spell_hit_aura_source_authority_like_cpp: false,
             respawn_spell_cast_log_aura_source_authority_like_cpp: false,
             runtime_rng_like_cpp: StdRng::from_entropy(),
-            clock_started_at: Instant::now(),
+            runtime_elapsed_ms_like_cpp: 0,
         }
     }
 
@@ -306,16 +306,19 @@ impl WorldCreature {
             .unwrap_or(VISIBILITY_RADIUS)
     }
 
-    pub(crate) fn now_ms(&self) -> u64 {
-        self.clock_started_at
-            .elapsed()
-            .as_millis()
-            .min(u128::from(u64::MAX)) as u64
+    pub(crate) const fn runtime_elapsed_ms_like_cpp(&self) -> u64 {
+        self.runtime_elapsed_ms_like_cpp
+    }
+
+    pub(crate) fn advance_runtime_clock_like_cpp(&mut self, diff_ms: u32) {
+        self.runtime_elapsed_ms_like_cpp = self
+            .runtime_elapsed_ms_like_cpp
+            .saturating_add(u64::from(diff_ms));
     }
 
     #[cfg(test)]
     pub(crate) fn backdate_runtime_clock_for_test(&mut self, elapsed: Duration) {
-        self.clock_started_at = Instant::now() - elapsed;
+        self.runtime_elapsed_ms_like_cpp = elapsed.as_millis().min(u128::from(u64::MAX)) as u64;
     }
 
     pub fn guid(&self) -> ObjectGuid {
@@ -502,7 +505,8 @@ impl WorldCreature {
     }
 
     pub fn die(&mut self) {
-        self.creature.mark_ai_dead(self.now_ms());
+        self.creature
+            .mark_ai_dead(self.runtime_elapsed_ms_like_cpp());
     }
 
     pub(super) fn walk_speed_like_cpp(&self) -> f32 {
@@ -613,13 +617,13 @@ impl WorldCreature {
         self.is_alive()
             && self.state() == CreatureAiState::InCombat
             && self
-                .now_ms()
+                .runtime_elapsed_ms_like_cpp()
                 .saturating_sub(self.creature.ai_ownership().last_swing_ms)
                 >= self.creature.ai_ownership().swing_timer_ms
     }
 
     pub fn record_swing(&mut self) {
-        let now_ms = self.now_ms();
+        let now_ms = self.runtime_elapsed_ms_like_cpp();
         let base_attack_time = if self.create_data.base_attack_time > 0 {
             self.create_data.base_attack_time as u64
         } else {
@@ -631,7 +635,7 @@ impl WorldCreature {
     }
 
     pub fn record_failed_swing_retry_like_cpp(&mut self) {
-        let now_ms = self.now_ms();
+        let now_ms = self.runtime_elapsed_ms_like_cpp();
         let ai = self.creature.ai_ownership_mut();
         ai.last_swing_ms = now_ms;
         ai.swing_timer_ms = 100;
@@ -651,7 +655,7 @@ impl WorldCreature {
         self.runtime_rng_authority_complete_like_cpp = false;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn seed_runtime_rng_like_cpp(&mut self, seed: u64) {
         self.runtime_rng_like_cpp = StdRng::seed_from_u64(seed);
     }

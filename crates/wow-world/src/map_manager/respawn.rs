@@ -27,10 +27,21 @@ impl WorldCreature {
     }
 
     pub fn corpse_despawn_at(&self) -> Option<Instant> {
+        let now = Instant::now();
+        let elapsed_ms = self.runtime_elapsed_ms_like_cpp();
         self.creature
             .ai_ownership()
             .corpse_despawn_at_ms
-            .map(|ms| self.clock_started_at + Duration::from_millis(ms))
+            .map(|due_at_ms| now + Duration::from_millis(due_at_ms.saturating_sub(elapsed_ms)))
+    }
+
+    pub const fn corpse_despawn_deadline_ms_like_cpp(&self) -> Option<u64> {
+        self.creature.ai_ownership().corpse_despawn_at_ms
+    }
+
+    pub fn corpse_despawn_due_like_cpp(&self) -> bool {
+        self.corpse_despawn_deadline_ms_like_cpp()
+            .is_some_and(|due_at_ms| self.runtime_elapsed_ms_like_cpp() >= due_at_ms)
     }
 
     pub fn respawn_at_from_death_like_cpp(&self) -> Instant {
@@ -42,11 +53,19 @@ impl WorldCreature {
         now: Instant,
         game_time_secs: i64,
     ) -> Instant {
+        let elapsed_ms = self.runtime_elapsed_ms_like_cpp();
         let death_at = self
             .creature
             .ai_ownership()
             .death_time_ms
-            .map(|ms| self.clock_started_at + Duration::from_millis(ms))
+            .map(|death_ms| {
+                if death_ms <= elapsed_ms {
+                    now.checked_sub(Duration::from_millis(elapsed_ms - death_ms))
+                        .unwrap_or(now)
+                } else {
+                    now + Duration::from_millis(death_ms - elapsed_ms)
+                }
+            })
             .unwrap_or(now);
         let compatibility_corpse_delay = self
             .creature
@@ -66,16 +85,15 @@ impl WorldCreature {
     }
 
     pub fn set_corpse_despawn_at(&mut self, when: Option<Instant>) {
-        let now_ms = self.now_ms();
+        let now = Instant::now();
+        let now_ms = self.runtime_elapsed_ms_like_cpp();
         let at_ms = when.map(|instant| {
-            if instant <= self.clock_started_at {
-                0
-            } else if instant <= Instant::now() {
+            if instant <= now {
                 now_ms
             } else {
                 now_ms.saturating_add(
                     instant
-                        .duration_since(Instant::now())
+                        .duration_since(now)
                         .as_millis()
                         .min(u128::from(u64::MAX)) as u64,
                 )
@@ -85,11 +103,12 @@ impl WorldCreature {
     }
 
     pub fn should_respawn(&self) -> bool {
-        self.creature.should_ai_respawn(self.now_ms())
+        self.creature
+            .should_ai_respawn(self.runtime_elapsed_ms_like_cpp())
     }
 
     pub fn respawn(&mut self) {
-        self.creature.respawn_ai(self.now_ms());
+        self.creature.respawn_ai(self.runtime_elapsed_ms_like_cpp());
     }
 }
 
