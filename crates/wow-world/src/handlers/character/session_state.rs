@@ -1454,104 +1454,117 @@ impl WorldSession {
         }
     }
 
-    pub(super) async fn load_character_spell_history_packets_like_cpp(
+    pub(crate) async fn load_character_spell_history_packets_like_cpp(
         &mut self,
-        char_db: &wow_database::CharacterDatabase,
         guid: ObjectGuid,
     ) -> (Vec<SpellHistoryEntry>, Vec<SpellChargeEntry>) {
         let now = unix_now_secs_like_cpp();
         let guid_counter = guid.counter() as u64;
+        let port = self.player_lifecycle_port_like_cpp().map(Arc::clone);
         let mut history_entries = Vec::new();
         self.reset_represented_character_spell_cooldowns_like_cpp();
 
-        let mut cooldown_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELLCOOLDOWNS);
-        cooldown_stmt.set_u64(0, guid_counter);
-        match char_db.query(&cooldown_stmt).await {
-            Ok(mut cooldown_result) => {
-                if !cooldown_result.is_empty() {
-                    loop {
-                        let spell_id: u32 = cooldown_result.try_read(0).unwrap_or(0);
-                        let item_id: u32 = cooldown_result.try_read(1).unwrap_or(0);
-                        let cooldown_end: i64 = cooldown_result.try_read(2).unwrap_or(0);
-                        let category_id: u32 = cooldown_result.try_read(3).unwrap_or(0);
-                        let category_end: i64 = cooldown_result.try_read(4).unwrap_or(0);
-
-                        let spell_known_to_store = self.spell_store().is_none_or(|store| {
-                            i32::try_from(spell_id)
-                                .ok()
-                                .is_some_and(|id| store.get(id).is_some())
-                        });
-                        if spell_known_to_store {
-                            if let Some(entry) = spell_history_entry_from_db_like_cpp(
-                                spell_id,
-                                item_id,
-                                cooldown_end,
-                                category_id,
-                                category_end,
-                                now,
-                            ) {
-                                self.record_loaded_character_spell_cooldown_like_cpp(
-                                    spell_id,
-                                    item_id,
-                                    cooldown_end,
-                                    category_id,
-                                    category_end,
-                                );
-                                history_entries.push(entry);
-                            }
-                        }
-
-                        if !cooldown_result.next_row() {
-                            break;
+        let cooldown_outcome = match port.as_ref() {
+            Some(port) => {
+                port.load_login_auxiliary_like_cpp(
+                    wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellCooldowns {
+                        player_guid: guid_counter,
+                    },
+                )
+                .await
+            }
+            None => wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+                reason: "Player lifecycle port unavailable".to_owned(),
+            },
+        };
+        match cooldown_outcome {
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::SpellCooldowns(rows),
+            ) => {
+                for row in rows {
+                    let spell_known_to_store = self.spell_store().is_none_or(|store| {
+                        i32::try_from(row.spell_id)
+                            .ok()
+                            .is_some_and(|id| store.get(id).is_some())
+                    });
+                    if spell_known_to_store {
+                        if let Some(entry) = spell_history_entry_from_db_like_cpp(
+                            row.spell_id,
+                            row.item_id,
+                            row.cooldown_end,
+                            row.category_id,
+                            row.category_end,
+                            now,
+                        ) {
+                            self.record_loaded_character_spell_cooldown_like_cpp(
+                                row.spell_id,
+                                row.item_id,
+                                row.cooldown_end,
+                                row.category_id,
+                                row.category_end,
+                            );
+                            history_entries.push(entry);
                         }
                     }
                 }
                 self.mark_represented_character_spell_cooldowns_loaded_like_cpp();
             }
-            Err(error) => {
-                warn!("Failed to load spell cooldowns for {:?}: {error}", guid);
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!("Failed to load spell cooldowns for {:?}: {reason}", guid);
             }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(_) => warn!(
+                "Failed to load spell cooldowns for {:?}: lifecycle port returned mismatched rows",
+                guid
+            ),
         }
 
         let mut charges_by_category = BTreeMap::<u32, (i64, u8)>::new();
         self.reset_represented_character_spell_charges_like_cpp();
-        let mut charges_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELL_CHARGES);
-        charges_stmt.set_u64(0, guid_counter);
-        match char_db.query(&charges_stmt).await {
-            Ok(mut charges_result) => {
-                if !charges_result.is_empty() {
-                    loop {
-                        let category_id: u32 = charges_result.try_read(0).unwrap_or(0);
-                        let recharge_start: i64 = charges_result.try_read(1).unwrap_or(0);
-                        let recharge_end: i64 = charges_result.try_read(2).unwrap_or(0);
-                        let category_known_to_store = self
-                            .spell_category_store()
-                            .is_none_or(|store| store.get(category_id).is_some());
-                        if category_known_to_store && recharge_end > now {
-                            self.record_loaded_character_spell_charge_like_cpp(
-                                category_id,
-                                recharge_start,
-                                recharge_end,
-                            );
-                            charges_by_category
-                                .entry(category_id)
-                                .and_modify(|(first_recharge_end, consumed_charges)| {
-                                    *first_recharge_end = (*first_recharge_end).min(recharge_end);
-                                    *consumed_charges = consumed_charges.saturating_add(1);
-                                })
-                                .or_insert((recharge_end, 1));
-                        }
-
-                        if !charges_result.next_row() {
-                            break;
-                        }
+        let charges_outcome = match port {
+            Some(port) => {
+                port.load_login_auxiliary_like_cpp(
+                    wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellCharges {
+                        player_guid: guid_counter,
+                    },
+                )
+                .await
+            }
+            None => wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+                reason: "Player lifecycle port unavailable".to_owned(),
+            },
+        };
+        match charges_outcome {
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::SpellCharges(rows),
+            ) => {
+                for row in rows {
+                    let category_known_to_store = self
+                        .spell_category_store()
+                        .is_none_or(|store| store.get(row.category_id).is_some());
+                    if category_known_to_store && row.recharge_end > now {
+                        self.record_loaded_character_spell_charge_like_cpp(
+                            row.category_id,
+                            row.recharge_start,
+                            row.recharge_end,
+                        );
+                        charges_by_category
+                            .entry(row.category_id)
+                            .and_modify(|(first_recharge_end, consumed_charges)| {
+                                *first_recharge_end = (*first_recharge_end).min(row.recharge_end);
+                                *consumed_charges = consumed_charges.saturating_add(1);
+                            })
+                            .or_insert((row.recharge_end, 1));
                     }
                 }
                 self.mark_represented_character_spell_charges_loaded_like_cpp();
             }
-            Err(error) => {
-                warn!("Failed to load spell charges for {:?}: {error}", guid);
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!("Failed to load spell charges for {:?}: {reason}", guid);
             }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(_) => warn!(
+                "Failed to load spell charges for {:?}: lifecycle port returned mismatched rows",
+                guid
+            ),
         }
 
         let charge_entries = charges_by_category

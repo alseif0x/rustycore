@@ -23,8 +23,8 @@ use wow_persistence::{
     PlayerHomebindPersistenceRequestLikeCpp, PlayerInstanceTimeRestrictionLoadRowLikeCpp,
     PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
     PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginAuxiliaryLoadedLikeCpp,
-    PlayerOfflineMarkLikeCpp, PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp,
-    PlayerVoidStorageSaveLikeCpp,
+    PlayerOfflineMarkLikeCpp, PlayerSpellChargeLoadRowLikeCpp, PlayerSpellCooldownLoadRowLikeCpp,
+    PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp, PlayerVoidStorageSaveLikeCpp,
 };
 
 use crate::params::PreparedStatement;
@@ -1129,6 +1129,18 @@ fn player_login_auxiliary_load_statement_like_cpp(
             statement.set_u32(0, account_id);
             statement
         }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellCooldowns { player_guid } => {
+            let mut statement =
+                PreparedStatement::new(CharStatements::SEL_CHARACTER_SPELLCOOLDOWNS.sql());
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellCharges { player_guid } => {
+            let mut statement =
+                PreparedStatement::new(CharStatements::SEL_CHARACTER_SPELL_CHARGES.sql());
+            statement.set_u64(0, player_guid);
+            statement
+        }
     }
 }
 
@@ -1467,6 +1479,40 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                         }
                     }
                     PlayerLoginAuxiliaryLoadedLikeCpp::InstanceTimeRestrictions(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellCooldowns { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerSpellCooldownLoadRowLikeCpp {
+                                spell_id: result.try_read::<u32>(0).unwrap_or(0),
+                                item_id: result.try_read::<u32>(1).unwrap_or(0),
+                                cooldown_end: result.try_read::<i64>(2).unwrap_or(0),
+                                category_id: result.try_read::<u32>(3).unwrap_or(0),
+                                category_end: result.try_read::<i64>(4).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::SpellCooldowns(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellCharges { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerSpellChargeLoadRowLikeCpp {
+                                category_id: result.try_read::<u32>(0).unwrap_or(0),
+                                recharge_start: result.try_read::<i64>(1).unwrap_or(0),
+                                recharge_end: result.try_read::<i64>(2).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::SpellCharges(rows)
                 }
             };
             PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(loaded)
@@ -1812,6 +1858,16 @@ mod tests {
                 PlayerLoginAuxiliaryLoadRequestLikeCpp::InstanceTimeRestrictions { account_id: 88 },
                 CharStatements::SEL_ACCOUNT_INSTANCELOCKTIMES.sql(),
                 vec![crate::SqlParam::U32(88)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellCooldowns { player_guid: 77 },
+                CharStatements::SEL_CHARACTER_SPELLCOOLDOWNS.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellCharges { player_guid: 77 },
+                CharStatements::SEL_CHARACTER_SPELL_CHARGES.sql(),
+                vec![crate::SqlParam::U64(77)],
             ),
         ];
 
