@@ -55686,6 +55686,12 @@ pub(crate) fn step_creature_movement_like_cpp(
     use wow_packet::ServerPacket;
     use wow_packet::packets::movement::{MonsterMove, MonsterMoveStop, MovementMonsterSpline};
 
+    // C++ `Unit::Update(p_time)` gives `UpdateSplineMovement` and
+    // `MotionMaster::Update` the same map-owned diff. Advance the creature's
+    // logical deadline clock exactly once at that shared boundary; no wall
+    // clock may independently move either side of the movement state machine.
+    creature.advance_runtime_clock_like_cpp(diff_ms);
+
     if creature.is_alive() {
         // C++ `Unit::Update` advances `movespline` before calling
         // `i_motionMaster->Update(diff)`. The selected concrete generator below
@@ -56348,10 +56354,7 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                             !creature.is_alive()
                                 && creature.creature.unit().death_state()
                                     == wow_constants::DeathState::Corpse
-                                && creature
-                                    .corpse_despawn_at()
-                                    .map(|despawn_at| now >= despawn_at)
-                                    .unwrap_or(false)
+                                && creature.corpse_despawn_due_like_cpp()
                         })
                 })
                 .copied()
@@ -60026,7 +60029,7 @@ fn validate_and_append_creature_spell_cast_like_cpp(
     {
         return CreatureSpellCastValidationResultLikeCpp::CasterIncarnationRejected;
     }
-    let cooldown_now_ms = legacy_caster.now_ms();
+    let cooldown_now_ms = legacy_caster.runtime_elapsed_ms_like_cpp();
     let cooldown_profile = u32::try_from(command.spell_id).ok().and_then(|spell_id| {
         creature_ai_spell_cooldown_profile_like_cpp(spell_id, difficulty_id, config)
     });
@@ -62159,7 +62162,7 @@ impl WorldSession {
             .iter()
             .filter(|g| {
                 self.mutate_world_creature(**g, |c| {
-                    !c.is_alive() && c.corpse_despawn_at().map(|t| now >= t).unwrap_or(false)
+                    !c.is_alive() && c.corpse_despawn_due_like_cpp()
                 })
                 .unwrap_or(false)
             })

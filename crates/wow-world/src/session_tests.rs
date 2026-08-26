@@ -136,15 +136,11 @@ fn represented_test_give_player_xp_hook_like_cpp(
     }
 }
 
-/// How far to backdate a creature's clock so a scheduled assistance call is due.
-///
-/// `schedule_assistance_like_cpp` stores `now_ms() + family_assistance_delay_ms`
-/// as an absolute deadline on that creature's own clock, so backdating by
-/// `delay + 1` only makes it due if the test scheduled within one millisecond of
-/// the clock starting. That held on an idle machine and failed under load
-/// (#369). The margin is the delay plus room for the test to have taken its
-/// time getting there.
-const ASSISTANCE_DELAY_ELAPSED_LIKE_CPP: Duration = Duration::from_millis(1_500 + 250);
+/// Exact propagated Map-tick time needed for a scheduled assistance call.
+/// There is no scheduler margin after #371 because wall time cannot advance
+/// the creature between scheduling and the explicit logical-clock step.
+const ASSISTANCE_DELAY_ELAPSED_LIKE_CPP: Duration =
+    Duration::from_millis(wow_movement::CREATURE_FAMILY_ASSISTANCE_DELAY_MS_LIKE_CPP as u64);
 
 fn make_session() -> (
     WorldSession,
@@ -92968,9 +92964,54 @@ fn step_creature_movement_idle_positive_wander_radius_stays_still_like_cpp() {
     assert!(creature.creature.ai_ownership().move_target.is_none());
 }
 
-/// Live-cadence reproduction: drive many ticks with small, real-time
-/// synchronized diffs (advance the creature clock by the same `diff` we
-/// feed the generator), crossing several `wanderSteps` pause boundaries.
+/// C++ `Unit::Update(p_time)` passes the same `p_time` first to
+/// `UpdateSplineMovement` and then to `MotionMaster::Update`. Wall time between
+/// calls must not advance either side independently.
+#[test]
+fn step_creature_movement_advances_spline_and_generator_from_one_diff_like_cpp() {
+    let guid = test_creature_guid(200_025);
+    let mut creature = make_test_world_creature(guid);
+    creature.backdate_runtime_clock_for_test(Duration::from_secs(1));
+    let (_, spline) = creature
+        .begin_move_spline_like_cpp(Position::new(20.0, 0.0, 0.0, 0.0))
+        .expect("a non-zero move must launch a spline");
+    assert!(spline.duration_ms() > 17);
+
+    let elapsed_before = creature.runtime_elapsed_ms_like_cpp();
+    let motion_ticks_before = creature.runtime_motion_master_ticks_like_cpp();
+    std::thread::sleep(Duration::from_millis(25));
+    assert_eq!(
+        creature.runtime_elapsed_ms_like_cpp(),
+        elapsed_before,
+        "scheduler wall time is not a creature clock"
+    );
+
+    let config = MMapRuntimeConfigLikeCpp {
+        enabled: false,
+        ..Default::default()
+    };
+    let _ = step_creature_movement_like_cpp(&mut creature, guid, &config, None, None, None, 17);
+
+    assert_eq!(creature.runtime_elapsed_ms_like_cpp(), elapsed_before + 17);
+    assert_eq!(
+        creature
+            .creature
+            .unit()
+            .subsystems()
+            .motion
+            .spline
+            .progress_ms,
+        17
+    );
+    assert_eq!(
+        creature.runtime_motion_master_ticks_like_cpp(),
+        motion_ticks_before + 1
+    );
+}
+
+/// Live-cadence reproduction: drive many ticks with the same propagated diff
+/// advancing both the creature clock and generator, crossing several
+/// `wanderSteps` pause boundaries.
 /// Mirrors the production legacy loop after the real-diff fix. The creature
 /// must keep producing wander legs for the whole window — never permanently
 /// stall for scheduler-lag-scaled pauses after a few steps
@@ -92991,8 +93032,7 @@ fn step_creature_movement_random_keeps_wandering_over_many_ticks_like_cpp() {
         ai.wander_radius = 5.0;
     }
     creature.seed_runtime_rng_like_cpp(0x1234);
-    let mut clock_elapsed = Duration::from_secs(3600);
-    creature.backdate_runtime_clock_for_test(clock_elapsed);
+    creature.backdate_runtime_clock_for_test(Duration::from_secs(3600));
     let config = MMapRuntimeConfigLikeCpp {
         enabled: false,
         ..Default::default()
@@ -93004,8 +93044,6 @@ fn step_creature_movement_random_keeps_wandering_over_many_ticks_like_cpp() {
     let mut launches = 0usize;
     let mut launch_ticks: Vec<usize> = Vec::new();
     for tick in 0..600usize {
-        clock_elapsed += Duration::from_millis(u64::from(diff_ms));
-        creature.backdate_runtime_clock_for_test(clock_elapsed);
         if step_creature_movement_like_cpp(&mut creature, guid, &config, None, None, None, diff_ms)
             .is_some()
         {
@@ -93027,16 +93065,15 @@ fn step_creature_movement_random_keeps_wandering_over_many_ticks_like_cpp() {
     );
 }
 
-/// Positive re-arm: after the first wander spline finalizes (real wall
-/// clock) AND the per-tick `diff_ms` fed to the generator has drained its
-/// timer, `RandomMovementGenerator::DoUpdate` must roll a new destination
+/// Positive re-arm: after the first wander spline finalizes from propagated
+/// tick time and that same `diff_ms` has drained the generator timer,
+/// `RandomMovementGenerator::DoUpdate` must roll a new destination
 /// and launch the next leg (a fresh MonsterMove).
 ///
 /// C++ ref: `RandomMovementGenerator<Creature>::DoUpdate`
 /// (`_timer.Passed() && owner->movespline->Finalized()` → `SetRandomLocation`).
-/// The creature clock is driven from a fixed point in the past via the same
-/// `clock_started_at` seam other map_manager tests use, so the spline can be
-/// finalized deterministically without sleeping.
+/// The creature clock is set to a deterministic logical elapsed value, so the
+/// spline can be finalized without sleeping.
 #[test]
 fn step_creature_movement_random_rearms_next_leg_after_spline_finalizes_like_cpp() {
     use std::time::Duration;

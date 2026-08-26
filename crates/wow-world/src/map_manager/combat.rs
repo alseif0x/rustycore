@@ -66,7 +66,8 @@ impl WorldCreature {
         self.pending_assistance_like_cpp.push((
             victim,
             assistants,
-            self.now_ms().saturating_add(u64::from(delay_ms)),
+            self.runtime_elapsed_ms_like_cpp()
+                .saturating_add(u64::from(delay_ms)),
         ));
         true
     }
@@ -93,7 +94,7 @@ impl WorldCreature {
     }
 
     pub fn take_due_assistance_like_cpp(&mut self) -> Vec<(ObjectGuid, Vec<ObjectGuid>)> {
-        let now_ms = self.now_ms();
+        let now_ms = self.runtime_elapsed_ms_like_cpp();
         let mut due = Vec::new();
         self.pending_assistance_like_cpp
             .retain(|(victim, assistants, due_at_ms)| {
@@ -114,8 +115,10 @@ impl WorldCreature {
         effect_mask: u32,
         duration_ms: i32,
     ) -> Option<u8> {
-        let due_at_ms =
-            (duration_ms >= 0).then(|| self.now_ms().saturating_add(duration_ms as u64));
+        let due_at_ms = (duration_ms >= 0).then(|| {
+            self.runtime_elapsed_ms_like_cpp()
+                .saturating_add(duration_ms as u64)
+        });
         let replaced: Vec<_> = self
             .active_taunts_like_cpp
             .iter()
@@ -151,7 +154,7 @@ impl WorldCreature {
     }
 
     pub fn expire_taunt_auras_if_due_like_cpp(&mut self) -> Vec<u8> {
-        let now_ms = self.now_ms();
+        let now_ms = self.runtime_elapsed_ms_like_cpp();
         if !self.active_taunts_like_cpp.iter().any(|active| {
             active
                 .due_at_ms
@@ -225,7 +228,8 @@ impl WorldCreature {
         // resets `m_AlreadyCallAssistance` for the next engagement.
         self.assistance_called_like_cpp = false;
         self.reset_creature_spell_schedule_like_cpp();
-        self.creature.reset_ai_combat(self.now_ms());
+        self.creature
+            .reset_ai_combat(self.runtime_elapsed_ms_like_cpp());
         self.sync_runtime_motion_master_like_cpp();
         active_taunts
             .into_iter()
@@ -234,12 +238,13 @@ impl WorldCreature {
     }
 
     pub fn take_damage(&mut self, damage: u32) -> bool {
-        self.creature.take_ai_damage(damage, self.now_ms())
+        self.creature
+            .take_ai_damage(damage, self.runtime_elapsed_ms_like_cpp())
     }
 
     pub fn take_damage_before_death_state_like_cpp(&mut self, damage: u32) -> bool {
         self.creature
-            .apply_ai_damage_before_death_state_like_cpp(damage, self.now_ms())
+            .apply_ai_damage_before_death_state_like_cpp(damage, self.runtime_elapsed_ms_like_cpp())
     }
 
     pub fn take_damage_before_death_state_at_game_time_like_cpp(
@@ -247,7 +252,7 @@ impl WorldCreature {
         damage: u32,
         game_time_secs: i64,
     ) -> bool {
-        let local_elapsed_ms = self.now_ms();
+        let local_elapsed_ms = self.runtime_elapsed_ms_like_cpp();
         self.creature
             .apply_ai_damage_before_death_state_at_game_time_like_cpp(
                 damage,
@@ -264,7 +269,7 @@ impl WorldCreature {
         &mut self,
         game_time_secs: i64,
     ) {
-        let local_elapsed_ms = self.now_ms();
+        let local_elapsed_ms = self.runtime_elapsed_ms_like_cpp();
         self.creature
             .complete_ai_death_state_after_kill_hooks_like_cpp(local_elapsed_ms, game_time_secs);
     }
@@ -312,7 +317,7 @@ impl WorldCreature {
         slot: usize,
         delay_ms: u64,
     ) {
-        let due_at_ms = self.now_ms().saturating_add(delay_ms);
+        let due_at_ms = self.runtime_elapsed_ms_like_cpp().saturating_add(delay_ms);
         if let Some(due_at) = self.creature_spell_due_at_ms_like_cpp.get_mut(slot) {
             *due_at = Some(due_at_ms);
         }
@@ -325,7 +330,7 @@ impl WorldCreature {
     }
 
     pub(crate) fn first_due_creature_spell_slot_like_cpp(&self) -> Option<usize> {
-        let now_ms = self.now_ms();
+        let now_ms = self.runtime_elapsed_ms_like_cpp();
         self.creature_spell_due_at_ms_like_cpp
             .iter()
             .enumerate()
@@ -343,7 +348,7 @@ impl WorldCreature {
             .get(slot)
             .copied()
             .flatten()
-            .map(|due_at| due_at.saturating_sub(self.now_ms()))
+            .map(|due_at| due_at.saturating_sub(self.runtime_elapsed_ms_like_cpp()))
     }
 
     pub(crate) fn random_creature_spell_delay_like_cpp(

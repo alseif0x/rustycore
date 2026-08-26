@@ -1951,3 +1951,23 @@ Issue #188 records the full inventory in
 described in [`runtime-clock-phase-trace.md`](../architecture/runtime-clock-phase-trace.md), and
 `check_architecture.py check` proves that inventory stays truthful. No clock, cadence, phase order
 or bridge was changed by that issue: it is a trace taken before convergence, as its scope requires.
+
+## 2026-08-26 — Issue #371: one propagated clock for every legacy creature phase
+
+C++ `Map::Update(t_diff)` reaches `Unit::Update(p_time)`, which passes the same `p_time` first to
+`UpdateSplineMovement` and then to `MotionMaster::Update`. Rust previously mixed that propagated
+diff with `WorldCreature::clock_started_at.elapsed()`: generator selection consumed the tick diff,
+while spline progress and the creature's combat/lifecycle deadlines consumed scheduler wall time.
+
+#371 retires that per-creature wall-clock epoch. `WorldCreature` now stores a logical elapsed value
+advanced exactly once by `step_creature_movement_like_cpp` from the selected tick owner's
+`diff_ms`. Spline and MotionMaster therefore advance by the same amount in the same phase, and the
+same logical value owns melee readiness, creature-spell slots, assistance/taunt expiry, death,
+corpse decay and respawn deadlines. Absolute C++ `GameTime` values are converted to remaining
+durations only at compatibility boundaries; they are not a second ongoing runtime clock.
+
+The regression sleeps without ticking and proves the creature does not advance, then supplies one
+17 ms diff and proves both spline and generator consume it. #369's former scheduler margin is
+tightened to the exact C++ assistance delay because wall time can no longer make that test early or
+late. Packet bytes, fanout, tick-owner selection and legacy/canonical bridge ownership are
+unchanged.
