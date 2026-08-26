@@ -42,6 +42,19 @@ pub(crate) fn with_canonical_player_at_like_cpp<R>(
     Some(read(player))
 }
 
+pub(crate) fn with_canonical_player_at_mut_like_cpp<R>(
+    manager: &SharedCanonicalMapManager,
+    guid: ObjectGuid,
+    map_id: u32,
+    instance_id: u32,
+    mutate: impl FnOnce(&mut Player) -> R,
+) -> Option<R> {
+    let mut manager = manager.lock().ok()?;
+    let map = manager.find_map_mut(map_id, instance_id)?;
+    let player = map.map_mut().get_typed_player_mut(guid)?;
+    Some(mutate(player))
+}
+
 /// The `Player`-owned vitals copied into party/full-state and CREATE payloads.
 ///
 /// C++ reads these values directly from the target `Player` in
@@ -62,6 +75,7 @@ pub(crate) struct CanonicalPlayerVitalsLikeCpp {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct CanonicalPlayerPartyStateLikeCpp {
     pub vitals: CanonicalPlayerVitalsLikeCpp,
+    pub party_type: [u8; 2],
     pub is_pvp: bool,
     pub is_ffa_pvp: bool,
     pub is_ghost: bool,
@@ -126,6 +140,7 @@ pub(crate) fn canonical_player_party_state_like_cpp(
     let pvp = player.unit().pvp_flags_like_cpp();
     CanonicalPlayerPartyStateLikeCpp {
         vitals: canonical_player_vitals_like_cpp(player),
+        party_type: player.data().party_type,
         is_pvp: pvp.contains(UnitPvpFlags::PVP),
         is_ffa_pvp: pvp.contains(UnitPvpFlags::FFA_PVP),
         is_ghost: player.has_player_flag(crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP),

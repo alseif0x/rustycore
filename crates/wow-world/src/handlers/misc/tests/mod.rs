@@ -765,7 +765,6 @@ fn broadcast_info_with_command_tx(
             faction_template_id: 0,
             forced_reputation_ranks: Vec::new(),
             inventory_item_counts: Default::default(),
-            party_member_party_type: [0; 2],
             party_member_phase_states: Default::default(),
             party_member_auras: Vec::new(),
             party_member_pet_stats: None,

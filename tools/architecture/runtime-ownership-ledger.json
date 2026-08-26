@@ -1438,7 +1438,7 @@
         },
         {
           "id": "directory_gameplay_projection",
-          "expected_field_count": 21,
+          "expected_field_count": 20,
           "field_names": [
             "active_quest_objective_counts",
             "active_quest_statuses",
@@ -1453,7 +1453,6 @@
             "inventory_item_counts",
             "known_spells",
             "party_member_auras",
-            "party_member_party_type",
             "party_member_pet_stats",
             "party_member_phase_states",
             "party_member_vehicle_seat",
@@ -1503,7 +1502,7 @@
           "retirement_condition": "#252 removes every assigned residual through bounded canonical queries and deletes the broad projection without introducing a replacement mirror."
         }
       ],
-      "expected_field_count": 50
+      "expected_field_count": 49
     },
     "session_command": {
       "coverage_source": {

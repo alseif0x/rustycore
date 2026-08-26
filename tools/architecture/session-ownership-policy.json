@@ -55965,13 +55965,6 @@
           "source_class": "production"
         },
         {
-          "name": "party_member_party_type",
-          "type": "[u8 ; 2]",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "party_member_pet_stats",
           "type": "Option < PartyMemberPetStats >",
           "visibility": "pub",

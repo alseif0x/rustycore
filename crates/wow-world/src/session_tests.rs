@@ -1,14 +1,3 @@
-//! Behaviour tests for [`super`].
-//!
-//! Extracted from `session.rs`, which was 166,815 lines of which 94,772
-//! — 57% — were this one `mod tests`. The production code and its module
-//! boundaries are untouched: moving tests moves no invariant, so this is the one
-//! reduction available before #133's encapsulation work begins.
-//!
-//! Dedenting by one level lets rustfmt collapse some argument lists onto a single
-//! line, which drops their trailing commas; that is the only difference from the
-//! original text.
-
 #![cfg(test)]
 
 #[path = "session/tests/admission.rs"]
@@ -35,7 +24,7 @@ use routing::assert_destroyed_party_update_like_cpp;
 use super::*;
 use crate::canonical_player_access::{
     configure_canonical_player_party_flags_for_test as set_party_flags,
-    configure_canonical_player_vitals_for_test as set_vitals,
+    configure_canonical_player_vitals_for_test as set_vitals, with_canonical_player_at_like_cpp,
 };
 use crate::session::directory::{PlayerBroadcastInfo, PlayerSessionRegistrationLikeCpp};
 use crate::session::mailbox::{
@@ -8906,6 +8895,9 @@ async fn group_removal_command_clears_remote_party_type_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 42);
     let group_guid = 0xABCDEF;
     let player_registry = Arc::new(crate::session::directory::PlayerRegistry::default());
+    let canonical = shared_canonical_map_manager();
+    assert!(player_registry.bind_canonical_map_manager(Arc::clone(&canonical)));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(player_guid);
@@ -8925,25 +8917,23 @@ async fn group_removal_command_clears_remote_party_type_like_cpp() {
         80,
         0,
     ));
+    add_canonical_test_player_on_map(&canonical, player_guid, Position::ZERO, 571, 0);
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(
         Arc::clone(&group_registry),
         Arc::new(PendingInvites::default()),
     );
-    player_registry.register_or_replace(
-        player_guid,
-        broadcast_info_with_command(player_guid, registry_send_tx, session.session_command_tx()),
-        Default::default(),
-    );
+    let mut registration =
+        broadcast_info_with_command(player_guid, registry_send_tx, session.session_command_tx());
+    registration.info.map_id = 571;
+    player_registry.register_or_replace(player_guid, registration, Default::default());
     session.sync_player_registry_state_like_cpp();
 
-    let before = player_registry.fixture_snapshot(player_guid).unwrap();
+    let before = canonical_party_type_for_test(&canonical, player_guid);
     assert_eq!(
-        before.party_member_party_type
-            [usize::from(wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP)],
+        before[usize::from(wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP)],
         wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP
     );
-    drop(before);
 
     session
         .session_command_tx()
@@ -8964,12 +8954,11 @@ async fn group_removal_command_clears_remote_party_type_like_cpp() {
         .await;
 
     assert_eq!(session.group_guid, None);
-    let after = player_registry.fixture_snapshot(player_guid).unwrap();
+    let after = canonical_party_type_for_test(&canonical, player_guid);
     assert_eq!(
-        after.party_member_party_type[usize::from(wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP)],
+        after[usize::from(wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP)],
         wow_social::group::GROUP_TYPE_NONE_LIKE_CPP
     );
-    drop(after);
 
     let packets = drain_server_packet_bytes(&instance_rx);
     assert!(packets.iter().any(|bytes| {
@@ -8985,8 +8974,7 @@ async fn group_removal_command_clears_remote_party_type_like_cpp() {
         wow_packet::WorldPacket::from_bytes(&destroyed).server_opcode(),
         Some(ServerOpcodes::GroupDestroyed)
     );
-    // C++ `Group::Disband` sends every member the destroyed `PartyUpdate`
-    // after `GroupDestroyed` (`Group.cpp:744-746`).
+    // C++ `Group::Disband` sends the destroyed `PartyUpdate` after `GroupDestroyed`.
     let destroyed_update = realm_rx.try_recv().expect("realm destroyed PartyUpdate");
     assert_destroyed_party_update_like_cpp(&destroyed_update, group_guid);
     assert!(realm_rx.try_recv().is_err());
@@ -22380,6 +22368,14 @@ fn add_canonical_test_player_on_map(
     );
 }
 
+fn canonical_party_type_for_test(
+    canonical: &SharedCanonicalMapManager,
+    guid: ObjectGuid,
+) -> [u8; 2] {
+    with_canonical_player_at_like_cpp(canonical, guid, 571, 0, |player| player.data().party_type)
+        .expect("canonical player")
+}
+
 fn add_canonical_test_player_on_map_with_difficulty(
     canonical: &SharedCanonicalMapManager,
     guid: ObjectGuid,
@@ -35730,7 +35726,6 @@ fn broadcast_info_with_command(
             faction_template_id: 0,
             forced_reputation_ranks: Vec::new(),
             inventory_item_counts: Default::default(),
-            party_member_party_type: [0; 2],
             party_member_phase_states: Default::default(),
             party_member_auras: Vec::new(),
             party_member_pet_stats: None,
@@ -36624,6 +36619,10 @@ fn player_registry_publishes_home_group_party_type_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 46);
     let registry = Arc::new(PlayerRegistry::default());
+    let canonical = shared_canonical_map_manager();
+    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    add_canonical_test_player_on_map(&canonical, guid, Position::new(1.0, 2.0, 3.0, 0.0), 571, 0);
     let group_registry = Arc::new(GroupRegistry::default());
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     let group = GroupInfo::new(guid);
@@ -36638,9 +36637,9 @@ fn player_registry_publishes_home_group_party_type_like_cpp() {
 
     session.register_in_player_registry();
 
-    let info = registry.fixture_snapshot(guid).expect("registered player");
+    let party_type = canonical_party_type_for_test(&canonical, guid);
     assert_eq!(
-        info.party_member_party_type,
+        party_type,
         [
             wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP,
             wow_social::group::GROUP_TYPE_NONE_LIKE_CPP
@@ -36653,6 +36652,10 @@ fn player_registry_publishes_instance_group_party_type_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 49);
     let registry = Arc::new(PlayerRegistry::default());
+    let canonical = shared_canonical_map_manager();
+    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    add_canonical_test_player_on_map(&canonical, guid, Position::new(1.0, 2.0, 3.0, 0.0), 571, 0);
     let group_registry = Arc::new(GroupRegistry::default());
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
 
@@ -36674,9 +36677,9 @@ fn player_registry_publishes_instance_group_party_type_like_cpp() {
 
     session.register_in_player_registry();
 
-    let info = registry.fixture_snapshot(guid).expect("registered player");
+    let party_type = canonical_party_type_for_test(&canonical, guid);
     assert_eq!(
-        info.party_member_party_type,
+        party_type,
         [
             wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP,
             wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP

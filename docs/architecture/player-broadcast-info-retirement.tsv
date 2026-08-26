@@ -31,7 +31,6 @@ level	canonical Player progression	#252	query immutable level
 liquid_status	MapRuntime environment state	#252	query immutable player environment result
 map_id	MapRuntime player membership	#252	query immutable map identity
 party_member_auras	canonical Player/Unit aura state	#252	query immutable party aura presentation
-party_member_party_type	wow-social Group membership	#252	query immutable group membership type
 party_member_pet_stats	canonical Player pet state	#252	query immutable party pet presentation
 party_member_phase_states	canonical Player phase state	#252	query immutable party phase presentation
 party_member_vehicle_seat	canonical Player/Unit vehicle state	#252	query immutable vehicle seat

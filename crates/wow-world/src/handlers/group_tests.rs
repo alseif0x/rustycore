@@ -135,7 +135,6 @@ fn broadcast_info_with_command_tx(
             faction_template_id: 0,
             forced_reputation_ranks: Vec::new(),
             inventory_item_counts: Default::default(),
-            party_member_party_type: [0; 2],
             party_member_phase_states: Default::default(),
             party_member_auras: Vec::new(),
             party_member_pet_stats: None,
@@ -3141,7 +3140,6 @@ async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_
         info.zone_id = 618;
         info.spec_id = 260;
         info.position = Position::new(11.0, 22.0, 33.0, 0.0);
-        info.party_member_party_type = [1, 0];
         info.party_member_phase_states = wow_packet::packets::party::PartyMemberPhaseStates {
             phase_shift_flags: 0x08,
             personal_guid: ObjectGuid::EMPTY,
@@ -3185,6 +3183,8 @@ async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_
         wow_constants::UnitPvpFlags::PVP | wow_constants::UnitPvpFlags::FFA_PVP,
     );
     player.set_player_flag(crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP);
+    player.set_player_flag(crate::session::PLAYER_FLAGS_AFK_LIKE_CPP);
+    player.set_player_flag(crate::session::PLAYER_FLAGS_DND_LIKE_CPP);
     player
         .unit_mut()
         .set_display_power(wow_constants::PowerType::Energy);
@@ -3195,6 +3195,7 @@ async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_
     player
         .unit_mut()
         .set_power(wow_constants::PowerType::Energy, 42);
+    assert!(player.set_party_type_like_cpp(0, 1));
     canonical
         .lock()
         .unwrap()

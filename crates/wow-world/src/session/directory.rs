@@ -3,23 +3,15 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Shared directory of active player sessions for broadcast purposes.
-//!
-//! Each WorldSession registers itself here on player login and removes itself
-//! on logout/disconnect. Chat, emote and movement handlers use the directory
-//! to fan-out packets to nearby players on the same map.
-//!
-//! Identifying live session incarnations and resolving their control endpoints
-//! is session coordination, not socket transport, so the directory is owned
-//! here. The physical byte channels, socket write fences and `InstanceLink`
-//! remain in `wow-network`, and the Session mailbox protocol plus its durable
-//! rails stay there until issue #140 relocates them.
+//! Opaque directory of active session incarnations and addressing endpoints.
+//! Gameplay values resolve through bounded queries against their canonical owners.
 
 use crate::canonical_player_access::{
     CanonicalPlayerPartyStateLikeCpp, CanonicalPlayerVitalsLikeCpp, HonorStatsLikeCpp,
     canonical_player_honor_stats_like_cpp, canonical_player_party_state_like_cpp,
     canonical_player_reputation_standings_like_cpp,
     canonical_player_vitals_like_cpp as player_vitals, with_canonical_player_at_like_cpp,
+    with_canonical_player_at_mut_like_cpp,
 };
 use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
 use crate::session::SharedCanonicalMapManager;
@@ -173,8 +165,6 @@ pub struct PlayerBroadcastInfo {
     pub forced_reputation_ranks: Vec<(u32, wow_data::reputation::ReputationRankLikeCpp)>,
     /// Direct inventory item counts, keyed by item entry, used for remote quest-loot gates.
     pub inventory_item_counts: HashMap<u32, u32>,
-    /// C++ `PlayerData::PartyType[2]` snapshot for SMSG_PARTY_MEMBER_FULL_STATE.
-    pub party_member_party_type: [u8; 2],
     /// C++ `PartyMemberPhaseStates` snapshot for SMSG_PARTY_MEMBER_FULL_STATE.
     pub party_member_phase_states: PartyMemberPhaseStates,
     /// C++ `PartyMemberAuraStates` snapshot for SMSG_PARTY_MEMBER_FULL_STATE.
@@ -626,16 +616,6 @@ impl PlayerRegistry {
         self.canonical_map_manager.set(manager).is_ok()
     }
 
-    fn vitals(
-        &self,
-        guid: ObjectGuid,
-        map_id: u16,
-        instance_id: u32,
-    ) -> Option<CanonicalPlayerVitalsLikeCpp> {
-        let manager = self.canonical_map_manager.get()?;
-        with_canonical_player_at_like_cpp(manager, guid, map_id.into(), instance_id, player_vitals)
-    }
-
     fn party_state(
         &self,
         guid: ObjectGuid,
@@ -650,6 +630,18 @@ impl PlayerRegistry {
             instance_id,
             canonical_player_party_state_like_cpp,
         )
+    }
+
+    fn create_state(
+        &self,
+        guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+    ) -> Option<(CanonicalPlayerVitalsLikeCpp, [u8; 2])> {
+        let manager = self.canonical_map_manager.get()?;
+        with_canonical_player_at_like_cpp(manager, guid, map_id.into(), instance_id, |player| {
+            (player_vitals(player), player.data().party_type)
+        })
     }
 
     fn next_generation(&self) -> u64 {
@@ -891,7 +883,7 @@ impl PlayerRegistry {
             spec_id: info.spec_id,
             zone_id: info.zone_id,
             party_member_vehicle_seat: info.party_member_vehicle_seat,
-            party_member_party_type: info.party_member_party_type,
+            party_member_party_type: state.party_type,
             party_member_phase_states: info.party_member_phase_states,
             party_member_auras: info.party_member_auras,
             party_member_pet_stats: info.party_member_pet_stats,
@@ -927,14 +919,25 @@ impl PlayerRegistry {
         command_tx: &flume::Sender<SessionCommand>,
         party_type: [u8; 2],
     ) -> bool {
-        let Some(mut entry) = self.entries.get_mut(&guid) else {
+        let (map_id, instance_id) = {
+            let Some(entry) = self.entries.get(&guid) else {
+                return false;
+            };
+            if !entry.command_tx.same_channel(command_tx) {
+                return false;
+            }
+            (entry.info.map_id, entry.info.instance_id)
+        };
+        let Some(manager) = self.canonical_map_manager.get() else {
             return false;
         };
-        if !entry.command_tx.same_channel(command_tx) {
-            return false;
-        }
-        entry.info.party_member_party_type = party_type;
-        true
+        with_canonical_player_at_mut_like_cpp(manager, guid, map_id.into(), instance_id, |player| {
+            party_type
+                .into_iter()
+                .enumerate()
+                .all(|(category, value)| player.set_party_type_like_cpp(category as u8, value))
+        })
+        .unwrap_or(false)
     }
 
     /// Replace the published compatibility mirror only for the exact owning
@@ -1287,7 +1290,8 @@ impl PlayerRegistry {
         candidates
             .into_iter()
             .filter_map(|(guid, info)| {
-                let vitals = self.vitals(guid, info.map_id, info.instance_id)?;
+                let (vitals, party_type) =
+                    self.create_state(guid, info.map_id, info.instance_id)?;
                 Some(PlayerVisibilityCreateSnapshot {
                     guid,
                     position: info.position,
@@ -1306,7 +1310,7 @@ impl PlayerRegistry {
                     transport: info.transport.clone(),
                     visible_items: Arc::clone(&info.visible_items),
                     customizations: Arc::clone(&info.customizations),
-                    party_member_party_type: info.party_member_party_type,
+                    party_member_party_type: party_type,
                 })
             })
             .collect()
@@ -1558,7 +1562,8 @@ impl PlayerRegistry {
         candidates
             .into_iter()
             .filter_map(|(guid, info)| {
-                let vitals = self.vitals(guid, info.map_id, info.instance_id)?;
+                let (vitals, party_type) =
+                    self.create_state(guid, info.map_id, info.instance_id)?;
                 Some(PlayerVisibilityCreateSnapshot {
                     guid,
                     position: info.position,
@@ -1577,7 +1582,7 @@ impl PlayerRegistry {
                     transport: info.transport.clone(),
                     visible_items: Arc::clone(&info.visible_items),
                     customizations: Arc::clone(&info.customizations),
-                    party_member_party_type: info.party_member_party_type,
+                    party_member_party_type: party_type,
                 })
             })
             .collect()
@@ -1986,7 +1991,6 @@ mod tests {
                 faction_template_id: 0,
                 forced_reputation_ranks: Vec::new(),
                 inventory_item_counts: Default::default(),
-                party_member_party_type: [0; 2],
                 party_member_phase_states: Default::default(),
                 party_member_auras: Vec::new(),
                 party_member_pet_stats: None,

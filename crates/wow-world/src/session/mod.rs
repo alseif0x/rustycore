@@ -34505,7 +34505,6 @@ impl WorldSession {
             faction_template_id: self.player_faction_template_like_cpp.unwrap_or(0),
             forced_reputation_ranks,
             inventory_item_counts: self.represented_inventory_item_counts_like_cpp(),
-            party_member_party_type: self.party_member_party_type_like_cpp(),
             party_member_phase_states: party_member_phase_states_like_cpp(
                 self.represented_player_phase_shift_like_cpp(),
             )
@@ -34544,6 +34543,7 @@ impl WorldSession {
             },
             Arc::clone(&self.durable_loot_money_persistence_like_cpp),
         );
+        self.sync_player_registry_party_member_party_type_like_cpp();
         debug!(
             "Registered player {:?} ({}) in broadcast registry (map {})",
             guid, name, map_id
@@ -34623,7 +34623,6 @@ impl WorldSession {
             info.faction_template_id = self.player_faction_template_like_cpp.unwrap_or(0);
             info.forced_reputation_ranks = self.player_forced_reputation_ranks_snapshot_like_cpp();
             info.inventory_item_counts = self.represented_inventory_item_counts_like_cpp();
-            info.party_member_party_type = self.party_member_party_type_like_cpp();
             info.party_member_phase_states =
                 party_member_phase_states_like_cpp(self.represented_player_phase_shift_like_cpp())
                     .unwrap_or_default();
@@ -34637,6 +34636,7 @@ impl WorldSession {
                 info,
             );
         }
+        self.sync_player_registry_party_member_party_type_like_cpp();
     }
 
     fn object_accessor_inventory_snapshot(&self) -> PlayerInventoryStorage {
