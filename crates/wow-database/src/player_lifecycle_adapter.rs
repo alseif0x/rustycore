@@ -24,7 +24,8 @@ use wow_persistence::{
     PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
     PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginAuxiliaryLoadedLikeCpp,
     PlayerOfflineMarkLikeCpp, PlayerSpellChargeLoadRowLikeCpp, PlayerSpellCooldownLoadRowLikeCpp,
-    PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp, PlayerVoidStorageSaveLikeCpp,
+    PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp, PlayerTraitConfigLoadRowLikeCpp,
+    PlayerTraitEntryLoadRowLikeCpp, PlayerVoidStorageSaveLikeCpp,
 };
 
 use crate::params::PreparedStatement;
@@ -1141,6 +1142,18 @@ fn player_login_auxiliary_load_statement_like_cpp(
             statement.set_u64(0, player_guid);
             statement
         }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::TraitEntries { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHAR_TRAIT_ENTRIES);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::TraitConfigs { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHAR_TRAIT_CONFIGS);
+            statement.set_u64(0, player_guid);
+            statement
+        }
     }
 }
 
@@ -1514,6 +1527,45 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                     }
                     PlayerLoginAuxiliaryLoadedLikeCpp::SpellCharges(rows)
                 }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::TraitEntries { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerTraitEntryLoadRowLikeCpp {
+                                trait_config_id: result.try_read::<i32>(0),
+                                trait_node_id: result.try_read::<i32>(1),
+                                trait_node_entry_id: result.try_read::<i32>(2),
+                                rank: result.try_read::<i32>(3),
+                                granted_ranks: result.try_read::<i32>(4),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::TraitEntries(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::TraitConfigs { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerTraitConfigLoadRowLikeCpp {
+                                id: result.try_read::<i32>(0),
+                                config_type: result.try_read::<i32>(1),
+                                chr_specialization_id: result.try_read::<i32>(2),
+                                combat_config_flags: result.try_read::<i32>(3),
+                                local_identifier: result.try_read::<i32>(4),
+                                skill_line_id: result.try_read::<i32>(5),
+                                trait_system_id: result.try_read::<i32>(6),
+                                name: result.try_read::<String>(7),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::TraitConfigs(rows)
+                }
             };
             PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(loaded)
         })
@@ -1869,6 +1921,16 @@ mod tests {
                 CharStatements::SEL_CHARACTER_SPELL_CHARGES.sql(),
                 vec![crate::SqlParam::U64(77)],
             ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::TraitEntries { player_guid: 77 },
+                CharStatements::SEL_CHAR_TRAIT_ENTRIES.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::TraitConfigs { player_guid: 77 },
+                CharStatements::SEL_CHAR_TRAIT_CONFIGS.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
         ];
 
         for (request, expected_sql, expected_params) in cases {
@@ -1876,6 +1938,30 @@ mod tests {
             assert_eq!(statement.sql(), expected_sql);
             assert_eq!(statement.params(), expected_params);
         }
+    }
+
+    #[test]
+    fn trait_load_requests_keep_statement_identity_during_persistence_capture_like_cpp() {
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let _capture = crate::persistence_trace::RecordingGuard::enable();
+
+        let entries = player_login_auxiliary_load_statement_like_cpp(
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::TraitEntries { player_guid: 77 },
+        );
+        let configs = player_login_auxiliary_load_statement_like_cpp(
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::TraitConfigs { player_guid: 77 },
+        );
+
+        assert_eq!(entries.trace_identity(), Some("SEL_CHAR_TRAIT_ENTRIES"));
+        assert_eq!(
+            entries.trace_database(),
+            Some(crate::persistence_trace::LogicalDatabase::Character)
+        );
+        assert_eq!(configs.trace_identity(), Some("SEL_CHAR_TRAIT_CONFIGS"));
+        assert_eq!(
+            configs.trace_database(),
+            Some(crate::persistence_trace::LogicalDatabase::Character)
+        );
     }
 
     #[test]

@@ -11310,24 +11310,6 @@
       "package": "wow-world",
       "module": "crate::handlers::character::session_state",
       "source": "crates/wow-world/src/handlers/character/session_state.rs",
-      "enclosing": "impl WorldSession::load_active_player_trait_configs_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Player login/logout lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::session_state",
-      "source": "crates/wow-world/src/handlers/character/session_state.rs",
       "enclosing": "impl WorldSession::load_initial_world_states_for_login_like_cpp",
       "logical_databases": [
         "characters",

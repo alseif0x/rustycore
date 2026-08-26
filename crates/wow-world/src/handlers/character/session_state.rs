@@ -1589,129 +1589,153 @@ impl WorldSession {
         guid: ObjectGuid,
     ) -> Vec<TraitConfigCreateData> {
         self.begin_represented_trait_config_authority_load_like_cpp();
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
-            return Vec::new();
-        };
+        let port = self.player_lifecycle_port_like_cpp().cloned();
+        let player_guid = guid.counter() as u64;
 
-        let mut entries_stmt = char_db.prepare(CharStatements::SEL_CHAR_TRAIT_ENTRIES);
-        entries_stmt.set_u64(0, guid.counter() as u64);
         let mut entries_by_config = BTreeMap::<i32, Vec<TraitEntryCreateData>>::new();
         let mut entries_complete_like_cpp = false;
         let mut entries_empty_like_cpp = false;
-        match char_db.query(&entries_stmt).await {
-            Ok(mut result) => {
+        let entries_outcome = match port.as_ref() {
+            Some(port) => {
+                port.load_login_auxiliary_like_cpp(
+                    wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::TraitEntries {
+                        player_guid,
+                    },
+                )
+                .await
+            }
+            None => wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+                reason: "Player lifecycle port unavailable".to_owned(),
+            },
+        };
+        match entries_outcome {
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::TraitEntries(rows),
+            ) => {
                 entries_complete_like_cpp = true;
-                entries_empty_like_cpp = result.is_empty();
-                if !result.is_empty() {
-                    loop {
-                        match (
-                            result.try_read::<i32>(0),
-                            result.try_read::<i32>(1),
-                            result.try_read::<i32>(2),
-                            result.try_read::<i32>(3),
-                            result.try_read::<i32>(4),
-                        ) {
-                            (
-                                Some(trait_config_id),
-                                Some(trait_node_id),
-                                Some(trait_node_entry_id),
-                                Some(rank),
-                                Some(granted_ranks),
-                            ) => {
-                                entries_by_config.entry(trait_config_id).or_default().push(
-                                    TraitEntryCreateData {
-                                        trait_node_id,
-                                        trait_node_entry_id,
-                                        rank,
-                                        granted_ranks,
-                                    },
-                                );
-                            }
-                            _ => {
-                                entries_complete_like_cpp = false;
-                                warn!(
-                                    player_guid = guid.counter(),
-                                    "Keeping trait-entry authority incomplete: malformed row"
-                                );
-                            }
+                entries_empty_like_cpp = rows.is_empty();
+                for row in rows {
+                    match (
+                        row.trait_config_id,
+                        row.trait_node_id,
+                        row.trait_node_entry_id,
+                        row.rank,
+                        row.granted_ranks,
+                    ) {
+                        (
+                            Some(trait_config_id),
+                            Some(trait_node_id),
+                            Some(trait_node_entry_id),
+                            Some(rank),
+                            Some(granted_ranks),
+                        ) => {
+                            entries_by_config.entry(trait_config_id).or_default().push(
+                                TraitEntryCreateData {
+                                    trait_node_id,
+                                    trait_node_entry_id,
+                                    rank,
+                                    granted_ranks,
+                                },
+                            );
                         }
-
-                        if !result.next_row() {
-                            break;
+                        _ => {
+                            entries_complete_like_cpp = false;
+                            warn!(
+                                player_guid = guid.counter(),
+                                "Keeping trait-entry authority incomplete: malformed row"
+                            );
                         }
                     }
                 }
             }
-            Err(error) => {
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     player_guid = guid.counter(),
-                    "Failed to load character trait entries: {error}"
+                    "Failed to load character trait entries: {reason}"
                 );
             }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(_) => warn!(
+                player_guid = guid.counter(),
+                "Failed to load character trait entries: lifecycle port returned mismatched rows"
+            ),
         }
 
-        let mut configs_stmt = char_db.prepare(CharStatements::SEL_CHAR_TRAIT_CONFIGS);
-        configs_stmt.set_u64(0, guid.counter() as u64);
         let mut configs_complete_like_cpp = false;
-        let configs = match char_db.query(&configs_stmt).await {
-            Ok(mut result) => {
+        let configs_outcome = match port {
+            Some(port) => {
+                port.load_login_auxiliary_like_cpp(
+                    wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::TraitConfigs {
+                        player_guid,
+                    },
+                )
+                .await
+            }
+            None => wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+                reason: "Player lifecycle port unavailable".to_owned(),
+            },
+        };
+        let configs = match configs_outcome {
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::TraitConfigs(rows),
+            ) => {
                 configs_complete_like_cpp = true;
                 let mut configs = Vec::new();
-                if !result.is_empty() {
-                    loop {
-                        let id = result.try_read::<i32>(0);
-                        let config_type = result.try_read::<i32>(1);
-                        let chr_specialization_id = result.try_read::<i32>(2);
-                        let combat_config_flags = result.try_read::<i32>(3);
-                        let local_identifier = result.try_read::<i32>(4);
-                        let skill_line_id = result.try_read::<i32>(5);
-                        let trait_system_id = result.try_read::<i32>(6);
-                        let name = result.try_read::<String>(7);
-                        let type_columns_complete = match config_type {
-                            Some(1) => {
-                                chr_specialization_id.is_some()
-                                    && combat_config_flags.is_some()
-                                    && local_identifier.is_some()
-                            }
-                            Some(2) => skill_line_id.is_some(),
-                            Some(3) => trait_system_id.is_some(),
-                            Some(_) => true,
-                            None => false,
-                        };
-                        match (id, config_type, name, type_columns_complete) {
-                            (Some(id), Some(config_type), Some(name), true) => {
-                                configs.push(TraitConfigCreateData {
-                                    id,
-                                    config_type,
-                                    chr_specialization_id: chr_specialization_id.unwrap_or(0),
-                                    combat_config_flags: combat_config_flags.unwrap_or(0),
-                                    local_identifier: local_identifier.unwrap_or(0),
-                                    skill_line_id: skill_line_id.unwrap_or(0),
-                                    trait_system_id: trait_system_id.unwrap_or(0),
-                                    name,
-                                    entries: entries_by_config.remove(&id).unwrap_or_default(),
-                                });
-                            }
-                            _ => {
-                                configs_complete_like_cpp = false;
-                                warn!(
-                                    player_guid = guid.counter(),
-                                    "Keeping trait-config authority incomplete: malformed row"
-                                );
-                            }
+                for row in rows {
+                    let id = row.id;
+                    let config_type = row.config_type;
+                    let chr_specialization_id = row.chr_specialization_id;
+                    let combat_config_flags = row.combat_config_flags;
+                    let local_identifier = row.local_identifier;
+                    let skill_line_id = row.skill_line_id;
+                    let trait_system_id = row.trait_system_id;
+                    let name = row.name;
+                    let type_columns_complete = match config_type {
+                        Some(1) => {
+                            chr_specialization_id.is_some()
+                                && combat_config_flags.is_some()
+                                && local_identifier.is_some()
                         }
-
-                        if !result.next_row() {
-                            break;
+                        Some(2) => skill_line_id.is_some(),
+                        Some(3) => trait_system_id.is_some(),
+                        Some(_) => true,
+                        None => false,
+                    };
+                    match (id, config_type, name, type_columns_complete) {
+                        (Some(id), Some(config_type), Some(name), true) => {
+                            configs.push(TraitConfigCreateData {
+                                id,
+                                config_type,
+                                chr_specialization_id: chr_specialization_id.unwrap_or(0),
+                                combat_config_flags: combat_config_flags.unwrap_or(0),
+                                local_identifier: local_identifier.unwrap_or(0),
+                                skill_line_id: skill_line_id.unwrap_or(0),
+                                trait_system_id: trait_system_id.unwrap_or(0),
+                                name,
+                                entries: entries_by_config.remove(&id).unwrap_or_default(),
+                            });
+                        }
+                        _ => {
+                            configs_complete_like_cpp = false;
+                            warn!(
+                                player_guid = guid.counter(),
+                                "Keeping trait-config authority incomplete: malformed row"
+                            );
                         }
                     }
                 }
                 configs
             }
-            Err(error) => {
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     player_guid = guid.counter(),
-                    "Failed to load character trait configs: {error}"
+                    "Failed to load character trait configs: {reason}"
+                );
+                Vec::new()
+            }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(_) => {
+                warn!(
+                    player_guid = guid.counter(),
+                    "Failed to load character trait configs: lifecycle port returned mismatched rows"
                 );
                 Vec::new()
             }
