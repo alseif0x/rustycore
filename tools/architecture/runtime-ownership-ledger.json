@@ -1424,7 +1424,7 @@
         },
         {
           "id": "directory_gameplay_projection",
-          "expected_field_count": 20,
+          "expected_field_count": 19,
           "field_names": [
             "active_quest_objective_counts",
             "active_quest_statuses",
@@ -1443,7 +1443,6 @@
             "party_member_phase_states",
             "party_member_vehicle_seat",
             "pending_quest_sharing",
-            "position",
             "rewarded_quests",
             "transport"
           ],
@@ -1455,7 +1454,7 @@
         },
         {
           "id": "player_broadcast_remaining_assigned_mirrors",
-          "expected_field_count": 17,
+          "expected_field_count": 16,
           "field_names": [
             "customizations",
             "display_id",
@@ -1467,7 +1466,6 @@
             "is_alive",
             "is_dnd",
             "is_game_master",
-            "is_in_world",
             "level",
             "liquid_status",
             "spec_id",
@@ -1482,7 +1480,7 @@
           "retirement_condition": "#252 removes every assigned residual through bounded canonical queries and deletes the broad projection without introducing a replacement mirror."
         }
       ],
-      "expected_field_count": 40
+      "expected_field_count": 38
     },
     "session_command": {
       "coverage_source": {

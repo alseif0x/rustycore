@@ -10765,7 +10765,7 @@ fn creature_realm_fanout_uses_validated_position_without_canonical_mirror() {
         broadcast_info_with_command(observer, observer_send_tx, observer_command_tx);
     observer_info.placement.map_id = 571;
     observer_info.placement.instance_id = 0;
-    observer_info.info.position = source_position;
+    observer_info.placement.position = source_position;
     registry.register_or_replace(observer, observer_info, Default::default());
 
     source.set_player_guid(Some(source_player));
@@ -27608,11 +27608,11 @@ async fn update_visibility_uses_map_sources_without_world_db_like_cpp() {
     let (other_tx, _other_rx) = flume::bounded(1);
     let mut other_info = broadcast_info(other_player_guid, other_tx);
     other_info.placement.map_id = 571;
-    other_info.info.position = Position::new(50.0, 50.0, 0.0, 0.0);
+    other_info.placement.position = Position::new(50.0, 50.0, 0.0, 0.0);
     add_canonical_test_player_on_map(
         &canonical,
         other_player_guid,
-        other_info.info.position,
+        other_info.placement.position,
         571,
         0,
     );
@@ -31516,7 +31516,7 @@ fn canonical_access_requirement_connected_group_leader_achievement_matches_cpp()
     );
     assert!(member_send_rx.try_recv().is_err());
 
-    player_registry.fixture_update(leader_guid, |leader_info| {
+    player_registry.fixture_update(leader_guid, |leader_info, _| {
         leader_info.completed_achievements.insert(9001);
     });
     assert!(matches!(
@@ -33472,7 +33472,7 @@ fn configure_two_player_group_for_reputation_test(
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut other_info = broadcast_info(other_guid, other_tx);
     other_info.placement.map_id = 0;
-    other_info.info.position = Position::new(10.0, 10.0, 0.0, 0.0);
+    other_info.placement.position = Position::new(10.0, 10.0, 0.0, 0.0);
     other_info.info.level = 80;
     other_info.info.is_alive = true;
     player_registry.register_or_replace(other_guid, other_info, Default::default());
@@ -33838,7 +33838,7 @@ fn reputation_gain_applies_recruit_a_friend_bonus_for_non_spell_sources_like_cpp
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut recruit_info = broadcast_info(recruit_guid, recruit_tx);
     recruit_info.placement.map_id = 571;
-    recruit_info.info.position = Position::new(25.0, 0.0, 0.0, 0.0);
+    recruit_info.placement.position = Position::new(25.0, 0.0, 0.0, 0.0);
     recruit_info.identity.account_id = 2;
     recruit_info.identity.recruiter_id = 0;
     player_registry.register_or_replace(recruit_guid, recruit_info, Default::default());
@@ -33895,7 +33895,7 @@ fn reputation_gain_recruit_a_friend_bonus_requires_configured_distance_like_cpp(
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut recruit_info = broadcast_info(recruit_guid, recruit_tx);
     recruit_info.placement.map_id = 571;
-    recruit_info.info.position = Position::new(25.0, 0.0, 0.0, 0.0);
+    recruit_info.placement.position = Position::new(25.0, 0.0, 0.0, 0.0);
     recruit_info.identity.account_id = 2;
     player_registry.register_or_replace(recruit_guid, recruit_info, Default::default());
 
@@ -35654,7 +35654,7 @@ fn publishing_gameplay_state_cannot_detach_the_shared_session_handles_like_cpp()
     visibility.insert(seen);
 
     // The only thing a gameplay publish can replace is the projection.
-    assert!(registry.fixture_update(guid, |info| info.level = 80));
+    assert!(registry.fixture_update(guid, |info, _| info.level = 80));
     assert_eq!(
         registry.fixture_snapshot(guid).expect("registered").level,
         80,
@@ -35705,12 +35705,12 @@ fn broadcast_info_with_command(
         placement: PlayerDirectoryPlacementLikeCpp {
             map_id: 0,
             instance_id: 0,
+            position: Position::ZERO,
+            is_in_world: true,
         },
         info: PlayerBroadcastInfo {
-            position: Position::new(0.0, 0.0, 0.0, 0.0),
             combat_reach: 0.0,
             liquid_status: 0,
-            is_in_world: true,
             active_loot_rolls: Vec::new(),
             in_combat: false,
             pass_on_group_loot: false,
@@ -35957,7 +35957,7 @@ fn player_entry_visibility_refresh_skips_out_of_range_sessions_like_cpp() {
         Default::default(),
     );
     let mut far_info = broadcast_info_with_command(far_guid, far_tx, far_command_tx);
-    far_info.info.position =
+    far_info.placement.position =
         Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
     registry.register_or_replace(far_guid, far_info, Default::default());
 
@@ -36110,7 +36110,7 @@ fn visible_other_players_skips_out_of_visibility_range_like_cpp() {
     registry.register_or_replace(nearby_guid, nearby_info, Default::default());
     let mut far_info = broadcast_info(far_guid, far_tx);
     far_info.placement.map_id = 571;
-    far_info.info.position =
+    far_info.placement.position =
         Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
     registry.register_or_replace(far_guid, far_info, Default::default());
 
@@ -36997,7 +36997,7 @@ fn insert_represented_vehicle_target_like_cpp(
     let mut info = broadcast_info(target_guid, send_tx);
     info.placement.map_id = 571;
     info.placement.instance_id = 0;
-    info.info.position = position;
+    info.placement.position = position;
     info.info.has_vehicle_kit_like_cpp = has_vehicle_kit_like_cpp;
     registry.register_or_replace(target_guid, info, Default::default());
 }
@@ -38150,9 +38150,9 @@ async fn creature_kill_target_dies_proc_filters_group_reward_distance_like_cpp()
     let (far_tx, _far_rx) = flume::bounded(10);
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut near_info = broadcast_info(near_member, near_tx);
-    near_info.info.position = Position::new(20.0, 10.0, 0.0, 0.0);
+    near_info.placement.position = Position::new(20.0, 10.0, 0.0, 0.0);
     let mut far_info = broadcast_info(far_member, far_tx);
-    far_info.info.position = Position::new(200.0, 10.0, 0.0, 0.0);
+    far_info.placement.position = Position::new(200.0, 10.0, 0.0, 0.0);
     player_registry.register_or_replace(near_member, near_info, Default::default());
     player_registry.register_or_replace(far_member, far_info, Default::default());
     let group_registry = Arc::new(GroupRegistry::default());
@@ -39898,7 +39898,7 @@ async fn spell_duel_effect_requests_duel_and_sets_challenged_state_like_cpp() {
     let (target_tx, _target_rx) = flume::bounded(10);
     let mut target_info = broadcast_info(target_guid, target_tx);
     target_info.placement.map_id = 571;
-    target_info.info.position = Position::new(12.0, 10.0, 0.0, 0.0);
+    target_info.placement.position = Position::new(12.0, 10.0, 0.0, 0.0);
     target_info.command_tx = target_session.session_command_tx();
     registry.register_or_replace(target_guid, target_info, Default::default());
     session.set_player_registry(registry);
@@ -45125,7 +45125,7 @@ async fn spell_taunt_effect_matches_caster_threat_to_highest_like_cpp() {
     let (observer_command_tx, observer_command_rx) = flume::bounded(4);
     let observer_guid = ObjectGuid::create_player(1, 2793);
     let mut observer = broadcast_info_with_command(observer_guid, observer_tx, observer_command_tx);
-    observer.info.position = position;
+    observer.placement.position = position;
     registry.register_or_replace(observer_guid, observer, Default::default());
     session.set_player_registry(registry);
     session.set_canonical_map_manager(Arc::clone(&canonical));
@@ -55569,7 +55569,7 @@ fn give_xp_runtime_raf_awards_triple_xp_without_spending_rested_bonus_like_cpp()
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut recruit_info = broadcast_info(recruit_guid, recruit_tx);
     recruit_info.placement.map_id = 1;
-    recruit_info.info.position = Position::new(10.0, 0.0, 0.0, 0.0);
+    recruit_info.placement.position = Position::new(10.0, 0.0, 0.0, 0.0);
     recruit_info.identity.account_id = 2;
     recruit_info.info.level = 10;
     player_registry.register_or_replace(recruit_guid, recruit_info, Default::default());
@@ -55587,16 +55587,12 @@ fn give_xp_runtime_raf_awards_triple_xp_without_spending_rested_bonus_like_cpp()
         "C++ LoadFromDB runs before the player enters the world"
     );
     session.set_state(SessionState::LoggedIn);
-    assert!(player_registry.fixture_update(recruit_guid, |recruit| {
-        recruit.is_in_world = false;
-    }));
+    assert!(player_registry.fixture_update(recruit_guid, |_, p| p.is_in_world = false));
     assert!(
         !session.gets_recruit_a_friend_xp_bonus_like_cpp(),
         "C++ IsInMap rejects a grouped member that is not in world"
     );
-    assert!(player_registry.fixture_update(recruit_guid, |recruit| {
-        recruit.is_in_world = true;
-    }));
+    assert!(player_registry.fixture_update(recruit_guid, |_, p| p.is_in_world = true));
     assert!(session.gets_recruit_a_friend_xp_bonus_like_cpp());
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
     install_tapped_xp_victim_like_cpp(&mut session, victim);
@@ -80119,9 +80115,9 @@ async fn gameobject_use_goober_kill_credit_filters_group_reward_distance_like_cp
     let (near_tx, _near_rx) = flume::bounded(1);
     let (far_tx, _far_rx) = flume::bounded(1);
     let mut near_info = broadcast_info(near_member, near_tx);
-    near_info.info.position = Position::new(20.0, 0.0, 0.0, 0.0);
+    near_info.placement.position = Position::new(20.0, 0.0, 0.0, 0.0);
     let mut far_info = broadcast_info(far_member, far_tx);
-    far_info.info.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
+    far_info.placement.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
     player_registry.register_or_replace(near_member, near_info, Default::default());
     player_registry.register_or_replace(far_member, far_info, Default::default());
 

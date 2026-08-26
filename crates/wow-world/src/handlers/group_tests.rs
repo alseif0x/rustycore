@@ -112,12 +112,12 @@ fn broadcast_info_with_command_tx(
         placement: PlayerDirectoryPlacementLikeCpp {
             map_id: 0,
             instance_id: 0,
+            position: Position::ZERO,
+            is_in_world: true,
         },
         info: PlayerBroadcastInfo {
-            position: Position::ZERO,
             combat_reach: 0.0,
             liquid_status: 0,
-            is_in_world: true,
             active_loot_rolls: Vec::new(),
             in_combat: false,
             pass_on_group_loot: false,
@@ -2381,7 +2381,7 @@ fn party_member_full_state_carries_phase_states_like_cpp() {
         broadcast_info(member, member_tx),
         Default::default(),
     );
-    registry.fixture_update(member, |info| {
+    registry.fixture_update(member, |info, _| {
         info.party_member_phase_states = wow_packet::packets::party::PartyMemberPhaseStates {
             phase_shift_flags: 0x08,
             personal_guid: ObjectGuid::EMPTY,
@@ -3132,7 +3132,7 @@ async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_
     let mut registration = broadcast_info(target, target_tx);
     registration.identity.class = 4;
     registry.register_or_replace(target, registration, Default::default());
-    registry.fixture_update(target, |info| {
+    registry.fixture_update(target, |info, placement| {
         info.level = 80;
         info.is_afk = true;
         info.is_dnd = true;
@@ -3140,7 +3140,7 @@ async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_
         info.party_member_vehicle_seat = 1001;
         info.zone_id = 618;
         info.spec_id = 260;
-        info.position = Position::new(11.0, 22.0, 33.0, 0.0);
+        placement.position = Position::new(11.0, 22.0, 33.0, 0.0);
         info.party_member_phase_states = wow_packet::packets::party::PartyMemberPhaseStates {
             phase_shift_flags: 0x08,
             personal_guid: ObjectGuid::EMPTY,

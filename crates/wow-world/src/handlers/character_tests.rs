@@ -5686,9 +5686,9 @@ fn make_binder_observer(
         observer.client_visible_guids_like_cpp.insert(innkeeper);
     }
     observer.register_in_player_registry();
-    assert!(registry.fixture_update(guid, |info| {
-        info.is_in_world = true;
-        info.position = position;
+    assert!(registry.fixture_update(guid, |_, placement| {
+        placement.is_in_world = true;
+        placement.position = position;
     }));
     (observer, send_rx)
 }

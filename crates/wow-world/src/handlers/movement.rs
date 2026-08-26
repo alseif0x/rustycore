@@ -2180,7 +2180,7 @@ mod tests {
             Default::default(),
         );
         let mut other_info = broadcast_info_with_command(other_guid, other_tx, other_command_tx);
-        other_info.info.position = moved_position;
+        other_info.placement.position = moved_position;
         registry.register_or_replace(other_guid, other_info, Default::default());
 
         let movement = MovementInfo {
@@ -2255,7 +2255,7 @@ mod tests {
             Default::default(),
         );
         let mut far_info = broadcast_info_with_command(far_guid, far_tx, far_command_tx);
-        far_info.info.position =
+        far_info.placement.position =
             wow_core::Position::new(crate::map_manager::VISIBILITY_RADIUS + 10.0, 0.0, 0.0, 0.0);
         registry.register_or_replace(far_guid, far_info, Default::default());
 
@@ -2761,12 +2761,12 @@ mod tests {
             placement: crate::session::directory::PlayerDirectoryPlacementLikeCpp {
                 map_id: 0,
                 instance_id: 0,
+                position: wow_core::Position::ZERO,
+                is_in_world: true,
             },
             info: crate::session::directory::PlayerBroadcastInfo {
-                position: wow_core::Position::ZERO,
                 combat_reach: 0.0,
                 liquid_status: 0,
-                is_in_world: true,
                 active_loot_rolls: Vec::new(),
                 in_combat: false,
                 pass_on_group_loot: false,

@@ -21,7 +21,6 @@ is_afk	canonical Player social presence	#252	query immutable AFK state
 is_alive	canonical Player/Unit vitals	#252	query immutable alive state
 is_dnd	canonical Player social presence	#252	query immutable DND state
 is_game_master	canonical Player visibility/security state	#252	query immutable GM state
-is_in_world	MapRuntime player membership	#252	query immutable in-world membership
 known_spells	canonical Player spellbook	#252	query minimum immutable spell membership
 level	canonical Player progression	#252	query immutable level
 liquid_status	MapRuntime environment state	#252	query immutable player environment result
@@ -31,7 +30,6 @@ party_member_phase_states	canonical Player phase state	#252	query immutable part
 party_member_vehicle_seat	canonical Player/Unit vehicle state	#252	query immutable vehicle seat
 pass_on_group_loot	canonical Player loot preference	#252	query immutable loot preference
 pending_quest_sharing	canonical Player quest/social state	#252	query immutable pending share
-position	canonical Player location under MapRuntime	#252	query immutable spatial position
 rewarded_quests	canonical Player quest log	#252	query immutable rewarded membership
 spec_id	canonical Player specialization	#252	query immutable active specialization
 transport	canonical Player location under MapRuntime	#252	query immutable transport passenger state

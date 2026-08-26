@@ -2883,7 +2883,7 @@ fn corpse_money_reward_distance_ignores_range_only_in_same_dungeon_instance_like
     let registry = Arc::new(PlayerRegistry::default());
     let (member_tx, _member_rx) = flume::bounded(1);
     let mut member = broadcast_info(member_guid, member_tx.clone());
-    member.info.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
+    member.placement.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
     registry.register_or_replace(member_guid, member, Default::default());
     session.set_player_registry(Arc::clone(&registry));
     let mut loot = authoritative_test_loot_like_cpp(8, false);
@@ -2923,7 +2923,7 @@ fn corpse_money_reward_distance_ignores_range_only_in_same_dungeon_instance_like
     );
 
     let mut wrong_instance = broadcast_info(member_guid, member_tx);
-    wrong_instance.info.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
+    wrong_instance.placement.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
     wrong_instance.placement.instance_id = 1;
     registry.register_or_replace(member_guid, wrong_instance, Default::default());
     assert_eq!(
@@ -2943,7 +2943,7 @@ fn chest_allowed_looters_ignore_range_only_in_same_dungeon_instance_like_cpp() {
     let registry = Arc::new(PlayerRegistry::default());
     let (member_tx, _member_rx) = flume::bounded(1);
     let mut member = broadcast_info(member_guid, member_tx.clone());
-    member.info.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
+    member.placement.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
     registry.register_or_replace(member_guid, member, Default::default());
     session.set_player_registry(Arc::clone(&registry));
 
@@ -2980,7 +2980,7 @@ fn chest_allowed_looters_ignore_range_only_in_same_dungeon_instance_like_cpp() {
     );
 
     let mut wrong_instance = broadcast_info(member_guid, member_tx);
-    wrong_instance.info.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
+    wrong_instance.placement.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
     wrong_instance.placement.instance_id = 1;
     registry.register_or_replace(member_guid, wrong_instance, Default::default());
     assert_eq!(
@@ -4772,12 +4772,12 @@ fn broadcast_info(
         placement: PlayerDirectoryPlacementLikeCpp {
             map_id: 0,
             instance_id: 0,
+            position: Position::ZERO,
+            is_in_world: true,
         },
         info: PlayerBroadcastInfo {
-            position: Position::ZERO,
             combat_reach: 0.0,
             liquid_status: 0,
-            is_in_world: true,
             active_loot_rolls: Vec::new(),
             in_combat: false,
             pass_on_group_loot: false,
@@ -6031,7 +6031,7 @@ fn overworld_personal_loot_test_fixture_like_cpp() -> OverworldPersonalLootTestF
     registry.register_or_replace(second_tapper, second, Default::default());
     let (disconnected_tx, _disconnected_rx) = flume::bounded(1);
     let mut disconnected = broadcast_info(disconnected_tapper, disconnected_tx);
-    disconnected.info.is_in_world = false;
+    disconnected.placement.is_in_world = false;
     registry.register_or_replace(disconnected_tapper, disconnected, Default::default());
     session.set_player_registry(registry);
 

@@ -742,12 +742,12 @@ fn broadcast_info_with_command_tx(
         placement: PlayerDirectoryPlacementLikeCpp {
             map_id: 571,
             instance_id: 0,
+            position: Position::ZERO,
+            is_in_world: true,
         },
         info: PlayerBroadcastInfo {
-            position: Position::ZERO,
             combat_reach: 0.0,
             liquid_status: 0,
-            is_in_world: true,
             active_loot_rolls: Vec::new(),
             in_combat: false,
             pass_on_group_loot: false,

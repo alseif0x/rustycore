@@ -34453,10 +34453,8 @@ impl WorldSession {
             .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_DND_LIKE_CPP)
             .unwrap_or(false);
         let info = PlayerBroadcastInfo {
-            position: pos,
             combat_reach: self.canonical_player_combat_reach_snapshot_like_cpp(),
             liquid_status: self.player_liquid_status_like_cpp(),
-            is_in_world: self.player_is_in_world_for_registry_like_cpp(),
             active_loot_rolls: self
                 .represented_loot_rolls
                 .values()
@@ -34529,6 +34527,8 @@ impl WorldSession {
                 placement: crate::session::directory::PlayerDirectoryPlacementLikeCpp {
                     map_id,
                     instance_id,
+                    position: pos,
+                    is_in_world: self.player_is_in_world_for_registry_like_cpp(),
                 },
                 info,
                 send_tx: self.send_tx().clone(),
@@ -34558,6 +34558,7 @@ impl WorldSession {
         let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry) else {
             return;
         };
+        self.update_registry_position();
         // Work on an owned incarnation snapshot. Publication below verifies the
         // exact owning control channel, so a stale session cannot overwrite its
         // replacement and no directory guard escapes this module.
@@ -34569,7 +34570,6 @@ impl WorldSession {
             return;
         };
         if let Some(mut info) = registry.lookup_current(registration) {
-            info.is_in_world = self.player_is_in_world_for_registry_like_cpp();
             info.combat_reach = self.canonical_player_combat_reach_snapshot_like_cpp();
             info.liquid_status = self.player_liquid_status_like_cpp();
             info.active_loot_rolls = self
@@ -34702,6 +34702,7 @@ impl WorldSession {
                 position: pos,
                 map_id,
                 instance_id,
+                is_in_world: self.player_is_in_world_for_registry_like_cpp(),
                 liquid_status: self.player_liquid_status_like_cpp(),
                 transport: self.player_transport_info_like_cpp(),
             },

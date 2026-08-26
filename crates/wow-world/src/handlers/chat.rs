@@ -1947,7 +1947,7 @@ mod tests {
         position: wow_core::Position,
     ) -> PlayerSessionRegistrationLikeCpp {
         let mut info = broadcast_info(guid, send_tx);
-        info.info.position = position;
+        info.placement.position = position;
         info
     }
 
@@ -1958,7 +1958,7 @@ mod tests {
         position: wow_core::Position,
     ) -> PlayerSessionRegistrationLikeCpp {
         let mut info = broadcast_info_with_command_tx(guid, send_tx, command_tx);
-        info.info.position = position;
+        info.placement.position = position;
         info
     }
 
@@ -1980,12 +1980,12 @@ mod tests {
             placement: crate::session::directory::PlayerDirectoryPlacementLikeCpp {
                 map_id: 571,
                 instance_id: 0,
+                position: wow_core::Position::ZERO,
+                is_in_world: true,
             },
             info: PlayerBroadcastInfo {
-                position: wow_core::Position::ZERO,
                 combat_reach: 0.0,
                 liquid_status: 0,
-                is_in_world: true,
                 active_loot_rolls: Vec::new(),
                 in_combat: false,
                 pass_on_group_loot: false,
@@ -2112,7 +2112,7 @@ mod tests {
         flag: u32,
         message: &str,
     ) {
-        registry.fixture_update(guid, |info| {
+        registry.fixture_update(guid, |info, _| {
             info.is_afk = flag == crate::session::PLAYER_FLAGS_AFK_LIKE_CPP;
             info.is_dnd = flag == crate::session::PLAYER_FLAGS_DND_LIKE_CPP;
         });
@@ -2653,7 +2653,7 @@ mod tests {
             not_in_world_command_tx,
             wow_core::Position::new(20.0, 0.0, 0.0, 0.0),
         );
-        not_in_world_info.info.is_in_world = false;
+        not_in_world_info.placement.is_in_world = false;
         player_registry.register_or_replace(not_in_world, not_in_world_info, Default::default());
         set_emotes_text_entries(
             &mut session,
@@ -2812,7 +2812,7 @@ mod tests {
     async fn send_text_emote_fake_death_skips_animation_but_keeps_text_like_cpp() {
         let sender = ObjectGuid::create_player(1, 352);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
-        player_registry.fixture_update(sender, |info| {
+        player_registry.fixture_update(sender, |info, _| {
             info.unit_state = UnitState::DIED.bits();
         });
         set_emotes_text_entries(&mut session, [emotes_text_entry(66, 3)]);

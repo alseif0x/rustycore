@@ -274,13 +274,13 @@ fn player_broadcast_info_fixture_like_cpp(
         placement: PlayerDirectoryPlacementLikeCpp {
             map_id: 0,
             instance_id: 0,
+            position: wow_core::Position::ZERO,
+            is_in_world: true,
         },
         info: PlayerBroadcastInfo {
-            position: wow_core::Position::ZERO,
             combat_reach: 0.0,
             in_combat: false,
             liquid_status: 0,
-            is_in_world: true,
             active_loot_rolls: Vec::new(),
             pass_on_group_loot: false,
             enchanting_skill: 0,
@@ -349,7 +349,7 @@ fn insert_player_broadcast_fixture_with_in_world_like_cpp(
 ) {
     let mut info =
         player_broadcast_info_fixture_like_cpp(send_tx, command_tx, &format!("Player{counter}"));
-    info.info.is_in_world = is_in_world;
+    info.placement.is_in_world = is_in_world;
     registry.register_or_replace(
         ObjectGuid::create_player(1, counter as i64),
         info,
@@ -6989,13 +6989,13 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
             placement: PlayerDirectoryPlacementLikeCpp {
                 map_id: 0,
                 instance_id: 0,
+                position: wow_core::Position::ZERO,
+                is_in_world: true,
             },
             info: PlayerBroadcastInfo {
-                position: wow_core::Position::ZERO,
                 combat_reach: 0.0,
                 in_combat: false,
                 liquid_status: 0,
-                is_in_world: true,
                 active_loot_rolls: Vec::new(),
                 pass_on_group_loot: false,
                 enchanting_skill: 0,
@@ -10353,8 +10353,8 @@ fn make_registry_player_like_cpp(
     let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "Tester");
     info.placement.map_id = map_id;
     info.placement.instance_id = instance_id;
-    info.info.position = position;
-    info.info.is_in_world = is_in_world;
+    info.placement.position = position;
+    info.placement.is_in_world = is_in_world;
     (info, command_rx)
 }
 
@@ -10909,8 +10909,8 @@ fn full_command_channel_increments_send_failed_and_does_not_block_like_cpp() {
     let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "Full");
     info.placement.map_id = 571;
     info.placement.instance_id = 0;
-    info.info.is_in_world = true;
-    info.info.position = Position::ZERO;
+    info.placement.is_in_world = true;
+    info.placement.position = Position::ZERO;
     registry.register_or_replace(guid, info, Default::default());
 
     let event = make_nearby_visible_event_like_cpp(571, 0, Position::ZERO, 1000.0, false);
@@ -10996,7 +10996,7 @@ fn refresh_visible_world_creatures_full_channel_counts_send_failed_like_cpp() {
     let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "RefreshFull");
     info.placement.map_id = 571;
     info.placement.instance_id = 7;
-    info.info.is_in_world = true;
+    info.placement.is_in_world = true;
     registry.register_or_replace(guid, info, Default::default());
 
     let summary = deliver_refresh_visible_world_creatures_like_cpp(571, 7, &registry);
@@ -11438,7 +11438,7 @@ fn creature_attack_start_delivery_uses_durable_rail_when_general_queue_is_full_l
     let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx.clone(), "AggroFull");
     info.placement.map_id = 571;
     info.placement.instance_id = 0;
-    info.info.is_in_world = true;
+    info.placement.is_in_world = true;
     info.info.is_alive = true;
     registry.register_or_replace(victim, info, Default::default());
     let command = wow_world::session::mailbox::CreatureAttackStartLikeCppCommand {
@@ -11735,7 +11735,7 @@ fn creature_melee_damage_delivery_poisoned_durable_rail_counts_send_failed_like_
     let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "MeleeFull");
     info.placement.map_id = 571;
     info.placement.instance_id = 0;
-    info.info.is_in_world = true;
+    info.placement.is_in_world = true;
     let durable = Arc::clone(&info.durable_creature_runtime_commands_like_cpp);
     let _ = std::thread::spawn(move || {
         let _guard = durable.lock().unwrap();
@@ -11776,7 +11776,7 @@ fn creature_melee_damage_delivery_preserves_every_swing_when_general_queue_is_fu
         player_broadcast_info_fixture_like_cpp(send_tx, command_tx.clone(), "MeleeRetry");
     info.placement.map_id = 571;
     info.placement.instance_id = 0;
-    info.info.is_in_world = true;
+    info.placement.is_in_world = true;
     registry.register_or_replace(victim, info, Default::default());
     let command = wow_world::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand {
         attacker_guid: attacker,

@@ -55895,13 +55895,6 @@
           "source_class": "production"
         },
         {
-          "name": "is_in_world",
-          "type": "bool",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "known_spells",
           "type": "Vec < i32 >",
           "visibility": "pub",
@@ -55960,13 +55953,6 @@
         {
           "name": "pending_quest_sharing",
           "type": "Option < (ObjectGuid , u32) >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "position",
-          "type": "Position",
           "visibility": "pub",
           "cfg": [],
           "source_class": "production"

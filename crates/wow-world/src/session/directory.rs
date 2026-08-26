@@ -121,15 +121,15 @@ impl PlayerDirectoryIdentityLikeCpp {
 pub struct PlayerDirectoryPlacementLikeCpp {
     pub map_id: u16,
     pub instance_id: u32,
+    pub position: Position,
+    pub is_in_world: bool,
 }
 
 #[derive(Clone)]
 pub struct PlayerBroadcastInfo {
-    pub position: Position,
     pub combat_reach: f32,
     pub in_combat: bool,
     pub liquid_status: u32,
-    pub is_in_world: bool,
     pub active_loot_rolls: Vec<LootRollCommandIdentityLikeCpp>,
     pub pass_on_group_loot: bool,
     pub enchanting_skill: u16,
@@ -308,8 +308,7 @@ pub struct PlayerQuestSharingSnapshot {
     pub active_expansion: u8,
 }
 
-/// Owned facts required by C++ player-vehicle interaction checks. The
-/// temporary mirror fields are assigned retirement cutovers by issue #196.
+/// Owned facts required by C++ player-vehicle interaction checks.
 #[derive(Clone, Copy, Debug)]
 pub struct PlayerVehicleInteractionSnapshot {
     pub map_id: u16,
@@ -318,13 +317,12 @@ pub struct PlayerVehicleInteractionSnapshot {
     pub has_vehicle_kit: bool,
 }
 
-/// Session-owned directory mirrors refreshed after authoritative movement.
-/// Issue #196 records the canonical owner and retirement cutover for each.
 #[derive(Clone, Debug)]
 pub struct PlayerMovementDirectoryUpdate {
     pub position: Position,
     pub map_id: u16,
     pub instance_id: u32,
+    pub is_in_world: bool,
     pub liquid_status: u32,
     pub transport: Option<TransportInfo>,
 }
@@ -544,10 +542,10 @@ impl PlayerRegistryEntry {
             guid,
             map_id: self.placement.map_id,
             instance_id: self.placement.instance_id,
-            position: self.info.position,
+            position: self.placement.position,
             combat_reach: self.info.combat_reach,
             liquid_status: self.info.liquid_status,
-            is_in_world: self.info.is_in_world,
+            is_in_world: self.placement.is_in_world,
             is_alive: self.info.is_alive,
             account_id: self.identity.account_id,
             in_combat: self.info.in_combat,
@@ -812,8 +810,8 @@ impl PlayerRegistry {
             guid,
             map_id: entry.placement.map_id,
             instance_id: entry.placement.instance_id,
-            position: entry.info.position,
-            is_in_world: entry.info.is_in_world,
+            position: entry.placement.position,
+            is_in_world: entry.placement.is_in_world,
             is_alive: entry.info.is_alive,
             level: entry.info.level,
             account_id: entry.identity.account_id,
@@ -858,7 +856,7 @@ impl PlayerRegistry {
             player_name: identity.player_name,
             race: identity.race,
             class: identity.class,
-            position: info.position,
+            position: placement.position,
             is_pvp: state.is_pvp,
             is_alive: vitals.is_alive,
             is_ghost: state.is_ghost,
@@ -988,7 +986,7 @@ impl PlayerRegistry {
         Some(PlayerInspectSnapshot {
             guid,
             map_id: entry.placement.map_id,
-            position: info.position,
+            position: entry.placement.position,
             faction_template_id: info.faction_template_id,
             player_name: entry.identity.player_name.clone(),
             race: entry.identity.race,
@@ -1040,8 +1038,8 @@ impl PlayerRegistry {
             guid,
             map_id: entry.placement.map_id,
             instance_id: entry.placement.instance_id,
-            position: entry.info.position,
-            is_in_world: entry.info.is_in_world,
+            position: entry.placement.position,
+            is_in_world: entry.placement.is_in_world,
         })
     }
 
@@ -1058,9 +1056,8 @@ impl PlayerRegistry {
             .filter_map(|entry| {
                 let guid = *entry.key();
                 let value = entry.value();
-                let info = &value.info;
                 (guid != excluded_guid
-                    && info.is_in_world
+                    && value.placement.is_in_world
                     && value.placement.map_id == map_id
                     && value.placement.instance_id == instance_id)
                     .then_some(PlayerRegistration {
@@ -1097,7 +1094,7 @@ impl PlayerRegistry {
         instance_id: u32,
     ) -> Option<PlayerRegistration> {
         let entry = self.entries.get(&guid)?;
-        (entry.info.is_in_world
+        (entry.placement.is_in_world
             && entry.placement.map_id == map_id
             && entry.placement.instance_id == instance_id)
             .then_some(PlayerRegistration {
@@ -1152,7 +1149,7 @@ impl PlayerRegistry {
         Some(PlayerGroupRewardSnapshot {
             level: entry.info.level,
             map_id: entry.placement.map_id,
-            position: entry.info.position,
+            position: entry.placement.position,
             is_alive: entry.info.is_alive,
         })
     }
@@ -1173,16 +1170,15 @@ impl PlayerRegistry {
             .filter_map(|entry| {
                 let guid = *entry.key();
                 let value = entry.value();
-                let info = &value.info;
                 if guid == excluded_guid
-                    || !info.is_in_world
+                    || !value.placement.is_in_world
                     || value.placement.map_id != map_id
                     || value.placement.instance_id != instance_id
                 {
                     return None;
                 }
-                let dx = info.position.x - source_position.x;
-                let dy = info.position.y - source_position.y;
+                let dx = value.placement.position.x - source_position.x;
+                let dy = value.placement.position.y - source_position.y;
                 (dx * dx + dy * dy <= range_sq).then_some(PlayerRegistration {
                     guid,
                     generation: entry.value().generation,
@@ -1204,9 +1200,8 @@ impl PlayerRegistry {
             .filter_map(|entry| {
                 let guid = *entry.key();
                 let value = entry.value();
-                let info = &value.info;
                 (guid != excluded_guid
-                    && info.is_in_world
+                    && value.placement.is_in_world
                     && value.placement.map_id == map_id
                     && value.placement.instance_id == instance_id)
                     .then_some(PlayerRegistration {
@@ -1235,14 +1230,14 @@ impl PlayerRegistry {
                 let value = entry.value();
                 let info = &value.info;
                 if guid == excluded_guid
-                    || !info.is_in_world
+                    || !value.placement.is_in_world
                     || value.placement.map_id != map_id
                     || value.placement.instance_id != instance_id
                 {
                     return None;
                 }
-                let dx = info.position.x - source_position.x;
-                let dy = info.position.y - source_position.y;
+                let dx = value.placement.position.x - source_position.x;
+                let dy = value.placement.position.y - source_position.y;
                 let reach =
                     visibility_range + source_combat_reach.max(0.0) + info.combat_reach.max(0.0);
                 (dx * dx + dy * dy < reach * reach).then_some(PlayerRegistration {
@@ -1270,7 +1265,7 @@ impl PlayerRegistry {
                 let value = entry.value();
                 let info = &value.info;
                 if guid == excluded_guid
-                    || !info.is_in_world
+                    || !value.placement.is_in_world
                     || value.placement.map_id != map_id
                     || value.placement.instance_id != instance_id
                     || !info
@@ -1291,7 +1286,7 @@ impl PlayerRegistry {
                     self.create_state(guid, placement.map_id, placement.instance_id)?;
                 Some(PlayerVisibilityCreateSnapshot {
                     guid,
-                    position: info.position,
+                    position: placement.position,
                     race: identity.race,
                     class: identity.class,
                     sex: identity.sex,
@@ -1388,7 +1383,7 @@ impl PlayerRegistry {
         Some(PlayerVehicleInteractionSnapshot {
             map_id: entry.placement.map_id,
             instance_id: entry.placement.instance_id,
-            position: entry.info.position,
+            position: entry.placement.position,
             has_vehicle_kit: entry.info.has_vehicle_kit_like_cpp,
         })
     }
@@ -1406,9 +1401,10 @@ impl PlayerRegistry {
         if !entry.command_tx.same_channel(command_tx) {
             return false;
         }
-        entry.info.position = update.position;
+        entry.placement.position = update.position;
         entry.placement.map_id = update.map_id;
         entry.placement.instance_id = update.instance_id;
+        entry.placement.is_in_world = update.is_in_world;
         entry.info.liquid_status = update.liquid_status;
         entry.info.transport = update.transport;
         true
@@ -1505,20 +1501,22 @@ impl PlayerRegistry {
                 let guid = *entry.key();
                 let entry = entry.value();
                 let info = &entry.info;
-                (info.is_in_world && info.is_alive).then(|| PlayerAggroCandidateSnapshot {
-                    player_guid: guid,
-                    map_id: entry.placement.map_id,
-                    instance_id: entry.placement.instance_id,
-                    position: info.position,
-                    combat_reach: info.combat_reach,
-                    liquid_status: info.liquid_status,
-                    level: info.level,
-                    gray_level: info.gray_level,
-                    unit_flags: info.unit_flags,
-                    unit_state: info.unit_state,
-                    is_game_master: info.is_game_master,
-                    faction_template_id: info.faction_template_id,
-                    forced_reputation_ranks: info.forced_reputation_ranks.clone(),
+                (entry.placement.is_in_world && info.is_alive).then(|| {
+                    PlayerAggroCandidateSnapshot {
+                        player_guid: guid,
+                        map_id: entry.placement.map_id,
+                        instance_id: entry.placement.instance_id,
+                        position: entry.placement.position,
+                        combat_reach: info.combat_reach,
+                        liquid_status: info.liquid_status,
+                        level: info.level,
+                        gray_level: info.gray_level,
+                        unit_flags: info.unit_flags,
+                        unit_state: info.unit_state,
+                        is_game_master: info.is_game_master,
+                        faction_template_id: info.faction_template_id,
+                        forced_reputation_ranks: info.forced_reputation_ranks.clone(),
+                    }
                 })
             })
             .collect()
@@ -1543,14 +1541,14 @@ impl PlayerRegistry {
                 let entry = entry.value();
                 let info = &entry.info;
                 if guid == excluded_guid
-                    || !info.is_in_world
+                    || !entry.placement.is_in_world
                     || entry.placement.map_id != map_id
                     || entry.placement.instance_id != instance_id
                 {
                     return None;
                 }
-                let dx = info.position.x - source_position.x;
-                let dy = info.position.y - source_position.y;
+                let dx = entry.placement.position.x - source_position.x;
+                let dy = entry.placement.position.y - source_position.y;
                 let reach =
                     visibility_radius + source_combat_reach.max(0.0) + info.combat_reach.max(0.0);
                 if dx * dx + dy * dy >= reach * reach {
@@ -1567,7 +1565,7 @@ impl PlayerRegistry {
                     self.create_state(guid, placement.map_id, placement.instance_id)?;
                 Some(PlayerVisibilityCreateSnapshot {
                     guid,
-                    position: info.position,
+                    position: placement.position,
                     race: identity.race,
                     class: identity.class,
                     sex: identity.sex,
@@ -1890,8 +1888,7 @@ impl PlayerRegistry {
         }
     }
 
-    /// Clone one fixture entry without exposing a storage guard. Available
-    /// only when a dependent crate explicitly enables test fixtures.
+    /// Clone one fixture entry without exposing its storage guard.
     #[cfg(any(test, feature = "test-fixtures"))]
     #[must_use]
     pub fn fixture_snapshot(&self, guid: ObjectGuid) -> Option<PlayerBroadcastInfo> {
@@ -1912,18 +1909,17 @@ impl PlayerRegistry {
             .map(|entry| Arc::clone(&entry.durable_creature_runtime_commands_like_cpp))
     }
 
-    /// Mutate one fixture entry while keeping storage and its generation
-    /// private. Production crates cannot enable this capability accidentally.
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn fixture_update(
         &self,
         guid: ObjectGuid,
-        update: impl FnOnce(&mut PlayerBroadcastInfo),
+        update: impl FnOnce(&mut PlayerBroadcastInfo, &mut PlayerDirectoryPlacementLikeCpp),
     ) -> bool {
         let Some(mut entry) = self.entries.get_mut(&guid) else {
             return false;
         };
-        update(&mut entry.info);
+        let entry = &mut *entry;
+        update(&mut entry.info, &mut entry.placement);
         true
     }
 
@@ -1956,12 +1952,12 @@ mod tests {
             placement: PlayerDirectoryPlacementLikeCpp {
                 map_id,
                 instance_id,
+                position: Position::ZERO,
+                is_in_world: true,
             },
             info: PlayerBroadcastInfo {
-                position: Position::ZERO,
                 combat_reach: 0.0,
                 liquid_status: 0,
-                is_in_world: true,
                 active_loot_rolls: Vec::new(),
                 in_combat: false,
                 pass_on_group_loot: false,
