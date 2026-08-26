@@ -41,6 +41,7 @@ pub mod persistence_trace;
 pub mod player_lifecycle_adapter;
 pub mod query_holder;
 pub mod result;
+pub mod session_account_state_adapter;
 pub mod statements;
 pub mod transaction;
 pub mod updater;

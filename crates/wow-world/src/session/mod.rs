@@ -5403,6 +5403,10 @@ pub struct WorldSession {
     /// publishes durable lifecycle state through this port instead of
     /// reaching for a database handle; `wow-database` supplies the adapter.
     player_lifecycle_port_like_cpp: Option<Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>>,
+    /// Account data and tutorials are authenticated-session state, so their
+    /// Characters-database persistence uses a distinct typed capability.
+    session_account_state_port_like_cpp:
+        Option<Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>>,
 
     // World database (for creature templates, spawns, etc.)
     world_db: Option<Arc<WorldDatabase>>,
@@ -7767,6 +7771,7 @@ impl WorldSession {
             homebind_persistence_tx_like_cpp: None,
             login_db: None,
             player_lifecycle_port_like_cpp: None,
+            session_account_state_port_like_cpp: None,
             world_db: None,
             trainer_store_like_cpp: None,
             bank_bag_slot_prices_store: None,
@@ -16377,6 +16382,13 @@ impl WorldSession {
         &self,
     ) -> Option<&Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>> {
         self.player_lifecycle_port_like_cpp.as_ref()
+    }
+
+    pub fn set_session_account_state_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>,
+    ) {
+        self.session_account_state_port_like_cpp = Some(port);
     }
 
     /// Attach this session to the one canonical journal owner for its
@@ -36983,37 +36995,25 @@ impl WorldSession {
         self.tutorials_loaded_coherently_like_cpp = false;
         self.tutorials_changed_like_cpp = false;
 
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let Some(port) = self.session_account_state_port_like_cpp.clone() else {
             warn!(
                 account = self.account_id,
-                "LoadTutorialsData skipped: character database unavailable"
+                "LoadTutorialsData skipped: session account-state port unavailable"
             );
             return;
         };
 
-        let mut stmt = char_db.prepare(CharStatements::SEL_TUTORIALS);
-        stmt.set_u32(0, self.account_id);
-        let result = match char_db.query(&stmt).await {
-            Ok(result) => result,
-            Err(error) => {
+        match port.load_tutorials_like_cpp(self.account_id).await {
+            wow_persistence::SessionTutorialsLoadOutcomeLikeCpp::Loaded(values) => {
+                self.load_tutorials_data_values_like_cpp(values);
+            }
+            wow_persistence::SessionTutorialsLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
-                    "LoadTutorialsData query failed: {error}"
+                    "LoadTutorialsData query failed: {reason}"
                 );
-                return;
             }
-        };
-
-        if result.is_empty() {
-            self.load_tutorials_data_values_like_cpp(None);
-            return;
         }
-
-        let mut tutorials = [0u32; 8];
-        for (index, tutorial) in tutorials.iter_mut().enumerate() {
-            *tutorial = result.try_read::<u32>(index).unwrap_or(0);
-        }
-        self.load_tutorials_data_values_like_cpp(Some(tutorials));
     }
 
     pub(crate) fn set_tutorial_int_like_cpp(&mut self, index: usize, value: u32) -> bool {
@@ -37083,49 +37083,42 @@ impl WorldSession {
             }
         }
 
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let scope = if mask == GLOBAL_CACHE_MASK_LIKE_CPP {
+            wow_persistence::SessionAccountDataScopeLikeCpp::Global {
+                account_id: self.account_id,
+            }
+        } else {
+            wow_persistence::SessionAccountDataScopeLikeCpp::Character {
+                guid_low: guid.counter() as u64,
+            }
+        };
+
+        let Some(port) = self.session_account_state_port_like_cpp.clone() else {
             warn!(
                 account = self.account_id,
-                mask, "LoadAccountData skipped: character database unavailable"
+                mask, "LoadAccountData skipped: session account-state port unavailable"
             );
             return;
         };
 
-        let stmt = if mask == GLOBAL_CACHE_MASK_LIKE_CPP {
-            let mut stmt = char_db.prepare(CharStatements::SEL_ACCOUNT_DATA);
-            stmt.set_u32(0, self.account_id);
-            stmt
-        } else {
-            let mut stmt = char_db.prepare(CharStatements::SEL_PLAYER_ACCOUNT_DATA);
-            stmt.set_u64(0, guid.counter() as u64);
-            stmt
-        };
-
-        let result = match char_db.query(&stmt).await {
-            Ok(result) => result,
-            Err(error) => {
+        let rows = match port.load_account_data_like_cpp(scope).await {
+            wow_persistence::SessionAccountDataLoadOutcomeLikeCpp::Loaded(rows) => rows,
+            wow_persistence::SessionAccountDataLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
-                    mask, "LoadAccountData query failed: {error}"
+                    mask, "LoadAccountData query failed: {reason}"
                 );
                 return;
             }
         };
-
-        if result.is_empty() {
-            return;
-        }
 
         let table_name = if mask == GLOBAL_CACHE_MASK_LIKE_CPP {
             "account_data"
         } else {
             "character_account_data"
         };
-        let mut result = result;
-        loop {
-            let data_type = result
-                .try_read::<u8>(0)
-                .unwrap_or(NUM_ACCOUNT_DATA_TYPES as u8);
+        for row in rows {
+            let data_type = row.data_type;
             if usize::from(data_type) >= NUM_ACCOUNT_DATA_TYPES {
                 warn!(
                     table = table_name,
@@ -37138,13 +37131,8 @@ impl WorldSession {
                     "LoadAccountData ignored account data type inappropriate for table like C++"
                 );
             } else {
-                self.account_data_like_cpp[usize::from(data_type)].time =
-                    result.try_read::<i64>(1).unwrap_or(0);
-                self.account_data_like_cpp[usize::from(data_type)].data = result.read_string(2);
-            }
-
-            if !result.next_row() {
-                break;
+                self.account_data_like_cpp[usize::from(data_type)].time = row.time;
+                self.account_data_like_cpp[usize::from(data_type)].data = row.data;
             }
         }
     }
@@ -37166,36 +37154,40 @@ impl WorldSession {
             return false;
         }
 
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let scope = if is_global {
+            wow_persistence::SessionAccountDataScopeLikeCpp::Global {
+                account_id: self.account_id,
+            }
+        } else {
+            wow_persistence::SessionAccountDataScopeLikeCpp::Character {
+                guid_low: player_guid_low,
+            }
+        };
+
+        let Some(port) = self.session_account_state_port_like_cpp.clone() else {
             warn!(
                 account = self.account_id,
-                data_type, "SetAccountData persisted fallback: character database unavailable"
+                data_type, "SetAccountData persisted fallback: account-state port unavailable"
             );
             return self.set_account_data_like_cpp(data_type, time, data);
         };
 
-        let stmt = if is_global {
-            let mut stmt = char_db.prepare(CharStatements::REP_ACCOUNT_DATA);
-            stmt.set_u32(0, self.account_id);
-            stmt.set_u8(1, data_type);
-            stmt.set_i64(2, time);
-            stmt.set_string(3, data.clone());
-            stmt
-        } else {
-            let mut stmt = char_db.prepare(CharStatements::REP_PLAYER_ACCOUNT_DATA);
-            stmt.set_u64(0, player_guid_low);
-            stmt.set_u8(1, data_type);
-            stmt.set_i64(2, time);
-            stmt.set_string(3, data.clone());
-            stmt
+        let save = wow_persistence::SessionAccountDataSaveLikeCpp {
+            scope,
+            data_type,
+            time,
+            data: data.clone(),
         };
-
-        if let Err(error) = char_db.execute(&stmt).await {
-            warn!(
-                account = self.account_id,
-                data_type, "SetAccountData persistence failed: {error}"
-            );
-            return false;
+        match port.save_account_data_like_cpp(save).await {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                warn!(
+                    account = self.account_id,
+                    data_type, "SetAccountData persistence failed: {reason}"
+                );
+                return false;
+            }
         }
 
         self.set_account_data_like_cpp(data_type, time, data)

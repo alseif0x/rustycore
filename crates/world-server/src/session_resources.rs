@@ -25,6 +25,10 @@ pub(super) struct SessionResources {
     /// Player lifecycle persistence capability (#200). Built from the two
     /// adapters above; the Session depends on this, never on the handles.
     pub(super) player_lifecycle_port: Option<Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>>,
+    /// Characters-database capability for state canonically owned by the
+    /// authenticated session (account data and tutorials).
+    pub(super) session_account_state_port:
+        Option<Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>>,
     pub(super) world_db: Option<Arc<wow_database::WorldDatabase>>,
     /// Process-wide C++ `ObjectMgr::_trainers` /
     /// `_creatureDefaultTrainers` snapshot.

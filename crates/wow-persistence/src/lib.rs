@@ -3,17 +3,19 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! SQLx-free Player lifecycle persistence capability.
+//! SQLx-free Player lifecycle and authenticated-session persistence capabilities.
 //!
-//! This crate owns *what* the Player lifecycle needs to persist and *how the
-//! result is classified*. It owns no pool, row, transaction, statement or SQL
-//! string, and has no dependencies at all — the MariaDB/SQLx adapter lives in
-//! `wow-database`, which remains the only concrete owner of those.
+//! This crate owns *what* the Player lifecycle and authenticated session need
+//! to persist and *how the result is classified*. It owns no pool, row,
+//! transaction, statement or SQL string, and has no dependencies at all — the
+//! MariaDB/SQLx adapters live in `wow-database`, which remains the only concrete
+//! owner of those.
 //!
 //! It exists because production uses it: `wow_world::session::lifecycle`
 //! publishes offline state, account collections and the semantic character-save
-//! snapshot through this port rather than reaching for a database handle. The
-//! frozen order those workflows preserve is
+//! snapshot through one port, while `WorldSession` loads and saves its own
+//! account state through another. Neither reaches for a database handle. The
+//! frozen Player-lifecycle order is documented in
 //! `docs/migration/player-lifecycle-persistence-contract.md` (#187).
 
 use std::future::Future;
@@ -59,6 +61,71 @@ impl PlayerOfflineMarkLikeCpp {
 pub enum LogicalDatabaseLikeCpp {
     Characters,
     Login,
+}
+
+/// Which Characters-database account-data table a session operation addresses.
+/// The identity is semantic; statement selection remains adapter-owned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionAccountDataScopeLikeCpp {
+    Global { account_id: u32 },
+    Character { guid_low: u64 },
+}
+
+impl SessionAccountDataScopeLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
+/// One raw account-data row. `WorldSession` retains the C++ table/mask
+/// validation and owns publication into its account-data cache.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionAccountDataRowLikeCpp {
+    pub data_type: u8,
+    pub time: i64,
+    pub data: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SessionAccountDataLoadOutcomeLikeCpp {
+    Loaded(Vec<SessionAccountDataRowLikeCpp>),
+    Failed { reason: String },
+}
+
+/// The tutorial row is absent for a new account and present as exactly the
+/// eight values stored by C++ `WorldSession::LoadTutorialsData`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SessionTutorialsLoadOutcomeLikeCpp {
+    Loaded(Option<[u32; 8]>),
+    Failed { reason: String },
+}
+
+/// One C++ `SetAccountData` replacement request.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionAccountDataSaveLikeCpp {
+    pub scope: SessionAccountDataScopeLikeCpp,
+    pub data_type: u8,
+    pub time: i64,
+    pub data: String,
+}
+
+/// SQLx-free persistence capability for account state canonically owned by
+/// the authenticated session rather than by the Player lifecycle.
+pub trait SessionAccountStatePortLikeCpp: Send + Sync {
+    fn load_account_data_like_cpp<'a>(
+        &'a self,
+        scope: SessionAccountDataScopeLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, SessionAccountDataLoadOutcomeLikeCpp>;
+
+    fn load_tutorials_like_cpp<'a>(
+        &'a self,
+        account_id: u32,
+    ) -> PersistenceFutureLikeCpp<'a, SessionTutorialsLoadOutcomeLikeCpp>;
+
+    fn save_account_data_like_cpp<'a>(
+        &'a self,
+        save: SessionAccountDataSaveLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 }
 
 /// One account-collection read requested by the Player login lifecycle.
@@ -601,6 +668,16 @@ mod tests {
             AccountCollectionLoadRequestLikeCpp::TransmogIllusions { bnet_account_id: 1 },
         ] {
             assert_eq!(request.logical_database(), LogicalDatabaseLikeCpp::Login);
+        }
+    }
+
+    #[test]
+    fn every_session_account_data_scope_names_the_characters_database_like_cpp() {
+        for scope in [
+            SessionAccountDataScopeLikeCpp::Global { account_id: 1 },
+            SessionAccountDataScopeLikeCpp::Character { guid_low: 2 },
+        ] {
+            assert_eq!(scope.logical_database(), LogicalDatabaseLikeCpp::Characters);
         }
     }
 
