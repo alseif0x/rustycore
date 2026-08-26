@@ -5,12 +5,9 @@ active_loot_rolls	wow-loot roll authority	#252	query exact active roll identitie
 active_quest_objective_counts	canonical Player quest log	#252	query immutable quest objective state
 active_quest_statuses	canonical Player quest log	#252	query immutable quest status
 auto_reply_msg_like_cpp	canonical Player social presence	#252	query immutable AFK/DND response
-base_mana	canonical Player/Unit powers	#252	query immutable CREATE power facts
 class	canonical Player identity	#252	query immutable character identity
 combat_reach	canonical Player/Unit combat geometry	#252	query immutable target geometry
 completed_achievements	canonical Player achievements	#252	query immutable achievement membership
-current_health	canonical Player/Unit vitals	#252	query immutable party/runtime vitals
-current_power	canonical Player/Unit powers	#252	query immutable party/runtime power
 customizations	canonical Player presentation	#252	query immutable CREATE presentation
 daily_quests_completed	canonical Player quest log	#252	query immutable daily quest history
 df_quests	canonical Player quest log	#252	query immutable dungeon-finder quest history
@@ -37,8 +34,6 @@ known_spells	canonical Player spellbook	#252	query minimum immutable spell membe
 level	canonical Player progression	#252	query immutable level
 liquid_status	MapRuntime environment state	#252	query immutable player environment result
 map_id	MapRuntime player membership	#252	query immutable map identity
-max_health	canonical Player/Unit vitals	#252	query immutable party/runtime vitals
-max_power	canonical Player/Unit powers	#252	query immutable party/runtime power
 party_member_auras	canonical Player/Unit aura state	#252	query immutable party aura presentation
 party_member_party_type	wow-social Group membership	#252	query immutable group membership type
 party_member_pet_stats	canonical Player pet state	#252	query immutable party pet presentation
@@ -48,7 +43,6 @@ pass_on_group_loot	canonical Player loot preference	#252	query immutable loot pr
 pending_quest_sharing	canonical Player quest/social state	#252	query immutable pending share
 player_name	canonical Player identity	#252	query immutable character identity
 position	canonical Player location under MapRuntime	#252	query immutable spatial position
-power_type	canonical Player/Unit powers	#252	query immutable active power type
 race	canonical Player identity	#252	query immutable character identity
 recruiter_id	Session account relationship	#252	query immutable admitted account relationship
 rewarded_quests	canonical Player quest log	#252	query immutable rewarded membership

@@ -16,8 +16,9 @@
 //! rails stay there until issue #140 relocates them.
 
 use crate::canonical_player_access::{
-    HonorStatsLikeCpp, canonical_player_honor_stats_like_cpp,
-    canonical_player_reputation_standings_like_cpp, with_canonical_player_at_like_cpp,
+    CanonicalPlayerVitalsLikeCpp, HonorStatsLikeCpp, canonical_player_honor_stats_like_cpp,
+    canonical_player_reputation_standings_like_cpp,
+    canonical_player_vitals_like_cpp as player_vitals, with_canonical_player_at_like_cpp,
 };
 use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
 use crate::session::SharedCanonicalMapManager;
@@ -32,7 +33,7 @@ use crate::session::mailbox::{
 use dashmap::DashMap;
 use std::collections::{HashMap, HashSet};
 use std::sync::{
-    Arc, Mutex,
+    Arc, Mutex, OnceLock,
     atomic::{AtomicBool, AtomicU64, Ordering},
 };
 use wow_core::{ObjectGuid, Position};
@@ -121,18 +122,6 @@ pub struct PlayerBroadcastInfo {
     pub enchanting_skill: u16,
     /// Represented `Player::IsAlive()` snapshot for cross-session receiver gates.
     pub is_alive: bool,
-    /// Represented `Unit::GetHealth()` snapshot for party member full-state packets.
-    pub current_health: u32,
-    /// Represented `Unit::GetMaxHealth()` snapshot for party member full-state packets.
-    pub max_health: u32,
-    /// Represented `Unit::GetPowerType()` snapshot for party member full-state packets.
-    pub power_type: u8,
-    /// Represented `Unit::GetPower(GetPowerType())` snapshot for party member full-state packets.
-    pub current_power: u16,
-    /// Represented `Unit::GetMaxPower(GetPowerType())` snapshot for party member full-state packets.
-    pub max_power: u16,
-    /// C++ `UnitData::BaseMana` snapshot used independently from live maximum power in CREATE.
-    pub base_mana: i32,
     /// Current MO-transport passenger movement state used by player CREATEs.
     pub transport: Option<TransportInfo>,
     /// Represented `Player::IsPvP()` snapshot for party member full-state packets.
@@ -428,6 +417,7 @@ pub struct PlayerSocialRecipientSnapshot {
     pub guid: ObjectGuid,
     pub player_name: String,
     pub race: u8,
+    pub class: u8,
     pub map_id: u16,
     pub instance_id: u32,
     pub dungeon_difficulty_id: u32,
@@ -618,6 +608,7 @@ impl PlayerRegistryEntry {
 pub struct PlayerRegistry {
     entries: DashMap<ObjectGuid, PlayerRegistryEntry>,
     next_generation: AtomicU64,
+    canonical_map_manager: OnceLock<SharedCanonicalMapManager>,
 }
 
 impl Default for PlayerRegistry {
@@ -625,6 +616,7 @@ impl Default for PlayerRegistry {
         Self {
             entries: DashMap::new(),
             next_generation: AtomicU64::new(1),
+            canonical_map_manager: OnceLock::new(),
         }
     }
 }
@@ -633,6 +625,23 @@ impl PlayerRegistry {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn bind_canonical_map_manager(&self, manager: SharedCanonicalMapManager) -> bool {
+        if let Some(existing) = self.canonical_map_manager.get() {
+            return Arc::ptr_eq(existing, &manager);
+        }
+        self.canonical_map_manager.set(manager).is_ok()
+    }
+
+    fn vitals(
+        &self,
+        guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+    ) -> Option<CanonicalPlayerVitalsLikeCpp> {
+        let manager = self.canonical_map_manager.get()?;
+        with_canonical_player_at_like_cpp(manager, guid, map_id.into(), instance_id, player_vitals)
     }
 
     fn next_generation(&self) -> u64 {
@@ -770,6 +779,7 @@ impl PlayerRegistry {
             guid: *guid,
             player_name: entry.info.player_name.clone(),
             race: entry.info.race,
+            class: entry.info.class,
             map_id: entry.info.map_id,
             instance_id: entry.info.instance_id,
             dungeon_difficulty_id: entry.info.dungeon_difficulty_id,
@@ -818,37 +828,44 @@ impl PlayerRegistry {
     /// Resolve the connected projection used to build PartyUpdate payloads.
     #[must_use]
     pub fn party_member(&self, guid: ObjectGuid) -> Option<PlayerPartyMemberSnapshot> {
-        let entry = self.entries.get(&guid)?;
+        let (registration, info) = {
+            let entry = self.entries.get(&guid)?;
+            (
+                PlayerRegistration {
+                    guid,
+                    generation: entry.generation,
+                },
+                entry.info.clone(),
+            )
+        };
+        let vitals = self.vitals(guid, info.map_id, info.instance_id)?;
         Some(PlayerPartyMemberSnapshot {
-            registration: PlayerRegistration {
-                guid,
-                generation: entry.generation,
-            },
+            registration,
             guid,
-            player_name: entry.info.player_name.clone(),
-            race: entry.info.race,
-            class: entry.info.class,
-            position: entry.info.position,
-            is_pvp: entry.info.is_pvp,
-            is_alive: entry.info.is_alive,
-            is_ghost: entry.info.is_ghost,
-            is_ffa_pvp: entry.info.is_ffa_pvp,
-            is_afk: entry.info.is_afk,
-            is_dnd: entry.info.is_dnd,
-            in_vehicle: entry.info.in_vehicle,
-            power_type: entry.info.power_type,
-            current_health: entry.info.current_health,
-            max_health: entry.info.max_health,
-            current_power: entry.info.current_power,
-            max_power: entry.info.max_power,
-            level: entry.info.level,
-            spec_id: entry.info.spec_id,
-            zone_id: entry.info.zone_id,
-            party_member_vehicle_seat: entry.info.party_member_vehicle_seat,
-            party_member_party_type: entry.info.party_member_party_type,
-            party_member_phase_states: entry.info.party_member_phase_states.clone(),
-            party_member_auras: entry.info.party_member_auras.clone(),
-            party_member_pet_stats: entry.info.party_member_pet_stats.clone(),
+            player_name: info.player_name,
+            race: info.race,
+            class: info.class,
+            position: info.position,
+            is_pvp: info.is_pvp,
+            is_alive: vitals.is_alive,
+            is_ghost: info.is_ghost,
+            is_ffa_pvp: info.is_ffa_pvp,
+            is_afk: info.is_afk,
+            is_dnd: info.is_dnd,
+            in_vehicle: info.in_vehicle,
+            power_type: vitals.power_type,
+            current_health: vitals.current_health,
+            max_health: vitals.max_health,
+            current_power: vitals.current_power,
+            max_power: vitals.max_power,
+            level: info.level,
+            spec_id: info.spec_id,
+            zone_id: info.zone_id,
+            party_member_vehicle_seat: info.party_member_vehicle_seat,
+            party_member_party_type: info.party_member_party_type,
+            party_member_phase_states: info.party_member_phase_states,
+            party_member_auras: info.party_member_auras,
+            party_member_pet_stats: info.party_member_pet_stats,
         })
     }
 
@@ -1217,7 +1234,8 @@ impl PlayerRegistry {
         instance_id: u32,
         transport_guid: ObjectGuid,
     ) -> Vec<PlayerVisibilityCreateSnapshot> {
-        self.entries
+        let candidates: Vec<_> = self
+            .entries
             .iter()
             .filter_map(|entry| {
                 let guid = *entry.key();
@@ -1233,6 +1251,14 @@ impl PlayerRegistry {
                 {
                     return None;
                 }
+                Some((guid, info.clone()))
+            })
+            .collect();
+
+        candidates
+            .into_iter()
+            .filter_map(|(guid, info)| {
+                let vitals = self.vitals(guid, info.map_id, info.instance_id)?;
                 Some(PlayerVisibilityCreateSnapshot {
                     guid,
                     position: info.position,
@@ -1242,12 +1268,12 @@ impl PlayerRegistry {
                     level: info.level,
                     display_id: info.display_id,
                     zone_id: info.zone_id,
-                    current_health: info.current_health,
-                    max_health: info.max_health,
-                    power_type: info.power_type,
-                    current_power: info.current_power,
-                    max_power: info.max_power,
-                    base_mana: info.base_mana,
+                    current_health: vitals.current_health,
+                    max_health: vitals.max_health,
+                    power_type: vitals.power_type,
+                    current_power: vitals.current_power,
+                    max_power: vitals.max_power,
+                    base_mana: vitals.base_mana,
                     transport: info.transport.clone(),
                     visible_items: Arc::clone(&info.visible_items),
                     customizations: Arc::clone(&info.customizations),
@@ -1475,7 +1501,8 @@ impl PlayerRegistry {
         source_combat_reach: f32,
         visibility_radius: f32,
     ) -> Vec<PlayerVisibilityCreateSnapshot> {
-        self.entries
+        let candidates: Vec<_> = self
+            .entries
             .iter()
             .filter_map(|entry| {
                 let guid = *entry.key();
@@ -1495,6 +1522,14 @@ impl PlayerRegistry {
                 if dx * dx + dy * dy >= reach * reach {
                     return None;
                 }
+                Some((guid, info.clone()))
+            })
+            .collect();
+
+        candidates
+            .into_iter()
+            .filter_map(|(guid, info)| {
+                let vitals = self.vitals(guid, info.map_id, info.instance_id)?;
                 Some(PlayerVisibilityCreateSnapshot {
                     guid,
                     position: info.position,
@@ -1504,12 +1539,12 @@ impl PlayerRegistry {
                     level: info.level,
                     display_id: info.display_id,
                     zone_id: info.zone_id,
-                    current_health: info.current_health,
-                    max_health: info.max_health,
-                    power_type: info.power_type,
-                    current_power: info.current_power,
-                    max_power: info.max_power,
-                    base_mana: info.base_mana,
+                    current_health: vitals.current_health,
+                    max_health: vitals.max_health,
+                    power_type: vitals.power_type,
+                    current_power: vitals.current_power,
+                    max_power: vitals.max_power,
+                    base_mana: vitals.base_mana,
                     transport: info.transport.clone(),
                     visible_items: Arc::clone(&info.visible_items),
                     customizations: Arc::clone(&info.customizations),
@@ -1898,12 +1933,6 @@ mod tests {
                 pass_on_group_loot: false,
                 enchanting_skill: 0,
                 is_alive: true,
-                current_health: 100,
-                max_health: 100,
-                power_type: 0,
-                current_power: 0,
-                max_power: 0,
-                base_mana: 0,
                 transport: None,
                 is_pvp: false,
                 is_ffa_pvp: false,

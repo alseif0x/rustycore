@@ -33,6 +33,7 @@ mod save_plan_order;
 use routing::assert_destroyed_party_update_like_cpp;
 
 use super::*;
+use crate::canonical_player_access::configure_canonical_player_vitals_for_test as set_vitals;
 use crate::session::directory::{PlayerBroadcastInfo, PlayerSessionRegistrationLikeCpp};
 use crate::session::mailbox::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyGroupRemovalLikeCppCommand,
@@ -35702,12 +35703,6 @@ fn broadcast_info_with_command(
             pass_on_group_loot: false,
             enchanting_skill: 0,
             is_alive: true,
-            current_health: 100,
-            max_health: 100,
-            power_type: 0,
-            current_power: 0,
-            max_power: 0,
-            base_mana: 0,
             transport: None,
             is_pvp: false,
             is_ffa_pvp: false,
@@ -36096,6 +36091,7 @@ fn visible_other_players_skips_out_of_visibility_range_like_cpp() {
     session.set_player_guid(Some(guid));
     session.set_player_registry(Arc::clone(&registry));
     session.set_canonical_map_manager(Arc::clone(&canonical));
+    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
     session.set_player_position_like_cpp(Position::ZERO);
     add_canonical_test_player_on_map(&canonical, guid, Position::ZERO, 571, 0);
@@ -36177,14 +36173,15 @@ async fn player_visibility_diff_creates_then_removes_registry_player_like_cpp() 
 fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
     let guid = ObjectGuid::create_player(1, 51);
     let (send_tx, _send_rx) = flume::bounded(1);
+    let registry = PlayerRegistry::default();
+    let canonical = shared_canonical_map_manager();
+    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
+    add_canonical_test_player_on_map(&canonical, guid, Position::ZERO, 571, 0);
+    let vitals = (1_234, 4_567, PowerType::Mana, 321, 789, 456);
+    assert!(set_vitals(&canonical, guid, vitals));
     let mut info = broadcast_info(guid, send_tx);
+    info.info.map_id = 571;
     info.info.class = 8;
-    info.info.power_type = PowerType::Mana as u8;
-    info.info.current_health = 1_234;
-    info.info.max_health = 4_567;
-    info.info.current_power = 321;
-    info.info.max_power = 789;
-    info.info.base_mana = 456;
     info.info.transport = Some(wow_packet::packets::movement::TransportInfo {
         guid: ObjectGuid::create_transport(HighGuid::Transport, 7_004),
         x: 1.0,
@@ -36206,9 +36203,24 @@ fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
             choice_id: 40,
         },
     ]);
-
-    let update =
-        crate::handlers::character::player_visibility_create_update_like_cpp(guid, &info.info, 571);
+    let expected_customizations = Arc::clone(&info.info.customizations);
+    let expected_transport = info.info.transport.clone().unwrap();
+    registry.register_or_replace(guid, info, Default::default());
+    let snapshot = registry
+        .player_visibility_create_candidates(
+            ObjectGuid::create_player(1, 999),
+            571,
+            0,
+            Position::ZERO,
+            0.0,
+            100.0,
+        )
+        .into_iter()
+        .next()
+        .expect("canonical player CREATE candidate");
+    let update = crate::handlers::character::player_visibility_create_update_from_snapshot_like_cpp(
+        &snapshot, 571,
+    );
     let [
         wow_packet::packets::update::UpdateBlock::CreateObject {
             create_data,
@@ -36229,13 +36241,13 @@ fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
     assert_eq!(create_data.base_mana, 456);
     assert_eq!(
         &create_data.customizations,
-        info.info.customizations.as_ref()
+        expected_customizations.as_ref()
     );
     let transport = movement
         .transport
         .as_ref()
         .expect("non-owner player transport attachment");
-    assert_eq!(transport.guid, info.info.transport.as_ref().unwrap().guid);
+    assert_eq!(transport.guid, expected_transport.guid);
     assert_eq!(transport.x, 1.0);
     assert_eq!(transport.seat, 4);
     assert_eq!(transport.time, 123);
@@ -36494,11 +36506,12 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
 }
 
 #[test]
-fn player_registry_publishes_canonical_party_power_like_cpp() {
+fn party_member_reads_canonical_power_without_registry_republish_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 42);
     let registry = Arc::new(PlayerRegistry::default());
     let canonical = shared_canonical_map_manager();
+    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
@@ -36506,23 +36519,12 @@ fn player_registry_publishes_canonical_party_power_like_cpp() {
     session.set_player_registry(Arc::clone(&registry));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, guid, position, 571, 0);
-    {
-        let mut guard = canonical.lock().unwrap();
-        let player = guard
-            .find_map_mut(571, 0)
-            .expect("map")
-            .map_mut()
-            .get_typed_player_mut(guid)
-            .expect("player");
-        player.unit_mut().set_display_power(PowerType::Energy);
-        player.set_power_index(PowerType::Energy, Some(3));
-        player.unit_mut().set_max_power(PowerType::Energy, 120);
-        player.unit_mut().set_power(PowerType::Energy, 45);
-    }
+    let vitals = (100, 100, PowerType::Energy, 45, 120, 0);
+    assert!(set_vitals(&canonical, guid, vitals));
 
     session.register_in_player_registry();
 
-    let info = registry.fixture_snapshot(guid).expect("registered player");
+    let info = registry.party_member(guid).expect("canonical party member");
     assert_eq!(info.power_type, PowerType::Energy as u8);
     assert_eq!(info.current_power, 45);
     assert_eq!(info.max_power, 120);

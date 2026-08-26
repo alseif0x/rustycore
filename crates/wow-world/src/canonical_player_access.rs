@@ -18,6 +18,7 @@
 //! guard and the canonical mutex at the same time, so this introduces no lock
 //! nesting and no new ordering obligation.
 
+use wow_constants::PowerType;
 use wow_core::ObjectGuid;
 use wow_entities::Player;
 
@@ -39,6 +40,100 @@ pub(crate) fn with_canonical_player_at_like_cpp<R>(
     let map = manager.find_map(map_id, instance_id)?;
     let player = map.map().get_typed_player(guid)?;
     Some(read(player))
+}
+
+/// The `Player`-owned vitals copied into party/full-state and CREATE payloads.
+///
+/// C++ reads these values directly from the target `Player` in
+/// `PartyMemberFullState::Initialize`; keeping the result narrow prevents the
+/// session directory from replacing `PlayerBroadcastInfo` with another bag of
+/// gameplay state.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct CanonicalPlayerVitalsLikeCpp {
+    pub is_alive: bool,
+    pub current_health: u32,
+    pub max_health: u32,
+    pub power_type: u8,
+    pub current_power: u16,
+    pub max_power: u16,
+    pub base_mana: i32,
+}
+
+fn power_kind_from_u8_like_cpp(power: u8) -> PowerType {
+    match power {
+        1 => PowerType::Rage,
+        2 => PowerType::Focus,
+        3 => PowerType::Energy,
+        4 => PowerType::Happiness,
+        5 => PowerType::Runes,
+        6 => PowerType::RunicPower,
+        7 => PowerType::SoulShards,
+        8 => PowerType::LunarPower,
+        9 => PowerType::HolyPower,
+        10 => PowerType::AlternatePower,
+        11 => PowerType::Maelstrom,
+        12 => PowerType::Chi,
+        13 => PowerType::Insanity,
+        14 => PowerType::ComboPoints,
+        15 => PowerType::DemonicFury,
+        16 => PowerType::ArcaneCharges,
+        17 => PowerType::Fury,
+        18 => PowerType::Pain,
+        19 => PowerType::Essence,
+        20 => PowerType::RuneBlood,
+        21 => PowerType::RuneFrost,
+        22 => PowerType::RuneUnholy,
+        23 => PowerType::AlternateQuest,
+        24 => PowerType::AlternateEncounter,
+        25 => PowerType::AlternateMount,
+        _ => PowerType::Mana,
+    }
+}
+
+fn power_to_u16_like_cpp(value: i32) -> u16 {
+    u16::try_from(value.max(0)).unwrap_or(u16::MAX)
+}
+
+/// Read the live C++ vitals tuple from one canonical `Player`.
+#[must_use]
+pub(crate) fn canonical_player_vitals_like_cpp(player: &Player) -> CanonicalPlayerVitalsLikeCpp {
+    let power_type = player.unit().data().display_power;
+    let power = power_kind_from_u8_like_cpp(power_type);
+    CanonicalPlayerVitalsLikeCpp {
+        is_alive: player.unit().is_alive(),
+        current_health: player.unit().data().health.min(u64::from(u32::MAX)) as u32,
+        max_health: player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
+        power_type,
+        current_power: power_to_u16_like_cpp(player.get_power(power)),
+        max_power: power_to_u16_like_cpp(player.get_max_power(power)),
+        base_mana: player.unit().get_create_mana_like_cpp(),
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn configure_canonical_player_vitals_for_test(
+    manager: &SharedCanonicalMapManager,
+    guid: ObjectGuid,
+    vitals: (u32, u32, PowerType, i32, i32, i32),
+) -> bool {
+    let (health, max_health, power, current_power, max_power, base_mana) = vitals;
+    let Ok(mut manager) = manager.lock() else {
+        return false;
+    };
+    let Some(player) = manager
+        .find_map_mut(571, 0)
+        .and_then(|map| map.map_mut().get_typed_player_mut(guid))
+    else {
+        return false;
+    };
+    player.unit_mut().set_max_health(u64::from(max_health));
+    player.unit_mut().set_health(u64::from(health));
+    player.unit_mut().set_create_mana_like_cpp(base_mana);
+    player.unit_mut().set_display_power(power);
+    player.set_power_index(power, Some(0));
+    player.unit_mut().set_max_power(power, max_power);
+    player.unit_mut().set_power(power, current_power);
+    true
 }
 
 /// The seven honor counters an inspect response carries, in C++ field order.

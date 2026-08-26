@@ -1439,14 +1439,12 @@
         },
         {
           "id": "directory_gameplay_projection",
-          "expected_field_count": 28,
+          "expected_field_count": 23,
           "field_names": [
             "active_quest_objective_counts",
             "active_quest_statuses",
             "combat_reach",
             "completed_achievements",
-            "current_health",
-            "current_power",
             "daily_quests_completed",
             "df_quests",
             "forced_reputation_ranks",
@@ -1457,8 +1455,6 @@
             "is_ffa_pvp",
             "is_pvp",
             "known_spells",
-            "max_health",
-            "max_power",
             "party_member_auras",
             "party_member_party_type",
             "party_member_pet_stats",
@@ -1466,7 +1462,6 @@
             "party_member_vehicle_seat",
             "pending_quest_sharing",
             "position",
-            "power_type",
             "rewarded_quests",
             "transport"
           ],
@@ -1478,11 +1473,10 @@
         },
         {
           "id": "player_broadcast_remaining_assigned_mirrors",
-          "expected_field_count": 26,
+          "expected_field_count": 25,
           "field_names": [
             "active_expansion",
             "auto_reply_msg_like_cpp",
-            "base_mana",
             "class",
             "customizations",
             "display_id",
@@ -1514,7 +1508,7 @@
           "retirement_condition": "#252 removes every assigned residual through bounded canonical queries and deletes the broad projection without introducing a replacement mirror."
         }
       ],
-      "expected_field_count": 60
+      "expected_field_count": 54
     },
     "session_command": {
       "coverage_source": {

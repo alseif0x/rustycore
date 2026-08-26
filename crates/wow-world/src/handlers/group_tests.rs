@@ -111,12 +111,6 @@ fn broadcast_info_with_command_tx(
             pass_on_group_loot: false,
             enchanting_skill: 0,
             is_alive: true,
-            current_health: 100,
-            max_health: 100,
-            power_type: 0,
-            current_power: 0,
-            max_power: 0,
-            base_mana: 0,
             transport: None,
             is_pvp: false,
             is_ffa_pvp: false,
@@ -168,6 +162,27 @@ fn broadcast_info_with_command_tx(
         client_visible_guids_like_cpp: Default::default(),
         advanced_combat_logging_enabled_like_cpp: Default::default(),
         visibility_refresh_pending_like_cpp: Default::default(),
+    }
+}
+
+fn bind_canonical_party_players_like_cpp(
+    registry: &PlayerRegistry,
+    players: impl IntoIterator<Item = ObjectGuid>,
+) {
+    let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
+    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
+    let mut manager = canonical.lock().unwrap();
+    let map = manager.create_world_map(0, 0).map_mut();
+    for guid in players {
+        let mut player = wow_entities::Player::new(Some(1), false);
+        player.unit_mut().world_mut().object_mut().create(guid);
+        player.unit_mut().world_mut().set_map(0, 0).unwrap();
+        player.unit_mut().world_mut().relocate(Position::ZERO);
+        player.unit_mut().world_mut().object_mut().add_to_world();
+        player.unit_mut().set_max_health(100);
+        player.unit_mut().set_health(100);
+        map.insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
+            .unwrap();
     }
 }
 
@@ -2376,6 +2391,7 @@ fn party_member_full_state_carries_phase_states_like_cpp() {
             }],
         };
     });
+    bind_canonical_party_players_like_cpp(&registry, [leader, member]);
     let mut group = GroupInfo::new(leader);
     group.members.push(member);
 
@@ -3112,6 +3128,8 @@ async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_
     let target = ObjectGuid::create_player(1, 78);
     let (target_tx, target_rx) = bounded::<Vec<u8>>(4);
     let registry = Arc::new(PlayerRegistry::default());
+    let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
+    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
     registry.register_or_replace(
         target,
         broadcast_info(target, target_tx),
@@ -3120,11 +3138,6 @@ async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_
     registry.fixture_update(target, |info| {
         info.level = 80;
         info.class = 4;
-        info.current_health = 77;
-        info.max_health = 123;
-        info.power_type = 3;
-        info.current_power = 42;
-        info.max_power = 100;
         info.is_pvp = true;
         info.is_ffa_pvp = true;
         info.is_afk = true;
@@ -3166,6 +3179,32 @@ async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_
             name: "Wolf".to_string(),
         });
     });
+    let position = Position::new(11.0, 22.0, 33.0, 0.0);
+    let mut player = wow_entities::Player::new(Some(1), false);
+    player.unit_mut().world_mut().object_mut().create(target);
+    player.unit_mut().world_mut().set_map(0, 0).unwrap();
+    player.unit_mut().world_mut().relocate(position);
+    player.unit_mut().world_mut().object_mut().add_to_world();
+    player.unit_mut().set_max_health(123);
+    player.unit_mut().set_health(77);
+    player
+        .unit_mut()
+        .set_display_power(wow_constants::PowerType::Energy);
+    player.set_power_index(wow_constants::PowerType::Energy, Some(0));
+    player
+        .unit_mut()
+        .set_max_power(wow_constants::PowerType::Energy, 100);
+    player
+        .unit_mut()
+        .set_power(wow_constants::PowerType::Energy, 42);
+    canonical
+        .lock()
+        .unwrap()
+        .create_world_map(0, 0)
+        .map_mut()
+        .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
+        .unwrap();
+    session.set_canonical_map_manager(canonical);
     session.set_player_registry(registry);
 
     session

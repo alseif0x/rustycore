@@ -954,15 +954,6 @@ pub(crate) enum PlayerAwayModeLikeCpp {
     Dnd,
 }
 
-fn party_member_power_type_for_class_like_cpp(class: u8) -> u8 {
-    match class {
-        1 => 1, // Warrior: Rage
-        4 => 3, // Rogue: Energy
-        6 => 6, // DeathKnight: RunicPower
-        _ => 0, // Mana/default
-    }
-}
-
 fn party_member_power_kind_from_u8_like_cpp(power: u8) -> PowerType {
     match power {
         1 => PowerType::Rage,
@@ -34484,9 +34475,6 @@ impl WorldSession {
         let is_dnd = self
             .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_DND_LIKE_CPP)
             .unwrap_or(false);
-        let (power_type, current_power, max_power) = self
-            .canonical_player_party_power_snapshot_like_cpp()
-            .unwrap_or_else(|| (party_member_power_type_for_class_like_cpp(class), 0, 0));
         let info = PlayerBroadcastInfo {
             map_id,
             instance_id,
@@ -34503,12 +34491,6 @@ impl WorldSession {
             pass_on_group_loot: self.pass_on_group_loot,
             enchanting_skill: self.represented_enchanting_skill,
             is_alive: self.player_alive_like_cpp,
-            current_health: self.player_health_like_cpp,
-            max_health: self.player_max_health_like_cpp,
-            power_type,
-            current_power,
-            max_power,
-            base_mana: self.represented_player_base_mana_like_cpp,
             transport: self.player_transport_info_like_cpp(),
             is_pvp: pvp_flags.contains(UnitPvpFlags::PVP),
             is_ffa_pvp: pvp_flags.contains(UnitPvpFlags::FFA_PVP),
@@ -34622,21 +34604,6 @@ impl WorldSession {
             info.pass_on_group_loot = self.pass_on_group_loot;
             info.enchanting_skill = self.represented_enchanting_skill;
             info.is_alive = self.player_alive_like_cpp;
-            info.current_health = self.player_health_like_cpp;
-            info.max_health = self.player_max_health_like_cpp;
-            let (power_type, current_power, max_power) = self
-                .canonical_player_party_power_snapshot_like_cpp()
-                .unwrap_or_else(|| {
-                    (
-                        party_member_power_type_for_class_like_cpp(self.player_class_like_cpp()),
-                        0,
-                        0,
-                    )
-                });
-            info.power_type = power_type;
-            info.current_power = current_power;
-            info.max_power = max_power;
-            info.base_mana = self.represented_player_base_mana_like_cpp;
             info.transport = self.player_transport_info_like_cpp();
             if let Some(guid) = self.player_guid() {
                 let pvp_flags = self
