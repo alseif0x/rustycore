@@ -9,7 +9,7 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::{CharStatements, LoginStatements, PreparedStatement, SqlTransaction};
+use wow_database::LoginStatements;
 use wow_packet::ClientPacket;
 
 use wow_persistence::{
@@ -1454,14 +1454,6 @@ impl WorldSession {
                 warn!("Character offline mark outcome is unknown: {reason}");
             }
         }
-    }
-
-    pub(crate) fn build_character_account_offline_statement_like_cpp(
-        account_id: u32,
-    ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_ACCOUNT_ONLINE);
-        stmt.set_u32(0, account_id);
-        stmt
     }
 
     /// Trinity marks every character for the active account offline after
