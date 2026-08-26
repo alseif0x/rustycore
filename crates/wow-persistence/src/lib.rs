@@ -181,6 +181,23 @@ pub enum PlayerLoginAuxiliaryLoadRequestLikeCpp {
     TraitConfigs { player_guid: u64 },
 }
 
+/// One logout-time clear of the represented Player buyback inventory.
+///
+/// The adapter deletes each item from `character_inventory` and then from
+/// `item_instance` in this order, preserving the existing Rust representation
+/// of C++ `Player::_SaveInventory` without exposing statements to Session.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerBuybackClearRequestLikeCpp {
+    pub player_guid: u64,
+    pub item_db_guids: Vec<u64>,
+}
+
+impl PlayerBuybackClearRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
 impl PlayerLoginAuxiliaryLoadRequestLikeCpp {
     pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
         LogicalDatabaseLikeCpp::Characters
@@ -833,6 +850,14 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
         request: PlayerHomebindPersistenceRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 
+    /// Delete every represented buyback item in one Characters-database
+    /// transaction. Runtime state remains owned and published by the Player
+    /// lifecycle caller only after `Applied`.
+    fn clear_buyback_like_cpp<'a>(
+        &'a self,
+        request: PlayerBuybackClearRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
+
     /// Load one account-wide collection from the Login database. The caller
     /// retains collection validation and represented-state publication.
     fn load_account_collection_like_cpp<'a>(
@@ -893,6 +918,18 @@ mod tests {
         ] {
             assert_eq!(request.logical_database(), LogicalDatabaseLikeCpp::Login);
         }
+    }
+
+    #[test]
+    fn buyback_clear_names_the_character_database_like_cpp() {
+        assert_eq!(
+            PlayerBuybackClearRequestLikeCpp {
+                player_guid: 1,
+                item_db_guids: vec![2],
+            }
+            .logical_database(),
+            LogicalDatabaseLikeCpp::Characters
+        );
     }
 
     #[test]

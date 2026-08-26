@@ -197,29 +197,28 @@ impl WorldSession {
             return;
         }
 
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.player_lifecycle_port_like_cpp().map(Arc::clone) {
+            Some(port) => port,
             None => return,
         };
-
-        let mut tx = SqlTransaction::new();
-        for item in self.buyback_items_like_cpp().values() {
-            let mut del_inv = char_db.prepare(CharStatements::DEL_CHAR_INVENTORY_ITEM);
-            del_inv.set_u64(0, guid.counter() as u64);
-            del_inv.set_u64(1, item.db_guid);
-            tx.append(del_inv);
-
-            let mut del_item = char_db.prepare(CharStatements::DEL_ITEM_INSTANCE);
-            del_item.set_u64(0, item.db_guid);
-            tx.append(del_item);
-        }
-
-        if let Err(e) = char_db.commit_transaction(tx).await {
-            warn!(
-                "Failed to clear buyback items on logout for guid {}: {e}",
-                guid.counter()
-            );
-            return;
+        let request = wow_persistence::PlayerBuybackClearRequestLikeCpp {
+            player_guid: guid.counter() as u64,
+            item_db_guids: self
+                .buyback_items_like_cpp()
+                .values()
+                .map(|item| item.db_guid)
+                .collect(),
+        };
+        match port.clear_buyback_like_cpp(request).await {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                warn!(
+                    "Failed to clear buyback items on logout for guid {}: {reason}",
+                    guid.counter()
+                );
+                return;
+            }
         }
 
         let removed_guids: Vec<_> = self

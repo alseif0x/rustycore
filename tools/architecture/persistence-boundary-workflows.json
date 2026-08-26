@@ -10445,6 +10445,36 @@
       "package": "wow-database",
       "module": "crate::player_lifecycle_adapter",
       "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_buyback_clear_statements_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free logout buyback cleanup (#400)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure Characters-database statement construction; the lifecycle adapter appends the complete plan to one transaction.",
+      "current_order": "For every request item in order, builds DEL_CHAR_INVENTORY_ITEM followed by DEL_ITEM_INSTANCE with the existing bind widths.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter classifies definite rollback and unknown COMMIT without publishing runtime state."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::clear_buyback_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free logout buyback cleanup (#400)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "All item pairs execute on one connection from the configured Characters pool and share one transaction.",
+      "current_order": "Builds the complete typed request plan, begins one transaction, executes every inventory/item delete pair in request order, then COMMITs before returning Applied.",
+      "failure_and_unknown_commit": "DefinitelyRolledBack maps to Failed; CommitOutcomeUnknown maps to Unknown; only Applied permits the caller to clear represented runtime state."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
       "enclosing": "fn player_homebind_persistence_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -11414,24 +11444,6 @@
       "stable_boundary": false,
       "connection_affinity": "This is a shared dependency/type surface for characters, login, world; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::vendor",
-      "source": "crates/wow-world/src/handlers/character/vendor.rs",
-      "enclosing": "impl WorldSession::clear_buyback_on_logout",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Player login/logout lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
     },
     {
