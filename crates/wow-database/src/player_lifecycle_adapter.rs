@@ -14,20 +14,1038 @@ use std::sync::Arc;
 
 use wow_persistence::{
     AccountCollectionSaveLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
-    PlayerLifecyclePortLikeCpp, PlayerOfflineMarkLikeCpp,
+    PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
+    PlayerCufProfileSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp, PlayerEquipmentSetStateLikeCpp,
+    PlayerEquipmentSetTypeLikeCpp, PlayerLifecyclePortLikeCpp, PlayerOfflineMarkLikeCpp,
+    PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp, PlayerVoidStorageSaveLikeCpp,
 };
 
 use crate::params::PreparedStatement;
 use crate::statements::{CharStatements, LoginStatements, StatementDef};
 use crate::transaction::SqlTransaction;
-use crate::{CharacterDatabase, LoginDatabase};
+use crate::{CharacterDatabase, LoginDatabase, SqlTransactionCommitError};
+
+/// Private statement decomposition for the MariaDB adapter.
+///
+/// This must not cross into `wow-persistence`: the port carries semantic
+/// Player groups, while this adapter remains free to change their SQL shape.
+#[derive(Debug, Clone, PartialEq)]
+enum PlayerCharacterSaveStepLikeCpp {
+    Position {
+        x: f32,
+        y: f32,
+        z: f32,
+        orientation: f32,
+        map_id: u16,
+        instance_id: u32,
+        zone_id: u16,
+        guid: u64,
+    },
+    LevelXp {
+        level: u8,
+        xp: u32,
+        guid: u64,
+    },
+    Money {
+        money: u64,
+        guid: u64,
+    },
+    RestState {
+        rest_state: u8,
+        player_flags: u32,
+        rest_bonus: f32,
+        logout_time: u64,
+        is_logout_resting: bool,
+        guid: u64,
+    },
+    Health {
+        health: u32,
+        guid: u64,
+    },
+    Powers {
+        powers: [i32; 10],
+        guid: u64,
+    },
+    TalentReset {
+        reset_cost: u32,
+        reset_time: u64,
+        guid: u64,
+    },
+    ExploredZones {
+        explored_zones: String,
+        guid: u64,
+    },
+    DeleteSpell {
+        spell_id: i32,
+        guid: u64,
+    },
+    InsertSpell {
+        guid: u64,
+        spell_id: i32,
+        active: bool,
+        disabled: bool,
+    },
+    UpsertFallbackSpell {
+        guid: u64,
+        spell_id: i32,
+        active: bool,
+    },
+    DeleteFavoriteSpell {
+        guid: u64,
+        spell_id: i32,
+    },
+    InsertFavoriteSpell {
+        guid: u64,
+        spell_id: i32,
+    },
+    DeleteSkills {
+        guid: u64,
+    },
+    InsertSkill {
+        guid: u64,
+        skill_id: u16,
+        value: u16,
+        max: u16,
+        profession_slot: i8,
+    },
+    Difficulties {
+        dungeon: u32,
+        raid: u32,
+        legacy_raid: u32,
+        guid: u64,
+    },
+    DeleteGlyphs {
+        guid: u64,
+    },
+    InsertGlyph {
+        guid: u64,
+        talent_group: u8,
+        glyph_slot: u8,
+        glyph_id: u16,
+    },
+    DeleteTalents {
+        guid: u64,
+    },
+    InsertTalent {
+        guid: u64,
+        talent_id: u32,
+        rank: u8,
+        talent_group: u8,
+    },
+    DeleteSpellCooldowns {
+        guid: u64,
+    },
+    InsertSpellCooldown {
+        guid: u64,
+        spell_id: u32,
+        item_id: u32,
+        cooldown_end: i64,
+        category_id: u32,
+        category_end: i64,
+    },
+    DeleteSpellCharges {
+        guid: u64,
+    },
+    InsertSpellCharge {
+        guid: u64,
+        category_id: u32,
+        recharge_start: i64,
+        recharge_end: i64,
+    },
+    DeleteActions {
+        guid: u64,
+        spec: u8,
+        trait_config_id: i32,
+    },
+    InsertAction {
+        guid: u64,
+        spec: u8,
+        trait_config_id: i32,
+        button: u8,
+        action: u32,
+        action_type: u8,
+    },
+    InsertEquipmentSet {
+        player_guid: u64,
+        row: PlayerEquipmentSetSaveLikeCpp,
+    },
+    UpdateEquipmentSet {
+        player_guid: u64,
+        row: PlayerEquipmentSetSaveLikeCpp,
+    },
+    DeleteEquipmentSet {
+        set_guid: u64,
+    },
+    InsertTransmogOutfit {
+        player_guid: u64,
+        row: PlayerEquipmentSetSaveLikeCpp,
+    },
+    UpdateTransmogOutfit {
+        player_guid: u64,
+        row: PlayerEquipmentSetSaveLikeCpp,
+    },
+    DeleteTransmogOutfit {
+        set_guid: u64,
+    },
+    ReplaceVoidStorageItem {
+        player_guid: u64,
+        slot: u8,
+        row: PlayerVoidStorageSaveLikeCpp,
+    },
+    DeleteVoidStorageSlot {
+        player_guid: u64,
+        slot: u8,
+    },
+    InsertTutorials {
+        account_id: u32,
+        tutorials: [u32; 8],
+    },
+    UpdateTutorials {
+        account_id: u32,
+        tutorials: [u32; 8],
+    },
+    DeleteInstanceLockTimes {
+        account_id: u32,
+    },
+    InsertInstanceLockTime {
+        account_id: u32,
+        instance_id: u32,
+        release_time: u64,
+    },
+    PlayedTime {
+        total_time: u32,
+        level_time: u32,
+        guid: u64,
+    },
+    DeleteReputation {
+        guid: u64,
+        faction_id: u16,
+    },
+    InsertReputation {
+        guid: u64,
+        faction_id: u16,
+        standing: i32,
+        flags: u16,
+    },
+    ReplaceCufProfile {
+        guid: u64,
+        profile_id: u8,
+        row: PlayerCufProfileSaveLikeCpp,
+    },
+    DeleteCufProfile {
+        guid: u64,
+        profile_id: u8,
+    },
+}
+
+fn player_character_save_statement_like_cpp(
+    step: &PlayerCharacterSaveStepLikeCpp,
+) -> PreparedStatement {
+    use PlayerCharacterSaveStepLikeCpp as Step;
+
+    let statement = match step {
+        Step::Position {
+            x,
+            y,
+            z,
+            orientation,
+            map_id,
+            instance_id,
+            zone_id,
+            guid,
+        } => {
+            let mut stmt = PreparedStatement::for_statement(
+                CharStatements::UPD_CHARACTER_POSITION_PRESERVE_TRAVEL,
+            );
+            stmt.set_f32(0, *x);
+            stmt.set_f32(1, *y);
+            stmt.set_f32(2, *z);
+            stmt.set_f32(3, *orientation);
+            stmt.set_u16(4, *map_id);
+            stmt.set_u32(5, *instance_id);
+            stmt.set_u16(6, *zone_id);
+            stmt.set_u64(7, *guid);
+            stmt
+        }
+        Step::LevelXp { level, xp, guid } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_LEVEL);
+            stmt.set_u8(0, *level);
+            stmt.set_u32(1, *xp);
+            stmt.set_u64(2, *guid);
+            stmt
+        }
+        Step::Money { money, guid } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_MONEY);
+            stmt.set_u64(0, *money);
+            stmt.set_u64(1, *guid);
+            stmt
+        }
+        Step::RestState {
+            rest_state,
+            player_flags,
+            rest_bonus,
+            logout_time,
+            is_logout_resting,
+            guid,
+        } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_REST_STATE);
+            stmt.set_u8(0, *rest_state);
+            stmt.set_u32(1, *player_flags);
+            stmt.set_f32(2, *rest_bonus);
+            stmt.set_u64(3, *logout_time);
+            stmt.set_bool(4, *is_logout_resting);
+            stmt.set_u64(5, *guid);
+            stmt
+        }
+        Step::Health { health, guid } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_HEALTH);
+            stmt.set_u32(0, *health);
+            stmt.set_u64(1, *guid);
+            stmt
+        }
+        Step::Powers { powers, guid } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_POWERS);
+            for (index, power) in powers.iter().copied().enumerate() {
+                stmt.set_i32(index, power.max(0));
+            }
+            stmt.set_u64(10, *guid);
+            stmt
+        }
+        Step::TalentReset {
+            reset_cost,
+            reset_time,
+            guid,
+        } => {
+            let mut stmt =
+                PreparedStatement::for_statement(CharStatements::UPD_CHAR_TALENT_RESET_STATE);
+            stmt.set_u32(0, *reset_cost);
+            stmt.set_u64(1, *reset_time);
+            stmt.set_u64(2, *guid);
+            stmt
+        }
+        Step::ExploredZones {
+            explored_zones,
+            guid,
+        } => {
+            let mut stmt =
+                PreparedStatement::for_statement(CharStatements::UPD_CHAR_EXPLORED_ZONES);
+            stmt.set_string(0, explored_zones.clone());
+            stmt.set_u64(1, *guid);
+            stmt
+        }
+        Step::DeleteSpell { spell_id, guid } => {
+            let mut stmt =
+                PreparedStatement::for_statement(CharStatements::DEL_CHAR_SPELL_BY_SPELL);
+            stmt.set_i32(0, *spell_id);
+            stmt.set_u64(1, *guid);
+            stmt
+        }
+        Step::InsertSpell {
+            guid,
+            spell_id,
+            active,
+            disabled,
+        } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHAR_SPELL);
+            stmt.set_u64(0, *guid);
+            stmt.set_i32(1, *spell_id);
+            stmt.set_bool(2, *active);
+            stmt.set_bool(3, *disabled);
+            stmt
+        }
+        Step::UpsertFallbackSpell {
+            guid,
+            spell_id,
+            active,
+        } => {
+            let mut stmt =
+                PreparedStatement::for_statement(CharStatements::UPSERT_CHAR_SPELL_LEARN_FALLBACK);
+            stmt.set_u64(0, *guid);
+            stmt.set_i32(1, *spell_id);
+            stmt.set_bool(2, *active);
+            stmt.set_bool(3, false);
+            stmt
+        }
+        Step::DeleteFavoriteSpell { guid, spell_id } => {
+            let mut stmt =
+                PreparedStatement::for_statement(CharStatements::DEL_CHAR_SPELL_FAVORITE);
+            stmt.set_u64(0, *guid);
+            stmt.set_i32(1, *spell_id);
+            stmt
+        }
+        Step::InsertFavoriteSpell { guid, spell_id } => {
+            let mut stmt =
+                PreparedStatement::for_statement(CharStatements::INS_CHAR_SPELL_FAVORITE);
+            stmt.set_u64(0, *guid);
+            stmt.set_i32(1, *spell_id);
+            stmt
+        }
+        Step::DeleteSkills { guid } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_CHAR_SKILLS);
+            stmt.set_u64(0, *guid);
+            stmt
+        }
+        Step::InsertSkill {
+            guid,
+            skill_id,
+            value,
+            max,
+            profession_slot,
+        } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHAR_SKILLS);
+            stmt.set_u64(0, *guid);
+            stmt.set_u16(1, *skill_id);
+            stmt.set_u16(2, *value);
+            stmt.set_u16(3, *max);
+            stmt.set_i8(4, *profession_slot);
+            stmt
+        }
+        Step::Difficulties {
+            dungeon,
+            raid,
+            legacy_raid,
+            guid,
+        } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_DIFFICULTIES);
+            stmt.set_u32(0, *dungeon);
+            stmt.set_u32(1, *raid);
+            stmt.set_u32(2, *legacy_raid);
+            stmt.set_u64(3, *guid);
+            stmt
+        }
+        Step::DeleteGlyphs { guid } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_CHAR_GLYPHS);
+            stmt.set_u64(0, *guid);
+            stmt
+        }
+        Step::InsertGlyph {
+            guid,
+            talent_group,
+            glyph_slot,
+            glyph_id,
+        } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHAR_GLYPHS);
+            stmt.set_u64(0, *guid);
+            stmt.set_u8(1, *talent_group);
+            stmt.set_u8(2, *glyph_slot);
+            stmt.set_u16(3, *glyph_id);
+            stmt
+        }
+        Step::DeleteTalents { guid } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_CHAR_TALENT);
+            stmt.set_u64(0, *guid);
+            stmt
+        }
+        Step::InsertTalent {
+            guid,
+            talent_id,
+            rank,
+            talent_group,
+        } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHAR_TALENT);
+            stmt.set_u64(0, *guid);
+            stmt.set_u32(1, *talent_id);
+            stmt.set_u8(2, *rank);
+            stmt.set_u8(3, *talent_group);
+            stmt
+        }
+        Step::DeleteSpellCooldowns { guid } => {
+            let mut stmt =
+                PreparedStatement::for_statement(CharStatements::DEL_CHAR_SPELL_COOLDOWNS);
+            stmt.set_u64(0, *guid);
+            stmt
+        }
+        Step::InsertSpellCooldown {
+            guid,
+            spell_id,
+            item_id,
+            cooldown_end,
+            category_id,
+            category_end,
+        } => {
+            let mut stmt =
+                PreparedStatement::for_statement(CharStatements::INS_CHAR_SPELL_COOLDOWN);
+            stmt.set_u64(0, *guid);
+            stmt.set_u32(1, *spell_id);
+            stmt.set_u32(2, *item_id);
+            stmt.set_i64(3, *cooldown_end);
+            stmt.set_u32(4, *category_id);
+            stmt.set_i64(5, *category_end);
+            stmt
+        }
+        Step::DeleteSpellCharges { guid } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_CHAR_SPELL_CHARGES);
+            stmt.set_u64(0, *guid);
+            stmt
+        }
+        Step::InsertSpellCharge {
+            guid,
+            category_id,
+            recharge_start,
+            recharge_end,
+        } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHAR_SPELL_CHARGES);
+            stmt.set_u64(0, *guid);
+            stmt.set_u32(1, *category_id);
+            stmt.set_i64(2, *recharge_start);
+            stmt.set_i64(3, *recharge_end);
+            stmt
+        }
+        Step::DeleteActions {
+            guid,
+            spec,
+            trait_config_id,
+        } => {
+            let mut stmt =
+                PreparedStatement::for_statement(CharStatements::DEL_CHAR_ACTION_BY_SPEC);
+            stmt.set_u64(0, *guid);
+            stmt.set_u8(1, *spec);
+            stmt.set_i32(2, *trait_config_id);
+            stmt
+        }
+        Step::InsertAction {
+            guid,
+            spec,
+            trait_config_id,
+            button,
+            action,
+            action_type,
+        } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHAR_ACTION);
+            stmt.set_u64(0, *guid);
+            stmt.set_u8(1, *spec);
+            stmt.set_i32(2, *trait_config_id);
+            stmt.set_u8(3, *button);
+            stmt.set_u32(4, *action);
+            stmt.set_u8(5, *action_type);
+            stmt
+        }
+        Step::InsertEquipmentSet { player_guid, row } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::INS_EQUIP_SET);
+            stmt.set_u64(0, *player_guid);
+            stmt.set_u64(1, row.set_guid);
+            stmt.set_u32(2, row.set_id);
+            stmt.set_string(3, row.name.clone());
+            stmt.set_string(4, row.icon.clone());
+            stmt.set_u32(5, row.ignore_mask);
+            stmt.set_i32(6, row.assigned_spec_index);
+            for (offset, piece) in row.pieces.iter().copied().enumerate() {
+                stmt.set_u64(7 + offset, piece);
+            }
+            stmt
+        }
+        Step::UpdateEquipmentSet { player_guid, row } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_EQUIP_SET);
+            stmt.set_string(0, row.name.clone());
+            stmt.set_string(1, row.icon.clone());
+            stmt.set_u32(2, row.ignore_mask);
+            stmt.set_i32(3, row.assigned_spec_index);
+            for (offset, piece) in row.pieces.iter().copied().enumerate() {
+                stmt.set_u64(4 + offset, piece);
+            }
+            stmt.set_u64(23, *player_guid);
+            stmt.set_u64(24, row.set_guid);
+            stmt.set_u32(25, row.set_id);
+            stmt
+        }
+        Step::DeleteEquipmentSet { set_guid } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_EQUIP_SET);
+            stmt.set_u64(0, *set_guid);
+            stmt
+        }
+        Step::InsertTransmogOutfit { player_guid, row } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::INS_TRANSMOG_OUTFIT);
+            stmt.set_u64(0, *player_guid);
+            stmt.set_u64(1, row.set_guid);
+            stmt.set_u32(2, row.set_id);
+            stmt.set_string(3, row.name.clone());
+            stmt.set_string(4, row.icon.clone());
+            stmt.set_u32(5, row.ignore_mask);
+            for (offset, appearance) in row.appearances.iter().copied().enumerate() {
+                stmt.set_i32(6 + offset, appearance);
+            }
+            stmt.set_i32(25, row.enchants[0]);
+            stmt.set_i32(26, row.enchants[1]);
+            stmt
+        }
+        Step::UpdateTransmogOutfit { player_guid, row } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_TRANSMOG_OUTFIT);
+            stmt.set_string(0, row.name.clone());
+            stmt.set_string(1, row.icon.clone());
+            stmt.set_u32(2, row.ignore_mask);
+            for (offset, appearance) in row.appearances.iter().copied().enumerate() {
+                stmt.set_i32(3 + offset, appearance);
+            }
+            stmt.set_i32(22, row.enchants[0]);
+            stmt.set_i32(23, row.enchants[1]);
+            stmt.set_u64(24, *player_guid);
+            stmt.set_u64(25, row.set_guid);
+            stmt.set_u32(26, row.set_id);
+            stmt
+        }
+        Step::DeleteTransmogOutfit { set_guid } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_TRANSMOG_OUTFIT);
+            stmt.set_u64(0, *set_guid);
+            stmt
+        }
+        Step::ReplaceVoidStorageItem {
+            player_guid,
+            slot,
+            row,
+        } => {
+            let mut stmt =
+                PreparedStatement::for_statement(CharStatements::REP_CHAR_VOID_STORAGE_ITEM);
+            stmt.set_u64(0, row.item_id);
+            stmt.set_u64(1, *player_guid);
+            stmt.set_u32(2, row.item_entry);
+            stmt.set_u8(3, *slot);
+            stmt.set_u64(4, row.creator_guid);
+            stmt.set_u32(5, row.fixed_scaling_level);
+            stmt.set_i32(6, row.random_properties_id);
+            stmt.set_i32(7, row.random_properties_seed);
+            stmt.set_u8(8, row.context);
+            stmt
+        }
+        Step::DeleteVoidStorageSlot { player_guid, slot } => {
+            let mut stmt = PreparedStatement::for_statement(
+                CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_SLOT,
+            );
+            stmt.set_u8(0, *slot);
+            stmt.set_u64(1, *player_guid);
+            stmt
+        }
+        Step::InsertTutorials {
+            account_id,
+            tutorials,
+        }
+        | Step::UpdateTutorials {
+            account_id,
+            tutorials,
+        } => build_tutorials_save_statement_like_cpp(
+            *account_id,
+            tutorials,
+            matches!(step, Step::UpdateTutorials { .. }),
+        ),
+        Step::DeleteInstanceLockTimes { account_id } => {
+            let mut stmt =
+                PreparedStatement::for_statement(CharStatements::DEL_ACCOUNT_INSTANCE_LOCK_TIMES);
+            stmt.set_u32(0, *account_id);
+            stmt
+        }
+        Step::InsertInstanceLockTime {
+            account_id,
+            instance_id,
+            release_time,
+        } => {
+            let mut stmt =
+                PreparedStatement::for_statement(CharStatements::INS_ACCOUNT_INSTANCE_LOCK_TIMES);
+            stmt.set_u32(0, *account_id);
+            stmt.set_u32(1, *instance_id);
+            stmt.set_u64(2, *release_time);
+            stmt
+        }
+        Step::PlayedTime {
+            total_time,
+            level_time,
+            guid,
+        } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_PLAYED_TIME);
+            stmt.set_u32(0, *total_time);
+            stmt.set_u32(1, *level_time);
+            stmt.set_u64(2, *guid);
+            stmt
+        }
+        Step::DeleteReputation { guid, faction_id } => {
+            let mut stmt =
+                PreparedStatement::for_statement(CharStatements::DEL_CHAR_REPUTATION_BY_FACTION);
+            stmt.set_u64(0, *guid);
+            stmt.set_u16(1, *faction_id);
+            stmt
+        }
+        Step::InsertReputation {
+            guid,
+            faction_id,
+            standing,
+            flags,
+        } => {
+            let mut stmt =
+                PreparedStatement::for_statement(CharStatements::INS_CHAR_REPUTATION_BY_FACTION);
+            stmt.set_u64(0, *guid);
+            stmt.set_u16(1, *faction_id);
+            stmt.set_i32(2, *standing);
+            stmt.set_u16(3, *flags);
+            stmt
+        }
+        Step::ReplaceCufProfile {
+            guid,
+            profile_id,
+            row,
+        } => {
+            let mut stmt = PreparedStatement::for_statement(CharStatements::REP_CHAR_CUF_PROFILES);
+            stmt.set_u64(0, *guid);
+            stmt.set_u8(1, *profile_id);
+            stmt.set_string(2, row.profile_name.clone());
+            stmt.set_u16(3, row.frame_height);
+            stmt.set_u16(4, row.frame_width);
+            stmt.set_u8(5, row.sort_by);
+            stmt.set_u8(6, row.health_text);
+            stmt.set_u32(7, row.bool_options);
+            stmt.set_u8(8, row.top_point);
+            stmt.set_u8(9, row.bottom_point);
+            stmt.set_u8(10, row.left_point);
+            stmt.set_u16(11, row.top_offset);
+            stmt.set_u16(12, row.bottom_offset);
+            stmt.set_u16(13, row.left_offset);
+            stmt
+        }
+        Step::DeleteCufProfile { guid, profile_id } => {
+            let mut stmt =
+                PreparedStatement::for_statement(CharStatements::DEL_CHAR_CUF_PROFILES_BY_ID);
+            stmt.set_u64(0, *guid);
+            stmt.set_u8(1, *profile_id);
+            stmt
+        }
+    };
+    statement
+}
+
+fn player_character_save_statements_like_cpp(
+    request: &PlayerCharacterSaveRequestLikeCpp,
+) -> Vec<PreparedStatement> {
+    use PlayerCharacterSaveStepLikeCpp as Step;
+
+    let guid = request.player_guid;
+    let account_id = request.account_id;
+    let character = &request.character;
+    let mut steps = vec![
+        Step::Position {
+            x: character.position.x,
+            y: character.position.y,
+            z: character.position.z,
+            orientation: character.position.orientation,
+            map_id: character.position.map_id,
+            instance_id: character.position.instance_id,
+            zone_id: character.position.zone_id,
+            guid,
+        },
+        Step::LevelXp {
+            level: character.level,
+            xp: character.xp,
+            guid,
+        },
+        Step::Money {
+            money: character.money,
+            guid,
+        },
+        Step::RestState {
+            rest_state: character.rest_state,
+            player_flags: character.player_flags,
+            rest_bonus: character.rest_bonus,
+            logout_time: character.logout_time,
+            is_logout_resting: character.is_logout_resting,
+            guid,
+        },
+        Step::Health {
+            health: character.health,
+            guid,
+        },
+    ];
+    if let Some(powers) = character.powers {
+        steps.push(Step::Powers { powers, guid });
+    }
+    steps.extend([
+        Step::TalentReset {
+            reset_cost: character.talent_reset_cost,
+            reset_time: character.talent_reset_time,
+            guid,
+        },
+        Step::ExploredZones {
+            explored_zones: character.explored_zones.clone(),
+            guid,
+        },
+    ]);
+
+    match &request.spells {
+        Some(PlayerSpellSaveGroupLikeCpp::Complete { rows, .. }) => {
+            let mut rows = rows.clone();
+            rows.sort_by_key(|spell| spell.spell_id);
+            for spell in rows {
+                if matches!(
+                    spell.state,
+                    PlayerSpellStateLikeCpp::Removed | PlayerSpellStateLikeCpp::Changed
+                ) {
+                    steps.push(Step::DeleteSpell {
+                        spell_id: spell.spell_id,
+                        guid,
+                    });
+                }
+                if matches!(
+                    spell.state,
+                    PlayerSpellStateLikeCpp::New | PlayerSpellStateLikeCpp::Changed
+                ) {
+                    if !spell.dependent {
+                        steps.push(Step::InsertSpell {
+                            guid,
+                            spell_id: spell.spell_id,
+                            active: spell.active,
+                            disabled: spell.disabled,
+                        });
+                    }
+                    steps.push(Step::DeleteFavoriteSpell {
+                        guid,
+                        spell_id: spell.spell_id,
+                    });
+                    if spell.favorite {
+                        steps.push(Step::InsertFavoriteSpell {
+                            guid,
+                            spell_id: spell.spell_id,
+                        });
+                    }
+                }
+            }
+        }
+        Some(PlayerSpellSaveGroupLikeCpp::Fallback { rows }) => {
+            let mut rows = rows.clone();
+            rows.sort_by_key(|spell| spell.spell_id);
+            for spell in rows {
+                steps.push(if spell.dependent {
+                    Step::DeleteSpell {
+                        spell_id: spell.spell_id,
+                        guid,
+                    }
+                } else {
+                    Step::UpsertFallbackSpell {
+                        guid,
+                        spell_id: spell.spell_id,
+                        active: spell.active,
+                    }
+                });
+            }
+        }
+        None => {}
+    }
+
+    if let Some(skills) = &request.skills {
+        steps.push(Step::DeleteSkills { guid });
+        let mut skills = skills.clone();
+        skills.sort_by_key(|skill| skill.skill_id);
+        steps.extend(skills.into_iter().map(|skill| Step::InsertSkill {
+            guid,
+            skill_id: skill.skill_id,
+            value: skill.value,
+            max: skill.max,
+            profession_slot: skill.profession_slot,
+        }));
+    }
+
+    steps.push(Step::Difficulties {
+        dungeon: character.dungeon_difficulty,
+        raid: character.raid_difficulty,
+        legacy_raid: character.legacy_raid_difficulty,
+        guid,
+    });
+
+    if let Some(glyphs) = &request.glyphs {
+        steps.push(Step::DeleteGlyphs { guid });
+        steps.extend(glyphs.iter().map(|glyph| Step::InsertGlyph {
+            guid,
+            talent_group: glyph.talent_group,
+            glyph_slot: glyph.glyph_slot,
+            glyph_id: glyph.glyph_id,
+        }));
+    }
+    if let Some(talents) = &request.talents {
+        steps.push(Step::DeleteTalents { guid });
+        steps.extend(talents.iter().map(|talent| Step::InsertTalent {
+            guid,
+            talent_id: talent.talent_id,
+            rank: talent.rank,
+            talent_group: talent.talent_group,
+        }));
+    }
+    if let Some(cooldowns) = &request.spell_cooldowns {
+        steps.push(Step::DeleteSpellCooldowns { guid });
+        let mut cooldowns = cooldowns
+            .iter()
+            .copied()
+            .filter(|cooldown| {
+                cooldown.cooldown_end_unix_secs > request.wall_clock_unix_secs
+                    || cooldown.category_end_unix_secs > request.wall_clock_unix_secs
+            })
+            .collect::<Vec<_>>();
+        cooldowns.sort_by_key(|cooldown| cooldown.spell_id);
+        steps.extend(
+            cooldowns
+                .into_iter()
+                .map(|cooldown| Step::InsertSpellCooldown {
+                    guid,
+                    spell_id: cooldown.spell_id,
+                    item_id: cooldown.item_id,
+                    cooldown_end: cooldown.cooldown_end_unix_secs,
+                    category_id: cooldown.category_id,
+                    category_end: cooldown.category_end_unix_secs,
+                }),
+        );
+    }
+    if let Some(charges) = &request.spell_charges {
+        steps.push(Step::DeleteSpellCharges { guid });
+        steps.extend(
+            charges
+                .iter()
+                .copied()
+                .filter(|charge| charge.recharge_end_unix_secs > request.wall_clock_unix_secs)
+                .map(|charge| Step::InsertSpellCharge {
+                    guid,
+                    category_id: charge.category_id,
+                    recharge_start: charge.recharge_start_unix_secs,
+                    recharge_end: charge.recharge_end_unix_secs,
+                }),
+        );
+    }
+    if let Some(actions) = &request.action_buttons {
+        steps.push(Step::DeleteActions {
+            guid,
+            spec: actions.spec,
+            trait_config_id: actions.trait_config_id,
+        });
+        steps.extend(actions.rows.iter().map(|button| Step::InsertAction {
+            guid,
+            spec: actions.spec,
+            trait_config_id: actions.trait_config_id,
+            button: button.button,
+            action: button.packed_action & 0x00FF_FFFF,
+            action_type: (button.packed_action >> 24) as u8,
+        }));
+    }
+    if let Some(equipment_sets) = &request.equipment_sets {
+        for row in equipment_sets {
+            let step = match (row.state, row.set_type) {
+                (PlayerEquipmentSetStateLikeCpp::Unchanged, _) => None,
+                (
+                    PlayerEquipmentSetStateLikeCpp::Deleted,
+                    PlayerEquipmentSetTypeLikeCpp::Equipment,
+                ) => Some(Step::DeleteEquipmentSet {
+                    set_guid: row.set_guid,
+                }),
+                (
+                    PlayerEquipmentSetStateLikeCpp::Deleted,
+                    PlayerEquipmentSetTypeLikeCpp::Transmog,
+                ) => Some(Step::DeleteTransmogOutfit {
+                    set_guid: row.set_guid,
+                }),
+                (PlayerEquipmentSetStateLikeCpp::New, PlayerEquipmentSetTypeLikeCpp::Equipment) => {
+                    Some(Step::InsertEquipmentSet {
+                        player_guid: guid,
+                        row: row.clone(),
+                    })
+                }
+                (
+                    PlayerEquipmentSetStateLikeCpp::Changed,
+                    PlayerEquipmentSetTypeLikeCpp::Equipment,
+                ) => Some(Step::UpdateEquipmentSet {
+                    player_guid: guid,
+                    row: row.clone(),
+                }),
+                (PlayerEquipmentSetStateLikeCpp::New, PlayerEquipmentSetTypeLikeCpp::Transmog) => {
+                    Some(Step::InsertTransmogOutfit {
+                        player_guid: guid,
+                        row: row.clone(),
+                    })
+                }
+                (
+                    PlayerEquipmentSetStateLikeCpp::Changed,
+                    PlayerEquipmentSetTypeLikeCpp::Transmog,
+                ) => Some(Step::UpdateTransmogOutfit {
+                    player_guid: guid,
+                    row: row.clone(),
+                }),
+            };
+            if let Some(step) = step {
+                steps.push(step);
+            }
+        }
+    }
+    if let Some(slots) = &request.void_storage {
+        steps.extend(slots.iter().map(|slot| match &slot.item {
+            Some(row) => Step::ReplaceVoidStorageItem {
+                player_guid: guid,
+                slot: slot.slot,
+                row: row.clone(),
+            },
+            None => Step::DeleteVoidStorageSlot {
+                player_guid: guid,
+                slot: slot.slot,
+            },
+        }));
+    }
+    if let Some(tutorials) = &request.tutorials {
+        steps.push(if tutorials.already_persisted {
+            Step::UpdateTutorials {
+                account_id,
+                tutorials: tutorials.tutorials,
+            }
+        } else {
+            Step::InsertTutorials {
+                account_id,
+                tutorials: tutorials.tutorials,
+            }
+        });
+    }
+    if !request.instance_lock_times.is_empty() {
+        steps.push(Step::DeleteInstanceLockTimes { account_id });
+        steps.extend(
+            request
+                .instance_lock_times
+                .iter()
+                .map(|lock| Step::InsertInstanceLockTime {
+                    account_id,
+                    instance_id: lock.instance_id,
+                    release_time: lock.release_time,
+                }),
+        );
+    }
+    steps.push(Step::PlayedTime {
+        total_time: request.played_time.total_time,
+        level_time: request.played_time.level_time,
+        guid,
+    });
+    for reputation in &request.reputations {
+        steps.push(Step::DeleteReputation {
+            guid,
+            faction_id: reputation.faction_id,
+        });
+        steps.push(Step::InsertReputation {
+            guid,
+            faction_id: reputation.faction_id,
+            standing: reputation.standing,
+            flags: reputation.flags,
+        });
+    }
+    if let Some(profiles) = &request.cuf_profiles {
+        steps.extend(profiles.iter().map(|slot| match &slot.profile {
+            Some(row) => Step::ReplaceCufProfile {
+                guid,
+                profile_id: slot.profile_id,
+                row: row.clone(),
+            },
+            None => Step::DeleteCufProfile {
+                guid,
+                profile_id: slot.profile_id,
+            },
+        }));
+    }
+
+    steps
+        .iter()
+        .map(player_character_save_statement_like_cpp)
+        .collect()
+}
 
 /// Build the tutorials statement for one account.
 ///
-/// Shared rather than duplicated: the Player full-save plan in `wow-world`
-/// still appends this same row to its own transaction, and two independent
-/// copies of the column order would be free to drift. #286 removes the other
-/// caller when the full-save plan moves behind the port.
+/// Shared rather than duplicated: both the standalone SaveTutorialsData path
+/// and the #286 Player full-save adapter append this same row, and two
+/// independent copies of the column order would be free to drift.
 pub fn build_tutorials_save_statement_like_cpp(
     account_id: u32,
     tutorials: &[u32],
@@ -197,5 +1215,738 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                 },
             }
         })
+    }
+
+    fn save_character_like_cpp<'a>(
+        &'a self,
+        request: PlayerCharacterSaveRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerCharacterSaveResultLikeCpp> {
+        Box::pin(async move {
+            let committed = request.committed_groups_like_cpp();
+            let statements = player_character_save_statements_like_cpp(&request);
+            let rows = statements.len() as u64;
+            let mut tx = SqlTransaction::new();
+            for statement in statements {
+                tx.append(statement);
+            }
+            let outcome = match tx
+                .commit_with_outcome_like_cpp(self.character_db.pool())
+                .await
+            {
+                Ok(()) => PersistenceOutcomeLikeCpp::Applied { rows },
+                Err(SqlTransactionCommitError::DefinitelyRolledBack(error)) => {
+                    PersistenceOutcomeLikeCpp::Failed {
+                        reason: error.to_string(),
+                    }
+                }
+                Err(SqlTransactionCommitError::CommitOutcomeUnknown(error)) => {
+                    PersistenceOutcomeLikeCpp::Unknown {
+                        reason: error.to_string(),
+                    }
+                }
+            };
+            PlayerCharacterSaveResultLikeCpp { outcome, committed }
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wow_persistence::*;
+
+    fn equipment_row() -> PlayerEquipmentSetSaveLikeCpp {
+        PlayerEquipmentSetSaveLikeCpp {
+            set_guid: 2,
+            set_id: 3,
+            set_type: PlayerEquipmentSetTypeLikeCpp::Equipment,
+            state: PlayerEquipmentSetStateLikeCpp::New,
+            name: "set".to_owned(),
+            icon: "icon".to_owned(),
+            ignore_mask: 4,
+            assigned_spec_index: 5,
+            pieces: vec![0; 19],
+            appearances: vec![0; 19],
+            enchants: [0; 2],
+        }
+    }
+
+    fn minimal_character_request() -> PlayerCharacterSaveRequestLikeCpp {
+        PlayerCharacterSaveRequestLikeCpp {
+            player_guid: 1,
+            account_id: 2,
+            wall_clock_unix_secs: 1_700_000_000,
+            character: PlayerCharacterSnapshotSaveLikeCpp {
+                position: PlayerPositionSaveLikeCpp {
+                    x: 1.0,
+                    y: 2.0,
+                    z: 3.0,
+                    orientation: 0.5,
+                    map_id: 0,
+                    instance_id: 0,
+                    zone_id: 0,
+                },
+                level: 1,
+                xp: 0,
+                money: 7,
+                rest_state: 0,
+                player_flags: 0,
+                rest_bonus: 0.0,
+                logout_time: 1_700_000_000,
+                is_logout_resting: false,
+                health: 9,
+                powers: None,
+                talent_reset_cost: 0,
+                talent_reset_time: 0,
+                explored_zones: String::new(),
+                dungeon_difficulty: 0,
+                raid_difficulty: 0,
+                legacy_raid_difficulty: 0,
+            },
+            spells: None,
+            skills: None,
+            glyphs: None,
+            talents: None,
+            spell_cooldowns: None,
+            spell_charges: None,
+            action_buttons: None,
+            equipment_sets: None,
+            void_storage: None,
+            tutorials: None,
+            instance_lock_times: Vec::new(),
+            played_time: PlayerPlayedTimeSaveLikeCpp {
+                total_time: 11,
+                level_time: 5,
+            },
+            reputations: Vec::new(),
+            cuf_profiles: None,
+        }
+    }
+
+    #[test]
+    fn every_private_character_save_operation_maps_to_the_existing_mariadb_statement_like_cpp() {
+        use PlayerCharacterSaveStepLikeCpp as Step;
+
+        let cuf = PlayerCufProfileSaveLikeCpp {
+            profile_name: "profile".to_owned(),
+            frame_height: 1,
+            frame_width: 1,
+            sort_by: 0,
+            health_text: 0,
+            bool_options: 0,
+            top_point: 0,
+            bottom_point: 0,
+            left_point: 0,
+            top_offset: 0,
+            bottom_offset: 0,
+            left_offset: 0,
+        };
+        let void_item = PlayerVoidStorageSaveLikeCpp {
+            item_id: 1,
+            item_entry: 3,
+            creator_guid: 5,
+            fixed_scaling_level: 6,
+            random_properties_id: 7,
+            random_properties_seed: 8,
+            context: 9,
+        };
+        let cases = vec![
+            (
+                Step::Position {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                    orientation: 0.0,
+                    map_id: 0,
+                    instance_id: 0,
+                    zone_id: 0,
+                    guid: 1,
+                },
+                CharStatements::UPD_CHARACTER_POSITION_PRESERVE_TRAVEL,
+            ),
+            (
+                Step::LevelXp {
+                    level: 1,
+                    xp: 2,
+                    guid: 3,
+                },
+                CharStatements::UPD_CHAR_LEVEL,
+            ),
+            (
+                Step::Money { money: 1, guid: 2 },
+                CharStatements::UPD_CHAR_MONEY,
+            ),
+            (
+                Step::RestState {
+                    rest_state: 0,
+                    player_flags: 0,
+                    rest_bonus: 0.0,
+                    logout_time: 0,
+                    is_logout_resting: false,
+                    guid: 1,
+                },
+                CharStatements::UPD_CHAR_REST_STATE,
+            ),
+            (
+                Step::Health { health: 1, guid: 2 },
+                CharStatements::UPD_CHAR_HEALTH,
+            ),
+            (
+                Step::Powers {
+                    powers: [0; 10],
+                    guid: 1,
+                },
+                CharStatements::UPD_CHAR_POWERS,
+            ),
+            (
+                Step::TalentReset {
+                    reset_cost: 0,
+                    reset_time: 0,
+                    guid: 1,
+                },
+                CharStatements::UPD_CHAR_TALENT_RESET_STATE,
+            ),
+            (
+                Step::ExploredZones {
+                    explored_zones: String::new(),
+                    guid: 1,
+                },
+                CharStatements::UPD_CHAR_EXPLORED_ZONES,
+            ),
+            (
+                Step::DeleteSpell {
+                    spell_id: 1,
+                    guid: 2,
+                },
+                CharStatements::DEL_CHAR_SPELL_BY_SPELL,
+            ),
+            (
+                Step::InsertSpell {
+                    guid: 1,
+                    spell_id: 2,
+                    active: true,
+                    disabled: false,
+                },
+                CharStatements::INS_CHAR_SPELL,
+            ),
+            (
+                Step::UpsertFallbackSpell {
+                    guid: 1,
+                    spell_id: 2,
+                    active: true,
+                },
+                CharStatements::UPSERT_CHAR_SPELL_LEARN_FALLBACK,
+            ),
+            (
+                Step::DeleteFavoriteSpell {
+                    guid: 1,
+                    spell_id: 2,
+                },
+                CharStatements::DEL_CHAR_SPELL_FAVORITE,
+            ),
+            (
+                Step::InsertFavoriteSpell {
+                    guid: 1,
+                    spell_id: 2,
+                },
+                CharStatements::INS_CHAR_SPELL_FAVORITE,
+            ),
+            (
+                Step::DeleteSkills { guid: 1 },
+                CharStatements::DEL_CHAR_SKILLS,
+            ),
+            (
+                Step::InsertSkill {
+                    guid: 1,
+                    skill_id: 2,
+                    value: 3,
+                    max: 4,
+                    profession_slot: -1,
+                },
+                CharStatements::INS_CHAR_SKILLS,
+            ),
+            (
+                Step::Difficulties {
+                    dungeon: 1,
+                    raid: 2,
+                    legacy_raid: 3,
+                    guid: 4,
+                },
+                CharStatements::UPD_CHAR_DIFFICULTIES,
+            ),
+            (
+                Step::DeleteGlyphs { guid: 1 },
+                CharStatements::DEL_CHAR_GLYPHS,
+            ),
+            (
+                Step::InsertGlyph {
+                    guid: 1,
+                    talent_group: 0,
+                    glyph_slot: 0,
+                    glyph_id: 2,
+                },
+                CharStatements::INS_CHAR_GLYPHS,
+            ),
+            (
+                Step::DeleteTalents { guid: 1 },
+                CharStatements::DEL_CHAR_TALENT,
+            ),
+            (
+                Step::InsertTalent {
+                    guid: 1,
+                    talent_id: 2,
+                    rank: 3,
+                    talent_group: 0,
+                },
+                CharStatements::INS_CHAR_TALENT,
+            ),
+            (
+                Step::DeleteSpellCooldowns { guid: 1 },
+                CharStatements::DEL_CHAR_SPELL_COOLDOWNS,
+            ),
+            (
+                Step::InsertSpellCooldown {
+                    guid: 1,
+                    spell_id: 2,
+                    item_id: 3,
+                    cooldown_end: 4,
+                    category_id: 5,
+                    category_end: 6,
+                },
+                CharStatements::INS_CHAR_SPELL_COOLDOWN,
+            ),
+            (
+                Step::DeleteSpellCharges { guid: 1 },
+                CharStatements::DEL_CHAR_SPELL_CHARGES,
+            ),
+            (
+                Step::InsertSpellCharge {
+                    guid: 1,
+                    category_id: 2,
+                    recharge_start: 3,
+                    recharge_end: 4,
+                },
+                CharStatements::INS_CHAR_SPELL_CHARGES,
+            ),
+            (
+                Step::DeleteActions {
+                    guid: 1,
+                    spec: 0,
+                    trait_config_id: 2,
+                },
+                CharStatements::DEL_CHAR_ACTION_BY_SPEC,
+            ),
+            (
+                Step::InsertAction {
+                    guid: 1,
+                    spec: 0,
+                    trait_config_id: 2,
+                    button: 3,
+                    action: 4,
+                    action_type: 5,
+                },
+                CharStatements::INS_CHAR_ACTION,
+            ),
+            (
+                Step::InsertEquipmentSet {
+                    player_guid: 1,
+                    row: equipment_row(),
+                },
+                CharStatements::INS_EQUIP_SET,
+            ),
+            (
+                Step::UpdateEquipmentSet {
+                    player_guid: 1,
+                    row: equipment_row(),
+                },
+                CharStatements::UPD_EQUIP_SET,
+            ),
+            (
+                Step::DeleteEquipmentSet { set_guid: 1 },
+                CharStatements::DEL_EQUIP_SET,
+            ),
+            (
+                Step::InsertTransmogOutfit {
+                    player_guid: 1,
+                    row: equipment_row(),
+                },
+                CharStatements::INS_TRANSMOG_OUTFIT,
+            ),
+            (
+                Step::UpdateTransmogOutfit {
+                    player_guid: 1,
+                    row: equipment_row(),
+                },
+                CharStatements::UPD_TRANSMOG_OUTFIT,
+            ),
+            (
+                Step::DeleteTransmogOutfit { set_guid: 1 },
+                CharStatements::DEL_TRANSMOG_OUTFIT,
+            ),
+            (
+                Step::ReplaceVoidStorageItem {
+                    player_guid: 2,
+                    slot: 4,
+                    row: void_item,
+                },
+                CharStatements::REP_CHAR_VOID_STORAGE_ITEM,
+            ),
+            (
+                Step::DeleteVoidStorageSlot {
+                    player_guid: 1,
+                    slot: 2,
+                },
+                CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_SLOT,
+            ),
+            (
+                Step::InsertTutorials {
+                    account_id: 1,
+                    tutorials: [0; 8],
+                },
+                CharStatements::INS_TUTORIALS,
+            ),
+            (
+                Step::UpdateTutorials {
+                    account_id: 1,
+                    tutorials: [0; 8],
+                },
+                CharStatements::UPD_TUTORIALS,
+            ),
+            (
+                Step::DeleteInstanceLockTimes { account_id: 1 },
+                CharStatements::DEL_ACCOUNT_INSTANCE_LOCK_TIMES,
+            ),
+            (
+                Step::InsertInstanceLockTime {
+                    account_id: 1,
+                    instance_id: 2,
+                    release_time: 3,
+                },
+                CharStatements::INS_ACCOUNT_INSTANCE_LOCK_TIMES,
+            ),
+            (
+                Step::PlayedTime {
+                    total_time: 1,
+                    level_time: 2,
+                    guid: 3,
+                },
+                CharStatements::UPD_CHAR_PLAYED_TIME,
+            ),
+            (
+                Step::DeleteReputation {
+                    guid: 1,
+                    faction_id: 2,
+                },
+                CharStatements::DEL_CHAR_REPUTATION_BY_FACTION,
+            ),
+            (
+                Step::InsertReputation {
+                    guid: 1,
+                    faction_id: 2,
+                    standing: 3,
+                    flags: 4,
+                },
+                CharStatements::INS_CHAR_REPUTATION_BY_FACTION,
+            ),
+            (
+                Step::ReplaceCufProfile {
+                    guid: 1,
+                    profile_id: 0,
+                    row: cuf,
+                },
+                CharStatements::REP_CHAR_CUF_PROFILES,
+            ),
+            (
+                Step::DeleteCufProfile {
+                    guid: 1,
+                    profile_id: 0,
+                },
+                CharStatements::DEL_CHAR_CUF_PROFILES_BY_ID,
+            ),
+        ];
+
+        for (step, expected) in cases {
+            assert_eq!(
+                player_character_save_statement_like_cpp(&step).sql(),
+                expected.sql(),
+                "{step:?} must retain its MariaDB statement",
+            );
+        }
+    }
+
+    #[test]
+    fn character_save_adapter_preserves_the_frozen_statement_order_like_cpp() {
+        let mut equipment_insert = equipment_row();
+        equipment_insert.set_guid = 10;
+        let mut equipment_update = equipment_row();
+        equipment_update.set_guid = 11;
+        equipment_update.state = PlayerEquipmentSetStateLikeCpp::Changed;
+        let mut equipment_delete = equipment_row();
+        equipment_delete.set_guid = 12;
+        equipment_delete.state = PlayerEquipmentSetStateLikeCpp::Deleted;
+        let mut transmog_insert = equipment_row();
+        transmog_insert.set_guid = 13;
+        transmog_insert.set_type = PlayerEquipmentSetTypeLikeCpp::Transmog;
+        let mut transmog_update = equipment_row();
+        transmog_update.set_guid = 14;
+        transmog_update.set_type = PlayerEquipmentSetTypeLikeCpp::Transmog;
+        transmog_update.state = PlayerEquipmentSetStateLikeCpp::Changed;
+        let mut transmog_delete = equipment_row();
+        transmog_delete.set_guid = 15;
+        transmog_delete.set_type = PlayerEquipmentSetTypeLikeCpp::Transmog;
+        transmog_delete.state = PlayerEquipmentSetStateLikeCpp::Deleted;
+
+        let request = PlayerCharacterSaveRequestLikeCpp {
+            player_guid: 1,
+            account_id: 2,
+            wall_clock_unix_secs: 1_700_000_000,
+            character: PlayerCharacterSnapshotSaveLikeCpp {
+                position: PlayerPositionSaveLikeCpp {
+                    x: 1.0,
+                    y: 2.0,
+                    z: 3.0,
+                    orientation: 0.5,
+                    map_id: 0,
+                    instance_id: 0,
+                    zone_id: 0,
+                },
+                level: 1,
+                xp: 0,
+                money: 7,
+                rest_state: 0,
+                player_flags: 0,
+                rest_bonus: 0.0,
+                logout_time: 1_700_000_000,
+                is_logout_resting: false,
+                health: 9,
+                powers: Some([0; 10]),
+                talent_reset_cost: 0,
+                talent_reset_time: 0,
+                explored_zones: String::new(),
+                dungeon_difficulty: 0,
+                raid_difficulty: 0,
+                legacy_raid_difficulty: 0,
+            },
+            spells: Some(PlayerSpellSaveGroupLikeCpp::Complete {
+                rows: vec![PlayerSpellSaveLikeCpp {
+                    spell_id: 100,
+                    active: true,
+                    disabled: false,
+                    dependent: false,
+                    favorite: true,
+                    state: PlayerSpellStateLikeCpp::Changed,
+                }],
+                fallback_rows_were_present: false,
+            }),
+            skills: Some(vec![PlayerSkillSaveLikeCpp {
+                skill_id: 6,
+                value: 300,
+                max: 300,
+                profession_slot: -1,
+            }]),
+            glyphs: Some(
+                (0..24)
+                    .map(|glyph_slot| PlayerGlyphSaveLikeCpp {
+                        talent_group: 0,
+                        glyph_slot,
+                        glyph_id: 0,
+                    })
+                    .collect(),
+            ),
+            talents: Some(vec![PlayerTalentSaveLikeCpp {
+                talent_id: 200,
+                rank: 1,
+                talent_group: 0,
+            }]),
+            spell_cooldowns: Some(vec![PlayerSpellCooldownSaveLikeCpp {
+                spell_id: 300,
+                item_id: 0,
+                cooldown_end_unix_secs: 1_700_000_010,
+                category_id: 30,
+                category_end_unix_secs: 1_700_000_020,
+            }]),
+            spell_charges: Some(vec![PlayerSpellChargeSaveLikeCpp {
+                category_id: 31,
+                recharge_start_unix_secs: 1_700_000_001,
+                recharge_end_unix_secs: 1_700_000_030,
+            }]),
+            action_buttons: Some(PlayerActionButtonsSaveLikeCpp {
+                spec: 0,
+                trait_config_id: 0,
+                rows: vec![PlayerActionButtonSaveLikeCpp {
+                    button: 0,
+                    packed_action: 0x0100_0064,
+                }],
+            }),
+            equipment_sets: Some(vec![
+                equipment_insert,
+                equipment_update,
+                equipment_delete,
+                transmog_insert,
+                transmog_update,
+                transmog_delete,
+            ]),
+            void_storage: Some(vec![
+                PlayerVoidStorageSlotSaveLikeCpp {
+                    slot: 0,
+                    item: Some(PlayerVoidStorageSaveLikeCpp {
+                        item_id: 400,
+                        item_entry: 401,
+                        creator_guid: 402,
+                        fixed_scaling_level: 80,
+                        random_properties_id: 0,
+                        random_properties_seed: 0,
+                        context: 0,
+                    }),
+                },
+                PlayerVoidStorageSlotSaveLikeCpp {
+                    slot: 1,
+                    item: None,
+                },
+            ]),
+            tutorials: Some(PlayerTutorialsSaveLikeCpp {
+                tutorials: [0; 8],
+                already_persisted: false,
+            }),
+            instance_lock_times: vec![PlayerInstanceLockTimeSaveLikeCpp {
+                instance_id: 500,
+                release_time: 1_700_000_100,
+            }],
+            played_time: PlayerPlayedTimeSaveLikeCpp {
+                total_time: 11,
+                level_time: 5,
+            },
+            reputations: vec![PlayerReputationSaveLikeCpp {
+                faction_id: 600,
+                standing: 1_000,
+                flags: 1,
+            }],
+            cuf_profiles: Some(vec![
+                PlayerCufProfileSlotSaveLikeCpp {
+                    profile_id: 0,
+                    profile: Some(PlayerCufProfileSaveLikeCpp {
+                        profile_name: "raid".to_owned(),
+                        frame_height: 40,
+                        frame_width: 80,
+                        sort_by: 0,
+                        health_text: 0,
+                        bool_options: 0,
+                        top_point: 0,
+                        bottom_point: 0,
+                        left_point: 0,
+                        top_offset: 0,
+                        bottom_offset: 0,
+                        left_offset: 0,
+                    }),
+                },
+                PlayerCufProfileSlotSaveLikeCpp {
+                    profile_id: 1,
+                    profile: None,
+                },
+            ]),
+        };
+        let mut runs: Vec<(String, usize)> = Vec::new();
+        for statement in player_character_save_statements_like_cpp(&request) {
+            let sql = statement.sql().to_owned();
+            match runs.last_mut() {
+                Some((previous, count)) if *previous == sql => *count += 1,
+                _ => runs.push((sql, 1)),
+            }
+        }
+        let golden: Vec<(String, usize)> = serde_json::from_str(include_str!(
+            "../../wow-world/tests/fixtures/player-save-plan-order.json"
+        ))
+        .expect("frozen order fixture parses");
+        assert_eq!(
+            runs,
+            golden,
+            "replace player-save-plan-order.json with:\n{}",
+            serde_json::to_string_pretty(&runs).unwrap_or_default()
+        );
+    }
+
+    #[test]
+    fn fallback_spells_expand_inside_the_spell_group_without_a_statement_port_like_cpp() {
+        let mut request = minimal_character_request();
+        request.spells = Some(PlayerSpellSaveGroupLikeCpp::Fallback {
+            rows: vec![
+                PlayerFallbackSpellSaveLikeCpp {
+                    spell_id: 20,
+                    active: true,
+                    dependent: false,
+                },
+                PlayerFallbackSpellSaveLikeCpp {
+                    spell_id: 30,
+                    active: false,
+                    dependent: true,
+                },
+            ],
+        });
+        let statements = player_character_save_statements_like_cpp(&request);
+        let sql = statements
+            .iter()
+            .map(PreparedStatement::sql)
+            .collect::<Vec<_>>();
+        let fallback = sql
+            .iter()
+            .position(|sql| *sql == CharStatements::UPSERT_CHAR_SPELL_LEARN_FALLBACK.sql())
+            .expect("non-dependent fallback spell is upserted");
+        assert_eq!(
+            sql.get(fallback + 1),
+            Some(&CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql()),
+            "dependent fallback removal retains its position in the spell group"
+        );
+    }
+
+    #[test]
+    fn cooldown_and_charge_groups_drop_expired_rows_but_keep_the_group_replace_like_cpp() {
+        let mut request = minimal_character_request();
+        request.spell_cooldowns = Some(vec![
+            PlayerSpellCooldownSaveLikeCpp {
+                spell_id: 1,
+                item_id: 0,
+                cooldown_end_unix_secs: 1_699_999_999,
+                category_id: 0,
+                category_end_unix_secs: 1_699_999_999,
+            },
+            PlayerSpellCooldownSaveLikeCpp {
+                spell_id: 2,
+                item_id: 0,
+                cooldown_end_unix_secs: 1_700_000_001,
+                category_id: 0,
+                category_end_unix_secs: 1_699_999_999,
+            },
+        ]);
+        request.spell_charges = Some(vec![
+            PlayerSpellChargeSaveLikeCpp {
+                category_id: 3,
+                recharge_start_unix_secs: 1_699_999_990,
+                recharge_end_unix_secs: 1_699_999_999,
+            },
+            PlayerSpellChargeSaveLikeCpp {
+                category_id: 4,
+                recharge_start_unix_secs: 1_700_000_000,
+                recharge_end_unix_secs: 1_700_000_001,
+            },
+        ]);
+        let statements = player_character_save_statements_like_cpp(&request);
+        let sql = statements
+            .iter()
+            .map(PreparedStatement::sql)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            sql.iter()
+                .filter(|sql| **sql == CharStatements::INS_CHAR_SPELL_COOLDOWN.sql())
+                .count(),
+            1
+        );
+        assert_eq!(
+            sql.iter()
+                .filter(|sql| **sql == CharStatements::INS_CHAR_SPELL_CHARGES.sql())
+                .count(),
+            1
+        );
+        assert!(sql.contains(&CharStatements::DEL_CHAR_SPELL_COOLDOWNS.sql()));
+        assert!(sql.contains(&CharStatements::DEL_CHAR_SPELL_CHARGES.sql()));
     }
 }

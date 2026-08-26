@@ -7561,14 +7561,42 @@
       "logical_databases": [
         "characters"
       ],
-      "boundary": "wow-database MariaDB adapter for the wow-persistence Player lifecycle port (#200)",
-      "target_issues": [
-        153
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player lifecycle port (#200/#286)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure Characters-database statement construction; the caller's lifecycle adapter supplies the transaction connection.",
+      "current_order": "Binds the eight tutorial words followed by account id exactly as the existing INS/UPD statement requires.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter classifies the surrounding transaction outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_character_save_statement_like_cpp",
+      "logical_databases": [
+        "characters"
       ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player character-save plan (#286)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure Characters-database statement construction; all rows are later appended to the one lifecycle transaction.",
+      "current_order": "Each private adapter operation maps to exactly one existing MariaDB prepared statement with its existing parameter order; no operation identity crosses the port.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter normalizes definite rollback and unknown COMMIT."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_character_save_statements_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player character-save snapshot (#286)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure plan expansion; the lifecycle adapter appends the resulting statements to one Characters transaction.",
+      "current_order": "Expands semantic groups in the frozen Player-save order without exposing that decomposition through the port.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter normalizes definite rollback and unknown COMMIT."
     },
     {
       "package": "wow-database",
@@ -7579,11 +7607,9 @@
         "characters",
         "login"
       ],
-      "boundary": "wow-database MariaDB adapter for the wow-persistence Player lifecycle port (#200)",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player lifecycle port (#200/#286)",
+      "target_issues": [],
+      "stable_boundary": true,
       "connection_affinity": "The workflow acquires or uses the characters/login adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
@@ -7597,11 +7623,9 @@
         "characters",
         "login"
       ],
-      "boundary": "wow-database MariaDB adapter for the wow-persistence Player lifecycle port (#200)",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player lifecycle port (#200/#286)",
+      "target_issues": [],
+      "stable_boundary": true,
       "connection_affinity": "The workflow acquires or uses the characters/login adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
@@ -7614,14 +7638,27 @@
       "logical_databases": [
         "login"
       ],
-      "boundary": "wow-database MariaDB adapter for the wow-persistence Player lifecycle port (#200)",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player lifecycle port (#200/#286)",
+      "target_issues": [],
+      "stable_boundary": true,
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::save_character_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player character-save plan (#286)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The semantic Player snapshot is decomposed into statements, appended and committed on one connection from the Characters pool.",
+      "current_order": "Expand semantic groups in the frozen Player-save order, begin one transaction, execute every existing prepared statement in order, then COMMIT before returning Applied.",
+      "failure_and_unknown_commit": "DefinitelyRolledBack maps to Failed; CommitOutcomeUnknown maps to Unknown; neither is collapsed into Applied."
     },
     {
       "package": "wow-database",
@@ -7632,11 +7669,9 @@
         "characters",
         "login"
       ],
-      "boundary": "wow-database MariaDB adapter for the wow-persistence Player lifecycle port (#200)",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player lifecycle port (#200/#286)",
+      "target_issues": [],
+      "stable_boundary": true,
       "connection_affinity": "The workflow acquires or uses the characters/login adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
@@ -7650,11 +7685,9 @@
         "characters",
         "login"
       ],
-      "boundary": "wow-database MariaDB adapter for the wow-persistence Player lifecycle port (#200)",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player lifecycle port (#200/#286)",
+      "target_issues": [],
+      "stable_boundary": true,
       "connection_affinity": "The workflow acquires or uses the characters/login adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
@@ -14698,24 +14731,6 @@
       "package": "wow-world",
       "module": "crate::session",
       "source": "crates/wow-world/src/session/mod.rs",
-      "enclosing": "impl WorldSession::current_player_save_to_db_statement_plan_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Player lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::current_player_xp_save_statement_plan_like_cpp",
       "logical_databases": [
         "characters"
@@ -15048,24 +15063,6 @@
       "package": "wow-world",
       "module": "crate::session",
       "source": "crates/wow-world/src/session/mod.rs",
-      "enclosing": "impl WorldSession::save_current_player_to_db_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Player lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::set_account_data_persisted_like_cpp",
       "logical_databases": [
         "characters"
@@ -15264,24 +15261,6 @@
       "boundary": "Session residual persistence boundary",
       "target_issues": [
         153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session/mod.rs",
-      "enclosing": "struct PlayerSaveToDbStatementPlanLikeCpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Player lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
       ],
       "stable_boundary": false,
       "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",

@@ -20,11 +20,39 @@
     1
   ],
   [
+    "UPDATE characters SET power1 = ?, power2 = ?, power3 = ?, power4 = ?, power5 = ?, power6 = ?, power7 = ?, power8 = ?, power9 = ?, power10 = ? WHERE guid = ?",
+    1
+  ],
+  [
     "UPDATE characters SET resettalents_cost = ?, resettalents_time = ? WHERE guid = ?",
     1
   ],
   [
     "UPDATE characters SET exploredZones = ? WHERE guid = ?",
+    1
+  ],
+  [
+    "DELETE FROM character_spell WHERE spell = ? AND guid = ?",
+    1
+  ],
+  [
+    "INSERT INTO character_spell (guid, spell, active, disabled) VALUES (?, ?, ?, ?)",
+    1
+  ],
+  [
+    "DELETE FROM character_spell_favorite WHERE guid = ? AND spell = ?",
+    1
+  ],
+  [
+    "INSERT INTO character_spell_favorite (guid, spell) VALUES (?, ?)",
+    1
+  ],
+  [
+    "DELETE FROM character_skills WHERE guid = ?",
+    1
+  ],
+  [
+    "INSERT INTO character_skills (guid, skill, value, max, professionSlot) VALUES (?, ?, ?, ?, ?)",
     1
   ],
   [
@@ -40,11 +68,99 @@
     24
   ],
   [
+    "DELETE FROM character_talent WHERE guid = ?",
+    1
+  ],
+  [
+    "INSERT INTO character_talent (guid, talentId, talentRank, talentGroup) VALUES (?, ?, ?, ?)",
+    1
+  ],
+  [
+    "DELETE FROM character_spell_cooldown WHERE guid = ?",
+    1
+  ],
+  [
+    "INSERT INTO character_spell_cooldown (guid, spell, item, time, categoryId, categoryEnd) VALUES (?, ?, ?, ?, ?, ?)",
+    1
+  ],
+  [
+    "DELETE FROM character_spell_charges WHERE guid = ?",
+    1
+  ],
+  [
+    "INSERT INTO character_spell_charges (guid, categoryId, rechargeStart, rechargeEnd) VALUES (?, ?, ?, ?)",
+    1
+  ],
+  [
+    "DELETE FROM character_action WHERE guid = ? AND spec = ? AND traitConfigId = ?",
+    1
+  ],
+  [
+    "INSERT INTO character_action (guid, spec, traitConfigId, button, action, type) VALUES (?, ?, ?, ?, ?, ?)",
+    1
+  ],
+  [
+    "INSERT INTO character_equipmentsets (guid, setguid, setindex, name, iconname, ignore_mask, AssignedSpecIndex, item0, item1, item2, item3, item4, item5, item6, item7, item8, item9, item10, item11, item12, item13, item14, item15, item16, item17, item18) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    1
+  ],
+  [
+    "UPDATE character_equipmentsets SET name=?, iconname=?, ignore_mask=?, AssignedSpecIndex=?, item0=?, item1=?, item2=?, item3=?, item4=?, item5=?, item6=?, item7=?, item8=?, item9=?, item10=?, item11=?, item12=?, item13=?, item14=?, item15=?, item16=?, item17=?, item18=? WHERE guid=? AND setguid=? AND setindex=?",
+    1
+  ],
+  [
+    "DELETE FROM character_equipmentsets WHERE setguid=?",
+    1
+  ],
+  [
+    "INSERT INTO character_transmog_outfits (guid, setguid, setindex, name, iconname, ignore_mask, appearance0, appearance1, appearance2, appearance3, appearance4, appearance5, appearance6, appearance7, appearance8, appearance9, appearance10, appearance11, appearance12, appearance13, appearance14, appearance15, appearance16, appearance17, appearance18, mainHandEnchant, offHandEnchant) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    1
+  ],
+  [
+    "UPDATE character_transmog_outfits SET name=?, iconname=?, ignore_mask=?, appearance0=?, appearance1=?, appearance2=?, appearance3=?, appearance4=?, appearance5=?, appearance6=?, appearance7=?, appearance8=?, appearance9=?, appearance10=?, appearance11=?, appearance12=?, appearance13=?, appearance14=?, appearance15=?, appearance16=?, appearance17=?, appearance18=?, mainHandEnchant=?, offHandEnchant=? WHERE guid=? AND setguid=? AND setindex=?",
+    1
+  ],
+  [
+    "DELETE FROM character_transmog_outfits WHERE setguid=?",
+    1
+  ],
+  [
+    "REPLACE INTO character_void_storage (itemId, playerGuid, itemEntry, slot, creatorGuid, fixedScalingLevel, randomPropertiesId, randomPropertiesSeed, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    1
+  ],
+  [
+    "DELETE FROM character_void_storage WHERE slot = ? AND playerGuid = ?",
+    1
+  ],
+  [
     "INSERT INTO account_tutorial(tut0, tut1, tut2, tut3, tut4, tut5, tut6, tut7, accountId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     1
   ],
   [
+    "DELETE FROM account_instance_times WHERE accountId = ?",
+    1
+  ],
+  [
+    "INSERT INTO account_instance_times (accountId, instanceId, releaseTime) VALUES (?, ?, ?)",
+    1
+  ],
+  [
     "UPDATE characters SET totaltime = ?, leveltime = ? WHERE guid = ?",
+    1
+  ],
+  [
+    "DELETE FROM character_reputation WHERE guid = ? AND faction = ?",
+    1
+  ],
+  [
+    "INSERT INTO character_reputation (guid, faction, standing, flags) VALUES (?, ?, ? , ?)",
+    1
+  ],
+  [
+    "REPLACE INTO character_cuf_profiles (guid, id, name, frameHeight, frameWidth, sortBy, healthText, boolOptions, topPoint, bottomPoint, leftPoint, topOffset, bottomOffset, leftOffset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    1
+  ],
+  [
+    "DELETE FROM character_cuf_profiles WHERE guid = ? AND id = ?",
     1
   ]
 ]
