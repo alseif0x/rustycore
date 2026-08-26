@@ -4078,7 +4078,7 @@ fn install_confirm_accept_sender_snapshot(
     same_group: bool,
     sender_active_status: Option<u8>,
 ) -> (WorldSession, flume::Receiver<Vec<u8>>) {
-    let player_registry = Arc::new(PlayerRegistry::default());
+    let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_loaded_player_name_like_cpp("Receiver".to_string());
     session.register_in_player_registry();
@@ -4391,8 +4391,8 @@ async fn quest_confirm_accept_no_source_side_effects_adds_local_quest_state_like
     assert_eq!(status.slot, 0);
     let registry = session.player_registry().expect("test installs registry");
     let snapshot = registry
-        .fixture_snapshot(receiver_guid)
-        .expect("receiver snapshot should sync after quest insertion");
+        .loot_player_context(receiver_guid)
+        .expect("receiver canonical state should sync after quest insertion");
     assert_eq!(
         snapshot.active_quest_statuses.get(&quest_id),
         Some(&QUEST_STATUS_INCOMPLETE_LIKE_CPP)
@@ -4451,8 +4451,8 @@ async fn quest_confirm_accept_first_free_slot_skips_occupied_slot_like_cpp() {
     assert_eq!(status.status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
     let registry = session.player_registry().expect("test installs registry");
     let snapshot = registry
-        .fixture_snapshot(receiver_guid)
-        .expect("receiver snapshot should sync after quest insertion");
+        .loot_player_context(receiver_guid)
+        .expect("receiver canonical state should sync after quest insertion");
     assert_eq!(
         snapshot.active_quest_statuses.get(&quest_id),
         Some(&QUEST_STATUS_INCOMPLETE_LIKE_CPP)
@@ -4502,8 +4502,8 @@ async fn quest_confirm_accept_source_spell_records_two_self_casts_like_cpp() {
     assert_eq!(status.slot, 0);
     let registry = session.player_registry().expect("test installs registry");
     let snapshot = registry
-        .fixture_snapshot(receiver_guid)
-        .expect("receiver snapshot should sync after source-spell quest insertion");
+        .loot_player_context(receiver_guid)
+        .expect("receiver canonical state should sync after source-spell quest insertion");
     assert_eq!(
         snapshot.active_quest_statuses.get(&quest_id),
         Some(&QUEST_STATUS_INCOMPLETE_LIKE_CPP)
@@ -5295,7 +5295,7 @@ async fn quest_confirm_accept_source_item_bound_objective_broadcasts_to_group_li
     session.cache_item_template_addon_quest_log_item_id_like_cpp(source_item_id, quest_log_item_id);
     session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
 
-    let player_registry = Arc::new(PlayerRegistry::default());
+    let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_loaded_player_name_like_cpp("Receiver".to_string());
     session.register_in_player_registry();
@@ -5392,7 +5392,7 @@ async fn quest_confirm_accept_source_item_bound_objective_dont_report_flag_sends
     );
     session.cache_item_template_addon_quest_log_item_id_like_cpp(source_item_id, quest_log_item_id);
     session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
-    let player_registry = Arc::new(PlayerRegistry::default());
+    let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_loaded_player_name_like_cpp("Receiver".to_string());
     session.register_in_player_registry();
@@ -7036,7 +7036,7 @@ async fn push_quest_to_party_grouped_receiver_wrong_class_emits_class_pair_like_
     receiver_session.sync_player_registry_state_like_cpp();
     assert_eq!(
         player_registry
-            .fixture_snapshot(receiver_guid)
+            .quest_sharing_snapshot(receiver_guid, None)
             .expect("receiver snapshot")
             .class,
         1
@@ -7088,7 +7088,7 @@ async fn push_quest_to_party_grouped_receiver_wrong_race_emits_race_pair_like_cp
     receiver_session.sync_player_registry_state_like_cpp();
     assert_eq!(
         player_registry
-            .fixture_snapshot(receiver_guid)
+            .quest_sharing_snapshot(receiver_guid, None)
             .expect("receiver snapshot")
             .race,
         1
@@ -7922,16 +7922,16 @@ async fn push_quest_to_party_receiver_level_snapshot_syncs_from_world_session_li
         install_represented_party(&mut session, sender_guid, receiver_guid);
     assert_eq!(
         player_registry
-            .fixture_snapshot(receiver_guid)
-            .map(|info| info.level),
+            .group_presence(receiver_guid)
+            .map(|presence| presence.level),
         Some(80)
     );
     receiver_session.set_player_level_like_cpp(19);
     receiver_session.sync_player_registry_state_like_cpp();
     assert_eq!(
         player_registry
-            .fixture_snapshot(receiver_guid)
-            .map(|info| info.level),
+            .group_presence(receiver_guid)
+            .map(|presence| presence.level),
         Some(19)
     );
 
@@ -8028,8 +8028,9 @@ async fn push_quest_to_party_low_receiver_expansion_emits_expansion_pair_like_cp
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
+    receiver_session.unregister_from_player_registry();
     receiver_session.expansion = 1;
-    receiver_session.sync_player_registry_state_like_cpp();
+    receiver_session.register_in_player_registry();
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -8076,7 +8077,6 @@ async fn push_quest_to_party_success_prompts_receiver_details_and_sets_pending_l
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.expansion = 2;
     receiver_session.sync_player_registry_state_like_cpp();
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
@@ -8324,7 +8324,6 @@ async fn push_quest_to_party_receiver_unknown_status_after_expansion_emits_inval
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.expansion = 2;
     add_active_quest_in_slot_with_status(&mut receiver_session, shared_quest_id, 2, 0xFE);
     receiver_session.sync_player_registry_state_like_cpp();
 
@@ -8430,8 +8429,9 @@ async fn push_quest_to_party_prerequisite_precedes_expansion_gate_like_cpp() {
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
+    receiver_session.unregister_from_player_registry();
     receiver_session.expansion = 1;
-    receiver_session.sync_player_registry_state_like_cpp();
+    receiver_session.register_in_player_registry();
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -8555,7 +8555,7 @@ async fn push_quest_to_party_grouped_receiver_dead_observes_runtime_under_map_sy
     assert!(!receiver_session.player_is_alive_like_cpp());
     assert!(
         !player_registry
-            .fixture_snapshot(receiver_guid)
+            .group_presence(receiver_guid)
             .expect("receiver registry snapshot")
             .is_alive
     );

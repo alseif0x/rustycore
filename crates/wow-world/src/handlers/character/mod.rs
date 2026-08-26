@@ -1362,51 +1362,6 @@ struct InitTransportsPlanLikeCpp {
     skipped_phase: usize,
 }
 
-#[cfg(test)]
-pub(crate) fn player_visibility_create_update_like_cpp(
-    guid: ObjectGuid,
-    player: &crate::session::directory::PlayerBroadcastInfo,
-    map_id: u16,
-) -> UpdateObject {
-    let max_mana = if player.power_type == PowerType::Mana as u8 {
-        i64::from(player.max_power)
-    } else {
-        0
-    };
-    let combat = PlayerCombatStats {
-        health: i64::from(player.current_health),
-        max_health: i64::from(player.max_health),
-        base_mana: player.base_mana,
-        max_mana,
-        ..PlayerCombatStats::default()
-    };
-    let mut update = UpdateObject::create_player_with_party_type(
-        guid,
-        player.race,
-        player.class,
-        player.sex,
-        player.level,
-        player.display_id,
-        &player.position,
-        map_id,
-        player.zone_id,
-        false,
-        *player.visible_items,
-        [ObjectGuid::EMPTY; 141],
-        combat,
-        Vec::new(),
-        0,
-        Vec::new(),
-        player.party_member_party_type,
-    );
-    update.set_player_current_power0_like_cpp(i32::from(player.current_power));
-    update.set_player_customizations_like_cpp(player.customizations.as_ref().clone());
-    if let Some(transport) = player.transport.clone() {
-        update.set_player_movement_transport_like_cpp(transport);
-    }
-    update
-}
-
 pub(crate) fn player_visibility_create_update_from_snapshot_like_cpp(
     player: &crate::session::directory::PlayerVisibilityCreateSnapshot,
     map_id: u16,

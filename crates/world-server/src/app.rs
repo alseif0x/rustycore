@@ -3646,7 +3646,6 @@ async fn run_inner(
         win64_auth_seed,
     });
 
-    // Shared player registry for broadcast (chat, emotes, movement)
     let player_registry = Arc::new(PlayerRegistry::new());
     let active_session_registry = Arc::new(ActiveWorldSessionRegistryLikeCpp::new());
     let object_accessor = wow_world::new_shared_object_accessor();
@@ -4040,6 +4039,7 @@ async fn run_inner(
     let instance_lock_mgr = Arc::new(std::sync::RwLock::new(loaded_instance_lock_mgr));
 
     let canonical_map_manager = Arc::new(Mutex::new(create_canonical_map_manager(&world_configs)));
+    assert!(player_registry.bind_canonical_map_manager(Arc::clone(&canonical_map_manager)));
     match canonical_map_manager.lock() {
         Ok(mut manager) => install_canonical_spawn_group_initializer_like_cpp(
             &mut manager,

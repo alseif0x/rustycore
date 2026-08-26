@@ -21,9 +21,6 @@ DEFAULT_RUNTIME_OWNERSHIP_LEDGER = ARCHITECTURE_DIR / "runtime-ownership-ledger.
 DEFAULT_SESSION_OWNERSHIP_POLICY = ARCHITECTURE_DIR / "session-ownership-policy.json"
 DEFAULT_HANDLER_MODULE_POLICY = ARCHITECTURE_DIR / "handler-module-policy.json"
 ARCHITECTURE_DOC = REPO_ROOT / "docs" / "architecture" / "ownership-and-boundaries.md"
-PLAYER_BROADCAST_RETIREMENT_LEDGER = (
-    REPO_ROOT / "docs" / "architecture" / "player-broadcast-info-retirement.tsv"
-)
 HANDLER_SNAPSHOT = ARCHITECTURE_DIR / "world-handler-contract.tsv"
 FIXTURES_DIR = ARCHITECTURE_DIR / "fixtures"
 DEBT_OWNERSHIP_FIXTURES_DIR = FIXTURES_DIR / "debt-ownership"
@@ -950,7 +947,6 @@ def validate_runtime_ownership_ledger(
     inventories = runtime.get("inventories")
     required_inventories = {
         "session_resources",
-        "player_broadcast_info",
         "session_command",
         "legacy_canonical_bridges",
         "sql_pool_access",
@@ -975,7 +971,7 @@ def validate_runtime_ownership_ledger(
         entry_ids: set[str] = set()
         exact_member_key = None
         exact_count_key = None
-        if inventory_name in {"session_resources", "player_broadcast_info"}:
+        if inventory_name == "session_resources":
             exact_member_key = "field_names"
             exact_count_key = "expected_field_count"
         elif inventory_name == "session_command":
@@ -1270,15 +1266,6 @@ def validate_runtime_syntax_coverage(
             ],
         ),
         (
-            "PlayerBroadcastInfo fields",
-            syntax_names("player_broadcast_info", "fields"),
-            [
-                name
-                for entry in runtime["inventories"]["player_broadcast_info"]["entries"]
-                for name in entry["field_names"]
-            ],
-        ),
-        (
             "SessionCommand variants",
             syntax_names("session_command", "variants"),
             [
@@ -1392,68 +1379,6 @@ def _repository_defines_test(repository_root: Path, name: str) -> bool:
         except OSError:
             continue
     return False
-
-
-def validate_player_broadcast_retirement_ledger(
-    syntax_policy: dict[str, Any], issue_ledger: dict[str, Any]
-) -> None:
-    """Require one canonical owner and open cutover issue for every mirror field."""
-    try:
-        lines = PLAYER_BROADCAST_RETIREMENT_LEDGER.read_text(encoding="utf-8").splitlines()
-    except OSError as exc:
-        raise ArchitectureError(
-            f"cannot read {PLAYER_BROADCAST_RETIREMENT_LEDGER}: {exc}"
-        ) from exc
-    expected_header = [
-        "field",
-        "canonical_owner",
-        "cutover_issue",
-        "cutover_condition",
-    ]
-    if not lines or lines[0].split("\t") != expected_header:
-        raise ArchitectureError(
-            "PlayerBroadcastInfo retirement ledger has an invalid TSV header"
-        )
-
-    rows: dict[str, tuple[str, int, str]] = {}
-    known_issues = issue_ledger["_entries"]
-    for line_number, line in enumerate(lines[1:], start=2):
-        columns = line.split("\t")
-        if len(columns) != len(expected_header) or any(not value.strip() for value in columns):
-            raise ArchitectureError(
-                "PlayerBroadcastInfo retirement ledger line "
-                f"{line_number} must contain four non-empty TSV columns"
-            )
-        field, owner, issue_text, condition = columns
-        if field in rows:
-            raise ArchitectureError(
-                f"PlayerBroadcastInfo retirement ledger duplicates field {field}"
-            )
-        if re.fullmatch(r"#[1-9][0-9]*", issue_text) is None:
-            raise ArchitectureError(
-                "PlayerBroadcastInfo retirement ledger line "
-                f"{line_number} has invalid cutover issue {issue_text!r}"
-            )
-        issue = int(issue_text[1:])
-        if issue not in known_issues:
-            raise ArchitectureError(
-                f"PlayerBroadcastInfo retirement field {field} references unknown issue #{issue}"
-            )
-        if known_issues[issue]["state"] != "open":
-            raise ArchitectureError(
-                f"PlayerBroadcastInfo retirement field {field} references closed issue #{issue}"
-            )
-        rows[field] = (owner, issue, condition)
-
-    syntax = syntax_policy["syntax_baseline"]["player_broadcast_info"]["fields"]
-    actual_fields = {row["name"] for row in syntax}
-    ledger_fields = set(rows)
-    if actual_fields != ledger_fields:
-        raise ArchitectureError(
-            "PlayerBroadcastInfo retirement ledger does not match syntax baseline: "
-            f"missing={sorted(actual_fields - ledger_fields)}, "
-            f"stale={sorted(ledger_fields - actual_fields)}"
-        )
 
 
 def _validate_debt_owner(
@@ -3859,9 +3784,6 @@ def main() -> int:
             validate_runtime_syntax_coverage(
                 runtime_ledger, session_ownership_policy
             )
-            validate_player_broadcast_retirement_ledger(
-                session_ownership_policy, ledger
-            )
             traced_clocks = validate_runtime_clock_phase_trace(REPO_ROOT)
             validate_documented_sequence(ledger)
         if args.command == "self-test":
@@ -3916,7 +3838,6 @@ def main() -> int:
                 f"({traced_clocks} traced runtime clocks, "
                 f"{len(syntax['world_session']['fields'])} WorldSession fields, "
                 f"{len(syntax['session_resources']['fields'])} SessionResources fields, "
-                f"{len(syntax['player_broadcast_info']['fields'])} broadcast fields, "
                 f"{len(syntax['session_command']['variants'])} command variants, "
                 f"{len(runtime_ledger['world_session_responsibility_families']['families'])} "
                 "semantic responsibility families)"

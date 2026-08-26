@@ -17,6 +17,7 @@ mod object;
 mod object_accessor;
 mod pet;
 mod player;
+mod player_gameplay_state;
 mod scene_object;
 mod totem;
 mod transport;
@@ -223,23 +224,23 @@ pub use player::{
     PLAYER_MAX_HONOR_LEVEL_LIKE_CPP, PLAYER_SLOT_END, Player, PlayerAchievementCriteriaRecord,
     PlayerAchievementRecord, PlayerActionButtonRecord, PlayerBagStorage,
     PlayerBattlegroundQueueRecord, PlayerBattlegroundState, PlayerCreateLifecycleRecord,
-    PlayerCurrencyRecord, PlayerDataUpdate, PlayerDataValues, PlayerDbLoadLifecycleRecord,
-    PlayerDuelInfoLikeCpp, PlayerDuelStateLikeCpp, PlayerEnchantDuration,
-    PlayerEnchantDurationItemRef, PlayerEnchantTimeUpdate, PlayerGameplayLoadPlan,
-    PlayerGameplayLoadRecord, PlayerGameplayLoadStep, PlayerGameplayState, PlayerGroupState,
+    PlayerCurrencyRecord, PlayerCustomizationChoice, PlayerDataUpdate, PlayerDataValues,
+    PlayerDbLoadLifecycleRecord, PlayerDuelInfoLikeCpp, PlayerDuelStateLikeCpp,
+    PlayerEnchantDuration, PlayerEnchantDurationItemRef, PlayerEnchantTimeUpdate,
+    PlayerGameplayLoadPlan, PlayerGameplayLoadRecord, PlayerGameplayLoadStep, PlayerGroupState,
     PlayerGuildState, PlayerInventoryStorage, PlayerItemTimeUpdate, PlayerKnownSpellRecord,
     PlayerLifecycleMetadata, PlayerLifecyclePower, PlayerLoginLifecyclePlan,
     PlayerLoginLifecycleStep, PlayerMailRecord, PlayerPowerIndexResolver, PlayerQuestGameplayState,
     PlayerQuestObjectiveProgress, PlayerQuestStatusRecord, PlayerRandomBattlegroundState,
     PlayerReputationRecord, PlayerRestState, PlayerSkillRecord, PlayerSocialState,
     PlayerSpellChargeRecord, PlayerSpellCooldownRecord, PlayerSpellLoadState, PlayerStorageError,
-    PlayerTalentRecord, PlayerTaxiState, PlayerValuesUpdate, PlayerWorldInsertionState,
-    QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
-    REAGENT_BAG_SLOT_START, REPUTATION_FLAG_AT_WAR_LIKE_CPP, RemoveArenaEnchantmentAction,
-    SKILL_MAIL, SKILL_PLATE_MAIL, SendNewItemArgs, SendNewItemDelivery, SendNewItemDisplayText,
-    SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan, SendNewItemTemplateRef,
-    SkillEnchantmentItemRef, SkillEnchantmentTemplateRef, SocketedGemUniqueRef,
-    SoulboundTradeableItemRef, SwapBagItemMove, SwapBagItemRef, SwapBagRef,
+    PlayerTalentRecord, PlayerTaxiState, PlayerTransportState, PlayerValuesUpdate,
+    PlayerWorldInsertionState, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
+    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, REPUTATION_FLAG_AT_WAR_LIKE_CPP,
+    RemoveArenaEnchantmentAction, SKILL_MAIL, SKILL_PLATE_MAIL, SendNewItemArgs,
+    SendNewItemDelivery, SendNewItemDisplayText, SendNewItemInstancePlan, SendNewItemModifier,
+    SendNewItemPlan, SendNewItemTemplateRef, SkillEnchantmentItemRef, SkillEnchantmentTemplateRef,
+    SocketedGemUniqueRef, SoulboundTradeableItemRef, SwapBagItemMove, SwapBagItemRef, SwapBagRef,
     SwapItemBagExchangePlan, SwapItemBagExchangeResult, SwapItemEmptyDestinationPlan,
     SwapItemEmptyDestinationResult, SwapItemErrorItemOrder, SwapItemMergeFillPlan,
     SwapItemMergeFillResult, SwapItemMissingPhase, SwapItemOrchestrationPlan,
@@ -256,6 +257,7 @@ pub use player::{
     item_shield_block_bonus_action_like_cpp, item_stat_bonus_actions_like_cpp,
     item_weapon_damage_actions_like_cpp, make_item_pos, parse_explored_zones_db_string_like_cpp,
 };
+pub use player_gameplay_state::PlayerGameplayState;
 pub use scene_object::{
     SCENE_OBJECT_DATA_CREATED_BY_BIT, SCENE_OBJECT_DATA_PARENT_BIT,
     SCENE_OBJECT_DATA_RND_SEED_VAL_BIT, SCENE_OBJECT_DATA_SCENE_TYPE_BIT,

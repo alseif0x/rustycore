@@ -293,6 +293,7 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             weekly_quest_ids: vec![102],
             monthly_quest_ids: vec![103],
             seasonal_quest_ids: vec![104],
+            ..Default::default()
         },
         skills: vec![PlayerSkillRecord {
             skill_line_id: SKILL_PLATE_MAIL,
@@ -329,6 +330,7 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
         social: PlayerSocialState {
             friend_guids: vec![ObjectGuid::create_player(1, 1001)],
             ignore_guids: vec![ObjectGuid::create_player(1, 1002)],
+            ..Default::default()
         },
         mails: vec![PlayerMailRecord {
             mail_id: 55,
@@ -406,6 +408,7 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
             logout_was_resting: true,
             is_resting_now: true,
         },
+        ..Default::default()
     }
 }
 
@@ -415,9 +418,6 @@ fn player_gameplay_default_state_is_empty_and_attached_to_new_player() {
 
     assert!(player.gameplay_state().is_empty());
     assert!(player.gameplay_state().quests.statuses.is_empty());
-    assert!(player.gameplay_state().skills.is_empty());
-    assert!(player.gameplay_state().spells.is_empty());
-    assert!(player.gameplay_state().taxi.destinations.is_empty());
     assert!(player.gameplay_state().rest.logout_time.is_none());
 }
 

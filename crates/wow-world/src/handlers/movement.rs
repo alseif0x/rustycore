@@ -2180,7 +2180,7 @@ mod tests {
             Default::default(),
         );
         let mut other_info = broadcast_info_with_command(other_guid, other_tx, other_command_tx);
-        other_info.info.position = moved_position;
+        other_info.placement.position = moved_position;
         registry.register_or_replace(other_guid, other_info, Default::default());
 
         let movement = MovementInfo {
@@ -2255,7 +2255,7 @@ mod tests {
             Default::default(),
         );
         let mut far_info = broadcast_info_with_command(far_guid, far_tx, far_command_tx);
-        far_info.info.position =
+        far_info.placement.position =
             wow_core::Position::new(crate::map_manager::VISIBILITY_RADIUS + 10.0, 0.0, 0.0, 0.0);
         registry.register_or_replace(far_guid, far_info, Default::default());
 
@@ -2749,68 +2749,24 @@ mod tests {
         command_tx: flume::Sender<crate::session::mailbox::SessionCommand>,
     ) -> crate::session::directory::PlayerSessionRegistrationLikeCpp {
         crate::session::directory::PlayerSessionRegistrationLikeCpp {
-            info: crate::session::directory::PlayerBroadcastInfo {
-                map_id: 0,
-                instance_id: 0,
-                position: wow_core::Position::ZERO,
-                combat_reach: 0.0,
-                liquid_status: 0,
-                is_in_world: true,
-                active_loot_rolls: Vec::new(),
-                in_combat: false,
-                pass_on_group_loot: false,
-                enchanting_skill: 0,
-                is_alive: true,
-                current_health: 100,
-                max_health: 100,
-                power_type: 0,
-                current_power: 0,
-                max_power: 0,
-                base_mana: 0,
-                transport: None,
-                is_pvp: false,
-                is_ffa_pvp: false,
-                is_ghost: false,
-                is_afk: false,
-                is_dnd: false,
-                auto_reply_msg_like_cpp: String::new(),
-                in_vehicle: false,
-                has_vehicle_kit_like_cpp: false,
-                party_member_vehicle_seat: 0,
-                zone_id: 0,
-                spec_id: 0,
-                unit_flags: 0,
-                unit_state: 0,
-                is_game_master: false,
-                dungeon_difficulty_id: 1,
-                active_expansion: 2,
-                pending_quest_sharing: None,
-                known_spells: Vec::new(),
-                active_quest_statuses: Default::default(),
-                active_quest_objective_counts: Default::default(),
-                rewarded_quests: Default::default(),
-                completed_achievements: Default::default(),
-                daily_quests_completed: Default::default(),
-                df_quests: Default::default(),
-                faction_template_id: 0,
-                forced_reputation_ranks: Vec::new(),
-                inventory_item_counts: Default::default(),
-                party_member_party_type: [0; 2],
-                party_member_phase_states: Default::default(),
-                party_member_auras: Vec::new(),
-                party_member_pet_stats: None,
+            identity: crate::session::directory::PlayerDirectoryIdentityLikeCpp {
                 player_name: format!("Player{}", guid.counter()),
                 account_id: guid.counter() as u32,
                 recruiter_id: 0,
                 race: 1,
                 class: 1,
                 sex: 0,
-                level: 1,
-                gray_level: 0,
-                display_id: 49,
-                visible_items: std::sync::Arc::new([(0, 0, 0); 19]),
-                customizations: std::sync::Arc::default(),
+                active_expansion: 2,
             },
+            placement: crate::session::directory::PlayerDirectoryPlacementLikeCpp {
+                map_id: 0,
+                instance_id: 0,
+                position: wow_core::Position::ZERO,
+                is_in_world: true,
+                level: 1,
+                is_alive: true,
+            },
+            active_loot_rolls: Vec::new(),
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,

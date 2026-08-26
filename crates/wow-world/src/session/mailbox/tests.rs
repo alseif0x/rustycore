@@ -72,8 +72,6 @@ fn visibility_transition_publishes_membership_and_packets_as_one_step_like_cpp()
     );
 }
 
-/// Verify that `PlayerBroadcastInfo` carries `instance_id` so that
-
 /// Verify that `SendIfVisibleLikeCppCommand` carries both `map_id` and
 /// `instance_id` — required so per-session gate can reject cross-instance
 /// delivery (Slice 4A.1b).

@@ -39,8 +39,8 @@ struct DurableLootMoneyPersistenceStateLikeCpp {
 
 /// Per-character fence for detached loot-money transactions.
 ///
-/// A tracker is published in [`PlayerBroadcastInfo`] and registered directly
-/// by a source session before it opens a transaction for every recipient. This
+/// A tracker is registered directly beside the recipient directory entry by a
+/// source session before it opens a transaction for every recipient. This
 /// avoids command acknowledgements (and their A↔B deadlocks), while allowing a
 /// target session to wait for and reconcile durable completions before an
 /// absolute `Player::SaveToDB` money write.

@@ -451,7 +451,7 @@ fn party_player_info_like_cpp(
     guid: ObjectGuid,
 ) -> Option<PartyPlayerInfo> {
     let slot = group.member_slot_like_cpp(guid);
-    registry.party_member(guid).map(|entry| {
+    registry.social_recipient(guid).map(|entry| {
         let race = if entry.race == 0 {
             slot.map(|slot| slot.race).unwrap_or_default()
         } else {
@@ -492,7 +492,7 @@ fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32) {
         .collect();
 
     for (my_idx, &member_guid) in group.members.iter().enumerate() {
-        let member_entry = match registry.party_member(member_guid) {
+        let member_entry = match registry.control_address(member_guid) {
             Some(e) => e,
             None => continue,
         };
@@ -544,7 +544,7 @@ fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32) {
         #[cfg(not(test))]
         if registry
             .try_send_current_command(
-                member_entry.registration,
+                member_entry.registration(),
                 SessionCommand::SendPartyUpdateLikeCpp(command),
             )
             .is_err()
@@ -555,7 +555,7 @@ fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32) {
         {
             registry
                 .send_current_command_blocking_timeout(
-                    member_entry.registration,
+                    member_entry.registration(),
                     SessionCommand::SendPartyUpdateLikeCpp(command),
                     Duration::from_secs(1),
                 )
