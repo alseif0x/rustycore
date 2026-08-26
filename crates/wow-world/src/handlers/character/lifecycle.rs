@@ -739,38 +739,43 @@ impl WorldSession {
         &self,
         guid: ObjectGuid,
     ) -> Vec<ChrCustomizationChoiceValuesUpdate> {
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             return Vec::new();
         };
 
-        let mut stmt = char_db.prepare(CharStatements::SEL_CHARACTER_CUSTOMIZATIONS);
-        stmt.set_u64(0, guid.counter() as u64);
-
-        let customizations = match char_db.query(&stmt).await {
-            Ok(mut result) => {
-                let mut customizations = Vec::new();
-                if !result.is_empty() {
-                    loop {
-                        customizations.push(ChrCustomizationChoiceValuesUpdate {
-                            option_id: result.try_read::<u32>(0).unwrap_or(0),
-                            choice_id: result.try_read::<u32>(1).unwrap_or(0),
-                        });
-
-                        if !result.next_row() {
-                            break;
-                        }
-                    }
-                }
-                customizations
-            }
-            Err(error) => {
+        let rows = match port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::Customizations {
+                    player_guid: guid.counter() as u64,
+                },
+            )
+            .await
+        {
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::Customizations(rows),
+            ) => rows,
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     player_guid = guid.counter(),
-                    "Failed to load character customizations: {error}"
+                    "Failed to load character customizations: {reason}"
                 );
-                Vec::new()
+                return Vec::new();
+            }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(_) => {
+                warn!(
+                    player_guid = guid.counter(),
+                    "Player lifecycle port returned the wrong auxiliary login data for customizations"
+                );
+                return Vec::new();
             }
         };
+        let customizations = rows
+            .into_iter()
+            .map(|row| ChrCustomizationChoiceValuesUpdate {
+                option_id: row.option_id,
+                choice_id: row.choice_id,
+            })
+            .collect::<Vec<_>>();
 
         info!(
             player_guid = guid.counter(),

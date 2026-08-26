@@ -11944,44 +11944,48 @@ impl WorldSession {
             );
             return;
         };
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             warn!(
                 account = self.account_id,
                 guid = player_guid.counter(),
-                "LoadCompletedAchievements skipped: character database unavailable"
+                "LoadCompletedAchievements skipped: Player lifecycle port unavailable"
             );
             return;
         };
 
-        let mut stmt = char_db.prepare(CharStatements::SEL_CHARACTER_ACHIEVEMENTS);
-        stmt.set_u64(0, player_guid.counter() as u64);
-
-        let result = match char_db.query(&stmt).await {
-            Ok(result) => result,
-            Err(error) => {
+        let rows = match port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::CompletedAchievements {
+                    player_guid: player_guid.counter() as u64,
+                },
+            )
+            .await
+        {
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::CompletedAchievements(rows),
+            ) => rows,
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
                     guid = player_guid.counter(),
-                    "LoadCompletedAchievements query failed: {error}"
+                    "LoadCompletedAchievements query failed: {reason}"
+                );
+                return;
+            }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(_) => {
+                warn!(
+                    account = self.account_id,
+                    guid = player_guid.counter(),
+                    "Player lifecycle port returned the wrong auxiliary login data for completed achievements"
                 );
                 return;
             }
         };
 
-        if result.is_empty() {
-            return;
-        }
-
-        let mut result = result;
-        loop {
-            let achievement_id = result.try_read::<u32>(0).unwrap_or(0);
+        for achievement_id in rows {
             if achievement_id != 0 {
                 self.represented_completed_achievements_like_cpp
                     .insert(achievement_id);
-            }
-
-            if !result.next_row() {
-                break;
             }
         }
     }
@@ -11989,43 +11993,45 @@ impl WorldSession {
     pub async fn load_instance_time_restrictions_like_cpp(&mut self) {
         self.represented_instance_reset_times_like_cpp.clear();
 
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
             warn!(
                 account = self.account_id,
-                "LoadInstanceTimeRestrictions skipped: character database unavailable"
+                "LoadInstanceTimeRestrictions skipped: Player lifecycle port unavailable"
             );
             return;
         };
 
-        let mut stmt = char_db.prepare(CharStatements::SEL_ACCOUNT_INSTANCELOCKTIMES);
-        stmt.set_u32(0, self.account_id);
-
-        let result = match char_db.query(&stmt).await {
-            Ok(result) => result,
-            Err(error) => {
+        let rows = match port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::InstanceTimeRestrictions {
+                    account_id: self.account_id,
+                },
+            )
+            .await
+        {
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::InstanceTimeRestrictions(rows),
+            ) => rows,
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
-                    "LoadInstanceTimeRestrictions query failed: {error}"
+                    "LoadInstanceTimeRestrictions query failed: {reason}"
+                );
+                return;
+            }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(_) => {
+                warn!(
+                    account = self.account_id,
+                    "Player lifecycle port returned the wrong auxiliary login data for instance time restrictions"
                 );
                 return;
             }
         };
 
-        if result.is_empty() {
-            return;
-        }
-
-        let mut result = result;
-        loop {
-            let instance_id = result.try_read::<u32>(0).unwrap_or(0);
-            let release_time = result.try_read::<u64>(1).unwrap_or(0);
+        for row in rows {
             self.represented_instance_reset_times_like_cpp
-                .entry(instance_id)
-                .or_insert(release_time);
-
-            if !result.next_row() {
-                break;
-            }
+                .entry(row.instance_id)
+                .or_insert(row.release_time);
         }
     }
 
