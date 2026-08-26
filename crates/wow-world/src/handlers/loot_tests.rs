@@ -41,7 +41,8 @@ use super::{
 };
 use crate::conditions::QUEST_STATUS_REWARDED_LIKE_CPP;
 use crate::session::directory::{
-    PlayerBroadcastInfo, PlayerRegistry, PlayerSessionRegistrationLikeCpp,
+    PlayerBroadcastInfo, PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp,
+    PlayerRegistry, PlayerSessionRegistrationLikeCpp,
 };
 use crate::session::mailbox::{
     ApplyLootMoneyLikeCppCommand, KickLikeCppCommand, LootRollCommandIdentityLikeCpp,
@@ -2923,7 +2924,7 @@ fn corpse_money_reward_distance_ignores_range_only_in_same_dungeon_instance_like
 
     let mut wrong_instance = broadcast_info(member_guid, member_tx);
     wrong_instance.info.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
-    wrong_instance.info.instance_id = 1;
+    wrong_instance.placement.instance_id = 1;
     registry.register_or_replace(member_guid, wrong_instance, Default::default());
     assert_eq!(
         session.represented_loot_money_recipients_like_cpp(owner),
@@ -2980,7 +2981,7 @@ fn chest_allowed_looters_ignore_range_only_in_same_dungeon_instance_like_cpp() {
 
     let mut wrong_instance = broadcast_info(member_guid, member_tx);
     wrong_instance.info.position = Position::new(10_000.0, 0.0, 0.0, 0.0);
-    wrong_instance.info.instance_id = 1;
+    wrong_instance.placement.instance_id = 1;
     registry.register_or_replace(member_guid, wrong_instance, Default::default());
     assert_eq!(
         session.represented_group_looters_at_reward_distance_like_cpp(player_guid),
@@ -4759,9 +4760,19 @@ fn broadcast_info(
 ) -> PlayerSessionRegistrationLikeCpp {
     let (command_tx, _command_rx) = flume::bounded(1);
     PlayerSessionRegistrationLikeCpp {
-        info: PlayerBroadcastInfo {
+        identity: PlayerDirectoryIdentityLikeCpp {
+            player_name: format!("Player{}", guid.counter()),
+            account_id: guid.counter() as u32,
+            recruiter_id: 0,
+            race: 1,
+            class: 1,
+            sex: 0,
+        },
+        placement: PlayerDirectoryPlacementLikeCpp {
             map_id: 0,
             instance_id: 0,
+        },
+        info: PlayerBroadcastInfo {
             position: Position::ZERO,
             combat_reach: 0.0,
             liquid_status: 0,
@@ -4798,12 +4809,6 @@ fn broadcast_info(
             party_member_phase_states: Default::default(),
             party_member_auras: Vec::new(),
             party_member_pet_stats: None,
-            player_name: format!("Player{}", guid.counter()),
-            account_id: guid.counter() as u32,
-            recruiter_id: 0,
-            race: 1,
-            class: 1,
-            sex: 0,
             level: 1,
             gray_level: 0,
             display_id: 49,
@@ -6022,7 +6027,7 @@ fn overworld_personal_loot_test_fixture_like_cpp() -> OverworldPersonalLootTestF
     let registry = Arc::new(PlayerRegistry::default());
     let (second_tx, _second_rx) = flume::bounded(1);
     let mut second = broadcast_info(second_tapper, second_tx);
-    second.info.race = 2;
+    second.identity.race = 2;
     registry.register_or_replace(second_tapper, second, Default::default());
     let (disconnected_tx, _disconnected_rx) = flume::bounded(1);
     let mut disconnected = broadcast_info(disconnected_tapper, disconnected_tx);
@@ -7569,11 +7574,11 @@ async fn represented_chest_use_syncs_state_to_same_map_viewers_like_cpp() {
     let (other_send_tx, _other_send_rx) = flume::bounded::<Vec<u8>>(1);
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
-    same_info.info.map_id = 571;
+    same_info.placement.map_id = 571;
     same_info.command_tx = same_command_tx;
     player_registry.register_or_replace(same_map_guid, same_info, Default::default());
     let mut other_info = broadcast_info(other_map_guid, other_send_tx);
-    other_info.info.map_id = 1;
+    other_info.placement.map_id = 1;
     other_info.command_tx = other_command_tx;
     player_registry.register_or_replace(other_map_guid, other_info, Default::default());
     let source = GameObjectLootSource {
@@ -7689,11 +7694,11 @@ fn represented_goober_use_syncs_shared_state_to_same_map_viewers_like_cpp() {
     let (other_send_tx, _other_send_rx) = flume::bounded::<Vec<u8>>(1);
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
-    same_info.info.map_id = 571;
+    same_info.placement.map_id = 571;
     same_info.command_tx = same_command_tx;
     player_registry.register_or_replace(same_map_guid, same_info, Default::default());
     let mut other_info = broadcast_info(other_map_guid, other_send_tx);
-    other_info.info.map_id = 1;
+    other_info.placement.map_id = 1;
     other_info.command_tx = other_command_tx;
     player_registry.register_or_replace(other_map_guid, other_info, Default::default());
 
@@ -8046,11 +8051,11 @@ async fn represented_gathering_node_use_refreshes_same_map_gameobject_viewers_li
     let (other_send_tx, _other_send_rx) = flume::bounded::<Vec<u8>>(1);
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
-    same_info.info.map_id = 571;
+    same_info.placement.map_id = 571;
     same_info.command_tx = same_command_tx;
     player_registry.register_or_replace(same_map_guid, same_info, Default::default());
     let mut other_info = broadcast_info(other_map_guid, other_send_tx);
-    other_info.info.map_id = 1;
+    other_info.placement.map_id = 1;
     other_info.command_tx = other_command_tx;
     player_registry.register_or_replace(other_map_guid, other_info, Default::default());
 
@@ -14527,7 +14532,7 @@ async fn loot_release_partial_chest_syncs_state_to_same_map_viewers_like_cpp() {
     let (same_send_tx, _same_send_rx) = flume::bounded::<Vec<u8>>(1);
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
-    same_info.info.map_id = 571;
+    same_info.placement.map_id = 571;
     same_info.command_tx = same_command_tx;
     player_registry.register_or_replace(same_map_guid, same_info, Default::default());
 
@@ -16072,7 +16077,7 @@ async fn process_pending_shared_chest_restock_syncs_state_to_same_map_viewers_li
     let (same_send_tx, _same_send_rx) = flume::bounded::<Vec<u8>>(1);
     let player_registry = Arc::new(PlayerRegistry::default());
     let mut same_info = broadcast_info(same_map_guid, same_send_tx);
-    same_info.info.map_id = 571;
+    same_info.placement.map_id = 571;
     same_info.command_tx = same_command_tx;
     player_registry.register_or_replace(same_map_guid, same_info, Default::default());
 

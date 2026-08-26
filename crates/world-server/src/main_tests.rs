@@ -116,7 +116,8 @@ use wow_packet::{
     packets::chat::{ChatMsg, ChatPkt},
 };
 use wow_world::session::directory::{
-    PlayerBroadcastInfo, PlayerRegistry, PlayerSessionRegistrationLikeCpp,
+    PlayerBroadcastInfo, PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp,
+    PlayerRegistry, PlayerSessionRegistrationLikeCpp,
 };
 use wow_world::session::mailbox::{SessionCommand, WorldSessionShutdownFlushResultLikeCpp};
 
@@ -261,9 +262,19 @@ fn player_broadcast_info_fixture_like_cpp(
     player_name: &str,
 ) -> PlayerSessionRegistrationLikeCpp {
     PlayerSessionRegistrationLikeCpp {
-        info: PlayerBroadcastInfo {
+        identity: PlayerDirectoryIdentityLikeCpp {
+            player_name: player_name.to_string(),
+            account_id: 1,
+            recruiter_id: 0,
+            race: 1,
+            class: 1,
+            sex: 0,
+        },
+        placement: PlayerDirectoryPlacementLikeCpp {
             map_id: 0,
             instance_id: 0,
+        },
+        info: PlayerBroadcastInfo {
             position: wow_core::Position::ZERO,
             combat_reach: 0.0,
             in_combat: false,
@@ -273,19 +284,9 @@ fn player_broadcast_info_fixture_like_cpp(
             pass_on_group_loot: false,
             enchanting_skill: 0,
             is_alive: true,
-            current_health: 100,
-            max_health: 100,
-            power_type: 0,
-            current_power: 0,
-            max_power: 0,
-            base_mana: 0,
             transport: None,
-            is_pvp: false,
-            is_ffa_pvp: false,
-            is_ghost: false,
             is_afk: false,
             is_dnd: false,
-            auto_reply_msg_like_cpp: String::new(),
             in_vehicle: false,
             has_vehicle_kit_like_cpp: false,
             party_member_vehicle_seat: 0,
@@ -307,16 +308,9 @@ fn player_broadcast_info_fixture_like_cpp(
             faction_template_id: 0,
             forced_reputation_ranks: Vec::new(),
             inventory_item_counts: Default::default(),
-            party_member_party_type: [0; 2],
             party_member_phase_states: Default::default(),
             party_member_auras: Vec::new(),
             party_member_pet_stats: None,
-            player_name: player_name.to_string(),
-            account_id: 1,
-            recruiter_id: 0,
-            race: 1,
-            class: 1,
-            sex: 0,
             level: 1,
             gray_level: 0,
             display_id: 49,
@@ -6983,9 +6977,19 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
     registry.register_or_replace(
         player_guid,
         PlayerSessionRegistrationLikeCpp {
-            info: PlayerBroadcastInfo {
+            identity: PlayerDirectoryIdentityLikeCpp {
+                player_name: "SeasonalTester".to_string(),
+                account_id: 1,
+                recruiter_id: 0,
+                race: 1,
+                class: 1,
+                sex: 0,
+            },
+            placement: PlayerDirectoryPlacementLikeCpp {
                 map_id: 0,
                 instance_id: 0,
+            },
+            info: PlayerBroadcastInfo {
                 position: wow_core::Position::ZERO,
                 combat_reach: 0.0,
                 in_combat: false,
@@ -6995,19 +6999,9 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
                 pass_on_group_loot: false,
                 enchanting_skill: 0,
                 is_alive: true,
-                current_health: 100,
-                max_health: 100,
-                power_type: 0,
-                current_power: 0,
-                max_power: 0,
-                base_mana: 0,
                 transport: None,
-                is_pvp: false,
-                is_ffa_pvp: false,
-                is_ghost: false,
                 is_afk: false,
                 is_dnd: false,
-                auto_reply_msg_like_cpp: String::new(),
                 in_vehicle: false,
                 has_vehicle_kit_like_cpp: false,
                 party_member_vehicle_seat: 0,
@@ -7029,16 +7023,9 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
                 faction_template_id: 0,
                 forced_reputation_ranks: Vec::new(),
                 inventory_item_counts: Default::default(),
-                party_member_party_type: [0; 2],
                 party_member_phase_states: Default::default(),
                 party_member_auras: Vec::new(),
                 party_member_pet_stats: None,
-                player_name: "SeasonalTester".to_string(),
-                account_id: 1,
-                recruiter_id: 0,
-                race: 1,
-                class: 1,
-                sex: 0,
                 level: 1,
                 gray_level: 0,
                 display_id: 49,
@@ -7302,11 +7289,11 @@ fn game_event_npc_flag_update_queues_visible_session_update_command_like_cpp() {
     let registry = PlayerRegistry::new();
     let (send_tx, send_rx) = flume::bounded(1);
     let (command_tx, command_rx) = flume::bounded(1);
-    insert_player_broadcast_fixture_like_cpp(&registry, 7201, send_tx, command_tx);
     let player_guid = ObjectGuid::create_player(1, 7201);
-    assert!(registry.fixture_update(player_guid, |player| {
-        player.map_id = 1;
-    }));
+    let mut registration =
+        player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "Player7201");
+    registration.placement.map_id = 1;
+    registry.register_or_replace(player_guid, registration, Default::default());
 
     let template_store = game_event_npc_flag_template_store_like_cpp();
     let summary = game_event_update_npc_flags_like_cpp(
@@ -10364,8 +10351,8 @@ fn make_registry_player_like_cpp(
     let (send_tx, _send_rx) = flume::bounded(4);
     let (command_tx, command_rx) = flume::bounded(4);
     let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "Tester");
-    info.info.map_id = map_id;
-    info.info.instance_id = instance_id;
+    info.placement.map_id = map_id;
+    info.placement.instance_id = instance_id;
     info.info.position = position;
     info.info.is_in_world = is_in_world;
     (info, command_rx)
@@ -10920,8 +10907,8 @@ fn full_command_channel_increments_send_failed_and_does_not_block_like_cpp() {
     drop(command_rx);
 
     let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "Full");
-    info.info.map_id = 571;
-    info.info.instance_id = 0;
+    info.placement.map_id = 571;
+    info.placement.instance_id = 0;
     info.info.is_in_world = true;
     info.info.position = Position::ZERO;
     registry.register_or_replace(guid, info, Default::default());
@@ -11007,8 +10994,8 @@ fn refresh_visible_world_creatures_full_channel_counts_send_failed_like_cpp() {
     drop(command_rx);
 
     let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "RefreshFull");
-    info.info.map_id = 571;
-    info.info.instance_id = 7;
+    info.placement.map_id = 571;
+    info.placement.instance_id = 7;
     info.info.is_in_world = true;
     registry.register_or_replace(guid, info, Default::default());
 
@@ -11449,8 +11436,8 @@ fn creature_attack_start_delivery_uses_durable_rail_when_general_queue_is_full_l
     let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
     let (command_tx, command_rx) = flume::bounded::<SessionCommand>(1);
     let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx.clone(), "AggroFull");
-    info.info.map_id = 571;
-    info.info.instance_id = 0;
+    info.placement.map_id = 571;
+    info.placement.instance_id = 0;
     info.info.is_in_world = true;
     info.info.is_alive = true;
     registry.register_or_replace(victim, info, Default::default());
@@ -11746,8 +11733,8 @@ fn creature_melee_damage_delivery_poisoned_durable_rail_counts_send_failed_like_
     let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
     let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
     let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "MeleeFull");
-    info.info.map_id = 571;
-    info.info.instance_id = 0;
+    info.placement.map_id = 571;
+    info.placement.instance_id = 0;
     info.info.is_in_world = true;
     let durable = Arc::clone(&info.durable_creature_runtime_commands_like_cpp);
     let _ = std::thread::spawn(move || {
@@ -11787,8 +11774,8 @@ fn creature_melee_damage_delivery_preserves_every_swing_when_general_queue_is_fu
     let (command_tx, command_rx) = flume::bounded::<SessionCommand>(1);
     let mut info =
         player_broadcast_info_fixture_like_cpp(send_tx, command_tx.clone(), "MeleeRetry");
-    info.info.map_id = 571;
-    info.info.instance_id = 0;
+    info.placement.map_id = 571;
+    info.placement.instance_id = 0;
     info.info.is_in_world = true;
     registry.register_or_replace(victim, info, Default::default());
     let command = wow_world::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand {

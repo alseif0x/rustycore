@@ -5688,8 +5688,6 @@ fn make_binder_observer(
     observer.register_in_player_registry();
     assert!(registry.fixture_update(guid, |info| {
         info.is_in_world = true;
-        info.map_id = 571;
-        info.instance_id = 0;
         info.position = position;
     }));
     (observer, send_rx)

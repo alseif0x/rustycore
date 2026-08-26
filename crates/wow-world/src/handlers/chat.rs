@@ -1968,9 +1968,19 @@ mod tests {
         command_tx: flume::Sender<SessionCommand>,
     ) -> PlayerSessionRegistrationLikeCpp {
         PlayerSessionRegistrationLikeCpp {
-            info: PlayerBroadcastInfo {
+            identity: crate::session::directory::PlayerDirectoryIdentityLikeCpp {
+                player_name: format!("Player{}", guid.counter()),
+                account_id: guid.counter() as u32,
+                recruiter_id: 0,
+                race: 1,
+                class: 1,
+                sex: 0,
+            },
+            placement: crate::session::directory::PlayerDirectoryPlacementLikeCpp {
                 map_id: 571,
                 instance_id: 0,
+            },
+            info: PlayerBroadcastInfo {
                 position: wow_core::Position::ZERO,
                 combat_reach: 0.0,
                 liquid_status: 0,
@@ -2007,12 +2017,6 @@ mod tests {
                 party_member_phase_states: Default::default(),
                 party_member_auras: Vec::new(),
                 party_member_pet_stats: None,
-                player_name: format!("Player{}", guid.counter()),
-                account_id: guid.counter() as u32,
-                recruiter_id: 0,
-                race: 1,
-                class: 1,
-                sex: 0,
                 level: 80,
                 gray_level: 0,
                 display_id: 49,
@@ -2637,7 +2641,7 @@ mod tests {
             other_instance_command_tx,
             wow_core::Position::new(20.0, 0.0, 0.0, 0.0),
         );
-        other_instance_info.info.instance_id = 1;
+        other_instance_info.placement.instance_id = 1;
         player_registry.register_or_replace(
             other_instance,
             other_instance_info,
@@ -3255,7 +3259,7 @@ mod tests {
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
-        target_info.info.player_name = "Target".to_string();
+        target_info.identity.player_name = "Target".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
 
         session
@@ -3277,7 +3281,7 @@ mod tests {
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
-        target_info.info.player_name = "Target".to_string();
+        target_info.identity.player_name = "Target".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
 
         session
@@ -3319,7 +3323,7 @@ mod tests {
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
-        target_info.info.player_name = "Target".to_string();
+        target_info.identity.player_name = "Target".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
         session.set_player_level_like_cpp(1);
         session.set_chat_level_requirements_like_cpp(ChatLevelRequirementsLikeCpp {
@@ -3346,7 +3350,7 @@ mod tests {
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
-        target_info.info.player_name = "Target".to_string();
+        target_info.identity.player_name = "Target".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
         session.set_player_level_like_cpp(1);
         session.set_player_game_master_like_cpp(true);
@@ -3649,7 +3653,7 @@ mod tests {
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
-        target_info.info.player_name = "Target".to_string();
+        target_info.identity.player_name = "Target".to_string();
         target_info.info.is_game_master = false;
         player_registry.register_or_replace(target, target_info, Default::default());
         session.visible_auras.insert(1, gm_silence_aura(1));
@@ -3673,7 +3677,7 @@ mod tests {
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
-        target_info.info.player_name = "Target".to_string();
+        target_info.identity.player_name = "Target".to_string();
         target_info.info.is_game_master = true;
         player_registry.register_or_replace(target, target_info, Default::default());
         session.visible_auras.insert(1, gm_silence_aura(1));
@@ -3699,7 +3703,7 @@ mod tests {
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
-        target_info.info.player_name = "Target".to_string();
+        target_info.identity.player_name = "Target".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
         bind_social_presence_like_cpp(
             &player_registry,
@@ -3735,7 +3739,7 @@ mod tests {
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
-        target_info.info.player_name = "Target".to_string();
+        target_info.identity.player_name = "Target".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
         bind_social_presence_like_cpp(
             &player_registry,
@@ -3844,7 +3848,7 @@ mod tests {
         let (target_tx, _target_rx) = flume::bounded(8);
         let (target_command_tx, target_command_rx) = flume::bounded(8);
         let mut target_info = broadcast_info_with_command_tx(target, target_tx, target_command_tx);
-        target_info.info.player_name = "Target".to_string();
+        target_info.identity.player_name = "Target".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
 
         session
@@ -3871,7 +3875,7 @@ mod tests {
         let (target_tx, _target_rx) = flume::bounded(8);
         let (target_command_tx, target_command_rx) = flume::bounded(8);
         let mut target_info = broadcast_info_with_command_tx(target, target_tx, target_command_tx);
-        target_info.info.player_name = "Target".to_string();
+        target_info.identity.player_name = "Target".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
 
         session
@@ -3963,7 +3967,7 @@ mod tests {
         let (target_tx, _target_rx) = flume::bounded(8);
         let (target_command_tx, target_command_rx) = flume::bounded(8);
         let mut target_info = broadcast_info_with_command_tx(target, target_tx, target_command_tx);
-        target_info.info.player_name = "Target".to_string();
+        target_info.identity.player_name = "Target".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
         session.set_player_level_like_cpp(1);
         session.set_chat_level_requirements_like_cpp(ChatLevelRequirementsLikeCpp {

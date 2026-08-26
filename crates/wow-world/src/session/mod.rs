@@ -34453,8 +34453,6 @@ impl WorldSession {
             .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_DND_LIKE_CPP)
             .unwrap_or(false);
         let info = PlayerBroadcastInfo {
-            map_id,
-            instance_id,
             position: pos,
             combat_reach: self.canonical_player_combat_reach_snapshot_like_cpp(),
             liquid_status: self.player_liquid_status_like_cpp(),
@@ -34511,12 +34509,6 @@ impl WorldSession {
             .unwrap_or_default(),
             party_member_auras: self.party_member_visible_auras_like_cpp(),
             party_member_pet_stats: self.party_member_pet_stats_like_cpp(),
-            player_name: name.to_string(),
-            account_id: self.account_id,
-            recruiter_id: self.recruiter_id_like_cpp,
-            race,
-            class,
-            sex: gender,
             level,
             gray_level: self.gray_level(level),
             display_id: default_display_id(race, gender),
@@ -34526,6 +34518,18 @@ impl WorldSession {
         reg.register_or_replace(
             guid,
             PlayerSessionRegistrationLikeCpp {
+                identity: crate::session::directory::PlayerDirectoryIdentityLikeCpp {
+                    player_name: name.to_string(),
+                    account_id: self.account_id,
+                    recruiter_id: self.recruiter_id_like_cpp,
+                    race,
+                    class,
+                    sex: gender,
+                },
+                placement: crate::session::directory::PlayerDirectoryPlacementLikeCpp {
+                    map_id,
+                    instance_id,
+                },
                 info,
                 send_tx: self.send_tx().clone(),
                 realm_send_tx: self.realm_route_tx().clone(),
@@ -34601,8 +34605,6 @@ impl WorldSession {
             info.active_expansion = self.expansion;
             info.level = self.player_level_like_cpp();
             info.gray_level = self.gray_level(info.level);
-            info.race = self.player_race_like_cpp();
-            info.class = self.player_class_like_cpp();
             info.pending_quest_sharing = self
                 .represented_pending_quest_sharing_like_cpp
                 .map(|pending| (pending.sender_guid, pending.quest_id));

@@ -55741,13 +55741,6 @@
       "kind": "struct",
       "fields": [
         {
-          "name": "account_id",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "active_expansion",
           "type": "u8",
           "visibility": "pub",
@@ -55771,13 +55764,6 @@
         {
           "name": "active_quest_statuses",
           "type": "HashMap < u32 , u8 >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "class",
-          "type": "u8",
           "visibility": "pub",
           "cfg": [],
           "source_class": "production"
@@ -55881,13 +55867,6 @@
           "source_class": "production"
         },
         {
-          "name": "instance_id",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "inventory_item_counts",
           "type": "HashMap < u32 , u32 >",
           "visibility": "pub",
@@ -55951,13 +55930,6 @@
           "source_class": "production"
         },
         {
-          "name": "map_id",
-          "type": "u16",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "party_member_auras",
           "type": "Vec < PartyMemberAuraState >",
           "visibility": "pub",
@@ -56000,13 +55972,6 @@
           "source_class": "production"
         },
         {
-          "name": "player_name",
-          "type": "String",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "position",
           "type": "Position",
           "visibility": "pub",
@@ -56014,29 +55979,8 @@
           "source_class": "production"
         },
         {
-          "name": "race",
-          "type": "u8",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "recruiter_id",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "rewarded_quests",
           "type": "HashSet < u32 >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "sex",
-          "type": "u8",
           "visibility": "pub",
           "cfg": [],
           "source_class": "production"

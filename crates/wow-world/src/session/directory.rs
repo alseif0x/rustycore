@@ -48,6 +48,8 @@ use wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate;
 /// can replace one.
 #[derive(Clone)]
 pub struct PlayerSessionRegistrationLikeCpp {
+    pub identity: PlayerDirectoryIdentityLikeCpp,
+    pub placement: PlayerDirectoryPlacementLikeCpp,
     /// Gameplay projection stored for other sessions to read.
     pub info: PlayerBroadcastInfo,
     /// Channel used to push serialised packets to this player's primary
@@ -82,74 +84,55 @@ pub struct PlayerSessionRegistrationLikeCpp {
     pub visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
 }
 
+/// Stable connected-player identity retained for lookup and addressing even
+/// while a far teleport temporarily leaves the canonical `Player` mapless.
+#[derive(Clone, Debug)]
+pub struct PlayerDirectoryIdentityLikeCpp {
+    pub player_name: String,
+    pub account_id: u32,
+    pub recruiter_id: u32,
+    pub race: u8,
+    pub class: u8,
+    pub sex: u8,
+}
+
+/// Current map address used to resolve the canonical `Player` owner.
+#[derive(Clone, Copy, Debug)]
+pub struct PlayerDirectoryPlacementLikeCpp {
+    pub map_id: u16,
+    pub instance_id: u32,
+}
+
 /// Information stored for each active player session.
 #[derive(Clone)]
 pub struct PlayerBroadcastInfo {
-    /// Map ID the player is currently on.
-    pub map_id: u16,
-    /// Instance ID within the map — distinguishes multiple concurrent instances
-    /// of the same dungeon/raid.  0 = world/default instance (fallback when no
-    /// canonical map key is available), mirroring C++ Phase/instance filtering
-    /// in `GridNotifiersImpl.h : MessageDistDeliverer::Visit`.
-    pub instance_id: u32,
-    /// Server-side world position (updated on every movement packet).
     pub position: Position,
-    /// Current combat reach used by C++ distance gates such as `GetDistanceZ`.
     pub combat_reach: f32,
-    /// C++ `Player::IsInCombat` mirrored from the owning session, refreshed
-    /// at every combat transition through `set_in_combat_like_cpp` and the
-    /// registry state sync; group-level gates (like the LFG boot combat
-    /// check) read this per member.
     pub in_combat: bool,
-    /// Represented C++ `Unit::GetLiquidStatus()` snapshot for remote accessibility gates.
     pub liquid_status: u32,
-    /// Represented C++ `Player::IsInWorld()` receiver gate for global-message fanout.
     pub is_in_world: bool,
-    /// Exact represented pending loot-roll identities owned by this session.
-    /// The packet key may be reused, so cross-session routing must clone this
-    /// identity into the queued command rather than publishing keys alone.
     pub active_loot_rolls: Vec<LootRollCommandIdentityLikeCpp>,
-    /// Current `Player::GetPassOnGroupLoot()` state for group/NBG roll startup.
     pub pass_on_group_loot: bool,
-    /// Represented `Player::GetSkillValue(SKILL_ENCHANTING)` used by group-roll disenchant masks.
     pub enchanting_skill: u16,
-    /// Represented `Player::IsAlive()` snapshot for cross-session receiver gates.
     pub is_alive: bool,
-    /// Current MO-transport passenger movement state used by player CREATEs.
     pub transport: Option<TransportInfo>,
-    /// Connected Player AFK flag retained until canonical presence survives far teleport.
     pub is_afk: bool,
-    /// Connected Player DND flag retained until canonical presence survives far teleport.
     pub is_dnd: bool,
-    /// Represented `Player::GetVehicle() != nullptr` snapshot for party member full-state packets.
     pub in_vehicle: bool,
-    /// Represented `Player::GetVehicleKit() != nullptr` snapshot for player-vehicle interact gates.
     pub has_vehicle_kit_like_cpp: bool,
-    /// Represented `VehicleSeatEntry::ID` from `Vehicle::GetSeatForPassenger(player)`.
     pub party_member_vehicle_seat: i32,
-    /// Represented `Player::GetZoneId()` snapshot for party member full-state packets.
     pub zone_id: u32,
-    /// Represented `Player::GetPrimarySpecialization()` snapshot for party member full-state packets.
     pub spec_id: u32,
-    /// Represented `Unit::GetUnitFlags()` snapshot for global creature targetability gates.
     pub unit_flags: u32,
-    /// Represented `Unit::GetUnitState()` snapshot for fake-death/unattackable targetability gates.
     pub unit_state: u32,
-    /// Represented `Player::IsGameMaster()` snapshot; C++ rejects GM players as attack targets.
     pub is_game_master: bool,
-    /// Represented `Player::GetDungeonDifficultyID()` snapshot for cross-session party invite gates.
     pub dungeon_difficulty_id: u32,
-    /// Active expansion derived from canonical `WorldSession::expansion` for receiver-only quest gates.
     pub active_expansion: u8,
     /// Represented non-empty `Player::GetPlayerSharingQuest()` snapshot for party quest sharing.
     pub pending_quest_sharing: Option<(ObjectGuid, u32)>,
-    /// Current known spells, used for remote `ConditionMgr`/loot checks that mirror `Player::HasSpell`.
     pub known_spells: Vec<i32>,
-    /// Current quest status map, keyed by quest id, used for remote `Player::GetQuestStatus` checks.
     pub active_quest_statuses: HashMap<u32, u8>,
-    /// Active quest objective counters, keyed by quest id, used for remote `Player::HasQuestForItem`.
     pub active_quest_objective_counts: HashMap<u32, Vec<i32>>,
-    /// Rewarded quest ids, used for remote `QUEST_STATUS_REWARDED` checks.
     pub rewarded_quests: HashSet<u32>,
     /// C++ `Player::HasAchieved` snapshot for connected-player gates that resolve
     /// another live player through `ObjectAccessor::FindPlayer`, such as
@@ -171,30 +154,13 @@ pub struct PlayerBroadcastInfo {
     pub party_member_auras: Vec<PartyMemberAuraState>,
     /// C++ `PartyMemberPetStats` snapshot for SMSG_PARTY_MEMBER_FULL_STATE.
     pub party_member_pet_stats: Option<PartyMemberPetStats>,
-    /// Character name — used for whisper target lookups.
-    pub player_name: String,
-    /// Account ID — kept for future same-account filtering.
-    pub account_id: u32,
-    /// Login account recruiter ID, used by C++ Recruit-A-Friend reward checks.
-    pub recruiter_id: u32,
-    // ── Character attributes for broadcast packets ──
-    /// Race (human, dwarf, etc.)
-    pub race: u8,
-    /// Class (warrior, mage, etc.)
-    pub class: u8,
-    /// Sex (0=male, 1=female)
-    pub sex: u8,
-    /// Character level
     pub level: u8,
     /// C++ `Trinity::XP::GetGrayLevel(level)` snapshot for receiver-side
     /// aggro decisions. Sessions publish this so global map-owned scans do not
     /// recompute or lose script-adjusted gray-level state.
     pub gray_level: u8,
-    /// Display ID for model rendering
     pub display_id: u32,
-    /// Equipped item display info: (item_entry, enchant_display_id, subclass) per slot 0-18
     pub visible_items: Arc<[(i32, u16, u16); 19]>,
-    /// C++ `PlayerData::Customizations` snapshot used by non-owner CREATE blocks.
     pub customizations: Arc<Vec<ChrCustomizationChoiceValuesUpdate>>,
 }
 
@@ -521,6 +487,8 @@ pub struct PlayerVisibilityCreateSnapshot {
 /// incarnation-aware addresses from [`PlayerRegistry`].
 struct PlayerRegistryEntry {
     generation: u64,
+    identity: PlayerDirectoryIdentityLikeCpp,
+    placement: PlayerDirectoryPlacementLikeCpp,
     info: PlayerBroadcastInfo,
     /// Delivery handles for this incarnation, private to the directory (#270).
     ///
@@ -556,14 +524,14 @@ impl PlayerRegistryEntry {
                 generation: self.generation,
             },
             guid,
-            map_id: self.info.map_id,
-            instance_id: self.info.instance_id,
+            map_id: self.placement.map_id,
+            instance_id: self.placement.instance_id,
             position: self.info.position,
             combat_reach: self.info.combat_reach,
             liquid_status: self.info.liquid_status,
             is_in_world: self.info.is_in_world,
             is_alive: self.info.is_alive,
-            account_id: self.info.account_id,
+            account_id: self.identity.account_id,
             in_combat: self.info.in_combat,
             advanced_combat_logging: self
                 .advanced_combat_logging_enabled_like_cpp
@@ -658,6 +626,8 @@ impl PlayerRegistry {
     ) -> PlayerRegistration {
         let generation = self.next_generation();
         let PlayerSessionRegistrationLikeCpp {
+            identity,
+            placement,
             info,
             send_tx,
             realm_send_tx,
@@ -671,6 +641,8 @@ impl PlayerRegistry {
             guid,
             PlayerRegistryEntry {
                 generation,
+                identity,
+                placement,
                 info,
                 send_tx,
                 realm_send_tx,
@@ -753,7 +725,7 @@ impl PlayerRegistry {
     ) -> Option<PlayerSocialRecipientSnapshot> {
         self.entries.iter().find_map(|entry| {
             entry
-                .info
+                .identity
                 .player_name
                 .eq_ignore_ascii_case(player_name)
                 .then(|| Self::social_snapshot(entry.key(), entry.value()))
@@ -777,11 +749,11 @@ impl PlayerRegistry {
                 generation: entry.generation,
             },
             guid: *guid,
-            player_name: entry.info.player_name.clone(),
-            race: entry.info.race,
-            class: entry.info.class,
-            map_id: entry.info.map_id,
-            instance_id: entry.info.instance_id,
+            player_name: entry.identity.player_name.clone(),
+            race: entry.identity.race,
+            class: entry.identity.class,
+            map_id: entry.placement.map_id,
+            instance_id: entry.placement.instance_id,
             dungeon_difficulty_id: entry.info.dungeon_difficulty_id,
             is_game_master: entry.info.is_game_master,
             is_afk: entry.info.is_afk,
@@ -793,7 +765,7 @@ impl PlayerRegistry {
     pub fn social_auto_reply(&self, guid: ObjectGuid) -> Option<String> {
         let (map_id, instance_id) = {
             let entry = self.entries.get(&guid)?;
-            (entry.info.map_id, entry.info.instance_id)
+            (entry.placement.map_id, entry.placement.instance_id)
         };
         with_canonical_player_at_like_cpp(
             self.canonical_map_manager.get()?,
@@ -820,14 +792,14 @@ impl PlayerRegistry {
                 generation: entry.generation,
             },
             guid,
-            map_id: entry.info.map_id,
-            instance_id: entry.info.instance_id,
+            map_id: entry.placement.map_id,
+            instance_id: entry.placement.instance_id,
             position: entry.info.position,
             is_in_world: entry.info.is_in_world,
             is_alive: entry.info.is_alive,
             level: entry.info.level,
-            account_id: entry.info.account_id,
-            recruiter_id: entry.info.recruiter_id,
+            account_id: entry.identity.account_id,
+            recruiter_id: entry.identity.recruiter_id,
             in_combat: entry.info.in_combat,
             has_active_loot_rolls: !entry.info.active_loot_rolls.is_empty(),
         })
@@ -848,24 +820,26 @@ impl PlayerRegistry {
     /// Resolve the connected projection used to build PartyUpdate payloads.
     #[must_use]
     pub fn party_member(&self, guid: ObjectGuid) -> Option<PlayerPartyMemberSnapshot> {
-        let (registration, info) = {
+        let (registration, identity, placement, info) = {
             let entry = self.entries.get(&guid)?;
             (
                 PlayerRegistration {
                     guid,
                     generation: entry.generation,
                 },
+                entry.identity.clone(),
+                entry.placement,
                 entry.info.clone(),
             )
         };
-        let state = self.party_state(guid, info.map_id, info.instance_id)?;
+        let state = self.party_state(guid, placement.map_id, placement.instance_id)?;
         let vitals = state.vitals;
         Some(PlayerPartyMemberSnapshot {
             registration,
             guid,
-            player_name: info.player_name,
-            race: info.race,
-            class: info.class,
+            player_name: identity.player_name,
+            race: identity.race,
+            class: identity.class,
             position: info.position,
             is_pvp: state.is_pvp,
             is_alive: vitals.is_alive,
@@ -926,7 +900,7 @@ impl PlayerRegistry {
             if !entry.command_tx.same_channel(command_tx) {
                 return false;
             }
-            (entry.info.map_id, entry.info.instance_id)
+            (entry.placement.map_id, entry.placement.instance_id)
         };
         let Some(manager) = self.canonical_map_manager.get() else {
             return false;
@@ -995,13 +969,13 @@ impl PlayerRegistry {
         let info = &entry.info;
         Some(PlayerInspectSnapshot {
             guid,
-            map_id: info.map_id,
+            map_id: entry.placement.map_id,
             position: info.position,
             faction_template_id: info.faction_template_id,
-            player_name: info.player_name.clone(),
-            race: info.race,
-            class: info.class,
-            sex: info.sex,
+            player_name: entry.identity.player_name.clone(),
+            race: entry.identity.race,
+            class: entry.identity.class,
+            sex: entry.identity.sex,
             level: info.level,
             visible_items: Arc::clone(&info.visible_items),
         })
@@ -1024,7 +998,7 @@ impl PlayerRegistry {
     ) -> Option<HonorStatsLikeCpp> {
         let (map_id, instance_id) = {
             let entry = self.entries.get(&guid)?;
-            (entry.info.map_id, entry.info.instance_id)
+            (entry.placement.map_id, entry.placement.instance_id)
         };
 
         with_canonical_player_at_like_cpp(
@@ -1046,8 +1020,8 @@ impl PlayerRegistry {
                 generation: entry.generation,
             },
             guid,
-            map_id: entry.info.map_id,
-            instance_id: entry.info.instance_id,
+            map_id: entry.placement.map_id,
+            instance_id: entry.placement.instance_id,
             position: entry.info.position,
             is_in_world: entry.info.is_in_world,
         })
@@ -1065,11 +1039,12 @@ impl PlayerRegistry {
             .iter()
             .filter_map(|entry| {
                 let guid = *entry.key();
-                let info = &entry.value().info;
+                let value = entry.value();
+                let info = &value.info;
                 (guid != excluded_guid
                     && info.is_in_world
-                    && info.map_id == map_id
-                    && info.instance_id == instance_id)
+                    && value.placement.map_id == map_id
+                    && value.placement.instance_id == instance_id)
                     .then_some(PlayerRegistration {
                         guid,
                         generation: entry.value().generation,
@@ -1087,7 +1062,7 @@ impl PlayerRegistry {
         instance_id: u32,
     ) -> Option<PlayerRegistration> {
         let entry = self.entries.get(&guid)?;
-        (entry.info.map_id == map_id && entry.info.instance_id == instance_id).then_some(
+        (entry.placement.map_id == map_id && entry.placement.instance_id == instance_id).then_some(
             PlayerRegistration {
                 guid,
                 generation: entry.generation,
@@ -1105,8 +1080,8 @@ impl PlayerRegistry {
     ) -> Option<PlayerRegistration> {
         let entry = self.entries.get(&guid)?;
         (entry.info.is_in_world
-            && entry.info.map_id == map_id
-            && entry.info.instance_id == instance_id)
+            && entry.placement.map_id == map_id
+            && entry.placement.instance_id == instance_id)
             .then_some(PlayerRegistration {
                 guid,
                 generation: entry.generation,
@@ -1130,7 +1105,7 @@ impl PlayerRegistry {
         instance_id: u32,
     ) -> Option<bool> {
         let entry = self.entries.get(&guid)?;
-        (entry.info.map_id == map_id && entry.info.instance_id == instance_id)
+        (entry.placement.map_id == map_id && entry.placement.instance_id == instance_id)
             .then_some(entry.info.pass_on_group_loot)
     }
 
@@ -1140,9 +1115,9 @@ impl PlayerRegistry {
         let entry = self.entries.get(&guid)?;
         let info = &entry.info;
         Some(PlayerLootContextSnapshot {
-            race: info.race,
-            class: info.class,
-            sex: info.sex,
+            race: entry.identity.race,
+            class: entry.identity.class,
+            sex: entry.identity.sex,
             level: info.level,
             known_spells: info.known_spells.clone(),
             active_quest_statuses: info.active_quest_statuses.clone(),
@@ -1158,7 +1133,7 @@ impl PlayerRegistry {
         let entry = self.entries.get(&guid)?;
         Some(PlayerGroupRewardSnapshot {
             level: entry.info.level,
-            map_id: entry.info.map_id,
+            map_id: entry.placement.map_id,
             position: entry.info.position,
             is_alive: entry.info.is_alive,
         })
@@ -1179,11 +1154,12 @@ impl PlayerRegistry {
             .iter()
             .filter_map(|entry| {
                 let guid = *entry.key();
-                let info = &entry.value().info;
+                let value = entry.value();
+                let info = &value.info;
                 if guid == excluded_guid
                     || !info.is_in_world
-                    || info.map_id != map_id
-                    || info.instance_id != instance_id
+                    || value.placement.map_id != map_id
+                    || value.placement.instance_id != instance_id
                 {
                     return None;
                 }
@@ -1209,11 +1185,12 @@ impl PlayerRegistry {
             .iter()
             .filter_map(|entry| {
                 let guid = *entry.key();
-                let info = &entry.value().info;
+                let value = entry.value();
+                let info = &value.info;
                 (guid != excluded_guid
                     && info.is_in_world
-                    && info.map_id == map_id
-                    && info.instance_id == instance_id)
+                    && value.placement.map_id == map_id
+                    && value.placement.instance_id == instance_id)
                     .then_some(PlayerRegistration {
                         guid,
                         generation: entry.value().generation,
@@ -1237,11 +1214,12 @@ impl PlayerRegistry {
             .iter()
             .filter_map(|entry| {
                 let guid = *entry.key();
-                let info = &entry.value().info;
+                let value = entry.value();
+                let info = &value.info;
                 if guid == excluded_guid
                     || !info.is_in_world
-                    || info.map_id != map_id
-                    || info.instance_id != instance_id
+                    || value.placement.map_id != map_id
+                    || value.placement.instance_id != instance_id
                 {
                     return None;
                 }
@@ -1271,11 +1249,12 @@ impl PlayerRegistry {
             .iter()
             .filter_map(|entry| {
                 let guid = *entry.key();
-                let info = &entry.value().info;
+                let value = entry.value();
+                let info = &value.info;
                 if guid == excluded_guid
                     || !info.is_in_world
-                    || info.map_id != map_id
-                    || info.instance_id != instance_id
+                    || value.placement.map_id != map_id
+                    || value.placement.instance_id != instance_id
                     || !info
                         .transport
                         .as_ref()
@@ -1283,21 +1262,21 @@ impl PlayerRegistry {
                 {
                     return None;
                 }
-                Some((guid, info.clone()))
+                Some((guid, value.identity.clone(), value.placement, info.clone()))
             })
             .collect();
 
         candidates
             .into_iter()
-            .filter_map(|(guid, info)| {
+            .filter_map(|(guid, identity, placement, info)| {
                 let (vitals, party_type) =
-                    self.create_state(guid, info.map_id, info.instance_id)?;
+                    self.create_state(guid, placement.map_id, placement.instance_id)?;
                 Some(PlayerVisibilityCreateSnapshot {
                     guid,
                     position: info.position,
-                    race: info.race,
-                    class: info.class,
-                    sex: info.sex,
+                    race: identity.race,
+                    class: identity.class,
+                    sex: identity.sex,
                     level: info.level,
                     display_id: info.display_id,
                     zone_id: info.zone_id,
@@ -1352,13 +1331,13 @@ impl PlayerRegistry {
                     df_quests: info.df_quests.clone(),
                     daily_quests_completed: info.daily_quests_completed.clone(),
                     level: info.level,
-                    class: info.class,
-                    race: info.race,
+                    class: entry.identity.class,
+                    race: entry.identity.race,
                     reputation_standings: None,
                     active_expansion: info.active_expansion,
                 },
-                info.map_id,
-                info.instance_id,
+                entry.placement.map_id,
+                entry.placement.instance_id,
             )
         };
 
@@ -1378,7 +1357,7 @@ impl PlayerRegistry {
     /// Read one connected player's race for PvP quest-credit team comparison.
     #[must_use]
     pub fn quest_credit_race(&self, guid: ObjectGuid) -> Option<u8> {
-        self.entries.get(&guid).map(|entry| entry.info.race)
+        self.entries.get(&guid).map(|entry| entry.identity.race)
     }
 
     /// Snapshot one player target for represented vehicle interaction.
@@ -1389,8 +1368,8 @@ impl PlayerRegistry {
     ) -> Option<PlayerVehicleInteractionSnapshot> {
         let entry = self.entries.get(&guid)?;
         Some(PlayerVehicleInteractionSnapshot {
-            map_id: entry.info.map_id,
-            instance_id: entry.info.instance_id,
+            map_id: entry.placement.map_id,
+            instance_id: entry.placement.instance_id,
             position: entry.info.position,
             has_vehicle_kit: entry.info.has_vehicle_kit_like_cpp,
         })
@@ -1410,8 +1389,8 @@ impl PlayerRegistry {
             return false;
         }
         entry.info.position = update.position;
-        entry.info.map_id = update.map_id;
-        entry.info.instance_id = update.instance_id;
+        entry.placement.map_id = update.map_id;
+        entry.placement.instance_id = update.instance_id;
         entry.info.liquid_status = update.liquid_status;
         entry.info.transport = update.transport;
         true
@@ -1429,8 +1408,12 @@ impl PlayerRegistry {
     ) -> Option<(PlayerRegistration, LootRollCommandIdentityLikeCpp)> {
         self.entries.iter().find_map(|entry| {
             let guid = *entry.key();
-            let info = &entry.value().info;
-            if guid == excluded_guid || info.map_id != map_id || info.instance_id != instance_id {
+            let value = entry.value();
+            let info = &value.info;
+            if guid == excluded_guid
+                || value.placement.map_id != map_id
+                || value.placement.instance_id != instance_id
+            {
                 return None;
             }
             let identity = info
@@ -1506,8 +1489,8 @@ impl PlayerRegistry {
                 let info = &entry.info;
                 (info.is_in_world && info.is_alive).then(|| PlayerAggroCandidateSnapshot {
                     player_guid: guid,
-                    map_id: info.map_id,
-                    instance_id: info.instance_id,
+                    map_id: entry.placement.map_id,
+                    instance_id: entry.placement.instance_id,
                     position: info.position,
                     combat_reach: info.combat_reach,
                     liquid_status: info.liquid_status,
@@ -1543,8 +1526,8 @@ impl PlayerRegistry {
                 let info = &entry.info;
                 if guid == excluded_guid
                     || !info.is_in_world
-                    || info.map_id != map_id
-                    || info.instance_id != instance_id
+                    || entry.placement.map_id != map_id
+                    || entry.placement.instance_id != instance_id
                 {
                     return None;
                 }
@@ -1555,21 +1538,21 @@ impl PlayerRegistry {
                 if dx * dx + dy * dy >= reach * reach {
                     return None;
                 }
-                Some((guid, info.clone()))
+                Some((guid, entry.identity.clone(), entry.placement, info.clone()))
             })
             .collect();
 
         candidates
             .into_iter()
-            .filter_map(|(guid, info)| {
+            .filter_map(|(guid, identity, placement, info)| {
                 let (vitals, party_type) =
-                    self.create_state(guid, info.map_id, info.instance_id)?;
+                    self.create_state(guid, placement.map_id, placement.instance_id)?;
                 Some(PlayerVisibilityCreateSnapshot {
                     guid,
                     position: info.position,
-                    race: info.race,
-                    class: info.class,
-                    sex: info.sex,
+                    race: identity.race,
+                    class: identity.class,
+                    sex: identity.sex,
                     level: info.level,
                     display_id: info.display_id,
                     zone_id: info.zone_id,
@@ -1955,9 +1938,19 @@ mod tests {
         command_tx: flume::Sender<SessionCommand>,
     ) -> PlayerSessionRegistrationLikeCpp {
         PlayerSessionRegistrationLikeCpp {
-            info: PlayerBroadcastInfo {
+            identity: PlayerDirectoryIdentityLikeCpp {
+                player_name: "TestPlayer".to_string(),
+                account_id: 1,
+                recruiter_id: 0,
+                race: 1,
+                class: 1,
+                sex: 0,
+            },
+            placement: PlayerDirectoryPlacementLikeCpp {
                 map_id,
                 instance_id,
+            },
+            info: PlayerBroadcastInfo {
                 position: Position::ZERO,
                 combat_reach: 0.0,
                 liquid_status: 0,
@@ -1994,12 +1987,6 @@ mod tests {
                 party_member_phase_states: Default::default(),
                 party_member_auras: Vec::new(),
                 party_member_pet_stats: None,
-                player_name: "TestPlayer".to_string(),
-                account_id: 1,
-                recruiter_id: 0,
-                race: 1,
-                class: 1,
-                sex: 0,
                 level: 1,
                 gray_level: 0,
                 display_id: 49,
@@ -2020,12 +2007,12 @@ mod tests {
     /// C++ anchor: `GridNotifiersImpl.h : MessageDistDeliverer::Visit` — instance
     /// separation via `InSamePhase` + map instance ID check.
     #[test]
-    fn player_broadcast_info_has_instance_id_field_like_cpp() {
+    fn player_directory_keeps_identity_and_placement_outside_gameplay_projection_like_cpp() {
         let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
         let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
         let info = registration_for_test(571, 42, send_tx, command_tx);
-        assert_eq!(info.info.instance_id, 42);
-        assert_eq!(info.info.map_id, 571);
+        assert_eq!(info.placement.instance_id, 42);
+        assert_eq!(info.placement.map_id, 571);
 
         let registry = PlayerRegistry::new();
         let alpha = ObjectGuid::create_player(1, 100);
@@ -2041,7 +2028,7 @@ mod tests {
         assert_eq!(social.dungeon_difficulty_id, 1);
 
         let mut replacement = info.clone();
-        replacement.info.player_name = "Replacement".to_string();
+        replacement.identity.player_name = "Replacement".to_string();
         let replacement_alpha =
             registry.register_or_replace(alpha, replacement, Default::default());
         assert_eq!(
@@ -2055,7 +2042,7 @@ mod tests {
         );
 
         let mut beta_info = info;
-        beta_info.info.player_name = "Beta".to_string();
+        beta_info.identity.player_name = "Beta".to_string();
         registry.register_or_replace(beta, beta_info, Default::default());
         let ordered =
             registry.group_presences_in_order(&[beta, ObjectGuid::create_player(1, 999), alpha]);

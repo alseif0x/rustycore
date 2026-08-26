@@ -22,7 +22,8 @@ use super::{
     sender_can_start_ready_check_like_cpp,
 };
 use crate::session::directory::{
-    PlayerBroadcastInfo, PlayerRegistry, PlayerSessionRegistrationLikeCpp,
+    PlayerBroadcastInfo, PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp,
+    PlayerRegistry, PlayerSessionRegistrationLikeCpp,
 };
 use crate::session::mailbox::{SendRealmPacketLikeCppCommand, SessionCommand};
 use flume::bounded;
@@ -99,9 +100,19 @@ fn broadcast_info_with_command_tx(
     command_tx: flume::Sender<SessionCommand>,
 ) -> PlayerSessionRegistrationLikeCpp {
     PlayerSessionRegistrationLikeCpp {
-        info: PlayerBroadcastInfo {
+        identity: PlayerDirectoryIdentityLikeCpp {
+            player_name: format!("Player{}", guid.low_value()),
+            account_id: 1,
+            recruiter_id: 0,
+            race: 1,
+            class: 1,
+            sex: 0,
+        },
+        placement: PlayerDirectoryPlacementLikeCpp {
             map_id: 0,
             instance_id: 0,
+        },
+        info: PlayerBroadcastInfo {
             position: Position::ZERO,
             combat_reach: 0.0,
             liquid_status: 0,
@@ -138,12 +149,6 @@ fn broadcast_info_with_command_tx(
             party_member_phase_states: Default::default(),
             party_member_auras: Vec::new(),
             party_member_pet_stats: None,
-            player_name: format!("Player{}", guid.low_value()),
-            account_id: 1,
-            recruiter_id: 0,
-            race: 1,
-            class: 1,
-            sex: 0,
             level: 1,
             gray_level: 0,
             display_id: 49,
@@ -1309,7 +1314,7 @@ async fn party_invite_rejects_cross_faction_like_cpp_default_config() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, target_rx) = bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
-    target_info.info.race = 2; // Orc/Horde, while inviter identity below is Human/Alliance.
+    target_info.identity.race = 2; // Orc/Horde, while inviter identity below is Human/Alliance.
     player_registry.register_or_replace(target, target_info, Default::default());
     let pending_invites = Arc::new(PendingInvites::default());
 
@@ -1377,7 +1382,7 @@ async fn party_invite_allows_cross_faction_when_cpp_config_enabled() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, target_rx) = bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
-    target_info.info.race = 2;
+    target_info.identity.race = 2;
     player_registry.register_or_replace(target, target_info, Default::default());
     let pending_invites = Arc::new(PendingInvites::default());
 
@@ -1492,13 +1497,13 @@ async fn party_invite_rejects_same_map_different_instances_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (inviter_tx, _inviter_rx) = bounded(8);
     let mut inviter_info = broadcast_info(inviter, inviter_tx);
-    inviter_info.info.map_id = 571;
-    inviter_info.info.instance_id = 100;
+    inviter_info.placement.map_id = 571;
+    inviter_info.placement.instance_id = 100;
     player_registry.register_or_replace(inviter, inviter_info, Default::default());
     let (target_tx, target_rx) = bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
-    target_info.info.map_id = 571;
-    target_info.info.instance_id = 200;
+    target_info.placement.map_id = 571;
+    target_info.placement.instance_id = 200;
     player_registry.register_or_replace(target, target_info, Default::default());
     let pending_invites = Arc::new(PendingInvites::default());
 
@@ -1532,8 +1537,8 @@ async fn party_invite_rejects_instance_difficulty_mismatch_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, target_rx) = bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
-    target_info.info.map_id = 571;
-    target_info.info.instance_id = 100;
+    target_info.placement.map_id = 571;
+    target_info.placement.instance_id = 100;
     target_info.info.dungeon_difficulty_id = 2;
     player_registry.register_or_replace(target, target_info, Default::default());
     let pending_invites = Arc::new(PendingInvites::default());
@@ -1997,8 +2002,8 @@ async fn lfg_uninvite_member_in_combat_on_another_map_passes_gate_like_cpp() {
     let (target_tx, _target_rx) = flume::bounded(8);
     let mut target_info = broadcast_info(target, target_tx);
     target_info.info.in_combat = true;
-    target_info.info.map_id = 1;
-    target_info.info.instance_id = 1;
+    target_info.placement.map_id = 1;
+    target_info.placement.instance_id = 1;
     player_registry.register_or_replace(target, target_info, Default::default());
     session.set_player_registry(Arc::clone(&player_registry));
 
@@ -2542,12 +2547,11 @@ fn group_party_update_member_info_uses_loaded_member_slot_like_cpp() {
 
     let registry = PlayerRegistry::default();
     let (tx, _rx) = bounded(1);
-    registry.register_or_replace(member, broadcast_info(member, tx), Default::default());
-    registry.fixture_update(member, |entry| {
-        entry.player_name.clear();
-        entry.race = 0;
-        entry.class = 0;
-    });
+    let mut registration = broadcast_info(member, tx);
+    registration.identity.player_name.clear();
+    registration.identity.race = 0;
+    registration.identity.class = 0;
+    registry.register_or_replace(member, registration, Default::default());
 
     let info = party_player_info_like_cpp(&group, &registry, member)
         .expect("connected represented member should produce party info");
@@ -3125,14 +3129,11 @@ async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_
     let registry = Arc::new(PlayerRegistry::default());
     let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
     assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
-    registry.register_or_replace(
-        target,
-        broadcast_info(target, target_tx),
-        Default::default(),
-    );
+    let mut registration = broadcast_info(target, target_tx);
+    registration.identity.class = 4;
+    registry.register_or_replace(target, registration, Default::default());
     registry.fixture_update(target, |info| {
         info.level = 80;
-        info.class = 4;
         info.is_afk = true;
         info.is_dnd = true;
         info.in_vehicle = true;

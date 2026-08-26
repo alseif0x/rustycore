@@ -2749,9 +2749,19 @@ mod tests {
         command_tx: flume::Sender<crate::session::mailbox::SessionCommand>,
     ) -> crate::session::directory::PlayerSessionRegistrationLikeCpp {
         crate::session::directory::PlayerSessionRegistrationLikeCpp {
-            info: crate::session::directory::PlayerBroadcastInfo {
+            identity: crate::session::directory::PlayerDirectoryIdentityLikeCpp {
+                player_name: format!("Player{}", guid.counter()),
+                account_id: guid.counter() as u32,
+                recruiter_id: 0,
+                race: 1,
+                class: 1,
+                sex: 0,
+            },
+            placement: crate::session::directory::PlayerDirectoryPlacementLikeCpp {
                 map_id: 0,
                 instance_id: 0,
+            },
+            info: crate::session::directory::PlayerBroadcastInfo {
                 position: wow_core::Position::ZERO,
                 combat_reach: 0.0,
                 liquid_status: 0,
@@ -2788,12 +2798,6 @@ mod tests {
                 party_member_phase_states: Default::default(),
                 party_member_auras: Vec::new(),
                 party_member_pet_stats: None,
-                player_name: format!("Player{}", guid.counter()),
-                account_id: guid.counter() as u32,
-                recruiter_id: 0,
-                race: 1,
-                class: 1,
-                sex: 0,
                 level: 1,
                 gray_level: 0,
                 display_id: 49,

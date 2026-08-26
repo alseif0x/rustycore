@@ -31,7 +31,8 @@ mod travel;
 
 use super::*;
 use crate::session::directory::{
-    PlayerBroadcastInfo, PlayerRegistry, PlayerSessionRegistrationLikeCpp,
+    PlayerBroadcastInfo, PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp,
+    PlayerRegistry, PlayerSessionRegistrationLikeCpp,
 };
 use crate::session::mailbox::SessionCommand;
 use std::collections::{HashMap, HashSet};
@@ -729,9 +730,19 @@ fn broadcast_info_with_command_tx(
 ) -> PlayerSessionRegistrationLikeCpp {
     let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(4);
     PlayerSessionRegistrationLikeCpp {
-        info: PlayerBroadcastInfo {
+        identity: PlayerDirectoryIdentityLikeCpp {
+            player_name: "TestPlayer".to_string(),
+            account_id: 1,
+            recruiter_id: 0,
+            race: 1,
+            class: 1,
+            sex: 0,
+        },
+        placement: PlayerDirectoryPlacementLikeCpp {
             map_id: 571,
             instance_id: 0,
+        },
+        info: PlayerBroadcastInfo {
             position: Position::ZERO,
             combat_reach: 0.0,
             liquid_status: 0,
@@ -768,12 +779,6 @@ fn broadcast_info_with_command_tx(
             party_member_phase_states: Default::default(),
             party_member_auras: Vec::new(),
             party_member_pet_stats: None,
-            player_name: "TestPlayer".to_string(),
-            account_id: 1,
-            recruiter_id: 0,
-            race: 1,
-            class: 1,
-            sex: 0,
             level: 1,
             gray_level: 0,
             display_id: 49,

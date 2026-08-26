@@ -7036,7 +7036,7 @@ async fn push_quest_to_party_grouped_receiver_wrong_class_emits_class_pair_like_
     receiver_session.sync_player_registry_state_like_cpp();
     assert_eq!(
         player_registry
-            .fixture_snapshot(receiver_guid)
+            .quest_sharing_snapshot(receiver_guid, None)
             .expect("receiver snapshot")
             .class,
         1
@@ -7088,7 +7088,7 @@ async fn push_quest_to_party_grouped_receiver_wrong_race_emits_race_pair_like_cp
     receiver_session.sync_player_registry_state_like_cpp();
     assert_eq!(
         player_registry
-            .fixture_snapshot(receiver_guid)
+            .quest_sharing_snapshot(receiver_guid, None)
             .expect("receiver snapshot")
             .race,
         1
