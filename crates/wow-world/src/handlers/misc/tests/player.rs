@@ -372,7 +372,7 @@ async fn set_difficulty_id_group_leader_updates_group_dungeon_difficulty_like_cp
     let leader = ObjectGuid::create_player(1, 100);
     let member = ObjectGuid::create_player(1, 101);
     let group_registry = Arc::new(GroupRegistry::default());
-    let player_registry = Arc::new(PlayerRegistry::default());
+    let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let (member_command_tx, member_command_rx) = flume::bounded::<SessionCommand>(4);
     let mut group = GroupInfo::new(leader);
     group.add_member(member);

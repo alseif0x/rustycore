@@ -26,7 +26,6 @@ address resolution are stable directory operations introduced by #150 and are no
 storage access. Any new direct operation is rejected by the exact syntax baseline rather than
 being assigned implicitly.
 
-The temporary broad mirror is separately tracked field by field in
-[`player-broadcast-info-retirement.tsv`](player-broadcast-info-retirement.tsv). Its exact
-membership is cross-checked against the syntax baseline, so a field cannot be added by merely
-regenerating that baseline.
+Issue #252 retired the temporary broad mirror and removed its exact-field baseline. Gameplay
+consumers now resolve bounded values from canonical Player/Map owners; this map remains the
+directory-operation inventory and must not be used to reintroduce a gameplay projection.

@@ -19141,6 +19141,216 @@
       "stable_boundary": false
     },
     {
+      "id": "workflow:wow-world:crate::canonical_player_sync:crates/wow-world/src/canonical_player_sync.rs::fn hydrate_player_presentation_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/canonical_player_sync.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_player_sync"
+      ],
+      "enclosings": [
+        "fn hydrate_player_presentation_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "Canonical player in-memory synchronization boundary currently owns the complete wow-world workflow fn hydrate_player_presentation_like_cpp in crates/wow-world/src/canonical_player_sync.rs.",
+      "connection_affinity": "This projection reads session-owned in-memory state; the database targets are conservative dataflow aliases and no connection or transaction is acquired.",
+      "current_order": "Preserve the one-way session-to-canonical projection order; no persistence order is inferred from the conservative aliases.",
+      "failure_and_unknown_commit": "No database commit occurs in this projection; unresolved canonical ownership leaves the value unknown and suppresses the mutation.",
+      "target_issues": [
+        153,
+        169
+      ],
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::canonical_player_sync:crates/wow-world/src/canonical_player_sync.rs::fn sync_player_directory_gameplay_to_canonical_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/canonical_player_sync.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_player_sync"
+      ],
+      "enclosings": [
+        "fn sync_player_directory_gameplay_to_canonical_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "Canonical player in-memory synchronization boundary currently owns the complete wow-world workflow fn sync_player_directory_gameplay_to_canonical_like_cpp in crates/wow-world/src/canonical_player_sync.rs.",
+      "connection_affinity": "This projection reads session-owned in-memory state; the database targets are conservative dataflow aliases and no connection or transaction is acquired.",
+      "current_order": "Preserve the one-way session-to-canonical projection order; no persistence order is inferred from the conservative aliases.",
+      "failure_and_unknown_commit": "No database commit occurs in this projection; unresolved canonical ownership leaves the value unknown and suppresses the mutation.",
+      "target_issues": [
+        153,
+        169
+      ],
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::canonical_player_sync:crates/wow-world/src/canonical_player_sync.rs::fn sync_player_level_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/canonical_player_sync.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_player_sync"
+      ],
+      "enclosings": [
+        "fn sync_player_level_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "Canonical player in-memory synchronization boundary currently owns the complete wow-world workflow fn sync_player_level_like_cpp in crates/wow-world/src/canonical_player_sync.rs.",
+      "connection_affinity": "This projection reads session-owned in-memory state; the database targets are conservative dataflow aliases and no connection or transaction is acquired.",
+      "current_order": "Preserve the one-way session-to-canonical projection order; no persistence order is inferred from the conservative aliases.",
+      "failure_and_unknown_commit": "No database commit occurs in this projection; unresolved canonical ownership leaves the value unknown and suppresses the mutation.",
+      "target_issues": [
+        153,
+        169
+      ],
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::canonical_player_sync:crates/wow-world/src/canonical_player_sync.rs::fn sync_player_liquid_status_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/canonical_player_sync.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_player_sync"
+      ],
+      "enclosings": [
+        "fn sync_player_liquid_status_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "Canonical player in-memory synchronization boundary currently owns the complete wow-world workflow fn sync_player_liquid_status_like_cpp in crates/wow-world/src/canonical_player_sync.rs.",
+      "connection_affinity": "This projection reads session-owned in-memory state; the database targets are conservative dataflow aliases and no connection or transaction is acquired.",
+      "current_order": "Preserve the one-way session-to-canonical projection order; no persistence order is inferred from the conservative aliases.",
+      "failure_and_unknown_commit": "No database commit occurs in this projection; unresolved canonical ownership leaves the value unknown and suppresses the mutation.",
+      "target_issues": [
+        153,
+        169
+      ],
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::canonical_player_sync:crates/wow-world/src/canonical_player_sync.rs::fn sync_player_primary_specialization_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/canonical_player_sync.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_player_sync"
+      ],
+      "enclosings": [
+        "fn sync_player_primary_specialization_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "Canonical player in-memory synchronization boundary currently owns the complete wow-world workflow fn sync_player_primary_specialization_like_cpp in crates/wow-world/src/canonical_player_sync.rs.",
+      "connection_affinity": "This projection reads session-owned in-memory state; the database targets are conservative dataflow aliases and no connection or transaction is acquired.",
+      "current_order": "Preserve the one-way session-to-canonical projection order; no persistence order is inferred from the conservative aliases.",
+      "failure_and_unknown_commit": "No database commit occurs in this projection; unresolved canonical ownership leaves the value unknown and suppresses the mutation.",
+      "target_issues": [
+        153,
+        169
+      ],
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::canonical_player_sync:crates/wow-world/src/canonical_player_sync.rs::fn sync_player_zone_area_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/canonical_player_sync.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_player_sync"
+      ],
+      "enclosings": [
+        "fn sync_player_zone_area_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "Canonical player in-memory synchronization boundary currently owns the complete wow-world workflow fn sync_player_zone_area_like_cpp in crates/wow-world/src/canonical_player_sync.rs.",
+      "connection_affinity": "This projection reads session-owned in-memory state; the database targets are conservative dataflow aliases and no connection or transaction is acquired.",
+      "current_order": "Preserve the one-way session-to-canonical projection order; no persistence order is inferred from the conservative aliases.",
+      "failure_and_unknown_commit": "No database commit occurs in this projection; unresolved canonical ownership leaves the value unknown and suppresses the mutation.",
+      "target_issues": [
+        153,
+        169
+      ],
+      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
       "id": "workflow:wow-world:crate::handlers::character:crates/wow-world/src/handlers/character/mod.rs::fn append_item_refund_clear_statements",
       "source_class": "production",
       "packages": [
@@ -29327,6 +29537,7 @@
       ],
       "sources": [
         "crates/wow-world/src/battle_pet_purchase.rs",
+        "crates/wow-world/src/canonical_player_access.rs",
         "crates/wow-world/src/handlers/character/mod.rs",
         "crates/wow-world/src/handlers/chat.rs",
         "crates/wow-world/src/handlers/group.rs",

@@ -194,13 +194,6 @@
           "source_class": "production"
         },
         {
-          "name": "auto_reply_msg_like_cpp",
-          "type": "String",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "bank_bag_slot_prices_store",
           "type": "Option < Arc < BankBagSlotPricesStore > >",
           "visibility": "private",
@@ -1273,7 +1266,7 @@
         {
           "name": "loaded_player_customizations_like_cpp",
           "type": "Box < Vec < wow_packet :: packets :: update :: ChrCustomizationChoiceValuesUpdate > >",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -2077,13 +2070,6 @@
           "source_class": "production"
         },
         {
-          "name": "player_liquid_status_like_cpp",
-          "type": "u32",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "player_loading",
           "type": "Option < ObjectGuid >",
           "visibility": "private",
@@ -2135,7 +2121,7 @@
         {
           "name": "player_mount_vehicle_kit_like_cpp",
           "type": "Option < Vehicle >",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -2387,14 +2373,14 @@
         {
           "name": "player_vehicle_seat_flags_like_cpp",
           "type": "Option < i32 >",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
         {
           "name": "player_vehicle_seat_id_like_cpp",
           "type": "Option < u32 >",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -3178,7 +3164,7 @@
         {
           "name": "represented_dungeon_difficulty_id_like_cpp",
           "type": "u32",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -3688,7 +3674,7 @@
         {
           "name": "represented_pet_guid_like_cpp",
           "type": "Option < ObjectGuid >",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -3800,7 +3786,7 @@
         {
           "name": "represented_primary_specialization_id_like_cpp",
           "type": "u32",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
@@ -20841,7 +20827,7 @@
           "kind": "method",
           "name": "auto_reply_msg_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn auto_reply_msg_like_cpp (& self) -> & str",
+          "signature": "fn auto_reply_msg_like_cpp (& self) -> Option < String >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -22886,17 +22872,6 @@
           "name": "canonical_unit_attack_target_state_like_cpp",
           "visibility": "private",
           "signature": "fn canonical_unit_attack_target_state_like_cpp (& self , guid : ObjectGuid ,) -> (bool , bool , wow_entities :: UnitAttackContextLikeCpp)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "canonical_unit_party_member_visible_auras_like_cpp",
-          "visibility": "private",
-          "signature": "fn canonical_unit_party_member_visible_auras_like_cpp (unit : & wow_entities :: Unit ,) -> Vec < wow_packet :: packets :: party :: PartyMemberAuraState >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -25473,11 +25448,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "gray_level",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn gray_level (& self , pl : u8) -> u8",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -28052,11 +28029,13 @@
           "trait_path": null,
           "kind": "method",
           "name": "loaded_player_visible_items_for_create_like_cpp",
-          "visibility": "private",
+          "visibility": "pub (crate)",
           "signature": "fn loaded_player_visible_items_for_create_like_cpp (& self) -> [(i32 , u16 , u16) ; 19]",
           "cfg": [],
           "source_class": "production",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -28800,7 +28779,7 @@
           "kind": "method",
           "name": "mutate_canonical_player_by_guid_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn mutate_canonical_player_by_guid_like_cpp < R > (& mut self , guid : ObjectGuid , f : impl FnOnce (& mut Player) -> R ,) -> Option < R >",
+          "signature": "fn mutate_canonical_player_by_guid_like_cpp < R > (& self , guid : ObjectGuid , f : impl FnOnce (& mut Player) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -28813,7 +28792,7 @@
           "kind": "method",
           "name": "mutate_canonical_player_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn mutate_canonical_player_like_cpp < R > (& mut self , f : impl FnOnce (& mut Player) -> R ,) -> Option < R >",
+          "signature": "fn mutate_canonical_player_like_cpp < R > (& self , f : impl FnOnce (& mut Player) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -29234,28 +29213,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "party_member_pet_stats_like_cpp",
-          "visibility": "private",
-          "signature": "fn party_member_pet_stats_like_cpp (& self ,) -> Option < wow_packet :: packets :: party :: PartyMemberPetStats >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "party_member_visible_auras_like_cpp",
-          "visibility": "private",
-          "signature": "fn party_member_visible_auras_like_cpp (& self ,) -> Vec < wow_packet :: packets :: party :: PartyMemberAuraState >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
         },
         {
           "module": "crate::session",
@@ -30136,7 +30093,7 @@
           "kind": "method",
           "name": "player_liquid_status_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn player_liquid_status_like_cpp (& self) -> u32",
+          "signature": "fn player_liquid_status_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -30636,19 +30593,6 @@
           "name": "player_transport_position_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_transport_position_like_cpp (& self) -> Option < Position >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "player_unit_state_for_registry_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn player_unit_state_for_registry_like_cpp (& self) -> u32",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -36232,7 +36176,7 @@
           "kind": "method",
           "name": "represented_player_mount_liquid_state_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_player_mount_liquid_state_like_cpp (& self) -> (bool , bool)",
+          "signature": "fn represented_player_mount_liquid_state_like_cpp (& self) -> Option < (bool , bool) >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -55737,440 +55681,6 @@
         "alias": null
       }
     ],
-    "player_broadcast_info": {
-      "definition": {
-        "module": "crate::session::directory",
-        "name": "PlayerBroadcastInfo",
-        "visibility": "pub",
-        "cfg": [],
-        "source_class": "production"
-      },
-      "kind": "struct",
-      "fields": [
-        {
-          "name": "account_id",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "active_expansion",
-          "type": "u8",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "active_loot_rolls",
-          "type": "Vec < LootRollCommandIdentityLikeCpp >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "active_quest_objective_counts",
-          "type": "HashMap < u32 , Vec < i32 > >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "active_quest_statuses",
-          "type": "HashMap < u32 , u8 >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "auto_reply_msg_like_cpp",
-          "type": "String",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "base_mana",
-          "type": "i32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "class",
-          "type": "u8",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "combat_reach",
-          "type": "f32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "completed_achievements",
-          "type": "HashSet < u32 >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "current_health",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "current_power",
-          "type": "u16",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "customizations",
-          "type": "Arc < Vec < ChrCustomizationChoiceValuesUpdate > >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "daily_quests_completed",
-          "type": "HashSet < u32 >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "df_quests",
-          "type": "HashSet < u32 >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "display_id",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "dungeon_difficulty_id",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "enchanting_skill",
-          "type": "u16",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "faction_template_id",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "forced_reputation_ranks",
-          "type": "Vec < (u32 , wow_data :: reputation :: ReputationRankLikeCpp) >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "gray_level",
-          "type": "u8",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "has_vehicle_kit_like_cpp",
-          "type": "bool",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "in_combat",
-          "type": "bool",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "in_vehicle",
-          "type": "bool",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "instance_id",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "inventory_item_counts",
-          "type": "HashMap < u32 , u32 >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "is_afk",
-          "type": "bool",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "is_alive",
-          "type": "bool",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "is_dnd",
-          "type": "bool",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "is_ffa_pvp",
-          "type": "bool",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "is_game_master",
-          "type": "bool",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "is_ghost",
-          "type": "bool",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "is_in_world",
-          "type": "bool",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "is_pvp",
-          "type": "bool",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "known_spells",
-          "type": "Vec < i32 >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "level",
-          "type": "u8",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "liquid_status",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "map_id",
-          "type": "u16",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "max_health",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "max_power",
-          "type": "u16",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "party_member_auras",
-          "type": "Vec < PartyMemberAuraState >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "party_member_party_type",
-          "type": "[u8 ; 2]",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "party_member_pet_stats",
-          "type": "Option < PartyMemberPetStats >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "party_member_phase_states",
-          "type": "PartyMemberPhaseStates",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "party_member_vehicle_seat",
-          "type": "i32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "pass_on_group_loot",
-          "type": "bool",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "pending_quest_sharing",
-          "type": "Option < (ObjectGuid , u32) >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "player_name",
-          "type": "String",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "position",
-          "type": "Position",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "power_type",
-          "type": "u8",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "race",
-          "type": "u8",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "recruiter_id",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "rewarded_quests",
-          "type": "HashSet < u32 >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "sex",
-          "type": "u8",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spec_id",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "transport",
-          "type": "Option < TransportInfo >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "unit_flags",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "unit_state",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "visible_items",
-          "type": "Arc < [(i32 , u16 , u16) ; 19] >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "zone_id",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        }
-      ],
-      "variants": [],
-      "alias": null
-    },
     "generated_surface_inputs": [
       {
         "module": "crate::group::model",
@@ -56209,14 +55719,6 @@
         "target": "WorldSession::record_driver_phase_like_cpp",
         "kind": "attribute",
         "fingerprint": "inline",
-        "cfg": [],
-        "source_class": "production"
-      },
-      {
-        "module": "crate::session::directory",
-        "target": "PlayerBroadcastInfo",
-        "kind": "derive",
-        "fingerprint": "derive (Clone)",
         "cfg": [],
         "source_class": "production"
       },
@@ -56740,6 +56242,19 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "Arc :: clone (& player_registry)",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::app",
+          "source": "crates/world-server/src/app.rs",
+          "enclosing": "fn run_inner",
+          "registry": "PlayerRegistry",
+          "operation": "opaque_macro_boundary",
+          "symbol": "assert",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "assert ! (player_registry . bind_canonical_map_manager (Arc :: clone (& canonical_map_manager)))",
           "count": 1
         },
         {
@@ -61684,6 +61199,34 @@
         },
         {
           "package": "wow-world",
+          "module": "crate::player_directory_canonical_queries",
+          "source": "crates/wow-world/src/player_directory_canonical_queries.rs",
+          "enclosing": "module",
+          "registry": "PlayerRegistry",
+          "operation": "import_alias",
+          "symbol": "PlayerRegistry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "crate::player_directory::PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::player_directory_test_fixtures",
+          "source": "crates/wow-world/src/player_directory_test_fixtures.rs",
+          "enclosing": "module",
+          "registry": "PlayerRegistry",
+          "operation": "import_alias",
+          "symbol": "PlayerRegistry",
+          "visibility": "",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "fingerprint": "crate::{SharedCanonicalMapManager,player_directory::{PlayerRegistry,PlayerSessionRegistrationLikeCpp}}",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "enum LootMoneyDeliveryAddressLikeCpp::Directory",
@@ -63038,32 +62581,6 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::player_unit_state_for_registry_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
-          "enclosing": "impl WorldSession::player_unit_state_for_registry_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "return",
-          "symbol": "registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "unit_state",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session",
-          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::publish_spell_pull_attack_start_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "member",
@@ -63513,6 +63030,19 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session",
+          "source": "crates/wow-world/src/session/mod.rs",
+          "enclosing": "impl WorldSession::set_canonical_map_manager",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "self . player_registry",
           "count": 1
         },
         {
@@ -64032,7 +63562,7 @@
           "symbol": "PlayerRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "crate::session::directory::{PlayerBroadcastInfo,PlayerRegistry,PlayerSessionRegistrationLikeCpp,PlayerVisibilityCreateSnapshot}",
+          "fingerprint": "crate::session::directory::{PlayerRegistry,PlayerSessionRegistrationLikeCpp,PlayerVisibilityCreateSnapshot}",
           "count": 1
         },
         {
@@ -65814,8 +65344,8 @@
               "side": "canonical",
               "kind": "value_reference",
               "symbol": "canonical",
-              "fingerprint": "fnv1a64x2:2bf5215989030656319ca3f93d00d715:len=342",
-              "multiplicity": 7
+              "fingerprint": "fnv1a64x2:b3459f290b6b08b666a659bd09466ad5:len=538",
+              "multiplicity": 11
             },
             {
               "side": "canonical",
@@ -65856,8 +65386,8 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "create_world_map",
-              "fingerprint": "fnv1a64x2:74b39fe3cf191293a1e685fdfb1f4c90:len=49",
-              "multiplicity": 1
+              "fingerprint": "fnv1a64x2:f74ea8ee1068bfa3c11e8c2384f5f2f4:len=99",
+              "multiplicity": 2
             },
             {
               "side": "canonical",
@@ -65912,8 +65442,8 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "lock",
-              "fingerprint": "fnv1a64x2:cfdea2af5db7d0af50f044eaeb478ae8:len=149",
-              "multiplicity": 3
+              "fingerprint": "fnv1a64x2:808aae3e0462076089bef988df5287fb:len=199",
+              "multiplicity": 4
             },
             {
               "side": "canonical",
@@ -65940,8 +65470,15 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "unwrap",
-              "fingerprint": "fnv1a64x2:2d837720fedaaf188b83e1b08c6fe853:len=400",
-              "multiplicity": 8
+              "fingerprint": "fnv1a64x2:52938276034fcfef54a812d564bbbf06:len=450",
+              "multiplicity": 9
+            },
+            {
+              "side": "canonical",
+              "kind": "macro_argument",
+              "symbol": "assert",
+              "fingerprint": "fnv1a64x2:9f547eec70372087ee6fbd6a91f660a0:len=49",
+              "multiplicity": 1
             },
             {
               "side": "canonical",
@@ -66168,7 +65705,7 @@
               "multiplicity": 3
             }
           ],
-          "fingerprint": "signature=async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_melee_like_cpp ()|body=fnv1a64x2:10a695455b7a91807e9582fdd8c36693:len=11629|evidence=fnv1a64x2:46d2670ed02aa533062dda01dd3ba2b4:len=8209",
+          "fingerprint": "signature=async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_melee_like_cpp ()|body=fnv1a64x2:49dbba5723096833bf0cfa4bdbfeec28:len=12113|evidence=fnv1a64x2:d411b522fc4cf4385a38edb805d12f73:len=8868",
           "cfg": [
             "cfg (test)"
           ],
@@ -66478,7 +66015,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=async fn legacy_creature_global_tick_task_delivers_movement_plan_like_cpp ()|body=fnv1a64x2:fdee1602c1b49547b3c25085e0f65764:len=4697|evidence=fnv1a64x2:417d0312804c0eb119ec078effe7b266:len=5551",
+          "fingerprint": "signature=async fn legacy_creature_global_tick_task_delivers_movement_plan_like_cpp ()|body=fnv1a64x2:d1fb3119c32a3ecc269c3a97dbe5e697:len=4729|evidence=fnv1a64x2:417d0312804c0eb119ec078effe7b266:len=5551",
           "cfg": [
             "cfg (test)"
           ],
@@ -66683,7 +66220,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=fn legacy_creature_lifecycle_tick_refreshes_sessions_after_ready_respawn_like_cpp ()|body=fnv1a64x2:77427be5d0b7b18bff9d296a6671cd98:len=3233|evidence=fnv1a64x2:1263466e47dae6aade9efca0601359f1:len=3150",
+          "fingerprint": "signature=fn legacy_creature_lifecycle_tick_refreshes_sessions_after_ready_respawn_like_cpp ()|body=fnv1a64x2:6d4aee282fdb1ed41bf6e51c4d75006f:len=3265|evidence=fnv1a64x2:1263466e47dae6aade9efca0601359f1:len=3150",
           "cfg": [
             "cfg (test)"
           ],
@@ -66811,7 +66348,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn legacy_creature_melee_tick_delivers_compatibility_creature_plan_like_cpp ()|body=fnv1a64x2:b1ef110aea6639cb9cd6fcd80c8b76c6:len=2528|evidence=fnv1a64x2:e5b6f2f56e1870059b737f0da354896a:len=1791",
+          "fingerprint": "signature=fn legacy_creature_melee_tick_delivers_compatibility_creature_plan_like_cpp ()|body=fnv1a64x2:696066b0fa6732e26a66ed2ffcda5f5d:len=2560|evidence=fnv1a64x2:e5b6f2f56e1870059b737f0da354896a:len=1791",
           "cfg": [
             "cfg (test)"
           ],
@@ -66988,7 +66525,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn legacy_creature_melee_tick_delivers_compatibility_victim_command_like_cpp ()|body=fnv1a64x2:a152445aa19a7a4e890a33df1a824655:len=3030|evidence=fnv1a64x2:d26de1929bbce8eff3de66d40d706b64:len=2831",
+          "fingerprint": "signature=fn legacy_creature_melee_tick_delivers_compatibility_victim_command_like_cpp ()|body=fnv1a64x2:5a681c9db33c26d9d973a2a206d5203c:len=3062|evidence=fnv1a64x2:d26de1929bbce8eff3de66d40d706b64:len=2831",
           "cfg": [
             "cfg (test)"
           ],
@@ -67014,8 +66551,8 @@
               "side": "canonical",
               "kind": "value_reference",
               "symbol": "canonical",
-              "fingerprint": "fnv1a64x2:9f32b7ce02e6b9767c40d87027fb6a55:len=146",
-              "multiplicity": 3
+              "fingerprint": "fnv1a64x2:c064ea952aee3cf85ff2706124b103d3:len=195",
+              "multiplicity": 4
             },
             {
               "side": "canonical",
@@ -67050,6 +66587,13 @@
               "kind": "method_call",
               "symbol": "unwrap",
               "fingerprint": "fnv1a64x2:ac4f52e5da83182b8ffa3b090983b970:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "macro_argument",
+              "symbol": "assert",
+              "fingerprint": "fnv1a64x2:9f547eec70372087ee6fbd6a91f660a0:len=49",
               "multiplicity": 1
             },
             {
@@ -67193,7 +66737,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp ()|body=fnv1a64x2:2c380878c9912def7231e171f07dfd1e:len=5166|evidence=fnv1a64x2:ea60d78f4b0d8ba2468430b3bb634361:len=3116",
+          "fingerprint": "signature=fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp ()|body=fnv1a64x2:a893be026662648ecf20ae856828b901:len=5442|evidence=fnv1a64x2:c3cbc4cbe15974e8d4c298f62cf0a903:len=3281",
           "cfg": [
             "cfg (test)"
           ],
@@ -67503,7 +67047,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=async fn legacy_creature_runtime_loop_smoke_delivers_visible_work_like_cpp ()|body=fnv1a64x2:9ff010957667eff14be52a054dc931f6:len=3559|evidence=fnv1a64x2:78ca35ecfdef9242c119589582afc691:len=5683",
+          "fingerprint": "signature=async fn legacy_creature_runtime_loop_smoke_delivers_visible_work_like_cpp ()|body=fnv1a64x2:760d68fbba05fe88a5bd13733e291893:len=3591|evidence=fnv1a64x2:78ca35ecfdef9242c119589582afc691:len=5683",
           "cfg": [
             "cfg (test)"
           ],
@@ -67659,7 +67203,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=async fn legacy_respawn_producer_stop_runs_final_lifecycle_flush_like_cpp ()|body=fnv1a64x2:7b734d12c9e3ceb145b8ef7bc8ca59ee:len=2277|evidence=fnv1a64x2:875a45c4321809a7230c52e997d852ac:len=2169",
+          "fingerprint": "signature=async fn legacy_respawn_producer_stop_runs_final_lifecycle_flush_like_cpp ()|body=fnv1a64x2:f3cb02e6aed210468c99c57452c1131d:len=2309|evidence=fnv1a64x2:875a45c4321809a7230c52e997d852ac:len=2169",
           "cfg": [
             "cfg (test)"
           ],
@@ -70229,7 +69773,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:982f00823387def30b59616d54d37232:len=3040|evidence=fnv1a64x2:fd1c66c6ca8702bf6ce0c877be67e40a:len=276",
+          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:1cb373d801ad54957a099741a3b58ab6:len=3135|evidence=fnv1a64x2:fd1c66c6ca8702bf6ce0c877be67e40a:len=276",
           "cfg": [],
           "multiplicity": 1
         },
@@ -73967,7 +73511,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:ea537bcf6966e07e9b1aad4115420ac9:len=90906|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:6784ea61ff44690f705fd9af8cc2e45c:len=90723|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

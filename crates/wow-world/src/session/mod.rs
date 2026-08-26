@@ -8,7 +8,7 @@
 
 mod admission;
 mod connection;
-pub mod directory;
+pub use crate::player_directory as directory;
 mod dispatch;
 mod driver;
 mod lifecycle;
@@ -47,14 +47,10 @@ use crate::map_manager::{
     PendingRespawn, RecipientRule, RuntimeEvent, RuntimeOutput, RuntimePlan, RuntimeTickOwner,
     WorldMMapPathfinderWorkerLikeCpp,
 };
-use crate::phasing::{
-    init_db_phase_shift_like_cpp, init_db_visible_map_id_like_cpp,
-    party_member_phase_states_like_cpp,
-};
+use crate::phasing::{init_db_phase_shift_like_cpp, init_db_visible_map_id_like_cpp};
 use crate::reputation::{ReputationMgrLikeCpp, reputation_to_rank_like_cpp};
 use crate::session::directory::{
-    PlayerBroadcastInfo, PlayerRegistry, PlayerSessionRegistrationLikeCpp,
-    PlayerVisibilityCreateSnapshot,
+    PlayerRegistry, PlayerSessionRegistrationLikeCpp, PlayerVisibilityCreateSnapshot,
 };
 use crate::session::mailbox::{
     CreatureAttackStartLikeCppCommand, GameEventQuestCompleteClientOutcomeLikeCpp,
@@ -279,9 +275,9 @@ pub(crate) const MAX_SPECIALIZATIONS_LIKE_CPP: usize = 4;
 const NEEDED_TALENT_POINT_PER_TIER_LIKE_CPP: u32 = 5;
 const PLAYER_FLAGS_UBER_LIKE_CPP: u32 = 0x0008_0000;
 const PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP: u32 = 0x0000_0001;
-const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = 0x0000_0002;
-const PLAYER_FLAGS_DND_LIKE_CPP: u32 = 0x0000_0004;
-const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = 0x0000_0010;
+pub(crate) const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = 0x0000_0002;
+pub(crate) const PLAYER_FLAGS_DND_LIKE_CPP: u32 = 0x0000_0004;
+pub(crate) const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = 0x0000_0010;
 const PLAYER_FLAGS_RESTING_LIKE_CPP: u32 = 0x0000_0020;
 const PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP: u32 = 0x0000_0800;
 const PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP: u32 = 0x0200_0000;
@@ -952,15 +948,6 @@ pub(crate) const TELE_TO_SEAMLESS_LIKE_CPP: TeleportToOptionsLikeCpp = 0x80;
 pub(crate) enum PlayerAwayModeLikeCpp {
     Afk,
     Dnd,
-}
-
-fn party_member_power_type_for_class_like_cpp(class: u8) -> u8 {
-    match class {
-        1 => 1, // Warrior: Rage
-        4 => 3, // Rogue: Energy
-        6 => 6, // DeathKnight: RunicPower
-        _ => 0, // Mana/default
-    }
 }
 
 fn party_member_power_kind_from_u8_like_cpp(power: u8) -> PowerType {
@@ -5640,7 +5627,7 @@ pub struct WorldSession {
     lfg_dungeons_store: Option<Arc<LfgDungeonsStore>>,
     lfg_dungeon_store_like_cpp: Option<Arc<LfgDungeonStoreLikeCpp>>,
     battlemaster_list_store: Option<Arc<BattlemasterListStore>>,
-    represented_dungeon_difficulty_id_like_cpp: u32,
+    pub(crate) represented_dungeon_difficulty_id_like_cpp: u32,
     represented_raid_difficulty_id_like_cpp: u32,
     represented_legacy_raid_difficulty_id_like_cpp: u32,
     represented_player_recent_instances_like_cpp: HashMap<u32, u32>,
@@ -5951,7 +5938,7 @@ pub struct WorldSession {
     /// C++ ActivePlayerData::LootSpecID represented session state.
     loot_specialization_id: u32,
     /// Represented C++ ActivePlayerData::CurrentSpecID / GetPrimarySpecialization.
-    represented_primary_specialization_id_like_cpp: u32,
+    pub(crate) represented_primary_specialization_id_like_cpp: u32,
     /// All known spell IDs for the logged-in character (DB + DBC merged).
     known_spells: Vec<i32>,
     /// Complete represented C++ `PlayerSpellMap`, retained independently from
@@ -6024,13 +6011,9 @@ pub struct WorldSession {
     represented_can_swim_to_fly_transition_like_cpp: bool,
     /// Represented `m_unitMovedByMe->GetVehicle()->GetVehicleInfo()->Flags & VEHICLE_FLAG_FIXED_POSITION`.
     represented_mover_fixed_position_vehicle_like_cpp: bool,
-    /// Last terrain liquid status, mirroring C++ `WorldObject::m_liquidStatus`.
-    player_liquid_status_like_cpp: u32,
 
     /// Cached character name for chat messages.
     player_name: Option<String>,
-    /// C++ `Player::autoReplyMsg`, represented for AFK/DND until full Player-owned chat state exists.
-    auto_reply_msg_like_cpp: String,
 
     // Addon chat filtering state. Mirrors C++ WorldSession::_registeredAddonPrefixes
     // and _filterAddonMessages.
@@ -6184,7 +6167,7 @@ pub struct WorldSession {
     /// Represented vehicle id selected from mount creature template until VehicleKit exists.
     player_mount_vehicle_id_like_cpp: u32,
     /// Represented C++ `Unit::m_vehicleKit` for player mounts until Unit owns live vehicle state.
-    player_mount_vehicle_kit_like_cpp: Option<Vehicle>,
+    pub(crate) player_mount_vehicle_kit_like_cpp: Option<Vehicle>,
     /// Vehicle accessory rows selected by C++ `Vehicle::InstallAllAccessories(false)`.
     player_mount_vehicle_accessories_like_cpp: Vec<VehicleAccessory>,
     /// Represented number of VehicleSeat rows installed by C++ `Vehicle` constructor.
@@ -6192,9 +6175,9 @@ pub struct WorldSession {
     /// Represented C++ `Vehicle::UsableSeatNum`.
     player_mount_vehicle_usable_seat_count_like_cpp: u8,
     /// Represented current `VehicleSeatEntry::Flags` for C++ `HandleAttackSwingOpcode`.
-    player_vehicle_seat_flags_like_cpp: Option<i32>,
+    pub(crate) player_vehicle_seat_flags_like_cpp: Option<i32>,
     /// Represented current `VehicleSeatEntry::ID` for C++ party-member stats.
-    player_vehicle_seat_id_like_cpp: Option<u32>,
+    pub(crate) player_vehicle_seat_id_like_cpp: Option<u32>,
     /// Represented `Player::ChangeSeat(seatId, next)` requests until live vehicle ownership exists.
     represented_vehicle_seat_change_requests_like_cpp:
         Vec<RepresentedVehicleSeatChangeRequestLikeCpp>,
@@ -6233,7 +6216,7 @@ pub struct WorldSession {
     /// C++ `Player::_areaSpiritHealerGUID`, represented until battleground/player resurrection owns it.
     area_spirit_healer_guid_like_cpp: ObjectGuid,
     /// Represented current pet GUID until player-owned pet runtime is canonical.
-    represented_pet_guid_like_cpp: Option<ObjectGuid>,
+    pub(crate) represented_pet_guid_like_cpp: Option<ObjectGuid>,
     /// C++ `Player::m_temporaryUnsummonedPetNumber`, represented until pet DB load/resummon is live.
     represented_temporary_unsummoned_pet_number_like_cpp: u32,
     /// C++ `Player::m_oldpetspell`, used by `RemovePet(nullptr, ..., returnreagent=true)`.
@@ -6796,7 +6779,7 @@ pub struct WorldSession {
     pub(crate) client_visible_guids_like_cpp: SharedClientVisibleGuidsLikeCpp,
     /// C++ `PlayerData::Customizations` loaded before the self CREATE and
     /// retained for non-owner visibility CREATE blocks.
-    loaded_player_customizations_like_cpp:
+    pub(crate) loaded_player_customizations_like_cpp:
         Box<Vec<wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate>>,
     /// C++ `Player::m_visibleTransports`, maintained by `Map::SendInitTransports`.
     pub(crate) client_visible_transports_like_cpp: std::collections::HashSet<wow_core::ObjectGuid>,
@@ -7441,7 +7424,7 @@ fn unit_owned_apply_aura_effect_mask_like_cpp(spell: &wow_data::SpellInfo) -> u3
 }
 
 const AFLAG_NOCASTER_LIKE_CPP: u32 = 0x0000_0001;
-const AFLAG_SCALABLE_LIKE_CPP: u32 = 0x0000_0008;
+pub(crate) const AFLAG_SCALABLE_LIKE_CPP: u32 = 0x0000_0008;
 
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_ANIM_LIKE_CPP: u32 = 0x0000_0020;
@@ -8130,9 +8113,7 @@ impl WorldSession {
             player_movement_flags_like_cpp: MovementFlag::NONE,
             represented_can_swim_to_fly_transition_like_cpp: false,
             represented_mover_fixed_position_vehicle_like_cpp: false,
-            player_liquid_status_like_cpp: 0,
             player_name: None,
-            auto_reply_msg_like_cpp: String::new(),
             registered_addon_prefixes: Vec::new(),
             filter_addon_messages: false,
             creature_tick: 0,
@@ -9599,6 +9580,9 @@ impl WorldSession {
     }
 
     pub fn set_canonical_map_manager(&mut self, mgr: SharedCanonicalMapManager) {
+        if let Some(registry) = &self.player_registry {
+            let _ = registry.bind_canonical_map_manager(Arc::clone(&mgr));
+        }
         self.canonical_map_manager = Some(mgr);
     }
 
@@ -9617,8 +9601,14 @@ impl WorldSession {
         self.vendor_buy_item_test_override_like_cpp
     }
 
-    pub(crate) fn auto_reply_msg_like_cpp(&self) -> &str {
-        &self.auto_reply_msg_like_cpp
+    pub(crate) fn auto_reply_msg_like_cpp(&self) -> Option<String> {
+        self.canonical_player_snapshot_like_cpp(|player| {
+            player
+                .gameplay_state()
+                .social
+                .auto_reply_msg_like_cpp
+                .clone()
+        })
     }
 
     pub fn set_game_event_quest_complete_sender_like_cpp(
@@ -9723,6 +9713,7 @@ impl WorldSession {
         }
         player.set_explored_zones_blocks_like_cpp(&self.represented_explored_zones_like_cpp);
         player.set_game_master_like_cpp(self.player_game_master_like_cpp);
+        crate::canonical_player_sync::hydrate_player_presentation_like_cpp(self, &mut player);
         player
             .unit_mut()
             .set_base_attack_time_like_cpp(WeaponAttackType::BaseAttack, 2_000);
@@ -10070,7 +10061,7 @@ impl WorldSession {
     }
 
     pub(crate) fn mutate_canonical_player_like_cpp<R>(
-        &mut self,
+        &self,
         f: impl FnOnce(&mut Player) -> R,
     ) -> Option<R> {
         let guid = self.player_guid()?;
@@ -10194,7 +10185,7 @@ impl WorldSession {
     }
 
     pub(crate) fn mutate_canonical_player_by_guid_like_cpp<R>(
-        &mut self,
+        &self,
         guid: ObjectGuid,
         f: impl FnOnce(&mut Player) -> R,
     ) -> Option<R> {
@@ -10261,9 +10252,9 @@ impl WorldSession {
             return false;
         }
 
-        let Some(guid) = self.player_guid() else {
+        if self.player_guid().is_none() {
             return false;
-        };
+        }
 
         let (active_flag, other_flag, default_text) = match mode {
             PlayerAwayModeLikeCpp::Afk => (
@@ -10278,46 +10269,26 @@ impl WorldSession {
             ),
         };
 
-        let is_active = self
-            .canonical_player_has_player_flag_like_cpp(guid, active_flag)
-            .unwrap_or(false);
-        let is_other = self
-            .canonical_player_has_player_flag_like_cpp(guid, other_flag)
-            .unwrap_or(false);
-
-        let mut changed_flags = false;
-        if is_active {
-            if text.is_empty() {
-                changed_flags = self
-                    .mutate_canonical_player_like_cpp(|player| {
-                        player.remove_player_flag(active_flag)
-                    })
-                    .is_some();
-            } else {
-                self.auto_reply_msg_like_cpp = text;
+        self.mutate_canonical_player_like_cpp(move |player| {
+            if player.has_player_flag(active_flag) {
+                if text.is_empty() {
+                    player.remove_player_flag(active_flag);
+                } else {
+                    player.gameplay_state_mut().social.auto_reply_msg_like_cpp = text;
+                }
+                return;
             }
-        } else {
-            self.auto_reply_msg_like_cpp = if text.is_empty() {
+            if player.has_player_flag(other_flag) {
+                player.remove_player_flag(other_flag);
+            }
+            player.set_player_flag(active_flag);
+            player.gameplay_state_mut().social.auto_reply_msg_like_cpp = if text.is_empty() {
                 default_text.to_string()
             } else {
                 text
             };
-
-            changed_flags = self
-                .mutate_canonical_player_like_cpp(|player| {
-                    if is_other {
-                        player.remove_player_flag(other_flag);
-                    }
-                    player.set_player_flag(active_flag);
-                })
-                .is_some();
-        }
-
-        if changed_flags {
-            self.sync_player_registry_state_like_cpp();
-        }
-
-        true
+        })
+        .is_some()
     }
 
     fn canonical_player_pvp_flags_like_cpp(&self, guid: ObjectGuid) -> Option<UnitPvpFlags> {
@@ -22607,6 +22578,17 @@ impl WorldSession {
         let Some(guid) = self.player_guid() else {
             return false;
         };
+        if !visible_item_changes.is_empty() {
+            let _ = self.mutate_canonical_player_like_cpp(|player| {
+                for &(slot, item_id, item_appearance_mod_id, item_visual) in visible_item_changes {
+                    crate::canonical_player_access::set_player_visible_item_values_like_cpp(
+                        player,
+                        slot,
+                        (item_id, item_appearance_mod_id, item_visual),
+                    );
+                }
+            });
+        }
         let Some(mut player) = self.player_values_update_snapshot() else {
             return false;
         };
@@ -22622,14 +22604,11 @@ impl WorldSession {
         }
 
         for &(slot, item_id, appearance_mod_id, item_visual) in visible_item_changes {
-            let visible = (item_id != 0 || appearance_mod_id != 0 || item_visual != 0).then_some(
-                VisibleItemValues {
-                    item_id,
-                    item_appearance_mod_id: appearance_mod_id,
-                    item_visual,
-                },
+            crate::canonical_player_access::set_player_visible_item_values_like_cpp(
+                &mut player,
+                slot,
+                (item_id, appearance_mod_id, item_visual),
             );
-            player.set_visible_item_slot(slot, visible);
             player.mark_visible_item_slot_changed(slot);
         }
 
@@ -32141,7 +32120,7 @@ impl WorldSession {
     }
 
     /// Level at which mobs give 0 XP ("gray") — C++ `Trinity::XP::GetGrayLevel`.
-    fn gray_level(&self, pl: u8) -> u8 {
+    pub(crate) fn gray_level(&self, pl: u8) -> u8 {
         let mut level = if pl < 7 {
             0
         } else if pl < 35 {
@@ -32167,6 +32146,11 @@ impl WorldSession {
     ) {
         self.represented_gray_level_script_overrides_like_cpp
             .insert(player_level, gray_level);
+        if self.player_level_like_cpp() == player_level {
+            let _ = self.mutate_canonical_player_like_cpp(|player| {
+                player.gameplay_state_mut().gray_level = gray_level;
+            });
+        }
     }
 
     /// Zero-difference table — C++ `Trinity::XP::GetZeroDifference`.
@@ -33943,6 +33927,11 @@ impl WorldSession {
 
     /// Set the shared player registry (used for broadcast).
     pub fn set_player_registry(&mut self, registry: Arc<PlayerRegistry>) {
+        if let Some(manager) = &self.canonical_map_manager {
+            let _ = registry.bind_canonical_map_manager(Arc::clone(manager));
+        } else if let Some(manager) = registry.canonical_map_manager_like_cpp() {
+            self.canonical_map_manager = Some(manager);
+        }
         self.player_registry = Some(registry);
     }
 
@@ -34212,39 +34201,9 @@ impl WorldSession {
         is_in_world.unwrap_or(false)
     }
 
-    pub(crate) fn player_unit_state_for_registry_like_cpp(&self) -> u32 {
-        let Some(guid) = self.player_guid() else {
-            return 0;
-        };
-
-        if let Some(manager) = &self.canonical_map_manager
-            && let Ok(manager) = manager.lock()
-        {
-            let mut unit_state = None;
-            manager.do_for_all_maps(|managed| {
-                if unit_state.is_none()
-                    && let Some(player) = managed.map().get_typed_player(guid)
-                {
-                    unit_state = Some(player.unit().unit_state());
-                }
-            });
-            if let Some(unit_state) = unit_state {
-                return unit_state;
-            }
-        }
-
-        if let Some(unit_state) = self
-            .player_registry()
-            .and_then(|registry| registry.represented_unit_state(guid))
-        {
-            return unit_state;
-        }
-
-        0
-    }
-
     pub(crate) fn player_has_unit_state_like_cpp(&self, state: UnitState) -> bool {
-        self.player_unit_state_for_registry_like_cpp() & state.bits() != 0
+        self.canonical_player_snapshot_like_cpp(|player| player.unit().unit_state())
+            .is_some_and(|unit_state| unit_state & state.bits() != 0)
     }
 
     pub(crate) fn set_player_emote_state_like_cpp(
@@ -34317,87 +34276,6 @@ impl WorldSession {
         player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
     }
 
-    fn party_member_visible_auras_like_cpp(
-        &self,
-    ) -> Vec<wow_packet::packets::party::PartyMemberAuraState> {
-        let mut auras: Vec<_> = self.visible_auras.values().collect();
-        auras.sort_by_key(|aura| aura.slot);
-        auras
-            .into_iter()
-            .map(|aura| {
-                let points = if aura.aura_flags & AFLAG_SCALABLE_LIKE_CPP != 0
-                    && !aura.represented_effect_amounts.is_empty()
-                {
-                    aura.represented_effect_amounts
-                        .iter()
-                        .filter(|effect| {
-                            effect.effect_index < u32::BITS as u8
-                                && aura.effect_mask & (1u32 << effect.effect_index) != 0
-                        })
-                        .map(|effect| effect.amount as f32)
-                        .collect()
-                } else if aura.aura_flags & AFLAG_SCALABLE_LIKE_CPP != 0
-                    && aura.represented_effect.is_some()
-                    && aura.effect_mask.count_ones() == 1
-                {
-                    vec![aura.represented_amount as f32]
-                } else {
-                    Vec::new()
-                };
-                wow_packet::packets::party::PartyMemberAuraState {
-                    spell_id: aura.spell_id,
-                    flags: aura.aura_flags.min(u32::from(u16::MAX)) as u16,
-                    active_flags: aura.effect_mask,
-                    points,
-                }
-            })
-            .collect()
-    }
-
-    fn canonical_unit_party_member_visible_auras_like_cpp(
-        unit: &wow_entities::Unit,
-    ) -> Vec<wow_packet::packets::party::PartyMemberAuraState> {
-        let aura_subsystem = &unit.subsystems().auras;
-        let mut visible: Vec<_> = aura_subsystem.visible_auras.iter().collect();
-        visible.sort_by_key(|(slot, _)| **slot);
-        visible
-            .into_iter()
-            .map(|(slot, aura_ref)| {
-                let active_flags = aura_subsystem
-                    .applied_auras
-                    .iter()
-                    .filter(|applied| applied.aura_ref() == *aura_ref)
-                    .fold(0u32, |mask, applied| mask | applied.effect_mask);
-                let application = aura_subsystem.visible_aura_applications_like_cpp.get(slot);
-                let flags = application.map_or(0, |application| application.flags);
-                let points = if flags & AFLAG_SCALABLE_LIKE_CPP != 0 {
-                    application
-                        .map(|application| {
-                            application
-                                .effect_amounts
-                                .iter()
-                                .filter(|effect| {
-                                    effect.effect_index < u32::BITS as u8
-                                        && active_flags & (1u32 << effect.effect_index) != 0
-                                })
-                                .map(|effect| effect.amount as f32)
-                                .collect()
-                        })
-                        .unwrap_or_default()
-                } else {
-                    Vec::new()
-                };
-
-                wow_packet::packets::party::PartyMemberAuraState {
-                    spell_id: i32::try_from(aura_ref.spell_id).unwrap_or(i32::MAX),
-                    flags: flags.min(u32::from(u16::MAX)) as u16,
-                    active_flags,
-                    points,
-                }
-            })
-            .collect()
-    }
-
     pub(crate) fn party_member_party_type_like_cpp(&self) -> [u8; 2] {
         let mut party_type = [wow_social::group::GROUP_TYPE_NONE_LIKE_CPP; 2];
         let (Some(group_registry), Some(player_guid)) = (&self.group_registry, self.player_guid())
@@ -34417,40 +34295,10 @@ impl WorldSession {
         party_type
     }
 
-    fn party_member_pet_stats_like_cpp(
-        &self,
-    ) -> Option<wow_packet::packets::party::PartyMemberPetStats> {
-        let player_guid = self.player_guid()?;
-        let pet_guid = self.represented_pet_guid_like_cpp?;
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        let instance_id = self
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
-        let manager = manager.lock().ok()?;
-        let map = manager.find_map(map_id, instance_id)?;
-        let pet = map.map().map_object_record(pet_guid)?.pet()?;
-        if pet.owner_guid() != player_guid {
-            return None;
-        }
-
-        let creature = pet.creature();
-        let unit = creature.unit();
-        Some(wow_packet::packets::party::PartyMemberPetStats {
-            guid: pet_guid,
-            model_id: unit.data().display_id,
-            current_health: i32::try_from(creature.current_health()).unwrap_or(i32::MAX),
-            max_health: i32::try_from(creature.max_health()).unwrap_or(i32::MAX),
-            auras: Self::canonical_unit_party_member_visible_auras_like_cpp(unit),
-            name: unit.world().name().to_string(),
-        })
-    }
-
     /// Register this session in the player registry.
     /// Called after player login is complete (player_guid + position both set).
     pub(crate) fn register_in_player_registry(&self) {
-        use crate::handlers::character::default_display_id;
+        crate::canonical_player_sync::sync_player_directory_gameplay_to_canonical_like_cpp(self);
         let (Some(guid), Some(pos), Some(name), Some(reg)) = (
             self.player_guid(),
             self.player_position_like_cpp(),
@@ -34464,115 +34312,38 @@ impl WorldSession {
         let class = self.player_class_like_cpp();
         let gender = self.player_gender_like_cpp();
         let level = self.player_level_like_cpp();
-        let visible_items = self.loaded_player_visible_items_for_create_like_cpp();
         // Fallback to 0 (world/default instance) when no canonical map key is
         // available — mirrors C++ world-map phase where instance_id == 0.
         let instance_id = self
             .current_canonical_player_map_key_like_cpp()
             .map(|k| k.instance_id)
             .unwrap_or(0);
-        let forced_reputation_ranks = self.player_forced_reputation_ranks_snapshot_like_cpp();
-        let pvp_flags = self
-            .canonical_player_pvp_flags_like_cpp(guid)
-            .unwrap_or_default();
-        let is_ghost = self
-            .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_GHOST_LIKE_CPP)
-            .unwrap_or(false);
-        let is_afk = self
-            .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_AFK_LIKE_CPP)
-            .unwrap_or(false);
-        let is_dnd = self
-            .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_DND_LIKE_CPP)
-            .unwrap_or(false);
-        let (power_type, current_power, max_power) = self
-            .canonical_player_party_power_snapshot_like_cpp()
-            .unwrap_or_else(|| (party_member_power_type_for_class_like_cpp(class), 0, 0));
-        let info = PlayerBroadcastInfo {
-            map_id,
-            instance_id,
-            position: pos,
-            combat_reach: self.canonical_player_combat_reach_snapshot_like_cpp(),
-            liquid_status: self.player_liquid_status_like_cpp(),
-            is_in_world: self.player_is_in_world_for_registry_like_cpp(),
-            active_loot_rolls: self
-                .represented_loot_rolls
-                .values()
-                .map(|state| state.command_identity.clone())
-                .collect(),
-            in_combat: self.in_combat,
-            pass_on_group_loot: self.pass_on_group_loot,
-            enchanting_skill: self.represented_enchanting_skill,
-            is_alive: self.player_alive_like_cpp,
-            current_health: self.player_health_like_cpp,
-            max_health: self.player_max_health_like_cpp,
-            power_type,
-            current_power,
-            max_power,
-            base_mana: self.represented_player_base_mana_like_cpp,
-            transport: self.player_transport_info_like_cpp(),
-            is_pvp: pvp_flags.contains(UnitPvpFlags::PVP),
-            is_ffa_pvp: pvp_flags.contains(UnitPvpFlags::FFA_PVP),
-            is_ghost,
-            is_afk,
-            is_dnd,
-            auto_reply_msg_like_cpp: self.auto_reply_msg_like_cpp.clone(),
-            in_vehicle: self.player_vehicle_seat_flags_like_cpp.is_some(),
-            has_vehicle_kit_like_cpp: self.player_mount_vehicle_kit_like_cpp.is_some(),
-            party_member_vehicle_seat: self
-                .player_vehicle_seat_id_like_cpp
-                .and_then(|seat_id| i32::try_from(seat_id).ok())
-                .unwrap_or(0),
-            zone_id: self.player_zone_area_like_cpp().0,
-            spec_id: self.loot_specialization_id_like_cpp(),
-            unit_flags: self.player_unit_flags_like_cpp.bits(),
-            unit_state: self.player_unit_state_for_registry_like_cpp(),
-            is_game_master: self.player_game_master_like_cpp,
-            dungeon_difficulty_id: self.represented_dungeon_difficulty_id_like_cpp,
-            active_expansion: self.expansion,
-            pending_quest_sharing: self
-                .represented_pending_quest_sharing_like_cpp
-                .map(|pending| (pending.sender_guid, pending.quest_id)),
-            known_spells: self.known_spells_like_cpp().to_vec(),
-            active_quest_statuses: self
-                .player_quests
-                .iter()
-                .map(|(quest_id, status)| (*quest_id, status.status))
-                .collect(),
-            active_quest_objective_counts: self
-                .player_quests
-                .iter()
-                .map(|(quest_id, status)| (*quest_id, status.objective_counts.clone()))
-                .collect(),
-            rewarded_quests: self.rewarded_quests.clone(),
-            completed_achievements: self.represented_completed_achievements_like_cpp.clone(),
-            daily_quests_completed: self.daily_quests_completed_like_cpp.clone(),
-            df_quests: self.df_quests_like_cpp.clone(),
-            faction_template_id: self.player_faction_template_like_cpp.unwrap_or(0),
-            forced_reputation_ranks,
-            inventory_item_counts: self.represented_inventory_item_counts_like_cpp(),
-            party_member_party_type: self.party_member_party_type_like_cpp(),
-            party_member_phase_states: party_member_phase_states_like_cpp(
-                self.represented_player_phase_shift_like_cpp(),
-            )
-            .unwrap_or_default(),
-            party_member_auras: self.party_member_visible_auras_like_cpp(),
-            party_member_pet_stats: self.party_member_pet_stats_like_cpp(),
-            player_name: name.to_string(),
-            account_id: self.account_id,
-            recruiter_id: self.recruiter_id_like_cpp,
-            race,
-            class,
-            sex: gender,
-            level,
-            gray_level: self.gray_level(level),
-            display_id: default_display_id(race, gender),
-            visible_items: Arc::new(visible_items),
-            customizations: Arc::new(self.loaded_player_customizations_like_cpp.as_ref().clone()),
-        };
+        let active_loot_rolls = self
+            .represented_loot_rolls
+            .values()
+            .map(|state| state.command_identity.clone())
+            .collect();
         reg.register_or_replace(
             guid,
             PlayerSessionRegistrationLikeCpp {
-                info,
+                identity: crate::session::directory::PlayerDirectoryIdentityLikeCpp::new(
+                    name,
+                    self.account_id,
+                    self.recruiter_id_like_cpp,
+                    race,
+                    class,
+                    gender,
+                    self.expansion,
+                ),
+                placement: crate::session::directory::PlayerDirectoryPlacementLikeCpp {
+                    map_id,
+                    instance_id,
+                    position: pos,
+                    is_in_world: self.player_is_in_world_for_registry_like_cpp(),
+                    level,
+                    is_alive: self.player_alive_like_cpp,
+                },
+                active_loot_rolls,
                 send_tx: self.send_tx().clone(),
                 realm_send_tx: self.realm_route_tx().clone(),
                 command_tx: self.session_command_tx.clone(),
@@ -34589,6 +34360,11 @@ impl WorldSession {
             },
             Arc::clone(&self.durable_loot_money_persistence_like_cpp),
         );
+        // Production already has the canonical Player before publication. The
+        // explicit owner-installing test harness creates it while registering,
+        // so repeat the one-way hydration after that seam as well.
+        crate::canonical_player_sync::sync_player_directory_gameplay_to_canonical_like_cpp(self);
+        self.sync_player_registry_party_member_party_type_like_cpp();
         debug!(
             "Registered player {:?} ({}) in broadcast registry (map {})",
             guid, name, map_id
@@ -34599,113 +34375,17 @@ impl WorldSession {
         let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry) else {
             return;
         };
-        // Work on an owned incarnation snapshot. Publication below verifies the
-        // exact owning control channel, so a stale session cannot overwrite its
-        // replacement and no directory guard escapes this module.
-        let unit_state_for_registry = self.player_unit_state_for_registry_like_cpp();
-        let Some(registration) = registry
-            .control_address(guid)
-            .map(|address| address.registration())
-        else {
-            return;
-        };
-        if let Some(mut info) = registry.lookup_current(registration) {
-            info.is_in_world = self.player_is_in_world_for_registry_like_cpp();
-            info.combat_reach = self.canonical_player_combat_reach_snapshot_like_cpp();
-            info.liquid_status = self.player_liquid_status_like_cpp();
-            info.active_loot_rolls = self
-                .represented_loot_rolls
+        self.update_registry_position();
+        crate::canonical_player_sync::sync_player_directory_gameplay_to_canonical_like_cpp(self);
+        registry.replace_loot_rolls_for_control_channel(
+            guid,
+            &self.session_command_tx,
+            self.represented_loot_rolls
                 .values()
                 .map(|state| state.command_identity.clone())
-                .collect();
-            info.in_combat = self.in_combat;
-            info.pass_on_group_loot = self.pass_on_group_loot;
-            info.enchanting_skill = self.represented_enchanting_skill;
-            info.is_alive = self.player_alive_like_cpp;
-            info.current_health = self.player_health_like_cpp;
-            info.max_health = self.player_max_health_like_cpp;
-            let (power_type, current_power, max_power) = self
-                .canonical_player_party_power_snapshot_like_cpp()
-                .unwrap_or_else(|| {
-                    (
-                        party_member_power_type_for_class_like_cpp(self.player_class_like_cpp()),
-                        0,
-                        0,
-                    )
-                });
-            info.power_type = power_type;
-            info.current_power = current_power;
-            info.max_power = max_power;
-            info.base_mana = self.represented_player_base_mana_like_cpp;
-            info.transport = self.player_transport_info_like_cpp();
-            if let Some(guid) = self.player_guid() {
-                let pvp_flags = self
-                    .canonical_player_pvp_flags_like_cpp(guid)
-                    .unwrap_or_default();
-                info.is_pvp = pvp_flags.contains(UnitPvpFlags::PVP);
-                info.is_ffa_pvp = pvp_flags.contains(UnitPvpFlags::FFA_PVP);
-                info.is_ghost = self
-                    .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_GHOST_LIKE_CPP)
-                    .unwrap_or(false);
-                info.is_afk = self
-                    .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_AFK_LIKE_CPP)
-                    .unwrap_or(false);
-                info.is_dnd = self
-                    .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_DND_LIKE_CPP)
-                    .unwrap_or(false);
-            }
-            info.auto_reply_msg_like_cpp = self.auto_reply_msg_like_cpp.clone();
-            info.in_vehicle = self.player_vehicle_seat_flags_like_cpp.is_some();
-            info.has_vehicle_kit_like_cpp = self.player_mount_vehicle_kit_like_cpp.is_some();
-            info.party_member_vehicle_seat = self
-                .player_vehicle_seat_id_like_cpp
-                .and_then(|seat_id| i32::try_from(seat_id).ok())
-                .unwrap_or(0);
-            info.zone_id = self.player_zone_area_like_cpp().0;
-            info.spec_id = self.loot_specialization_id_like_cpp();
-            info.unit_flags = self.player_unit_flags_like_cpp.bits();
-            info.unit_state = unit_state_for_registry;
-            info.is_game_master = self.player_game_master_like_cpp;
-            info.dungeon_difficulty_id = self.represented_dungeon_difficulty_id_like_cpp;
-            info.active_expansion = self.expansion;
-            info.level = self.player_level_like_cpp();
-            info.gray_level = self.gray_level(info.level);
-            info.race = self.player_race_like_cpp();
-            info.class = self.player_class_like_cpp();
-            info.pending_quest_sharing = self
-                .represented_pending_quest_sharing_like_cpp
-                .map(|pending| (pending.sender_guid, pending.quest_id));
-            info.known_spells = self.known_spells_like_cpp().to_vec();
-            info.active_quest_statuses = self
-                .player_quests
-                .iter()
-                .map(|(quest_id, status)| (*quest_id, status.status))
-                .collect();
-            info.active_quest_objective_counts = self
-                .player_quests
-                .iter()
-                .map(|(quest_id, status)| (*quest_id, status.objective_counts.clone()))
-                .collect();
-            info.rewarded_quests = self.rewarded_quests.clone();
-            info.daily_quests_completed = self.daily_quests_completed_like_cpp.clone();
-            info.df_quests = self.df_quests_like_cpp.clone();
-            info.faction_template_id = self.player_faction_template_like_cpp.unwrap_or(0);
-            info.forced_reputation_ranks = self.player_forced_reputation_ranks_snapshot_like_cpp();
-            info.inventory_item_counts = self.represented_inventory_item_counts_like_cpp();
-            info.party_member_party_type = self.party_member_party_type_like_cpp();
-            info.party_member_phase_states =
-                party_member_phase_states_like_cpp(self.represented_player_phase_shift_like_cpp())
-                    .unwrap_or_default();
-            info.party_member_auras = self.party_member_visible_auras_like_cpp();
-            info.party_member_pet_stats = self.party_member_pet_stats_like_cpp();
-            info.customizations =
-                Arc::new(self.loaded_player_customizations_like_cpp.as_ref().clone());
-            registry.publish_broadcast_info_for_control_channel(
-                guid,
-                &self.session_command_tx,
-                info,
-            );
-        }
+                .collect(),
+        );
+        self.sync_player_registry_party_member_party_type_like_cpp();
     }
 
     fn object_accessor_inventory_snapshot(&self) -> PlayerInventoryStorage {
@@ -34770,7 +34450,9 @@ impl WorldSession {
                 position: pos,
                 map_id,
                 instance_id,
-                liquid_status: self.player_liquid_status_like_cpp(),
+                is_in_world: self.player_is_in_world_for_registry_like_cpp(),
+                level: self.player_level_like_cpp(),
+                is_alive: self.player_alive_like_cpp,
                 transport: self.player_transport_info_like_cpp(),
             },
         );
@@ -35995,14 +35677,17 @@ impl WorldSession {
         }
 
         if mount_type_id != 0 {
-            let (is_submerged, is_in_water) = self.represented_player_mount_liquid_state_like_cpp();
-            if let Ok(capability) = self.represented_mount_capability_selection_for_type_like_cpp(
-                mount_type_id,
-                u32::from(self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)),
-                None,
-                is_submerged,
-                is_in_water,
-            ) {
+            if let Some((is_submerged, is_in_water)) =
+                self.represented_player_mount_liquid_state_like_cpp()
+                && let Ok(capability) = self
+                    .represented_mount_capability_selection_for_type_like_cpp(
+                        mount_type_id,
+                        u32::from(self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)),
+                        None,
+                        is_submerged,
+                        is_in_water,
+                    )
+            {
                 return i32::try_from(capability.id).unwrap_or(effect.effect_base_points);
             }
         }
@@ -38980,9 +38665,8 @@ impl WorldSession {
         self.represented_mover_fixed_position_vehicle_like_cpp = fixed;
     }
 
-    #[allow(dead_code)]
     pub(crate) fn set_player_liquid_status_like_cpp(&mut self, status: u32) {
-        self.player_liquid_status_like_cpp = status;
+        crate::canonical_player_sync::sync_player_liquid_status_like_cpp(self, status);
     }
 
     pub(crate) fn set_player_level_like_cpp(&mut self, level: u8) {
@@ -38990,6 +38674,8 @@ impl WorldSession {
         if let Some(controller) = &mut self.player_controller {
             controller.set_level(level);
         }
+        let gray_level = self.gray_level(level);
+        crate::canonical_player_sync::sync_player_level_like_cpp(self, level, gray_level);
         self.refresh_represented_talent_points_like_cpp();
     }
 
@@ -42115,8 +41801,8 @@ impl WorldSession {
         self.represented_can_swim_to_fly_transition_like_cpp
     }
 
-    pub(crate) fn player_liquid_status_like_cpp(&self) -> u32 {
-        self.player_liquid_status_like_cpp
+    pub(crate) fn player_liquid_status_like_cpp(&self) -> Option<u32> {
+        self.canonical_player_snapshot_like_cpp(|player| player.gameplay_state().liquid_status)
     }
 
     pub(crate) fn player_race_like_cpp(&self) -> u8 {
@@ -42173,6 +41859,7 @@ impl WorldSession {
 
     pub(crate) fn set_represented_primary_specialization_id_like_cpp(&mut self, spec_id: u32) {
         self.represented_primary_specialization_id_like_cpp = spec_id;
+        crate::canonical_player_sync::sync_player_primary_specialization_like_cpp(self, spec_id);
     }
 
     pub(crate) fn player_gold_like_cpp(&self) -> u64 {
@@ -43503,7 +43190,7 @@ impl WorldSession {
         mount_type_id: u16,
         mount_restriction_flags: Option<u8>,
     ) -> Option<wow_data::MountCapabilityEntry> {
-        let (is_submerged, is_in_water) = self.represented_player_mount_liquid_state_like_cpp();
+        let (is_submerged, is_in_water) = self.represented_player_mount_liquid_state_like_cpp()?;
         self.represented_mount_capability_for_type_like_cpp(
             mount_type_id,
             u32::from(self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)),
@@ -43513,15 +43200,15 @@ impl WorldSession {
         )
     }
 
-    pub(crate) fn represented_player_mount_liquid_state_like_cpp(&self) -> (bool, bool) {
-        let liquid_status = self.player_liquid_status_like_cpp();
+    pub(crate) fn represented_player_mount_liquid_state_like_cpp(&self) -> Option<(bool, bool)> {
+        let liquid_status = self.player_liquid_status_like_cpp()?;
         let is_submerged = liquid_status & LIQUID_MAP_UNDER_WATER_LIKE_CPP != 0
             || self
                 .player_movement_flags_like_cpp()
                 .contains(MovementFlag::SWIMMING);
         let is_in_water =
             liquid_status & (LIQUID_MAP_IN_WATER_LIKE_CPP | LIQUID_MAP_UNDER_WATER_LIKE_CPP) != 0;
-        (is_submerged, is_in_water)
+        Some((is_submerged, is_in_water))
     }
 
     #[allow(dead_code)]
@@ -53426,6 +53113,7 @@ impl WorldSession {
         }
         self.player_zone_id_like_cpp = zone_id;
         self.player_area_id_like_cpp = area_id;
+        crate::canonical_player_sync::sync_player_zone_area_like_cpp(self, zone_id, area_id);
     }
 
     pub(crate) fn set_player_zone_area_authority_complete_like_cpp(&mut self, complete: bool) {
@@ -54330,10 +54018,16 @@ impl WorldSession {
         customizations: Vec<wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate>,
     ) {
         self.loaded_player_customizations_like_cpp = Box::new(customizations);
-        // Login registers the player before `SendInitSelf` loads customization
-        // rows. Publish the completed snapshot before the forced visibility
-        // pass can expose this player to existing map sessions.
-        self.sync_player_registry_state_like_cpp();
+        let choices = self.loaded_player_customizations_like_cpp.clone();
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.gameplay_state_mut().customizations = choices
+                .iter()
+                .map(|choice| wow_entities::PlayerCustomizationChoice {
+                    option_id: choice.option_id,
+                    choice_id: choice.choice_id,
+                })
+                .collect();
+        });
     }
 
     pub(crate) fn should_send_init_transport_like_cpp(
@@ -63074,7 +62768,7 @@ impl WorldSession {
             .unwrap_or(RuntimeTickOwner::Session)
     }
 
-    fn loaded_player_visible_items_for_create_like_cpp(&self) -> [(i32, u16, u16); 19] {
+    pub(crate) fn loaded_player_visible_items_for_create_like_cpp(&self) -> [(i32, u16, u16); 19] {
         let mut visible_items = [(0i32, 0u16, 0u16); 19];
         for (slot, item) in self.inventory_items_like_cpp() {
             if (*slot as usize) < 19 {
@@ -64790,7 +64484,7 @@ impl WorldSession {
                         .and_then(|form_id| store.get(form_id))
                 }) {
                     let (is_submerged, is_in_water) =
-                        self.represented_player_mount_liquid_state_like_cpp();
+                        self.represented_player_mount_liquid_state_like_cpp()?;
                     if form.mount_type_id != 0
                         && let Err(reject_reason) = self
                             .represented_mount_capability_selection_for_type_like_cpp(
@@ -64822,7 +64516,7 @@ impl WorldSession {
                 continue;
             }
 
-            let (_, is_in_water) = self.represented_player_mount_liquid_state_like_cpp();
+            let (_, is_in_water) = self.represented_player_mount_liquid_state_like_cpp()?;
             if is_in_water
                 && spell_info.has_aura_like_cpp(
                     wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED,
@@ -64862,7 +64556,7 @@ impl WorldSession {
 
             if mount_type_id != 0 {
                 let (is_submerged, is_in_water) =
-                    self.represented_player_mount_liquid_state_like_cpp();
+                    self.represented_player_mount_liquid_state_like_cpp()?;
                 if let Err(reject_reason) = self
                     .represented_mount_capability_selection_for_type_like_cpp(
                         mount_type_id,

@@ -3,8 +3,6 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Social lists, guild and group views.
-
 use super::*;
 
 impl Player {
