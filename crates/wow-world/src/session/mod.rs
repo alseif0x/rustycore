@@ -34481,7 +34481,6 @@ impl WorldSession {
             unit_state: self.player_unit_state_for_registry_like_cpp(),
             is_game_master: self.player_game_master_like_cpp,
             dungeon_difficulty_id: self.represented_dungeon_difficulty_id_like_cpp,
-            active_expansion: self.expansion,
             pending_quest_sharing: self
                 .represented_pending_quest_sharing_like_cpp
                 .map(|pending| (pending.sender_guid, pending.quest_id)),
@@ -34518,14 +34517,15 @@ impl WorldSession {
         reg.register_or_replace(
             guid,
             PlayerSessionRegistrationLikeCpp {
-                identity: crate::session::directory::PlayerDirectoryIdentityLikeCpp {
-                    player_name: name.to_string(),
-                    account_id: self.account_id,
-                    recruiter_id: self.recruiter_id_like_cpp,
+                identity: crate::session::directory::PlayerDirectoryIdentityLikeCpp::new(
+                    name,
+                    self.account_id,
+                    self.recruiter_id_like_cpp,
                     race,
                     class,
-                    sex: gender,
-                },
+                    gender,
+                    self.expansion,
+                ),
                 placement: crate::session::directory::PlayerDirectoryPlacementLikeCpp {
                     map_id,
                     instance_id,
@@ -34602,7 +34602,6 @@ impl WorldSession {
             info.unit_state = unit_state_for_registry;
             info.is_game_master = self.player_game_master_like_cpp;
             info.dungeon_difficulty_id = self.represented_dungeon_difficulty_id_like_cpp;
-            info.active_expansion = self.expansion;
             info.level = self.player_level_like_cpp();
             info.gray_level = self.gray_level(info.level);
             info.pending_quest_sharing = self

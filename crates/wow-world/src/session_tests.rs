@@ -35693,14 +35693,15 @@ fn broadcast_info_with_command(
     command_tx: flume::Sender<SessionCommand>,
 ) -> PlayerSessionRegistrationLikeCpp {
     PlayerSessionRegistrationLikeCpp {
-        identity: PlayerDirectoryIdentityLikeCpp {
-            player_name: format!("Player{}", guid.counter()),
-            account_id: guid.counter() as u32,
-            recruiter_id: 0,
-            race: 1,
-            class: 1,
-            sex: 0,
-        },
+        identity: PlayerDirectoryIdentityLikeCpp::new(
+            format!("Player{}", guid.counter()),
+            guid.counter() as u32,
+            0,
+            1,
+            1,
+            0,
+            2,
+        ),
         placement: PlayerDirectoryPlacementLikeCpp {
             map_id: 0,
             instance_id: 0,
@@ -35727,7 +35728,6 @@ fn broadcast_info_with_command(
             unit_state: 0,
             is_game_master: false,
             dungeon_difficulty_id: 1,
-            active_expansion: 2,
             pending_quest_sharing: None,
             known_spells: Vec::new(),
             active_quest_statuses: Default::default(),

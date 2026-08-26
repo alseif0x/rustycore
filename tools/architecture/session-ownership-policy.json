@@ -55741,13 +55741,6 @@
       "kind": "struct",
       "fields": [
         {
-          "name": "active_expansion",
-          "type": "u8",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "active_loot_rolls",
           "type": "Vec < LootRollCommandIdentityLikeCpp >",
           "visibility": "pub",

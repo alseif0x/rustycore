@@ -8028,8 +8028,9 @@ async fn push_quest_to_party_low_receiver_expansion_emits_expansion_pair_like_cp
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
+    receiver_session.unregister_from_player_registry();
     receiver_session.expansion = 1;
-    receiver_session.sync_player_registry_state_like_cpp();
+    receiver_session.register_in_player_registry();
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 
@@ -8076,7 +8077,6 @@ async fn push_quest_to_party_success_prompts_receiver_details_and_sets_pending_l
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.expansion = 2;
     receiver_session.sync_player_registry_state_like_cpp();
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
@@ -8324,7 +8324,6 @@ async fn push_quest_to_party_receiver_unknown_status_after_expansion_emits_inval
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    receiver_session.expansion = 2;
     add_active_quest_in_slot_with_status(&mut receiver_session, shared_quest_id, 2, 0xFE);
     receiver_session.sync_player_registry_state_like_cpp();
 
@@ -8430,8 +8429,9 @@ async fn push_quest_to_party_prerequisite_precedes_expansion_gate_like_cpp() {
     add_active_quest(&mut session, shared_quest_id);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
+    receiver_session.unregister_from_player_registry();
     receiver_session.expansion = 1;
-    receiver_session.sync_player_registry_state_like_cpp();
+    receiver_session.register_in_player_registry();
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
 

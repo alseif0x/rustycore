@@ -107,6 +107,7 @@ fn broadcast_info_with_command_tx(
             race: 1,
             class: 1,
             sex: 0,
+            active_expansion: 2,
         },
         placement: PlayerDirectoryPlacementLikeCpp {
             map_id: 0,
@@ -134,7 +135,6 @@ fn broadcast_info_with_command_tx(
             unit_state: 0,
             is_game_master: false,
             dungeon_difficulty_id: 1,
-            active_expansion: 2,
             pending_quest_sharing: None,
             known_spells: Vec::new(),
             active_quest_statuses: Default::default(),

@@ -269,6 +269,7 @@ fn player_broadcast_info_fixture_like_cpp(
             race: 1,
             class: 1,
             sex: 0,
+            active_expansion: 2,
         },
         placement: PlayerDirectoryPlacementLikeCpp {
             map_id: 0,
@@ -296,7 +297,6 @@ fn player_broadcast_info_fixture_like_cpp(
             unit_state: 0,
             is_game_master: false,
             dungeon_difficulty_id: 1,
-            active_expansion: 2,
             pending_quest_sharing: None,
             known_spells: Vec::new(),
             active_quest_statuses: Default::default(),
@@ -6984,6 +6984,7 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
                 race: 1,
                 class: 1,
                 sex: 0,
+                active_expansion: 2,
             },
             placement: PlayerDirectoryPlacementLikeCpp {
                 map_id: 0,
@@ -7011,7 +7012,6 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
                 unit_state: 0,
                 is_game_master: false,
                 dungeon_difficulty_id: 1,
-                active_expansion: 2,
                 pending_quest_sharing: None,
                 known_spells: Vec::new(),
                 active_quest_statuses: Default::default(),

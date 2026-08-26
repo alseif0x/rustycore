@@ -84,8 +84,6 @@ pub struct PlayerSessionRegistrationLikeCpp {
     pub visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
 }
 
-/// Stable connected-player identity retained for lookup and addressing even
-/// while a far teleport temporarily leaves the canonical `Player` mapless.
 #[derive(Clone, Debug)]
 pub struct PlayerDirectoryIdentityLikeCpp {
     pub player_name: String,
@@ -94,16 +92,37 @@ pub struct PlayerDirectoryIdentityLikeCpp {
     pub race: u8,
     pub class: u8,
     pub sex: u8,
+    pub active_expansion: u8,
 }
 
-/// Current map address used to resolve the canonical `Player` owner.
+impl PlayerDirectoryIdentityLikeCpp {
+    pub fn new(
+        player_name: impl Into<String>,
+        account_id: u32,
+        recruiter_id: u32,
+        race: u8,
+        class: u8,
+        sex: u8,
+        active_expansion: u8,
+    ) -> Self {
+        Self {
+            player_name: player_name.into(),
+            account_id,
+            recruiter_id,
+            race,
+            class,
+            sex,
+            active_expansion,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct PlayerDirectoryPlacementLikeCpp {
     pub map_id: u16,
     pub instance_id: u32,
 }
 
-/// Information stored for each active player session.
 #[derive(Clone)]
 pub struct PlayerBroadcastInfo {
     pub position: Position,
@@ -127,7 +146,6 @@ pub struct PlayerBroadcastInfo {
     pub unit_state: u32,
     pub is_game_master: bool,
     pub dungeon_difficulty_id: u32,
-    pub active_expansion: u8,
     /// Represented non-empty `Player::GetPlayerSharingQuest()` snapshot for party quest sharing.
     pub pending_quest_sharing: Option<(ObjectGuid, u32)>,
     pub known_spells: Vec<i32>,
@@ -1334,7 +1352,7 @@ impl PlayerRegistry {
                     class: entry.identity.class,
                     race: entry.identity.race,
                     reputation_standings: None,
-                    active_expansion: info.active_expansion,
+                    active_expansion: entry.identity.active_expansion,
                 },
                 entry.placement.map_id,
                 entry.placement.instance_id,
@@ -1927,10 +1945,6 @@ impl PlayerRegistry {
 mod tests {
     use super::*;
 
-    /// Build one registration for the directory tests.
-    ///
-    /// The channels are passed in so the caller keeps the receivers alive; a
-    /// helper that made them locally would disconnect every sender on return.
     fn registration_for_test(
         map_id: u16,
         instance_id: u32,
@@ -1938,14 +1952,7 @@ mod tests {
         command_tx: flume::Sender<SessionCommand>,
     ) -> PlayerSessionRegistrationLikeCpp {
         PlayerSessionRegistrationLikeCpp {
-            identity: PlayerDirectoryIdentityLikeCpp {
-                player_name: "TestPlayer".to_string(),
-                account_id: 1,
-                recruiter_id: 0,
-                race: 1,
-                class: 1,
-                sex: 0,
-            },
+            identity: PlayerDirectoryIdentityLikeCpp::new("TestPlayer", 1, 0, 1, 1, 0, 2),
             placement: PlayerDirectoryPlacementLikeCpp {
                 map_id,
                 instance_id,
@@ -1972,7 +1979,6 @@ mod tests {
                 unit_state: 0,
                 is_game_master: false,
                 dungeon_difficulty_id: 1,
-                active_expansion: 2,
                 pending_quest_sharing: None,
                 known_spells: Vec::new(),
                 active_quest_statuses: Default::default(),

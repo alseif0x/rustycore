@@ -1455,9 +1455,8 @@
         },
         {
           "id": "player_broadcast_remaining_assigned_mirrors",
-          "expected_field_count": 18,
+          "expected_field_count": 17,
           "field_names": [
-            "active_expansion",
             "customizations",
             "display_id",
             "dungeon_difficulty_id",
@@ -1483,7 +1482,7 @@
           "retirement_condition": "#252 removes every assigned residual through bounded canonical queries and deletes the broad projection without introducing a replacement mirror."
         }
       ],
-      "expected_field_count": 41
+      "expected_field_count": 40
     },
     "session_command": {
       "coverage_source": {
