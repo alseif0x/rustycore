@@ -176,7 +176,7 @@
       "from": "wow-world",
       "to": "wow-database",
       "tracking_issue": 153,
-      "reason": "The #186 exact inventory assigns concrete gameplay persistence to #189 loot, #199 group, #200 Player lifecycle, and measured #153 capability children; #153 owns removal of the final residual wow-database edge. Closed since this was written: #186, #189, #199, #200 \u2014 the residue is owned by #153."
+      "reason": "The #186 exact inventory assigned concrete gameplay persistence to #189 loot, #199 group, #200 Player lifecycle and measured #153 capability children. #286 moves the remaining represented Player character-save plan through the SQLx-free lifecycle port; the other concrete wow-world workflows remain explicitly owned by the terminal #153 capability audit, which owns removal of this final crate edge."
     },
     {
       "from": "wow-world",

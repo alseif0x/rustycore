@@ -611,6 +611,16 @@ impl ReputationMgrLikeCpp {
         statements
     }
 
+    /// SQLx-free rows consumed by the Player lifecycle persistence port.
+    /// Iteration order intentionally matches the existing statement builder.
+    pub fn pending_save_rows_like_cpp(&self) -> Vec<(u16, i32, u16)> {
+        self.factions
+            .values()
+            .filter(|faction| faction.need_save)
+            .map(|faction| (faction.id as u16, faction.standing, faction.flags.bits()))
+            .collect()
+    }
+
     pub fn mark_pending_save_to_db_committed_like_cpp(&mut self) {
         for faction in self.factions.values_mut() {
             if faction.need_save {

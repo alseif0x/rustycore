@@ -47,3 +47,32 @@ SQL.
 
 These discrepancies are inputs to #200 and later parity work. Changing them in the architecture
 move requires an explicit behavior PR rather than silently changing the fixture.
+
+## #286 character-save port
+
+The represented Character-database save now crosses the lifecycle boundary as
+`PlayerCharacterSaveRequestLikeCpp`, one SQLx-free semantic snapshot grouped into character
+scalars, spells, skills, talents/glyphs, action bars, cooldowns/charges, equipment/void storage,
+tutorials, instance restrictions, played time, reputation and CUF profiles. It contains no
+statement identifier or generic parameter bag. MariaDB SQL text, prepared parameters, statement
+decomposition, transaction and driver error remain private to
+`wow_database::player_lifecycle_adapter::MariaDbPlayerLifecycleAdapterLikeCpp`.
+
+The executable contracts are split deliberately:
+
+- `session::tests::save_plan_order::the_character_save_request_is_semantic_and_deterministic_like_cpp`
+  pins the real Session's deterministic semantic request without exposing SQL;
+- `player_lifecycle_adapter::tests::character_save_adapter_preserves_the_frozen_statement_order_like_cpp`
+  expands a semantic request and compares the exact SQL run order with
+  `player-save-plan-order.json`; the fixture now covers every represented group plus equipment,
+  transmog, void-storage and CUF insert/update/delete branches rather than the former twelve-group
+  subset;
+- `player_lifecycle_adapter::tests::every_private_character_save_operation_maps_to_the_existing_mariadb_statement_like_cpp`
+  covers every private adapter operation and proves it still selects the previous MariaDB statement;
+- the lifecycle persistence tests drive production orchestration through a fake port and prove
+  `Applied` clears dirty state, definite rollback preserves it, and unknown COMMIT both preserves
+  it and closes the mutation fence.
+
+The adapter returns the semantic dirty groups alongside the three-way outcome; Session consumes
+them only after `Applied`. This is an architecture move, not a claim of wider `Player::SaveToDB`
+parity. The represented statement inventory and known Rust/C++ discrepancies above are unchanged.

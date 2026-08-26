@@ -12,3 +12,4 @@
 mod cleanup;
 mod login;
 mod logout;
+mod persistence;
