@@ -52,6 +52,7 @@
     286,
     384,
     386,
+    388,
     189,
     192,
     193,
@@ -954,7 +955,7 @@
     },
     {
       "number": 386,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.4d] Move account collection loads behind the Player lifecycle port",
       "kind": "slice",
       "parents": [
@@ -963,6 +964,19 @@
       ],
       "depends_on": [
         384
+      ]
+    },
+    {
+      "number": 388,
+      "state": "open",
+      "title": "[ARCH.DB.4e] Move session account data and tutorial reads behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        386
       ]
     }
   ]

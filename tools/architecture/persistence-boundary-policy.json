@@ -15632,6 +15632,276 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::session_account_state_adapter:crates/wow-database/src/session_account_state_adapter.rs::fn account_data_load_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/session_account_state_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::session_account_state_adapter"
+      ],
+      "enclosings": [
+        "fn account_data_load_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free session account state (#388) currently owns the complete wow-database workflow fn account_data_load_statement_like_cpp in crates/wow-database/src/session_account_state_adapter.rs.",
+      "connection_affinity": "Pure Characters-database statement construction; global and character scope select the existing statement and exact identity bind.",
+      "current_order": "Builds exactly one C++ account-data select statement; no wider transaction or ordering claim is introduced.",
+      "failure_and_unknown_commit": "No I/O occurs here; the adapter classifies the later query outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::session_account_state_adapter:crates/wow-database/src/session_account_state_adapter.rs::fn account_data_save_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/session_account_state_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::session_account_state_adapter"
+      ],
+      "enclosings": [
+        "fn account_data_save_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free session account state (#388) currently owns the complete wow-database workflow fn account_data_save_statement_like_cpp in crates/wow-database/src/session_account_state_adapter.rs.",
+      "connection_affinity": "Pure Characters-database statement construction; scope selects the existing replacement statement and preserves identity/type/time/data bind order.",
+      "current_order": "Builds exactly one C++ account-data replacement statement; no wider transaction or ordering claim is introduced.",
+      "failure_and_unknown_commit": "No I/O occurs here; the adapter classifies the later single-statement execute outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::session_account_state_adapter:crates/wow-database/src/session_account_state_adapter.rs::fn tutorials_load_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/session_account_state_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::session_account_state_adapter"
+      ],
+      "enclosings": [
+        "fn tutorials_load_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free session account state (#388) currently owns the complete wow-database workflow fn tutorials_load_statement_like_cpp in crates/wow-database/src/session_account_state_adapter.rs.",
+      "connection_affinity": "Pure Characters-database statement construction with the authenticated account identity.",
+      "current_order": "Builds exactly the existing C++ tutorial select statement; no wider transaction or ordering claim is introduced.",
+      "failure_and_unknown_commit": "No I/O occurs here; the adapter classifies the later query outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::session_account_state_adapter:crates/wow-database/src/session_account_state_adapter.rs::impl MariaDbSessionAccountStateAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/session_account_state_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::session_account_state_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbSessionAccountStateAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free session account state (#388) currently owns the complete wow-database workflow impl MariaDbSessionAccountStateAdapterLikeCpp::new in crates/wow-database/src/session_account_state_adapter.rs.",
+      "connection_affinity": "Composition binds the semantic session account-state port to exactly one Characters adapter.",
+      "current_order": "Construction performs no database operation; later port calls retain their own statement and publication order.",
+      "failure_and_unknown_commit": "No I/O or commit occurs during adapter construction.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::session_account_state_adapter:crates/wow-database/src/session_account_state_adapter.rs::impl wow_persistence::SessionAccountStatePortLikeCpp for MariaDbSessionAccountStateAdapterLikeCpp::load_account_data_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/session_account_state_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::session_account_state_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SessionAccountStatePortLikeCpp for MariaDbSessionAccountStateAdapterLikeCpp::load_account_data_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free session account state (#388) currently owns the complete wow-database workflow impl wow_persistence::SessionAccountStatePortLikeCpp for MariaDbSessionAccountStateAdapterLikeCpp::load_account_data_like_cpp in crates/wow-database/src/session_account_state_adapter.rs.",
+      "connection_affinity": "Each semantic account-data read uses the configured Characters adapter and one pooled query; no wider transaction is inferred.",
+      "current_order": "Runs the one statement selected by global or character scope and returns rows in database order for Session-side C++ mask validation.",
+      "failure_and_unknown_commit": "A query failure returns the typed Failed outcome and publishes no rows.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::session_account_state_adapter:crates/wow-database/src/session_account_state_adapter.rs::impl wow_persistence::SessionAccountStatePortLikeCpp for MariaDbSessionAccountStateAdapterLikeCpp::load_tutorials_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/session_account_state_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::session_account_state_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SessionAccountStatePortLikeCpp for MariaDbSessionAccountStateAdapterLikeCpp::load_tutorials_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free session account state (#388) currently owns the complete wow-database workflow impl wow_persistence::SessionAccountStatePortLikeCpp for MariaDbSessionAccountStateAdapterLikeCpp::load_tutorials_like_cpp in crates/wow-database/src/session_account_state_adapter.rs.",
+      "connection_affinity": "The tutorial read uses the configured Characters adapter and one pooled query; no wider transaction is inferred.",
+      "current_order": "Returns absence distinctly from the existing eight-value tutorial row so Session retains its coherence and changed-flag publication order.",
+      "failure_and_unknown_commit": "A query failure returns the typed Failed outcome and does not fabricate a coherent tutorial snapshot.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::session_account_state_adapter:crates/wow-database/src/session_account_state_adapter.rs::impl wow_persistence::SessionAccountStatePortLikeCpp for MariaDbSessionAccountStateAdapterLikeCpp::save_account_data_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/session_account_state_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::session_account_state_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SessionAccountStatePortLikeCpp for MariaDbSessionAccountStateAdapterLikeCpp::save_account_data_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free session account state (#388) currently owns the complete wow-database workflow impl wow_persistence::SessionAccountStatePortLikeCpp for MariaDbSessionAccountStateAdapterLikeCpp::save_account_data_like_cpp in crates/wow-database/src/session_account_state_adapter.rs.",
+      "connection_affinity": "Each semantic account-data replacement uses the configured Characters adapter and one pooled execute; no wider transaction is inferred.",
+      "current_order": "Executes the one replacement statement before Session publishes the new in-memory account-data value.",
+      "failure_and_unknown_commit": "A single pooled execute is Applied or definitely Failed; no COMMIT boundary exists from which to manufacture Unknown.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::session_account_state_adapter:crates/wow-database/src/session_account_state_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/session_account_state_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::session_account_state_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free session account state (#388) currently owns the complete wow-database workflow module in crates/wow-database/src/session_account_state_adapter.rs.",
+      "connection_affinity": "This stable adapter module is confined to the Characters database named by every semantic request it implements.",
+      "current_order": "The module boundary owns statement mapping and driver execution; Session retains validation and publication order.",
+      "failure_and_unknown_commit": "Typed outcomes prevent SQLx errors or an invented transaction outcome from escaping the adapter.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::session_account_state_adapter:crates/wow-database/src/session_account_state_adapter.rs::struct MariaDbSessionAccountStateAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/session_account_state_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::session_account_state_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbSessionAccountStateAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free session account state (#388) currently owns the complete wow-database workflow struct MariaDbSessionAccountStateAdapterLikeCpp in crates/wow-database/src/session_account_state_adapter.rs.",
+      "connection_affinity": "The concrete adapter stores exactly one Characters-database handle and exposes it only through the typed port.",
+      "current_order": "Storage alone performs no operation; each port method preserves its documented C++-anchored order.",
+      "failure_and_unknown_commit": "The handle is private and no driver error type crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::statements:crates/wow-database/src/statements/mod.rs::module",
       "source_class": "production",
       "packages": [
@@ -26065,39 +26335,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::impl WorldSession::load_account_data_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session"
-      ],
-      "enclosings": [
-        "impl WorldSession::load_account_data_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "Player lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::load_account_data_like_cpp in crates/wow-world/src/session/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153,
-        169
-      ],
-      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::impl WorldSession::load_completed_achievements_like_cpp",
       "source_class": "production",
       "packages": [
@@ -26153,39 +26390,6 @@
         "characters"
       ],
       "capability_owner": "Player lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::load_instance_time_restrictions_like_cpp in crates/wow-world/src/session/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153,
-        169
-      ],
-      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::impl WorldSession::load_tutorials_data_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session"
-      ],
-      "enclosings": [
-        "impl WorldSession::load_tutorials_data_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "Player lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::load_tutorials_data_like_cpp in crates/wow-world/src/session/mod.rs.",
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -26443,39 +26647,6 @@
         "characters"
       ],
       "capability_owner": "Player lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::represented_talent_reset_transaction_statement_plan_like_cpp in crates/wow-world/src/session/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153,
-        169
-      ],
-      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::impl WorldSession::set_account_data_persisted_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session"
-      ],
-      "enclosings": [
-        "impl WorldSession::set_account_data_persisted_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "Player lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::set_account_data_persisted_like_cpp in crates/wow-world/src/session/mod.rs.",
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -27769,6 +27940,7 @@
         "crates/wow-database/src/persistence_trace.rs",
         "crates/wow-database/src/player_lifecycle_adapter.rs",
         "crates/wow-database/src/query_holder.rs",
+        "crates/wow-database/src/session_account_state_adapter.rs",
         "crates/wow-database/src/statements/character.rs",
         "crates/wow-database/src/statements/hotfix.rs",
         "crates/wow-database/src/statements/mod.rs",

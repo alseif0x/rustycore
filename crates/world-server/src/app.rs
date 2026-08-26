@@ -4317,12 +4317,19 @@ async fn run_inner(
             Arc::clone(&login_db),
         ),
     );
+    let session_account_state_port: Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp> =
+        Arc::new(
+            wow_database::session_account_state_adapter::MariaDbSessionAccountStateAdapterLikeCpp::new(
+                Arc::clone(&char_db),
+            ),
+        );
 
     // Build session resources
     let session_resources = Arc::new(SessionResources {
         char_db: Some(Arc::clone(&char_db)),
         login_db: Some(Arc::clone(&login_db)),
         player_lifecycle_port: Some(Arc::clone(&player_lifecycle_port)),
+        session_account_state_port: Some(Arc::clone(&session_account_state_port)),
         world_db: Some(Arc::clone(&world_db)),
         trainer_store: Some(Arc::clone(&trainer_data_store)),
         guid_generator: Some(Arc::clone(&guid_generator)),

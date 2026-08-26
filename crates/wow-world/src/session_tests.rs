@@ -18,6 +18,8 @@ mod mailbox_pump;
 mod routing;
 #[path = "session/tests/save_plan_order.rs"]
 mod save_plan_order;
+#[path = "session/tests/session_account_state.rs"]
+mod session_account_state;
 
 use routing::assert_destroyed_party_update_like_cpp;
 
