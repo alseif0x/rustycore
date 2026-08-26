@@ -49,7 +49,8 @@ use wow_persistence::{
     AccountHeirloomLoadRowLikeCpp, AccountMaskBlockLikeCpp, AccountMountLoadRowLikeCpp,
     AccountToyLoadRowLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
     PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
-    PlayerLifecyclePortLikeCpp, PlayerOfflineMarkLikeCpp,
+    PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
+    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerOfflineMarkLikeCpp,
 };
 
 struct CollectionLoadPortLikeCpp {
@@ -94,6 +95,17 @@ impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
             .pop_front()
             .expect("one typed load outcome per request");
         Box::pin(async move { outcome })
+    }
+
+    fn load_login_auxiliary_like_cpp<'a>(
+        &'a self,
+        _request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerLoginAuxiliaryLoadOutcomeLikeCpp> {
+        Box::pin(async {
+            PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+                reason: "collection-load-only fixture".to_owned(),
+            }
+        })
     }
 
     fn save_account_collection_like_cpp<'a>(

@@ -14,7 +14,9 @@ use wow_persistence::{
     AccountCollectionLoadOutcomeLikeCpp, AccountCollectionLoadRequestLikeCpp,
     AccountCollectionSaveLikeCpp, AccountMaskBlockLikeCpp, LogicalDatabaseLikeCpp,
     PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerCharacterSaveRequestLikeCpp,
-    PlayerCharacterSaveResultLikeCpp, PlayerLifecyclePortLikeCpp, PlayerOfflineMarkLikeCpp,
+    PlayerCharacterSaveResultLikeCpp, PlayerLifecyclePortLikeCpp,
+    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
+    PlayerOfflineMarkLikeCpp,
 };
 
 struct RecordingPortLikeCpp {
@@ -64,6 +66,17 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         Box::pin(async {
             AccountCollectionLoadOutcomeLikeCpp::Failed {
                 reason: "recording port has no collection load fixture".to_owned(),
+            }
+        })
+    }
+
+    fn load_login_auxiliary_like_cpp<'a>(
+        &'a self,
+        _request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerLoginAuxiliaryLoadOutcomeLikeCpp> {
+        Box::pin(async {
+            PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+                reason: "recording port has no auxiliary login fixture".to_owned(),
             }
         })
     }

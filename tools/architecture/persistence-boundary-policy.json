@@ -14263,6 +14263,36 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_login_auxiliary_load_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter"
+      ],
+      "enclosings": [
+        "fn player_login_auxiliary_load_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free auxiliary Player-login reads (#390) currently owns the complete wow-database workflow fn player_login_auxiliary_load_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
+      "connection_affinity": "Pure Characters-database statement construction; each semantic request selects one existing statement and exact identity bind.",
+      "current_order": "Builds exactly one C++ LoginQueryHolder read statement; no wider transaction or query reordering is introduced.",
+      "failure_and_unknown_commit": "No I/O occurs here; the adapter classifies the later read as Loaded typed rows or Failed.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::impl MariaDbPlayerLifecycleAdapterLikeCpp::new",
       "source_class": "production",
       "packages": [
@@ -14319,6 +14349,36 @@
       "connection_affinity": "Each collection read uses the configured Login adapter; these read-only queries do not claim a wider transaction.",
       "current_order": "Runs exactly the statement sequence selected by the semantic request; item appearances and favourites remain independent and ordered.",
       "failure_and_unknown_commit": "A failed single-query collection returns Failed; the two appearance reads retain independent Loaded/Failed outcomes so one failure does not erase the other result.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::load_login_auxiliary_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::load_login_auxiliary_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free auxiliary Player-login reads (#390) currently owns the complete wow-database workflow impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::load_login_auxiliary_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
+      "connection_affinity": "Each read uses the configured Characters adapter and one prepared statement; these read-only loads claim no wider transaction.",
+      "current_order": "Runs only the statement selected by the typed request and decodes rows in database order before returning them to the existing gameplay publication step.",
+      "failure_and_unknown_commit": "A query error returns Failed without rows; successful and empty results return Loaded, and reads have no unknown-COMMIT state.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -20826,39 +20886,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::character::lifecycle:crates/wow-world/src/handlers/character/lifecycle.rs::impl WorldSession::load_player_customizations_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/character/lifecycle.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::character::lifecycle"
-      ],
-      "enclosings": [
-        "impl WorldSession::load_player_customizations_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "Player login/logout lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::load_player_customizations_like_cpp in crates/wow-world/src/handlers/character/lifecycle.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153,
-        169
-      ],
-      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-world:crate::handlers::character::lifecycle:crates/wow-world/src/handlers/character/lifecycle.rs::module",
       "source_class": "production",
       "packages": [
@@ -26332,72 +26359,6 @@
         153
       ],
       "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::impl WorldSession::load_completed_achievements_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session"
-      ],
-      "enclosings": [
-        "impl WorldSession::load_completed_achievements_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "Player lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::load_completed_achievements_like_cpp in crates/wow-world/src/session/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153,
-        169
-      ],
-      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::impl WorldSession::load_instance_time_restrictions_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session"
-      ],
-      "enclosings": [
-        "impl WorldSession::load_instance_time_restrictions_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "Player lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::load_instance_time_restrictions_like_cpp in crates/wow-world/src/session/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153,
-        169
-      ],
-      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
