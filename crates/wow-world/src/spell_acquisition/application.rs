@@ -3555,11 +3555,6 @@ mod tests {
         let (mut session, _) = make_session();
         apply_prepared_player_spell_acquisition_like_cpp(&mut session, &prepared)
             .expect("apply committed deleted-skill snapshot");
-        assert_eq!(
-            session.character_skill_save_statements_like_cpp(42).len(),
-            1,
-            "a later full save retains only DELETE ALL and cannot reinsert the normalized tombstone"
-        );
 
         let saved_tombstone_source = prepared.runtime_snapshot.clone();
         let learned = spell(200, PlayerSpellPersistenceStateLikeCpp::New);

@@ -13,7 +13,7 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::{CharStatements, CharacterDatabase, PreparedStatement, SqlParam};
+use wow_database::{CharStatements, PreparedStatement};
 
 use super::*;
 use crate::session::{
@@ -3074,14 +3074,6 @@ fn account_mount_spells_are_dependent_and_not_saved_to_character_spell_like_cpp(
         WorldSession::account_mount_spells_are_session_dependent_like_cpp(),
         "C++ CollectionMgr::AddMount calls Player::LearnSpell(spellId, true); Player::_SaveSpells skips dependent spells, so account mounts must not be persisted into character_spell"
     );
-}
-
-#[test]
-fn logout_marks_all_account_characters_offline_like_cpp() {
-    let stmt = WorldSession::build_character_account_offline_statement_like_cpp(42);
-
-    assert_eq!(stmt.sql(), CharStatements::UPD_ACCOUNT_ONLINE.sql());
-    assert_eq!(stmt.params(), &[wow_database::SqlParam::U32(42)]);
 }
 
 #[test]

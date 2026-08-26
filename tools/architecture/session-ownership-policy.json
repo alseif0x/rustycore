@@ -5536,20 +5536,6 @@
           "module": "crate::handlers::character::account",
           "trait_path": null,
           "kind": "method",
-          "name": "build_character_account_offline_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_character_account_offline_statement_like_cpp (account_id : u32 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::account",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_connect_to_failed",
           "visibility": "pub",
           "signature": "async fn handle_connect_to_failed (& mut self , pkt : ConnectToFailed)",
@@ -21680,116 +21666,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "build_character_action_delete_spec_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_character_action_delete_spec_statement_like_cpp (guid_counter : u64 , spec : u8 , trait_config_id : i32 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_action_insert_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_character_action_insert_statement_like_cpp (guid_counter : u64 , spec : u8 , trait_config_id : i32 , button : u8 , packed_action : u32 ,) -> Option < PreparedStatement >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_difficulties_save_statement_like_cpp",
-          "visibility": "private",
-          "signature": "fn build_character_difficulties_save_statement_like_cpp (dungeon_difficulty_id : u32 , raid_difficulty_id : u32 , legacy_raid_difficulty_id : u32 , guid_counter : u64 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_explored_zones_save_statement_like_cpp",
-          "visibility": "private",
-          "signature": "fn build_character_explored_zones_save_statement_like_cpp (explored_zones : String , guid_counter : u64 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_glyph_delete_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_character_glyph_delete_statement_like_cpp (guid_counter : u64 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_glyph_insert_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_character_glyph_insert_statement_like_cpp (guid_counter : u64 , talent_group : u8 , glyph_slot : u8 , glyph_id : u16 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "build_character_gold_save_statement_like_cpp",
           "visibility": "private",
           "signature": "fn build_character_gold_save_statement_like_cpp (money : u64 , guid_counter : u64 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_health_save_statement_from_snapshot_like_cpp",
-          "visibility": "private",
-          "signature": "fn build_character_health_save_statement_from_snapshot_like_cpp (snapshot : & PlayerSaveToDbSnapshotLikeCpp ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_health_save_statement_like_cpp",
-          "visibility": "private",
-          "signature": "fn build_character_health_save_statement_like_cpp (health : u32 , guid_counter : u64 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_level_xp_save_statement_like_cpp",
-          "visibility": "private",
-          "signature": "fn build_character_level_xp_save_statement_like_cpp (level : u8 , xp : u32 , guid_counter : u64 ,) -> PreparedStatement",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -21804,215 +21683,6 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_played_time_save_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_character_played_time_save_statement_like_cpp (total_time : u32 , level_time : u32 , guid_counter : u64 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_position_save_statement_from_snapshot_like_cpp",
-          "visibility": "private",
-          "signature": "fn build_character_position_save_statement_from_snapshot_like_cpp (snapshot : & PlayerSaveToDbSnapshotLikeCpp , zone_id : u32 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_position_save_statement_like_cpp",
-          "visibility": "private",
-          "signature": "fn build_character_position_save_statement_like_cpp (position : Position , map_id : u16 , instance_id : u32 , zone_id : u32 , guid_counter : u64 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_powers_save_statement_from_snapshot_like_cpp",
-          "visibility": "private",
-          "signature": "fn build_character_powers_save_statement_from_snapshot_like_cpp (snapshot : & PlayerSaveToDbSnapshotLikeCpp ,) -> Option < PreparedStatement >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_powers_save_statement_like_cpp",
-          "visibility": "private",
-          "signature": "fn build_character_powers_save_statement_like_cpp (powers : [i32 ; 10] , guid_counter : u64 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_rest_state_save_statement_like_cpp",
-          "visibility": "private",
-          "signature": "fn build_character_rest_state_save_statement_like_cpp (rest_state : u8 , player_flags : u32 , rest_bonus : f32 , logout_time_secs : u64 , is_logout_resting : bool , guid_counter : u64 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_skill_delete_all_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_character_skill_delete_all_statement_like_cpp (guid_counter : u64 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_skill_insert_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_character_skill_insert_statement_like_cpp (guid_counter : u64 , skill : RepresentedPlayerSkillLikeCpp ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_spell_charge_delete_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_character_spell_charge_delete_statement_like_cpp (guid_counter : u64 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_spell_charge_insert_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_character_spell_charge_insert_statement_like_cpp (guid_counter : u64 , charge : RepresentedCharacterSpellChargeLikeCpp ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_spell_cooldown_delete_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_character_spell_cooldown_delete_statement_like_cpp (guid_counter : u64 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_spell_cooldown_insert_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_character_spell_cooldown_insert_statement_like_cpp (guid_counter : u64 , cooldown : RepresentedCharacterSpellCooldownLikeCpp ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_spell_delete_by_spell_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_character_spell_delete_by_spell_statement_like_cpp (guid_counter : u64 , spell_id : i32 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_spell_fallback_upsert_statement_like_cpp",
-          "visibility": "private",
-          "signature": "fn build_character_spell_fallback_upsert_statement_like_cpp (guid_counter : u64 , spell : RepresentedPlayerSpellLikeCpp ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_spell_favorite_delete_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_character_spell_favorite_delete_statement_like_cpp (guid_counter : u64 , spell_id : i32 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_spell_favorite_insert_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_character_spell_favorite_insert_statement_like_cpp (guid_counter : u64 , spell_id : i32 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_spell_insert_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_character_spell_insert_statement_like_cpp (guid_counter : u64 , spell : RepresentedPlayerSpellLikeCpp ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
         },
         {
           "module": "crate::session",
@@ -22055,103 +21725,12 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "build_cuf_profile_delete_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_cuf_profile_delete_statement_like_cpp (guid_counter : u64 , id : u8 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_cuf_profile_replace_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_cuf_profile_replace_statement_like_cpp (guid_counter : u64 , id : u8 , profile : & wow_packet :: packets :: misc :: CufProfile ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_equipment_set_delete_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_equipment_set_delete_statement_like_cpp (equipment_set : & RepresentedEquipmentSetLikeCpp ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_equipment_set_insert_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_equipment_set_insert_statement_like_cpp (player_guid_counter : u64 , equipment_set : & RepresentedEquipmentSetLikeCpp ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_equipment_set_update_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_equipment_set_update_statement_like_cpp (player_guid_counter : u64 , equipment_set : & RepresentedEquipmentSetLikeCpp ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "build_player_homebind_update_statement_like_cpp",
           "visibility": "private",
           "signature": "fn build_player_homebind_update_statement_like_cpp (homebind : RepresentedHomebindLikeCpp , guid_counter : u64 ,) -> PreparedStatement",
           "cfg": [],
           "source_class": "production",
           "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_transmog_outfit_insert_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_transmog_outfit_insert_statement_like_cpp (player_guid_counter : u64 , equipment_set : & RepresentedEquipmentSetLikeCpp ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_transmog_outfit_update_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_transmog_outfit_update_statement_like_cpp (player_guid_counter : u64 , equipment_set : & RepresentedEquipmentSetLikeCpp ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
         },
         {
           "module": "crate::session",
@@ -22894,108 +22473,6 @@
           "name": "char_db",
           "visibility": "pub",
           "signature": "fn char_db (& self) -> Option < & Arc < CharacterDatabase > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "character_action_button_save_statements_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn character_action_button_save_statements_like_cpp (& self , guid_counter : u64 ,) -> Option < Vec < PreparedStatement > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "character_glyph_save_statements_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn character_glyph_save_statements_like_cpp (& self , guid_counter : u64 ,) -> Option < Vec < PreparedStatement > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "character_skill_save_statements_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn character_skill_save_statements_like_cpp (& self , guid_counter : u64 ,) -> Vec < PreparedStatement >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "character_spell_charge_save_statements_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn character_spell_charge_save_statements_like_cpp (& self , guid_counter : u64 , now_unix_secs : i64 ,) -> Option < Vec < PreparedStatement > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "character_spell_cooldown_save_statements_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn character_spell_cooldown_save_statements_like_cpp (& self , guid_counter : u64 , now_unix_secs : i64 ,) -> Option < Vec < PreparedStatement > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "character_spell_fallback_save_statements_like_cpp",
-          "visibility": "private",
-          "signature": "fn character_spell_fallback_save_statements_like_cpp (guid_counter : u64 , spells : impl IntoIterator < Item = RepresentedPlayerSpellLikeCpp > ,) -> Vec < PreparedStatement >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "character_spell_save_statements_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn character_spell_save_statements_like_cpp (guid_counter : u64 , spells : impl IntoIterator < Item = RepresentedPlayerSpellLikeCpp > ,) -> Vec < PreparedStatement >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "character_talent_save_statements_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn character_talent_save_statements_like_cpp (& self , guid_counter : u64 ,) -> Option < Vec < PreparedStatement > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -24121,19 +23598,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "cuf_profile_save_statements_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn cuf_profile_save_statements_like_cpp (& self , guid_counter : u64 ,) -> Option < Vec < PreparedStatement > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "currency_changed_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn currency_changed_like_cpp (& mut self , currency_id : u32 , change : i32)",
@@ -24872,19 +24336,6 @@
           "name": "ensure_player_grid_loaded_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn ensure_player_grid_loaded_like_cpp (& self , map_id : u16 , authoritative_instance_id : Option < u32 > , position : Position ,) -> Option < PlayerGridLoadOutcomeLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "equipment_set_save_statements_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn equipment_set_save_statements_like_cpp (& self , player_guid_counter : u64 ,) -> Option < Vec < PreparedStatement > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -26243,17 +25694,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "instance_time_restriction_save_statements_like_cpp",
-          "visibility": "private",
-          "signature": "fn instance_time_restriction_save_statements_like_cpp (& self) -> Vec < PreparedStatement >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
         },
         {
           "module": "crate::session",
@@ -29507,19 +28947,6 @@
           "name": "plan_store_new_direct_inventory_item_with_overlays_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn plan_store_new_direct_inventory_item_with_overlays_like_cpp (& self , entry_id : u32 , count : u32 , overlays : & [DirectInventoryStorageOverlayLikeCpp] , vacated_positions : & [(u8 , u8)] ,) -> Option < (InventoryResult , Vec < ItemPosCount > , Option < u32 >) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "played_time_save_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn played_time_save_statement_like_cpp (& self , guid_counter : u64 ,) -> PreparedStatement",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -47773,19 +47200,6 @@
           "name": "tutorial_flags_packet_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn tutorial_flags_packet_like_cpp (& self ,) -> wow_packet :: packets :: misc :: TutorialFlags",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "tutorial_save_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn tutorial_save_statement_like_cpp (& self , account_id : u32 ,) -> Option < PreparedStatement >",
           "cfg": [],
           "source_class": "production",
           "guards": [

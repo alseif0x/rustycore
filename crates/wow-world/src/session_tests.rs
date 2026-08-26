@@ -2416,20 +2416,13 @@ fn remove_known_spell_removes_non_talent_higher_ranks_like_cpp() {
         &[40],
         "C++ Player::RemoveSpell recursively removes known non-talent higher ranks before removing the current spell"
     );
-    let statements = WorldSession::character_spell_save_statements_like_cpp(
-        42,
-        session.represented_player_spell_rows_like_cpp(),
+    assert!(
+        session
+            .represented_player_spell_rows_like_cpp()
+            .into_iter()
+            .all(|spell| spell.spell_id == 40
+                || spell.state == RepresentedPlayerSpellStateLikeCpp::Removed)
     );
-    let deleted_spells: BTreeSet<i32> = statements
-        .iter()
-        .filter(|stmt| stmt.sql() == CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql())
-        .filter_map(|stmt| match stmt.params().first() {
-            Some(wow_database::SqlParam::I32(spell_id)) => Some(*spell_id),
-            _ => None,
-        })
-        .collect();
-
-    assert_eq!(deleted_spells, BTreeSet::from([10, 20, 30]));
 }
 
 #[test]
@@ -2539,21 +2532,13 @@ fn remove_known_spell_removes_spells_requiring_it_like_cpp() {
         &[200],
         "C++ Player::RemoveSpell removes spells returned by GetSpellsRequiringSpellBounds recursively"
     );
-    let statements = WorldSession::character_spell_save_statements_like_cpp(
-        42,
-        session.represented_player_spell_rows_like_cpp(),
-    );
-    let deleted_spells: BTreeSet<i32> = statements
-        .iter()
-        .filter(|stmt| stmt.sql() == CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql())
-        .filter_map(|stmt| match stmt.params().first() {
-            Some(wow_database::SqlParam::I32(spell_id)) => Some(*spell_id),
-            _ => None,
-        })
-        .collect();
-
     assert_eq!(
-        deleted_spells,
+        session
+            .represented_player_spell_rows_like_cpp()
+            .into_iter()
+            .filter(|spell| spell.state == RepresentedPlayerSpellStateLikeCpp::Removed)
+            .map(|spell| spell.spell_id)
+            .collect::<BTreeSet<_>>(),
         BTreeSet::from([10, 100, 101]),
         "C++ marks the removed required spell and its non-dependent known dependants as PLAYERSPELL_REMOVED"
     );
@@ -2594,20 +2579,15 @@ fn remove_known_spell_removes_learned_dependent_spells_and_overrides_like_cpp() 
         session.represented_override_spells_like_cpp().is_empty(),
         "C++ removes OverridesSpell pairs for learned dependent spells"
     );
-    let statements = WorldSession::character_spell_save_statements_like_cpp(
-        42,
-        session.represented_player_spell_rows_like_cpp(),
+    assert_eq!(
+        session
+            .represented_player_spell_rows_like_cpp()
+            .into_iter()
+            .filter(|spell| spell.state == RepresentedPlayerSpellStateLikeCpp::Removed)
+            .map(|spell| spell.spell_id)
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from([10, 20])
     );
-    let deleted_spells: BTreeSet<i32> = statements
-        .iter()
-        .filter(|stmt| stmt.sql() == CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql())
-        .filter_map(|stmt| match stmt.params().first() {
-            Some(wow_database::SqlParam::I32(spell_id)) => Some(*spell_id),
-            _ => None,
-        })
-        .collect();
-
-    assert_eq!(deleted_spells, BTreeSet::from([10, 20]));
 }
 
 #[test]
@@ -2756,12 +2736,10 @@ fn remove_known_spell_removes_first_rank_learned_skill_like_cpp() {
         "a runtime mutation does not manufacture exact slot-occupancy authority"
     );
 
-    let statements = session.character_skill_save_statements_like_cpp(42);
-    assert_eq!(statements.len(), 1);
-    assert_eq!(
-        statements[0].sql(),
-        CharStatements::DEL_CHAR_SKILLS.sql(),
-        "Rust's full replacement emits its table delete but, like C++ `_SaveSkills`, never persists a SKILL_DELETED tombstone as a zero-valued row"
+    assert!(
+        session
+            .player_skill_non_durable_tombstones_like_cpp
+            .contains(&755)
     );
 }
 
@@ -31709,65 +31687,6 @@ fn instance_time_restriction_load_rows_match_cpp_insert_semantics() {
 }
 
 #[test]
-fn instance_time_restriction_save_plan_skips_empty_like_cpp() {
-    let (session, _pkt_tx, _send_rx) = make_session();
-
-    assert!(
-        session
-            .instance_time_restriction_save_statements_like_cpp()
-            .is_empty()
-    );
-}
-
-#[test]
-fn instance_time_restriction_save_plan_deletes_then_inserts_like_cpp() {
-    let (mut session, _pkt_tx, _send_rx) = make_session();
-    session.account_id = 22;
-    session
-        .represented_instance_reset_times_like_cpp
-        .insert(9002, 5_556);
-    session
-        .represented_instance_reset_times_like_cpp
-        .insert(9001, 5_555);
-
-    let statements = session.instance_time_restriction_save_statements_like_cpp();
-
-    assert_eq!(statements.len(), 3);
-    assert_eq!(
-        statements[0].sql(),
-        CharStatements::DEL_ACCOUNT_INSTANCE_LOCK_TIMES.sql()
-    );
-    assert!(matches!(
-        statements[0].params(),
-        [wow_database::SqlParam::U32(22)]
-    ));
-    assert_eq!(
-        statements[1].sql(),
-        CharStatements::INS_ACCOUNT_INSTANCE_LOCK_TIMES.sql()
-    );
-    assert!(matches!(
-        statements[1].params(),
-        [
-            wow_database::SqlParam::U32(22),
-            wow_database::SqlParam::U32(9001),
-            wow_database::SqlParam::U64(5_555)
-        ]
-    ));
-    assert_eq!(
-        statements[2].sql(),
-        CharStatements::INS_ACCOUNT_INSTANCE_LOCK_TIMES.sql()
-    );
-    assert!(matches!(
-        statements[2].params(),
-        [
-            wow_database::SqlParam::U32(22),
-            wow_database::SqlParam::U32(9002),
-            wow_database::SqlParam::U64(5_556)
-        ]
-    ));
-}
-
-#[test]
 fn canonical_instance_count_blocks_new_distinct_instance_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -46935,17 +46854,6 @@ async fn spell_learn_spell_effect_row_preserves_base_grant_without_richer_author
         }],
         "the shallow C++-faithful grant remains dirty in the complete in-world spell map"
     );
-    let save_statements = WorldSession::character_spell_save_statements_like_cpp(
-        player_guid.counter() as u64,
-        spell_rows,
-    );
-    assert!(save_statements.iter().any(|statement| {
-        statement.sql() == CharStatements::INS_CHAR_SPELL.sql()
-            && matches!(
-                statement.params().get(1),
-                Some(wow_database::SqlParam::I32(spell_id)) if *spell_id == learned_spell_id
-            )
-    }));
 }
 
 #[tokio::test]
@@ -47697,7 +47605,6 @@ async fn spell_learn_spell_fallback_defers_without_complete_spell_rows_like_cpp(
 fn fallback_reconciliation_preserves_dependent_promotion_like_cpp() {
     let (mut session, _, _) = make_session();
     let spell_id = 13_351_i32;
-    let player_guid = ObjectGuid::create_player(1, 78);
     session
         .represented_fallback_player_spell_rows_like_cpp
         .insert(
@@ -47731,21 +47638,6 @@ fn fallback_reconciliation_preserves_dependent_promotion_like_cpp() {
         reconciled.state,
         RepresentedPlayerSpellStateLikeCpp::Changed,
         "C++ AddSpell promotes an existing independent row and marks it changed"
-    );
-    let statements = WorldSession::character_spell_save_statements_like_cpp(
-        player_guid.counter() as u64,
-        [reconciled],
-    );
-    assert_eq!(
-        statements
-            .iter()
-            .map(|statement| statement.sql())
-            .collect::<Vec<_>>(),
-        vec![
-            CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql(),
-            CharStatements::DEL_CHAR_SPELL_FAVORITE.sql(),
-        ],
-        "C++ _SaveSpells deletes the former durable independent row and does not insert a dependent one"
     );
 }
 
@@ -53069,52 +52961,6 @@ fn logout_save_snapshot_uses_pending_near_teleport_destination_like_cpp() {
 }
 
 #[test]
-fn character_position_save_statement_matches_cpp_bind_order() {
-    let guid = ObjectGuid::create_player(1, 5002);
-    let position = Position::new(101.0, 202.0, 303.0, 4.5);
-
-    let stmt = WorldSession::build_character_position_save_statement_like_cpp(
-        position,
-        571,
-        9001,
-        495,
-        guid.counter() as u64,
-    );
-
-    assert_eq!(
-        stmt.sql(),
-        CharStatements::UPD_CHARACTER_POSITION_PRESERVE_TRAVEL.sql()
-    );
-    assert!(matches!(stmt.params()[0], wow_database::SqlParam::F32(v) if v == 101.0));
-    assert!(matches!(stmt.params()[1], wow_database::SqlParam::F32(v) if v == 202.0));
-    assert!(matches!(stmt.params()[2], wow_database::SqlParam::F32(v) if v == 303.0));
-    assert!(matches!(stmt.params()[3], wow_database::SqlParam::F32(v) if v == 4.5));
-    assert!(matches!(stmt.params()[4], wow_database::SqlParam::U16(571)));
-    assert!(matches!(
-        stmt.params()[5],
-        wow_database::SqlParam::U32(9001)
-    ));
-    assert!(matches!(stmt.params()[6], wow_database::SqlParam::U16(495)));
-    assert!(
-        matches!(stmt.params()[7], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
-    );
-}
-
-#[test]
-fn character_health_save_statement_matches_cpp_bind_order() {
-    let guid = ObjectGuid::create_player(1, 5006);
-
-    let stmt =
-        WorldSession::build_character_health_save_statement_like_cpp(321, guid.counter() as u64);
-
-    assert_eq!(stmt.sql(), CharStatements::UPD_CHAR_HEALTH.sql());
-    assert!(matches!(stmt.params()[0], wow_database::SqlParam::U32(321)));
-    assert!(
-        matches!(stmt.params()[1], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
-    );
-}
-
-#[test]
 fn player_homebind_update_statement_matches_cpp_bind_order() {
     let guid = ObjectGuid::create_player(1, 5007);
     let homebind = RepresentedHomebindLikeCpp {
@@ -53155,49 +53001,6 @@ fn player_homebind_update_statement_matches_cpp_bind_order() {
         narrowed.params()[1],
         wow_database::SqlParam::U16(65_534)
     ));
-}
-
-#[test]
-fn character_powers_save_statement_matches_cpp_power_fields_like_cpp() {
-    let guid = ObjectGuid::create_player(1, 5004);
-    let powers = [321, -1, 0, 100, 5, 6, 7, 8, 9, 10];
-
-    let stmt =
-        WorldSession::build_character_powers_save_statement_like_cpp(powers, guid.counter() as u64);
-
-    assert_eq!(stmt.sql(), CharStatements::UPD_CHAR_POWERS.sql());
-    assert!(matches!(stmt.params()[0], wow_database::SqlParam::I32(321)));
-    assert!(
-        matches!(stmt.params()[1], wow_database::SqlParam::I32(0)),
-        "C++ power fields are unsigned in practice; represented save clamps stale negatives"
-    );
-    assert!(matches!(stmt.params()[3], wow_database::SqlParam::I32(100)));
-    assert!(matches!(stmt.params()[9], wow_database::SqlParam::I32(10)));
-    assert!(
-        matches!(stmt.params()[10], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
-    );
-}
-
-#[test]
-fn character_powers_save_statement_skips_missing_authoritative_powers_like_cpp() {
-    let snapshot = PlayerSaveToDbSnapshotLikeCpp {
-        guid: ObjectGuid::create_player(1, 5005),
-        map_id: 571,
-        instance_id: 0,
-        position: Position::new(11.0, 22.0, 33.0, 1.5),
-        level: 80,
-        xp: 0,
-        money: 42,
-        health: 77,
-        max_health: 100,
-        powers: empty_character_power_snapshot_like_cpp(),
-    };
-
-    assert!(
-        WorldSession::build_character_powers_save_statement_from_snapshot_like_cpp(&snapshot)
-            .is_none(),
-        "fallback snapshots preserve old DB powers by skipping the power update"
-    );
 }
 
 #[test]
@@ -53910,36 +53713,6 @@ fn offline_rested_xp_login_does_not_modify_current_health_or_power_like_cpp() {
             .represented_player_power_values_like_cpp()
             .expect("power snapshot should be authoritative")[0],
         17
-    );
-}
-
-#[test]
-fn character_rest_state_save_statement_matches_cpp_bind_order() {
-    let guid = ObjectGuid::create_player(1, 5007);
-
-    let stmt = WorldSession::build_character_rest_state_save_statement_like_cpp(
-        REST_STATE_RESTED_LIKE_CPP,
-        PLAYER_FLAGS_AFK_LIKE_CPP | PLAYER_FLAGS_RESTING_LIKE_CPP,
-        123.5,
-        1_723_456_789,
-        true,
-        guid.counter() as u64,
-    );
-
-    assert_eq!(stmt.sql(), CharStatements::UPD_CHAR_REST_STATE.sql());
-    assert_eq!(
-        stmt.params()[0],
-        wow_database::SqlParam::U8(REST_STATE_RESTED_LIKE_CPP)
-    );
-    assert_eq!(
-        stmt.params()[1],
-        wow_database::SqlParam::U32(PLAYER_FLAGS_AFK_LIKE_CPP | PLAYER_FLAGS_RESTING_LIKE_CPP)
-    );
-    assert!(matches!(stmt.params()[2], wow_database::SqlParam::F32(v) if v == 123.5));
-    assert_eq!(stmt.params()[3], wow_database::SqlParam::U64(1_723_456_789));
-    assert_eq!(stmt.params()[4], wow_database::SqlParam::U8(1));
-    assert!(
-        matches!(stmt.params()[5], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
     );
 }
 
@@ -55680,45 +55453,6 @@ fn give_xp_runtime_does_not_spend_rested_bonus_without_victim_like_cpp() {
 }
 
 #[test]
-fn character_position_save_uses_captured_snapshot_map_instance_like_cpp() {
-    let guid = ObjectGuid::create_player(1, 5003);
-    let snapshot = PlayerSaveToDbSnapshotLikeCpp {
-        guid,
-        map_id: 632,
-        instance_id: 12_345,
-        position: Position::new(11.0, 22.0, 33.0, 1.5),
-        level: 80,
-        xp: 0,
-        money: 42,
-        health: 77,
-        max_health: 100,
-        powers: empty_character_power_snapshot_like_cpp(),
-    };
-
-    let stmt = WorldSession::build_character_position_save_statement_from_snapshot_like_cpp(
-        &snapshot, 210,
-    );
-
-    assert_eq!(
-        stmt.sql(),
-        CharStatements::UPD_CHARACTER_POSITION_PRESERVE_TRAVEL.sql()
-    );
-    assert!(matches!(stmt.params()[0], wow_database::SqlParam::F32(v) if v == 11.0));
-    assert!(matches!(stmt.params()[1], wow_database::SqlParam::F32(v) if v == 22.0));
-    assert!(matches!(stmt.params()[2], wow_database::SqlParam::F32(v) if v == 33.0));
-    assert!(matches!(stmt.params()[3], wow_database::SqlParam::F32(v) if v == 1.5));
-    assert!(matches!(stmt.params()[4], wow_database::SqlParam::U16(632)));
-    assert!(matches!(
-        stmt.params()[5],
-        wow_database::SqlParam::U32(12_345)
-    ));
-    assert!(matches!(stmt.params()[6], wow_database::SqlParam::U16(210)));
-    assert!(
-        matches!(stmt.params()[7], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
-    );
-}
-
-#[test]
 fn character_talent_reset_state_save_statement_matches_cpp_bind_order() {
     let guid = ObjectGuid::create_player(1, 5004);
 
@@ -55742,25 +55476,6 @@ fn character_talent_reset_state_save_statement_matches_cpp_bind_order() {
     ));
     assert!(
         matches!(stmt.params()[2], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
-    );
-}
-
-#[test]
-fn character_explored_zones_save_statement_matches_cpp_bind_order() {
-    let guid = ObjectGuid::create_player(1, 5005);
-
-    let stmt = WorldSession::build_character_explored_zones_save_statement_like_cpp(
-        "1 2 0 0 ".to_string(),
-        guid.counter() as u64,
-    );
-
-    assert_eq!(stmt.sql(), CharStatements::UPD_CHAR_EXPLORED_ZONES.sql());
-    assert!(matches!(
-        &stmt.params()[0],
-        wow_database::SqlParam::String(value) if value == "1 2 0 0 "
-    ));
-    assert!(
-        matches!(stmt.params()[1], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
     );
 }
 
@@ -57393,249 +57108,6 @@ fn authoritative_skill_mutations_preserve_exact_slot_occupancy_like_cpp() {
 }
 
 #[test]
-fn character_skill_save_statements_preserve_loaded_riding_skill_like_cpp() {
-    let (mut session, _, _) = make_session();
-    session.set_player_skill_records_like_cpp(HashMap::from([
-        (
-            333,
-            RepresentedPlayerSkillLikeCpp {
-                skill_id: 333,
-                step: 2,
-                value: 150,
-                max: 225,
-                profession_slot: 0,
-                state: RepresentedPlayerSkillStateLikeCpp::Unchanged,
-            },
-        ),
-        (
-            762,
-            RepresentedPlayerSkillLikeCpp {
-                skill_id: 762,
-                step: 1,
-                value: 75,
-                max: 75,
-                profession_slot: -1,
-                state: RepresentedPlayerSkillStateLikeCpp::Unchanged,
-            },
-        ),
-    ]));
-    let records = session.player_skill_records_like_cpp();
-    assert_eq!(records[&333].step, 2);
-    assert_eq!(
-        records[&333].state,
-        RepresentedPlayerSkillStateLikeCpp::Unchanged
-    );
-    assert!(
-        session.complete_player_skill_records_like_cpp().is_none(),
-        "runtime rows alone do not prove exact update-field slot occupancy"
-    );
-
-    let statements = session.character_skill_save_statements_like_cpp(42);
-
-    assert_eq!(statements.len(), 3);
-    assert_eq!(statements[0].sql(), CharStatements::DEL_CHAR_SKILLS.sql());
-    assert!(matches!(
-        statements[0].params()[0],
-        wow_database::SqlParam::U64(42)
-    ));
-
-    assert_eq!(statements[1].sql(), CharStatements::INS_CHAR_SKILLS.sql());
-    assert!(matches!(
-        statements[1].params()[0],
-        wow_database::SqlParam::U64(42)
-    ));
-    assert!(matches!(
-        statements[1].params()[1],
-        wow_database::SqlParam::U16(333)
-    ));
-    assert!(matches!(
-        statements[1].params()[2],
-        wow_database::SqlParam::U16(150)
-    ));
-    assert!(matches!(
-        statements[1].params()[3],
-        wow_database::SqlParam::U16(225)
-    ));
-    assert!(matches!(
-        statements[1].params()[4],
-        wow_database::SqlParam::I8(0)
-    ));
-
-    assert_eq!(statements[2].sql(), CharStatements::INS_CHAR_SKILLS.sql());
-    assert!(matches!(
-        statements[2].params()[1],
-        wow_database::SqlParam::U16(762)
-    ));
-    assert!(matches!(
-        statements[2].params()[2],
-        wow_database::SqlParam::U16(75)
-    ));
-    assert!(matches!(
-        statements[2].params()[3],
-        wow_database::SqlParam::U16(75)
-    ));
-    assert!(matches!(
-        statements[2].params()[4],
-        wow_database::SqlParam::I8(-1)
-    ));
-    assert_eq!(
-        CharStatements::INS_CHAR_SKILLS.sql(),
-        "INSERT INTO character_skills (guid, skill, value, max, professionSlot) VALUES (?, ?, ?, ?, ?)",
-        "C++ Player::SaveToDB delegates to _SaveSkills; represented Rust preserves value/max/professionSlot so Riding survives logout saves"
-    );
-}
-
-#[test]
-fn character_spell_cooldown_save_requires_coherent_load_like_cpp() {
-    let (session, _, _) = make_session();
-
-    assert!(
-        session
-            .character_spell_cooldown_save_statements_like_cpp(42, 1_000)
-            .is_none(),
-        "Rust must not emulate C++ SpellHistory::SaveToDB delete-all unless the character_spell_cooldown runtime was loaded coherently"
-    );
-}
-
-#[test]
-fn character_spell_save_plan_skips_dependent_inserts_like_cpp() {
-    let statements = WorldSession::character_spell_save_statements_like_cpp(
-        42,
-        [
-            RepresentedPlayerSpellLikeCpp {
-                spell_id: 100,
-                active: true,
-                disabled: false,
-                dependent: false,
-                favorite: true,
-                state: RepresentedPlayerSpellStateLikeCpp::New,
-            },
-            RepresentedPlayerSpellLikeCpp {
-                spell_id: 200,
-                active: true,
-                disabled: false,
-                dependent: true,
-                favorite: true,
-                state: RepresentedPlayerSpellStateLikeCpp::New,
-            },
-        ],
-    );
-
-    assert_eq!(statements.len(), 5);
-    assert_eq!(statements[0].sql(), CharStatements::INS_CHAR_SPELL.sql());
-    assert_eq!(
-        statements[0].params(),
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::I32(100),
-            wow_database::SqlParam::Bool(true),
-            wow_database::SqlParam::Bool(false),
-        ]
-    );
-    assert_eq!(
-        statements[1].sql(),
-        CharStatements::DEL_CHAR_SPELL_FAVORITE.sql()
-    );
-    assert_eq!(
-        statements[2].sql(),
-        CharStatements::INS_CHAR_SPELL_FAVORITE.sql()
-    );
-    assert_eq!(
-        statements[3].sql(),
-        CharStatements::DEL_CHAR_SPELL_FAVORITE.sql(),
-        "C++ still deletes stale favorite state for new/changed dependent spells"
-    );
-    assert_eq!(
-        statements[4].sql(),
-        CharStatements::INS_CHAR_SPELL_FAVORITE.sql(),
-        "C++ persists favorites independently from the dependent character_spell insert skip"
-    );
-    assert!(
-        statements
-            .iter()
-            .filter(|stmt| stmt.sql() == CharStatements::INS_CHAR_SPELL.sql())
-            .all(|stmt| stmt.params()[1] != wow_database::SqlParam::I32(200)),
-        "C++ Player::_SaveSpells does not insert dependent spells into character_spell"
-    );
-}
-
-#[test]
-fn character_spell_save_plan_deletes_changed_and_removed_like_cpp() {
-    let statements = WorldSession::character_spell_save_statements_like_cpp(
-        7,
-        [
-            RepresentedPlayerSpellLikeCpp {
-                spell_id: 300,
-                active: false,
-                disabled: true,
-                dependent: false,
-                favorite: false,
-                state: RepresentedPlayerSpellStateLikeCpp::Changed,
-            },
-            RepresentedPlayerSpellLikeCpp {
-                spell_id: 400,
-                active: true,
-                disabled: false,
-                dependent: false,
-                favorite: true,
-                state: RepresentedPlayerSpellStateLikeCpp::Removed,
-            },
-            RepresentedPlayerSpellLikeCpp {
-                spell_id: 500,
-                active: true,
-                disabled: false,
-                dependent: false,
-                favorite: true,
-                state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
-            },
-            RepresentedPlayerSpellLikeCpp {
-                spell_id: 600,
-                active: true,
-                disabled: false,
-                dependent: false,
-                favorite: true,
-                state: RepresentedPlayerSpellStateLikeCpp::Temporary,
-            },
-        ],
-    );
-
-    let sqls: Vec<&str> = statements.iter().map(|stmt| stmt.sql()).collect();
-    assert_eq!(
-        sqls,
-        vec![
-            CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql(),
-            CharStatements::INS_CHAR_SPELL.sql(),
-            CharStatements::DEL_CHAR_SPELL_FAVORITE.sql(),
-            CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql(),
-        ],
-        "C++ _SaveSpells deletes changed/removed spells, reinserts only changed/new non-dependent spells, and ignores unchanged/temporary rows"
-    );
-    assert_eq!(
-        statements[0].params(),
-        &[
-            wow_database::SqlParam::I32(300),
-            wow_database::SqlParam::U64(7),
-        ]
-    );
-    assert_eq!(
-        statements[1].params(),
-        &[
-            wow_database::SqlParam::U64(7),
-            wow_database::SqlParam::I32(300),
-            wow_database::SqlParam::Bool(false),
-            wow_database::SqlParam::Bool(true),
-        ]
-    );
-    assert_eq!(
-        statements[3].params(),
-        &[
-            wow_database::SqlParam::I32(400),
-            wow_database::SqlParam::U64(7),
-        ]
-    );
-}
-
-#[test]
 fn represented_favorite_known_spells_are_retained_only_for_known_spells_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_known_spells_like_cpp(vec![100, 200]);
@@ -57655,163 +57127,6 @@ fn represented_favorite_known_spells_are_retained_only_for_known_spells_like_cpp
 }
 
 #[test]
-fn character_spell_cooldown_save_deletes_and_reinserts_active_rows_like_cpp() {
-    let (mut session, _, _) = make_session();
-    session.reset_represented_character_spell_cooldowns_like_cpp();
-    session.record_loaded_character_spell_cooldown_like_cpp(200, 0, 1_030, 0, 0);
-    session.record_loaded_character_spell_cooldown_like_cpp(100, 6948, 1_010, 12, 1_020);
-    session.record_loaded_character_spell_cooldown_like_cpp(300, 0, 1_000, 0, 1_000);
-    session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
-
-    let statements = session
-        .character_spell_cooldown_save_statements_like_cpp(42, 1_000)
-        .expect("loaded cooldown state should be persisted");
-
-    assert_eq!(statements.len(), 3);
-    assert_eq!(
-        statements[0].sql(),
-        CharStatements::DEL_CHAR_SPELL_COOLDOWNS.sql()
-    );
-    assert!(matches!(
-        statements[0].params()[0],
-        wow_database::SqlParam::U64(42)
-    ));
-
-    assert_eq!(
-        statements[1].sql(),
-        CharStatements::INS_CHAR_SPELL_COOLDOWN.sql()
-    );
-    assert_eq!(
-        statements[1].params(),
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U32(100),
-            wow_database::SqlParam::U32(6948),
-            wow_database::SqlParam::I64(1_010),
-            wow_database::SqlParam::U32(12),
-            wow_database::SqlParam::I64(1_020),
-        ]
-    );
-
-    assert_eq!(
-        statements[2].params(),
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U32(200),
-            wow_database::SqlParam::U32(0),
-            wow_database::SqlParam::I64(1_030),
-            wow_database::SqlParam::U32(0),
-            wow_database::SqlParam::I64(0),
-        ]
-    );
-}
-
-#[test]
-fn character_spell_cooldown_save_keeps_delete_when_all_rows_expired_like_cpp() {
-    let (mut session, _, _) = make_session();
-    session.record_loaded_character_spell_cooldown_like_cpp(100, 0, 999, 0, 999);
-    session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
-
-    let statements = session
-        .character_spell_cooldown_save_statements_like_cpp(42, 1_000)
-        .expect("loaded cooldown state should still clear expired rows");
-
-    assert_eq!(statements.len(), 1);
-    assert_eq!(
-        statements[0].sql(),
-        CharStatements::DEL_CHAR_SPELL_COOLDOWNS.sql(),
-        "C++ SpellHistory::SaveToDB deletes existing rows before inserting active runtime cooldowns"
-    );
-}
-
-#[test]
-fn character_spell_charge_save_requires_coherent_load_like_cpp() {
-    let (session, _, _) = make_session();
-
-    assert!(
-        session
-            .character_spell_charge_save_statements_like_cpp(42, 1_000)
-            .is_none(),
-        "Rust must not emulate C++ SpellHistory::SaveToDB charge delete-all unless character_spell_charges was loaded coherently"
-    );
-}
-
-#[test]
-fn character_spell_charge_save_deletes_and_reinserts_active_rows_like_cpp() {
-    let (mut session, _, _) = make_session();
-    session.reset_represented_character_spell_charges_like_cpp();
-    session.record_loaded_character_spell_charge_like_cpp(12, 1_001, 1_030);
-    session.record_loaded_character_spell_charge_like_cpp(7, 1_002, 1_020);
-    session.record_loaded_character_spell_charge_like_cpp(7, 1_003, 1_040);
-    session.record_loaded_character_spell_charge_like_cpp(20, 900, 1_000);
-    session.mark_represented_character_spell_charges_loaded_like_cpp();
-
-    let statements = session
-        .character_spell_charge_save_statements_like_cpp(42, 1_000)
-        .expect("loaded charge state should be persisted");
-
-    assert_eq!(statements.len(), 4);
-    assert_eq!(
-        statements[0].sql(),
-        CharStatements::DEL_CHAR_SPELL_CHARGES.sql()
-    );
-    assert!(matches!(
-        statements[0].params()[0],
-        wow_database::SqlParam::U64(42)
-    ));
-
-    assert_eq!(
-        statements[1].sql(),
-        CharStatements::INS_CHAR_SPELL_CHARGES.sql()
-    );
-    assert_eq!(
-        statements[1].params(),
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U32(7),
-            wow_database::SqlParam::I64(1_002),
-            wow_database::SqlParam::I64(1_020),
-        ]
-    );
-    assert_eq!(
-        statements[2].params(),
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U32(7),
-            wow_database::SqlParam::I64(1_003),
-            wow_database::SqlParam::I64(1_040),
-        ]
-    );
-    assert_eq!(
-        statements[3].params(),
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U32(12),
-            wow_database::SqlParam::I64(1_001),
-            wow_database::SqlParam::I64(1_030),
-        ]
-    );
-}
-
-#[test]
-fn character_spell_charge_save_keeps_delete_when_all_rows_expired_like_cpp() {
-    let (mut session, _, _) = make_session();
-    session.record_loaded_character_spell_charge_like_cpp(7, 900, 999);
-    session.mark_represented_character_spell_charges_loaded_like_cpp();
-
-    let statements = session
-        .character_spell_charge_save_statements_like_cpp(42, 1_000)
-        .expect("loaded charge state should still clear expired rows");
-
-    assert_eq!(statements.len(), 1);
-    assert_eq!(
-        statements[0].sql(),
-        CharStatements::DEL_CHAR_SPELL_CHARGES.sql(),
-        "C++ SpellHistory::SaveToDB deletes existing charge rows before inserting active runtime charges"
-    );
-}
-
-#[test]
 fn represented_spell_charge_restore_pops_last_charge_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 42);
@@ -57825,18 +57140,15 @@ fn represented_spell_charge_restore_pops_last_charge_like_cpp() {
         1
     );
 
-    let statements = session
-        .character_spell_charge_save_statements_like_cpp(42, 1_000)
-        .expect("loaded charge state should be persisted");
-    assert_eq!(statements.len(), 2);
     assert_eq!(
-        statements[1].params(),
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U32(7),
-            wow_database::SqlParam::I64(1_001),
-            wow_database::SqlParam::I64(1_020),
-        ]
+        session.represented_character_spell_charges_like_cpp[&7]
+            .iter()
+            .map(|charge| (
+                charge.recharge_start_unix_secs,
+                charge.recharge_end_unix_secs
+            ))
+            .collect::<Vec<_>>(),
+        vec![(1_001, 1_020)]
     );
 }
 
@@ -58035,66 +57347,6 @@ fn update_talent_data_includes_loaded_talents_and_glyphs_like_cpp() {
 }
 
 #[test]
-fn character_talent_save_requires_coherent_load_like_cpp() {
-    let (session, _, _) = make_session();
-
-    assert!(
-        session
-            .character_talent_save_statements_like_cpp(42)
-            .is_none(),
-        "Rust must not emulate C++ _SaveTalents delete-all unless character_talent was loaded coherently"
-    );
-}
-
-#[test]
-fn character_talent_save_deletes_and_reinserts_loaded_talents_like_cpp() {
-    let (mut session, _, _) = make_session();
-    session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries([
-        test_talent_entry_like_cpp(101, 2, 50_101),
-        test_talent_entry_like_cpp(202, 1, 50_202),
-        test_talent_entry_like_cpp(303, 0, 0),
-    ])));
-    let mut spell_store = wow_data::SpellStore::new();
-    spell_store.insert(50_101, test_spell_info_like_cpp(50_101));
-    spell_store.insert(50_202, test_spell_info_like_cpp(50_202));
-    session.set_spell_store(Arc::new(spell_store));
-    install_test_talent_tab_store_like_cpp(&mut session);
-
-    session.reset_represented_talents_like_cpp();
-    assert!(session.load_represented_talent_row_like_cpp(101, 2, 0));
-    assert!(session.load_represented_talent_row_like_cpp(202, 1, 2));
-    assert!(!session.load_represented_talent_row_like_cpp(303, 0, 3));
-    session.mark_represented_talents_loaded_like_cpp();
-
-    let statements = session
-        .character_talent_save_statements_like_cpp(42)
-        .expect("loaded talent state should be persisted");
-
-    assert_eq!(statements.len(), 3);
-    assert_eq!(statements[0].sql(), CharStatements::DEL_CHAR_TALENT.sql());
-    assert_eq!(statements[0].params(), &[wow_database::SqlParam::U64(42)]);
-    assert_eq!(
-        statements[1].params(),
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U32(101),
-            wow_database::SqlParam::U8(2),
-            wow_database::SqlParam::U8(0),
-        ]
-    );
-    assert_eq!(
-        statements[2].params(),
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U32(202),
-            wow_database::SqlParam::U8(1),
-            wow_database::SqlParam::U8(2),
-        ],
-        "C++ _SaveTalents writes every non-removed talent with its talent group"
-    );
-}
-
-#[test]
 fn talent_reset_transaction_plan_clears_active_preserves_inactive_and_persists_zero_cost() {
     let (mut session, _, _) = make_session();
     session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries([
@@ -58227,18 +57479,6 @@ fn talent_reset_transaction_plan_persists_capped_fee_with_talent_delete() {
 }
 
 #[test]
-fn character_glyph_save_requires_coherent_load_like_cpp() {
-    let (session, _, _) = make_session();
-
-    assert!(
-        session
-            .character_glyph_save_statements_like_cpp(42)
-            .is_none(),
-        "Rust must not emulate C++ _SaveGlyphs delete-all unless character_glyphs was loaded coherently"
-    );
-}
-
-#[test]
 fn character_glyph_load_filters_invalid_rows_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_glyph_properties_store(Arc::new(wow_data::GlyphPropertiesStore::from_entries([
@@ -58275,234 +57515,6 @@ fn update_talent_data_uses_bonus_talent_group_count_like_cpp() {
     assert_eq!(packet.active_group, 1);
     assert_eq!(packet.groups.len(), 2);
     assert_eq!(packet.groups[1].glyph_ids[2], 321);
-}
-
-#[test]
-fn character_glyph_save_deletes_and_reinserts_all_specs_slots_like_cpp() {
-    let (mut session, _, _) = make_session();
-    session.reset_represented_glyphs_like_cpp();
-    assert!(session.load_represented_glyph_row_like_cpp(0, 0, 123));
-    assert!(session.load_represented_glyph_row_like_cpp(3, 5, 456));
-    session.mark_represented_glyphs_loaded_like_cpp();
-
-    let statements = session
-        .character_glyph_save_statements_like_cpp(42)
-        .expect("loaded glyph state should be persisted");
-
-    assert_eq!(statements.len(), 1 + MAX_SPECIALIZATIONS_LIKE_CPP * 6);
-    assert_eq!(statements[0].sql(), CharStatements::DEL_CHAR_GLYPHS.sql());
-    assert_eq!(statements[0].params(), &[wow_database::SqlParam::U64(42)]);
-    assert_eq!(
-        statements[1].params(),
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U8(0),
-            wow_database::SqlParam::U8(0),
-            wow_database::SqlParam::U16(123),
-        ]
-    );
-    assert_eq!(
-        statements[24].params(),
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U8(3),
-            wow_database::SqlParam::U8(5),
-            wow_database::SqlParam::U16(456),
-        ],
-        "C++ _SaveGlyphs inserts every spec/slot, including zero glyph ids"
-    );
-}
-
-#[test]
-fn character_action_button_save_requires_coherent_load_like_cpp() {
-    let (session, _, _) = make_session();
-
-    assert!(
-        session
-            .character_action_button_save_statements_like_cpp(42)
-            .is_none(),
-        "Rust must not delete character_action unless the represented action buttons were loaded coherently"
-    );
-}
-
-#[test]
-fn character_action_button_save_deletes_and_reinserts_non_empty_buttons_like_cpp() {
-    let (mut session, _, _) = make_session();
-    session.set_represented_active_talent_group_like_cpp(1);
-    session.reset_represented_action_buttons_like_cpp();
-    assert!(session.record_loaded_action_button_like_cpp(7, 12_345, 0x80));
-    assert!(session.record_loaded_action_button_like_cpp(2, 1_337, 0x40));
-    session.mark_represented_action_buttons_loaded_like_cpp();
-
-    let statements = session
-        .character_action_button_save_statements_like_cpp(42)
-        .expect("loaded action buttons should be persisted");
-
-    assert_eq!(statements.len(), 3);
-    assert_eq!(
-        statements[0].sql(),
-        CharStatements::DEL_CHAR_ACTION_BY_SPEC.sql()
-    );
-    assert_eq!(
-        statements[0].params(),
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U8(1),
-            wow_database::SqlParam::I32(0),
-        ],
-        "saving active spec 1 must leave action bars for every other spec/config untouched"
-    );
-
-    assert_eq!(statements[1].sql(), CharStatements::INS_CHAR_ACTION.sql());
-    assert_eq!(
-        statements[1].params(),
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U8(1),
-            wow_database::SqlParam::I32(0),
-            wow_database::SqlParam::U8(2),
-            wow_database::SqlParam::U32(1_337),
-            wow_database::SqlParam::U8(0x40),
-        ]
-    );
-    assert_eq!(
-        statements[2].params(),
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U8(1),
-            wow_database::SqlParam::I32(0),
-            wow_database::SqlParam::U8(7),
-            wow_database::SqlParam::U32(12_345),
-            wow_database::SqlParam::U8(0x80),
-        ]
-    );
-}
-
-#[test]
-fn character_action_button_save_reflects_represented_set_action_button_like_cpp() {
-    let (mut session, _, _) = make_session();
-    session.reset_represented_action_buttons_like_cpp();
-    session.mark_represented_action_buttons_loaded_like_cpp();
-    assert!(session.represented_set_action_button_like_cpp(9, 1_337 | (0x40 << 24)));
-    assert!(session.represented_set_action_button_like_cpp(9, 0));
-
-    let statements = session
-        .character_action_button_save_statements_like_cpp(42)
-        .expect("loaded action buttons should be persisted");
-
-    assert_eq!(statements.len(), 1);
-    assert_eq!(
-        statements[0].sql(),
-        CharStatements::DEL_CHAR_ACTION_BY_SPEC.sql(),
-        "C++ RemoveActionButton scopes deletes to the active spec/config; represented Rust uses a coherent scoped delete+insert snapshot"
-    );
-}
-
-#[test]
-fn equipment_set_save_requires_coherent_load_like_cpp() {
-    let (session, _, _) = make_session();
-
-    assert!(
-        session.equipment_set_save_statements_like_cpp(42).is_none(),
-        "Rust must not mutate equipment-set DB rows unless both equipment/transmog set tables were loaded coherently"
-    );
-}
-
-#[test]
-fn equipment_set_save_builds_cpp_insert_update_delete_statements() {
-    let (mut session, _, _) = make_session();
-    session.mark_represented_equipment_sets_loaded_like_cpp();
-
-    let mut new_equipment = RepresentedEquipmentSetLikeCpp::equipment(
-        3,
-        1,
-        RepresentedEquipmentSetUpdateStateLikeCpp::New,
-    );
-    new_equipment.guid = 100;
-    new_equipment.set_name = "Tank".to_string();
-    new_equipment.set_icon = "INV_Shield".to_string();
-    new_equipment.ignore_mask = 7;
-    new_equipment.pieces[0] = ObjectGuid::create_item(1, 55);
-    session.insert_represented_equipment_set_like_cpp(100, new_equipment);
-
-    let mut changed_transmog = RepresentedEquipmentSetLikeCpp::transmog(
-        4,
-        -1,
-        RepresentedEquipmentSetUpdateStateLikeCpp::Changed,
-    );
-    changed_transmog.guid = 200;
-    changed_transmog.set_name = "Look".to_string();
-    changed_transmog.set_icon = "INV_Chest".to_string();
-    changed_transmog.ignore_mask = 9;
-    changed_transmog.appearances[0] = 11;
-    changed_transmog.enchants = [123, 456];
-    session.insert_represented_equipment_set_like_cpp(200, changed_transmog);
-
-    let mut deleted_equipment = RepresentedEquipmentSetLikeCpp::equipment(
-        5,
-        -1,
-        RepresentedEquipmentSetUpdateStateLikeCpp::Deleted,
-    );
-    deleted_equipment.guid = 300;
-    session.insert_represented_equipment_set_like_cpp(300, deleted_equipment);
-
-    let statements = session
-        .equipment_set_save_statements_like_cpp(42)
-        .expect("coherently loaded equipment sets should be saveable");
-
-    assert_eq!(statements.len(), 3);
-    let inserted_equipment = statements
-        .iter()
-        .find(|statement| statement.sql() == CharStatements::INS_EQUIP_SET.sql())
-        .expect("equipment-set save plan should contain the new equipment row");
-    assert_eq!(
-        &inserted_equipment.params()[0..8],
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U64(100),
-            wow_database::SqlParam::U32(3),
-            wow_database::SqlParam::String("Tank".to_string()),
-            wow_database::SqlParam::String("INV_Shield".to_string()),
-            wow_database::SqlParam::U32(7),
-            wow_database::SqlParam::I32(1),
-            wow_database::SqlParam::U64(55),
-        ]
-    );
-
-    let updated_transmog = statements
-        .iter()
-        .find(|statement| statement.sql() == CharStatements::UPD_TRANSMOG_OUTFIT.sql())
-        .expect("equipment-set save plan should contain the changed transmog row");
-    assert_eq!(
-        &updated_transmog.params()[0..6],
-        &[
-            wow_database::SqlParam::String("Look".to_string()),
-            wow_database::SqlParam::String("INV_Chest".to_string()),
-            wow_database::SqlParam::U32(9),
-            wow_database::SqlParam::I32(11),
-            wow_database::SqlParam::I32(0),
-            wow_database::SqlParam::I32(0),
-        ]
-    );
-    assert_eq!(
-        &updated_transmog.params()[22..27],
-        &[
-            wow_database::SqlParam::I32(123),
-            wow_database::SqlParam::I32(456),
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U64(200),
-            wow_database::SqlParam::U32(4),
-        ]
-    );
-
-    let deleted_equipment = statements
-        .iter()
-        .find(|statement| statement.sql() == CharStatements::DEL_EQUIP_SET.sql())
-        .expect("equipment-set save plan should contain the deleted equipment row");
-    assert_eq!(
-        deleted_equipment.params(),
-        &[wow_database::SqlParam::U64(300)]
-    );
 }
 
 #[test]
@@ -58556,78 +57568,6 @@ fn cuf_profile_for_save_test(name: &str, height: u16) -> wow_packet::packets::mi
 }
 
 #[test]
-fn cuf_profile_save_requires_coherent_load_like_cpp() {
-    let (session, _, _) = make_session();
-
-    assert!(
-        session.cuf_profile_save_statements_like_cpp(42).is_none(),
-        "Rust must not mutate character_cuf_profiles unless CUF profiles were loaded coherently"
-    );
-}
-
-#[test]
-fn cuf_profile_save_replaces_present_and_deletes_missing_slots_like_cpp() {
-    let (mut session, _, _) = make_session();
-    session.clear_represented_cuf_profiles_like_cpp();
-    assert!(
-        session.load_represented_cuf_profile_like_cpp(1, cuf_profile_for_save_test("Raid", 72))
-    );
-    session.mark_represented_cuf_profiles_loaded_like_cpp();
-
-    let statements = session
-        .cuf_profile_save_statements_like_cpp(42)
-        .expect("loaded CUF profiles should be persisted");
-
-    assert_eq!(
-        statements.len(),
-        wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP
-    );
-    assert_eq!(
-        statements[0].sql(),
-        CharStatements::DEL_CHAR_CUF_PROFILES_BY_ID.sql()
-    );
-    assert_eq!(
-        statements[0].params(),
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U8(0),
-        ]
-    );
-
-    assert_eq!(
-        statements[1].sql(),
-        CharStatements::REP_CHAR_CUF_PROFILES.sql()
-    );
-    assert_eq!(
-        statements[1].params(),
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U8(1),
-            wow_database::SqlParam::String("Raid".to_string()),
-            wow_database::SqlParam::U16(72),
-            wow_database::SqlParam::U16(120),
-            wow_database::SqlParam::U8(1),
-            wow_database::SqlParam::U8(2),
-            wow_database::SqlParam::U32(0b10101),
-            wow_database::SqlParam::U8(3),
-            wow_database::SqlParam::U8(4),
-            wow_database::SqlParam::U8(5),
-            wow_database::SqlParam::U16(6),
-            wow_database::SqlParam::U16(7),
-            wow_database::SqlParam::U16(8),
-        ]
-    );
-
-    assert_eq!(
-        statements[4].params(),
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U8(4),
-        ]
-    );
-}
-
-#[test]
 fn tutorial_flags_default_to_zeroes_like_cpp() {
     let (mut session, _, _) = make_session();
     session.load_tutorials_data_values_like_cpp(None);
@@ -58637,46 +57577,6 @@ fn tutorial_flags_default_to_zeroes_like_cpp() {
         [0; 8],
         "C++ LoadTutorialsData zeroes _tutorials when account_tutorial has no row"
     );
-    assert!(session.tutorial_save_statement_like_cpp(77).is_none());
-}
-
-#[test]
-fn tutorial_update_builds_insert_statement_like_cpp() {
-    let (mut session, _, _) = make_session();
-    session.load_tutorials_data_values_like_cpp(None);
-
-    assert!(session.apply_tutorial_action_like_cpp(
-        wow_packet::packets::misc::TUTORIAL_ACTION_UPDATE_LIKE_CPP,
-        Some(37)
-    ));
-    let stmt = session
-        .tutorial_save_statement_like_cpp(77)
-        .expect("changed tutorial flags should save");
-
-    assert_eq!(stmt.sql(), CharStatements::INS_TUTORIALS.sql());
-    assert_eq!(stmt.params().len(), 9);
-    assert_eq!(stmt.params()[0], wow_database::SqlParam::U32(0));
-    assert_eq!(stmt.params()[1], wow_database::SqlParam::U32(1 << 5));
-    assert_eq!(stmt.params()[8], wow_database::SqlParam::U32(77));
-}
-
-#[test]
-fn tutorial_loaded_row_builds_update_statement_like_cpp() {
-    let (mut session, _, _) = make_session();
-    session.load_tutorials_data_values_like_cpp(Some([0, 1, 2, 3, 4, 5, 6, 7]));
-
-    assert!(session.apply_tutorial_action_like_cpp(
-        wow_packet::packets::misc::TUTORIAL_ACTION_UPDATE_LIKE_CPP,
-        Some(64)
-    ));
-    let stmt = session
-        .tutorial_save_statement_like_cpp(88)
-        .expect("changed tutorial flags should save");
-
-    assert_eq!(stmt.sql(), CharStatements::UPD_TUTORIALS.sql());
-    assert_eq!(stmt.params()[0], wow_database::SqlParam::U32(0));
-    assert_eq!(stmt.params()[2], wow_database::SqlParam::U32(3));
-    assert_eq!(stmt.params()[8], wow_database::SqlParam::U32(88));
 }
 
 #[test]
@@ -58700,17 +57600,6 @@ fn tutorial_clear_and_reset_match_cpp_actions() {
     assert_eq!(
         session.tutorial_flags_packet_like_cpp().tutorial_data,
         [0; 8]
-    );
-}
-
-#[test]
-fn tutorial_save_requires_coherent_load_like_cpp() {
-    let (mut session, _, _) = make_session();
-
-    assert!(session.set_tutorial_int_like_cpp(0, 1));
-    assert!(
-        session.tutorial_save_statement_like_cpp(77).is_none(),
-        "Rust must not insert/update account_tutorial after a failed or skipped load"
     );
 }
 

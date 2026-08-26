@@ -50,6 +50,7 @@
     152,
     200,
     286,
+    384,
     189,
     192,
     193,
@@ -648,7 +649,7 @@
     },
     {
       "number": 286,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.4b] Move the Player character-save statement plan behind the lifecycle port",
       "kind": "slice",
       "parents": [
@@ -876,7 +877,7 @@
     },
     {
       "number": 252,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.RUNTIME.PLAYER] Retire the temporary PlayerBroadcastInfo gameplay mirror",
       "kind": "slice",
       "parents": [
@@ -935,6 +936,19 @@
       ],
       "depends_on": [
         297
+      ]
+    },
+    {
+      "number": 384,
+      "state": "open",
+      "title": "[ARCH.DB.4c] Retire Session save builders made obsolete by the lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        286
       ]
     }
   ]
