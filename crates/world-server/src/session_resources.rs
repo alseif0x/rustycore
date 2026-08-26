@@ -209,6 +209,7 @@ pub(super) struct SessionResources {
     pub(super) chr_specialization_store: Option<Arc<wow_data::ChrSpecializationStore>>,
     pub(super) dungeon_encounter_store: Option<Arc<wow_data::DungeonEncounterStore>>,
     pub(super) map_store: Option<Arc<wow_data::MapStore>>,
+    pub(super) world_safe_loc_store: Option<Arc<wow_data::WorldSafeLocStore>>,
     pub(super) map_difficulty_store: Option<Arc<wow_data::MapDifficultyStore>>,
     pub(super) map_difficulty_x_condition_store:
         Option<Arc<wow_data::MapDifficultyXConditionStore>>,

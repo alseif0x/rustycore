@@ -376,14 +376,12 @@ impl WorldSession {
                 player_guid = guid.counter(),
                 "repairing invalid, instanceable, or expansion-inaccessible character homebind like C++ Player::_LoadHomeBind"
             );
-            self.delete_invalid_character_homebind_like_cpp(char_db.as_ref(), guid)
-                .await;
+            self.delete_invalid_character_homebind_like_cpp(guid).await;
         }
         let repaired_or_valid_homebind = if let Some(homebind) = valid_login_homebind {
             Some(homebind)
         } else {
             self.repair_character_homebind_like_cpp(
-                char_db.as_ref(),
                 guid,
                 race,
                 player_create_info,

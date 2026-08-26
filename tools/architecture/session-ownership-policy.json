@@ -5144,6 +5144,13 @@
           "visibility": "private",
           "cfg": [],
           "source_class": "production"
+        },
+        {
+          "name": "world_safe_loc_store_like_cpp",
+          "type": "Option < Arc < WorldSafeLocStore > >",
+          "visibility": "private",
+          "cfg": [],
+          "source_class": "production"
         }
       ],
       "impls": [
@@ -6700,7 +6707,7 @@
           "kind": "method",
           "name": "load_default_graveyard_homebind_like_cpp",
           "visibility": "pub (super)",
-          "signature": "async fn load_default_graveyard_homebind_like_cpp (& self , race : u8 ,) -> Option < CharacterLoginLocationLikeCpp >",
+          "signature": "fn load_default_graveyard_homebind_like_cpp (& self , race : u8 ,) -> Option < CharacterLoginLocationLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -7088,7 +7095,7 @@
           "kind": "method",
           "name": "delete_invalid_character_homebind_like_cpp",
           "visibility": "pub (super)",
-          "signature": "async fn delete_invalid_character_homebind_like_cpp (& self , char_db : & CharacterDatabase , guid : ObjectGuid ,)",
+          "signature": "async fn delete_invalid_character_homebind_like_cpp (& self , guid : ObjectGuid)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -7699,7 +7706,7 @@
           "kind": "method",
           "name": "persist_repaired_character_homebind_like_cpp",
           "visibility": "private",
-          "signature": "async fn persist_repaired_character_homebind_like_cpp (& self , char_db : & CharacterDatabase , guid : ObjectGuid , homebind : CharacterLoginLocationLikeCpp ,)",
+          "signature": "async fn persist_repaired_character_homebind_like_cpp (& self , guid : ObjectGuid , homebind : CharacterLoginLocationLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -7712,7 +7719,7 @@
           "kind": "method",
           "name": "repair_character_homebind_like_cpp",
           "visibility": "pub (super)",
-          "signature": "async fn repair_character_homebind_like_cpp (& self , char_db : & CharacterDatabase , guid : ObjectGuid , race : u8 , player_create_info : PlayerCreateInfoLikeCpp , create_mode : u8 , first_login : bool ,) -> Option < CharacterLoginLocationLikeCpp >",
+          "signature": "async fn repair_character_homebind_like_cpp (& self , guid : ObjectGuid , race : u8 , player_create_info : PlayerCreateInfoLikeCpp , create_mode : u8 , first_login : bool ,) -> Option < CharacterLoginLocationLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -21739,17 +21746,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "build_player_homebind_update_statement_like_cpp",
-          "visibility": "private",
-          "signature": "fn build_player_homebind_update_statement_like_cpp (homebind : RepresentedHomebindLikeCpp , guid_counter : u64 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "build_void_storage_delete_all_statement_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn build_void_storage_delete_all_statement_like_cpp (player_guid_counter : u64 ,) -> PreparedStatement",
@@ -29320,6 +29316,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_homebind_update_request_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_homebind_update_request_like_cpp (homebind : RepresentedHomebindLikeCpp , guid_counter : u64 ,) -> wow_persistence :: PlayerHomebindPersistenceRequestLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -45547,6 +45554,20 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "set_world_safe_loc_store_like_cpp",
+          "visibility": "pub",
+          "signature": "fn set_world_safe_loc_store_like_cpp (& mut self , store : Arc < WorldSafeLocStore >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "setup_currencies_packet_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn setup_currencies_packet_like_cpp (& self) -> SetupCurrency",
@@ -48376,6 +48397,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "world_safe_loc_store_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn world_safe_loc_store_like_cpp (& self) -> Option < & Arc < WorldSafeLocStore > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "xp_in_group_rate_like_cpp",
           "visibility": "private",
           "signature": "fn xp_in_group_rate_like_cpp (count : u32 , is_raid : bool) -> f32",
@@ -50268,13 +50302,20 @@
           "visibility": "pub (super)",
           "cfg": [],
           "source_class": "production"
+        },
+        {
+          "name": "world_safe_loc_store",
+          "type": "Option < Arc < wow_data :: WorldSafeLocStore > >",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "source_class": "production"
         }
       ],
       "construction_sites": [
         {
           "module": "crate::app",
           "callee": "SessionResources",
-          "argument_count": 247,
+          "argument_count": 248,
           "cfg": [],
           "source_class": "production",
           "count": 1
@@ -50290,7 +50331,7 @@
         "source_class": "production"
       },
       "signature": "async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , object_accessor : wow_world :: SharedObjectAccessor , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)",
-      "body_fingerprint": "fnv1a64x2:f55508a68b6d3c959a0020c6d10512be:len=33609",
+      "body_fingerprint": "fnv1a64x2:8d9b3190c909b53aaae36134d507ca15:len=33741",
       "session_helper_bodies": [
         {
           "module": "crate::session_factory",
@@ -52521,6 +52562,14 @@
         {
           "module": "crate::session_factory",
           "callee": "session.set_world_db",
+          "argument_count": 1,
+          "cfg": [],
+          "source_class": "production",
+          "count": 1
+        },
+        {
+          "module": "crate::session_factory",
+          "callee": "session.set_world_safe_loc_store_like_cpp",
           "argument_count": 1,
           "cfg": [],
           "source_class": "production",
@@ -64669,7 +64718,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , object_accessor : wow_world :: SharedObjectAccessor , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)|body=fnv1a64x2:f55508a68b6d3c959a0020c6d10512be:len=33609|evidence=fnv1a64x2:dd605b9d3e8a9dcc82cdedbf620fbe8f:len=741",
+          "fingerprint": "signature=async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , object_accessor : wow_world :: SharedObjectAccessor , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)|body=fnv1a64x2:8d9b3190c909b53aaae36134d507ca15:len=33741|evidence=fnv1a64x2:dd605b9d3e8a9dcc82cdedbf620fbe8f:len=741",
           "cfg": [],
           "multiplicity": 1
         },
@@ -73037,7 +73086,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:07bb65d836ee32fe23d6b016dbd5b78d:len=91190|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:87a5a7ed5fbf45f003154a72955f5f4b:len=91261|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

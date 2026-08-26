@@ -144,7 +144,7 @@ use wow_data::{
     TalentStore, TalentTabStore, TavernAreaTriggerStoreLikeCpp, ToyStore, TrainerStoreLikeCpp,
     TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
     VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
-    VehicleTemplateStoreLikeCpp, calculate_battle_pet_stats_like_cpp,
+    VehicleTemplateStoreLikeCpp, WorldSafeLocStore, calculate_battle_pet_stats_like_cpp,
     is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, CurvePointStore, CurveStore, FactionEntry, FactionStore,
@@ -2362,8 +2362,8 @@ pub(crate) struct RepresentedHomebindLikeCpp {
 }
 
 struct HomebindPersistenceJobLikeCpp {
-    char_db: Arc<CharacterDatabase>,
-    update_stmt: PreparedStatement,
+    port: Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>,
+    request: wow_persistence::PlayerHomebindPersistenceRequestLikeCpp,
     guid_counter: u64,
 }
 
@@ -5604,6 +5604,7 @@ pub struct WorldSession {
 
     // Map stores (Map.db2 + MapDifficulty.db2)
     map_store: Option<Arc<MapStore>>,
+    world_safe_loc_store_like_cpp: Option<Arc<WorldSafeLocStore>>,
     map_difficulty_store: Option<Arc<MapDifficultyStore>>,
     map_difficulty_x_condition_store: Option<Arc<MapDifficultyXConditionStore>>,
     access_requirement_store: Option<Arc<AccessRequirementStoreLikeCpp>>,
@@ -7865,6 +7866,7 @@ impl WorldSession {
             chr_specialization_store: None,
             dungeon_encounter_store: None,
             map_store: None,
+            world_safe_loc_store_like_cpp: None,
             map_difficulty_store: None,
             map_difficulty_x_condition_store: None,
             access_requirement_store: None,
@@ -25016,6 +25018,14 @@ impl WorldSession {
 
     pub(crate) fn map_store(&self) -> Option<&Arc<MapStore>> {
         self.map_store.as_ref()
+    }
+
+    pub fn set_world_safe_loc_store_like_cpp(&mut self, store: Arc<WorldSafeLocStore>) {
+        self.world_safe_loc_store_like_cpp = Some(store);
+    }
+
+    pub(crate) fn world_safe_loc_store_like_cpp(&self) -> Option<&Arc<WorldSafeLocStore>> {
+        self.world_safe_loc_store_like_cpp.as_ref()
     }
 
     pub fn set_map_difficulty_store(&mut self, store: Arc<MapDifficultyStore>) {
@@ -63529,32 +63539,30 @@ impl WorldSession {
         });
     }
 
-    fn build_player_homebind_update_statement_like_cpp(
+    fn player_homebind_update_request_like_cpp(
         homebind: RepresentedHomebindLikeCpp,
         guid_counter: u64,
-    ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_PLAYER_HOMEBIND);
-        // C++ PreparedStatement::setUInt16 receives these uint32 fields and
-        // narrows modulo 2^16 at the call boundary.
-        stmt.set_u16(0, homebind.map_id as u16);
-        stmt.set_u16(1, homebind.area_id as u16);
-        stmt.set_f32(2, homebind.position.x);
-        stmt.set_f32(3, homebind.position.y);
-        stmt.set_f32(4, homebind.position.z);
-        stmt.set_f32(5, homebind.position.orientation);
-        stmt.set_u64(6, guid_counter);
-        stmt
+    ) -> wow_persistence::PlayerHomebindPersistenceRequestLikeCpp {
+        wow_persistence::PlayerHomebindPersistenceRequestLikeCpp::UpdateLive {
+            player_guid: guid_counter,
+            map_id: homebind.map_id,
+            area_id: homebind.area_id,
+            x: homebind.position.x,
+            y: homebind.position.y,
+            z: homebind.position.z,
+            orientation: homebind.position.orientation,
+        }
     }
 
     fn persist_player_homebind_like_cpp(&mut self, homebind: RepresentedHomebindLikeCpp) {
-        let (Some(player_guid), Some(char_db)) =
-            (self.player_guid(), self.char_db().map(Arc::clone))
-        else {
+        let (Some(player_guid), Some(port)) = (
+            self.player_guid(),
+            self.player_lifecycle_port_like_cpp().map(Arc::clone),
+        ) else {
             return;
         };
         let guid_counter = player_guid.counter() as u64;
-        let update_stmt =
-            Self::build_player_homebind_update_statement_like_cpp(homebind, guid_counter);
+        let request = Self::player_homebind_update_request_like_cpp(homebind, guid_counter);
         // C++ Player::SetHomebind queues CharacterDatabase.Execute(stmt) on
         // the ordered database worker and immediately sends the bind packets.
         // Send it to one FIFO worker so SQL latency stays off the packet path
@@ -63566,12 +63574,15 @@ impl WorldSession {
                     tokio::sync::mpsc::unbounded_channel::<HomebindPersistenceJobLikeCpp>();
                 tokio::spawn(async move {
                     while let Some(job) = rx.recv().await {
-                        if let Err(error) = job.char_db.execute(&job.update_stmt).await {
-                            warn!(
-                                player_guid = job.guid_counter,
-                                %error,
-                                "failed to update represented player homebind"
-                            );
+                        match job.port.persist_homebind_like_cpp(job.request).await {
+                            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+                            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+                            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                                warn!(
+                                    player_guid = job.guid_counter,
+                                    "failed to update represented player homebind: {reason}"
+                                );
+                            }
                         }
                     }
                 });
@@ -63579,8 +63590,8 @@ impl WorldSession {
             });
         if persistence_tx
             .send(HomebindPersistenceJobLikeCpp {
-                char_db,
-                update_stmt,
+                port,
+                request,
                 guid_counter,
             })
             .is_err()

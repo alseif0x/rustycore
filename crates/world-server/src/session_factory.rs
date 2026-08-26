@@ -702,6 +702,9 @@ pub(super) async fn create_session(
     if let Some(ref store) = resources.map_store {
         session.set_map_store(Arc::clone(store));
     }
+    if let Some(ref store) = resources.world_safe_loc_store {
+        session.set_world_safe_loc_store_like_cpp(Arc::clone(store));
+    }
     if let Some(ref store) = resources.map_difficulty_store {
         session.set_map_difficulty_store(Arc::clone(store));
     }
