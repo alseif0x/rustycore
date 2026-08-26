@@ -439,16 +439,14 @@ impl super::WorldSession {
         };
 
         let mut sent = 0usize;
-        for recipient in registry.runtime_recipients() {
-            if !affected_account_ids.contains(&recipient.account_id) {
-                continue;
-            }
+        for (account_id, registration) in registry.registrations_for_accounts(affected_account_ids)
+        {
             let command = SessionCommand::KickLikeCpp(KickLikeCppCommand {
                 reason: "World::BanAccount Banning account".to_string(),
             });
-            if let Err(error) = registry.try_send_current_command(recipient.registration, command) {
+            if let Err(error) = registry.try_send_current_command(registration, command) {
                 warn!(
-                    account = recipient.account_id,
+                    account = account_id,
                     ?error,
                     "AntiDOS: failed to queue PacketSpoof ban kick for affected session"
                 );

@@ -21,6 +21,7 @@ mod vitals;
 
 use std::collections::HashSet;
 
+use crate::PlayerGameplayState;
 use bitflags::bitflags;
 use wow_constants::{
     BagFamilyMask, EnchantmentSlot, Gender, InventoryResult, InventoryType, ItemBondingType,
@@ -414,6 +415,9 @@ pub struct PlayerQuestGameplayState {
     pub weekly_quest_ids: Vec<u32>,
     pub monthly_quest_ids: Vec<u32>,
     pub seasonal_quest_ids: Vec<u32>,
+    pub df_quest_ids: Vec<u32>,
+    pub pending_share: Option<(ObjectGuid, u32)>,
+    pub objective_counts_by_quest: Vec<(u32, Vec<i32>)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -493,6 +497,25 @@ pub struct PlayerSocialState {
     pub friend_guids: Vec<ObjectGuid>,
     pub ignore_guids: Vec<ObjectGuid>,
     pub auto_reply_msg_like_cpp: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerCustomizationChoice {
+    pub option_id: u32,
+    pub choice_id: u32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayerTransportState {
+    pub guid: ObjectGuid,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+    pub orientation: f32,
+    pub seat: i8,
+    pub time: u32,
+    pub prev_time: Option<u32>,
+    pub vehicle_id: Option<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -619,34 +642,6 @@ pub struct PlayerDuelInfoLikeCpp {
 /// This state is intentionally independent from update masks. Runtime managers, DB loaders,
 /// packet serializers/delivery, spell/aura execution, social/mail managers and session queues
 /// remain separate layers and should consume/produce these buckets explicitly.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct PlayerGameplayState {
-    pub quests: PlayerQuestGameplayState,
-    pub skills: Vec<PlayerSkillRecord>,
-    pub spells: Vec<PlayerKnownSpellRecord>,
-    pub talents: Vec<PlayerTalentRecord>,
-    pub action_buttons: Vec<PlayerActionButtonRecord>,
-    pub taxi: PlayerTaxiState,
-    pub social: PlayerSocialState,
-    pub mails: Vec<PlayerMailRecord>,
-    pub group: Option<PlayerGroupState>,
-    pub guild: PlayerGuildState,
-    pub battleground: PlayerBattlegroundState,
-    pub reputations: Vec<PlayerReputationRecord>,
-    pub achievements: Vec<PlayerAchievementRecord>,
-    pub achievement_criteria: Vec<PlayerAchievementCriteriaRecord>,
-    pub currencies: Vec<PlayerCurrencyRecord>,
-    pub spell_cooldowns: Vec<PlayerSpellCooldownRecord>,
-    pub spell_charges: Vec<PlayerSpellChargeRecord>,
-    pub rest: PlayerRestState,
-}
-
-impl PlayerGameplayState {
-    pub fn is_empty(&self) -> bool {
-        self == &Self::default()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct PlayerGameplayLoadRecord {
     pub state: PlayerGameplayState,

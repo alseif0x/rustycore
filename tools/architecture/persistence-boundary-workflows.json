@@ -10213,6 +10213,127 @@
     },
     {
       "package": "wow-world",
+      "module": "crate::canonical_player_sync",
+      "source": "crates/wow-world/src/canonical_player_sync.rs",
+      "enclosing": "fn hydrate_player_presentation_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "Canonical player in-memory synchronization boundary",
+      "target_issues": [
+        153,
+        169
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "This projection reads session-owned in-memory state; the database targets are conservative dataflow aliases and no connection or transaction is acquired.",
+      "current_order": "Preserve the one-way session-to-canonical projection order; no persistence order is inferred from the conservative aliases.",
+      "failure_and_unknown_commit": "No database commit occurs in this projection; unresolved canonical ownership leaves the value unknown and suppresses the mutation."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::canonical_player_sync",
+      "source": "crates/wow-world/src/canonical_player_sync.rs",
+      "enclosing": "fn sync_player_directory_gameplay_to_canonical_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "Canonical player in-memory synchronization boundary",
+      "target_issues": [
+        153,
+        169
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "This projection reads session-owned in-memory state; the database targets are conservative dataflow aliases and no connection or transaction is acquired.",
+      "current_order": "Preserve the one-way session-to-canonical projection order; no persistence order is inferred from the conservative aliases.",
+      "failure_and_unknown_commit": "No database commit occurs in this projection; unresolved canonical ownership leaves the value unknown and suppresses the mutation."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::canonical_player_sync",
+      "source": "crates/wow-world/src/canonical_player_sync.rs",
+      "enclosing": "fn sync_player_level_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "Canonical player in-memory synchronization boundary",
+      "target_issues": [
+        153,
+        169
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "This projection reads session-owned in-memory state; the database targets are conservative dataflow aliases and no connection or transaction is acquired.",
+      "current_order": "Preserve the one-way session-to-canonical projection order; no persistence order is inferred from the conservative aliases.",
+      "failure_and_unknown_commit": "No database commit occurs in this projection; unresolved canonical ownership leaves the value unknown and suppresses the mutation."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::canonical_player_sync",
+      "source": "crates/wow-world/src/canonical_player_sync.rs",
+      "enclosing": "fn sync_player_liquid_status_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "Canonical player in-memory synchronization boundary",
+      "target_issues": [
+        153,
+        169
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "This projection reads session-owned in-memory state; the database targets are conservative dataflow aliases and no connection or transaction is acquired.",
+      "current_order": "Preserve the one-way session-to-canonical projection order; no persistence order is inferred from the conservative aliases.",
+      "failure_and_unknown_commit": "No database commit occurs in this projection; unresolved canonical ownership leaves the value unknown and suppresses the mutation."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::canonical_player_sync",
+      "source": "crates/wow-world/src/canonical_player_sync.rs",
+      "enclosing": "fn sync_player_primary_specialization_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "Canonical player in-memory synchronization boundary",
+      "target_issues": [
+        153,
+        169
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "This projection reads session-owned in-memory state; the database targets are conservative dataflow aliases and no connection or transaction is acquired.",
+      "current_order": "Preserve the one-way session-to-canonical projection order; no persistence order is inferred from the conservative aliases.",
+      "failure_and_unknown_commit": "No database commit occurs in this projection; unresolved canonical ownership leaves the value unknown and suppresses the mutation."
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::canonical_player_sync",
+      "source": "crates/wow-world/src/canonical_player_sync.rs",
+      "enclosing": "fn sync_player_zone_area_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "Canonical player in-memory synchronization boundary",
+      "target_issues": [
+        153,
+        169
+      ],
+      "stable_boundary": false,
+      "connection_affinity": "This projection reads session-owned in-memory state; the database targets are conservative dataflow aliases and no connection or transaction is acquired.",
+      "current_order": "Preserve the one-way session-to-canonical projection order; no persistence order is inferred from the conservative aliases.",
+      "failure_and_unknown_commit": "No database commit occurs in this projection; unresolved canonical ownership leaves the value unknown and suppresses the mutation."
+    },
+
+    {
+      "package": "wow-world",
       "module": "crate::handlers::character::account",
       "source": "crates/wow-world/src/handlers/character/account.rs",
       "enclosing": "impl WorldSession::build_character_account_offline_statement_like_cpp",

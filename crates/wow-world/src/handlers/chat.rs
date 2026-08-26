@@ -1614,9 +1614,7 @@ fn secs_to_full_time_string_like_cpp(time_in_secs: u64) -> String {
 mod tests {
     use super::*;
     use crate::session::AuraApplication;
-    use crate::session::directory::{
-        PlayerBroadcastInfo, PlayerRegistry, PlayerSessionRegistrationLikeCpp,
-    };
+    use crate::session::directory::{PlayerRegistry, PlayerSessionRegistrationLikeCpp};
     use crate::session_policy::{
         ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
     };
@@ -1985,44 +1983,7 @@ mod tests {
                 level: 80,
                 is_alive: true,
             },
-            info: PlayerBroadcastInfo {
-                combat_reach: 0.0,
-                liquid_status: 0,
-                active_loot_rolls: Vec::new(),
-                in_combat: false,
-                pass_on_group_loot: false,
-                enchanting_skill: 0,
-                transport: None,
-                is_afk: false,
-                is_dnd: false,
-                in_vehicle: false,
-                has_vehicle_kit_like_cpp: false,
-                party_member_vehicle_seat: 0,
-                zone_id: 0,
-                spec_id: 0,
-                unit_flags: 0,
-                unit_state: 0,
-                is_game_master: false,
-                dungeon_difficulty_id: 1,
-                pending_quest_sharing: None,
-                known_spells: Vec::new(),
-                active_quest_statuses: HashMap::new(),
-                active_quest_objective_counts: HashMap::new(),
-                rewarded_quests: HashSet::new(),
-                completed_achievements: HashSet::new(),
-                daily_quests_completed: HashSet::new(),
-                df_quests: HashSet::new(),
-                faction_template_id: 0,
-                forced_reputation_ranks: Vec::new(),
-                inventory_item_counts: HashMap::new(),
-                party_member_phase_states: Default::default(),
-                party_member_auras: Vec::new(),
-                party_member_pet_stats: None,
-                gray_level: 0,
-                display_id: 49,
-                visible_items: std::sync::Arc::new([(0, 0, 0); 19]),
-                customizations: std::sync::Arc::default(),
-            },
+            active_loot_rolls: Vec::new(),
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
@@ -2096,7 +2057,7 @@ mod tests {
         session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
         session.set_player_map_position_like_cpp(571, wow_core::Position::ZERO);
 
-        let player_registry = Arc::new(PlayerRegistry::default());
+        let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
         player_registry.register_or_replace(
             sender_guid,
             broadcast_info(sender_guid, send_tx),
@@ -2106,31 +2067,41 @@ mod tests {
         (session, player_registry, send_rx)
     }
 
+    fn bind_canonical_player_like_cpp(
+        registry: &PlayerRegistry,
+        guid: ObjectGuid,
+        configure: impl FnOnce(&mut wow_entities::Player),
+    ) -> crate::session::SharedCanonicalMapManager {
+        let canonical = registry
+            .fixture_canonical_map_manager_like_cpp()
+            .expect("canonical player fixture manager");
+        let mut manager = canonical.lock().unwrap();
+        let map = manager.create_world_map(571, 0).map_mut();
+        if map.get_typed_player(guid).is_none() {
+            let mut player = wow_entities::Player::new(Some(1), false);
+            player.unit_mut().world_mut().object_mut().create(guid);
+            player.unit_mut().world_mut().set_map(571, 0).unwrap();
+            player.unit_mut().world_mut().object_mut().add_to_world();
+            map.insert_map_object_record(
+                wow_entities::MapObjectRecord::new_player(player).unwrap(),
+            )
+            .unwrap();
+        }
+        configure(map.get_typed_player_mut(guid).expect("canonical player"));
+        drop(manager);
+        canonical
+    }
+
     fn bind_social_presence_like_cpp(
         registry: &PlayerRegistry,
         guid: ObjectGuid,
         flag: u32,
         message: &str,
     ) {
-        registry.fixture_update(guid, |info, _| {
-            info.is_afk = flag == crate::session::PLAYER_FLAGS_AFK_LIKE_CPP;
-            info.is_dnd = flag == crate::session::PLAYER_FLAGS_DND_LIKE_CPP;
+        bind_canonical_player_like_cpp(registry, guid, |player| {
+            player.set_player_flag(flag);
+            player.gameplay_state_mut().social.auto_reply_msg_like_cpp = message.to_string();
         });
-        let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
-        assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
-        let mut player = wow_entities::Player::new(Some(1), false);
-        player.unit_mut().world_mut().object_mut().create(guid);
-        player.unit_mut().world_mut().set_map(571, 0).unwrap();
-        player.unit_mut().world_mut().object_mut().add_to_world();
-        player.set_player_flag(flag);
-        player.gameplay_state_mut().social.auto_reply_msg_like_cpp = message.to_string();
-        canonical
-            .lock()
-            .unwrap()
-            .create_world_map(571, 0)
-            .map_mut()
-            .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
-            .unwrap();
     }
 
     #[tokio::test]
@@ -2812,9 +2783,10 @@ mod tests {
     async fn send_text_emote_fake_death_skips_animation_but_keeps_text_like_cpp() {
         let sender = ObjectGuid::create_player(1, 352);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
-        player_registry.fixture_update(sender, |info, _| {
-            info.unit_state = UnitState::DIED.bits();
+        let canonical = bind_canonical_player_like_cpp(&player_registry, sender, |player| {
+            player.unit_mut().add_unit_state(UnitState::DIED.bits());
         });
+        session.set_canonical_map_manager(canonical);
         set_emotes_text_entries(&mut session, [emotes_text_entry(66, 3)]);
 
         session.handle_text_emote(text_emote_packet(66, 7)).await;
@@ -3436,7 +3408,7 @@ mod tests {
 
         session.handle_chat_afk(chat_away_packet("away")).await;
 
-        assert!(session.auto_reply_msg_like_cpp().is_none());
+        assert_eq!(session.auto_reply_msg_like_cpp().as_deref(), Some(""));
         let text = print_notification_text(&sender_rx.try_recv().expect("mute notification"));
         assert!(text.starts_with("You must wait "));
         assert!(text.ends_with(" before speaking again."));
@@ -3597,7 +3569,7 @@ mod tests {
 
         session.handle_chat_afk(chat_away_packet("away")).await;
 
-        assert!(session.auto_reply_msg_like_cpp().is_none());
+        assert_eq!(session.auto_reply_msg_like_cpp().as_deref(), Some(""));
         assert_eq!(
             print_notification_text(&sender_rx.try_recv().expect("silence notification")),
             "Silence is ON for Player363"
@@ -3613,7 +3585,7 @@ mod tests {
 
         session.handle_chat_dnd(chat_away_packet("busy")).await;
 
-        assert!(session.auto_reply_msg_like_cpp().is_none());
+        assert_eq!(session.auto_reply_msg_like_cpp().as_deref(), Some(""));
         assert_eq!(
             print_notification_text(&sender_rx.try_recv().expect("silence notification")),
             "Silence is ON for Player430"
@@ -3654,8 +3626,8 @@ mod tests {
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
         target_info.identity.player_name = "Target".to_string();
-        target_info.info.is_game_master = false;
         player_registry.register_or_replace(target, target_info, Default::default());
+        bind_canonical_player_like_cpp(&player_registry, target, |_| {});
         session.visible_auras.insert(1, gm_silence_aura(1));
 
         session
@@ -3678,8 +3650,10 @@ mod tests {
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
         target_info.identity.player_name = "Target".to_string();
-        target_info.info.is_game_master = true;
         player_registry.register_or_replace(target, target_info, Default::default());
+        bind_canonical_player_like_cpp(&player_registry, target, |player| {
+            player.set_game_master_like_cpp(true);
+        });
         session.visible_auras.insert(1, gm_silence_aura(1));
 
         session

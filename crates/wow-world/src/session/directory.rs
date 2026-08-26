@@ -7,10 +7,9 @@
 //! Gameplay values resolve through bounded queries against their canonical owners.
 
 use crate::canonical_player_access::{
-    CanonicalPlayerPartyStateLikeCpp, CanonicalPlayerVitalsLikeCpp, HonorStatsLikeCpp,
-    canonical_player_honor_stats_like_cpp, canonical_player_party_state_like_cpp,
-    canonical_player_reputation_standings_like_cpp,
-    canonical_player_vitals_like_cpp as player_vitals, with_canonical_player_at_like_cpp,
+    HonorStatsLikeCpp, canonical_player_aggro_unit_state_like_cpp,
+    canonical_player_honor_stats_like_cpp, canonical_player_presentation_like_cpp,
+    canonical_player_reputation_standings_like_cpp, with_canonical_player_at_like_cpp,
     with_canonical_player_at_mut_like_cpp,
 };
 use crate::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp;
@@ -29,6 +28,7 @@ use std::sync::{
     Arc, Mutex, OnceLock,
     atomic::{AtomicBool, AtomicU64, Ordering},
 };
+use wow_constants::UnitFlags;
 use wow_core::{ObjectGuid, Position};
 use wow_loot::OwnedLootAuthority;
 use wow_packet::packets::movement::TransportInfo;
@@ -39,19 +39,17 @@ use wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate;
 
 /// Everything a session hands the directory when it registers.
 ///
-/// #270 splits this from [`PlayerBroadcastInfo`]: the projection is the
-/// gameplay state other sessions read, while these handles are this session's
-/// own delivery channels, durable rail, and the visibility/combat-logging state
-/// producers resolve against (#361). They live beside the private registry
-/// entry, exactly as #189 placed the durable loot-money coordinator, so no
-/// remote reader can obtain a handle from a snapshot and no gameplay publish
-/// can replace one.
+/// These are this session's own delivery channels, durable rail, and the
+/// visibility/combat-logging state producers resolve against (#361). They live
+/// beside the private registry entry, exactly as #189 placed the durable
+/// loot-money coordinator, so no remote reader can obtain a handle from a
+/// snapshot and no gameplay publish can replace one.
 #[derive(Clone)]
 pub struct PlayerSessionRegistrationLikeCpp {
     pub identity: PlayerDirectoryIdentityLikeCpp,
     pub placement: PlayerDirectoryPlacementLikeCpp,
-    /// Gameplay projection stored for other sessions to read.
-    pub info: PlayerBroadcastInfo,
+    /// Durable loot-roll identities owned by this session incarnation.
+    pub active_loot_rolls: Vec<LootRollCommandIdentityLikeCpp>,
     /// Channel used to push serialised packets to this player's primary
     /// (instance after `ConnectTo`) socket.
     pub send_tx: flume::Sender<Vec<u8>>,
@@ -125,60 +123,6 @@ pub struct PlayerDirectoryPlacementLikeCpp {
     pub is_in_world: bool,
     pub level: u8,
     pub is_alive: bool,
-}
-
-#[derive(Clone)]
-pub struct PlayerBroadcastInfo {
-    pub combat_reach: f32,
-    pub in_combat: bool,
-    pub liquid_status: u32,
-    pub active_loot_rolls: Vec<LootRollCommandIdentityLikeCpp>,
-    pub pass_on_group_loot: bool,
-    pub enchanting_skill: u16,
-    pub transport: Option<TransportInfo>,
-    pub is_afk: bool,
-    pub is_dnd: bool,
-    pub in_vehicle: bool,
-    pub has_vehicle_kit_like_cpp: bool,
-    pub party_member_vehicle_seat: i32,
-    pub zone_id: u32,
-    pub spec_id: u32,
-    pub unit_flags: u32,
-    pub unit_state: u32,
-    pub is_game_master: bool,
-    pub dungeon_difficulty_id: u32,
-    /// Represented non-empty `Player::GetPlayerSharingQuest()` snapshot for party quest sharing.
-    pub pending_quest_sharing: Option<(ObjectGuid, u32)>,
-    pub known_spells: Vec<i32>,
-    pub active_quest_statuses: HashMap<u32, u8>,
-    pub active_quest_objective_counts: HashMap<u32, Vec<i32>>,
-    pub rewarded_quests: HashSet<u32>,
-    /// C++ `Player::HasAchieved` snapshot for connected-player gates that resolve
-    /// another live player through `ObjectAccessor::FindPlayer`, such as
-    /// `Player::Satisfy(access_requirement)` checking the group leader.
-    pub completed_achievements: HashSet<u32>,
-    /// Represented `ActivePlayerData::DailyQuestsCompleted` snapshot for remote `SatisfyQuestDay`.
-    pub daily_quests_completed: HashSet<u32>,
-    /// Represented `Player::m_DFQuests` snapshot for remote `SatisfyQuestDay`.
-    pub df_quests: HashSet<u32>,
-    /// Represented `Unit::GetFactionTemplateEntry()` id for C++ hostility/reputation checks.
-    pub faction_template_id: u32,
-    /// Represented `Player::GetReputationMgr().GetForcedRankIfAny()` ranks.
-    pub forced_reputation_ranks: Vec<(u32, wow_data::reputation::ReputationRankLikeCpp)>,
-    /// Direct inventory item counts, keyed by item entry, used for remote quest-loot gates.
-    pub inventory_item_counts: HashMap<u32, u32>,
-    /// C++ `PartyMemberPhaseStates` snapshot for SMSG_PARTY_MEMBER_FULL_STATE.
-    pub party_member_phase_states: PartyMemberPhaseStates,
-    /// C++ `PartyMemberAuraStates` snapshot for SMSG_PARTY_MEMBER_FULL_STATE.
-    pub party_member_auras: Vec<PartyMemberAuraState>,
-    /// C++ `PartyMemberPetStats` snapshot for SMSG_PARTY_MEMBER_FULL_STATE.
-    pub party_member_pet_stats: Option<PartyMemberPetStats>,
-    /// C++ `Trinity::XP::GetGrayLevel(level)` snapshot for receiver-side aggro.
-    /// Sessions publish this so global scans retain script-adjusted gray-level state.
-    pub gray_level: u8,
-    pub display_id: u32,
-    pub visible_items: Arc<[(i32, u16, u16); 19]>,
-    pub customizations: Arc<Vec<ChrCustomizationChoiceValuesUpdate>>,
 }
 
 /// Identity of one concrete connected-session registration.
@@ -324,7 +268,6 @@ pub struct PlayerMovementDirectoryUpdate {
     pub is_in_world: bool,
     pub level: u8,
     pub is_alive: bool,
-    pub liquid_status: u32,
     pub transport: Option<TransportInfo>,
 }
 
@@ -506,7 +449,7 @@ struct PlayerRegistryEntry {
     generation: u64,
     identity: PlayerDirectoryIdentityLikeCpp,
     placement: PlayerDirectoryPlacementLikeCpp,
-    info: PlayerBroadcastInfo,
+    active_loot_rolls: Vec<LootRollCommandIdentityLikeCpp>,
     /// Delivery handles for this incarnation, private to the directory (#270).
     ///
     /// They are not part of the projection: publishing gameplay state can no
@@ -523,39 +466,11 @@ struct PlayerRegistryEntry {
     visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
     /// Durable loot-money coordination for this incarnation.
     ///
-    /// Issue #189 keeps this beside the entry rather than inside
-    /// [`PlayerBroadcastInfo`]: it is not a gameplay projection another session
-    /// may read, it is the persistence handle the owning session already holds,
+    /// Issue #189 keeps this beside the entry: it is not gameplay state another
+    /// session may read, it is the persistence handle the owning session already holds,
     /// resolved here only so a remote looter can address the recipient's
     /// coordinator. It creates no second store and no second authority.
     durable_loot_money: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
-}
-
-impl PlayerRegistryEntry {
-    /// One recipient snapshot, built the same way for the bulk and single-GUID
-    /// resolvers so a gate added to one cannot be missed by the other.
-    fn runtime_recipient_like_cpp(&self, guid: ObjectGuid) -> PlayerRuntimeRecipient {
-        PlayerRuntimeRecipient {
-            registration: PlayerRegistration {
-                guid,
-                generation: self.generation,
-            },
-            guid,
-            map_id: self.placement.map_id,
-            instance_id: self.placement.instance_id,
-            position: self.placement.position,
-            combat_reach: self.info.combat_reach,
-            liquid_status: self.info.liquid_status,
-            is_in_world: self.placement.is_in_world,
-            is_alive: self.placement.is_alive,
-            account_id: self.identity.account_id,
-            in_combat: self.info.in_combat,
-            advanced_combat_logging: self
-                .advanced_combat_logging_enabled_like_cpp
-                .load(Ordering::Relaxed),
-            committed_visibility: self.client_visible_guids_like_cpp.clone(),
-        }
-    }
 }
 
 /// Thread-safe directory of active player sessions, keyed by player GUID.
@@ -576,6 +491,8 @@ pub struct PlayerRegistry {
     entries: DashMap<ObjectGuid, PlayerRegistryEntry>,
     next_generation: AtomicU64,
     canonical_map_manager: OnceLock<SharedCanonicalMapManager>,
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(crate) fixture_installs_canonical_players: bool,
 }
 
 impl Default for PlayerRegistry {
@@ -584,6 +501,8 @@ impl Default for PlayerRegistry {
             entries: DashMap::new(),
             next_generation: AtomicU64::new(1),
             canonical_map_manager: OnceLock::new(),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixture_installs_canonical_players: false,
         }
     }
 }
@@ -601,32 +520,8 @@ impl PlayerRegistry {
         self.canonical_map_manager.set(manager).is_ok()
     }
 
-    fn party_state(
-        &self,
-        guid: ObjectGuid,
-        map_id: u16,
-        instance_id: u32,
-    ) -> Option<CanonicalPlayerPartyStateLikeCpp> {
-        let manager = self.canonical_map_manager.get()?;
-        with_canonical_player_at_like_cpp(
-            manager,
-            guid,
-            map_id.into(),
-            instance_id,
-            canonical_player_party_state_like_cpp,
-        )
-    }
-
-    fn create_state(
-        &self,
-        guid: ObjectGuid,
-        map_id: u16,
-        instance_id: u32,
-    ) -> Option<(CanonicalPlayerVitalsLikeCpp, [u8; 2])> {
-        let manager = self.canonical_map_manager.get()?;
-        with_canonical_player_at_like_cpp(manager, guid, map_id.into(), instance_id, |player| {
-            (player_vitals(player), player.data().party_type)
-        })
+    pub(crate) fn canonical_map_manager_like_cpp(&self) -> Option<SharedCanonicalMapManager> {
+        self.canonical_map_manager.get().map(Arc::clone)
     }
 
     fn next_generation(&self) -> u64 {
@@ -641,11 +536,13 @@ impl PlayerRegistry {
         registration: PlayerSessionRegistrationLikeCpp,
         durable_loot_money: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
     ) -> PlayerRegistration {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        self.install_canonical_player_fixture_like_cpp(guid, &registration);
         let generation = self.next_generation();
         let PlayerSessionRegistrationLikeCpp {
             identity,
             placement,
-            info,
+            active_loot_rolls,
             send_tx,
             realm_send_tx,
             command_tx,
@@ -660,7 +557,7 @@ impl PlayerRegistry {
                 generation,
                 identity,
                 placement,
-                info,
+                active_loot_rolls,
                 send_tx,
                 realm_send_tx,
                 command_tx,
@@ -676,9 +573,9 @@ impl PlayerRegistry {
 
     /// Clone the entry only when `registration` is still the current session.
     #[must_use]
-    pub fn lookup_current(&self, registration: PlayerRegistration) -> Option<PlayerBroadcastInfo> {
+    pub fn lookup_current(&self, registration: PlayerRegistration) -> Option<()> {
         let entry = self.entries.get(&registration.guid)?;
-        (entry.generation == registration.generation).then(|| entry.info.clone())
+        (entry.generation == registration.generation).then_some(())
     }
 
     /// Resolve an owned command address for the current incarnation of `guid`.
@@ -692,6 +589,26 @@ impl PlayerRegistry {
             },
             command_tx: entry.command_tx.clone(),
         })
+    }
+
+    /// Resolve only current incarnation identities for account-scoped control.
+    #[must_use]
+    pub fn registrations_for_accounts(
+        &self,
+        account_ids: &[u32],
+    ) -> Vec<(u32, PlayerRegistration)> {
+        self.entries
+            .iter()
+            .filter_map(|entry| {
+                account_ids.contains(&entry.identity.account_id).then_some((
+                    entry.identity.account_id,
+                    PlayerRegistration {
+                        guid: *entry.key(),
+                        generation: entry.generation,
+                    },
+                ))
+            })
+            .collect()
     }
 
     /// Remove only the exact registration supplied by its owning session.
@@ -720,17 +637,56 @@ impl PlayerRegistry {
     /// Snapshot the bounded facts used by runtime recipient selection.
     #[must_use]
     pub fn runtime_recipients(&self) -> Vec<PlayerRuntimeRecipient> {
-        self.entries
-            .iter()
-            .map(|entry| entry.value().runtime_recipient_like_cpp(*entry.key()))
+        let guids: Vec<_> = self.entries.iter().map(|entry| *entry.key()).collect();
+        guids
+            .into_iter()
+            .filter_map(|guid| self.runtime_recipient(guid))
             .collect()
     }
 
     /// Resolve one current runtime recipient without exposing directory storage.
     #[must_use]
     pub fn runtime_recipient(&self, guid: ObjectGuid) -> Option<PlayerRuntimeRecipient> {
-        let entry = self.entries.get(&guid)?;
-        Some(entry.runtime_recipient_like_cpp(guid))
+        let (registration, placement, account_id, logging, visibility) = {
+            let entry = self.entries.get(&guid)?;
+            (
+                PlayerRegistration {
+                    guid,
+                    generation: entry.generation,
+                },
+                entry.placement,
+                entry.identity.account_id,
+                entry
+                    .advanced_combat_logging_enabled_like_cpp
+                    .load(Ordering::Relaxed),
+                entry.client_visible_guids_like_cpp.clone(),
+            )
+        };
+        let (combat_reach, in_combat, liquid_status) =
+            self.canonical_at(guid, placement.map_id, placement.instance_id, |p| {
+                (
+                    p.unit().world().combat_reach(),
+                    p.unit()
+                        .unit_flags_like_cpp()
+                        .contains(UnitFlags::IN_COMBAT),
+                    p.gameplay_state().liquid_status,
+                )
+            })?;
+        Some(PlayerRuntimeRecipient {
+            registration,
+            guid,
+            map_id: placement.map_id,
+            instance_id: placement.instance_id,
+            position: placement.position,
+            combat_reach,
+            liquid_status,
+            is_in_world: placement.is_in_world,
+            is_alive: placement.is_alive,
+            account_id,
+            in_combat,
+            advanced_combat_logging: logging,
+            committed_visibility: visibility,
+        })
     }
 
     /// Resolve one connected chat/social identity by case-insensitive player
@@ -745,7 +701,7 @@ impl PlayerRegistry {
                 .identity
                 .player_name
                 .eq_ignore_ascii_case(player_name)
-                .then(|| Self::social_snapshot(entry.key(), entry.value()))
+                .then(|| self.social_snapshot(entry.key(), entry.value()))?
         })
     }
 
@@ -753,14 +709,28 @@ impl PlayerRegistry {
     #[must_use]
     pub fn social_recipient(&self, guid: ObjectGuid) -> Option<PlayerSocialRecipientSnapshot> {
         let entry = self.entries.get(&guid)?;
-        Some(Self::social_snapshot(&guid, &entry))
+        self.social_snapshot(&guid, &entry)
     }
 
     fn social_snapshot(
+        &self,
         guid: &ObjectGuid,
         entry: &PlayerRegistryEntry,
-    ) -> PlayerSocialRecipientSnapshot {
-        PlayerSocialRecipientSnapshot {
+    ) -> Option<PlayerSocialRecipientSnapshot> {
+        let (is_afk, is_dnd, is_game_master, dungeon_difficulty_id) = self.canonical_at(
+            *guid,
+            entry.placement.map_id,
+            entry.placement.instance_id,
+            |player| {
+                (
+                    player.has_player_flag(crate::session::PLAYER_FLAGS_AFK_LIKE_CPP),
+                    player.has_player_flag(crate::session::PLAYER_FLAGS_DND_LIKE_CPP),
+                    player.is_game_master_like_cpp(),
+                    player.gameplay_state().dungeon_difficulty_id,
+                )
+            },
+        )?;
+        Some(PlayerSocialRecipientSnapshot {
             registration: PlayerRegistration {
                 guid: *guid,
                 generation: entry.generation,
@@ -771,11 +741,11 @@ impl PlayerRegistry {
             class: entry.identity.class,
             map_id: entry.placement.map_id,
             instance_id: entry.placement.instance_id,
-            dungeon_difficulty_id: entry.info.dungeon_difficulty_id,
-            is_game_master: entry.info.is_game_master,
-            is_afk: entry.info.is_afk,
-            is_dnd: entry.info.is_dnd,
-        }
+            dungeon_difficulty_id,
+            is_game_master,
+            is_afk,
+            is_dnd,
+        })
     }
 
     #[must_use]
@@ -784,41 +754,49 @@ impl PlayerRegistry {
             let entry = self.entries.get(&guid)?;
             (entry.placement.map_id, entry.placement.instance_id)
         };
-        with_canonical_player_at_like_cpp(
-            self.canonical_map_manager.get()?,
-            guid,
-            map_id.into(),
-            instance_id,
-            |player| {
-                player
-                    .gameplay_state()
-                    .social
-                    .auto_reply_msg_like_cpp
-                    .clone()
-            },
-        )
+        self.canonical_at(guid, map_id, instance_id, |player| {
+            player
+                .gameplay_state()
+                .social
+                .auto_reply_msg_like_cpp
+                .clone()
+        })
     }
 
     /// Resolve connected presence facts for one Group member.
     #[must_use]
     pub fn group_presence(&self, guid: ObjectGuid) -> Option<PlayerGroupPresenceSnapshot> {
-        let entry = self.entries.get(&guid)?;
+        let (registration, placement, account_id, recruiter_id, has_active_loot_rolls) = {
+            let entry = self.entries.get(&guid)?;
+            (
+                PlayerRegistration {
+                    guid,
+                    generation: entry.generation,
+                },
+                entry.placement,
+                entry.identity.account_id,
+                entry.identity.recruiter_id,
+                !entry.active_loot_rolls.is_empty(),
+            )
+        };
+        let in_combat = self.canonical_at(guid, placement.map_id, placement.instance_id, |p| {
+            p.unit()
+                .unit_flags_like_cpp()
+                .contains(UnitFlags::IN_COMBAT)
+        })?;
         Some(PlayerGroupPresenceSnapshot {
-            registration: PlayerRegistration {
-                guid,
-                generation: entry.generation,
-            },
+            registration,
             guid,
-            map_id: entry.placement.map_id,
-            instance_id: entry.placement.instance_id,
-            position: entry.placement.position,
-            is_in_world: entry.placement.is_in_world,
-            is_alive: entry.placement.is_alive,
-            level: entry.placement.level,
-            account_id: entry.identity.account_id,
-            recruiter_id: entry.identity.recruiter_id,
-            in_combat: entry.info.in_combat,
-            has_active_loot_rolls: !entry.info.active_loot_rolls.is_empty(),
+            map_id: placement.map_id,
+            instance_id: placement.instance_id,
+            position: placement.position,
+            is_in_world: placement.is_in_world,
+            is_alive: placement.is_alive,
+            level: placement.level,
+            account_id,
+            recruiter_id,
+            in_combat,
+            has_active_loot_rolls,
         })
     }
 
@@ -837,7 +815,7 @@ impl PlayerRegistry {
     /// Resolve the connected projection used to build PartyUpdate payloads.
     #[must_use]
     pub fn party_member(&self, guid: ObjectGuid) -> Option<PlayerPartyMemberSnapshot> {
-        let (registration, identity, placement, info) = {
+        let (registration, identity, placement) = {
             let entry = self.entries.get(&guid)?;
             (
                 PlayerRegistration {
@@ -846,10 +824,11 @@ impl PlayerRegistry {
                 },
                 entry.identity.clone(),
                 entry.placement,
-                entry.info.clone(),
             )
         };
         let state = self.party_state(guid, placement.map_id, placement.instance_id)?;
+        let (in_vehicle, vehicle_seat, phase, auras, pet) =
+            self.party_gameplay_projection(guid, placement.map_id, placement.instance_id)?;
         let vitals = state.vitals;
         Some(PlayerPartyMemberSnapshot {
             registration,
@@ -864,20 +843,20 @@ impl PlayerRegistry {
             is_ffa_pvp: state.is_ffa_pvp,
             is_afk: state.is_afk,
             is_dnd: state.is_dnd,
-            in_vehicle: info.in_vehicle,
+            in_vehicle,
             power_type: vitals.power_type,
             current_health: vitals.current_health,
             max_health: vitals.max_health,
             current_power: vitals.current_power,
             max_power: vitals.max_power,
             level: placement.level,
-            spec_id: info.spec_id,
-            zone_id: info.zone_id,
-            party_member_vehicle_seat: info.party_member_vehicle_seat,
+            spec_id: state.spec_id,
+            zone_id: state.zone_id,
+            party_member_vehicle_seat: vehicle_seat,
             party_member_party_type: state.party_type,
-            party_member_phase_states: info.party_member_phase_states,
-            party_member_auras: info.party_member_auras,
-            party_member_pet_stats: info.party_member_pet_stats,
+            party_member_phase_states: phase,
+            party_member_auras: auras,
+            party_member_pet_stats: pet,
         })
     }
 
@@ -897,9 +876,21 @@ impl PlayerRegistry {
     /// bounded semantic operation.
     #[must_use]
     pub fn connected_player_has_achievement(&self, guid: ObjectGuid, achievement_id: u32) -> bool {
-        self.entries
+        let Some((map_id, instance_id)) = self
+            .entries
             .get(&guid)
-            .is_some_and(|entry| entry.info.completed_achievements.contains(&achievement_id))
+            .map(|entry| (entry.placement.map_id, entry.placement.instance_id))
+        else {
+            return false;
+        };
+        self.canonical_at(guid, map_id, instance_id, |player| {
+            player
+                .gameplay_state()
+                .achievements
+                .iter()
+                .any(|record| record.achievement_id == achievement_id)
+        })
+        .unwrap_or(false)
     }
 
     /// Publish PartyMemberData::PartyType only for this exact session control
@@ -931,46 +922,28 @@ impl PlayerRegistry {
         .unwrap_or(false)
     }
 
-    /// Replace the published compatibility mirror only for the exact owning
-    /// control channel while retaining its incarnation generation.
-    pub fn publish_broadcast_info_for_control_channel(
-        &self,
-        guid: ObjectGuid,
-        command_tx: &flume::Sender<SessionCommand>,
-        info: PlayerBroadcastInfo,
-    ) -> bool {
-        let Some(mut entry) = self.entries.get_mut(&guid) else {
-            return false;
-        };
-        if !entry.command_tx.same_channel(command_tx) {
-            return false;
-        }
-        entry.info = info;
-        true
-    }
-
-    /// Publish the one combat bit required by immediate group combat gates.
+    /// Publish the one combat bit to the canonical Player selected by this exact incarnation.
     pub fn publish_in_combat_for_control_channel(
         &self,
         guid: ObjectGuid,
         command_tx: &flume::Sender<SessionCommand>,
         in_combat: bool,
     ) -> bool {
-        let Some(mut entry) = self.entries.get_mut(&guid) else {
-            return false;
+        let (map_id, instance_id) = {
+            let Some(entry) = self.entries.get(&guid) else {
+                return false;
+            };
+            if !entry.command_tx.same_channel(command_tx) {
+                return false;
+            }
+            (entry.placement.map_id, entry.placement.instance_id)
         };
-        if !entry.command_tx.same_channel(command_tx) {
-            return false;
-        }
-        entry.info.in_combat = in_combat;
-        true
-    }
-
-    /// Read the represented unit-state fallback used only when the canonical
-    /// map Player is unavailable.
-    #[must_use]
-    pub fn represented_unit_state(&self, guid: ObjectGuid) -> Option<u32> {
-        self.entries.get(&guid).map(|entry| entry.info.unit_state)
+        self.canonical_at_mut(guid, map_id, instance_id, |player| {
+            let mut flags = player.unit().unit_flags_like_cpp();
+            flags.set(UnitFlags::IN_COMBAT, in_combat);
+            player.unit_mut().set_unit_flags_like_cpp(flags);
+        })
+        .is_some()
     }
 
     /// Resolve the bounded connected-player view required by inspect handlers.
@@ -982,19 +955,27 @@ impl PlayerRegistry {
     /// opcodes — neither of which reads honor — no longer serialize with the
     /// canonical map update loop to populate a block they discard.
     pub fn inspect_snapshot(&self, guid: ObjectGuid) -> Option<PlayerInspectSnapshot> {
-        let entry = self.entries.get(&guid)?;
-        let info = &entry.info;
+        let (identity, placement) = {
+            let entry = self.entries.get(&guid)?;
+            (entry.identity.clone(), entry.placement)
+        };
+        let presentation = self.canonical_at(
+            guid,
+            placement.map_id,
+            placement.instance_id,
+            canonical_player_presentation_like_cpp,
+        )?;
         Some(PlayerInspectSnapshot {
             guid,
-            map_id: entry.placement.map_id,
-            position: entry.placement.position,
-            faction_template_id: info.faction_template_id,
-            player_name: entry.identity.player_name.clone(),
-            race: entry.identity.race,
-            class: entry.identity.class,
-            sex: entry.identity.sex,
-            level: entry.placement.level,
-            visible_items: Arc::clone(&info.visible_items),
+            map_id: placement.map_id,
+            position: placement.position,
+            faction_template_id: presentation.2,
+            player_name: identity.player_name,
+            race: identity.race,
+            class: identity.class,
+            sex: identity.sex,
+            level: placement.level,
+            visible_items: Arc::new(presentation.1),
         })
     }
 
@@ -1107,9 +1088,20 @@ impl PlayerRegistry {
     /// Read one remote enchanting skill without exposing the Player mirror.
     #[must_use]
     pub fn loot_enchanting_skill(&self, guid: ObjectGuid) -> Option<u16> {
-        self.entries
-            .get(&guid)
-            .map(|entry| entry.info.enchanting_skill)
+        let (map_id, instance_id) = {
+            let entry = self.entries.get(&guid)?;
+            (entry.placement.map_id, entry.placement.instance_id)
+        };
+        self.canonical_at(guid, map_id, instance_id, |player| {
+            player
+                .gameplay_state()
+                .skills
+                .iter()
+                .find(|skill| {
+                    skill.skill_line_id == u32::from(crate::session::SKILL_ENCHANTING_LIKE_CPP)
+                })
+                .map_or(0, |skill| skill.current_value)
+        })
     }
 
     /// Read one connected peer's C++ `Player::GetPassOnGroupLoot()` state.
@@ -1121,25 +1113,54 @@ impl PlayerRegistry {
         instance_id: u32,
     ) -> Option<bool> {
         let entry = self.entries.get(&guid)?;
-        (entry.placement.map_id == map_id && entry.placement.instance_id == instance_id)
-            .then_some(entry.info.pass_on_group_loot)
+        if entry.placement.map_id != map_id || entry.placement.instance_id != instance_id {
+            return None;
+        }
+        drop(entry);
+        self.canonical_at(guid, map_id, instance_id, |player| {
+            player.gameplay_state().pass_on_group_loot
+        })
     }
 
     /// Snapshot the exact remote facts used by represented loot conditions.
     #[must_use]
     pub fn loot_player_context(&self, guid: ObjectGuid) -> Option<PlayerLootContextSnapshot> {
-        let entry = self.entries.get(&guid)?;
-        let info = &entry.info;
-        Some(PlayerLootContextSnapshot {
-            race: entry.identity.race,
-            class: entry.identity.class,
-            sex: entry.identity.sex,
-            level: entry.placement.level,
-            known_spells: info.known_spells.clone(),
-            active_quest_statuses: info.active_quest_statuses.clone(),
-            active_quest_objective_counts: info.active_quest_objective_counts.clone(),
-            rewarded_quests: info.rewarded_quests.clone(),
-            inventory_item_counts: info.inventory_item_counts.clone(),
+        let (race, class, sex, placement) = {
+            let entry = self.entries.get(&guid)?;
+            (
+                entry.identity.race,
+                entry.identity.class,
+                entry.identity.sex,
+                entry.placement,
+            )
+        };
+        self.canonical_at(guid, placement.map_id, placement.instance_id, |player| {
+            let state = player.gameplay_state();
+            PlayerLootContextSnapshot {
+                race,
+                class,
+                sex,
+                level: placement.level,
+                known_spells: state
+                    .spells
+                    .iter()
+                    .filter_map(|spell| i32::try_from(spell.spell_id).ok())
+                    .collect(),
+                active_quest_statuses: state
+                    .quests
+                    .statuses
+                    .iter()
+                    .map(|status| (status.quest_id, status.status))
+                    .collect(),
+                active_quest_objective_counts: state
+                    .quests
+                    .objective_counts_by_quest
+                    .iter()
+                    .cloned()
+                    .collect(),
+                rewarded_quests: state.quests.rewarded_quest_ids.iter().copied().collect(),
+                inventory_item_counts: state.inventory_item_counts.iter().copied().collect(),
+            }
         })
     }
 
@@ -1224,12 +1245,12 @@ impl PlayerRegistry {
         source_combat_reach: f32,
         visibility_range: f32,
     ) -> Vec<PlayerRegistration> {
-        self.entries
+        let candidates: Vec<_> = self
+            .entries
             .iter()
             .filter_map(|entry| {
                 let guid = *entry.key();
                 let value = entry.value();
-                let info = &value.info;
                 if guid == excluded_guid
                     || !value.placement.is_in_world
                     || value.placement.map_id != map_id
@@ -1237,14 +1258,21 @@ impl PlayerRegistry {
                 {
                     return None;
                 }
-                let dx = value.placement.position.x - source_position.x;
-                let dy = value.placement.position.y - source_position.y;
-                let reach =
-                    visibility_range + source_combat_reach.max(0.0) + info.combat_reach.max(0.0);
-                (dx * dx + dy * dy < reach * reach).then_some(PlayerRegistration {
-                    guid,
-                    generation: entry.value().generation,
-                })
+                Some((guid, value.generation, value.placement))
+            })
+            .collect();
+        candidates
+            .into_iter()
+            .filter_map(|(guid, generation, placement)| {
+                let target_reach =
+                    self.canonical_at(guid, placement.map_id, placement.instance_id, |p| {
+                        p.unit().world().combat_reach()
+                    })?;
+                let dx = placement.position.x - source_position.x;
+                let dy = placement.position.y - source_position.y;
+                let reach = visibility_range + source_combat_reach.max(0.0) + target_reach.max(0.0);
+                (dx * dx + dy * dy < reach * reach)
+                    .then_some(PlayerRegistration { guid, generation })
             })
             .collect()
     }
@@ -1264,26 +1292,28 @@ impl PlayerRegistry {
             .filter_map(|entry| {
                 let guid = *entry.key();
                 let value = entry.value();
-                let info = &value.info;
                 if guid == excluded_guid
                     || !value.placement.is_in_world
                     || value.placement.map_id != map_id
                     || value.placement.instance_id != instance_id
-                    || !info
-                        .transport
-                        .as_ref()
-                        .is_some_and(|transport| transport.guid == transport_guid)
                 {
                     return None;
                 }
-                Some((guid, value.identity.clone(), value.placement, info.clone()))
+                Some((guid, value.identity.clone(), value.placement))
             })
             .collect();
 
         candidates
             .into_iter()
-            .filter_map(|(guid, identity, placement, info)| {
-                let (vitals, party_type) =
+            .filter_map(|(guid, identity, placement)| {
+                let transport =
+                    self.canonical_at(guid, placement.map_id, placement.instance_id, |player| {
+                        player.gameplay_state().transport.clone()
+                    })??;
+                if transport.guid != transport_guid {
+                    return None;
+                }
+                let (vitals, party_type, (display_id, visible_items, _, zone_id, customizations)) =
                     self.create_state(guid, placement.map_id, placement.instance_id)?;
                 Some(PlayerVisibilityCreateSnapshot {
                     guid,
@@ -1292,17 +1322,37 @@ impl PlayerRegistry {
                     class: identity.class,
                     sex: identity.sex,
                     level: placement.level,
-                    display_id: info.display_id,
-                    zone_id: info.zone_id,
+                    display_id,
+                    zone_id,
                     current_health: vitals.current_health,
                     max_health: vitals.max_health,
                     power_type: vitals.power_type,
                     current_power: vitals.current_power,
                     max_power: vitals.max_power,
                     base_mana: vitals.base_mana,
-                    transport: info.transport.clone(),
-                    visible_items: Arc::clone(&info.visible_items),
-                    customizations: Arc::clone(&info.customizations),
+                    transport: Some(TransportInfo {
+                        guid: transport.guid,
+                        x: transport.x,
+                        y: transport.y,
+                        z: transport.z,
+                        o: transport.orientation,
+                        seat: transport.seat,
+                        time: transport.time,
+                        prev_time: transport.prev_time,
+                        vehicle_id: transport.vehicle_id,
+                    }),
+                    visible_items: Arc::new(visible_items),
+                    customizations: Arc::new(
+                        customizations
+                            .into_iter()
+                            .map(
+                                |(option_id, choice_id)| ChrCustomizationChoiceValuesUpdate {
+                                    option_id,
+                                    choice_id,
+                                },
+                            )
+                            .collect(),
+                    ),
                     party_member_party_type: party_type,
                 })
             })
@@ -1312,8 +1362,19 @@ impl PlayerRegistry {
     /// Read one connected player's active status for an exact shared quest.
     #[must_use]
     pub fn quest_active_status(&self, guid: ObjectGuid, quest_id: u32) -> Option<Option<u8>> {
-        let entry = self.entries.get(&guid)?;
-        Some(entry.info.active_quest_statuses.get(&quest_id).copied())
+        let (map_id, instance_id) = {
+            let entry = self.entries.get(&guid)?;
+            (entry.placement.map_id, entry.placement.instance_id)
+        };
+        self.canonical_at(guid, map_id, instance_id, |player| {
+            player
+                .gameplay_state()
+                .quests
+                .statuses
+                .iter()
+                .find(|status| status.quest_id == quest_id)
+                .map(|status| status.status)
+        })
     }
 
     /// Snapshot the exact receiver facts used by represented quest sharing.
@@ -1331,19 +1392,18 @@ impl PlayerRegistry {
     ) -> Option<PlayerQuestSharingSnapshot> {
         let (mut snapshot, map_id, instance_id) = {
             let entry = self.entries.get(&guid)?;
-            let info = &entry.info;
             (
                 PlayerQuestSharingSnapshot {
                     registration: PlayerRegistration {
                         guid,
                         generation: entry.generation,
                     },
-                    pending_quest_sharing: info.pending_quest_sharing,
+                    pending_quest_sharing: None,
                     is_alive: entry.placement.is_alive,
-                    rewarded_quests: info.rewarded_quests.clone(),
-                    active_quest_statuses: info.active_quest_statuses.clone(),
-                    df_quests: info.df_quests.clone(),
-                    daily_quests_completed: info.daily_quests_completed.clone(),
+                    rewarded_quests: HashSet::new(),
+                    active_quest_statuses: HashMap::new(),
+                    df_quests: HashSet::new(),
+                    daily_quests_completed: HashSet::new(),
                     level: entry.placement.level,
                     class: entry.identity.class,
                     race: entry.identity.race,
@@ -1356,6 +1416,23 @@ impl PlayerRegistry {
         };
 
         if let Some(manager) = canonical_map_manager {
+            let gameplay = with_canonical_player_at_like_cpp(
+                manager,
+                guid,
+                u32::from(map_id),
+                instance_id,
+                |player| player.gameplay_state().clone(),
+            )?;
+            snapshot.pending_quest_sharing = gameplay.quests.pending_share;
+            snapshot.rewarded_quests = gameplay.quests.rewarded_quest_ids.into_iter().collect();
+            snapshot.active_quest_statuses = gameplay
+                .quests
+                .statuses
+                .into_iter()
+                .map(|status| (status.quest_id, status.status))
+                .collect();
+            snapshot.df_quests = gameplay.quests.df_quest_ids.into_iter().collect();
+            snapshot.daily_quests_completed = gameplay.quests.daily_quest_ids.into_iter().collect();
             snapshot.reputation_standings = with_canonical_player_at_like_cpp(
                 manager,
                 guid,
@@ -1381,11 +1458,17 @@ impl PlayerRegistry {
         guid: ObjectGuid,
     ) -> Option<PlayerVehicleInteractionSnapshot> {
         let entry = self.entries.get(&guid)?;
+        let placement = entry.placement;
+        drop(entry);
+        let has_vehicle_kit =
+            self.canonical_at(guid, placement.map_id, placement.instance_id, |player| {
+                player.gameplay_state().has_vehicle_kit
+            })?;
         Some(PlayerVehicleInteractionSnapshot {
-            map_id: entry.placement.map_id,
-            instance_id: entry.placement.instance_id,
-            position: entry.placement.position,
-            has_vehicle_kit: entry.info.has_vehicle_kit_like_cpp,
+            map_id: placement.map_id,
+            instance_id: placement.instance_id,
+            position: placement.position,
+            has_vehicle_kit,
         })
     }
 
@@ -1402,15 +1485,34 @@ impl PlayerRegistry {
         if !entry.command_tx.same_channel(command_tx) {
             return false;
         }
+        let old_placement = entry.placement;
         entry.placement.position = update.position;
         entry.placement.map_id = update.map_id;
         entry.placement.instance_id = update.instance_id;
         entry.placement.is_in_world = update.is_in_world;
         entry.placement.level = update.level;
         entry.placement.is_alive = update.is_alive;
-        entry.info.liquid_status = update.liquid_status;
-        entry.info.transport = update.transport;
-        true
+        drop(entry);
+        let transport = update
+            .transport
+            .map(|transport| wow_entities::PlayerTransportState {
+                guid: transport.guid,
+                x: transport.x,
+                y: transport.y,
+                z: transport.z,
+                orientation: transport.o,
+                seat: transport.seat,
+                time: transport.time,
+                prev_time: transport.prev_time,
+                vehicle_id: transport.vehicle_id,
+            });
+        self.canonical_at_mut(
+            guid,
+            old_placement.map_id,
+            old_placement.instance_id,
+            |player| player.gameplay_state_mut().transport = transport,
+        )
+        .is_some()
     }
 
     /// Find the exact live loot-roll identity owned by another map peer.
@@ -1426,14 +1528,13 @@ impl PlayerRegistry {
         self.entries.iter().find_map(|entry| {
             let guid = *entry.key();
             let value = entry.value();
-            let info = &value.info;
             if guid == excluded_guid
                 || value.placement.map_id != map_id
                 || value.placement.instance_id != instance_id
             {
                 return None;
             }
-            let identity = info
+            let identity = value
                 .active_loot_rolls
                 .iter()
                 .find(|identity| identity.matches_key_like_cpp(loot_obj, loot_list_id))?
@@ -1461,7 +1562,7 @@ impl PlayerRegistry {
         if !entry.command_tx.same_channel(command_tx) {
             return false;
         }
-        entry.info.active_loot_rolls = identities;
+        entry.active_loot_rolls = identities;
         true
     }
 
@@ -1498,28 +1599,59 @@ impl PlayerRegistry {
     /// Snapshot only live player facts needed by the legacy aggro compatibility cut.
     #[must_use]
     pub fn legacy_aggro_candidates(&self) -> Vec<PlayerAggroCandidateSnapshot> {
-        self.entries
+        let candidates: Vec<_> = self
+            .entries
             .iter()
             .filter_map(|entry| {
                 let guid = *entry.key();
                 let entry = entry.value();
-                let info = &entry.info;
-                (entry.placement.is_in_world && entry.placement.is_alive).then(|| {
-                    PlayerAggroCandidateSnapshot {
-                        player_guid: guid,
-                        map_id: entry.placement.map_id,
-                        instance_id: entry.placement.instance_id,
-                        position: entry.placement.position,
-                        combat_reach: info.combat_reach,
-                        liquid_status: info.liquid_status,
-                        level: entry.placement.level,
-                        gray_level: info.gray_level,
-                        unit_flags: info.unit_flags,
-                        unit_state: info.unit_state,
-                        is_game_master: info.is_game_master,
-                        faction_template_id: info.faction_template_id,
-                        forced_reputation_ranks: info.forced_reputation_ranks.clone(),
-                    }
+                (entry.placement.is_in_world && entry.placement.is_alive)
+                    .then_some((guid, entry.placement))
+            })
+            .collect();
+        candidates
+            .into_iter()
+            .filter_map(|(guid, placement)| {
+                let (
+                    combat_reach,
+                    ranks,
+                    (
+                        unit_flags,
+                        unit_state,
+                        is_game_master,
+                        faction_template_id,
+                        gray_level,
+                        liquid_status,
+                    ),
+                ) = self.canonical_at(guid, placement.map_id, placement.instance_id, |player| {
+                    (
+                        player.unit().world().combat_reach(),
+                        player
+                            .gameplay_state()
+                            .forced_reputation_ranks
+                            .iter()
+                            .filter_map(|(faction, rank)| {
+                                wow_data::reputation::ReputationRankLikeCpp::from_u8_like_cpp(*rank)
+                                    .map(|rank| (*faction, rank))
+                            })
+                            .collect(),
+                        canonical_player_aggro_unit_state_like_cpp(player),
+                    )
+                })?;
+                Some(PlayerAggroCandidateSnapshot {
+                    player_guid: guid,
+                    map_id: placement.map_id,
+                    instance_id: placement.instance_id,
+                    position: placement.position,
+                    combat_reach,
+                    liquid_status,
+                    level: placement.level,
+                    gray_level,
+                    unit_flags,
+                    unit_state,
+                    is_game_master,
+                    faction_template_id,
+                    forced_reputation_ranks: ranks,
                 })
             })
             .collect()
@@ -1542,7 +1674,6 @@ impl PlayerRegistry {
             .filter_map(|entry| {
                 let guid = *entry.key();
                 let entry = entry.value();
-                let info = &entry.info;
                 if guid == excluded_guid
                     || !entry.placement.is_in_world
                     || entry.placement.map_id != map_id
@@ -1550,22 +1681,41 @@ impl PlayerRegistry {
                 {
                     return None;
                 }
-                let dx = entry.placement.position.x - source_position.x;
-                let dy = entry.placement.position.y - source_position.y;
-                let reach =
-                    visibility_radius + source_combat_reach.max(0.0) + info.combat_reach.max(0.0);
-                if dx * dx + dy * dy >= reach * reach {
-                    return None;
-                }
-                Some((guid, entry.identity.clone(), entry.placement, info.clone()))
+                Some((guid, entry.identity.clone(), entry.placement))
             })
             .collect();
 
         candidates
             .into_iter()
-            .filter_map(|(guid, identity, placement, info)| {
-                let (vitals, party_type) =
+            .filter_map(|(guid, identity, placement)| {
+                let target_reach =
+                    self.canonical_at(guid, placement.map_id, placement.instance_id, |p| {
+                        p.unit().world().combat_reach()
+                    })?;
+                let dx = placement.position.x - source_position.x;
+                let dy = placement.position.y - source_position.y;
+                let reach =
+                    visibility_radius + source_combat_reach.max(0.0) + target_reach.max(0.0);
+                if dx * dx + dy * dy >= reach * reach {
+                    return None;
+                }
+                let (vitals, party_type, (display_id, visible_items, _, zone_id, customizations)) =
                     self.create_state(guid, placement.map_id, placement.instance_id)?;
+                let transport = self
+                    .canonical_at(guid, placement.map_id, placement.instance_id, |player| {
+                        player.gameplay_state().transport.clone()
+                    })?
+                    .map(|transport| TransportInfo {
+                        guid: transport.guid,
+                        x: transport.x,
+                        y: transport.y,
+                        z: transport.z,
+                        o: transport.orientation,
+                        seat: transport.seat,
+                        time: transport.time,
+                        prev_time: transport.prev_time,
+                        vehicle_id: transport.vehicle_id,
+                    });
                 Some(PlayerVisibilityCreateSnapshot {
                     guid,
                     position: placement.position,
@@ -1573,17 +1723,27 @@ impl PlayerRegistry {
                     class: identity.class,
                     sex: identity.sex,
                     level: placement.level,
-                    display_id: info.display_id,
-                    zone_id: info.zone_id,
+                    display_id,
+                    zone_id,
                     current_health: vitals.current_health,
                     max_health: vitals.max_health,
                     power_type: vitals.power_type,
                     current_power: vitals.current_power,
                     max_power: vitals.max_power,
                     base_mana: vitals.base_mana,
-                    transport: info.transport.clone(),
-                    visible_items: Arc::clone(&info.visible_items),
-                    customizations: Arc::clone(&info.customizations),
+                    transport,
+                    visible_items: Arc::new(visible_items),
+                    customizations: Arc::new(
+                        customizations
+                            .into_iter()
+                            .map(
+                                |(option_id, choice_id)| ChrCustomizationChoiceValuesUpdate {
+                                    option_id,
+                                    choice_id,
+                                },
+                            )
+                            .collect(),
+                    ),
                     party_member_party_type: party_type,
                 })
             })
@@ -1891,11 +2051,16 @@ impl PlayerRegistry {
         }
     }
 
-    /// Clone one fixture entry without exposing its storage guard.
+    /// Clone the only non-canonical fixture value without exposing storage.
     #[cfg(any(test, feature = "test-fixtures"))]
     #[must_use]
-    pub fn fixture_snapshot(&self, guid: ObjectGuid) -> Option<PlayerBroadcastInfo> {
-        self.entries.get(&guid).map(|entry| entry.info.clone())
+    pub fn fixture_active_loot_rolls(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<Vec<LootRollCommandIdentityLikeCpp>> {
+        self.entries
+            .get(&guid)
+            .map(|entry| entry.active_loot_rolls.clone())
     }
 
     /// Clone one fixture entry's durable creature rail. The projection no
@@ -1916,13 +2081,13 @@ impl PlayerRegistry {
     pub fn fixture_update(
         &self,
         guid: ObjectGuid,
-        update: impl FnOnce(&mut PlayerBroadcastInfo, &mut PlayerDirectoryPlacementLikeCpp),
+        update: impl FnOnce(&mut PlayerDirectoryPlacementLikeCpp),
     ) -> bool {
         let Some(mut entry) = self.entries.get_mut(&guid) else {
             return false;
         };
         let entry = &mut *entry;
-        update(&mut entry.info, &mut entry.placement);
+        update(&mut entry.placement);
         true
     }
 
@@ -1960,44 +2125,7 @@ mod tests {
                 level: 1,
                 is_alive: true,
             },
-            info: PlayerBroadcastInfo {
-                combat_reach: 0.0,
-                liquid_status: 0,
-                active_loot_rolls: Vec::new(),
-                in_combat: false,
-                pass_on_group_loot: false,
-                enchanting_skill: 0,
-                transport: None,
-                is_afk: false,
-                is_dnd: false,
-                in_vehicle: false,
-                has_vehicle_kit_like_cpp: false,
-                party_member_vehicle_seat: 0,
-                zone_id: 0,
-                spec_id: 0,
-                unit_flags: 0,
-                unit_state: 0,
-                is_game_master: false,
-                dungeon_difficulty_id: 1,
-                pending_quest_sharing: None,
-                known_spells: Vec::new(),
-                active_quest_statuses: Default::default(),
-                active_quest_objective_counts: Default::default(),
-                rewarded_quests: Default::default(),
-                completed_achievements: Default::default(),
-                daily_quests_completed: Default::default(),
-                df_quests: Default::default(),
-                faction_template_id: 0,
-                forced_reputation_ranks: Vec::new(),
-                inventory_item_counts: Default::default(),
-                party_member_phase_states: Default::default(),
-                party_member_auras: Vec::new(),
-                party_member_pet_stats: None,
-                gray_level: 0,
-                display_id: 49,
-                visible_items: Arc::new([(0, 0, 0); 19]),
-                customizations: Arc::default(),
-            },
+            active_loot_rolls: Vec::new(),
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
@@ -2022,6 +2150,24 @@ mod tests {
         let registry = PlayerRegistry::new();
         let alpha = ObjectGuid::create_player(1, 100);
         let beta = ObjectGuid::create_player(1, 101);
+        let canonical: SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
+        {
+            let mut manager = canonical.lock().unwrap();
+            let map = manager.create_world_map(571, 42).map_mut();
+            for guid in [alpha, beta] {
+                let mut player = wow_entities::Player::new(Some(1), false);
+                player.unit_mut().world_mut().object_mut().create(guid);
+                player.unit_mut().world_mut().set_map(571, 42).unwrap();
+                player.unit_mut().world_mut().object_mut().add_to_world();
+                player.gameplay_state_mut().dungeon_difficulty_id = 1;
+                map.insert_map_object_record(
+                    wow_entities::MapObjectRecord::new_player(player).unwrap(),
+                )
+                .unwrap();
+            }
+        }
         let first_alpha = registry.register_or_replace(alpha, info.clone(), Default::default());
 
         let social = registry
@@ -2189,11 +2335,7 @@ mod tests {
         let empty: SharedCanonicalMapManager = Arc::new(Mutex::new(wow_map::MapManager::default()));
         assert!(registry.inspect_honor_stats(guid, Some(&empty)).is_none());
 
-        // The directory-owned identity is unaffected and still resolves.
-        let identity = registry
-            .inspect_snapshot(guid)
-            .expect("identity stays directory-owned");
-        assert_eq!(identity.map_id, 571);
+        assert!(registry.inspect_snapshot(guid).is_none());
     }
 
     /// The quest-share receiver's standings are unknown, not empty, when its
@@ -2219,10 +2361,8 @@ mod tests {
         assert!(
             registry
                 .quest_sharing_snapshot(guid, Some(&empty))
-                .expect("registered receiver")
-                .reputation_standings
                 .is_none(),
-            "an absent canonical owner must not read as \"no reputation\""
+            "an absent canonical owner must make the gameplay result unknown"
         );
     }
 }

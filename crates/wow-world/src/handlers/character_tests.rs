@@ -2020,14 +2020,7 @@ fn login_identity_hydrates_race_faction_into_registry_and_canonical_player_like_
     let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
     session.register_in_player_registry();
 
-    assert_eq!(
-        registry
-            .fixture_snapshot(guid)
-            .expect("login player registry entry")
-            .faction_template_id,
-        1,
-        "the aggro candidate bridge must not receive faction template 0"
-    );
+    assert_eq!(registry.legacy_aggro_candidates()[0].faction_template_id, 1);
     let manager = canonical.lock().unwrap();
     let player = manager
         .find_map(571, 0)
@@ -5682,11 +5675,31 @@ fn make_binder_observer(
     ));
     observer.set_state(crate::session::SessionState::LoggedIn);
     observer.set_player_registry(Arc::clone(registry));
+    if canonical
+        .lock()
+        .unwrap()
+        .find_map(571, 0)
+        .and_then(|map| map.map().get_typed_player(guid))
+        .is_none()
+    {
+        let mut player = wow_entities::Player::new(Some(1), false);
+        player.unit_mut().world_mut().object_mut().create(guid);
+        player.unit_mut().world_mut().set_map(571, 0).unwrap();
+        player.unit_mut().world_mut().relocate(position);
+        player.unit_mut().world_mut().object_mut().add_to_world();
+        canonical
+            .lock()
+            .unwrap()
+            .create_world_map(571, 0)
+            .map_mut()
+            .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
+            .unwrap();
+    }
     if visible {
         observer.client_visible_guids_like_cpp.insert(innkeeper);
     }
     observer.register_in_player_registry();
-    assert!(registry.fixture_update(guid, |_, placement| {
+    assert!(registry.fixture_update(guid, |placement| {
         placement.is_in_world = true;
         placement.position = position;
     }));

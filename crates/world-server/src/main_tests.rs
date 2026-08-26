@@ -116,8 +116,8 @@ use wow_packet::{
     packets::chat::{ChatMsg, ChatPkt},
 };
 use wow_world::session::directory::{
-    PlayerBroadcastInfo, PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp,
-    PlayerRegistry, PlayerSessionRegistrationLikeCpp,
+    PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp, PlayerRegistry,
+    PlayerSessionRegistrationLikeCpp,
 };
 use wow_world::session::mailbox::{SessionCommand, WorldSessionShutdownFlushResultLikeCpp};
 
@@ -256,7 +256,7 @@ fn target_icon_raw_from_db_bytes_preserves_cpp_binary_guid_shape() {
     assert_eq!(long, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
 }
 
-fn player_broadcast_info_fixture_like_cpp(
+fn player_registration_fixture_like_cpp(
     send_tx: flume::Sender<Vec<u8>>,
     command_tx: flume::Sender<SessionCommand>,
     player_name: &str,
@@ -279,44 +279,7 @@ fn player_broadcast_info_fixture_like_cpp(
             level: 1,
             is_alive: true,
         },
-        info: PlayerBroadcastInfo {
-            combat_reach: 0.0,
-            in_combat: false,
-            liquid_status: 0,
-            active_loot_rolls: Vec::new(),
-            pass_on_group_loot: false,
-            enchanting_skill: 0,
-            transport: None,
-            is_afk: false,
-            is_dnd: false,
-            in_vehicle: false,
-            has_vehicle_kit_like_cpp: false,
-            party_member_vehicle_seat: 0,
-            zone_id: 0,
-            spec_id: 0,
-            unit_flags: 0,
-            unit_state: 0,
-            is_game_master: false,
-            dungeon_difficulty_id: 1,
-            pending_quest_sharing: None,
-            known_spells: Vec::new(),
-            active_quest_statuses: Default::default(),
-            active_quest_objective_counts: Default::default(),
-            rewarded_quests: Default::default(),
-            completed_achievements: Default::default(),
-            daily_quests_completed: Default::default(),
-            df_quests: Default::default(),
-            faction_template_id: 0,
-            forced_reputation_ranks: Vec::new(),
-            inventory_item_counts: Default::default(),
-            party_member_phase_states: Default::default(),
-            party_member_auras: Vec::new(),
-            party_member_pet_stats: None,
-            gray_level: 0,
-            display_id: 49,
-            visible_items: std::sync::Arc::new([(0, 0, 0); 19]),
-            customizations: std::sync::Arc::default(),
-        },
+        active_loot_rolls: Vec::new(),
         realm_send_tx: send_tx.clone(),
         send_tx,
         command_tx,
@@ -340,7 +303,7 @@ fn drain_durable_creature_runtime_commands_like_cpp(
         .drain_like_cpp()
 }
 
-fn insert_player_broadcast_fixture_with_in_world_like_cpp(
+fn insert_player_registration_fixture_with_in_world_like_cpp(
     registry: &PlayerRegistry,
     counter: u64,
     send_tx: flume::Sender<Vec<u8>>,
@@ -348,7 +311,7 @@ fn insert_player_broadcast_fixture_with_in_world_like_cpp(
     is_in_world: bool,
 ) {
     let mut info =
-        player_broadcast_info_fixture_like_cpp(send_tx, command_tx, &format!("Player{counter}"));
+        player_registration_fixture_like_cpp(send_tx, command_tx, &format!("Player{counter}"));
     info.placement.is_in_world = is_in_world;
     registry.register_or_replace(
         ObjectGuid::create_player(1, counter as i64),
@@ -357,13 +320,13 @@ fn insert_player_broadcast_fixture_with_in_world_like_cpp(
     );
 }
 
-fn insert_player_broadcast_fixture_like_cpp(
+fn insert_player_registration_fixture_like_cpp(
     registry: &PlayerRegistry,
     counter: u64,
     send_tx: flume::Sender<Vec<u8>>,
     command_tx: flume::Sender<SessionCommand>,
 ) {
-    insert_player_broadcast_fixture_with_in_world_like_cpp(
+    insert_player_registration_fixture_with_in_world_like_cpp(
         registry, counter, send_tx, command_tx, true,
     );
 }
@@ -6045,13 +6008,13 @@ fn game_event_world_state_global_fanout_sends_update_to_active_players_like_cpp(
             )],
             [],
         );
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let (send_tx_a, send_rx_a) = flume::bounded(2);
     let (command_tx_a, _command_rx_a) = flume::bounded(1);
     let (send_tx_b, send_rx_b) = flume::bounded(2);
     let (command_tx_b, _command_rx_b) = flume::bounded(1);
-    insert_player_broadcast_fixture_like_cpp(&registry, 7001, send_tx_a, command_tx_a);
-    insert_player_broadcast_fixture_like_cpp(&registry, 7002, send_tx_b, command_tx_b);
+    insert_player_registration_fixture_like_cpp(&registry, 7001, send_tx_a, command_tx_a);
+    insert_player_registration_fixture_like_cpp(&registry, 7002, send_tx_b, command_tx_b);
 
     let summary = game_event_update_world_states_like_cpp(
         &metadata,
@@ -6081,19 +6044,19 @@ fn game_event_world_state_global_fanout_sends_update_to_active_players_like_cpp(
 
 #[test]
 fn game_event_world_state_global_fanout_skips_not_in_world_player_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let (in_world_tx, in_world_rx) = flume::bounded(1);
     let (in_world_command_tx, _in_world_command_rx) = flume::bounded(1);
     let (not_in_world_tx, not_in_world_rx) = flume::bounded(1);
     let (not_in_world_command_tx, _not_in_world_command_rx) = flume::bounded(1);
-    insert_player_broadcast_fixture_with_in_world_like_cpp(
+    insert_player_registration_fixture_with_in_world_like_cpp(
         &registry,
         7901,
         in_world_tx,
         in_world_command_tx,
         true,
     );
-    insert_player_broadcast_fixture_with_in_world_like_cpp(
+    insert_player_registration_fixture_with_in_world_like_cpp(
         &registry,
         7902,
         not_in_world_tx,
@@ -6132,10 +6095,10 @@ fn game_event_world_state_global_fanout_skips_not_in_world_player_like_cpp() {
 
 #[test]
 fn game_event_world_state_global_fanout_preserves_signed_value_and_wrapped_variable_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let (send_tx, send_rx) = flume::bounded(1);
     let (command_tx, _command_rx) = flume::bounded(1);
-    insert_player_broadcast_fixture_like_cpp(&registry, 7003, send_tx, command_tx);
+    insert_player_registration_fixture_like_cpp(&registry, 7003, send_tx, command_tx);
     let mut summary = GameEventLiveUpdateSideEffectSummaryLikeCpp::default();
 
     fanout_realm_update_world_state_to_player_sessions_like_cpp(
@@ -6184,10 +6147,10 @@ fn game_event_world_state_realm_unchanged_does_not_fanout_like_cpp() {
             )],
             [],
         );
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let (send_tx, send_rx) = flume::bounded(1);
     let (command_tx, _command_rx) = flume::bounded(1);
-    insert_player_broadcast_fixture_like_cpp(&registry, 7004, send_tx, command_tx);
+    insert_player_registration_fixture_like_cpp(&registry, 7004, send_tx, command_tx);
 
     let summary = game_event_update_world_states_like_cpp(
         &metadata,
@@ -6266,10 +6229,10 @@ fn game_event_world_state_map_specific_null_map_does_not_fanout_like_cpp() {
             )],
             [],
         );
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let (send_tx, send_rx) = flume::bounded(1);
     let (command_tx, _command_rx) = flume::bounded(1);
-    insert_player_broadcast_fixture_like_cpp(&registry, 7005, send_tx, command_tx);
+    insert_player_registration_fixture_like_cpp(&registry, 7005, send_tx, command_tx);
 
     let summary = game_event_update_world_states_like_cpp(
         &metadata,
@@ -6306,13 +6269,13 @@ fn game_event_world_state_global_fanout_counts_full_channel_failure_like_cpp() {
         flags: 0,
     }]);
     let mut world_state_mgr = spawn_store_loader::WorldStateMgrLikeCpp::default();
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let (queued_tx, queued_rx) = flume::bounded(1);
     let (queued_command_tx, _queued_command_rx) = flume::bounded(1);
     let (full_tx, _full_rx) = flume::bounded(0);
     let (full_command_tx, _full_command_rx) = flume::bounded(1);
-    insert_player_broadcast_fixture_like_cpp(&registry, 7006, queued_tx, queued_command_tx);
-    insert_player_broadcast_fixture_like_cpp(&registry, 7007, full_tx, full_command_tx);
+    insert_player_registration_fixture_like_cpp(&registry, 7006, queued_tx, queued_command_tx);
+    insert_player_registration_fixture_like_cpp(&registry, 7007, full_tx, full_command_tx);
 
     let summary = game_event_update_world_states_like_cpp(
         &metadata,
@@ -6453,13 +6416,13 @@ fn game_event_announce_consumption_fans_out_system_chat_like_cpp() {
         }],
     );
     let outcome = game_event_world_state_start_outcome_like_cpp(1);
-    let registry = PlayerRegistry::new();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let (send_tx_a, send_rx_a) = flume::bounded(2);
     let (command_tx_a, _command_rx_a) = flume::bounded(1);
     let (send_tx_b, send_rx_b) = flume::bounded(2);
     let (command_tx_b, _command_rx_b) = flume::bounded(1);
-    insert_player_broadcast_fixture_like_cpp(&registry, 7101, send_tx_a, command_tx_a);
-    insert_player_broadcast_fixture_like_cpp(&registry, 7102, send_tx_b, command_tx_b);
+    insert_player_registration_fixture_like_cpp(&registry, 7101, send_tx_a, command_tx_a);
+    insert_player_registration_fixture_like_cpp(&registry, 7102, send_tx_b, command_tx_b);
 
     let summary = consume_game_event_live_update_side_effects_like_cpp(
         &mut manager,
@@ -6539,19 +6502,19 @@ fn game_event_announce_consumption_fans_out_system_chat_like_cpp() {
 
 #[test]
 fn game_event_announce_fanout_skips_not_in_world_player_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let (in_world_tx, in_world_rx) = flume::bounded(1);
     let (in_world_command_tx, _in_world_command_rx) = flume::bounded(1);
     let (not_in_world_tx, not_in_world_rx) = flume::bounded(1);
     let (not_in_world_command_tx, _not_in_world_command_rx) = flume::bounded(1);
-    insert_player_broadcast_fixture_with_in_world_like_cpp(
+    insert_player_registration_fixture_with_in_world_like_cpp(
         &registry,
         7903,
         in_world_tx,
         in_world_command_tx,
         true,
     );
-    insert_player_broadcast_fixture_with_in_world_like_cpp(
+    insert_player_registration_fixture_with_in_world_like_cpp(
         &registry,
         7904,
         not_in_world_tx,
@@ -6970,7 +6933,7 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
         }],
     );
     let outcome = game_event_world_state_start_outcome_like_cpp(9);
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let (send_tx, _send_rx) = flume::bounded(1);
     let (command_tx, command_rx) = flume::bounded(1);
     let player_guid = ObjectGuid::create_player(1, 9009);
@@ -6994,44 +6957,7 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
                 level: 1,
                 is_alive: true,
             },
-            info: PlayerBroadcastInfo {
-                combat_reach: 0.0,
-                in_combat: false,
-                liquid_status: 0,
-                active_loot_rolls: Vec::new(),
-                pass_on_group_loot: false,
-                enchanting_skill: 0,
-                transport: None,
-                is_afk: false,
-                is_dnd: false,
-                in_vehicle: false,
-                has_vehicle_kit_like_cpp: false,
-                party_member_vehicle_seat: 0,
-                zone_id: 0,
-                spec_id: 0,
-                unit_flags: 0,
-                unit_state: 0,
-                is_game_master: false,
-                dungeon_difficulty_id: 1,
-                pending_quest_sharing: None,
-                known_spells: Vec::new(),
-                active_quest_statuses: Default::default(),
-                active_quest_objective_counts: Default::default(),
-                rewarded_quests: Default::default(),
-                completed_achievements: Default::default(),
-                daily_quests_completed: Default::default(),
-                df_quests: Default::default(),
-                faction_template_id: 0,
-                forced_reputation_ranks: Vec::new(),
-                inventory_item_counts: Default::default(),
-                party_member_phase_states: Default::default(),
-                party_member_auras: Vec::new(),
-                party_member_pet_stats: None,
-                gray_level: 0,
-                display_id: 49,
-                visible_items: std::sync::Arc::new([(0, 0, 0); 19]),
-                customizations: std::sync::Arc::default(),
-            },
+            active_loot_rolls: Vec::new(),
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
@@ -7286,12 +7212,11 @@ fn game_event_npc_flag_update_queues_visible_session_update_command_like_cpp() {
     ));
     let metadata = spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
         .with_game_event_npc_flags_like_cpp(npc_flags);
-    let registry = PlayerRegistry::new();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let (send_tx, send_rx) = flume::bounded(1);
     let (command_tx, command_rx) = flume::bounded(1);
     let player_guid = ObjectGuid::create_player(1, 7201);
-    let mut registration =
-        player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "Player7201");
+    let mut registration = player_registration_fixture_like_cpp(send_tx, command_tx, "Player7201");
     registration.placement.map_id = 1;
     registry.register_or_replace(player_guid, registration, Default::default());
 
@@ -10350,7 +10275,7 @@ fn make_registry_player_like_cpp(
 ) {
     let (send_tx, _send_rx) = flume::bounded(4);
     let (command_tx, command_rx) = flume::bounded(4);
-    let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "Tester");
+    let mut info = player_registration_fixture_like_cpp(send_tx, command_tx, "Tester");
     info.placement.map_id = map_id;
     info.placement.instance_id = instance_id;
     info.placement.position = position;
@@ -10377,6 +10302,7 @@ fn add_canonical_test_player_on_map_like_cpp(
     player.unit_mut().world_mut().relocate(position);
     player.unit_mut().world_mut().object_mut().add_to_world();
     player.unit_mut().set_level(80);
+    player.unit_mut().set_faction(1);
     player.unit_mut().set_max_health(health);
     player.unit_mut().set_health(health);
 
@@ -10456,7 +10382,7 @@ fn mirror_canonical_melee_test_creature_like_cpp(
 /// C++ anchor: MessageDistDeliverer::Visit — map-id check before distance.
 #[test]
 fn nearby_visible_filters_by_map_id_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let guid = ObjectGuid::create_player(1, 1);
     let (info, command_rx) = make_registry_player_like_cpp(530, 0, Position::ZERO, true); // wrong map
     registry.register_or_replace(guid, info, Default::default());
@@ -10476,7 +10402,7 @@ fn nearby_visible_filters_by_map_id_like_cpp() {
 /// Slice 4A.1b requirement — instance separation.
 #[test]
 fn nearby_visible_filters_by_instance_id_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let guid = ObjectGuid::create_player(1, 2);
     let (info, command_rx) = make_registry_player_like_cpp(571, 99, Position::ZERO, true); // wrong instance
     registry.register_or_replace(guid, info, Default::default());
@@ -10496,7 +10422,7 @@ fn nearby_visible_filters_by_instance_id_like_cpp() {
 /// C++ anchor: MessageDistDeliverer::Visit — `Player::IsInWorld()` gate.
 #[test]
 fn nearby_visible_filters_is_in_world_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let guid = ObjectGuid::create_player(1, 3);
     let (info, command_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, false); // not in world
     registry.register_or_replace(guid, info, Default::default());
@@ -10517,7 +10443,7 @@ fn nearby_visible_filters_is_in_world_like_cpp() {
 /// C++ anchor: GridNotifiersImpl.h MessageDistDeliverer::Visit ~43-46.
 #[test]
 fn nearby_visible_uses_2d_distance_when_required_3d_false_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     // Player is far on Z but close in XY — should be INCLUDED with 2D check.
     let near_guid = ObjectGuid::create_player(1, 4);
     let (near_info, near_rx) =
@@ -10548,7 +10474,7 @@ fn nearby_visible_uses_2d_distance_when_required_3d_false_like_cpp() {
 /// C++ anchor: GridNotifiersImpl.h MessageDistDeliverer::Visit ~43-46.
 #[test]
 fn nearby_visible_uses_3d_distance_when_required_3d_true_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     // Player is close in XY but far on Z — should be EXCLUDED with 3D check.
     let near_xy_guid = ObjectGuid::create_player(1, 6);
     let (near_xy_info, near_xy_rx) =
@@ -10576,7 +10502,7 @@ fn nearby_visible_uses_3d_distance_when_required_3d_true_like_cpp() {
 
 #[test]
 fn nearby_visible_durable_uses_committed_fifo_instead_of_bounded_queue() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let guid = ObjectGuid::create_player(1, 8);
     let (info, command_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
     let durable = Arc::clone(&info.durable_creature_runtime_commands_like_cpp);
@@ -10611,7 +10537,7 @@ fn nearby_visible_durable_uses_committed_fifo_instead_of_bounded_queue() {
 
 #[test]
 fn creature_spell_start_go_is_one_atomic_observer_command_without_victim_drain_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let victim_guid = ObjectGuid::create_player(1, 80);
     let observer_guid = ObjectGuid::create_player(1, 81);
     let (victim_info, _victim_command_rx) =
@@ -10671,7 +10597,7 @@ fn creature_spell_start_go_is_one_atomic_observer_command_without_victim_drain_l
 
 #[test]
 fn creature_spell_plan_skips_invisible_observer_but_reaches_victim_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let victim_guid = ObjectGuid::create_player(1, 82);
     let invisible_observer_guid = ObjectGuid::create_player(1, 83);
     let (victim_info, _victim_command_rx) =
@@ -10722,7 +10648,7 @@ fn creature_spell_plan_skips_invisible_observer_but_reaches_victim_like_cpp() {
 /// cannot deliver the older cast.
 #[test]
 fn creature_spell_plan_commits_have_at_client_at_resolution_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let victim_guid = ObjectGuid::create_player(1, 84);
     let unaware_guid = ObjectGuid::create_player(1, 85);
     let (victim_info, _victim_command_rx) =
@@ -10763,7 +10689,7 @@ fn creature_spell_plan_commits_have_at_client_at_resolution_like_cpp() {
 /// C++ anchor: WorldObject::SendMessageToSet map-wide broadcast path.
 #[test]
 fn map_broadcast_visible_ignores_distance_but_respects_map_instance_in_world_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
 
     // In range player — correct map/instance.
     let in_guid = ObjectGuid::create_player(1, 10);
@@ -10805,7 +10731,7 @@ fn map_broadcast_visible_ignores_distance_but_respects_map_instance_in_world_lik
 /// C++ anchor: WorldObject::SendMessageToSet explicit receiver path.
 #[test]
 fn explicit_player_routes_only_to_target_guid_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let target_guid = ObjectGuid::create_player(1, 20);
     let other_guid = ObjectGuid::create_player(1, 21);
     let (target_info, target_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
@@ -10830,7 +10756,7 @@ fn explicit_player_routes_only_to_target_guid_like_cpp() {
 
 #[test]
 fn runtime_directory_delivery_rejects_replaced_recipient_generation() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let guid = ObjectGuid::create_player(1, 22);
     let (first_info, first_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
     registry.register_or_replace(guid, first_info, Default::default());
@@ -10866,7 +10792,7 @@ fn runtime_directory_delivery_rejects_replaced_recipient_generation() {
 /// MessageDistDeliverer entirely.
 #[test]
 fn self_only_does_not_broadcast_to_any_session_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     // Even with a matching player in registry, SelfOnly must NOT deliver.
     let guid = ObjectGuid::create_player(1, 30);
     let (info, command_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
@@ -10898,7 +10824,7 @@ fn self_only_does_not_broadcast_to_any_session_like_cpp() {
 /// Backpressure requirement from Slice 4A.1b spec.
 #[test]
 fn full_command_channel_increments_send_failed_and_does_not_block_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let guid = ObjectGuid::create_player(1, 40);
 
     let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
@@ -10906,7 +10832,7 @@ fn full_command_channel_increments_send_failed_and_does_not_block_like_cpp() {
     let (command_tx, command_rx) = flume::bounded::<SessionCommand>(1);
     drop(command_rx);
 
-    let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "Full");
+    let mut info = player_registration_fixture_like_cpp(send_tx, command_tx, "Full");
     info.placement.map_id = 571;
     info.placement.instance_id = 0;
     info.placement.is_in_world = true;
@@ -10934,7 +10860,7 @@ fn full_command_channel_increments_send_failed_and_does_not_block_like_cpp() {
 /// to send raw CREATE bytes through HaveAtClient.
 #[test]
 fn refresh_visible_world_creatures_routes_by_map_instance_in_world_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
 
     let in_a = ObjectGuid::create_player(1, 50);
     let (in_a_info, in_a_rx) = make_registry_player_like_cpp(571, 7, Position::ZERO, true);
@@ -10949,7 +10875,6 @@ fn refresh_visible_world_creatures_routes_by_map_instance_in_world_like_cpp() {
     let (wrong_map_info, wrong_map_rx) =
         make_registry_player_like_cpp(530, 7, Position::ZERO, true);
     registry.register_or_replace(wrong_map, wrong_map_info, Default::default());
-
     let wrong_instance = ObjectGuid::create_player(1, 53);
     let (wrong_instance_info, wrong_instance_rx) =
         make_registry_player_like_cpp(571, 8, Position::ZERO, true);
@@ -10986,14 +10911,14 @@ fn refresh_visible_world_creatures_routes_by_map_instance_in_world_like_cpp() {
 /// Backpressure on the refresh rail must not block the runtime task.
 #[test]
 fn refresh_visible_world_creatures_full_channel_counts_send_failed_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let guid = ObjectGuid::create_player(1, 55);
 
     let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
     let (command_tx, command_rx) = flume::bounded::<SessionCommand>(1);
     drop(command_rx);
 
-    let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "RefreshFull");
+    let mut info = player_registration_fixture_like_cpp(send_tx, command_tx, "RefreshFull");
     info.placement.map_id = 571;
     info.placement.instance_id = 7;
     info.placement.is_in_world = true;
@@ -11014,11 +10939,6 @@ fn collect_legacy_creature_aggro_candidates_uses_living_in_world_players_like_cp
     let dead_in_world = ObjectGuid::create_player(1, 66);
     let (mut in_world_info, _) =
         make_registry_player_like_cpp(571, 2, Position::new(1.0, 2.0, 3.0, 0.0), true);
-    in_world_info.info.combat_reach = 1.5;
-    in_world_info.info.liquid_status = wow_world::session::LIQUID_MAP_IN_WATER_LIKE_CPP;
-    in_world_info.info.faction_template_id = 1;
-    in_world_info.info.forced_reputation_ranks =
-        vec![(87, wow_data::reputation::ReputationRankLikeCpp::Hostile)];
     let (not_in_world_info, _) =
         make_registry_player_like_cpp(571, 2, Position::new(9.0, 9.0, 9.0, 0.0), false);
     let (mut dead_in_world_info, _) =
@@ -11027,6 +10947,35 @@ fn collect_legacy_creature_aggro_candidates_uses_living_in_world_players_like_cp
     registry.register_or_replace(in_world, in_world_info, Default::default());
     registry.register_or_replace(not_in_world, not_in_world_info, Default::default());
     registry.register_or_replace(dead_in_world, dead_in_world_info, Default::default());
+    let canonical: wow_world::SharedCanonicalMapManager =
+        Arc::new(Mutex::new(wow_map::MapManager::default()));
+    canonical
+        .lock()
+        .unwrap()
+        .create_map_entry(571, 2, 0, wow_map::ManagedMapKind::World);
+    add_canonical_test_player_on_map_like_cpp(
+        &canonical,
+        in_world,
+        Position::new(1.0, 2.0, 3.0, 0.0),
+        571,
+        2,
+        100,
+    );
+    {
+        let mut manager = canonical.lock().unwrap();
+        let player = manager
+            .find_map_mut(571, 2)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(in_world)
+            .unwrap();
+        player.unit_mut().set_combat_reach(1.5);
+        player.unit_mut().set_faction(1);
+        player.gameplay_state_mut().liquid_status =
+            wow_world::session::LIQUID_MAP_IN_WATER_LIKE_CPP;
+        player.gameplay_state_mut().forced_reputation_ranks = vec![(87, 1)];
+    }
+    assert!(registry.bind_canonical_map_manager(canonical));
 
     let candidates = collect_legacy_creature_aggro_candidates_like_cpp(&registry);
 
@@ -11118,6 +11067,7 @@ fn collect_legacy_creature_aggro_candidates_hydrates_canonical_visibility_like_c
             0,
         );
     }
+    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
 
     let candidates = collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
         &registry,
@@ -11149,7 +11099,7 @@ fn collect_legacy_creature_aggro_candidates_hydrates_canonical_visibility_like_c
 /// inspected `Player`'s own reputation state and unit flags, not a per-session copy.
 #[test]
 fn collect_legacy_creature_aggro_candidates_reads_reputation_and_flags_from_canonical_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let player_guid = ObjectGuid::create_player(1, 69);
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     let (info, _) = make_registry_player_like_cpp(571, 2, position, true);
@@ -11209,16 +11159,11 @@ fn collect_legacy_creature_aggro_candidates_reads_reputation_and_flags_from_cano
     assert_eq!(candidates[0].player_forced_reputation_faction_ids, vec![87]);
 }
 
-/// Negative branch: with no canonical owner resolved, the four values report their
-/// defaults rather than a remembered copy.
-///
-/// This is what the retired mirror already did — every one of its four producers
-/// was an `unwrap_or_default()` on the same canonical read — so the behaviour is
-/// preserved, and a candidate whose player has left the map can no longer carry a
-/// stale reputation or flag set into the scan.
+/// Negative branch: a directory entry without its canonical owner is unknown and
+/// cannot become an aggro candidate. The far-teleport window must not manufacture
+/// zero/default gameplay values for a player that is temporarily on no map.
 #[test]
-fn collect_legacy_creature_aggro_candidates_default_reputation_and_flags_without_canonical_like_cpp()
- {
+fn collect_legacy_creature_aggro_candidates_skips_unknown_canonical_owner_like_cpp() {
     let registry = PlayerRegistry::default();
     let player_guid = ObjectGuid::create_player(1, 70);
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
@@ -11227,21 +11172,12 @@ fn collect_legacy_creature_aggro_candidates_default_reputation_and_flags_without
 
     let candidates = collect_legacy_creature_aggro_candidates_like_cpp(&registry);
 
-    assert_eq!(candidates.len(), 1);
-    assert_eq!(candidates[0].player_unit_flags2, 0);
-    assert!(!candidates[0].player_is_contested_pvp);
-    assert!(candidates[0].player_reputation_standings.is_empty());
-    assert!(candidates[0].player_reputation_state_flags.is_empty());
-    assert!(
-        candidates[0]
-            .player_forced_reputation_faction_ids
-            .is_empty()
-    );
+    assert!(candidates.is_empty());
 }
 
 #[test]
 fn creature_attack_start_delivery_routes_only_to_victim_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let victim = ObjectGuid::create_player(1, 66);
     let other = ObjectGuid::create_player(1, 67);
     let attacker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_060);
@@ -11376,7 +11312,7 @@ fn creature_assistance_stop_purges_canonical_combat_for_both_creatures_like_cpp(
 
 #[test]
 fn creature_attack_start_delivery_filters_registry_state_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let attacker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_061);
     let wrong_map = ObjectGuid::create_player(1, 68);
     let wrong_instance = ObjectGuid::create_player(1, 69);
@@ -11430,12 +11366,12 @@ fn creature_attack_start_delivery_filters_registry_state_like_cpp() {
 
 #[test]
 fn creature_attack_start_delivery_uses_durable_rail_when_general_queue_is_full_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let victim = ObjectGuid::create_player(1, 73);
     let attacker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_062);
     let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
     let (command_tx, command_rx) = flume::bounded::<SessionCommand>(1);
-    let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx.clone(), "AggroFull");
+    let mut info = player_registration_fixture_like_cpp(send_tx, command_tx.clone(), "AggroFull");
     info.placement.map_id = 571;
     info.placement.instance_id = 0;
     info.placement.is_in_world = true;
@@ -11516,13 +11452,13 @@ fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp() {
     }
 
     let registry = PlayerRegistry::default();
+    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
     let (mut victim_info, victim_rx) = make_registry_player_like_cpp(0, 0, victim_position, true);
-    victim_info.info.faction_template_id = 1;
     registry.register_or_replace(victim, victim_info, Default::default());
     let wrong_map = ObjectGuid::create_player(1, 93_003);
     let (wrong_map_info, wrong_map_rx) = make_registry_player_like_cpp(1, 0, victim_position, true);
     registry.register_or_replace(wrong_map, wrong_map_info, Default::default());
-
+    add_canonical_test_player_on_map_like_cpp(&canonical, wrong_map, victim_position, 1, 0, 100);
     let mmap_config = wow_world::MMapRuntimeConfigLikeCpp {
         enabled: false,
         ..Default::default()
@@ -11559,6 +11495,8 @@ fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp() {
         )),
         ..Default::default()
     };
+    let candidates = collect_legacy_creature_aggro_candidates_like_cpp(&registry);
+    assert_eq!(candidates.len(), 2, "{candidates:?}");
     let outcome = run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
         &legacy,
         Some(&canonical),
@@ -11631,7 +11569,7 @@ fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp() {
 /// single melee hit for one victim, then `Unit::DealDamage` mutates health.
 #[test]
 fn creature_melee_damage_delivery_routes_only_to_victim_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let victim = ObjectGuid::create_player(1, 56);
     let other = ObjectGuid::create_player(1, 57);
     let attacker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_056);
@@ -11677,7 +11615,7 @@ fn creature_melee_damage_delivery_routes_only_to_victim_like_cpp() {
 
 #[test]
 fn creature_melee_damage_delivery_filters_registry_state_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let attacker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_057);
     let wrong_map = ObjectGuid::create_player(1, 58);
     let wrong_instance = ObjectGuid::create_player(1, 59);
@@ -11727,12 +11665,12 @@ fn creature_melee_damage_delivery_filters_registry_state_like_cpp() {
 
 #[test]
 fn creature_melee_damage_delivery_poisoned_durable_rail_counts_send_failed_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let victim = ObjectGuid::create_player(1, 62);
     let attacker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_058);
     let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
     let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
-    let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "MeleeFull");
+    let mut info = player_registration_fixture_like_cpp(send_tx, command_tx, "MeleeFull");
     info.placement.map_id = 571;
     info.placement.instance_id = 0;
     info.placement.is_in_world = true;
@@ -11767,13 +11705,12 @@ fn creature_melee_damage_delivery_poisoned_durable_rail_counts_send_failed_like_
 
 #[test]
 fn creature_melee_damage_delivery_preserves_every_swing_when_general_queue_is_full_like_cpp() {
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let victim = ObjectGuid::create_player(1, 64);
     let attacker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_063);
     let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
     let (command_tx, command_rx) = flume::bounded::<SessionCommand>(1);
-    let mut info =
-        player_broadcast_info_fixture_like_cpp(send_tx, command_tx.clone(), "MeleeRetry");
+    let mut info = player_registration_fixture_like_cpp(send_tx, command_tx.clone(), "MeleeRetry");
     info.placement.map_id = 571;
     info.placement.instance_id = 0;
     info.placement.is_in_world = true;
@@ -11853,7 +11790,7 @@ fn legacy_creature_melee_tick_delivers_compatibility_victim_command_like_cpp() {
         manager.set_tick_owner(wow_world::map_manager::RuntimeTickOwner::GlobalLegacy);
     }
 
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let (victim_info, _victim_rx) = make_registry_player_like_cpp(0, 0, attacker_position, true);
     registry.register_or_replace(victim, victim_info, Default::default());
 
@@ -11932,7 +11869,7 @@ fn legacy_creature_melee_tick_delivers_compatibility_creature_plan_like_cpp() {
         manager.set_tick_owner(wow_world::map_manager::RuntimeTickOwner::GlobalLegacy);
     }
 
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let viewer = ObjectGuid::create_player(1, 91_030);
     let (viewer_info, viewer_rx) = make_registry_player_like_cpp(0, 0, position, true);
     registry.register_or_replace(viewer, viewer_info, Default::default());
@@ -12009,7 +11946,7 @@ fn legacy_creature_lifecycle_tick_refreshes_sessions_after_ready_respawn_like_cp
     );
     legacy.write().unwrap().push_respawn(0, 0, pending);
 
-    let registry = PlayerRegistry::default();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let same_a = ObjectGuid::create_player(1, 91_001);
     let (same_a_info, same_a_rx) = make_registry_player_like_cpp(0, 0, Position::ZERO, true);
     registry.register_or_replace(same_a, same_a_info, Default::default());
@@ -12121,7 +12058,7 @@ async fn legacy_creature_global_tick_task_delivers_movement_plan_like_cpp() {
         manager.set_tick_owner(wow_world::map_manager::RuntimeTickOwner::GlobalLegacy);
     }
 
-    let registry = Arc::new(PlayerRegistry::default());
+    let registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let near_a = ObjectGuid::create_player(1, 90_001);
     let (near_a_info, near_a_rx) =
         make_registry_player_like_cpp(0, 0, Position::new(11.0, 10.0, 999.0, 0.0), true);
@@ -12316,6 +12253,7 @@ async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_mel
     }
 
     let registry = Arc::new(PlayerRegistry::default());
+    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
     let near_a = ObjectGuid::create_player(1, 92_001);
     let (near_a_info, near_a_rx) =
         make_registry_player_like_cpp(0, 0, Position::new(11.0, 10.0, 999.0, 0.0), true);
@@ -12329,9 +12267,32 @@ async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_mel
         make_registry_player_like_cpp(1, 0, Position::new(10.0, 10.0, 0.0, 0.0), true);
     registry.register_or_replace(wrong_map, wrong_map_info, Default::default());
     let (mut victim_info, victim_rx) = make_registry_player_like_cpp(0, 0, melee_position, true);
-    victim_info.info.faction_template_id = 1;
     registry.register_or_replace(melee_victim, victim_info, Default::default());
-
+    add_canonical_test_player_on_map_like_cpp(
+        &canonical,
+        near_a,
+        Position::new(11.0, 10.0, 999.0, 0.0),
+        0,
+        0,
+        100,
+    );
+    add_canonical_test_player_on_map_like_cpp(
+        &canonical,
+        near_b,
+        Position::new(12.0, 10.0, -999.0, 0.0),
+        0,
+        0,
+        100,
+    );
+    canonical.lock().unwrap().create_world_map(1, 0);
+    add_canonical_test_player_on_map_like_cpp(
+        &canonical,
+        wrong_map,
+        Position::new(10.0, 10.0, 0.0, 0.0),
+        1,
+        0,
+        100,
+    );
     let mmap_config = wow_world::MMapRuntimeConfigLikeCpp {
         enabled: false,
         ..Default::default()
@@ -12608,7 +12569,7 @@ async fn legacy_creature_runtime_loop_smoke_delivers_visible_work_like_cpp() {
         manager.set_tick_owner(wow_world::map_manager::RuntimeTickOwner::GlobalLegacy);
     }
 
-    let registry = Arc::new(PlayerRegistry::default());
+    let registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let player = ObjectGuid::create_player(1, 94_002);
     let (player_info, player_rx) =
         make_registry_player_like_cpp(0, 0, Position::new(11.0, 10.0, 0.0, 0.0), true);
@@ -12720,7 +12681,7 @@ async fn legacy_respawn_producer_stop_runs_final_lifecycle_flush_like_cpp() {
         Arc::new(Mutex::new(())),
         producer_stop,
         None,
-        Arc::new(PlayerRegistry::default()),
+        Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp()),
     );
 
     tokio::time::timeout(Duration::from_secs(2), handle)

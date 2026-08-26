@@ -760,7 +760,7 @@ async fn accept_wargame_invite_records_ready_to_queue_when_groups_match_like_cpp
     let inviter_guid = ObjectGuid::create_player(1, 200);
     let inviter_ally_guid = ObjectGuid::create_player(1, 201);
     let group_registry = Arc::new(GroupRegistry::default());
-    let player_registry = Arc::new(PlayerRegistry::default());
+    let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
 
     let mut player_group = GroupInfo::new(player_guid);
     player_group.members.push(player_ally_guid);

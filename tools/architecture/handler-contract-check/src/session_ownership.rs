@@ -73,20 +73,17 @@ const WORLD_LOOT_PERSISTENCE_MODULE: &str = "crate::loot_persistence";
 /// names `GroupDifficultyKindLikeCpp` in one payload, so the contract scan must
 /// reach this module or that payload type would silently leave the inventory.
 const SOCIAL_GROUP_MODULE: &str = "crate::group";
-/// Issue #138 relocated the opaque connected-session directory here. Its
-/// `PlayerBroadcastInfo` surface is still an ownership target, so the session
-/// contract scan must reach this module as well as the `wow-network` mailbox.
+/// Issue #138 relocated the opaque connected-session directory here, so direct
+/// registry access remains part of the ownership scan.
 const WORLD_SESSION_DIRECTORY_MODULE: &str = "crate::session::directory";
 const SESSION_COMMAND_NAME: &str = "SessionCommand";
-const PLAYER_BROADCAST_INFO_NAME: &str = "PlayerBroadcastInfo";
 const FNV1A_64_PRIME: u64 = 0x0000_0100_0000_01b3;
 const FNV1A_64_OFFSET_A: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV1A_64_OFFSET_B: u64 = 0x8422_2325_cbf2_9ce4;
-const OWNERSHIP_TARGET_NAMES: [&str; 4] = [
+const OWNERSHIP_TARGET_NAMES: [&str; 3] = [
     WORLD_SESSION_NAME,
     SESSION_RESOURCES_NAME,
     SESSION_COMMAND_NAME,
-    PLAYER_BROADCAST_INFO_NAME,
 ];
 
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -229,7 +226,6 @@ pub struct SessionSyntaxBaseline {
     pub session_factory: SessionFactorySurface,
     pub session_command: TypeSurface,
     pub session_command_payload_types: Vec<TypeSurface>,
-    pub player_broadcast_info: TypeSurface,
     pub generated_surface_inputs: Vec<GeneratedSurfaceInput>,
     pub(crate) registry_accesses: RegistryAccessBaseline,
     #[serde(skip)]
@@ -1474,7 +1470,6 @@ fn network_contract(
     (
         TypeSurface,
         Vec<TypeSurface>,
-        TypeSurface,
         BTreeSet<GeneratedSurfaceInput>,
     ),
     String,
@@ -1483,21 +1478,10 @@ fn network_contract(
     if session_command.surface.kind != "enum" {
         return Err(format!("{SESSION_COMMAND_NAME} must remain an enum"));
     }
-    let player_broadcast_info = unique_contract_type(types, PLAYER_BROADCAST_INFO_NAME)?;
-    if player_broadcast_info.surface.kind != "struct" {
-        return Err(format!("{PLAYER_BROADCAST_INFO_NAME} must remain a struct"));
-    }
-
     let mut pending: Vec<_> = session_command.referenced_types.iter().cloned().collect();
     let mut visited = BTreeSet::from([SESSION_COMMAND_NAME.to_owned()]);
     let mut payloads = Vec::new();
     let mut generated_surface_inputs = session_command.generated_surface_inputs.clone();
-    generated_surface_inputs.extend(
-        player_broadcast_info
-            .generated_surface_inputs
-            .iter()
-            .cloned(),
-    );
     while let Some(name) = pending.pop() {
         if !visited.insert(name.clone()) {
             continue;
@@ -1525,7 +1509,6 @@ fn network_contract(
     Ok((
         session_command.surface.clone(),
         payloads,
-        player_broadcast_info.surface.clone(),
         generated_surface_inputs,
     ))
 }
@@ -1646,12 +1629,8 @@ impl BaselineBuilder {
         if !errors.is_empty() {
             return Err(errors.join("\n"));
         }
-        let (
-            session_command,
-            session_command_payload_types,
-            player_broadcast_info,
-            network_generated_surface_inputs,
-        ) = network_contract.expect("validated network contract");
+        let (session_command, session_command_payload_types, network_generated_surface_inputs) =
+            network_contract.expect("validated network contract");
         let mut generated_surface_inputs = self.generated_surface_inputs;
         generated_surface_inputs.extend(network_generated_surface_inputs);
 
@@ -1688,7 +1667,6 @@ impl BaselineBuilder {
             },
             session_command,
             session_command_payload_types,
-            player_broadcast_info,
             generated_surface_inputs: generated_surface_inputs.into_iter().collect(),
             registry_accesses,
             persistence_accesses,
@@ -2040,12 +2018,6 @@ fn compare_baseline(
         &actual.session_command_payload_types,
         &mut errors,
     );
-    if expected.player_broadcast_info != actual.player_broadcast_info {
-        errors.push(format!(
-            "PlayerBroadcastInfo surface changed: expected {:?}, actual {:?}",
-            expected.player_broadcast_info, actual.player_broadcast_info
-        ));
-    }
     set_drift(
         "generated ownership input",
         &expected.generated_surface_inputs,
@@ -2195,7 +2167,7 @@ fn check_repository_scoped(
         "session ownership: PASS ({production_session_fields} production + {test_session_fields} \
          test-fixture WorldSession fields; {} impl owners / {} exact associated \
          items; {} SessionResources fields; {} factory setter/install calls; {} SessionCommand \
-         variants / {} transitive payload types; {} PlayerBroadcastInfo fields; {} exact generated \
+         variants / {} transitive payload types; {} exact generated \
          inputs; {} exact direct-registry rows; {production_persistence_rows} production + \
          {test_persistence_rows} test-fixture persistence rows \
          ({generated_persistence_rows} generated-input rows, subset; {semantic_groups} exact semantic groups); {} exact bridge rows; \
@@ -2206,7 +2178,6 @@ fn check_repository_scoped(
         actual.session_factory.setter_call_sites.len(),
         actual.session_command.variants.len(),
         actual.session_command_payload_types.len(),
-        actual.player_broadcast_info.fields.len(),
         actual.generated_surface_inputs.len(),
         actual.registry_accesses.accesses.len(),
         actual.bridge_accesses.bridges.len(),
@@ -2382,7 +2353,6 @@ mod tests {
             r#"
                 pub enum SessionCommand { Kick(KickCommand) }
                 pub struct KickCommand { pub reason: String }
-                pub struct PlayerBroadcastInfo { pub map_id: u16 }
             "#,
         )
     }
@@ -2632,7 +2602,6 @@ mod tests {
             r#"
                 pub enum SessionCommand { Kick(KickCommand) }
                 pub struct KickCommand { pub reason: String }
-                pub struct PlayerBroadcastInfo { pub map_id: u16 }
             "#,
         )
         .expect("baseline parses");
@@ -2643,7 +2612,6 @@ mod tests {
                 #[derive(Clone)]
                 pub enum SessionCommand { Kick(KickCommand) }
                 pub struct KickCommand { pub reason: String }
-                pub struct PlayerBroadcastInfo { pub map_id: u16 }
             "#,
         )
         .expect("generated input parses");
@@ -2828,7 +2796,7 @@ mod tests {
     }
 
     #[test]
-    fn command_variants_transitive_payloads_and_broadcast_fields_are_exact() {
+    fn command_variants_and_transitive_payloads_are_exact() {
         let world = world_source("state: u8,", "");
         let server = server_source("", "");
         let baseline = synthetic_baseline_with_network(
@@ -2838,7 +2806,6 @@ mod tests {
                 pub enum SessionCommand { Kick(KickCommand) }
                 pub struct KickCommand { pub nested: NestedPayload }
                 pub struct NestedPayload { pub reason: String }
-                pub struct PlayerBroadcastInfo { pub map_id: u16 }
             "#,
         )
         .expect("network baseline parses");
@@ -2849,17 +2816,12 @@ mod tests {
                 pub enum SessionCommand { Kick(KickCommand), Refresh }
                 pub struct KickCommand { pub nested: NestedPayload }
                 pub struct NestedPayload { pub reason: Vec<u8> }
-                pub struct PlayerBroadcastInfo { pub map_id: u16, pub instance_id: u32 }
             "#,
         )
         .expect("changed network surface parses");
         let error = compare_baseline(&baseline, &changed).expect_err("network drift must fail");
         assert!(error.contains("SessionCommand variants changed"), "{error}");
         assert!(error.contains("transitive payload type"), "{error}");
-        assert!(
-            error.contains("PlayerBroadcastInfo surface changed"),
-            "{error}"
-        );
     }
 
     #[test]
@@ -2937,8 +2899,7 @@ mod tests {
     /// The collector sees the repository, and what it sees agrees with the
     /// baseline the ratchet enforces.
     ///
-    /// This used to restate nine sizes as literals — 738 fields, 80
-    /// `PlayerBroadcastInfo` fields, 685 registry rows — frozen when #181 first
+    /// This used to restate scanner sizes as literals frozen when #181 first
     /// baselined the scanner. Every one of those numbers is already owned by
     /// `session-ownership-policy.json`, so the copies could only rot, and they
     /// did: by #363 all but one were wrong. It asserts properties now, and the
@@ -3027,7 +2988,6 @@ mod tests {
         assert!(!baseline.world_session.impls.is_empty());
         assert!(!baseline.session_resources.fields.is_empty());
         assert!(!baseline.session_command.variants.is_empty());
-        assert!(!baseline.player_broadcast_info.fields.is_empty());
         assert!(!baseline.registry_accesses.accesses.is_empty());
         assert!(baseline.registry_accesses.accesses.iter().all(|record| {
             record.source.starts_with("crates/") && !Path::new(&record.source).is_absolute()

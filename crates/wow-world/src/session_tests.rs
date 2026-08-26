@@ -24,10 +24,12 @@ use routing::assert_destroyed_party_update_like_cpp;
 use super::*;
 use crate::canonical_player_access::{
     configure_canonical_player_party_flags_for_test as set_party_flags,
-    configure_canonical_player_vitals_for_test as set_vitals, with_canonical_player_at_like_cpp,
+    configure_canonical_player_vitals_for_test as set_vitals,
+    install_canonical_player_owner_for_test, with_canonical_player_at_like_cpp,
+    with_canonical_player_at_mut_like_cpp,
 };
 use crate::session::directory::{
-    PlayerBroadcastInfo, PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp,
+    PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp,
     PlayerSessionRegistrationLikeCpp,
 };
 use crate::session::mailbox::{
@@ -10758,7 +10760,7 @@ fn creature_realm_fanout_uses_validated_position_without_canonical_mirror() {
     let creature = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1014);
     let source_position = Position::new(10.0, 20.0, 30.0, 0.0);
     let packet_bytes = vec![0x44, 0x55, 0x68];
-    let registry = Arc::new(PlayerRegistry::default());
+    let registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let (observer_send_tx, _observer_send_rx) = flume::bounded(1);
     let (observer_command_tx, observer_command_rx) = flume::bounded(1);
     let mut observer_info =
@@ -19473,6 +19475,7 @@ fn represented_mount_capability_applies_mounted_speed_aura_like_cpp() {
 fn represented_mounted_aura_recalculates_amount_from_mount_capability_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+    install_canonical_player_owner_for_test(&mut session, 0, 0);
     session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
         wow_data::MountEntry {
             id: 1,
@@ -21673,6 +21676,7 @@ fn mount_store_injection_relearns_account_mount_spells_with_controller_like_cpp(
 fn represented_mount_capability_for_type_uses_session_state_like_cpp() {
     let (mut session, _, _) = make_session();
     session.current_map_id = 1;
+    install_canonical_player_owner_for_test(&mut session, 1, 0);
     session.set_player_zone_area_like_cpp(10, 77);
     session.set_known_spells_like_cpp(vec![456]);
     session.set_player_skill_values_like_cpp(HashMap::from([(SKILL_RIDING_LIKE_CPP, 75)]));
@@ -21796,6 +21800,7 @@ fn represented_mount_capability_for_type_uses_session_state_like_cpp() {
 fn represented_mount_capability_uses_login_zone_area_fallback_like_cpp() {
     let (mut session, _, _) = make_session();
     session.current_map_id = 571;
+    install_canonical_player_owner_for_test(&mut session, 571, 0);
     session.set_player_skill_values_like_cpp(HashMap::from([(SKILL_RIDING_LIKE_CPP, 75)]));
     session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
         wow_data::AreaTableEntry {
@@ -21854,29 +21859,35 @@ fn represented_mount_capability_uses_login_zone_area_fallback_like_cpp() {
 #[test]
 fn represented_mount_liquid_state_uses_cpp_liquid_bits_and_swimming_flag() {
     let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 21_861);
+    let canonical = shared_canonical_map_manager();
+    session.set_player_guid(Some(player_guid));
+    session.player_position = Some(Position::ZERO);
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    add_canonical_test_player_on_map(&canonical, player_guid, Position::ZERO, 0, 0);
 
     assert_eq!(
         session.represented_player_mount_liquid_state_like_cpp(),
-        (false, false)
+        Some((false, false))
     );
 
     session.set_player_liquid_status_like_cpp(LIQUID_MAP_IN_WATER_LIKE_CPP);
     assert_eq!(
         session.represented_player_mount_liquid_state_like_cpp(),
-        (false, true)
+        Some((false, true))
     );
 
     session.set_player_liquid_status_like_cpp(LIQUID_MAP_UNDER_WATER_LIKE_CPP);
     assert_eq!(
         session.represented_player_mount_liquid_state_like_cpp(),
-        (true, true)
+        Some((true, true))
     );
 
     session.set_player_liquid_status_like_cpp(0);
     session.set_player_movement_flags_like_cpp(MovementFlag::SWIMMING);
     assert_eq!(
         session.represented_player_mount_liquid_state_like_cpp(),
-        (true, false)
+        Some((true, false))
     );
 }
 
@@ -22369,6 +22380,20 @@ fn add_canonical_test_player_on_map(
         instance_id,
         0,
     );
+}
+
+fn bind_canonical_test_player_to_registry_like_cpp(
+    session: &mut WorldSession,
+    registry: &Arc<PlayerRegistry>,
+    guid: ObjectGuid,
+    position: Position,
+    map_id: u32,
+) -> SharedCanonicalMapManager {
+    let canonical = shared_canonical_map_manager();
+    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    add_canonical_test_player_on_map(&canonical, guid, position, map_id, 0);
+    canonical
 }
 
 fn canonical_party_type_for_test(
@@ -31448,8 +31473,10 @@ fn canonical_access_requirement_current_player_achievement_matches_cpp() {
 fn canonical_access_requirement_connected_group_leader_achievement_matches_cpp() {
     let (mut leader_session, _leader_pkt_tx, _leader_send_rx) = make_session();
     let (mut member_session, _member_pkt_tx, member_send_rx) = make_session();
-    let canonical = shared_canonical_map_manager();
-    let player_registry = Arc::new(PlayerRegistry::default());
+    let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
+    let canonical = player_registry
+        .fixture_canonical_map_manager_like_cpp()
+        .expect("canonical player fixture manager");
     let group_registry = Arc::new(GroupRegistry::default());
     let leader_guid = ObjectGuid::create_player(1, 89);
     let member_guid = ObjectGuid::create_player(1, 90);
@@ -31516,9 +31543,17 @@ fn canonical_access_requirement_connected_group_leader_achievement_matches_cpp()
     );
     assert!(member_send_rx.try_recv().is_err());
 
-    player_registry.fixture_update(leader_guid, |leader_info, _| {
-        leader_info.completed_achievements.insert(9001);
-    });
+    member_session
+        .mutate_canonical_player_by_guid_like_cpp(leader_guid, |leader| {
+            leader
+                .gameplay_state_mut()
+                .achievements
+                .push(wow_entities::PlayerAchievementRecord {
+                    achievement_id: 9001,
+                    completed_at: None,
+                });
+        })
+        .expect("canonical group leader");
     assert!(matches!(
         member_session.ensure_canonical_world_map_for_current_player_like_cpp(),
         Some(wow_map::CreateMapDecision::Create { .. })
@@ -33835,7 +33870,7 @@ fn reputation_gain_applies_recruit_a_friend_bonus_for_non_spell_sources_like_cpp
     });
 
     let (recruit_tx, _recruit_rx) = flume::bounded(10);
-    let player_registry = Arc::new(PlayerRegistry::default());
+    let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let mut recruit_info = broadcast_info(recruit_guid, recruit_tx);
     recruit_info.placement.map_id = 571;
     recruit_info.placement.position = Position::new(25.0, 0.0, 0.0, 0.0);
@@ -35638,7 +35673,7 @@ fn broadcast_info(
 /// players read while distributing a message.
 #[test]
 fn publishing_gameplay_state_cannot_detach_the_shared_session_handles_like_cpp() {
-    let registry = PlayerRegistry::new();
+    let registry = PlayerRegistry::with_canonical_player_fixtures_like_cpp();
     let guid = ObjectGuid::create_player(1, 900);
     let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(4);
     let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(4);
@@ -35654,7 +35689,7 @@ fn publishing_gameplay_state_cannot_detach_the_shared_session_handles_like_cpp()
     visibility.insert(seen);
 
     // The only thing a gameplay publish can replace is the projection.
-    assert!(registry.fixture_update(guid, |_, placement| placement.level = 80));
+    assert!(registry.fixture_update(guid, |placement| placement.level = 80));
     assert_eq!(
         registry.group_presence(guid).expect("registered").level,
         80,
@@ -35710,44 +35745,7 @@ fn broadcast_info_with_command(
             level: 1,
             is_alive: true,
         },
-        info: PlayerBroadcastInfo {
-            combat_reach: 0.0,
-            liquid_status: 0,
-            active_loot_rolls: Vec::new(),
-            in_combat: false,
-            pass_on_group_loot: false,
-            enchanting_skill: 0,
-            transport: None,
-            is_afk: false,
-            is_dnd: false,
-            in_vehicle: false,
-            has_vehicle_kit_like_cpp: false,
-            party_member_vehicle_seat: 0,
-            zone_id: 0,
-            spec_id: 0,
-            unit_flags: 0,
-            unit_state: 0,
-            is_game_master: false,
-            dungeon_difficulty_id: 1,
-            pending_quest_sharing: None,
-            known_spells: Vec::new(),
-            active_quest_statuses: Default::default(),
-            active_quest_objective_counts: Default::default(),
-            rewarded_quests: Default::default(),
-            completed_achievements: Default::default(),
-            daily_quests_completed: Default::default(),
-            df_quests: Default::default(),
-            faction_template_id: 0,
-            forced_reputation_ranks: Vec::new(),
-            inventory_item_counts: Default::default(),
-            party_member_phase_states: Default::default(),
-            party_member_auras: Vec::new(),
-            party_member_pet_stats: None,
-            gray_level: 0,
-            display_id: 49,
-            visible_items: Arc::new([(0, 0, 0); 19]),
-            customizations: Arc::default(),
-        },
+        active_loot_rolls: Vec::new(),
         realm_send_tx: send_tx.clone(),
         send_tx,
         command_tx,
@@ -35941,7 +35939,7 @@ fn player_entry_visibility_refresh_skips_out_of_range_sessions_like_cpp() {
     let guid = ObjectGuid::create_player(1, 42);
     let nearby_guid = ObjectGuid::create_player(1, 43);
     let far_guid = ObjectGuid::create_player(1, 44);
-    let registry = Arc::new(PlayerRegistry::default());
+    let registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let (nearby_tx, nearby_rx) = flume::bounded(1);
     let (nearby_command_tx, nearby_command_rx) = flume::bounded(1);
     let (far_tx, far_rx) = flume::bounded(1);
@@ -35982,7 +35980,7 @@ async fn player_visibility_refresh_survives_full_command_queue_like_cpp() {
     let (mut receiver, _, _) = make_session();
     let source_guid = ObjectGuid::create_player(1, 45);
     let receiver_guid = ObjectGuid::create_player(1, 46);
-    let source_registry = Arc::new(PlayerRegistry::default());
+    let source_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let receiver_registry = Arc::new(PlayerRegistry::default());
     let (receiver_send_tx, _receiver_send_rx) = flume::bounded(1);
     let (full_command_tx, full_command_rx) = flume::bounded(1);
@@ -36042,7 +36040,7 @@ fn player_exit_visibility_refresh_uses_same_full_diff_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 42);
     let nearby_guid = ObjectGuid::create_player(1, 43);
-    let registry = Arc::new(PlayerRegistry::default());
+    let registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let (nearby_tx, nearby_rx) = flume::bounded(1);
     let (nearby_command_tx, nearby_command_rx) = flume::bounded(1);
 
@@ -36180,10 +36178,31 @@ fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
     add_canonical_test_player_on_map(&canonical, guid, Position::ZERO, 571, 0);
     let vitals = (1_234, 4_567, PowerType::Mana, 321, 789, 456);
     assert!(set_vitals(&canonical, guid, vitals));
+    assert!(
+        with_canonical_player_at_mut_like_cpp(&canonical, guid, 571, 0, |player| {
+            player.unit_mut().set_display_id(77, true);
+            crate::canonical_player_access::set_player_visible_item_values_like_cpp(
+                player,
+                0,
+                (12_345, 6, 7),
+            );
+            player.gameplay_state_mut().customizations = vec![
+                wow_entities::PlayerCustomizationChoice {
+                    option_id: 10,
+                    choice_id: 20,
+                },
+                wow_entities::PlayerCustomizationChoice {
+                    option_id: 30,
+                    choice_id: 40,
+                },
+            ];
+        })
+        .is_some()
+    );
     let mut info = broadcast_info(guid, send_tx);
     info.placement.map_id = 571;
     info.identity.class = 8;
-    info.info.transport = Some(wow_packet::packets::movement::TransportInfo {
+    let expected_transport = wow_packet::packets::movement::TransportInfo {
         guid: ObjectGuid::create_transport(HighGuid::Transport, 7_004),
         x: 1.0,
         y: 2.0,
@@ -36193,8 +36212,24 @@ fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
         time: 123,
         prev_time: Some(122),
         vehicle_id: Some(99),
-    });
-    info.info.customizations = Arc::new(vec![
+    };
+    assert!(
+        with_canonical_player_at_mut_like_cpp(&canonical, guid, 571, 0, |player| {
+            player.gameplay_state_mut().transport = Some(wow_entities::PlayerTransportState {
+                guid: expected_transport.guid,
+                x: expected_transport.x,
+                y: expected_transport.y,
+                z: expected_transport.z,
+                orientation: expected_transport.o,
+                seat: expected_transport.seat,
+                time: expected_transport.time,
+                prev_time: expected_transport.prev_time,
+                vehicle_id: expected_transport.vehicle_id,
+            });
+        })
+        .is_some()
+    );
+    let expected_customizations = Arc::new(vec![
         wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate {
             option_id: 10,
             choice_id: 20,
@@ -36204,8 +36239,6 @@ fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
             choice_id: 40,
         },
     ]);
-    let expected_customizations = Arc::clone(&info.info.customizations);
-    let expected_transport = info.info.transport.clone().unwrap();
     registry.register_or_replace(guid, info, Default::default());
     let snapshot = registry
         .player_visibility_create_candidates(
@@ -36219,6 +36252,8 @@ fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
         .into_iter()
         .next()
         .expect("canonical player CREATE candidate");
+    assert_eq!(snapshot.display_id, 77);
+    assert_eq!(snapshot.visible_items[0], (12_345, 6, 7));
     let update = crate::handlers::character::player_visibility_create_update_from_snapshot_like_cpp(
         &snapshot, 571,
     );
@@ -36257,21 +36292,14 @@ fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
 }
 
 #[test]
-fn loaded_customizations_refresh_already_registered_player_like_cpp() {
+fn loaded_customizations_update_canonical_player_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 52);
-    let registry = Arc::new(PlayerRegistry::default());
-    let (send_tx, _send_rx) = flume::bounded(1);
-
     session.set_player_guid(Some(guid));
-    session.set_player_registry(Arc::clone(&registry));
-    // The session may only publish into the entry its own control channel
-    // owns (#243); login registers with exactly this sender.
-    registry.register_or_replace(
-        guid,
-        broadcast_info_with_command(guid, send_tx, session.session_command_tx()),
-        Default::default(),
-    );
+    session.set_player_map_position_like_cpp(571, Position::ZERO);
+    let canonical = shared_canonical_map_manager();
+    add_canonical_test_player_on_map(&canonical, guid, Position::ZERO, 571, 0);
+    session.set_canonical_map_manager(Arc::clone(&canonical));
 
     let customizations = vec![
         wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate {
@@ -36281,8 +36309,11 @@ fn loaded_customizations_refresh_already_registered_player_like_cpp() {
     ];
     session.set_loaded_player_customizations_like_cpp(customizations.clone());
 
-    let info = registry.fixture_snapshot(guid).expect("registered player");
-    assert_eq!(info.customizations.as_ref(), &customizations);
+    let actual = with_canonical_player_at_like_cpp(&canonical, guid, 571, 0, |player| {
+        crate::canonical_player_access::canonical_player_presentation_like_cpp(player).4
+    })
+    .unwrap();
+    assert_eq!(actual, vec![(50, 60)]);
 }
 
 #[test]
@@ -36404,6 +36435,13 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 42);
     let registry = Arc::new(PlayerRegistry::default());
+    bind_canonical_test_player_to_registry_like_cpp(
+        &mut session,
+        &registry,
+        guid,
+        Position::ZERO,
+        0,
+    );
     session.set_player_guid(Some(guid));
     session.player_position = Some(Position::ZERO);
     session.player_name = Some("Tester".to_string());
@@ -36468,7 +36506,9 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
 
     session.register_in_player_registry();
     {
-        let info = registry.fixture_snapshot(guid).expect("registered player");
+        let info = registry
+            .loot_player_context(guid)
+            .expect("registered player");
         assert_eq!(info.known_spells, vec![12_345]);
         assert_eq!(info.active_quest_statuses.get(&100), Some(&1));
         assert_eq!(
@@ -36498,7 +36538,7 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
     }
     session.sync_player_registry_state_like_cpp();
 
-    let info = registry.fixture_snapshot(guid).expect("synced player");
+    let info = registry.loot_player_context(guid).expect("synced player");
     assert!(info.known_spells.contains(&54_321));
     assert_eq!(info.active_quest_statuses.get(&300), Some(&2));
     assert_eq!(info.active_quest_objective_counts.get(&300), Some(&vec![7]));
@@ -36536,66 +36576,18 @@ fn party_member_reads_canonical_power_without_registry_republish_like_cpp() {
 }
 
 #[test]
-fn player_registry_publishes_party_member_visible_auras_like_cpp() {
-    let (mut session, _, _) = make_session();
-    let guid = ObjectGuid::create_player(1, 43);
-    let registry = Arc::new(PlayerRegistry::default());
-    let position = Position::new(1.0, 2.0, 3.0, 0.0);
-    session.set_player_guid(Some(guid));
-    session.set_player_map_position_like_cpp(571, position);
-    session.player_name = Some("AuraTester".to_string());
-    session.set_player_registry(Arc::clone(&registry));
-    session
-        .apply_aura_with_effect_mask_like_cpp(12_345, guid, 30_000, 0x21, 0x04)
-        .expect("represented aura applies");
-
-    session.register_in_player_registry();
-
-    let info = registry.fixture_snapshot(guid).expect("registered player");
-    assert_eq!(info.party_member_auras.len(), 1);
-    let aura = &info.party_member_auras[0];
-    assert_eq!(aura.spell_id, 12_345);
-    assert_eq!(aura.flags, 0x21);
-    assert_eq!(aura.active_flags, 0x04);
-    assert!(aura.points.is_empty());
-}
-
-#[test]
-fn player_registry_publishes_represented_scalable_aura_point_like_cpp() {
-    let (mut session, _, _) = make_session();
-    let guid = ObjectGuid::create_player(1, 44);
-    let registry = Arc::new(PlayerRegistry::default());
-    let position = Position::new(1.0, 2.0, 3.0, 0.0);
-    session.set_player_guid(Some(guid));
-    session.set_player_map_position_like_cpp(571, position);
-    session.player_name = Some("ScalableAuraTester".to_string());
-    session.set_player_registry(Arc::clone(&registry));
-    let mut scalable_aura =
-        reputation_aura_for_test(1, RepresentedAuraEffectLikeCpp::ModReputationGain, 35, None);
-    scalable_aura.aura_flags |= AFLAG_SCALABLE_LIKE_CPP;
-    scalable_aura.effect_mask = 0x0000_0002;
-    scalable_aura.represented_effect_amounts = vec![RepresentedAuraEffectAmountLikeCpp {
-        effect_index: 1,
-        amount: 35,
-    }];
-    session.visible_auras.insert(1, scalable_aura);
-
-    session.register_in_player_registry();
-
-    let info = registry.fixture_snapshot(guid).expect("registered player");
-    assert_eq!(info.party_member_auras.len(), 1);
-    let aura = &info.party_member_auras[0];
-    assert_eq!(aura.flags, AFLAG_SCALABLE_LIKE_CPP as u16 | 0x0001);
-    assert_eq!(aura.active_flags, 0x0000_0002);
-    assert_eq!(aura.points, vec![35.0]);
-}
-
-#[test]
 fn player_registry_publishes_multieffect_scalable_aura_points_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 45);
     let registry = Arc::new(PlayerRegistry::default());
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
+    let canonical = bind_canonical_test_player_to_registry_like_cpp(
+        &mut session,
+        &registry,
+        guid,
+        position,
+        571,
+    );
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
     session.player_name = Some("MultiEffectAuraTester".to_string());
@@ -36611,10 +36603,38 @@ fn player_registry_publishes_multieffect_scalable_aura_points_like_cpp() {
             amount: 71,
         });
     session.visible_auras.insert(1, scalable_aura);
+    assert!(
+        with_canonical_player_at_mut_like_cpp(&canonical, guid, 571, 0, |player| {
+            let aura = wow_entities::AppliedAuraRef::new(1, guid, 1, 0x0000_0005);
+            player.unit_mut().subsystems_mut().auras.add_applied(aura);
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .set_visible_with_application_like_cpp(
+                    1,
+                    aura.aura_ref(),
+                    wow_entities::VisibleAuraApplicationLikeCpp::new(
+                        AFLAG_SCALABLE_LIKE_CPP | 0x0001,
+                        vec![
+                            wow_entities::VisibleAuraEffectAmountLikeCpp {
+                                effect_index: 0,
+                                amount: 35,
+                            },
+                            wow_entities::VisibleAuraEffectAmountLikeCpp {
+                                effect_index: 2,
+                                amount: 71,
+                            },
+                        ],
+                    ),
+                );
+        })
+        .is_some()
+    );
 
     session.register_in_player_registry();
 
-    let info = registry.fixture_snapshot(guid).expect("registered player");
+    let info = registry.party_member(guid).expect("registered player");
     assert_eq!(info.party_member_auras.len(), 1);
     let aura = &info.party_member_auras[0];
     assert_eq!(aura.active_flags, 0x0000_0005);
@@ -36700,6 +36720,7 @@ fn player_registry_publishes_party_member_vehicle_seat_id_like_cpp() {
     let guid = ObjectGuid::create_player(1, 47);
     let registry = Arc::new(PlayerRegistry::default());
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
+    bind_canonical_test_player_to_registry_like_cpp(&mut session, &registry, guid, position, 571);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
     session.player_name = Some("VehicleSeatTester".to_string());
@@ -36709,7 +36730,7 @@ fn player_registry_publishes_party_member_vehicle_seat_id_like_cpp() {
 
     session.register_in_player_registry();
 
-    let info = registry.fixture_snapshot(guid).expect("registered player");
+    let info = registry.party_member(guid).expect("registered player");
     assert!(info.in_vehicle);
     assert_eq!(info.party_member_vehicle_seat, 1001);
 }
@@ -36718,7 +36739,7 @@ fn player_registry_publishes_party_member_vehicle_seat_id_like_cpp() {
 fn represented_request_vehicle_exit_clears_party_vehicle_state_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 50);
-    let registry = Arc::new(PlayerRegistry::default());
+    let registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
@@ -36733,7 +36754,7 @@ fn represented_request_vehicle_exit_clears_party_vehicle_state_like_cpp() {
 
     assert!(session.player_vehicle_seat_flags_like_cpp.is_none());
     assert!(session.player_vehicle_seat_id_like_cpp.is_none());
-    let info = registry.fixture_snapshot(guid).expect("registered player");
+    let info = registry.party_member(guid).expect("registered player");
     assert!(!info.in_vehicle);
     assert_eq!(info.party_member_vehicle_seat, 0);
 }
@@ -36742,7 +36763,7 @@ fn represented_request_vehicle_exit_clears_party_vehicle_state_like_cpp() {
 fn represented_request_vehicle_exit_accepts_control_seat_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 52);
-    let registry = Arc::new(PlayerRegistry::default());
+    let registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
@@ -36754,7 +36775,7 @@ fn represented_request_vehicle_exit_accepts_control_seat_like_cpp() {
 
     assert!(session.represented_request_vehicle_exit_like_cpp());
 
-    let info = registry.fixture_snapshot(guid).expect("registered player");
+    let info = registry.party_member(guid).expect("registered player");
     assert!(!info.in_vehicle);
     assert_eq!(info.party_member_vehicle_seat, 0);
 }
@@ -36989,6 +37010,7 @@ fn represented_vehicle_interact_map_store_like_cpp(instance_type: i8) -> Arc<Map
 
 fn insert_represented_vehicle_target_like_cpp(
     registry: &PlayerRegistry,
+    canonical: &SharedCanonicalMapManager,
     target_guid: ObjectGuid,
     position: Position,
     has_vehicle_kit_like_cpp: bool,
@@ -36998,8 +37020,14 @@ fn insert_represented_vehicle_target_like_cpp(
     info.placement.map_id = 571;
     info.placement.instance_id = 0;
     info.placement.position = position;
-    info.info.has_vehicle_kit_like_cpp = has_vehicle_kit_like_cpp;
     registry.register_or_replace(target_guid, info, Default::default());
+    add_canonical_test_player_on_map(canonical, target_guid, position, 571, 0);
+    assert!(
+        with_canonical_player_at_mut_like_cpp(canonical, target_guid, 571, 0, |player| {
+            player.gameplay_state_mut().has_vehicle_kit = has_vehicle_kit_like_cpp;
+        })
+        .is_some()
+    );
 }
 
 fn represented_vehicle_interact_session_like_cpp(
@@ -37012,6 +37040,8 @@ fn represented_vehicle_interact_session_like_cpp(
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 62_001);
     let registry = Arc::new(PlayerRegistry::default());
+    let canonical = shared_canonical_map_manager();
+    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(player_guid);
     if group_target {
@@ -37024,6 +37054,7 @@ fn represented_vehicle_interact_session_like_cpp(
     session.set_loaded_player_name_like_cpp("RideVehicleInteractTester".to_string());
     session.set_player_map_position_like_cpp(571, Position::new(0.0, 0.0, 0.0, 0.0));
     session.set_player_registry(Arc::clone(&registry));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_map_store(represented_vehicle_interact_map_store_like_cpp(
@@ -37031,6 +37062,7 @@ fn represented_vehicle_interact_session_like_cpp(
     ));
     insert_represented_vehicle_target_like_cpp(
         &registry,
+        &canonical,
         target_guid,
         target_position,
         target_has_vehicle_kit,
@@ -37044,28 +37076,28 @@ fn player_registry_publishes_player_vehicle_kit_snapshot_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 62_050);
     let registry = Arc::new(PlayerRegistry::default());
+    bind_canonical_test_player_to_registry_like_cpp(
+        &mut session,
+        &registry,
+        guid,
+        Position::ZERO,
+        571,
+    );
     session.set_player_guid(Some(guid));
     session.set_loaded_player_name_like_cpp("VehicleKitPublisher".to_string());
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.set_player_registry(Arc::clone(&registry));
 
     session.register_in_player_registry();
-    assert!(
-        !registry
-            .fixture_snapshot(guid)
-            .unwrap()
-            .has_vehicle_kit_like_cpp
-    );
-
     session.player_mount_vehicle_kit_like_cpp = Some(
         represented_vehicle_kit_with_passenger_like_cpp(guid, test_creature_guid(62_051), true),
     );
     session.sync_player_registry_state_like_cpp();
     assert!(
         registry
-            .fixture_snapshot(guid)
+            .vehicle_interaction_snapshot(guid)
             .unwrap()
-            .has_vehicle_kit_like_cpp,
+            .has_vehicle_kit,
         "C++ RideVehicleInteract gates on target Player::GetVehicleKit(), not Player::GetVehicle() passenger state"
     );
 }
@@ -37224,7 +37256,7 @@ fn represented_vehicle_switch_cross_vehicle_records_spellclick_plan_like_cpp() {
 fn represented_request_vehicle_exit_rejects_non_exit_seat_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 51);
-    let registry = Arc::new(PlayerRegistry::default());
+    let registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
@@ -37241,7 +37273,7 @@ fn represented_request_vehicle_exit_rejects_non_exit_seat_like_cpp() {
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK)
     );
     assert_eq!(session.player_vehicle_seat_id_like_cpp, Some(1002));
-    let info = registry.fixture_snapshot(guid).expect("registered player");
+    let info = registry.party_member(guid).expect("registered player");
     assert!(info.in_vehicle);
     assert_eq!(info.party_member_vehicle_seat, 1002);
 }
@@ -37412,7 +37444,7 @@ fn represented_move_dismiss_vehicle_uses_charmed_guid_gate_like_cpp() {
             time: 12_345,
         }]
     );
-    let info = registry.fixture_snapshot(guid).expect("registered player");
+    let info = registry.party_member(guid).expect("registered player");
     assert!(!info.in_vehicle);
     assert_eq!(info.party_member_vehicle_seat, 0);
 }
@@ -37568,7 +37600,7 @@ fn represented_move_dismiss_vehicle_rejects_without_charmed_guid_like_cpp() {
             .represented_vehicle_dismiss_movements_like_cpp()
             .is_empty()
     );
-    let info = registry.fixture_snapshot(guid).expect("registered player");
+    let info = registry.party_member(guid).expect("registered player");
     assert!(info.in_vehicle);
     assert_eq!(info.party_member_vehicle_seat, 1005);
 }
@@ -37580,6 +37612,7 @@ fn player_registry_publishes_party_member_pet_stats_like_cpp() {
     let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 42_000, 100);
     let registry = Arc::new(PlayerRegistry::default());
     let canonical = shared_canonical_map_manager();
+    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
@@ -37601,7 +37634,7 @@ fn player_registry_publishes_party_member_pet_stats_like_cpp() {
 
     session.register_in_player_registry();
 
-    let info = registry.fixture_snapshot(guid).expect("registered player");
+    let info = registry.party_member(guid).expect("registered player");
     let pet_stats = info
         .party_member_pet_stats
         .as_ref()
@@ -37625,6 +37658,7 @@ fn player_registry_publishes_party_member_pet_aura_flags_and_points_like_cpp() {
     let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 42_001, 101);
     let registry = Arc::new(PlayerRegistry::default());
     let canonical = shared_canonical_map_manager();
+    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
@@ -37658,7 +37692,7 @@ fn player_registry_publishes_party_member_pet_aura_flags_and_points_like_cpp() {
 
     session.register_in_player_registry();
 
-    let info = registry.fixture_snapshot(guid).expect("registered player");
+    let info = registry.party_member(guid).expect("registered player");
     let pet_stats = info
         .party_member_pet_stats
         .as_ref()
@@ -40740,7 +40774,7 @@ async fn teleport_to_blocks_client_without_target_map_expansion_like_cpp() {
 async fn teleport_to_expansion_abort_preserves_vehicle_state_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let player_guid = ObjectGuid::create_player(1, 829);
-    let registry = Arc::new(PlayerRegistry::default());
+    let registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let destination = Position::new(100.0, 200.0, 30.0, 1.5);
     session.expansion = 1;
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
@@ -40788,7 +40822,7 @@ async fn teleport_to_expansion_abort_preserves_vehicle_state_like_cpp() {
     );
     assert_eq!(session.player_vehicle_seat_id_like_cpp, Some(1004));
     let info = registry
-        .fixture_snapshot(player_guid)
+        .party_member(player_guid)
         .expect("registered player");
     assert!(info.in_vehicle);
     assert_eq!(info.party_member_vehicle_seat, 1004);
@@ -44188,7 +44222,7 @@ async fn teleport_to_same_map_masks_movement_flags_before_near_teleport_like_cpp
 #[tokio::test]
 async fn teleport_to_same_map_forces_vehicle_exit_before_near_teleport_like_cpp() {
     let (mut session, _, send_rx) = make_session();
-    let registry = Arc::new(PlayerRegistry::default());
+    let registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let player_guid = ObjectGuid::create_player(1, 830);
     let source = Position::new(10.0, 20.0, 30.0, 0.0);
     let destination = Position::new(119.0, 219.0, 49.0, 3.4);
@@ -44231,7 +44265,7 @@ async fn teleport_to_same_map_forces_vehicle_exit_before_near_teleport_like_cpp(
     );
     assert!(session.player_vehicle_seat_id_like_cpp.is_none());
     let info = registry
-        .fixture_snapshot(player_guid)
+        .party_member(player_guid)
         .expect("registered player");
     assert!(!info.in_vehicle);
     assert_eq!(info.party_member_vehicle_seat, 0);
@@ -45141,6 +45175,7 @@ async fn spell_taunt_effect_matches_caster_threat_to_highest_like_cpp() {
     ));
     session.set_player_health_like_cpp(100, 100);
     add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 0);
+    add_canonical_test_player_on_map(&canonical, observer_guid, position, 0, 0);
     add_canonical_test_creature_indexed_on_map_with_level(
         &canonical,
         creature_guid,
@@ -46768,7 +46803,7 @@ async fn spell_learn_spell_effect_row_preserves_base_grant_without_richer_author
     let learned_spell_id = 13_337_i32;
     let player_guid = ObjectGuid::create_player(1, 68);
     let observer_guid = ObjectGuid::create_player(1, 69);
-    let player_registry = Arc::new(PlayerRegistry::default());
+    let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     session.set_player_guid(Some(player_guid));
     session.set_player_registry(Arc::clone(&player_registry));
@@ -46793,7 +46828,7 @@ async fn spell_learn_spell_effect_row_preserves_base_grant_without_richer_author
         !observer
             .player_registry()
             .expect("observer shares the player registry")
-            .fixture_snapshot(player_guid)
+            .loot_player_context(player_guid)
             .expect("source player is registered")
             .known_spells
             .contains(&learned_spell_id),
@@ -46851,7 +46886,7 @@ async fn spell_learn_spell_effect_row_preserves_base_grant_without_richer_author
         observer
             .player_registry()
             .expect("observer shares the player registry")
-            .fixture_snapshot(player_guid)
+            .loot_player_context(player_guid)
             .expect("source player remains registered")
             .known_spells
             .contains(&learned_spell_id),
@@ -47999,7 +48034,7 @@ async fn spell_change_raid_marker_effect_row_stores_marker_and_fanouts_like_cpp(
     let member_guid = ObjectGuid::create_player(1, 79);
     let destination = Position::xyz(12.25, -34.5, 6.75);
     let group_registry = Arc::new(GroupRegistry::default());
-    let player_registry = Arc::new(PlayerRegistry::default());
+    let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let (leader_tx, leader_rx) = flume::bounded(8);
     let (member_tx, member_rx) = flume::bounded(8);
     let mut group = GroupInfo::new(leader_guid);
@@ -55566,7 +55601,7 @@ fn give_xp_runtime_raf_awards_triple_xp_without_spending_rested_bonus_like_cpp()
     session.set_recruit_a_friend_xp_config_like_cpp(85, 4);
 
     let (recruit_tx, _recruit_rx) = flume::bounded(10);
-    let player_registry = Arc::new(PlayerRegistry::default());
+    let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let mut recruit_info = broadcast_info(recruit_guid, recruit_tx);
     recruit_info.placement.map_id = 1;
     recruit_info.placement.position = Position::new(10.0, 0.0, 0.0, 0.0);
@@ -55587,12 +55622,12 @@ fn give_xp_runtime_raf_awards_triple_xp_without_spending_rested_bonus_like_cpp()
         "C++ LoadFromDB runs before the player enters the world"
     );
     session.set_state(SessionState::LoggedIn);
-    assert!(player_registry.fixture_update(recruit_guid, |_, p| p.is_in_world = false));
+    assert!(player_registry.fixture_update(recruit_guid, |p| p.is_in_world = false));
     assert!(
         !session.gets_recruit_a_friend_xp_bonus_like_cpp(),
         "C++ IsInMap rejects a grouped member that is not in world"
     );
-    assert!(player_registry.fixture_update(recruit_guid, |_, p| p.is_in_world = true));
+    assert!(player_registry.fixture_update(recruit_guid, |p| p.is_in_world = true));
     assert!(session.gets_recruit_a_friend_xp_bonus_like_cpp());
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
     install_tapped_xp_victim_like_cpp(&mut session, victim);
@@ -71662,8 +71697,10 @@ fn player_registry_relation_snapshot_syncs_from_session_and_canonical_like_cpp()
     session.register_in_player_registry();
 
     let snapshot = player_registry
-        .fixture_snapshot(player_guid)
-        .expect("player snapshot");
+        .legacy_aggro_candidates()
+        .into_iter()
+        .find(|candidate| candidate.player_guid == player_guid)
+        .expect("canonical aggro snapshot");
     assert_eq!(snapshot.faction_template_id, 1);
     assert_eq!(
         snapshot.forced_reputation_ranks,
@@ -71697,8 +71734,10 @@ fn player_registry_targetability_snapshot_syncs_from_session_and_canonical_like_
     session.register_in_player_registry();
 
     let snapshot = player_registry
-        .fixture_snapshot(player_guid)
-        .expect("player snapshot");
+        .legacy_aggro_candidates()
+        .into_iter()
+        .find(|candidate| candidate.player_guid == player_guid)
+        .expect("canonical targetability snapshot");
     assert_eq!(
         snapshot.unit_flags,
         (UnitFlags::PLAYER_CONTROLLED | UnitFlags::ON_TAXI).bits()
@@ -71713,25 +71752,12 @@ fn insert_session_player_into_canonical_map_like_cpp(
     map_id: u32,
     instance_id: u32,
 ) {
-    let player_guid = session.player_guid().unwrap();
-    let position = session.player_position_like_cpp().unwrap();
-    let mut player = Player::new(Some(u64::from(session.account_id)), false);
-    player
-        .unit_mut()
-        .world_mut()
-        .object_mut()
-        .create(player_guid);
-    player
-        .unit_mut()
-        .world_mut()
-        .set_name(session.player_name_like_cpp().unwrap());
-    player
-        .unit_mut()
-        .world_mut()
-        .set_map(map_id, instance_id)
-        .unwrap();
-    player.unit_mut().world_mut().relocate(position);
-    player.unit_mut().world_mut().object_mut().add_to_world();
+    let player = session
+        .canonical_player_entity_snapshot_for_map_like_cpp(wow_map::MapKey::new(
+            map_id,
+            instance_id,
+        ))
+        .expect("complete canonical player fixture");
     let mut manager = canonical.lock().unwrap();
     let managed = manager.create_world_map(map_id, instance_id);
     session.sync_canonical_player_entity_like_cpp(managed, player);
@@ -76931,7 +76957,7 @@ fn gameobject_use_ritual_casts_caster_target_spell_at_random_unique_users_like_c
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
-    let player_registry = Arc::new(PlayerRegistry::default());
+    let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let (player_tx, _player_rx) = flume::bounded(1);
     player_registry.register_or_replace(
         player_guid,
@@ -77116,7 +77142,7 @@ fn gameobject_use_meeting_stone_maps_spell_by_entry_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
-    let player_registry = Arc::new(PlayerRegistry::default());
+    let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let (target_tx, _target_rx) = flume::bounded(1);
     let mut target_info = broadcast_info(target_guid, target_tx);
     target_info.placement.level = 80;
@@ -77259,7 +77285,7 @@ fn gameobject_use_meeting_stone_checks_content_tuning_levels_like_cpp() {
     session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
-    let player_registry = Arc::new(PlayerRegistry::default());
+    let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let (target_tx, _target_rx) = flume::bounded(1);
     let mut target_info = broadcast_info(target_guid, target_tx);
     target_info.placement.level = 20;
@@ -82221,9 +82247,9 @@ fn legacy_aggro_candidate_like_cpp(
         player_visibility_detection: UnitVisibilityDetectionStateLikeCpp::default(),
         player_combat_reach: 0.0,
         player_detected_range_aura_mod: 0.0,
-        player_liquid_status_like_cpp: 0,
         player_level: 80,
         player_gray_level: 70,
+        player_liquid_status_like_cpp: 0,
         player_unit_flags: UnitFlags::PLAYER_CONTROLLED.bits(),
         player_unit_flags2: 0,
         player_unit_state: 0,

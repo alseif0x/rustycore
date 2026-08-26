@@ -14,7 +14,7 @@
     "required_checks": [
       "baseline_commit must equal the audited repository HEAD unless the baseline update is explicit",
       "every referenced cutover or retirement issue must exist and be open in architecture-issue-ledger.json entries, its external_prerequisites, or this file's external_tracking_issues",
-      "every WorldSession, SessionResources, PlayerBroadcastInfo, and SessionCommand source member is assigned exactly once",
+      "every WorldSession, SessionResources, and SessionCommand source member is assigned exactly once",
       "a new source member may not be accepted by merely raising a count; its exact identifier must be deliberately assigned to a reviewed semantic family or to the explicit unresolved residual",
       "no family may omit sole_writer, clock_lifetime, mirror_direction, rollback_condition, or retirement_condition",
       "production, cfg(test), and generated members are reported separately",
@@ -38,7 +38,7 @@
       "member_key": "name",
       "zero_gaps": true,
       "zero_overlap": true,
-      "expected_field_count": 729,
+      "expected_field_count": 728,
       "validation": "Compare the sorted AST names with the sorted concatenation of every family.field_names; reject a missing name, duplicate name, stale name, family count mismatch, or total count mismatch."
     },
     "families": [
@@ -530,7 +530,7 @@
           "represented_void_storage_loaded_like_cpp",
           "vendor_item_counts"
         ],
-        "current_storage": "Inventory, currencies, buyback, loot views/rolls, equipment/appearance and economy mirrors are largely stored directly on WorldSession, with additional copies in PlayerBroadcastInfo and durable trackers.",
+        "current_storage": "Inventory, currencies, buyback, loot views/rolls, equipment/appearance and economy state are largely stored directly on WorldSession, with canonical Player copies and durable trackers where assigned.",
         "sole_writer": "The owning Session task and handlers currently mutate represented state; durable database work and loot authority have separate explicit coordinators.",
         "readers": "Item/loot/vendor/trade/quest handlers, packet builders, persistence, conditions, and cross-session directory consumers.",
         "clock_lifetime": "Selected-character lifetime; loot views/rolls and trades have bounded operation lifetimes; durable item/money outcomes survive until commit classification/publication.",
@@ -809,12 +809,12 @@
           "visible_auras",
           "watched_faction_index_like_cpp"
         ],
-        "current_storage": "Movement, combat/vitals, teleport, vehicle, PvP and client-visibility representations are stored on WorldSession and partially mirrored into canonical Player/Map and PlayerBroadcastInfo.",
+        "current_storage": "Movement, combat/vitals, teleport, vehicle, PvP and client-visibility representations are stored on WorldSession and partially mirrored into canonical Player/Map; the directory gameplay mirror was retired by #252.",
         "sole_writer": "Session handlers currently own many Player representations; canonical Map owns already-migrated creature transitions. No transition may have simultaneous Session and global writers.",
         "readers": "Movement/combat/character/vehicle handlers, map runtime, visibility/fanout, packet builders, directory snapshots, and persistence.",
         "clock_lifetime": "Player-in-world lifetime under Map phases plus Session protocol timers. Player visibility membership is per client; spatial traversal and in-world mutation are Map-owned.",
         "persistence_publication_order": "Mutate canonical owner in phase order, collect ordered effects/recipients, release guards, then deliver. Persist only where the existing C++-anchored workflow requires it.",
-        "mirror_direction": "WorldSession currently builds canonical Player snapshots and consumes selected Map outcomes. PlayerBroadcastInfo is an outward temporary projection, never a writer.",
+        "mirror_direction": "WorldSession currently builds canonical Player snapshots and consumes selected Map outcomes. Cross-session readers resolve bounded results from the canonical Player/Map owner.",
         "target_owner": "wow-entities::Player for mutable player state and per-client visibility membership; wow-map for spatial traversal, scheduling and in-world mutation; Session for routing/delivery only.",
         "cutover_issues": [
           153
@@ -934,7 +934,7 @@
       },
       {
         "id": "unresolved_world_session_residual",
-        "expected_field_count": 94,
+        "expected_field_count": 93,
         "field_names": [
           "active_player_local_flags_like_cpp",
           "active_player_multi_action_bars_like_cpp",
@@ -954,7 +954,6 @@
           "player_guid",
           "player_interaction_data_like_cpp",
           "player_level",
-          "player_liquid_status_like_cpp",
           "player_moved_unit_guid_like_cpp",
           "player_name",
           "player_normal_damage_immune_like_cpp",
@@ -1045,9 +1044,9 @@
         "retirement_condition": "This residual is empty, or every remaining field has an explicit reviewed stable-Session justification and a dedicated exact-membership rule."
       }
     ],
-    "expected_field_count": 729,
-    "expected_unique_field_count": 729,
-    "expected_production_field_count": 717,
+    "expected_field_count": 728,
+    "expected_unique_field_count": 728,
+    "expected_production_field_count": 716,
     "expected_test_fixture_field_count": 12
   },
   "inventories": {
@@ -1375,110 +1374,6 @@
         }
       ],
       "expected_field_count": 245
-    },
-    "player_broadcast_info": {
-      "coverage_source": {
-        "file": "crates/wow-world/src/session/directory.rs",
-        "rust_item": "PlayerBroadcastInfo",
-        "parser": "syn::ItemStruct named fields",
-        "include_cfg": "all",
-        "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.player_broadcast_info.fields"
-      },
-      "audited_summary": {
-        "field_count": 72,
-        "count_kind": "baseline observation; AST is authoritative"
-      },
-      "coverage_rule": {
-        "mode": "exact_field_membership",
-        "member_key": "name",
-        "zero_gaps": true,
-        "zero_overlap": true,
-        "expected_field_count": 72,
-        "validation": "Compare sorted AST field names with the sorted concatenation of every entry.field_names; reject gaps, duplicates, stale names, entry count drift, or total count drift."
-      },
-      "entries": [
-        {
-          "id": "directory_delivery_and_visibility_handles",
-          "expected_field_count": 1,
-          "field_names": [
-            "visible_items"
-          ],
-          "owner": "Player/session publishes receiver-local delivery state into PlayerRegistry; the shared visibility and combat-logging handles now live beside the private registry entry (#361), so only the visible-items projection remains here.",
-          "open_retirement_issues": [
-            252
-          ],
-          "retirement_condition": "Only bounded generation/versioned delivery handles remain; visibility membership is Player-owned and spatial traversal is Map-owned."
-        },
-        {
-          "id": "directory_durable_loot_coordination",
-          "expected_field_count": 2,
-          "field_names": [
-            "active_loot_rolls",
-            "pass_on_group_loot"
-          ],
-          "owner": "PlayerRegistry currently exposes loot snapshots and a durable persistence tracker; loot and persistence owners are separate.",
-          "open_retirement_issues": [
-            252
-          ],
-          "retirement_condition": "No durable tracker or mutable loot authority is stored in the directory; addressing consumes typed committed outcomes."
-        },
-        {
-          "id": "directory_gameplay_projection",
-          "expected_field_count": 19,
-          "field_names": [
-            "active_quest_objective_counts",
-            "active_quest_statuses",
-            "combat_reach",
-            "completed_achievements",
-            "daily_quests_completed",
-            "df_quests",
-            "forced_reputation_ranks",
-            "has_vehicle_kit_like_cpp",
-            "in_combat",
-            "in_vehicle",
-            "inventory_item_counts",
-            "known_spells",
-            "party_member_auras",
-            "party_member_pet_stats",
-            "party_member_phase_states",
-            "party_member_vehicle_seat",
-            "pending_quest_sharing",
-            "rewarded_quests",
-            "transport"
-          ],
-          "owner": "Temporary PlayerBroadcastInfo projection; canonical Player/Unit/Map/Group owners are assigned field by field in docs/architecture/player-broadcast-info-retirement.tsv.",
-          "open_retirement_issues": [
-            252
-          ],
-          "retirement_condition": "Every field is removed or replaced by the minimum immutable versioned query result from its canonical Player/Map/Group owner."
-        },
-        {
-          "id": "player_broadcast_remaining_assigned_mirrors",
-          "expected_field_count": 14,
-          "field_names": [
-            "customizations",
-            "display_id",
-            "dungeon_difficulty_id",
-            "enchanting_skill",
-            "faction_template_id",
-            "gray_level",
-            "is_afk",
-            "is_dnd",
-            "is_game_master",
-            "liquid_status",
-            "spec_id",
-            "unit_flags",
-            "unit_state",
-            "zone_id"
-          ],
-          "owner": "Temporary PlayerBroadcastInfo projection; every canonical owner and cutover condition is assigned explicitly in docs/architecture/player-broadcast-info-retirement.tsv.",
-          "open_retirement_issues": [
-            252
-          ],
-          "retirement_condition": "#252 removes every assigned residual through bounded canonical queries and deletes the broad projection without introducing a replacement mirror."
-        }
-      ],
-      "expected_field_count": 36
     },
     "session_command": {
       "coverage_source": {
