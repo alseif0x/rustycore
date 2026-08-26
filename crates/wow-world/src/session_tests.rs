@@ -35709,7 +35709,6 @@ fn broadcast_info_with_command(
             transport: None,
             is_afk: false,
             is_dnd: false,
-            auto_reply_msg_like_cpp: String::new(),
             in_vehicle: false,
             has_vehicle_kit_like_cpp: false,
             party_member_vehicle_seat: 0,
@@ -72003,7 +72002,8 @@ fn chat_afk_sets_player_flag_and_auto_reply_like_cpp() {
         session.apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Afk, "back soon".to_string())
     );
 
-    assert_eq!(session.auto_reply_msg_like_cpp(), "back soon");
+    let reply = session.auto_reply_msg_like_cpp();
+    assert_eq!(reply.as_deref(), Some("back soon"));
     assert_eq!(
         session.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_AFK_LIKE_CPP),
         Some(true)
@@ -72020,7 +72020,8 @@ fn chat_afk_empty_text_uses_cpp_default_auto_reply_like_cpp() {
 
     assert!(session.apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Afk, String::new()));
 
-    assert_eq!(session.auto_reply_msg_like_cpp(), "Away from Keyboard");
+    let reply = session.auto_reply_msg_like_cpp();
+    assert_eq!(reply.as_deref(), Some("Away from Keyboard"));
     assert_eq!(
         session.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_AFK_LIKE_CPP),
         Some(true)
@@ -72038,7 +72039,7 @@ fn chat_dnd_clears_afk_like_cpp() {
 
     assert!(session.apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Dnd, "busy".to_string()));
 
-    assert_eq!(session.auto_reply_msg_like_cpp(), "busy");
+    assert_eq!(session.auto_reply_msg_like_cpp().as_deref(), Some("busy"));
     assert_eq!(
         session.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_AFK_LIKE_CPP),
         Some(false)
@@ -72055,7 +72056,8 @@ fn chat_dnd_empty_text_uses_cpp_default_auto_reply_like_cpp() {
 
     assert!(session.apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Dnd, String::new()));
 
-    assert_eq!(session.auto_reply_msg_like_cpp(), "Do not Disturb");
+    let reply = session.auto_reply_msg_like_cpp();
+    assert_eq!(reply.as_deref(), Some("Do not Disturb"));
     assert_eq!(
         session.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_AFK_LIKE_CPP),
         Some(false)
@@ -72075,7 +72077,7 @@ fn chat_away_ignored_while_in_combat_like_cpp() {
         !session.apply_chat_away_mode_like_cpp(PlayerAwayModeLikeCpp::Afk, "cannot".to_string())
     );
 
-    assert!(session.auto_reply_msg_like_cpp().is_empty());
+    assert_eq!(session.auto_reply_msg_like_cpp().as_deref(), Some(""));
     assert_eq!(
         session.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_AFK_LIKE_CPP),
         Some(false)

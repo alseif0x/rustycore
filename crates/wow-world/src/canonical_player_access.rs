@@ -65,6 +65,8 @@ pub(crate) struct CanonicalPlayerPartyStateLikeCpp {
     pub is_pvp: bool,
     pub is_ffa_pvp: bool,
     pub is_ghost: bool,
+    pub is_afk: bool,
+    pub is_dnd: bool,
 }
 
 fn power_kind_from_u8_like_cpp(power: u8) -> PowerType {
@@ -127,6 +129,8 @@ pub(crate) fn canonical_player_party_state_like_cpp(
         is_pvp: pvp.contains(UnitPvpFlags::PVP),
         is_ffa_pvp: pvp.contains(UnitPvpFlags::FFA_PVP),
         is_ghost: player.has_player_flag(crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP),
+        is_afk: player.has_player_flag(crate::session::PLAYER_FLAGS_AFK_LIKE_CPP),
+        is_dnd: player.has_player_flag(crate::session::PLAYER_FLAGS_DND_LIKE_CPP),
     }
 }
 

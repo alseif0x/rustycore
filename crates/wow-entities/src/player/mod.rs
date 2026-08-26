@@ -492,6 +492,7 @@ pub struct PlayerTaxiState {
 pub struct PlayerSocialState {
     pub friend_guids: Vec<ObjectGuid>,
     pub ignore_guids: Vec<ObjectGuid>,
+    pub auto_reply_msg_like_cpp: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -114,7 +114,6 @@ fn broadcast_info_with_command_tx(
             transport: None,
             is_afk: false,
             is_dnd: false,
-            auto_reply_msg_like_cpp: String::new(),
             in_vehicle: false,
             has_vehicle_kit_like_cpp: false,
             party_member_vehicle_seat: 0,

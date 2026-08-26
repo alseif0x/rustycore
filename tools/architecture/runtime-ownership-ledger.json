@@ -38,7 +38,7 @@
       "member_key": "name",
       "zero_gaps": true,
       "zero_overlap": true,
-      "expected_field_count": 730,
+      "expected_field_count": 729,
       "validation": "Compare the sorted AST names with the sorted concatenation of every family.field_names; reject a missing name, duplicate name, stale name, family count mismatch, or total count mismatch."
     },
     "families": [
@@ -934,11 +934,10 @@
       },
       {
         "id": "unresolved_world_session_residual",
-        "expected_field_count": 95,
+        "expected_field_count": 94,
         "field_names": [
           "active_player_local_flags_like_cpp",
           "active_player_multi_action_bars_like_cpp",
-          "auto_reply_msg_like_cpp",
           "creature_query_cache",
           "forced_speed_changes_like_cpp",
           "gossip_options",
@@ -1046,9 +1045,9 @@
         "retirement_condition": "This residual is empty, or every remaining field has an explicit reviewed stable-Session justification and a dedicated exact-membership rule."
       }
     ],
-    "expected_field_count": 730,
-    "expected_unique_field_count": 730,
-    "expected_production_field_count": 718,
+    "expected_field_count": 729,
+    "expected_unique_field_count": 729,
+    "expected_production_field_count": 717,
     "expected_test_fixture_field_count": 12
   },
   "inventories": {
@@ -1471,10 +1470,9 @@
         },
         {
           "id": "player_broadcast_remaining_assigned_mirrors",
-          "expected_field_count": 24,
+          "expected_field_count": 23,
           "field_names": [
             "active_expansion",
-            "auto_reply_msg_like_cpp",
             "class",
             "customizations",
             "display_id",
@@ -1505,7 +1503,7 @@
           "retirement_condition": "#252 removes every assigned residual through bounded canonical queries and deletes the broad projection without introducing a replacement mirror."
         }
       ],
-      "expected_field_count": 51
+      "expected_field_count": 50
     },
     "session_command": {
       "coverage_source": {

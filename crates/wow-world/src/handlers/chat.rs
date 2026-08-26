@@ -565,18 +565,12 @@ impl WorldSession {
             };
             self.send_packet(&inform);
 
-            if target.is_afk {
-                self.send_whisper_away_reply_like_cpp(
-                    &target_name,
-                    &target.auto_reply_msg_like_cpp,
-                    true,
-                );
-            } else if target.is_dnd {
-                self.send_whisper_away_reply_like_cpp(
-                    &target_name,
-                    &target.auto_reply_msg_like_cpp,
-                    false,
-                );
+            if let Some(auto_reply) = registry.social_auto_reply(target.guid) {
+                if target.is_afk {
+                    self.send_whisper_away_reply_like_cpp(&target_name, &auto_reply, true);
+                } else if target.is_dnd {
+                    self.send_whisper_away_reply_like_cpp(&target_name, &auto_reply, false);
+                }
             }
         } else {
             self.send_packet(&ChatPlayerNotfound { name: target_name });
@@ -1989,7 +1983,6 @@ mod tests {
                 transport: None,
                 is_afk: false,
                 is_dnd: false,
-                auto_reply_msg_like_cpp: String::new(),
                 in_vehicle: false,
                 has_vehicle_kit_like_cpp: false,
                 party_member_vehicle_seat: 0,
@@ -2108,6 +2101,33 @@ mod tests {
         );
         session.set_player_registry(Arc::clone(&player_registry));
         (session, player_registry, send_rx)
+    }
+
+    fn bind_social_presence_like_cpp(
+        registry: &PlayerRegistry,
+        guid: ObjectGuid,
+        flag: u32,
+        message: &str,
+    ) {
+        registry.fixture_update(guid, |info| {
+            info.is_afk = flag == crate::session::PLAYER_FLAGS_AFK_LIKE_CPP;
+            info.is_dnd = flag == crate::session::PLAYER_FLAGS_DND_LIKE_CPP;
+        });
+        let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
+        assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
+        let mut player = wow_entities::Player::new(Some(1), false);
+        player.unit_mut().world_mut().object_mut().create(guid);
+        player.unit_mut().world_mut().set_map(571, 0).unwrap();
+        player.unit_mut().world_mut().object_mut().add_to_world();
+        player.set_player_flag(flag);
+        player.gameplay_state_mut().social.auto_reply_msg_like_cpp = message.to_string();
+        canonical
+            .lock()
+            .unwrap()
+            .create_world_map(571, 0)
+            .map_mut()
+            .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
+            .unwrap();
     }
 
     #[tokio::test]
@@ -3413,7 +3433,7 @@ mod tests {
 
         session.handle_chat_afk(chat_away_packet("away")).await;
 
-        assert!(session.auto_reply_msg_like_cpp().is_empty());
+        assert!(session.auto_reply_msg_like_cpp().is_none());
         let text = print_notification_text(&sender_rx.try_recv().expect("mute notification"));
         assert!(text.starts_with("You must wait "));
         assert!(text.ends_with(" before speaking again."));
@@ -3574,7 +3594,7 @@ mod tests {
 
         session.handle_chat_afk(chat_away_packet("away")).await;
 
-        assert!(session.auto_reply_msg_like_cpp().is_empty());
+        assert!(session.auto_reply_msg_like_cpp().is_none());
         assert_eq!(
             print_notification_text(&sender_rx.try_recv().expect("silence notification")),
             "Silence is ON for Player363"
@@ -3590,7 +3610,7 @@ mod tests {
 
         session.handle_chat_dnd(chat_away_packet("busy")).await;
 
-        assert!(session.auto_reply_msg_like_cpp().is_empty());
+        assert!(session.auto_reply_msg_like_cpp().is_none());
         assert_eq!(
             print_notification_text(&sender_rx.try_recv().expect("silence notification")),
             "Silence is ON for Player430"
@@ -3681,9 +3701,13 @@ mod tests {
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
         target_info.info.player_name = "Target".to_string();
-        target_info.info.is_afk = true;
-        target_info.info.auto_reply_msg_like_cpp = "back soon".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
+        bind_social_presence_like_cpp(
+            &player_registry,
+            target,
+            crate::session::PLAYER_FLAGS_AFK_LIKE_CPP,
+            "back soon",
+        );
 
         session
             .handle_chat_whisper(chat_whisper_packet("Target", "hello"))
@@ -3713,9 +3737,13 @@ mod tests {
         let (target_tx, target_rx) = flume::bounded(8);
         let mut target_info = broadcast_info(target, target_tx);
         target_info.info.player_name = "Target".to_string();
-        target_info.info.is_dnd = true;
-        target_info.info.auto_reply_msg_like_cpp = "busy".to_string();
         player_registry.register_or_replace(target, target_info, Default::default());
+        bind_social_presence_like_cpp(
+            &player_registry,
+            target,
+            crate::session::PLAYER_FLAGS_DND_LIKE_CPP,
+            "busy",
+        );
 
         session
             .handle_chat_whisper(chat_whisper_packet("Target", "hello"))

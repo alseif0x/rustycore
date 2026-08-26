@@ -125,12 +125,10 @@ pub struct PlayerBroadcastInfo {
     pub is_alive: bool,
     /// Current MO-transport passenger movement state used by player CREATEs.
     pub transport: Option<TransportInfo>,
-    /// Represented `Player::isAFK()` snapshot for party member full-state packets.
+    /// Connected Player AFK flag retained until canonical presence survives far teleport.
     pub is_afk: bool,
-    /// Represented `Player::isDND()` snapshot for party member full-state packets.
+    /// Connected Player DND flag retained until canonical presence survives far teleport.
     pub is_dnd: bool,
-    /// Represented `Player::autoReplyMsg` snapshot used by C++ whisper AFK/DND replies.
-    pub auto_reply_msg_like_cpp: String,
     /// Represented `Player::GetVehicle() != nullptr` snapshot for party member full-state packets.
     pub in_vehicle: bool,
     /// Represented `Player::GetVehicleKit() != nullptr` snapshot for player-vehicle interact gates.
@@ -419,7 +417,6 @@ pub struct PlayerSocialRecipientSnapshot {
     pub is_game_master: bool,
     pub is_afk: bool,
     pub is_dnd: bool,
-    pub auto_reply_msg_like_cpp: String,
 }
 
 /// Owned presence facts used by Group decisions which depend on a connected
@@ -797,8 +794,28 @@ impl PlayerRegistry {
             is_game_master: entry.info.is_game_master,
             is_afk: entry.info.is_afk,
             is_dnd: entry.info.is_dnd,
-            auto_reply_msg_like_cpp: entry.info.auto_reply_msg_like_cpp.clone(),
         }
+    }
+
+    #[must_use]
+    pub fn social_auto_reply(&self, guid: ObjectGuid) -> Option<String> {
+        let (map_id, instance_id) = {
+            let entry = self.entries.get(&guid)?;
+            (entry.info.map_id, entry.info.instance_id)
+        };
+        with_canonical_player_at_like_cpp(
+            self.canonical_map_manager.get()?,
+            guid,
+            map_id.into(),
+            instance_id,
+            |player| {
+                player
+                    .gameplay_state()
+                    .social
+                    .auto_reply_msg_like_cpp
+                    .clone()
+            },
+        )
     }
 
     /// Resolve connected presence facts for one Group member.
@@ -862,8 +879,8 @@ impl PlayerRegistry {
             is_alive: vitals.is_alive,
             is_ghost: state.is_ghost,
             is_ffa_pvp: state.is_ffa_pvp,
-            is_afk: info.is_afk,
-            is_dnd: info.is_dnd,
+            is_afk: state.is_afk,
+            is_dnd: state.is_dnd,
             in_vehicle: info.in_vehicle,
             power_type: vitals.power_type,
             current_health: vitals.current_health,
@@ -1948,7 +1965,6 @@ mod tests {
                 transport: None,
                 is_afk: false,
                 is_dnd: false,
-                auto_reply_msg_like_cpp: String::new(),
                 in_vehicle: false,
                 has_vehicle_kit_like_cpp: false,
                 party_member_vehicle_seat: 0,

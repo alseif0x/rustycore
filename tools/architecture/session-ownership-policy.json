@@ -194,13 +194,6 @@
           "source_class": "production"
         },
         {
-          "name": "auto_reply_msg_like_cpp",
-          "type": "String",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "bank_bag_slot_prices_store",
           "type": "Option < Arc < BankBagSlotPricesStore > >",
           "visibility": "private",
@@ -20841,7 +20834,7 @@
           "kind": "method",
           "name": "auto_reply_msg_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn auto_reply_msg_like_cpp (& self) -> & str",
+          "signature": "fn auto_reply_msg_like_cpp (& self) -> Option < String >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -55783,13 +55776,6 @@
           "source_class": "production"
         },
         {
-          "name": "auto_reply_msg_like_cpp",
-          "type": "String",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "class",
           "type": "u8",
           "visibility": "pub",
@@ -56677,6 +56663,19 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "Arc :: clone (& player_registry)",
+          "count": 1
+        },
+        {
+          "package": "world-server",
+          "module": "crate::app",
+          "source": "crates/world-server/src/app.rs",
+          "enclosing": "fn run_inner",
+          "registry": "PlayerRegistry",
+          "operation": "opaque_macro_boundary",
+          "symbol": "assert",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "assert ! (player_registry . bind_canonical_map_manager (Arc :: clone (& canonical_map_manager)))",
           "count": 1
         },
         {
@@ -73904,7 +73903,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:ea537bcf6966e07e9b1aad4115420ac9:len=90906|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:b711cdaae7e6e6713d756e7e108537f6:len=90763|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

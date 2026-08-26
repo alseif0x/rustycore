@@ -279,8 +279,8 @@ pub(crate) const MAX_SPECIALIZATIONS_LIKE_CPP: usize = 4;
 const NEEDED_TALENT_POINT_PER_TIER_LIKE_CPP: u32 = 5;
 const PLAYER_FLAGS_UBER_LIKE_CPP: u32 = 0x0008_0000;
 const PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP: u32 = 0x0000_0001;
-const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = 0x0000_0002;
-const PLAYER_FLAGS_DND_LIKE_CPP: u32 = 0x0000_0004;
+pub(crate) const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = 0x0000_0002;
+pub(crate) const PLAYER_FLAGS_DND_LIKE_CPP: u32 = 0x0000_0004;
 pub(crate) const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = 0x0000_0010;
 const PLAYER_FLAGS_RESTING_LIKE_CPP: u32 = 0x0000_0020;
 const PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP: u32 = 0x0000_0800;
@@ -6020,8 +6020,6 @@ pub struct WorldSession {
 
     /// Cached character name for chat messages.
     player_name: Option<String>,
-    /// C++ `Player::autoReplyMsg`, represented for AFK/DND until full Player-owned chat state exists.
-    auto_reply_msg_like_cpp: String,
 
     // Addon chat filtering state. Mirrors C++ WorldSession::_registeredAddonPrefixes
     // and _filterAddonMessages.
@@ -8123,7 +8121,6 @@ impl WorldSession {
             represented_mover_fixed_position_vehicle_like_cpp: false,
             player_liquid_status_like_cpp: 0,
             player_name: None,
-            auto_reply_msg_like_cpp: String::new(),
             registered_addon_prefixes: Vec::new(),
             filter_addon_messages: false,
             creature_tick: 0,
@@ -9608,8 +9605,14 @@ impl WorldSession {
         self.vendor_buy_item_test_override_like_cpp
     }
 
-    pub(crate) fn auto_reply_msg_like_cpp(&self) -> &str {
-        &self.auto_reply_msg_like_cpp
+    pub(crate) fn auto_reply_msg_like_cpp(&self) -> Option<String> {
+        self.canonical_player_snapshot_like_cpp(|player| {
+            player
+                .gameplay_state()
+                .social
+                .auto_reply_msg_like_cpp
+                .clone()
+        })
     }
 
     pub fn set_game_event_quest_complete_sender_like_cpp(
@@ -10252,9 +10255,9 @@ impl WorldSession {
             return false;
         }
 
-        let Some(guid) = self.player_guid() else {
+        if self.player_guid().is_none() {
             return false;
-        };
+        }
 
         let (active_flag, other_flag, default_text) = match mode {
             PlayerAwayModeLikeCpp::Afk => (
@@ -10269,46 +10272,26 @@ impl WorldSession {
             ),
         };
 
-        let is_active = self
-            .canonical_player_has_player_flag_like_cpp(guid, active_flag)
-            .unwrap_or(false);
-        let is_other = self
-            .canonical_player_has_player_flag_like_cpp(guid, other_flag)
-            .unwrap_or(false);
-
-        let mut changed_flags = false;
-        if is_active {
-            if text.is_empty() {
-                changed_flags = self
-                    .mutate_canonical_player_like_cpp(|player| {
-                        player.remove_player_flag(active_flag)
-                    })
-                    .is_some();
-            } else {
-                self.auto_reply_msg_like_cpp = text;
+        self.mutate_canonical_player_like_cpp(move |player| {
+            if player.has_player_flag(active_flag) {
+                if text.is_empty() {
+                    player.remove_player_flag(active_flag);
+                } else {
+                    player.gameplay_state_mut().social.auto_reply_msg_like_cpp = text;
+                }
+                return;
             }
-        } else {
-            self.auto_reply_msg_like_cpp = if text.is_empty() {
+            if player.has_player_flag(other_flag) {
+                player.remove_player_flag(other_flag);
+            }
+            player.set_player_flag(active_flag);
+            player.gameplay_state_mut().social.auto_reply_msg_like_cpp = if text.is_empty() {
                 default_text.to_string()
             } else {
                 text
             };
-
-            changed_flags = self
-                .mutate_canonical_player_like_cpp(|player| {
-                    if is_other {
-                        player.remove_player_flag(other_flag);
-                    }
-                    player.set_player_flag(active_flag);
-                })
-                .is_some();
-        }
-
-        if changed_flags {
-            self.sync_player_registry_state_like_cpp();
-        }
-
-        true
+        })
+        .is_some()
     }
 
     fn canonical_player_pvp_flags_like_cpp(&self, guid: ObjectGuid) -> Option<UnitPvpFlags> {
@@ -34488,7 +34471,6 @@ impl WorldSession {
             transport: self.player_transport_info_like_cpp(),
             is_afk,
             is_dnd,
-            auto_reply_msg_like_cpp: self.auto_reply_msg_like_cpp.clone(),
             in_vehicle: self.player_vehicle_seat_flags_like_cpp.is_some(),
             has_vehicle_kit_like_cpp: self.player_mount_vehicle_kit_like_cpp.is_some(),
             party_member_vehicle_seat: self
@@ -34604,7 +34586,6 @@ impl WorldSession {
                     .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_DND_LIKE_CPP)
                     .unwrap_or(false);
             }
-            info.auto_reply_msg_like_cpp = self.auto_reply_msg_like_cpp.clone();
             info.in_vehicle = self.player_vehicle_seat_flags_like_cpp.is_some();
             info.has_vehicle_kit_like_cpp = self.player_mount_vehicle_kit_like_cpp.is_some();
             info.party_member_vehicle_seat = self
