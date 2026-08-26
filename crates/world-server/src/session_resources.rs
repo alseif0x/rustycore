@@ -29,6 +29,9 @@ pub(super) struct SessionResources {
     /// authenticated session (account data and tutorials).
     pub(super) session_account_state_port:
         Option<Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>>,
+    /// Characters-database adapter for canonical `Map::LoadCorpseData`.
+    pub(super) map_corpse_persistence_port:
+        Option<Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>,
     pub(super) world_db: Option<Arc<wow_database::WorldDatabase>>,
     /// Process-wide C++ `ObjectMgr::_trainers` /
     /// `_creatureDefaultTrainers` snapshot.
