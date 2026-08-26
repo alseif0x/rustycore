@@ -1661,8 +1661,8 @@
         {
           "path": "crates/wow-world/src/session/mod.rs",
           "production_lines": 72705,
-          "test_lines": 95800,
-          "total_lines": 168505,
+          "test_lines": 95914,
+          "total_lines": 168619,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153
@@ -1682,9 +1682,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20812,
+          "production_lines": 20825,
           "test_lines": 11374,
-          "total_lines": 32186,
+          "total_lines": 32199,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "open_retirement_issues": [
             153

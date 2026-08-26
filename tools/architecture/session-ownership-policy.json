@@ -7275,8 +7275,8 @@
           "trait_path": null,
           "kind": "method",
           "name": "load_character_spell_history_packets_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn load_character_spell_history_packets_like_cpp (& mut self , char_db : & wow_database :: CharacterDatabase , guid : ObjectGuid ,) -> (Vec < SpellHistoryEntry > , Vec < SpellChargeEntry >)",
+          "visibility": "pub (crate)",
+          "signature": "async fn load_character_spell_history_packets_like_cpp (& mut self , guid : ObjectGuid ,) -> (Vec < SpellHistoryEntry > , Vec < SpellChargeEntry >)",
           "cfg": [],
           "source_class": "production",
           "guards": [

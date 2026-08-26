@@ -56,6 +56,7 @@
     390,
     392,
     394,
+    396,
     189,
     192,
     193,
@@ -1010,7 +1011,7 @@
     },
     {
       "number": 394,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.6] Move Player homebind persistence behind the lifecycle port",
       "kind": "slice",
       "parents": [
@@ -1019,6 +1020,19 @@
       ],
       "depends_on": [
         392
+      ]
+    },
+    {
+      "number": 396,
+      "state": "open",
+      "title": "[ARCH.DB.7] Move Player spell-history loads behind the lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        394
       ]
     }
   ]
