@@ -14,9 +14,9 @@ use wow_persistence::{
     AccountCollectionLoadOutcomeLikeCpp, AccountCollectionLoadRequestLikeCpp,
     AccountCollectionSaveLikeCpp, AccountMaskBlockLikeCpp, LogicalDatabaseLikeCpp,
     PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerCharacterSaveRequestLikeCpp,
-    PlayerCharacterSaveResultLikeCpp, PlayerLifecyclePortLikeCpp,
-    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
-    PlayerOfflineMarkLikeCpp,
+    PlayerCharacterSaveResultLikeCpp, PlayerHomebindPersistenceRequestLikeCpp,
+    PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
+    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerOfflineMarkLikeCpp,
 };
 
 struct RecordingPortLikeCpp {
@@ -54,6 +54,14 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         mark: PlayerOfflineMarkLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
         self.seen.lock().unwrap().push(mark);
+        let outcome = self.outcome.clone();
+        Box::pin(async move { outcome })
+    }
+
+    fn persist_homebind_like_cpp<'a>(
+        &'a self,
+        _request: PlayerHomebindPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
         let outcome = self.outcome.clone();
         Box::pin(async move { outcome })
     }

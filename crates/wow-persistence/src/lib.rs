@@ -55,6 +55,43 @@ impl PlayerOfflineMarkLikeCpp {
     }
 }
 
+/// One C++ Player homebind write against the Characters database.
+///
+/// The variants preserve the distinct `_LoadHomeBind` repair operations and
+/// the live `SetHomebind` update. Live map/area values stay wide here because
+/// C++ narrows them at the prepared-statement boundary, which belongs to the
+/// concrete adapter.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PlayerHomebindPersistenceRequestLikeCpp {
+    DeleteInvalid {
+        player_guid: u64,
+    },
+    InsertRepaired {
+        player_guid: u64,
+        map_id: u16,
+        area_id: u16,
+        x: f32,
+        y: f32,
+        z: f32,
+        orientation: f32,
+    },
+    UpdateLive {
+        player_guid: u64,
+        map_id: u32,
+        area_id: u32,
+        x: f32,
+        y: f32,
+        z: f32,
+        orientation: f32,
+    },
+}
+
+impl PlayerHomebindPersistenceRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
 /// The logical databases the lifecycle can address. Deliberately not a
 /// connection, pool or URL — only which store a request belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -737,6 +774,13 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
     fn mark_offline_like_cpp<'a>(
         &'a self,
         mark: PlayerOfflineMarkLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
+
+    /// Execute one non-transactional homebind write. C++ queues these writes
+    /// on the Characters database; callers retain gameplay state/publication.
+    fn persist_homebind_like_cpp<'a>(
+        &'a self,
+        request: PlayerHomebindPersistenceRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 
     /// Load one account-wide collection from the Login database. The caller

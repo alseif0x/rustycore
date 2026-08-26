@@ -10443,6 +10443,36 @@
     },
     {
       "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_homebind_persistence_statement_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free Player homebind persistence (#394)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure Characters-database statement construction; each semantic homebind request selects one existing statement with its exact C++ bind widths and order.",
+      "current_order": "Builds exactly one delete-invalid, insert-repaired or update-live statement; UInt16 narrowing for the live update occurs at this adapter boundary.",
+      "failure_and_unknown_commit": "No I/O occurs here; the adapter classifies the later single-statement write as Applied or Failed."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::persist_homebind_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free Player homebind persistence (#394)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Each request uses the configured Characters adapter and one prepared statement; no transaction or wider connection affinity is inferred.",
+      "current_order": "Executes only the statement selected by the typed request. Session retains the existing FIFO worker for live updates; login repair calls retain their await order.",
+      "failure_and_unknown_commit": "A single-statement execution returns Applied or Failed; there is no explicit COMMIT whose outcome could be Unknown."
+    },
+    {
+      "package": "wow-database",
       "module": "crate::map_corpse_adapter",
       "source": "crates/wow-database/src/map_corpse_adapter.rs",
       "enclosing": "fn map_corpse_load_statements_like_cpp",
@@ -10985,24 +11015,6 @@
       "package": "wow-world",
       "module": "crate::handlers::character::lifecycle",
       "source": "crates/wow-world/src/handlers/character/lifecycle.rs",
-      "enclosing": "impl WorldSession::load_default_graveyard_homebind_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "Player login/logout lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::lifecycle",
-      "source": "crates/wow-world/src/handlers/character/lifecycle.rs",
       "enclosing": "module",
       "logical_databases": [
         "characters",
@@ -11298,24 +11310,6 @@
       "package": "wow-world",
       "module": "crate::handlers::character::session_state",
       "source": "crates/wow-world/src/handlers/character/session_state.rs",
-      "enclosing": "impl WorldSession::delete_invalid_character_homebind_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Player login/logout lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::session_state",
-      "source": "crates/wow-world/src/handlers/character/session_state.rs",
       "enclosing": "impl WorldSession::load_active_player_trait_configs_like_cpp",
       "logical_databases": [
         "characters"
@@ -11545,42 +11539,6 @@
       "connection_affinity": "The workflow uses independent characters, world connections/pools in source order; no distributed ACID boundary is inferred.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::vendor",
-      "source": "crates/wow-world/src/handlers/character/vendor.rs",
-      "enclosing": "impl WorldSession::persist_repaired_character_homebind_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Player login/logout lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::vendor",
-      "source": "crates/wow-world/src/handlers/character/vendor.rs",
-      "enclosing": "impl WorldSession::repair_character_homebind_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Player login/logout lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
     {
       "package": "wow-world",
@@ -13888,24 +13846,6 @@
       "package": "wow-world",
       "module": "crate::session",
       "source": "crates/wow-world/src/session/mod.rs",
-      "enclosing": "impl WorldSession::build_player_homebind_update_statement_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Player lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_void_storage_delete_all_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -14201,23 +14141,6 @@
       "package": "wow-world",
       "module": "crate::session",
       "source": "crates/wow-world/src/session/mod.rs",
-      "enclosing": "impl WorldSession::persist_player_homebind_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Session residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::repair_all_inventory_item_durability_with_player_money_like_cpp",
       "logical_databases": [
         "characters"
@@ -14420,23 +14343,6 @@
       "connection_affinity": "This is a shared dependency/type surface for characters, login, world; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session/mod.rs",
-      "enclosing": "struct HomebindPersistenceJobLikeCpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Session residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
     {
       "package": "wow-world",

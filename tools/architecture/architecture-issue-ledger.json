@@ -55,6 +55,7 @@
     388,
     390,
     392,
+    394,
     189,
     192,
     193,
@@ -996,7 +997,7 @@
     },
     {
       "number": 392,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.5] Move map corpse hydration behind a typed persistence port",
       "kind": "slice",
       "parents": [
@@ -1005,6 +1006,19 @@
       ],
       "depends_on": [
         390
+      ]
+    },
+    {
+      "number": 394,
+      "state": "open",
+      "title": "[ARCH.DB.6] Move Player homebind persistence behind the lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        392
       ]
     }
   ]
