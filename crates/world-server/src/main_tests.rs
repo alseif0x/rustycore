@@ -276,6 +276,8 @@ fn player_broadcast_info_fixture_like_cpp(
             instance_id: 0,
             position: wow_core::Position::ZERO,
             is_in_world: true,
+            level: 1,
+            is_alive: true,
         },
         info: PlayerBroadcastInfo {
             combat_reach: 0.0,
@@ -284,7 +286,6 @@ fn player_broadcast_info_fixture_like_cpp(
             active_loot_rolls: Vec::new(),
             pass_on_group_loot: false,
             enchanting_skill: 0,
-            is_alive: true,
             transport: None,
             is_afk: false,
             is_dnd: false,
@@ -311,7 +312,6 @@ fn player_broadcast_info_fixture_like_cpp(
             party_member_phase_states: Default::default(),
             party_member_auras: Vec::new(),
             party_member_pet_stats: None,
-            level: 1,
             gray_level: 0,
             display_id: 49,
             visible_items: std::sync::Arc::new([(0, 0, 0); 19]),
@@ -6991,6 +6991,8 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
                 instance_id: 0,
                 position: wow_core::Position::ZERO,
                 is_in_world: true,
+                level: 1,
+                is_alive: true,
             },
             info: PlayerBroadcastInfo {
                 combat_reach: 0.0,
@@ -6999,7 +7001,6 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
                 active_loot_rolls: Vec::new(),
                 pass_on_group_loot: false,
                 enchanting_skill: 0,
-                is_alive: true,
                 transport: None,
                 is_afk: false,
                 is_dnd: false,
@@ -7026,7 +7027,6 @@ fn game_event_seasonal_post_db_delete_fanout_queues_session_command_like_cpp() {
                 party_member_phase_states: Default::default(),
                 party_member_auras: Vec::new(),
                 party_member_pet_stats: None,
-                level: 1,
                 gray_level: 0,
                 display_id: 49,
                 visible_items: std::sync::Arc::new([(0, 0, 0); 19]),
@@ -11023,7 +11023,7 @@ fn collect_legacy_creature_aggro_candidates_uses_living_in_world_players_like_cp
         make_registry_player_like_cpp(571, 2, Position::new(9.0, 9.0, 9.0, 0.0), false);
     let (mut dead_in_world_info, _) =
         make_registry_player_like_cpp(571, 2, Position::new(4.0, 4.0, 4.0, 0.0), true);
-    dead_in_world_info.info.is_alive = false;
+    dead_in_world_info.placement.is_alive = false;
     registry.register_or_replace(in_world, in_world_info, Default::default());
     registry.register_or_replace(not_in_world, not_in_world_info, Default::default());
     registry.register_or_replace(dead_in_world, dead_in_world_info, Default::default());
@@ -11390,7 +11390,7 @@ fn creature_attack_start_delivery_filters_registry_state_like_cpp() {
     let (not_in_world_info, not_in_world_rx) =
         make_registry_player_like_cpp(571, 0, Position::ZERO, false);
     let (mut dead_info, dead_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
-    dead_info.info.is_alive = false;
+    dead_info.placement.is_alive = false;
     registry.register_or_replace(wrong_map, wrong_map_info, Default::default());
     registry.register_or_replace(wrong_instance, wrong_instance_info, Default::default());
     registry.register_or_replace(not_in_world, not_in_world_info, Default::default());
@@ -11439,7 +11439,7 @@ fn creature_attack_start_delivery_uses_durable_rail_when_general_queue_is_full_l
     info.placement.map_id = 571;
     info.placement.instance_id = 0;
     info.placement.is_in_world = true;
-    info.info.is_alive = true;
+    info.placement.is_alive = true;
     registry.register_or_replace(victim, info, Default::default());
     let command = wow_world::session::mailbox::CreatureAttackStartLikeCppCommand {
         attacker_guid: attacker,

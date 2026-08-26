@@ -18,11 +18,9 @@ in_combat	canonical Player/Unit combat state	#252	query immutable combat state
 in_vehicle	canonical Player/Unit vehicle state	#252	query immutable vehicle membership
 inventory_item_counts	canonical Player inventory	#252	query minimum immutable item-count result
 is_afk	canonical Player social presence	#252	query immutable AFK state
-is_alive	canonical Player/Unit vitals	#252	query immutable alive state
 is_dnd	canonical Player social presence	#252	query immutable DND state
 is_game_master	canonical Player visibility/security state	#252	query immutable GM state
 known_spells	canonical Player spellbook	#252	query minimum immutable spell membership
-level	canonical Player progression	#252	query immutable level
 liquid_status	MapRuntime environment state	#252	query immutable player environment result
 party_member_auras	canonical Player/Unit aura state	#252	query immutable party aura presentation
 party_member_pet_stats	canonical Player pet state	#252	query immutable party pet presentation

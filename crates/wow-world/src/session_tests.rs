@@ -33473,8 +33473,8 @@ fn configure_two_player_group_for_reputation_test(
     let mut other_info = broadcast_info(other_guid, other_tx);
     other_info.placement.map_id = 0;
     other_info.placement.position = Position::new(10.0, 10.0, 0.0, 0.0);
-    other_info.info.level = 80;
-    other_info.info.is_alive = true;
+    other_info.placement.level = 80;
+    other_info.placement.is_alive = true;
     player_registry.register_or_replace(other_guid, other_info, Default::default());
 
     let group_registry = Arc::new(GroupRegistry::default());
@@ -35654,9 +35654,9 @@ fn publishing_gameplay_state_cannot_detach_the_shared_session_handles_like_cpp()
     visibility.insert(seen);
 
     // The only thing a gameplay publish can replace is the projection.
-    assert!(registry.fixture_update(guid, |info, _| info.level = 80));
+    assert!(registry.fixture_update(guid, |_, placement| placement.level = 80));
     assert_eq!(
-        registry.fixture_snapshot(guid).expect("registered").level,
+        registry.group_presence(guid).expect("registered").level,
         80,
         "the projection still carries published gameplay state"
     );
@@ -35707,6 +35707,8 @@ fn broadcast_info_with_command(
             instance_id: 0,
             position: Position::ZERO,
             is_in_world: true,
+            level: 1,
+            is_alive: true,
         },
         info: PlayerBroadcastInfo {
             combat_reach: 0.0,
@@ -35715,7 +35717,6 @@ fn broadcast_info_with_command(
             in_combat: false,
             pass_on_group_loot: false,
             enchanting_skill: 0,
-            is_alive: true,
             transport: None,
             is_afk: false,
             is_dnd: false,
@@ -35742,7 +35743,6 @@ fn broadcast_info_with_command(
             party_member_phase_states: Default::default(),
             party_member_auras: Vec::new(),
             party_member_pet_stats: None,
-            level: 1,
             gray_level: 0,
             display_id: 49,
             visible_items: Arc::new([(0, 0, 0); 19]),
@@ -55571,7 +55571,7 @@ fn give_xp_runtime_raf_awards_triple_xp_without_spending_rested_bonus_like_cpp()
     recruit_info.placement.map_id = 1;
     recruit_info.placement.position = Position::new(10.0, 0.0, 0.0, 0.0);
     recruit_info.identity.account_id = 2;
-    recruit_info.info.level = 10;
+    recruit_info.placement.level = 10;
     player_registry.register_or_replace(recruit_guid, recruit_info, Default::default());
 
     let group_registry = Arc::new(GroupRegistry::default());
@@ -77119,7 +77119,7 @@ fn gameobject_use_meeting_stone_maps_spell_by_entry_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, _target_rx) = flume::bounded(1);
     let mut target_info = broadcast_info(target_guid, target_tx);
-    target_info.info.level = 80;
+    target_info.placement.level = 80;
     player_registry.register_or_replace(target_guid, target_info, Default::default());
     session.set_player_registry(player_registry);
 
@@ -77262,7 +77262,7 @@ fn gameobject_use_meeting_stone_checks_content_tuning_levels_like_cpp() {
     let player_registry = Arc::new(PlayerRegistry::default());
     let (target_tx, _target_rx) = flume::bounded(1);
     let mut target_info = broadcast_info(target_guid, target_tx);
-    target_info.info.level = 20;
+    target_info.placement.level = 20;
     player_registry.register_or_replace(target_guid, target_info, Default::default());
     session.set_player_registry(player_registry);
     let source = wow_entities::MeetingStoneUseSource {

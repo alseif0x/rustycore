@@ -34463,7 +34463,6 @@ impl WorldSession {
             in_combat: self.in_combat,
             pass_on_group_loot: self.pass_on_group_loot,
             enchanting_skill: self.represented_enchanting_skill,
-            is_alive: self.player_alive_like_cpp,
             transport: self.player_transport_info_like_cpp(),
             is_afk,
             is_dnd,
@@ -34506,7 +34505,6 @@ impl WorldSession {
             .unwrap_or_default(),
             party_member_auras: self.party_member_visible_auras_like_cpp(),
             party_member_pet_stats: self.party_member_pet_stats_like_cpp(),
-            level,
             gray_level: self.gray_level(level),
             display_id: default_display_id(race, gender),
             visible_items: Arc::new(visible_items),
@@ -34529,6 +34527,8 @@ impl WorldSession {
                     instance_id,
                     position: pos,
                     is_in_world: self.player_is_in_world_for_registry_like_cpp(),
+                    level,
+                    is_alive: self.player_alive_like_cpp,
                 },
                 info,
                 send_tx: self.send_tx().clone(),
@@ -34580,7 +34580,6 @@ impl WorldSession {
             info.in_combat = self.in_combat;
             info.pass_on_group_loot = self.pass_on_group_loot;
             info.enchanting_skill = self.represented_enchanting_skill;
-            info.is_alive = self.player_alive_like_cpp;
             info.transport = self.player_transport_info_like_cpp();
             if let Some(guid) = self.player_guid() {
                 info.is_afk = self
@@ -34602,8 +34601,7 @@ impl WorldSession {
             info.unit_state = unit_state_for_registry;
             info.is_game_master = self.player_game_master_like_cpp;
             info.dungeon_difficulty_id = self.represented_dungeon_difficulty_id_like_cpp;
-            info.level = self.player_level_like_cpp();
-            info.gray_level = self.gray_level(info.level);
+            info.gray_level = self.gray_level(self.player_level_like_cpp());
             info.pending_quest_sharing = self
                 .represented_pending_quest_sharing_like_cpp
                 .map(|pending| (pending.sender_guid, pending.quest_id));
@@ -34703,6 +34701,8 @@ impl WorldSession {
                 map_id,
                 instance_id,
                 is_in_world: self.player_is_in_world_for_registry_like_cpp(),
+                level: self.player_level_like_cpp(),
+                is_alive: self.player_alive_like_cpp,
                 liquid_status: self.player_liquid_status_like_cpp(),
                 transport: self.player_transport_info_like_cpp(),
             },

@@ -123,6 +123,8 @@ pub struct PlayerDirectoryPlacementLikeCpp {
     pub instance_id: u32,
     pub position: Position,
     pub is_in_world: bool,
+    pub level: u8,
+    pub is_alive: bool,
 }
 
 #[derive(Clone)]
@@ -133,7 +135,6 @@ pub struct PlayerBroadcastInfo {
     pub active_loot_rolls: Vec<LootRollCommandIdentityLikeCpp>,
     pub pass_on_group_loot: bool,
     pub enchanting_skill: u16,
-    pub is_alive: bool,
     pub transport: Option<TransportInfo>,
     pub is_afk: bool,
     pub is_dnd: bool,
@@ -172,10 +173,8 @@ pub struct PlayerBroadcastInfo {
     pub party_member_auras: Vec<PartyMemberAuraState>,
     /// C++ `PartyMemberPetStats` snapshot for SMSG_PARTY_MEMBER_FULL_STATE.
     pub party_member_pet_stats: Option<PartyMemberPetStats>,
-    pub level: u8,
-    /// C++ `Trinity::XP::GetGrayLevel(level)` snapshot for receiver-side
-    /// aggro decisions. Sessions publish this so global map-owned scans do not
-    /// recompute or lose script-adjusted gray-level state.
+    /// C++ `Trinity::XP::GetGrayLevel(level)` snapshot for receiver-side aggro.
+    /// Sessions publish this so global scans retain script-adjusted gray-level state.
     pub gray_level: u8,
     pub display_id: u32,
     pub visible_items: Arc<[(i32, u16, u16); 19]>,
@@ -323,6 +322,8 @@ pub struct PlayerMovementDirectoryUpdate {
     pub map_id: u16,
     pub instance_id: u32,
     pub is_in_world: bool,
+    pub level: u8,
+    pub is_alive: bool,
     pub liquid_status: u32,
     pub transport: Option<TransportInfo>,
 }
@@ -546,7 +547,7 @@ impl PlayerRegistryEntry {
             combat_reach: self.info.combat_reach,
             liquid_status: self.info.liquid_status,
             is_in_world: self.placement.is_in_world,
-            is_alive: self.info.is_alive,
+            is_alive: self.placement.is_alive,
             account_id: self.identity.account_id,
             in_combat: self.info.in_combat,
             advanced_combat_logging: self
@@ -812,8 +813,8 @@ impl PlayerRegistry {
             instance_id: entry.placement.instance_id,
             position: entry.placement.position,
             is_in_world: entry.placement.is_in_world,
-            is_alive: entry.info.is_alive,
-            level: entry.info.level,
+            is_alive: entry.placement.is_alive,
+            level: entry.placement.level,
             account_id: entry.identity.account_id,
             recruiter_id: entry.identity.recruiter_id,
             in_combat: entry.info.in_combat,
@@ -869,7 +870,7 @@ impl PlayerRegistry {
             max_health: vitals.max_health,
             current_power: vitals.current_power,
             max_power: vitals.max_power,
-            level: info.level,
+            level: placement.level,
             spec_id: info.spec_id,
             zone_id: info.zone_id,
             party_member_vehicle_seat: info.party_member_vehicle_seat,
@@ -992,7 +993,7 @@ impl PlayerRegistry {
             race: entry.identity.race,
             class: entry.identity.class,
             sex: entry.identity.sex,
-            level: info.level,
+            level: entry.placement.level,
             visible_items: Arc::clone(&info.visible_items),
         })
     }
@@ -1133,7 +1134,7 @@ impl PlayerRegistry {
             race: entry.identity.race,
             class: entry.identity.class,
             sex: entry.identity.sex,
-            level: info.level,
+            level: entry.placement.level,
             known_spells: info.known_spells.clone(),
             active_quest_statuses: info.active_quest_statuses.clone(),
             active_quest_objective_counts: info.active_quest_objective_counts.clone(),
@@ -1147,10 +1148,10 @@ impl PlayerRegistry {
     pub fn group_reward_snapshot(&self, guid: ObjectGuid) -> Option<PlayerGroupRewardSnapshot> {
         let entry = self.entries.get(&guid)?;
         Some(PlayerGroupRewardSnapshot {
-            level: entry.info.level,
+            level: entry.placement.level,
             map_id: entry.placement.map_id,
             position: entry.placement.position,
-            is_alive: entry.info.is_alive,
+            is_alive: entry.placement.is_alive,
         })
     }
 
@@ -1290,7 +1291,7 @@ impl PlayerRegistry {
                     race: identity.race,
                     class: identity.class,
                     sex: identity.sex,
-                    level: info.level,
+                    level: placement.level,
                     display_id: info.display_id,
                     zone_id: info.zone_id,
                     current_health: vitals.current_health,
@@ -1338,12 +1339,12 @@ impl PlayerRegistry {
                         generation: entry.generation,
                     },
                     pending_quest_sharing: info.pending_quest_sharing,
-                    is_alive: info.is_alive,
+                    is_alive: entry.placement.is_alive,
                     rewarded_quests: info.rewarded_quests.clone(),
                     active_quest_statuses: info.active_quest_statuses.clone(),
                     df_quests: info.df_quests.clone(),
                     daily_quests_completed: info.daily_quests_completed.clone(),
-                    level: info.level,
+                    level: entry.placement.level,
                     class: entry.identity.class,
                     race: entry.identity.race,
                     reputation_standings: None,
@@ -1405,6 +1406,8 @@ impl PlayerRegistry {
         entry.placement.map_id = update.map_id;
         entry.placement.instance_id = update.instance_id;
         entry.placement.is_in_world = update.is_in_world;
+        entry.placement.level = update.level;
+        entry.placement.is_alive = update.is_alive;
         entry.info.liquid_status = update.liquid_status;
         entry.info.transport = update.transport;
         true
@@ -1501,7 +1504,7 @@ impl PlayerRegistry {
                 let guid = *entry.key();
                 let entry = entry.value();
                 let info = &entry.info;
-                (entry.placement.is_in_world && info.is_alive).then(|| {
+                (entry.placement.is_in_world && entry.placement.is_alive).then(|| {
                     PlayerAggroCandidateSnapshot {
                         player_guid: guid,
                         map_id: entry.placement.map_id,
@@ -1509,7 +1512,7 @@ impl PlayerRegistry {
                         position: entry.placement.position,
                         combat_reach: info.combat_reach,
                         liquid_status: info.liquid_status,
-                        level: info.level,
+                        level: entry.placement.level,
                         gray_level: info.gray_level,
                         unit_flags: info.unit_flags,
                         unit_state: info.unit_state,
@@ -1569,7 +1572,7 @@ impl PlayerRegistry {
                     race: identity.race,
                     class: identity.class,
                     sex: identity.sex,
-                    level: info.level,
+                    level: placement.level,
                     display_id: info.display_id,
                     zone_id: info.zone_id,
                     current_health: vitals.current_health,
@@ -1954,6 +1957,8 @@ mod tests {
                 instance_id,
                 position: Position::ZERO,
                 is_in_world: true,
+                level: 1,
+                is_alive: true,
             },
             info: PlayerBroadcastInfo {
                 combat_reach: 0.0,
@@ -1962,7 +1967,6 @@ mod tests {
                 in_combat: false,
                 pass_on_group_loot: false,
                 enchanting_skill: 0,
-                is_alive: true,
                 transport: None,
                 is_afk: false,
                 is_dnd: false,
@@ -1989,7 +1993,6 @@ mod tests {
                 party_member_phase_states: Default::default(),
                 party_member_auras: Vec::new(),
                 party_member_pet_stats: None,
-                level: 1,
                 gray_level: 0,
                 display_id: 49,
                 visible_items: Arc::new([(0, 0, 0); 19]),

@@ -55874,13 +55874,6 @@
           "source_class": "production"
         },
         {
-          "name": "is_alive",
-          "type": "bool",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "is_dnd",
           "type": "bool",
           "visibility": "pub",
@@ -55897,13 +55890,6 @@
         {
           "name": "known_spells",
           "type": "Vec < i32 >",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "level",
-          "type": "u8",
           "visibility": "pub",
           "cfg": [],
           "source_class": "production"

@@ -114,6 +114,8 @@ fn broadcast_info_with_command_tx(
             instance_id: 0,
             position: Position::ZERO,
             is_in_world: true,
+            level: 1,
+            is_alive: true,
         },
         info: PlayerBroadcastInfo {
             combat_reach: 0.0,
@@ -122,7 +124,6 @@ fn broadcast_info_with_command_tx(
             in_combat: false,
             pass_on_group_loot: false,
             enchanting_skill: 0,
-            is_alive: true,
             transport: None,
             is_afk: false,
             is_dnd: false,
@@ -149,7 +150,6 @@ fn broadcast_info_with_command_tx(
             party_member_phase_states: Default::default(),
             party_member_auras: Vec::new(),
             party_member_pet_stats: None,
-            level: 1,
             gray_level: 0,
             display_id: 49,
             visible_items: std::sync::Arc::new([(0, 0, 0); 19]),
@@ -3133,7 +3133,6 @@ async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_
     registration.identity.class = 4;
     registry.register_or_replace(target, registration, Default::default());
     registry.fixture_update(target, |info, placement| {
-        info.level = 80;
         info.is_afk = true;
         info.is_dnd = true;
         info.in_vehicle = true;
@@ -3172,6 +3171,7 @@ async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_
             name: "Wolf".to_string(),
         });
     });
+    registry.fixture_update(target, |_, placement| placement.level = 80);
     let position = Position::new(11.0, 22.0, 33.0, 0.0);
     let mut player = wow_entities::Player::new(Some(1), false);
     player.unit_mut().world_mut().object_mut().create(target);

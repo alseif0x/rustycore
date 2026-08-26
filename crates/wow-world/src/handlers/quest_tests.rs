@@ -7922,16 +7922,16 @@ async fn push_quest_to_party_receiver_level_snapshot_syncs_from_world_session_li
         install_represented_party(&mut session, sender_guid, receiver_guid);
     assert_eq!(
         player_registry
-            .fixture_snapshot(receiver_guid)
-            .map(|info| info.level),
+            .group_presence(receiver_guid)
+            .map(|presence| presence.level),
         Some(80)
     );
     receiver_session.set_player_level_like_cpp(19);
     receiver_session.sync_player_registry_state_like_cpp();
     assert_eq!(
         player_registry
-            .fixture_snapshot(receiver_guid)
-            .map(|info| info.level),
+            .group_presence(receiver_guid)
+            .map(|presence| presence.level),
         Some(19)
     );
 
@@ -8555,7 +8555,7 @@ async fn push_quest_to_party_grouped_receiver_dead_observes_runtime_under_map_sy
     assert!(!receiver_session.player_is_alive_like_cpp());
     assert!(
         !player_registry
-            .fixture_snapshot(receiver_guid)
+            .group_presence(receiver_guid)
             .expect("receiver registry snapshot")
             .is_alive
     );
