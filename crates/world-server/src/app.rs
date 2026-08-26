@@ -4323,6 +4323,12 @@ async fn run_inner(
                 Arc::clone(&char_db),
             ),
         );
+    let map_corpse_persistence_port: Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp> =
+        Arc::new(
+            wow_database::map_corpse_adapter::MariaDbMapCorpsePersistenceAdapterLikeCpp::new(
+                Arc::clone(&char_db),
+            ),
+        );
 
     // Build session resources
     let session_resources = Arc::new(SessionResources {
@@ -4330,6 +4336,7 @@ async fn run_inner(
         login_db: Some(Arc::clone(&login_db)),
         player_lifecycle_port: Some(Arc::clone(&player_lifecycle_port)),
         session_account_state_port: Some(Arc::clone(&session_account_state_port)),
+        map_corpse_persistence_port: Some(Arc::clone(&map_corpse_persistence_port)),
         world_db: Some(Arc::clone(&world_db)),
         trainer_store: Some(Arc::clone(&trainer_data_store)),
         guid_generator: Some(Arc::clone(&guid_generator)),

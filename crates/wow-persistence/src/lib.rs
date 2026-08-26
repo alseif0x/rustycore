@@ -173,6 +173,84 @@ pub enum PlayerLoginAuxiliaryLoadOutcomeLikeCpp {
     Failed { reason: String },
 }
 
+/// One canonical-map corpse hydration request.
+///
+/// C++ `Map::LoadCorpseData` owns the state transition. This request keeps the
+/// database identity out of the map/application layer while preserving the
+/// exact `(mapId, instanceId)` scope shared by all three reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MapCorpseLoadRequestLikeCpp {
+    pub map_id: u32,
+    pub instance_id: u32,
+}
+
+impl MapCorpseLoadRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MapCorpseLoadRowLikeCpp {
+    pub pos_x: f32,
+    pub pos_y: f32,
+    pub pos_z: f32,
+    pub orientation: f32,
+    pub map_id: u16,
+    pub display_id: u32,
+    pub item_cache: String,
+    pub race: u8,
+    pub class: u8,
+    pub sex: u8,
+    pub flags: u8,
+    pub dynamic_flags: u8,
+    pub ghost_time: u32,
+    pub corpse_type: u8,
+    pub instance_id: u32,
+    pub owner_guid: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MapCorpsePhaseLoadRowLikeCpp {
+    pub owner_guid: u64,
+    pub phase_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MapCorpseCustomizationLoadRowLikeCpp {
+    pub owner_guid: u64,
+    pub option_id: u32,
+    pub choice_id: u32,
+}
+
+/// Each auxiliary read may fail independently after the base corpse rows have
+/// loaded. C++ continues without that auxiliary data in either case.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MapCorpseAuxiliaryLoadOutcomeLikeCpp<T> {
+    Loaded(Vec<T>),
+    Failed { reason: String },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum MapCorpseLoadOutcomeLikeCpp {
+    Loaded {
+        corpses: Vec<MapCorpseLoadRowLikeCpp>,
+        phases: MapCorpseAuxiliaryLoadOutcomeLikeCpp<MapCorpsePhaseLoadRowLikeCpp>,
+        customizations: MapCorpseAuxiliaryLoadOutcomeLikeCpp<MapCorpseCustomizationLoadRowLikeCpp>,
+    },
+    Failed {
+        reason: String,
+    },
+}
+
+/// SQLx-free persistence boundary for C++ `Map::LoadCorpseData`.
+pub trait MapCorpsePersistencePortLikeCpp: Send + Sync {
+    fn load_map_corpses_like_cpp<'a>(
+        &'a self,
+        request: MapCorpseLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, MapCorpseLoadOutcomeLikeCpp>;
+}
+
 /// One account-collection read requested by the Player login lifecycle.
 ///
 /// C++ prepares these Login-database reads in `AccountInfoQueryHolder` and
@@ -735,6 +813,18 @@ mod tests {
                 LogicalDatabaseLikeCpp::Characters
             );
         }
+    }
+
+    #[test]
+    fn map_corpse_hydration_names_the_characters_database_like_cpp() {
+        assert_eq!(
+            MapCorpseLoadRequestLikeCpp {
+                map_id: 571,
+                instance_id: 9,
+            }
+            .logical_database(),
+            LogicalDatabaseLikeCpp::Characters
+        );
     }
 
     #[test]

@@ -47,11 +47,48 @@ use wow_persistence::{
     AccountCollectionLoadOutcomeLikeCpp, AccountCollectionLoadRequestLikeCpp,
     AccountCollectionLoadedLikeCpp, AccountCollectionRowsLikeCpp, AccountCollectionSaveLikeCpp,
     AccountHeirloomLoadRowLikeCpp, AccountMaskBlockLikeCpp, AccountMountLoadRowLikeCpp,
-    AccountToyLoadRowLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
-    PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
-    PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
-    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerOfflineMarkLikeCpp,
+    AccountToyLoadRowLikeCpp, MapCorpseAuxiliaryLoadOutcomeLikeCpp,
+    MapCorpseLoadOutcomeLikeCpp as PersistedMapCorpseLoadOutcomeLikeCpp,
+    MapCorpseLoadRequestLikeCpp, MapCorpseLoadRowLikeCpp, MapCorpsePersistencePortLikeCpp,
+    PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerCharacterSaveRequestLikeCpp,
+    PlayerCharacterSaveResultLikeCpp, PlayerLifecyclePortLikeCpp,
+    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
+    PlayerOfflineMarkLikeCpp,
 };
+
+struct MapCorpseLoadPortFixtureLikeCpp {
+    requests: std::sync::Mutex<Vec<MapCorpseLoadRequestLikeCpp>>,
+    outcomes: std::sync::Mutex<std::collections::VecDeque<PersistedMapCorpseLoadOutcomeLikeCpp>>,
+}
+
+impl MapCorpseLoadPortFixtureLikeCpp {
+    fn new(outcomes: impl IntoIterator<Item = PersistedMapCorpseLoadOutcomeLikeCpp>) -> Arc<Self> {
+        Arc::new(Self {
+            requests: std::sync::Mutex::new(Vec::new()),
+            outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
+        })
+    }
+
+    fn requests(&self) -> Vec<MapCorpseLoadRequestLikeCpp> {
+        self.requests.lock().unwrap().clone()
+    }
+}
+
+impl MapCorpsePersistencePortLikeCpp for MapCorpseLoadPortFixtureLikeCpp {
+    fn load_map_corpses_like_cpp<'a>(
+        &'a self,
+        request: MapCorpseLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistedMapCorpseLoadOutcomeLikeCpp> {
+        self.requests.lock().unwrap().push(request);
+        let outcome = self
+            .outcomes
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("one map-corpse outcome per request");
+        Box::pin(async move { outcome })
+    }
+}
 
 struct CollectionLoadPortLikeCpp {
     requests: std::sync::Mutex<Vec<AccountCollectionLoadRequestLikeCpp>>,
@@ -631,6 +668,136 @@ fn map_corpse_loader_applies_persisted_phases_and_customizations_once_like_cpp()
     );
     assert!(duplicate.already_loaded);
     assert_eq!(duplicate.corpses_added, 0);
+}
+
+fn map_corpse_session_with_port_like_cpp(
+    outcome: PersistedMapCorpseLoadOutcomeLikeCpp,
+) -> (
+    WorldSession,
+    Arc<std::sync::Mutex<wow_map::MapManager>>,
+    Arc<MapCorpseLoadPortFixtureLikeCpp>,
+) {
+    let port = MapCorpseLoadPortFixtureLikeCpp::new([outcome]);
+    let mut manager = wow_map::MapManager::default();
+    manager.create_world_map(571, 9);
+    let manager = Arc::new(std::sync::Mutex::new(manager));
+    let (mut session, _) = make_session_with_send_capacity(16);
+    session.set_canonical_map_manager(Arc::clone(&manager));
+    session.set_map_corpse_persistence_port_like_cpp(port.clone());
+    (session, manager, port)
+}
+
+fn invalid_map_corpse_load_row_like_cpp() -> MapCorpseLoadRowLikeCpp {
+    MapCorpseLoadRowLikeCpp {
+        pos_x: 10.0,
+        pos_y: 20.0,
+        pos_z: 30.0,
+        orientation: 1.5,
+        map_id: 571,
+        display_id: 12_345,
+        item_cache: String::new(),
+        race: 4,
+        class: 1,
+        sex: 0,
+        flags: 0x20,
+        dynamic_flags: 0x01,
+        ghost_time: 1_000,
+        corpse_type: 0,
+        instance_id: 9,
+        owner_guid: 77,
+    }
+}
+
+#[tokio::test]
+async fn typed_map_corpse_empty_load_marks_the_map_once_like_cpp() {
+    let (session, manager, port) =
+        map_corpse_session_with_port_like_cpp(PersistedMapCorpseLoadOutcomeLikeCpp::Loaded {
+            corpses: Vec::new(),
+            phases: MapCorpseAuxiliaryLoadOutcomeLikeCpp::Loaded(Vec::new()),
+            customizations: MapCorpseAuxiliaryLoadOutcomeLikeCpp::Loaded(Vec::new()),
+        });
+
+    let outcome = session.load_map_corpse_data_like_cpp(571, 9).await;
+
+    assert_eq!(outcome, MapCorpseLoadOutcomeLikeCpp::default());
+    assert_eq!(
+        port.requests(),
+        vec![MapCorpseLoadRequestLikeCpp {
+            map_id: 571,
+            instance_id: 9,
+        }]
+    );
+    assert!(
+        manager
+            .lock()
+            .unwrap()
+            .find_map(571, 9)
+            .unwrap()
+            .map()
+            .corpse_data_loaded_like_cpp()
+    );
+}
+
+#[tokio::test]
+async fn typed_map_corpse_base_failure_publishes_nothing_like_cpp() {
+    let (session, manager, _) =
+        map_corpse_session_with_port_like_cpp(PersistedMapCorpseLoadOutcomeLikeCpp::Failed {
+            reason: "base query failed".to_owned(),
+        });
+
+    let outcome = session.load_map_corpse_data_like_cpp(571, 9).await;
+
+    assert_eq!(outcome, MapCorpseLoadOutcomeLikeCpp::default());
+    assert!(
+        !manager
+            .lock()
+            .unwrap()
+            .find_map(571, 9)
+            .unwrap()
+            .map()
+            .corpse_data_loaded_like_cpp()
+    );
+}
+
+#[tokio::test]
+async fn typed_map_corpse_auxiliary_failures_are_independent_and_non_fatal_like_cpp() {
+    let cases = [
+        (
+            MapCorpseAuxiliaryLoadOutcomeLikeCpp::Failed {
+                reason: "phase query failed".to_owned(),
+            },
+            MapCorpseAuxiliaryLoadOutcomeLikeCpp::Loaded(Vec::new()),
+        ),
+        (
+            MapCorpseAuxiliaryLoadOutcomeLikeCpp::Loaded(Vec::new()),
+            MapCorpseAuxiliaryLoadOutcomeLikeCpp::Failed {
+                reason: "customization query failed".to_owned(),
+            },
+        ),
+    ];
+
+    for (phases, customizations) in cases {
+        let (session, manager, _) =
+            map_corpse_session_with_port_like_cpp(PersistedMapCorpseLoadOutcomeLikeCpp::Loaded {
+                corpses: vec![invalid_map_corpse_load_row_like_cpp()],
+                phases,
+                customizations,
+            });
+
+        let outcome = session.load_map_corpse_data_like_cpp(571, 9).await;
+
+        assert_eq!(outcome.invalid_type_rows, 1);
+        assert_eq!(outcome.corpses_added, 0);
+        assert!(
+            manager
+                .lock()
+                .unwrap()
+                .find_map(571, 9)
+                .unwrap()
+                .map()
+                .corpse_data_loaded_like_cpp()
+        );
+    }
 }
 
 #[test]

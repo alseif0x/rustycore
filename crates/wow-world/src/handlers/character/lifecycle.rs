@@ -878,125 +878,96 @@ impl WorldSession {
             }
         }
 
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let Some(port) = self.map_corpse_persistence_port_like_cpp().map(Arc::clone) else {
             return MapCorpseLoadOutcomeLikeCpp::default();
         };
-        let mut corpse_stmt = char_db.prepare(CharStatements::SEL_CORPSES);
-        corpse_stmt.set_u32(0, u32::from(map_id));
-        corpse_stmt.set_u32(1, instance_id);
-        let mut corpse_result = match char_db.query(&corpse_stmt).await {
-            Ok(result) => result,
-            Err(error) => {
+        let (corpse_rows, phase_rows, customization_rows) = match port
+            .load_map_corpses_like_cpp(wow_persistence::MapCorpseLoadRequestLikeCpp {
+                map_id: u32::from(map_id),
+                instance_id,
+            })
+            .await
+        {
+            wow_persistence::MapCorpseLoadOutcomeLikeCpp::Loaded {
+                corpses,
+                phases,
+                customizations,
+            } => (corpses, phases, customizations),
+            wow_persistence::MapCorpseLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     map_id,
-                    instance_id,
-                    %error,
-                    "C++ Map::LoadCorpseData base query failed"
+                    instance_id, "C++ Map::LoadCorpseData base query failed: {reason}"
                 );
                 return MapCorpseLoadOutcomeLikeCpp::default();
             }
         };
 
-        let had_corpse_rows = !corpse_result.is_empty();
-        let mut rows = Vec::with_capacity(corpse_result.row_count_like_cpp());
+        let mut rows = Vec::with_capacity(corpse_rows.len());
         let mut invalid_type_rows = 0u32;
-        if had_corpse_rows {
-            loop {
-                let corpse_type = match corpse_result.try_read::<u8>(13).unwrap_or(u8::MAX) {
-                    1 => Some(CorpseType::ResurrectablePve),
-                    2 => Some(CorpseType::ResurrectablePvp),
-                    // C++ rejects bones and values >= MAX_CORPSE_TYPE.
-                    _ => None,
-                };
-                if let Some(corpse_type) = corpse_type {
-                    rows.push(LoadedMapCorpseRowLikeCpp {
-                        position: Position::new(
-                            corpse_result.try_read::<f32>(0).unwrap_or(f32::NAN),
-                            corpse_result.try_read::<f32>(1).unwrap_or(f32::NAN),
-                            corpse_result.try_read::<f32>(2).unwrap_or(f32::NAN),
-                            corpse_result.try_read::<f32>(3).unwrap_or(f32::NAN),
-                        ),
-                        map_id: corpse_result.try_read::<u16>(4).unwrap_or(map_id),
-                        display_id: corpse_result.try_read::<u32>(5).unwrap_or(0),
-                        items: parse_corpse_items_like_cpp(&corpse_result.read_string(6)),
-                        race: corpse_result.try_read::<u8>(7).unwrap_or(0),
-                        class: corpse_result.try_read::<u8>(8).unwrap_or(0),
-                        sex: corpse_result.try_read::<u8>(9).unwrap_or(0),
-                        flags: u32::from(corpse_result.try_read::<u8>(10).unwrap_or(0)),
-                        dynamic_flags: u32::from(corpse_result.try_read::<u8>(11).unwrap_or(0)),
-                        ghost_time: i64::from(corpse_result.try_read::<u32>(12).unwrap_or(0)),
-                        corpse_type,
-                        instance_id: corpse_result.try_read::<u32>(14).unwrap_or(instance_id),
-                        owner_db_guid: corpse_result.try_read::<u64>(15).unwrap_or(0),
-                    });
-                } else {
-                    invalid_type_rows = invalid_type_rows.saturating_add(1);
-                }
-
-                if !corpse_result.next_row() {
-                    break;
-                }
+        for row in corpse_rows {
+            let corpse_type = match row.corpse_type {
+                1 => Some(CorpseType::ResurrectablePve),
+                2 => Some(CorpseType::ResurrectablePvp),
+                // C++ rejects bones and values >= MAX_CORPSE_TYPE.
+                _ => None,
+            };
+            if let Some(corpse_type) = corpse_type {
+                rows.push(LoadedMapCorpseRowLikeCpp {
+                    position: Position::new(row.pos_x, row.pos_y, row.pos_z, row.orientation),
+                    map_id: row.map_id,
+                    display_id: row.display_id,
+                    items: parse_corpse_items_like_cpp(&row.item_cache),
+                    race: row.race,
+                    class: row.class,
+                    sex: row.sex,
+                    flags: u32::from(row.flags),
+                    dynamic_flags: u32::from(row.dynamic_flags),
+                    ghost_time: i64::from(row.ghost_time),
+                    corpse_type,
+                    instance_id: row.instance_id,
+                    owner_db_guid: row.owner_guid,
+                });
+            } else {
+                invalid_type_rows = invalid_type_rows.saturating_add(1);
             }
         }
 
         let mut phases = HashMap::<u64, BTreeSet<u32>>::new();
         let mut customizations = HashMap::<u64, Vec<CorpseCustomizationChoice>>::new();
-        if had_corpse_rows {
-            let mut phase_stmt = char_db.prepare(CharStatements::SEL_CORPSE_PHASES);
-            phase_stmt.set_u32(0, u32::from(map_id));
-            phase_stmt.set_u32(1, instance_id);
-            match char_db.query(&phase_stmt).await {
-                Ok(mut phase_result) => {
-                    if !phase_result.is_empty() {
-                        loop {
-                            phases
-                                .entry(phase_result.try_read::<u64>(0).unwrap_or(0))
-                                .or_default()
-                                .insert(phase_result.try_read::<u32>(1).unwrap_or(0));
-                            if !phase_result.next_row() {
-                                break;
-                            }
-                        }
-                    }
+        match phase_rows {
+            wow_persistence::MapCorpseAuxiliaryLoadOutcomeLikeCpp::Loaded(phase_rows) => {
+                for row in phase_rows {
+                    phases
+                        .entry(row.owner_guid)
+                        .or_default()
+                        .insert(row.phase_id);
                 }
-                Err(error) => {
-                    warn!(
-                        map_id,
-                        instance_id,
-                        %error,
-                        "C++ Map::LoadCorpseData phase query failed; continuing without phases"
+            }
+            wow_persistence::MapCorpseAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!(
+                    map_id,
+                    instance_id,
+                    "C++ Map::LoadCorpseData phase query failed; continuing without phases: {reason}"
+                );
+            }
+        }
+        match customization_rows {
+            wow_persistence::MapCorpseAuxiliaryLoadOutcomeLikeCpp::Loaded(customization_rows) => {
+                for row in customization_rows {
+                    customizations.entry(row.owner_guid).or_default().push(
+                        CorpseCustomizationChoice {
+                            option_id: row.option_id,
+                            choice_id: row.choice_id,
+                        },
                     );
                 }
             }
-
-            let mut customization_stmt = char_db.prepare(CharStatements::SEL_CORPSE_CUSTOMIZATIONS);
-            customization_stmt.set_u32(0, u32::from(map_id));
-            customization_stmt.set_u32(1, instance_id);
-            match char_db.query(&customization_stmt).await {
-                Ok(mut customization_result) => {
-                    if !customization_result.is_empty() {
-                        loop {
-                            customizations
-                                .entry(customization_result.try_read::<u64>(0).unwrap_or(0))
-                                .or_default()
-                                .push(CorpseCustomizationChoice {
-                                    option_id: customization_result.try_read::<u32>(1).unwrap_or(0),
-                                    choice_id: customization_result.try_read::<u32>(2).unwrap_or(0),
-                                });
-                            if !customization_result.next_row() {
-                                break;
-                            }
-                        }
-                    }
-                }
-                Err(error) => {
-                    warn!(
-                        map_id,
-                        instance_id,
-                        %error,
-                        "C++ Map::LoadCorpseData customization query failed; continuing without customizations"
-                    );
-                }
+            wow_persistence::MapCorpseAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!(
+                    map_id,
+                    instance_id,
+                    "C++ Map::LoadCorpseData customization query failed; continuing without customizations: {reason}"
+                );
             }
         }
 

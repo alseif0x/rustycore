@@ -54,6 +54,7 @@
     386,
     388,
     390,
+    392,
     189,
     192,
     193,
@@ -982,7 +983,7 @@
     },
     {
       "number": 390,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.4f] Move auxiliary player login reads behind the lifecycle port",
       "kind": "slice",
       "parents": [
@@ -991,6 +992,19 @@
       ],
       "depends_on": [
         388
+      ]
+    },
+    {
+      "number": 392,
+      "state": "open",
+      "title": "[ARCH.DB.5] Move map corpse hydration behind a typed persistence port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        390
       ]
     }
   ]
