@@ -18,9 +18,12 @@ use wow_persistence::{
     AccountHeirloomLoadRowLikeCpp, AccountMaskBlockLikeCpp, AccountMountLoadRowLikeCpp,
     AccountToyLoadRowLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
     PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
-    PlayerCufProfileSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp, PlayerEquipmentSetStateLikeCpp,
-    PlayerEquipmentSetTypeLikeCpp, PlayerLifecyclePortLikeCpp, PlayerOfflineMarkLikeCpp,
-    PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp, PlayerVoidStorageSaveLikeCpp,
+    PlayerCufProfileSaveLikeCpp, PlayerCustomizationLoadRowLikeCpp, PlayerEquipmentSetSaveLikeCpp,
+    PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp,
+    PlayerInstanceTimeRestrictionLoadRowLikeCpp, PlayerLifecyclePortLikeCpp,
+    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
+    PlayerLoginAuxiliaryLoadedLikeCpp, PlayerOfflineMarkLikeCpp, PlayerSpellSaveGroupLikeCpp,
+    PlayerSpellStateLikeCpp, PlayerVoidStorageSaveLikeCpp,
 };
 
 use crate::params::PreparedStatement;
@@ -1103,6 +1106,31 @@ fn account_collection_load_statements_like_cpp(
         .collect()
 }
 
+fn player_login_auxiliary_load_statement_like_cpp(
+    request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
+) -> PreparedStatement {
+    match request {
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::Customizations { player_guid } => {
+            let mut statement =
+                PreparedStatement::new(CharStatements::SEL_CHARACTER_CUSTOMIZATIONS.sql());
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::CompletedAchievements { player_guid } => {
+            let mut statement =
+                PreparedStatement::new(CharStatements::SEL_CHARACTER_ACHIEVEMENTS.sql());
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::InstanceTimeRestrictions { account_id } => {
+            let mut statement =
+                PreparedStatement::new(CharStatements::SEL_ACCOUNT_INSTANCELOCKTIMES.sql());
+            statement.set_u32(0, account_id);
+            statement
+        }
+    }
+}
+
 /// Binds the port to the two logical databases the offline marks address.
 pub struct MariaDbPlayerLifecycleAdapterLikeCpp {
     character_db: Arc<CharacterDatabase>,
@@ -1308,6 +1336,69 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                     }
                 }
             }
+        })
+    }
+
+    fn load_login_auxiliary_like_cpp<'a>(
+        &'a self,
+        request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerLoginAuxiliaryLoadOutcomeLikeCpp> {
+        Box::pin(async move {
+            let statement = player_login_auxiliary_load_statement_like_cpp(request);
+            let mut result = match self.character_db.query(&statement).await {
+                Ok(result) => result,
+                Err(error) => {
+                    return PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+                        reason: error.to_string(),
+                    };
+                }
+            };
+
+            let loaded = match request {
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Customizations { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerCustomizationLoadRowLikeCpp {
+                                option_id: result.try_read::<u32>(0).unwrap_or(0),
+                                choice_id: result.try_read::<u32>(1).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::Customizations(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::CompletedAchievements { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(result.try_read::<u32>(0).unwrap_or(0));
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::CompletedAchievements(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::InstanceTimeRestrictions { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerInstanceTimeRestrictionLoadRowLikeCpp {
+                                instance_id: result.try_read::<u32>(0).unwrap_or(0),
+                                release_time: result.try_read::<u64>(1).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::InstanceTimeRestrictions(rows)
+                }
+            };
+            PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(loaded)
         })
     }
 
@@ -1570,6 +1661,33 @@ mod tests {
                     .iter()
                     .all(|statement| { statement.params() == [crate::SqlParam::U32(77)] })
             );
+        }
+    }
+
+    #[test]
+    fn player_login_auxiliary_requests_map_to_exact_character_statements_like_cpp() {
+        let cases = [
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Customizations { player_guid: 77 },
+                CharStatements::SEL_CHARACTER_CUSTOMIZATIONS.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::CompletedAchievements { player_guid: 77 },
+                CharStatements::SEL_CHARACTER_ACHIEVEMENTS.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::InstanceTimeRestrictions { account_id: 88 },
+                CharStatements::SEL_ACCOUNT_INSTANCELOCKTIMES.sql(),
+                vec![crate::SqlParam::U32(88)],
+            ),
+        ];
+
+        for (request, expected_sql, expected_params) in cases {
+            let statement = player_login_auxiliary_load_statement_like_cpp(request);
+            assert_eq!(statement.sql(), expected_sql);
+            assert_eq!(statement.params(), expected_params);
         }
     }
 

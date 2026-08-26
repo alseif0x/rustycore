@@ -12,6 +12,8 @@ mod driver;
 mod lifecycle;
 #[path = "session/tests/lifecycle_persistence.rs"]
 mod lifecycle_persistence;
+#[path = "session/tests/login_auxiliary_persistence.rs"]
+mod login_auxiliary_persistence;
 #[path = "session/tests/mailbox_pump.rs"]
 mod mailbox_pump;
 #[path = "session/tests/routing.rs"]

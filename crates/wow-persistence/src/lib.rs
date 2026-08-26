@@ -128,6 +128,51 @@ pub trait SessionAccountStatePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 }
 
+/// One read-only Characters-database input used while hydrating a Player.
+///
+/// C++ prepares these in `LoginQueryHolder::Initialize`. The request names the
+/// lifecycle data being loaded; statement identity and row decoding remain in
+/// the concrete adapter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerLoginAuxiliaryLoadRequestLikeCpp {
+    Customizations { player_guid: u64 },
+    CompletedAchievements { player_guid: u64 },
+    InstanceTimeRestrictions { account_id: u32 },
+}
+
+impl PlayerLoginAuxiliaryLoadRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerCustomizationLoadRowLikeCpp {
+    pub option_id: u32,
+    pub choice_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerInstanceTimeRestrictionLoadRowLikeCpp {
+    pub instance_id: u32,
+    pub release_time: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlayerLoginAuxiliaryLoadedLikeCpp {
+    Customizations(Vec<PlayerCustomizationLoadRowLikeCpp>),
+    CompletedAchievements(Vec<u32>),
+    InstanceTimeRestrictions(Vec<PlayerInstanceTimeRestrictionLoadRowLikeCpp>),
+}
+
+/// Read-only lifecycle loads have no unknown-COMMIT state: they either
+/// produced typed rows or failed before publication.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlayerLoginAuxiliaryLoadOutcomeLikeCpp {
+    Loaded(PlayerLoginAuxiliaryLoadedLikeCpp),
+    Failed { reason: String },
+}
+
 /// One account-collection read requested by the Player login lifecycle.
 ///
 /// C++ prepares these Login-database reads in `AccountInfoQueryHolder` and
@@ -623,6 +668,13 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
         request: AccountCollectionLoadRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, AccountCollectionLoadOutcomeLikeCpp>;
 
+    /// Load one auxiliary Player-login input from the Characters database.
+    /// Gameplay retains validation and publication into represented state.
+    fn load_login_auxiliary_like_cpp<'a>(
+        &'a self,
+        request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerLoginAuxiliaryLoadOutcomeLikeCpp>;
+
     /// Persist one account-wide collection in its own Login-database
     /// transaction, as C++ does during logout.
     fn save_account_collection_like_cpp<'a>(
@@ -668,6 +720,20 @@ mod tests {
             AccountCollectionLoadRequestLikeCpp::TransmogIllusions { bnet_account_id: 1 },
         ] {
             assert_eq!(request.logical_database(), LogicalDatabaseLikeCpp::Login);
+        }
+    }
+
+    #[test]
+    fn every_player_login_auxiliary_load_names_the_characters_database_like_cpp() {
+        for request in [
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::Customizations { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::CompletedAchievements { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::InstanceTimeRestrictions { account_id: 2 },
+        ] {
+            assert_eq!(
+                request.logical_database(),
+                LogicalDatabaseLikeCpp::Characters
+            );
         }
     }
 
