@@ -1419,7 +1419,12 @@ pub struct WorldCreature {
     respawn_spell_hit_aura_source_authority_like_cpp: bool,
     respawn_spell_cast_log_aura_source_authority_like_cpp: bool,
     runtime_rng_like_cpp: StdRng,
-    clock_started_at: Instant,
+    /// C++ `Unit::Update(p_time)` advances every creature-local deadline from
+    /// the `Map::Update(t_diff)` value. This logical clock is advanced only by
+    /// the owning creature tick; scheduler delay or time spent between phases
+    /// cannot independently move spline, combat, spell, assistance or corpse
+    /// state.
+    runtime_elapsed_ms_like_cpp: u64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1464,7 +1469,7 @@ impl Clone for WorldCreature {
             active_waypoint_generator: self.active_waypoint_generator.clone(),
             active_waypoint_random_at_path_end: self.active_waypoint_random_at_path_end,
             runtime_rng_like_cpp: self.runtime_rng_like_cpp.clone(),
-            clock_started_at: self.clock_started_at,
+            runtime_elapsed_ms_like_cpp: self.runtime_elapsed_ms_like_cpp,
         }
     }
 }

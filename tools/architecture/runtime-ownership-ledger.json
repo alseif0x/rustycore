@@ -1657,14 +1657,14 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 73374,
-          "test_lines": 96328,
-          "total_lines": 169702,
+          "production_lines": 73301,
+          "test_lines": 96359,
+          "total_lines": 169660,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 promoted the transport-only kernel, and #252 owns the gameplay mirror. #378 then classified the five remaining module families: they stay as application/gameplay adapters until #252, #371, #169 and the terminal #153 audit remove their measured authority or port blockers. This row remains a reviewed exception to the epic's 4,000-line signal, not a target for forced relocation. #252 begins retiring that mirror family by family: the honor block is the first cut, so production drops 73601->73573 while tests rise 96177->96309 for the three focused directory cases proving inspect now reads the canonical owner live. #297 promoted the transport kernel to the wow-session crate, the first module to leave this type under the epic's P4 rule; production drops 73489 -> 73356."
+          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 promoted the transport-only kernel, and #252 owns the gameplay mirror. #378 then classified the five remaining module families: they stay as application/gameplay adapters until #252, #371, #169 and the terminal #153 audit remove their measured authority or port blockers. This row remains a reviewed exception to the epic's 4,000-line signal, not a target for forced relocation. #252 begins retiring that mirror family by family: the honor block is the first cut, so production drops 73601->73573 while tests rise 96177->96309 for the three focused directory cases proving inspect now reads the canonical owner live. #297 promoted the transport kernel to the wow-session crate, the first module to leave this type under the epic's P4 rule; production drops 73489 -> 73356. #371 retires the wall-clock comparisons, reducing production 73374 -> 73301, and adds the focused single-diff regression, raising tests 96328 -> 96359."
         },
         {
           "path": "crates/wow-map/src/map/mod.rs",
@@ -1692,13 +1692,13 @@
         {
           "path": "crates/wow-world/src/handlers/loot/mod.rs",
           "production_lines": 13764,
-          "test_lines": 16240,
-          "total_lines": 30004,
+          "test_lines": 16257,
+          "total_lines": 30021,
           "owner": "wow-world loot handler plus transitional loot/map/persistence coordination.",
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "Loot handlers adapt typed wow-loot/Player/Map/persistence outcomes and no longer coordinate dual authorities or durable trackers."
+          "retirement_condition": "Loot handlers adapt typed wow-loot/Player/Map/persistence outcomes and no longer coordinate dual authorities or durable trackers. #371 changes no loot production path; its test assertions read stable logical corpse deadlines, increasing test LOC 16240 -> 16257."
         },
         {
           "path": "crates/world-server/src/lib.rs",

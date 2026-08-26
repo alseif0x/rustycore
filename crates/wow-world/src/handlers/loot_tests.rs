@@ -13452,7 +13452,9 @@ async fn loot_release_keeps_unlooted_creature_loot_like_cpp() {
             .set_personal_loot_like_cpp(player_guid, CreatureOwnedLoot::new(0, 1));
     });
     let corpse_despawn_before = session
-        .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
+        .mutate_world_creature(loot_guid, |creature| {
+            creature.corpse_despawn_deadline_ms_like_cpp()
+        })
         .unwrap()
         .expect("C++ arms corpse removal when the creature reaches JUST_DIED");
     session.loot_table.insert(
@@ -13500,7 +13502,9 @@ async fn loot_release_keeps_unlooted_creature_loot_like_cpp() {
     );
     assert_eq!(
         session
-            .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
+            .mutate_world_creature(loot_guid, |creature| {
+                creature.corpse_despawn_deadline_ms_like_cpp()
+            })
             .unwrap(),
         Some(corpse_despawn_before),
         "releasing partial loot must not change the existing corpse timer"
@@ -13519,7 +13523,9 @@ async fn creature_owned_loot_release_partial_uses_canonical_is_fully_looted_like
     session.set_active_loot_guid(loot_guid);
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
     let corpse_despawn_before = session
-        .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
+        .mutate_world_creature(loot_guid, |creature| {
+            creature.corpse_despawn_deadline_ms_like_cpp()
+        })
         .unwrap()
         .expect("C++ arms corpse removal when the creature reaches JUST_DIED");
     session.loot_table.insert(
@@ -13564,7 +13570,9 @@ async fn creature_owned_loot_release_partial_uses_canonical_is_fully_looted_like
     assert!(session.loot_table.contains_key(&loot_guid));
     assert_eq!(
         session
-            .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
+            .mutate_world_creature(loot_guid, |creature| {
+                creature.corpse_despawn_deadline_ms_like_cpp()
+            })
             .unwrap(),
         Some(corpse_despawn_before),
         "releasing partial canonical loot must not change the existing corpse timer"
@@ -13768,7 +13776,7 @@ async fn personal_creature_release_starts_decay_only_after_every_pool_is_looted_
             creature.creature.set_corpse_delay(120, false);
             let deadline = Instant::now() + Duration::from_secs(120);
             creature.set_corpse_despawn_at(Some(deadline));
-            creature.corpse_despawn_at()
+            creature.corpse_despawn_deadline_ms_like_cpp()
         })
         .flatten()
         .expect("dead creature should already own its normal corpse deadline");
@@ -13791,7 +13799,9 @@ async fn personal_creature_release_starts_decay_only_after_every_pool_is_looted_
     );
     assert_eq!(
         session
-            .mutate_world_creature(owner_guid, |creature| creature.corpse_despawn_at())
+            .mutate_world_creature(owner_guid, |creature| {
+                creature.corpse_despawn_deadline_ms_like_cpp()
+            })
             .flatten(),
         Some(corpse_deadline_before),
         "one empty personal pool must not start global corpse decay while a peer has loot"
@@ -13820,13 +13830,17 @@ async fn personal_creature_release_starts_decay_only_after_every_pool_is_looted_
             .await
     );
     assert!(authority.is_fully_looted_like_cpp());
-    let corpse_deadline_after = session
-        .mutate_world_creature(owner_guid, |creature| creature.corpse_despawn_at())
+    let (corpse_deadline_after, runtime_elapsed_ms) = session
+        .mutate_world_creature(owner_guid, |creature| {
+            creature
+                .corpse_despawn_deadline_ms_like_cpp()
+                .map(|deadline| (deadline, creature.runtime_elapsed_ms_like_cpp()))
+        })
         .flatten()
         .expect("last personal pool should start looted-corpse decay");
     assert!(corpse_deadline_after < corpse_deadline_before);
-    let remaining = corpse_deadline_after.saturating_duration_since(Instant::now());
-    assert!((55..=60).contains(&remaining.as_secs()));
+    let remaining_ms = corpse_deadline_after.saturating_sub(runtime_elapsed_ms);
+    assert!((55_000..=60_000).contains(&remaining_ms));
 }
 
 #[test]
@@ -13995,10 +14009,14 @@ async fn creature_owned_loot_release_does_not_extend_expired_corpse_like_cpp() {
             creature.creature.mark_ai_dead(0);
             creature.creature.set_corpse_delay(120, false);
             creature.set_corpse_despawn_at(Some(expired));
-            creature.corpse_despawn_at().unwrap()
+            creature.corpse_despawn_deadline_ms_like_cpp().unwrap()
         })
         .unwrap();
-    assert!(deadline_before <= Instant::now());
+    assert!(
+        session
+            .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_due_like_cpp())
+            .unwrap()
+    );
     session.loot_table.insert(
         loot_guid,
         CreatureLoot {
@@ -14025,13 +14043,16 @@ async fn creature_owned_loot_release_does_not_extend_expired_corpse_like_cpp() {
     assert!(send_rx.try_recv().is_ok());
     assert!(!session.loot_table.contains_key(&loot_guid));
     let deadline_after = session
-        .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
+        .mutate_world_creature(loot_guid, |creature| {
+            creature.corpse_despawn_deadline_ms_like_cpp()
+        })
         .unwrap()
         .expect("expired corpse must retain its existing lifecycle deadline");
     assert_eq!(deadline_after, deadline_before);
     assert!(
-        deadline_after <= Instant::now(),
-        "C++ AllLootRemovedFromCorpse is a no-op after corpse removal expires"
+        session
+            .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_due_like_cpp())
+            .unwrap()
     );
 }
 

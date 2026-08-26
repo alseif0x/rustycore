@@ -305,9 +305,7 @@ fn world_creature_death_and_loot_keep_game_time_and_monotonic_deadlines_separate
     creature.creature.set_respawn_compatibility_mode(false);
     creature.creature.set_corpse_delay(60, false);
 
-    let clock_started_at = Instant::now();
     let death_game_time_secs = 1_700_000_000;
-    creature.clock_started_at = clock_started_at;
     assert!(
         creature
             .creature
@@ -320,7 +318,8 @@ fn world_creature_death_and_loot_keep_game_time_and_monotonic_deadlines_separate
         .ai_ownership()
         .death_time_ms
         .expect("death completion must record the monotonic mirror");
-    let completion_now = clock_started_at + Duration::from_millis(completion_ms);
+    assert_eq!(completion_ms, 0);
+    let completion_now = Instant::now();
     assert_eq!(
         creature.creature.corpse_remove_time(),
         death_game_time_secs + 60
@@ -345,8 +344,10 @@ fn world_creature_death_and_loot_keep_game_time_and_monotonic_deadlines_separate
     );
     assert_eq!(creature.creature.respawn_time(), loot_game_time_secs + 60);
     assert_eq!(
-        creature.corpse_despawn_at(),
-        Some(loot_now + Duration::from_secs(30))
+        creature
+            .corpse_despawn_deadline_ms_like_cpp()
+            .map(|deadline| deadline.saturating_sub(creature.runtime_elapsed_ms_like_cpp())),
+        Some(30_000)
     );
     assert_eq!(
         creature.respawn_at_from_death_at_game_time_like_cpp(loot_now, loot_game_time_secs,),
@@ -1468,7 +1469,7 @@ fn world_creature_move_spline_bridge_advances_and_finalizes_like_cpp_unit_tick()
         .world_mut()
         .set_map(0, 0)
         .expect("bind test creature to map");
-    creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
     let dst = Position::new(15.0, 10.0, 0.0, 0.0);
 
     let (from, spline) = creature
@@ -1504,7 +1505,7 @@ fn world_creature_move_spline_bridge_advances_and_finalizes_like_cpp_unit_tick()
     assert_eq!(motion_spline.final_destination, Some((15, 10, 0)));
 
     let duration_ms = spline.duration_ms() as u32;
-    let now_ms = creature.now_ms();
+    let now_ms = creature.runtime_elapsed_ms_like_cpp();
     creature.creature.ai_ownership_mut().move_start_ms =
         now_ms.saturating_sub(u64::from(duration_ms / 2));
     assert!(!creature.update_move_spline_like_cpp());
@@ -1521,7 +1522,7 @@ fn world_creature_move_spline_bridge_advances_and_finalizes_like_cpp_unit_tick()
         duration_ms / 2
     );
 
-    let now_ms = creature.now_ms();
+    let now_ms = creature.runtime_elapsed_ms_like_cpp();
     creature.creature.ai_ownership_mut().move_start_ms =
         now_ms.saturating_sub(u64::from(duration_ms));
     assert!(creature.update_move_spline_like_cpp());
@@ -1568,7 +1569,7 @@ fn world_creature_move_spline_by_path_uses_cpp_moveby_path_bridge() {
         0,
         0,
     );
-    creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
     let path = [
         Position::new(10.0, 10.0, 0.0, 0.0),
         Position::new(12.0, 11.0, 0.0, 0.0),
@@ -2331,7 +2332,7 @@ fn world_creature_detour_path_bridge_uses_moveby_path_or_direct_fallback_like_cp
         0,
         0,
     );
-    creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
     let normal_path = DetourPolyPath {
         poly_refs: vec![11, 22],
         point_path: wow_recastdetour::DetourPointPath {
@@ -2411,7 +2412,7 @@ fn world_creature_detour_path_bridge_normalizes_points_to_terrain_like_cpp() {
         .world_mut()
         .set_map(1, 0)
         .expect("bind test creature to terrain map");
-    creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
     let data_dir = temp_dir_with_constant_tile(1, 31, 31, 2.0);
     let terrain = LiveTerrainHeights::new(&data_dir);
     assert!(
@@ -2480,7 +2481,7 @@ fn world_creature_detour_path_bridge_raises_low_mmap_points_to_grid_ground_like_
         .world_mut()
         .set_map(1, 0)
         .expect("bind test creature to terrain map");
-    creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
     let data_dir = temp_dir_with_constant_tile(1, 31, 31, 50.0);
     let terrain = LiveTerrainHeights::new(&data_dir);
     assert!(
@@ -2554,7 +2555,7 @@ fn world_creature_detour_path_bridge_preserves_elevated_mmap_points_without_vmap
         .world_mut()
         .set_map(1, 0)
         .expect("bind test creature to terrain map");
-    creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
     let data_dir = temp_dir_with_constant_tile(1, 31, 31, 2.0);
     let terrain = LiveTerrainHeights::new(&data_dir);
     let dst = Position::new(15.0, 12.0, 30.0, 0.0);
@@ -2622,7 +2623,7 @@ fn world_creature_detour_path_bridge_does_not_join_unproven_flat_elevated_surfac
         .world_mut()
         .set_map(1, 0)
         .expect("bind test creature to terrain map");
-    creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
     let data_dir = temp_dir_with_constant_tile(1, 31, 31, 2.0);
     let terrain = LiveTerrainHeights::new(&data_dir);
     let dst = Position::new(15.0, 12.0, 30.0, 0.0);
@@ -2686,7 +2687,7 @@ fn world_creature_detour_path_bridge_does_not_invent_a_sloped_vmap_surface() {
         .world_mut()
         .set_map(1, 0)
         .expect("bind test creature to terrain map");
-    creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
     let data_dir = temp_dir_with_constant_tile(1, 31, 31, 2.0);
     let terrain = LiveTerrainHeights::new(&data_dir);
     let dst = Position::new(15.0, 12.0, 34.0, 0.0);
@@ -2750,7 +2751,7 @@ fn world_creature_detour_path_bridge_keeps_far_below_points_without_ground_like_
         .world_mut()
         .set_map(1, 0)
         .expect("bind test creature to terrain map");
-    creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
     let data_dir = temp_dir_with_constant_tile(1, 31, 31, 50.0);
     let terrain = LiveTerrainHeights::new(&data_dir);
     let dst = Position::new(15.0, 12.0, -5.0, 0.0);
@@ -2809,7 +2810,7 @@ fn world_creature_random_detour_rejects_nopath_and_shortcut_like_cpp() {
         0,
         0,
     );
-    creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
     let dst = Position::new(20.0, 10.0, 0.0, 0.0);
 
     for path_type in [DetourPathType::NOPATH, DetourPathType::SHORTCUT] {
@@ -2856,7 +2857,7 @@ fn world_creature_random_missing_path_retries_instead_of_direct_fallback_like_cp
         .creature
         .set_default_movement_type_runtime_like_cpp(wow_entities::MovementGeneratorType::Random);
     creature.creature.ai_ownership_mut().wander_radius = 8.0;
-    creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
     creature.seed_runtime_rng_like_cpp(0x24_5A0);
 
     let mut resolver_called = false;
@@ -4082,7 +4083,7 @@ fn world_creature_random_launches_cpp_shortcut_when_navmesh_is_absent() {
         .creature
         .set_default_movement_type_runtime_like_cpp(wow_entities::MovementGeneratorType::Random);
     creature.creature.ai_ownership_mut().wander_radius = 8.0;
-    creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
 
     // C++ `CalculatePath` answers a missing navmesh/tile with
     // `BuildShortcut()` + `PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH`
@@ -4455,7 +4456,7 @@ fn world_creature_begin_point_movement_uses_point_lifecycle_and_real_spline() {
         0,
         0,
     );
-    creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
     let dst = Position::new(14.0, 10.0, 0.0, 0.0);
 
     let (from, spline) = creature
@@ -4532,7 +4533,7 @@ fn world_creature_begin_point_movement_handles_blocked_and_prepath_branches() {
         0,
         0,
     );
-    creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
     let dst = Position::new(14.0, 10.0, 0.0, 0.0);
 
     assert!(
@@ -4643,7 +4644,7 @@ fn world_creature_begin_distract_and_rotate_launch_facing_splines_like_cpp() {
         0,
         0,
     );
-    creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
     creature
         .creature
         .unit_mut()
@@ -4770,7 +4771,7 @@ fn world_creature_stop_move_spline_emits_cpp_stop_state_before_arrival() {
         0,
         0,
     );
-    creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
     let dst = Position::new(20.0, 10.0, 0.0, 0.0);
     let (_, spline) = creature
         .begin_move_spline_like_cpp(dst)
@@ -4782,7 +4783,7 @@ fn world_creature_stop_move_spline_emits_cpp_stop_state_before_arrival() {
             .contains(MovementFlag::FORWARD)
     );
     let duration_ms = spline.duration_ms() as u32;
-    let now_ms = creature.now_ms();
+    let now_ms = creature.runtime_elapsed_ms_like_cpp();
     creature.creature.ai_ownership_mut().move_start_ms =
         now_ms.saturating_sub(u64::from(duration_ms / 2));
 

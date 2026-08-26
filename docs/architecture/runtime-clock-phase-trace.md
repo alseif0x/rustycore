@@ -20,7 +20,7 @@ replaces both.
 |---|---|---|---|---|
 | `world_update` | production | configured world interval | measured elapsed | world-level timers |
 | `canonical_map_update` | production | configured map interval | measured elapsed, zero-diff skipped | canonical grid/spawn/respawn, area triggers, game events |
-| `legacy_creature_runtime` | production | configured map interval | measured elapsed | creature lifecycle, movement, aggro, spell, melee, respawn |
+| `legacy_creature_runtime` | production | configured map interval | measured elapsed, propagated once into creature logical time | creature lifecycle, movement, aggro, spell, melee, respawn |
 | `group_ready_check` | production | own interval | loop interval | ready-check expiry |
 | `realm_list_update` | production | own interval | loop interval | realm list refresh |
 | `db_keepalive` | production | own interval | loop interval | connection keepalive |
@@ -47,6 +47,12 @@ Two production clocks can touch a legacy creature. They cannot both resolve it:
 The existing anchors pin both facts:
 `two_sessions_sharing_legacy_map_manager_see_same_creature_state` and
 `canonical_map_update_visits_creature_with_no_real_ai_combat_effect_like_cpp`.
+
+Within the selected legacy owner, #371 removed the former second time source
+(`WorldCreature::clock_started_at.elapsed()`). The loop's measured `diff_ms` now advances one
+logical elapsed value exactly once at the `Unit::Update` boundary. Spline state, MotionMaster,
+melee, spell, assistance, corpse and respawn deadlines read that same value; scheduler time between
+calls cannot advance any of them independently.
 
 ## Delivery boundary
 

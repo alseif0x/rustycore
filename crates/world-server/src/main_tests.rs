@@ -12025,6 +12025,7 @@ async fn legacy_creature_global_tick_task_delivers_movement_plan_like_cpp() {
     world_creature
         .creature
         .set_default_movement_type_runtime_like_cpp(wow_entities::MovementGeneratorType::Random);
+    world_creature.seed_runtime_rng_like_cpp(0x9009);
 
     let mut canonical_creature = world_creature.creature.clone();
     canonical_creature
@@ -12179,6 +12180,7 @@ async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_mel
     moving_creature
         .creature
         .set_default_movement_type_runtime_like_cpp(wow_entities::MovementGeneratorType::Random);
+    moving_creature.seed_runtime_rng_like_cpp(0x900D);
     let mut canonical_moving = moving_creature.creature.clone();
     canonical_moving
         .unit_mut()
@@ -12536,6 +12538,7 @@ async fn legacy_creature_runtime_loop_smoke_delivers_visible_work_like_cpp() {
     world_creature
         .creature
         .set_default_movement_type_runtime_like_cpp(wow_entities::MovementGeneratorType::Random);
+    world_creature.seed_runtime_rng_like_cpp(0x9401);
 
     let mut canonical_creature = world_creature.creature.clone();
     canonical_creature
