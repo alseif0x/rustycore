@@ -33,7 +33,10 @@ mod save_plan_order;
 use routing::assert_destroyed_party_update_like_cpp;
 
 use super::*;
-use crate::canonical_player_access::configure_canonical_player_vitals_for_test as set_vitals;
+use crate::canonical_player_access::{
+    configure_canonical_player_party_flags_for_test as set_party_flags,
+    configure_canonical_player_vitals_for_test as set_vitals,
+};
 use crate::session::directory::{PlayerBroadcastInfo, PlayerSessionRegistrationLikeCpp};
 use crate::session::mailbox::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyGroupRemovalLikeCppCommand,
@@ -35704,9 +35707,6 @@ fn broadcast_info_with_command(
             enchanting_skill: 0,
             is_alive: true,
             transport: None,
-            is_pvp: false,
-            is_ffa_pvp: false,
-            is_ghost: false,
             is_afk: false,
             is_dnd: false,
             auto_reply_msg_like_cpp: String::new(),
@@ -36523,11 +36523,15 @@ fn party_member_reads_canonical_power_without_registry_republish_like_cpp() {
     assert!(set_vitals(&canonical, guid, vitals));
 
     session.register_in_player_registry();
+    assert!(set_party_flags(&canonical, guid));
 
     let info = registry.party_member(guid).expect("canonical party member");
     assert_eq!(info.power_type, PowerType::Energy as u8);
     assert_eq!(info.current_power, 45);
     assert_eq!(info.max_power, 120);
+    assert!(info.is_pvp);
+    assert!(info.is_ffa_pvp);
+    assert!(info.is_ghost);
 }
 
 #[test]

@@ -281,7 +281,7 @@ const PLAYER_FLAGS_UBER_LIKE_CPP: u32 = 0x0008_0000;
 const PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP: u32 = 0x0000_0001;
 const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = 0x0000_0002;
 const PLAYER_FLAGS_DND_LIKE_CPP: u32 = 0x0000_0004;
-const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = 0x0000_0010;
+pub(crate) const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = 0x0000_0010;
 const PLAYER_FLAGS_RESTING_LIKE_CPP: u32 = 0x0000_0020;
 const PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP: u32 = 0x0000_0800;
 const PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP: u32 = 0x0200_0000;
@@ -34463,12 +34463,6 @@ impl WorldSession {
             .map(|k| k.instance_id)
             .unwrap_or(0);
         let forced_reputation_ranks = self.player_forced_reputation_ranks_snapshot_like_cpp();
-        let pvp_flags = self
-            .canonical_player_pvp_flags_like_cpp(guid)
-            .unwrap_or_default();
-        let is_ghost = self
-            .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_GHOST_LIKE_CPP)
-            .unwrap_or(false);
         let is_afk = self
             .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_AFK_LIKE_CPP)
             .unwrap_or(false);
@@ -34492,9 +34486,6 @@ impl WorldSession {
             enchanting_skill: self.represented_enchanting_skill,
             is_alive: self.player_alive_like_cpp,
             transport: self.player_transport_info_like_cpp(),
-            is_pvp: pvp_flags.contains(UnitPvpFlags::PVP),
-            is_ffa_pvp: pvp_flags.contains(UnitPvpFlags::FFA_PVP),
-            is_ghost,
             is_afk,
             is_dnd,
             auto_reply_msg_like_cpp: self.auto_reply_msg_like_cpp.clone(),
@@ -34606,14 +34597,6 @@ impl WorldSession {
             info.is_alive = self.player_alive_like_cpp;
             info.transport = self.player_transport_info_like_cpp();
             if let Some(guid) = self.player_guid() {
-                let pvp_flags = self
-                    .canonical_player_pvp_flags_like_cpp(guid)
-                    .unwrap_or_default();
-                info.is_pvp = pvp_flags.contains(UnitPvpFlags::PVP);
-                info.is_ffa_pvp = pvp_flags.contains(UnitPvpFlags::FFA_PVP);
-                info.is_ghost = self
-                    .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_GHOST_LIKE_CPP)
-                    .unwrap_or(false);
                 info.is_afk = self
                     .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_AFK_LIKE_CPP)
                     .unwrap_or(false);

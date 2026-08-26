@@ -18,7 +18,7 @@
 //! guard and the canonical mutex at the same time, so this introduces no lock
 //! nesting and no new ordering obligation.
 
-use wow_constants::PowerType;
+use wow_constants::{PowerType, UnitPvpFlags};
 use wow_core::ObjectGuid;
 use wow_entities::Player;
 
@@ -57,6 +57,14 @@ pub(crate) struct CanonicalPlayerVitalsLikeCpp {
     pub current_power: u16,
     pub max_power: u16,
     pub base_mana: i32,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct CanonicalPlayerPartyStateLikeCpp {
+    pub vitals: CanonicalPlayerVitalsLikeCpp,
+    pub is_pvp: bool,
+    pub is_ffa_pvp: bool,
+    pub is_ghost: bool,
 }
 
 fn power_kind_from_u8_like_cpp(power: u8) -> PowerType {
@@ -110,6 +118,18 @@ pub(crate) fn canonical_player_vitals_like_cpp(player: &Player) -> CanonicalPlay
     }
 }
 
+pub(crate) fn canonical_player_party_state_like_cpp(
+    player: &Player,
+) -> CanonicalPlayerPartyStateLikeCpp {
+    let pvp = player.unit().pvp_flags_like_cpp();
+    CanonicalPlayerPartyStateLikeCpp {
+        vitals: canonical_player_vitals_like_cpp(player),
+        is_pvp: pvp.contains(UnitPvpFlags::PVP),
+        is_ffa_pvp: pvp.contains(UnitPvpFlags::FFA_PVP),
+        is_ghost: player.has_player_flag(crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP),
+    }
+}
+
 #[cfg(test)]
 pub(crate) fn configure_canonical_player_vitals_for_test(
     manager: &SharedCanonicalMapManager,
@@ -133,6 +153,27 @@ pub(crate) fn configure_canonical_player_vitals_for_test(
     player.set_power_index(power, Some(0));
     player.unit_mut().set_max_power(power, max_power);
     player.unit_mut().set_power(power, current_power);
+    true
+}
+
+#[cfg(test)]
+pub(crate) fn configure_canonical_player_party_flags_for_test(
+    manager: &SharedCanonicalMapManager,
+    guid: ObjectGuid,
+) -> bool {
+    let Ok(mut manager) = manager.lock() else {
+        return false;
+    };
+    let Some(player) = manager
+        .find_map_mut(571, 0)
+        .and_then(|map| map.map_mut().get_typed_player_mut(guid))
+    else {
+        return false;
+    };
+    player
+        .unit_mut()
+        .replace_all_pvp_flags_like_cpp(UnitPvpFlags::PVP | UnitPvpFlags::FFA_PVP);
+    player.set_player_flag(crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP);
     true
 }
 

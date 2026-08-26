@@ -1439,7 +1439,7 @@
         },
         {
           "id": "directory_gameplay_projection",
-          "expected_field_count": 23,
+          "expected_field_count": 21,
           "field_names": [
             "active_quest_objective_counts",
             "active_quest_statuses",
@@ -1452,8 +1452,6 @@
             "in_combat",
             "in_vehicle",
             "inventory_item_counts",
-            "is_ffa_pvp",
-            "is_pvp",
             "known_spells",
             "party_member_auras",
             "party_member_party_type",
@@ -1473,7 +1471,7 @@
         },
         {
           "id": "player_broadcast_remaining_assigned_mirrors",
-          "expected_field_count": 25,
+          "expected_field_count": 24,
           "field_names": [
             "active_expansion",
             "auto_reply_msg_like_cpp",
@@ -1489,7 +1487,6 @@
             "is_alive",
             "is_dnd",
             "is_game_master",
-            "is_ghost",
             "is_in_world",
             "level",
             "liquid_status",
@@ -1508,7 +1505,7 @@
           "retirement_condition": "#252 removes every assigned residual through bounded canonical queries and deletes the broad projection without introducing a replacement mirror."
         }
       ],
-      "expected_field_count": 54
+      "expected_field_count": 51
     },
     "session_command": {
       "coverage_source": {

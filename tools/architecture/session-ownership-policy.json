@@ -55930,13 +55930,6 @@
           "source_class": "production"
         },
         {
-          "name": "is_ffa_pvp",
-          "type": "bool",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "is_game_master",
           "type": "bool",
           "visibility": "pub",
@@ -55944,21 +55937,7 @@
           "source_class": "production"
         },
         {
-          "name": "is_ghost",
-          "type": "bool",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "is_in_world",
-          "type": "bool",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "is_pvp",
           "type": "bool",
           "visibility": "pub",
           "cfg": [],

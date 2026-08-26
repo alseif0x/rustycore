@@ -112,9 +112,6 @@ fn broadcast_info_with_command_tx(
             enchanting_skill: 0,
             is_alive: true,
             transport: None,
-            is_pvp: false,
-            is_ffa_pvp: false,
-            is_ghost: false,
             is_afk: false,
             is_dnd: false,
             auto_reply_msg_like_cpp: String::new(),
@@ -3138,8 +3135,6 @@ async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_
     registry.fixture_update(target, |info| {
         info.level = 80;
         info.class = 4;
-        info.is_pvp = true;
-        info.is_ffa_pvp = true;
         info.is_afk = true;
         info.is_dnd = true;
         info.in_vehicle = true;
@@ -3187,6 +3182,10 @@ async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_
     player.unit_mut().world_mut().object_mut().add_to_world();
     player.unit_mut().set_max_health(123);
     player.unit_mut().set_health(77);
+    player.unit_mut().replace_all_pvp_flags_like_cpp(
+        wow_constants::UnitPvpFlags::PVP | wow_constants::UnitPvpFlags::FFA_PVP,
+    );
+    player.set_player_flag(crate::session::PLAYER_FLAGS_GHOST_LIKE_CPP);
     player
         .unit_mut()
         .set_display_power(wow_constants::PowerType::Energy);

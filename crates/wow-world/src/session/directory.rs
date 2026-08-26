@@ -16,7 +16,8 @@
 //! rails stay there until issue #140 relocates them.
 
 use crate::canonical_player_access::{
-    CanonicalPlayerVitalsLikeCpp, HonorStatsLikeCpp, canonical_player_honor_stats_like_cpp,
+    CanonicalPlayerPartyStateLikeCpp, CanonicalPlayerVitalsLikeCpp, HonorStatsLikeCpp,
+    canonical_player_honor_stats_like_cpp, canonical_player_party_state_like_cpp,
     canonical_player_reputation_standings_like_cpp,
     canonical_player_vitals_like_cpp as player_vitals, with_canonical_player_at_like_cpp,
 };
@@ -124,12 +125,6 @@ pub struct PlayerBroadcastInfo {
     pub is_alive: bool,
     /// Current MO-transport passenger movement state used by player CREATEs.
     pub transport: Option<TransportInfo>,
-    /// Represented `Player::IsPvP()` snapshot for party member full-state packets.
-    pub is_pvp: bool,
-    /// Represented `Player::IsFFAPvP()` snapshot for party member full-state packets.
-    pub is_ffa_pvp: bool,
-    /// Represented `Player::HasPlayerFlag(PLAYER_FLAGS_GHOST)` snapshot for party member full-state packets.
-    pub is_ghost: bool,
     /// Represented `Player::isAFK()` snapshot for party member full-state packets.
     pub is_afk: bool,
     /// Represented `Player::isDND()` snapshot for party member full-state packets.
@@ -644,6 +639,22 @@ impl PlayerRegistry {
         with_canonical_player_at_like_cpp(manager, guid, map_id.into(), instance_id, player_vitals)
     }
 
+    fn party_state(
+        &self,
+        guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+    ) -> Option<CanonicalPlayerPartyStateLikeCpp> {
+        let manager = self.canonical_map_manager.get()?;
+        with_canonical_player_at_like_cpp(
+            manager,
+            guid,
+            map_id.into(),
+            instance_id,
+            canonical_player_party_state_like_cpp,
+        )
+    }
+
     fn next_generation(&self) -> u64 {
         self.next_generation.fetch_add(1, Ordering::Relaxed)
     }
@@ -838,7 +849,8 @@ impl PlayerRegistry {
                 entry.info.clone(),
             )
         };
-        let vitals = self.vitals(guid, info.map_id, info.instance_id)?;
+        let state = self.party_state(guid, info.map_id, info.instance_id)?;
+        let vitals = state.vitals;
         Some(PlayerPartyMemberSnapshot {
             registration,
             guid,
@@ -846,10 +858,10 @@ impl PlayerRegistry {
             race: info.race,
             class: info.class,
             position: info.position,
-            is_pvp: info.is_pvp,
+            is_pvp: state.is_pvp,
             is_alive: vitals.is_alive,
-            is_ghost: info.is_ghost,
-            is_ffa_pvp: info.is_ffa_pvp,
+            is_ghost: state.is_ghost,
+            is_ffa_pvp: state.is_ffa_pvp,
             is_afk: info.is_afk,
             is_dnd: info.is_dnd,
             in_vehicle: info.in_vehicle,
@@ -1934,9 +1946,6 @@ mod tests {
                 enchanting_skill: 0,
                 is_alive: true,
                 transport: None,
-                is_pvp: false,
-                is_ffa_pvp: false,
-                is_ghost: false,
                 is_afk: false,
                 is_dnd: false,
                 auto_reply_msg_like_cpp: String::new(),

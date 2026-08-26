@@ -25,11 +25,8 @@ inventory_item_counts	canonical Player inventory	#252	query minimum immutable it
 is_afk	canonical Player social presence	#252	query immutable AFK state
 is_alive	canonical Player/Unit vitals	#252	query immutable alive state
 is_dnd	canonical Player social presence	#252	query immutable DND state
-is_ffa_pvp	canonical Player PvP state	#252	query immutable FFA-PvP state
 is_game_master	canonical Player visibility/security state	#252	query immutable GM state
-is_ghost	canonical Player death state	#252	query immutable ghost state
 is_in_world	MapRuntime player membership	#252	query immutable in-world membership
-is_pvp	canonical Player PvP state	#252	query immutable PvP state
 known_spells	canonical Player spellbook	#252	query minimum immutable spell membership
 level	canonical Player progression	#252	query immutable level
 liquid_status	MapRuntime environment state	#252	query immutable player environment result
