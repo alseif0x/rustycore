@@ -177,6 +177,8 @@ pub enum PlayerLoginAuxiliaryLoadRequestLikeCpp {
     InstanceTimeRestrictions { account_id: u32 },
     SpellCooldowns { player_guid: u64 },
     SpellCharges { player_guid: u64 },
+    TraitEntries { player_guid: u64 },
+    TraitConfigs { player_guid: u64 },
 }
 
 impl PlayerLoginAuxiliaryLoadRequestLikeCpp {
@@ -213,6 +215,32 @@ pub struct PlayerSpellChargeLoadRowLikeCpp {
     pub recharge_end: i64,
 }
 
+/// One raw `character_trait_entry` row. Missing columns remain unknown so the
+/// Player owner can keep its represented authority incomplete instead of
+/// silently turning malformed database data into zero-valued gameplay state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerTraitEntryLoadRowLikeCpp {
+    pub trait_config_id: Option<i32>,
+    pub trait_node_id: Option<i32>,
+    pub trait_node_entry_id: Option<i32>,
+    pub rank: Option<i32>,
+    pub granted_ranks: Option<i32>,
+}
+
+/// One raw `character_trait_config` row with the same unknown-column contract
+/// as `PlayerTraitEntryLoadRowLikeCpp`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerTraitConfigLoadRowLikeCpp {
+    pub id: Option<i32>,
+    pub config_type: Option<i32>,
+    pub chr_specialization_id: Option<i32>,
+    pub combat_config_flags: Option<i32>,
+    pub local_identifier: Option<i32>,
+    pub skill_line_id: Option<i32>,
+    pub trait_system_id: Option<i32>,
+    pub name: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlayerLoginAuxiliaryLoadedLikeCpp {
     Customizations(Vec<PlayerCustomizationLoadRowLikeCpp>),
@@ -220,6 +248,8 @@ pub enum PlayerLoginAuxiliaryLoadedLikeCpp {
     InstanceTimeRestrictions(Vec<PlayerInstanceTimeRestrictionLoadRowLikeCpp>),
     SpellCooldowns(Vec<PlayerSpellCooldownLoadRowLikeCpp>),
     SpellCharges(Vec<PlayerSpellChargeLoadRowLikeCpp>),
+    TraitEntries(Vec<PlayerTraitEntryLoadRowLikeCpp>),
+    TraitConfigs(Vec<PlayerTraitConfigLoadRowLikeCpp>),
 }
 
 /// Read-only lifecycle loads have no unknown-COMMIT state: they either

@@ -16,7 +16,8 @@ use wow_persistence::{
     PlayerInstanceTimeRestrictionLoadRowLikeCpp, PlayerLifecyclePortLikeCpp,
     PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
     PlayerLoginAuxiliaryLoadedLikeCpp, PlayerOfflineMarkLikeCpp, PlayerSpellChargeLoadRowLikeCpp,
-    PlayerSpellCooldownLoadRowLikeCpp,
+    PlayerSpellCooldownLoadRowLikeCpp, PlayerTraitConfigLoadRowLikeCpp,
+    PlayerTraitEntryLoadRowLikeCpp,
 };
 
 struct AuxiliaryLoadPortLikeCpp {
@@ -404,4 +405,134 @@ async fn spell_history_cooldown_failure_does_not_suppress_independent_charges_li
     assert_eq!(charges.len(), 1);
     assert!(!session.represented_character_spell_cooldowns_loaded_like_cpp);
     assert!(session.represented_character_spell_charges_loaded_like_cpp);
+}
+
+#[tokio::test]
+async fn trait_config_loads_preserve_cpp_entry_then_config_order_and_raw_values() {
+    let port = AuxiliaryLoadPortLikeCpp::new([
+        PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+            PlayerLoginAuxiliaryLoadedLikeCpp::TraitEntries(vec![PlayerTraitEntryLoadRowLikeCpp {
+                trait_config_id: Some(100),
+                trait_node_id: Some(200),
+                trait_node_entry_id: Some(300),
+                rank: Some(2),
+                granted_ranks: Some(1),
+            }]),
+        ),
+        PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+            PlayerLoginAuxiliaryLoadedLikeCpp::TraitConfigs(vec![
+                PlayerTraitConfigLoadRowLikeCpp {
+                    id: Some(100),
+                    config_type: Some(1),
+                    chr_specialization_id: Some(62),
+                    combat_config_flags: Some(4),
+                    local_identifier: Some(2),
+                    skill_line_id: None,
+                    trait_system_id: None,
+                    name: Some("Arcane".to_owned()),
+                },
+            ]),
+        ),
+    ]);
+    let (mut session, _, _) = make_session();
+    session.set_player_lifecycle_port_like_cpp(port.clone());
+    let guid = ObjectGuid::create_player(1, 48);
+
+    let configs = session
+        .load_active_player_trait_configs_like_cpp(guid)
+        .await;
+
+    assert_eq!(configs.len(), 1);
+    assert_eq!(configs[0].id, 100);
+    assert_eq!(configs[0].config_type, 1);
+    assert_eq!(configs[0].chr_specialization_id, 62);
+    assert_eq!(configs[0].combat_config_flags, 4);
+    assert_eq!(configs[0].local_identifier, 2);
+    assert_eq!(configs[0].name, "Arcane");
+    assert_eq!(configs[0].entries.len(), 1);
+    assert_eq!(configs[0].entries[0].trait_node_id, 200);
+    assert_eq!(configs[0].entries[0].trait_node_entry_id, 300);
+    assert_eq!(configs[0].entries[0].rank, 2);
+    assert_eq!(configs[0].entries[0].granted_ranks, 1);
+    assert_eq!(
+        port.requests(),
+        vec![
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::TraitEntries { player_guid: 48 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::TraitConfigs { player_guid: 48 },
+        ]
+    );
+}
+
+#[tokio::test]
+async fn malformed_trait_entry_keeps_authority_incomplete_without_suppressing_configs() {
+    let port = AuxiliaryLoadPortLikeCpp::new([
+        PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+            PlayerLoginAuxiliaryLoadedLikeCpp::TraitEntries(vec![PlayerTraitEntryLoadRowLikeCpp {
+                trait_config_id: Some(100),
+                trait_node_id: None,
+                trait_node_entry_id: Some(300),
+                rank: Some(2),
+                granted_ranks: Some(1),
+            }]),
+        ),
+        PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+            PlayerLoginAuxiliaryLoadedLikeCpp::TraitConfigs(vec![
+                PlayerTraitConfigLoadRowLikeCpp {
+                    id: Some(100),
+                    config_type: Some(2),
+                    chr_specialization_id: None,
+                    combat_config_flags: None,
+                    local_identifier: None,
+                    skill_line_id: Some(164),
+                    trait_system_id: None,
+                    name: Some("Blacksmithing".to_owned()),
+                },
+            ]),
+        ),
+    ]);
+    let (mut session, _, _) = make_session();
+    session.set_player_lifecycle_port_like_cpp(port);
+
+    let configs = session
+        .load_active_player_trait_configs_like_cpp(ObjectGuid::create_player(1, 49))
+        .await;
+
+    assert_eq!(configs.len(), 1);
+    assert!(configs[0].entries.is_empty());
+    assert!(!session.represented_trait_config_rows_complete_like_cpp);
+    assert!(!session.represented_trait_entry_rows_complete_like_cpp);
+}
+
+#[tokio::test]
+async fn failed_trait_entries_do_not_suppress_the_independent_config_query_like_cpp() {
+    let port = AuxiliaryLoadPortLikeCpp::new([
+        PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+            reason: "entry query failed".to_owned(),
+        },
+        PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+            PlayerLoginAuxiliaryLoadedLikeCpp::TraitConfigs(vec![
+                PlayerTraitConfigLoadRowLikeCpp {
+                    id: Some(101),
+                    config_type: Some(3),
+                    chr_specialization_id: None,
+                    combat_config_flags: None,
+                    local_identifier: None,
+                    skill_line_id: None,
+                    trait_system_id: Some(7),
+                    name: Some("Generic".to_owned()),
+                },
+            ]),
+        ),
+    ]);
+    let (mut session, _, _) = make_session();
+    session.set_player_lifecycle_port_like_cpp(port.clone());
+
+    let configs = session
+        .load_active_player_trait_configs_like_cpp(ObjectGuid::create_player(1, 50))
+        .await;
+
+    assert_eq!(configs.len(), 1);
+    assert_eq!(configs[0].trait_system_id, 7);
+    assert!(!session.represented_trait_config_rows_complete_like_cpp);
+    assert_eq!(port.requests().len(), 2);
 }
