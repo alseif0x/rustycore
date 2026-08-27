@@ -41,12 +41,14 @@ pub mod packet_spoof_ban_adapter;
 pub mod params;
 pub mod persistence_trace;
 pub mod player_lifecycle_adapter;
+pub mod player_money_transaction_adapter;
 pub mod query_holder;
 pub mod result;
 pub mod session_account_state_adapter;
 pub mod statements;
 pub mod transaction;
 pub mod updater;
+pub mod void_storage_adapter;
 
 // Re-export primary types at crate root for convenience.
 pub use database::{

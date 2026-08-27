@@ -5237,7 +5237,13 @@ mod executor_tests {
 
         // The same spell at a different current store price charges the
         // current price, not a previously listed one.
-        let mut fixture = saga_handler_fixture_like_cpp(SAGA_MONEY, 400, None, Vec::new()).await;
+        let mut fixture = Box::pin(saga_handler_fixture_like_cpp(
+            SAGA_MONEY,
+            400,
+            None,
+            Vec::new(),
+        ))
+        .await;
         fixture
             .session
             .handle_trainer_buy_spell(saga_buy_packet_like_cpp(SAGA_SPELL_ID as i32))
