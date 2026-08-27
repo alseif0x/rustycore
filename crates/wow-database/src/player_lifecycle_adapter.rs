@@ -35,9 +35,10 @@ use wow_persistence::{
     PlayerLoginAdmissionLoadRequestLikeCpp, PlayerLoginAdmissionLoadedLikeCpp,
     PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
     PlayerLoginAuxiliaryLoadedLikeCpp, PlayerLoginItemRepairActionLikeCpp,
-    PlayerLoginItemRepairRequestLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
-    PlayerLoginTransportLoadRequestLikeCpp, PlayerLoginTransportLoadRowLikeCpp,
-    PlayerOfflineMarkLikeCpp, PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
+    PlayerLoginItemRepairRequestLikeCpp, PlayerLoginPetTalentResetOutcomeLikeCpp,
+    PlayerLoginTransportLoadOutcomeLikeCpp, PlayerLoginTransportLoadRequestLikeCpp,
+    PlayerLoginTransportLoadRowLikeCpp, PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
+    PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
     PlayerPetDeclinedNamesLoadRowLikeCpp, PlayerPetSpellChargeLoadRowLikeCpp,
     PlayerPetSpellCooldownLoadRowLikeCpp, PlayerPetSpellLoadRowLikeCpp,
     PlayerPetStableLoadRowLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
@@ -93,6 +94,26 @@ fn player_login_item_repair_statements_like_cpp(
         }
     }
     statements
+}
+
+fn player_login_pet_talent_reset_statements_like_cpp(player_guid: u64) -> [PreparedStatement; 2] {
+    let mut delete_spells =
+        PreparedStatement::new(CharStatements::DEL_ALL_PET_SPELLS_BY_OWNER.sql());
+    delete_spells.set_u64(0, player_guid);
+
+    let mut reset_specializations =
+        PreparedStatement::new(CharStatements::UPD_PET_SPECS_BY_OWNER.sql());
+    reset_specializations.set_u64(0, player_guid);
+
+    [delete_spells, reset_specializations]
+}
+
+fn player_online_mark_statement_like_cpp(
+    request: PlayerOnlineMarkRequestLikeCpp,
+) -> PreparedStatement {
+    let mut statement = PreparedStatement::new(CharStatements::UPD_CHAR_ONLINE.sql());
+    statement.set_u32(0, request.player_guid);
+    statement
 }
 
 /// Private statement decomposition for the MariaDB adapter.
@@ -2941,6 +2962,52 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
         })
     }
 
+    fn reset_login_pet_talents_like_cpp<'a>(
+        &'a self,
+        player_guid: u64,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerLoginPetTalentResetOutcomeLikeCpp> {
+        Box::pin(async move {
+            let [delete_spells, reset_specializations] =
+                player_login_pet_talent_reset_statements_like_cpp(player_guid);
+
+            let spell_delete = match self.character_db.execute(&delete_spells).await {
+                Ok(rows) => PersistenceOutcomeLikeCpp::Applied { rows },
+                Err(error) => PersistenceOutcomeLikeCpp::Failed {
+                    reason: error.to_string(),
+                },
+            };
+            // C++ always submits this second independent write after the first;
+            // do not short-circuit when spell deletion failed.
+            let specialization_reset = match self.character_db.execute(&reset_specializations).await
+            {
+                Ok(rows) => PersistenceOutcomeLikeCpp::Applied { rows },
+                Err(error) => PersistenceOutcomeLikeCpp::Failed {
+                    reason: error.to_string(),
+                },
+            };
+
+            PlayerLoginPetTalentResetOutcomeLikeCpp {
+                spell_delete,
+                specialization_reset,
+            }
+        })
+    }
+
+    fn mark_player_online_like_cpp<'a>(
+        &'a self,
+        request: PlayerOnlineMarkRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async move {
+            let statement = player_online_mark_statement_like_cpp(request);
+            match self.character_db.execute(&statement).await {
+                Ok(rows) => PersistenceOutcomeLikeCpp::Applied { rows },
+                Err(error) => PersistenceOutcomeLikeCpp::Failed {
+                    reason: error.to_string(),
+                },
+            }
+        })
+    }
+
     fn save_account_collection_like_cpp<'a>(
         &'a self,
         save: AccountCollectionSaveLikeCpp,
@@ -3185,6 +3252,28 @@ mod tests {
                 SqlParam::U64(21),
             ]
         );
+    }
+
+    #[test]
+    fn remaining_login_writes_map_to_existing_statement_order_and_bind_domains() {
+        let [delete_spells, reset_specializations] =
+            player_login_pet_talent_reset_statements_like_cpp(77);
+        assert_eq!(
+            delete_spells.sql(),
+            CharStatements::DEL_ALL_PET_SPELLS_BY_OWNER.sql()
+        );
+        assert_eq!(delete_spells.params(), vec![SqlParam::U64(77)]);
+        assert_eq!(
+            reset_specializations.sql(),
+            CharStatements::UPD_PET_SPECS_BY_OWNER.sql()
+        );
+        assert_eq!(reset_specializations.params(), vec![SqlParam::U64(77)]);
+
+        let online = player_online_mark_statement_like_cpp(PlayerOnlineMarkRequestLikeCpp {
+            player_guid: 88,
+        });
+        assert_eq!(online.sql(), CharStatements::UPD_CHAR_ONLINE.sql());
+        assert_eq!(online.params(), vec![SqlParam::U32(88)]);
     }
 
     fn equipment_row() -> PlayerEquipmentSetSaveLikeCpp {

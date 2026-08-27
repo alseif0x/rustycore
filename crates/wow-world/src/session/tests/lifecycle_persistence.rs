@@ -17,7 +17,8 @@ use wow_persistence::{
     PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
     PlayerHomebindPersistenceRequestLikeCpp, PlayerLifecyclePortLikeCpp,
     PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
-    PlayerLoginItemRepairRequestLikeCpp, PlayerOfflineMarkLikeCpp,
+    PlayerLoginItemRepairRequestLikeCpp, PlayerLoginPetTalentResetOutcomeLikeCpp,
+    PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
     PlayerRealmCharacterCountRefreshRequestLikeCpp, PlayerTalentResetPersistenceRequestLikeCpp,
     PlayerXpPersistenceRequestLikeCpp,
 };
@@ -205,6 +206,25 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
     fn persist_login_item_repairs_like_cpp<'a>(
         &'a self,
         _request: PlayerLoginItemRepairRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
+    }
+
+    fn reset_login_pet_talents_like_cpp<'a>(
+        &'a self,
+        _player_guid: u64,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerLoginPetTalentResetOutcomeLikeCpp> {
+        Box::pin(async {
+            PlayerLoginPetTalentResetOutcomeLikeCpp {
+                spell_delete: PersistenceOutcomeLikeCpp::Applied { rows: 0 },
+                specialization_reset: PersistenceOutcomeLikeCpp::Applied { rows: 0 },
+            }
+        })
+    }
+
+    fn mark_player_online_like_cpp<'a>(
+        &'a self,
+        _request: PlayerOnlineMarkRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
         Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
     }

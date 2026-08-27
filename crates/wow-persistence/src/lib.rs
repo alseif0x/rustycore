@@ -1045,6 +1045,32 @@ pub struct PlayerLoginItemRepairRequestLikeCpp {
     pub actions: Vec<PlayerLoginItemRepairActionLikeCpp>,
 }
 
+/// The two independent writes C++ performs for
+/// `AT_LOGIN_RESET_PET_TALENTS`, in execution order.
+///
+/// They are deliberately not one transaction or one flattened outcome:
+/// failure deleting spells must not suppress the specialization reset.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerLoginPetTalentResetOutcomeLikeCpp {
+    pub spell_delete: PersistenceOutcomeLikeCpp,
+    pub specialization_reset: PersistenceOutcomeLikeCpp,
+}
+
+/// One best-effort Characters-database online mark at the existing Rust login
+/// publication point. Statement identity and bind width remain adapter-owned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerOnlineMarkRequestLikeCpp {
+    /// Existing Rust storage domain. C++ binds UInt64 here; widening that
+    /// observable adapter detail is a separate fidelity change, not #432.
+    pub player_guid: u32,
+}
+
+impl PlayerOnlineMarkRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
 impl PlayerLoginItemRepairRequestLikeCpp {
     pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
         LogicalDatabaseLikeCpp::Characters
@@ -1595,6 +1621,19 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
         request: PlayerLoginItemRepairRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 
+    /// Execute the two independent C++ pet-talent reset writes in order.
+    fn reset_login_pet_talents_like_cpp<'a>(
+        &'a self,
+        player_guid: u64,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerLoginPetTalentResetOutcomeLikeCpp>;
+
+    /// Publish the selected character's online bit at the caller's existing
+    /// login sequencing point.
+    fn mark_player_online_like_cpp<'a>(
+        &'a self,
+        request: PlayerOnlineMarkRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
+
     /// Persist one account-wide collection in its own Login-database
     /// transaction, as C++ does during logout.
     fn save_account_collection_like_cpp<'a>(
@@ -1707,6 +1746,14 @@ mod tests {
                 rest: None,
             }
             .logical_database(),
+            LogicalDatabaseLikeCpp::Characters
+        );
+    }
+
+    #[test]
+    fn player_online_mark_names_the_characters_database_like_cpp() {
+        assert_eq!(
+            PlayerOnlineMarkRequestLikeCpp { player_guid: 1 }.logical_database(),
             LogicalDatabaseLikeCpp::Characters
         );
     }

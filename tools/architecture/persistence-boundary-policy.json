@@ -14652,6 +14652,36 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_login_pet_talent_reset_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter"
+      ],
+      "enclosings": [
+        "fn player_login_pet_talent_reset_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free remaining Player-login writes (#432) currently owns the complete wow-database workflow fn player_login_pet_talent_reset_statements_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
+      "connection_affinity": "Pure construction of two independent Characters-database statements; it opens no connection and exposes no adapter type to gameplay.",
+      "current_order": "Build DEL_ALL_PET_SPELLS_BY_OWNER first and UPD_PET_SPECS_BY_OWNER second, both with the same UInt64 owner bind.",
+      "failure_and_unknown_commit": "No I/O occurs here; each later non-transactional execution receives its own classified outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_login_transport_load_rows_like_cpp",
       "source_class": "production",
       "packages": [
@@ -14707,6 +14737,36 @@
       "connection_affinity": "Pure World-database statement construction; each semantic request selects the all-transports statement or the single bound-GUID statement.",
       "current_order": "Builds exactly one statement; the all request retains GUID ordering and the by-GUID request binds one GUID before its limit.",
       "failure_and_unknown_commit": "No I/O occurs here; the owning adapter classifies the later read as Loaded or Failed.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_online_mark_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter"
+      ],
+      "enclosings": [
+        "fn player_online_mark_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free remaining Player-login writes (#432) currently owns the complete wow-database workflow fn player_online_mark_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
+      "connection_affinity": "Pure construction of the current Rust Characters-database online-mark statement; it opens no connection.",
+      "current_order": "Build UPD_CHAR_ONLINE with the existing Rust UInt32 GUID bind. C++ UInt64 binding and account-online timing remain separately documented fidelity gaps.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning adapter classifies the later non-transactional execution.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -15077,6 +15137,36 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::mark_player_online_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::mark_player_online_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free remaining Player-login writes (#432) currently owns the complete wow-database workflow impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::mark_player_online_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
+      "connection_affinity": "One non-transactional statement executes through the configured Characters adapter at the caller's existing best-effort login point.",
+      "current_order": "Execute UPD_CHAR_ONLINE once and return before the caller dispatches its module login hook; no account-online write is invented by this refactor.",
+      "failure_and_unknown_commit": "Success maps to Applied and driver error to Failed; the caller intentionally preserves the existing best-effort ignored outcome and there is no COMMIT phase.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::persist_homebind_like_cpp",
       "source_class": "production",
       "packages": [
@@ -15223,6 +15313,36 @@
       "connection_affinity": "The Characters query and Login write use their independently configured adapters in source order; no distributed ACID boundary is claimed.",
       "current_order": "Queries SEL_SUM_CHARS first, narrows the represented count exactly as before, then executes REP_REALM_CHARACTERS; a failed count suppresses the Login write.",
       "failure_and_unknown_commit": "Either independent operation failure returns Failed; only a successful Login write returns Applied, and neither single statement has an unknown-COMMIT state.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::reset_login_pet_talents_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::reset_login_pet_talents_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free remaining Player-login writes (#432) currently owns the complete wow-database workflow impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::reset_login_pet_talents_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
+      "connection_affinity": "Each statement executes independently through the configured Characters adapter; no transaction or cross-database affinity is claimed.",
+      "current_order": "Execute the pet-spell delete, retain its outcome, then execute the specialization reset even when the first failed; return both outcomes in that order.",
+      "failure_and_unknown_commit": "Each single-statement execution maps success to Applied and driver error to Failed; there is no COMMIT phase and one failure does not suppress the other write.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -22271,73 +22391,6 @@
         "world"
       ],
       "capability_owner": "shared character service dependency surface currently owns the complete wow-world workflow module in crates/wow-world/src/handlers/character/visibility.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters, login, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::character::world_entry:crates/wow-world/src/handlers/character/world_entry.rs::impl WorldSession::handle_continue_player_login",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/character/world_entry.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::character::world_entry"
-      ],
-      "enclosings": [
-        "impl WorldSession::handle_continue_player_login"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "Player login/logout lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::handle_continue_player_login in crates/wow-world/src/handlers/character/world_entry.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153,
-        169
-      ],
-      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::character::world_entry:crates/wow-world/src/handlers/character/world_entry.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/character/world_entry.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::character::world_entry"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters",
-        "login",
-        "world"
-      ],
-      "capability_owner": "shared character service dependency surface currently owns the complete wow-world workflow module in crates/wow-world/src/handlers/character/world_entry.rs.",
       "connection_affinity": "This is a shared dependency/type surface for characters, login, world; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",

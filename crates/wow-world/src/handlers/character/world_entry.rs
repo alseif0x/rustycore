@@ -5,12 +5,6 @@
 
 //! Login, world entry, logout and the client-state handshake.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::CharStatements;
-
 use super::*;
 
 impl WorldSession {
@@ -190,16 +184,6 @@ impl WorldSession {
         if self.session_mgr().is_some() {
             self.send_packet(&ResumeComms);
         }
-
-        // Load character from DB and send login sequence
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
-            None => {
-                warn!("No character database for continue login");
-                self.release_character_login_claim_like_cpp();
-                return;
-            }
-        };
 
         let Some(player_lifecycle_port) = self.player_lifecycle_port_like_cpp().map(Arc::clone)
         else {
@@ -493,20 +477,23 @@ impl WorldSession {
         let summoned_pet_number = base_row.summoned_pet_number.unwrap_or(0);
         const AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP: u16 = 0x010;
         if (self.represented_at_login_flags_like_cpp() & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) != 0 {
-            let mut delete_pet_spells =
-                char_db.prepare(CharStatements::DEL_ALL_PET_SPELLS_BY_OWNER);
-            delete_pet_spells.set_u64(0, guid.counter() as u64);
-            if let Err(error) = char_db.execute(&delete_pet_spells).await {
+            let outcome = player_lifecycle_port
+                .reset_login_pet_talents_like_cpp(guid.counter() as u64)
+                .await;
+            if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason: error }
+            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason: error } =
+                outcome.spell_delete
+            {
                 warn!(
                     player_guid = guid.counter(),
                     %error,
                     "failed to apply represented AT_LOGIN_RESET_PET_TALENTS pet_spell delete like C++"
                 );
             }
-
-            let mut reset_pet_specs = char_db.prepare(CharStatements::UPD_PET_SPECS_BY_OWNER);
-            reset_pet_specs.set_u64(0, guid.counter() as u64);
-            if let Err(error) = char_db.execute(&reset_pet_specs).await {
+            if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason: error }
+            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason: error } =
+                outcome.specialization_reset
+            {
                 warn!(
                     player_guid = guid.counter(),
                     %error,
@@ -2523,10 +2510,13 @@ impl WorldSession {
             let _ = self.sync_player_spell_hit_aura_authority_to_canonical_like_cpp();
         }
 
-        // Mark online in DB
-        let mut online_stmt = char_db.prepare(CharStatements::UPD_CHAR_ONLINE);
-        online_stmt.set_u32(0, guid.counter() as u32);
-        let _ = char_db.execute(&online_stmt).await;
+        // Mark online in DB. This remains best-effort at the existing Rust
+        // sequencing point; #432 changes ownership, not login timing.
+        let _ = player_lifecycle_port
+            .mark_player_online_like_cpp(wow_persistence::PlayerOnlineMarkRequestLikeCpp {
+                player_guid: guid.counter() as u32,
+            })
+            .await;
 
         // C++ `sScriptMgr->OnPlayerLogin(pCurrChar, firstLogin)`
         // (`CharacterHandler.cpp:1452`), after the completed login and after
