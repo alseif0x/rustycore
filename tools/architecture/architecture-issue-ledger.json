@@ -73,6 +73,7 @@
     424,
     426,
     428,
+    430,
     189,
     192,
     193,
@@ -1248,7 +1249,7 @@
     },
     {
       "number": 428,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.23] Move Player-login inventory reads behind the lifecycle port",
       "kind": "slice",
       "parents": [
@@ -1257,6 +1258,19 @@
       ],
       "depends_on": [
         426
+      ]
+    },
+    {
+      "number": 430,
+      "state": "open",
+      "title": "[ARCH.DB.24] Move Player-login item repair writes behind the lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        428
       ]
     }
   ]

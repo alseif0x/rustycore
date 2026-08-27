@@ -1017,6 +1017,40 @@ pub enum PersistenceOutcomeLikeCpp {
     Unknown { reason: String },
 }
 
+/// One ordered repair discovered while hydrating Player inventory at login.
+///
+/// Gameplay owns the decision and the corrected values. The concrete adapter
+/// owns the C++ statement expansion: clearing refundable metadata is two
+/// statements, while normalizing mutable item state is one statement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerLoginItemRepairActionLikeCpp {
+    ClearRefundable {
+        item_guid: u64,
+        new_flags: u32,
+    },
+    NormalizeOnLoad {
+        item_guid: u64,
+        expiration: u32,
+        flags: u32,
+        durability: u32,
+    },
+}
+
+/// One existing Player-login item repair transaction.
+///
+/// The caller submits equipment and bag repairs separately so their current
+/// transaction boundaries and load order cannot be accidentally merged.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerLoginItemRepairRequestLikeCpp {
+    pub actions: Vec<PlayerLoginItemRepairActionLikeCpp>,
+}
+
+impl PlayerLoginItemRepairRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
 impl PersistenceOutcomeLikeCpp {
     pub fn is_applied(&self) -> bool {
         matches!(self, Self::Applied { .. })
@@ -1553,6 +1587,13 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
         &'a self,
         request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PlayerLoginAuxiliaryLoadOutcomeLikeCpp>;
+
+    /// Apply one ordered batch of item repairs discovered by Player login.
+    /// Statement expansion and the transaction boundary remain adapter-owned.
+    fn persist_login_item_repairs_like_cpp<'a>(
+        &'a self,
+        request: PlayerLoginItemRepairRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 
     /// Persist one account-wide collection in its own Login-database
     /// transaction, as C++ does during logout.

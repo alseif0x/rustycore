@@ -17,8 +17,9 @@ use wow_persistence::{
     PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
     PlayerHomebindPersistenceRequestLikeCpp, PlayerLifecyclePortLikeCpp,
     PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
-    PlayerOfflineMarkLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
-    PlayerTalentResetPersistenceRequestLikeCpp, PlayerXpPersistenceRequestLikeCpp,
+    PlayerLoginItemRepairRequestLikeCpp, PlayerOfflineMarkLikeCpp,
+    PlayerRealmCharacterCountRefreshRequestLikeCpp, PlayerTalentResetPersistenceRequestLikeCpp,
+    PlayerXpPersistenceRequestLikeCpp,
 };
 
 struct RecordingPortLikeCpp {
@@ -199,6 +200,13 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
                 reason: "recording port has no auxiliary login fixture".to_owned(),
             }
         })
+    }
+
+    fn persist_login_item_repairs_like_cpp<'a>(
+        &'a self,
+        _request: PlayerLoginItemRepairRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
     }
 
     fn save_account_collection_like_cpp<'a>(

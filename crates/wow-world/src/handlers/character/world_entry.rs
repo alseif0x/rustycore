@@ -9,7 +9,7 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::{CharStatements, SqlTransaction};
+use wow_database::CharStatements;
 
 use super::*;
 
@@ -893,7 +893,7 @@ impl WorldSession {
         self.clear_player_currencies_like_cpp();
         {
             self.begin_player_equipment_inventory_authority_load_like_cpp();
-            let mut refund_cleanup_tx = SqlTransaction::new();
+            let mut refund_cleanup_actions = Vec::new();
             match player_lifecycle_port
                 .load_login_auxiliary_like_cpp(
                     wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::EquipmentInventory {
@@ -957,11 +957,11 @@ impl WorldSession {
                             let item_guid = ObjectGuid::create_item(realm_id, item_db_guid as i64);
                             let stored_flags = match refund_decision {
                                 LoadedItemRefundDecision::Clear { new_flags } => {
-                                    append_item_refund_clear_statements(
-                                        char_db.as_ref(),
-                                        &mut refund_cleanup_tx,
-                                        item_db_guid,
-                                        new_flags,
+                                    refund_cleanup_actions.push(
+                                        wow_persistence::PlayerLoginItemRepairActionLikeCpp::ClearRefundable {
+                                            item_guid: item_db_guid,
+                                            new_flags,
+                                        },
                                     );
                                     new_flags
                                 }
@@ -1058,13 +1058,14 @@ impl WorldSession {
                                 stored_flags,
                             ));
                             if expiration_needs_save {
-                                let mut update_item_on_load =
-                                    char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_ON_LOAD);
-                                update_item_on_load.set_u32(0, item_object.data().expiration);
-                                update_item_on_load.set_u32(1, item_object.item_flags_bits());
-                                update_item_on_load.set_u32(2, item_object.data().durability);
-                                update_item_on_load.set_u64(3, item_db_guid);
-                                refund_cleanup_tx.append(update_item_on_load);
+                                refund_cleanup_actions.push(
+                                    wow_persistence::PlayerLoginItemRepairActionLikeCpp::NormalizeOnLoad {
+                                        item_guid: item_db_guid,
+                                        expiration: item_object.data().expiration,
+                                        flags: item_object.item_flags_bits(),
+                                        durability: item_object.data().durability,
+                                    },
+                                );
                             }
                             if let LoadedItemRefundDecision::Valid {
                                 paid_money,
@@ -1102,11 +1103,20 @@ impl WorldSession {
                 }
                 _ => unreachable!("equipment request returned a different row family"),
             }
-            if !refund_cleanup_tx.is_empty() {
-                if let Err(e) = char_db.commit_transaction(refund_cleanup_tx).await {
+            if !refund_cleanup_actions.is_empty() {
+                let outcome = player_lifecycle_port
+                    .persist_login_item_repairs_like_cpp(
+                        wow_persistence::PlayerLoginItemRepairRequestLikeCpp {
+                            actions: refund_cleanup_actions,
+                        },
+                    )
+                    .await;
+                if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+                | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
+                {
                     warn!(
                         "Failed to clean expired/missing item refund metadata for {:?}: {}",
-                        guid, e
+                        guid, reason
                     );
                 }
             }
@@ -1116,7 +1126,7 @@ impl WorldSession {
             // bag rows. `character_inventory.bag` stores the bag item GUID, so the
             // query joins back to the represented bag row and returns its top-level slot.
             {
-                let mut bag_load_fix_tx = SqlTransaction::new();
+                let mut bag_load_fix_actions = Vec::new();
                 match player_lifecycle_port
                     .load_login_auxiliary_like_cpp(
                         wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::BagInventory {
@@ -1212,16 +1222,14 @@ impl WorldSession {
                                         ItemFieldFlags::from_bits_retain(item_flags),
                                     );
                                     if expiration_needs_save {
-                                        let mut update_item_on_load = char_db
-                                            .prepare(CharStatements::UPD_ITEM_INSTANCE_ON_LOAD);
-                                        update_item_on_load
-                                            .set_u32(0, item_object.data().expiration);
-                                        update_item_on_load
-                                            .set_u32(1, item_object.item_flags_bits());
-                                        update_item_on_load
-                                            .set_u32(2, item_object.data().durability);
-                                        update_item_on_load.set_u64(3, item_db_guid);
-                                        bag_load_fix_tx.append(update_item_on_load);
+                                        bag_load_fix_actions.push(
+                                            wow_persistence::PlayerLoginItemRepairActionLikeCpp::NormalizeOnLoad {
+                                                item_guid: item_db_guid,
+                                                expiration: item_object.data().expiration,
+                                                flags: item_object.item_flags_bits(),
+                                                durability: item_object.data().durability,
+                                            },
+                                        );
                                     }
                                     item_object
                                         .set_container_guid_and_slot(bag_item_guid, bag_slot);
@@ -1275,13 +1283,22 @@ impl WorldSession {
                     }
                     _ => unreachable!("bag inventory request returned a different row family"),
                 }
-                if !bag_load_fix_tx.is_empty()
-                    && let Err(e) = char_db.commit_transaction(bag_load_fix_tx).await
-                {
-                    warn!(
-                        "Failed to normalize loaded bag item state for {:?}: {}",
-                        guid, e
-                    );
+                if !bag_load_fix_actions.is_empty() {
+                    let outcome = player_lifecycle_port
+                        .persist_login_item_repairs_like_cpp(
+                            wow_persistence::PlayerLoginItemRepairRequestLikeCpp {
+                                actions: bag_load_fix_actions,
+                            },
+                        )
+                        .await;
+                    if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+                    | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
+                    {
+                        warn!(
+                            "Failed to normalize loaded bag item state for {:?}: {}",
+                            guid, reason
+                        );
+                    }
                 }
             }
 

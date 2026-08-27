@@ -34,7 +34,8 @@ use wow_persistence::{
     PlayerLifecyclePortLikeCpp, PlayerLoginAdmissionLoadOutcomeLikeCpp,
     PlayerLoginAdmissionLoadRequestLikeCpp, PlayerLoginAdmissionLoadedLikeCpp,
     PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
-    PlayerLoginAuxiliaryLoadedLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
+    PlayerLoginAuxiliaryLoadedLikeCpp, PlayerLoginItemRepairActionLikeCpp,
+    PlayerLoginItemRepairRequestLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
     PlayerLoginTransportLoadRequestLikeCpp, PlayerLoginTransportLoadRowLikeCpp,
     PlayerOfflineMarkLikeCpp, PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
     PlayerPetDeclinedNamesLoadRowLikeCpp, PlayerPetSpellChargeLoadRowLikeCpp,
@@ -53,6 +54,46 @@ use crate::params::PreparedStatement;
 use crate::statements::{CharStatements, LoginStatements, StatementDef, WorldStatements};
 use crate::transaction::SqlTransaction;
 use crate::{CharacterDatabase, LoginDatabase, SqlTransactionCommitError, WorldDatabase};
+
+fn player_login_item_repair_statements_like_cpp(
+    request: &PlayerLoginItemRepairRequestLikeCpp,
+) -> Vec<PreparedStatement> {
+    let mut statements = Vec::new();
+    for action in &request.actions {
+        match action {
+            PlayerLoginItemRepairActionLikeCpp::ClearRefundable {
+                item_guid,
+                new_flags,
+            } => {
+                let mut delete =
+                    PreparedStatement::new(CharStatements::DEL_ITEM_REFUND_INSTANCE.sql());
+                delete.set_u64(0, *item_guid);
+                statements.push(delete);
+
+                let mut update =
+                    PreparedStatement::new(CharStatements::UPD_ITEM_INSTANCE_FLAGS.sql());
+                update.set_u32(0, *new_flags);
+                update.set_u64(1, *item_guid);
+                statements.push(update);
+            }
+            PlayerLoginItemRepairActionLikeCpp::NormalizeOnLoad {
+                item_guid,
+                expiration,
+                flags,
+                durability,
+            } => {
+                let mut update =
+                    PreparedStatement::new(CharStatements::UPD_ITEM_INSTANCE_ON_LOAD.sql());
+                update.set_u32(0, *expiration);
+                update.set_u32(1, *flags);
+                update.set_u32(2, *durability);
+                update.set_u64(3, *item_guid);
+                statements.push(update);
+            }
+        }
+    }
+    statements
+}
 
 /// Private statement decomposition for the MariaDB adapter.
 ///
@@ -2866,6 +2907,40 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
         })
     }
 
+    fn persist_login_item_repairs_like_cpp<'a>(
+        &'a self,
+        request: PlayerLoginItemRepairRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async move {
+            let statements = player_login_item_repair_statements_like_cpp(&request);
+            let rows = statements.len() as u64;
+            if statements.is_empty() {
+                return PersistenceOutcomeLikeCpp::Applied { rows: 0 };
+            }
+
+            let mut tx = SqlTransaction::new();
+            for statement in statements {
+                tx.append(statement);
+            }
+            match tx
+                .commit_with_outcome_like_cpp(self.character_db.pool())
+                .await
+            {
+                Ok(()) => PersistenceOutcomeLikeCpp::Applied { rows },
+                Err(SqlTransactionCommitError::DefinitelyRolledBack(error)) => {
+                    PersistenceOutcomeLikeCpp::Failed {
+                        reason: error.to_string(),
+                    }
+                }
+                Err(SqlTransactionCommitError::CommitOutcomeUnknown(error)) => {
+                    PersistenceOutcomeLikeCpp::Unknown {
+                        reason: error.to_string(),
+                    }
+                }
+            }
+        })
+    }
+
     fn save_account_collection_like_cpp<'a>(
         &'a self,
         save: AccountCollectionSaveLikeCpp,
@@ -3061,6 +3136,53 @@ mod tests {
                 SqlParam::F32(7.0),
                 SqlParam::F32(8.0),
                 SqlParam::U64(9),
+            ]
+        );
+    }
+
+    #[test]
+    fn login_item_repairs_expand_in_exact_cpp_statement_and_bind_order() {
+        let statements =
+            player_login_item_repair_statements_like_cpp(&PlayerLoginItemRepairRequestLikeCpp {
+                actions: vec![
+                    PlayerLoginItemRepairActionLikeCpp::ClearRefundable {
+                        item_guid: 11,
+                        new_flags: 12,
+                    },
+                    PlayerLoginItemRepairActionLikeCpp::NormalizeOnLoad {
+                        item_guid: 21,
+                        expiration: 22,
+                        flags: 23,
+                        durability: 24,
+                    },
+                ],
+            });
+
+        assert_eq!(statements.len(), 3);
+        assert_eq!(
+            statements[0].sql(),
+            CharStatements::DEL_ITEM_REFUND_INSTANCE.sql()
+        );
+        assert_eq!(statements[0].params(), vec![SqlParam::U64(11)]);
+        assert_eq!(
+            statements[1].sql(),
+            CharStatements::UPD_ITEM_INSTANCE_FLAGS.sql()
+        );
+        assert_eq!(
+            statements[1].params(),
+            vec![SqlParam::U32(12), SqlParam::U64(11)]
+        );
+        assert_eq!(
+            statements[2].sql(),
+            CharStatements::UPD_ITEM_INSTANCE_ON_LOAD.sql()
+        );
+        assert_eq!(
+            statements[2].params(),
+            vec![
+                SqlParam::U32(22),
+                SqlParam::U32(23),
+                SqlParam::U32(24),
+                SqlParam::U64(21),
             ]
         );
     }
