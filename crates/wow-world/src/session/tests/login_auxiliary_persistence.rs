@@ -85,6 +85,22 @@ impl PlayerLifecyclePortLikeCpp for AuxiliaryLoadPortLikeCpp {
         })
     }
 
+    fn load_initial_world_states_like_cpp<'a>(
+        &'a self,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerInitialWorldStatesLoadOutcomeLikeCpp>
+    {
+        Box::pin(async {
+            wow_persistence::PlayerInitialWorldStatesLoadOutcomeLikeCpp {
+                templates: wow_persistence::PlayerInitialWorldStateRowsLikeCpp::Failed {
+                    reason: "auxiliary-load-only fixture".to_owned(),
+                },
+                saved_values: wow_persistence::PlayerInitialWorldStateRowsLikeCpp::Failed {
+                    reason: "auxiliary-load-only fixture".to_owned(),
+                },
+            }
+        })
+    }
+
     fn load_account_collection_like_cpp<'a>(
         &'a self,
         _request: AccountCollectionLoadRequestLikeCpp,

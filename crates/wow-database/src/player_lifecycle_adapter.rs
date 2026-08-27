@@ -21,7 +21,9 @@ use wow_persistence::{
     PlayerCharacterSaveResultLikeCpp, PlayerCufProfileSaveLikeCpp,
     PlayerCustomizationLoadRowLikeCpp, PlayerEquipmentSetSaveLikeCpp,
     PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp,
-    PlayerHomebindPersistenceRequestLikeCpp, PlayerInstanceTimeRestrictionLoadRowLikeCpp,
+    PlayerHomebindPersistenceRequestLikeCpp, PlayerInitialWorldStateRowsLikeCpp,
+    PlayerInitialWorldStateTemplateRowLikeCpp, PlayerInitialWorldStateValueRowLikeCpp,
+    PlayerInitialWorldStatesLoadOutcomeLikeCpp, PlayerInstanceTimeRestrictionLoadRowLikeCpp,
     PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
     PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginAuxiliaryLoadedLikeCpp,
     PlayerOfflineMarkLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
@@ -31,9 +33,9 @@ use wow_persistence::{
 };
 
 use crate::params::PreparedStatement;
-use crate::statements::{CharStatements, LoginStatements, StatementDef};
+use crate::statements::{CharStatements, LoginStatements, StatementDef, WorldStatements};
 use crate::transaction::SqlTransaction;
-use crate::{CharacterDatabase, LoginDatabase, SqlTransactionCommitError};
+use crate::{CharacterDatabase, LoginDatabase, SqlTransactionCommitError, WorldDatabase};
 
 /// Private statement decomposition for the MariaDB adapter.
 ///
@@ -1250,13 +1252,19 @@ fn player_realm_character_count_statements_like_cpp(
 pub struct MariaDbPlayerLifecycleAdapterLikeCpp {
     character_db: Arc<CharacterDatabase>,
     login_db: Arc<LoginDatabase>,
+    world_db: Arc<WorldDatabase>,
 }
 
 impl MariaDbPlayerLifecycleAdapterLikeCpp {
-    pub fn new(character_db: Arc<CharacterDatabase>, login_db: Arc<LoginDatabase>) -> Self {
+    pub fn new(
+        character_db: Arc<CharacterDatabase>,
+        login_db: Arc<LoginDatabase>,
+        world_db: Arc<WorldDatabase>,
+    ) -> Self {
         Self {
             character_db,
             login_db,
+            world_db,
         }
     }
 }
@@ -1365,6 +1373,71 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                 Err(error) => PersistenceOutcomeLikeCpp::Failed {
                     reason: error.to_string(),
                 },
+            }
+        })
+    }
+
+    fn load_initial_world_states_like_cpp<'a>(
+        &'a self,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerInitialWorldStatesLoadOutcomeLikeCpp> {
+        Box::pin(async move {
+            let templates = {
+                let statement = self.world_db.prepare(WorldStatements::SEL_WORLD_STATES);
+                match self.world_db.query(&statement).await {
+                    Ok(mut result) => {
+                        let mut rows = Vec::new();
+                        if !result.is_empty() {
+                            loop {
+                                rows.push(PlayerInitialWorldStateTemplateRowLikeCpp {
+                                    id: result.read(0),
+                                    default_value: result.read(1),
+                                    map_ids_csv: result.try_read(2).unwrap_or_default(),
+                                    area_ids_csv: result.try_read(3).unwrap_or_default(),
+                                });
+                                if !result.next_row() {
+                                    break;
+                                }
+                            }
+                        }
+                        PlayerInitialWorldStateRowsLikeCpp::Loaded(rows)
+                    }
+                    Err(error) => PlayerInitialWorldStateRowsLikeCpp::Failed {
+                        reason: error.to_string(),
+                    },
+                }
+            };
+
+            // Preserve C++ and the existing Rust order even when the template
+            // read failed: this is a second logical database, not one ACID unit.
+            let saved_values = {
+                let statement = self
+                    .character_db
+                    .prepare(CharStatements::SEL_WORLD_STATE_VALUES);
+                match self.character_db.query(&statement).await {
+                    Ok(mut result) => {
+                        let mut rows = Vec::new();
+                        if !result.is_empty() {
+                            loop {
+                                rows.push(PlayerInitialWorldStateValueRowLikeCpp {
+                                    id: result.read(0),
+                                    value: result.read(1),
+                                });
+                                if !result.next_row() {
+                                    break;
+                                }
+                            }
+                        }
+                        PlayerInitialWorldStateRowsLikeCpp::Loaded(rows)
+                    }
+                    Err(error) => PlayerInitialWorldStateRowsLikeCpp::Failed {
+                        reason: error.to_string(),
+                    },
+                }
+            };
+
+            PlayerInitialWorldStatesLoadOutcomeLikeCpp {
+                templates,
+                saved_values,
             }
         })
     }

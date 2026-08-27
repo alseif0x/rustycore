@@ -82,6 +82,7 @@ use wow_packet::packets::quest::QuestGiverStatusMultiple;
 use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
 use wow_packet::packets::update::*;
 use wow_packet::{ClientPacket, WorldPacket};
+use wow_persistence::PlayerInitialWorldStateRowsLikeCpp;
 
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::map_manager::{

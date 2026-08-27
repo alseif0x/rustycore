@@ -60,6 +60,7 @@
     398,
     400,
     402,
+    404,
     189,
     192,
     193,
@@ -1066,7 +1067,7 @@
     },
     {
       "number": 402,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.10] Move realm character-count refresh behind the Player lifecycle port",
       "kind": "slice",
       "parents": [
@@ -1075,6 +1076,19 @@
       ],
       "depends_on": [
         400
+      ]
+    },
+    {
+      "number": 404,
+      "state": "open",
+      "title": "[ARCH.DB.11] Move initial world-state login reads behind the lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        402
       ]
     }
   ]

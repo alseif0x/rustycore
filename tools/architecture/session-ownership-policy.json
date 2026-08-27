@@ -7592,6 +7592,22 @@
           "module": "crate::handlers::character::session_state",
           "trait_path": null,
           "kind": "method",
+          "name": "test_load_initial_world_states_for_login_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "async fn test_load_initial_world_states_for_login_like_cpp (& self , map_id : i32 , player_area_id : u32 ,) -> Vec < (i32 , i32) >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::session_state",
+          "trait_path": null,
+          "kind": "method",
           "name": "update_realm_characters",
           "visibility": "pub (crate)",
           "signature": "async fn update_realm_characters (& self)",

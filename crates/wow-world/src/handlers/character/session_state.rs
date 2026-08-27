@@ -9,7 +9,7 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::{CharStatements, SqlResult, WorldStatements};
+use wow_database::SqlResult;
 
 use super::*;
 
@@ -2769,85 +2769,68 @@ impl WorldSession {
         map_id: i32,
         player_area_id: u32,
     ) -> Vec<(i32, i32)> {
-        let Some(world_db) = self.world_db() else {
-            warn!("InitWorldStates: missing world DB, cannot load C++ world_state templates");
+        let Some(port) = self.player_lifecycle_port_like_cpp() else {
+            warn!("InitWorldStates: missing Player lifecycle persistence port");
             return Vec::new();
         };
-        let Some(char_db) = self.char_db() else {
-            warn!(
-                "InitWorldStates: missing character DB, cannot load C++ world_state_value overlay"
-            );
-            return Vec::new();
-        };
+        let loaded = port.load_initial_world_states_like_cpp().await;
 
         let area_store = self.area_table_store().map(Arc::as_ref);
         let map_store = self.map_store().map(Arc::as_ref);
 
         let mut templates = Vec::new();
-        let stmt = world_db.prepare(WorldStatements::SEL_WORLD_STATES);
-        match world_db.query(&stmt).await {
-            Ok(mut result) if !result.is_empty() => loop {
-                let id: i32 = result.read(0);
-                let default_value: i32 = result.read(1);
-                let map_ids_csv: String = result.try_read(2).unwrap_or_default();
-                let area_ids_csv: String = result.try_read(3).unwrap_or_default();
-                let map_ids = parse_login_world_state_map_ids_like_cpp(&map_ids_csv, |map_id| {
-                    u32::try_from(map_id).ok().is_some_and(|map_id| {
-                        map_store.is_some_and(|store| store.get(map_id).is_some())
-                    })
-                });
-                if !map_ids_csv.is_empty() && map_ids.is_empty() {
-                    if !result.next_row() {
-                        break;
+        match loaded.templates {
+            PlayerInitialWorldStateRowsLikeCpp::Loaded(rows) => {
+                for row in rows {
+                    let map_ids_csv = row.map_ids_csv;
+                    let area_ids_csv = row.area_ids_csv;
+                    let map_ids =
+                        parse_login_world_state_map_ids_like_cpp(&map_ids_csv, |map_id| {
+                            u32::try_from(map_id).ok().is_some_and(|map_id| {
+                                map_store.is_some_and(|store| store.get(map_id).is_some())
+                            })
+                        });
+                    if !map_ids_csv.is_empty() && map_ids.is_empty() {
+                        continue;
                     }
-                    continue;
-                }
 
-                let area_ids =
-                    parse_login_world_state_area_ids_like_cpp(&area_ids_csv, &map_ids, area_store);
-                if !area_ids_csv.is_empty() && !map_ids.is_empty() && area_ids.is_empty() {
-                    if !result.next_row() {
-                        break;
+                    let area_ids = parse_login_world_state_area_ids_like_cpp(
+                        &area_ids_csv,
+                        &map_ids,
+                        area_store,
+                    );
+                    if !area_ids_csv.is_empty() && !map_ids.is_empty() && area_ids.is_empty() {
+                        continue;
                     }
-                    continue;
-                }
 
-                templates.push(LoginWorldStateTemplateLikeCpp {
-                    id,
-                    default_value,
-                    map_ids,
-                    area_ids,
-                });
-                if !result.next_row() {
-                    break;
+                    templates.push(LoginWorldStateTemplateLikeCpp {
+                        id: row.id,
+                        default_value: row.default_value,
+                        map_ids,
+                        area_ids,
+                    });
                 }
-            },
-            Ok(_) => {}
-            Err(error) => {
+            }
+            PlayerInitialWorldStateRowsLikeCpp::Failed { reason } => {
                 warn!(
-                    ?error,
+                    reason,
                     "InitWorldStates: failed to load C++ world_state templates"
                 );
             }
         }
 
-        let mut saved_values = Vec::new();
-        let stmt = char_db.prepare(CharStatements::SEL_WORLD_STATE_VALUES);
-        match char_db.query(&stmt).await {
-            Ok(mut result) if !result.is_empty() => loop {
-                saved_values.push((result.read(0), result.read(1)));
-                if !result.next_row() {
-                    break;
-                }
-            },
-            Ok(_) => {}
-            Err(error) => {
+        let saved_values = match loaded.saved_values {
+            PlayerInitialWorldStateRowsLikeCpp::Loaded(rows) => {
+                rows.into_iter().map(|row| (row.id, row.value)).collect()
+            }
+            PlayerInitialWorldStateRowsLikeCpp::Failed { reason } => {
                 warn!(
-                    ?error,
+                    reason,
                     "InitWorldStates: failed to load C++ world_state_value overlay"
                 );
+                Vec::new()
             }
-        }
+        };
 
         let mut states = build_initial_world_states_like_cpp(
             templates,
@@ -2871,6 +2854,16 @@ impl WorldSession {
             "InitWorldStates loaded like C++"
         );
         states
+    }
+
+    #[cfg(test)]
+    pub(super) async fn test_load_initial_world_states_for_login_like_cpp(
+        &self,
+        map_id: i32,
+        player_area_id: u32,
+    ) -> Vec<(i32, i32)> {
+        self.load_initial_world_states_for_login_like_cpp(map_id, player_area_id)
+            .await
     }
 
     // ── ShowTradeSkill ───────────────────────────────────────────────────────

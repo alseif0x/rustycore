@@ -4316,6 +4316,7 @@ async fn run_inner(
         wow_database::player_lifecycle_adapter::MariaDbPlayerLifecycleAdapterLikeCpp::new(
             Arc::clone(&char_db),
             Arc::clone(&login_db),
+            Arc::clone(&world_db),
         ),
     );
     let session_account_state_port: Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp> =
