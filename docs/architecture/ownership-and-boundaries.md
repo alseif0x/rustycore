@@ -167,6 +167,14 @@ last-writer-wins policy.
 | Trusted linked module API | `wow-module-api`: validated `ModuleId`/version/descriptor, the explicit `ModuleRegistry`, the immutable `PlayerLoginSnapshot` and the typed `SendSystemMessageSelf` effect | modules only queue effects; the Session owner applies the validated batch | `WorldSession::dispatch_module_player_login_like_cpp` at the C++ `ScriptMgr::OnPlayerLogin` position | process lifetime; dispatch is deterministic in `ModuleId` order and the batch is validated before anything is applied | #228 earned the crate through one working vertical. #229-#231 add external Cargo composition, the module manager and typed configuration. No stable ABI or hot reload is promised. |
 | Handler registration and dispatch-arm contract | the sole `inventory::collect!(PacketHandlerEntry)` in `wow-handler`, link-time `inventory::iter<PacketHandlerEntry>` consumed by `wow_handler`/`WorldSession`, and the concrete `WorldSession::dispatch_packet` opcode arms | unconditional module-item `inventory::submit!` declarations owned by the logical `wow-world::crate::handlers` tree, plus one dispatcher owned by `wow-world::crate::session`; both owners and their private descendants are declared in `handler-module-policy.json` | dispatch table and session update driver | compile/link lifetime; no mutable clock | #142 removed the final one-sided entries. #185 makes module ownership independent of physical filenames and fails closed on conditional, missing, duplicate, remounted, malformed, or stale ownership. #139 proves one thin capability, and #152 moves admission/dispatch without altering the exact opcode/metadata/arm contract. The terminal router inversion is re-audited by #153. |
 
+#432 extends the Player lifecycle persistence row above with the final three
+concrete `world_entry.rs` writes: two independently classified pet-talent reset
+operations and the best-effort character-online mark. `wow-world` retains the
+at-login decision, warning/publication behavior and existing call positions;
+`wow-database` owns statement identity, binds and execution. The known C++
+account-online/timing and UInt64-bind differences remain explicit fidelity work,
+not hidden inside this ownership refactor.
+
 ## Non-negotiable runtime invariants
 
 The refactor campaign must preserve:
@@ -706,37 +714,38 @@ display is checked against the JSON ledger:
 61. #426 — Player-login aura reads through the SQLx-free lifecycle port;
 62. #428 — Player-login inventory reads through the SQLx-free lifecycle port;
 63. #430 — Player-login item repair writes through the SQLx-free lifecycle port;
-64. #189 — durable loot persistence coordination;
-65. #192 — runtime/fanout directory consumers;
-66. #193 — combat/loot directory consumers;
-67. #194 — quest/spell/movement directory consumers;
-68. #197 — atomic group invite/create transitions;
-69. #198 — atomic group membership/leadership transitions;
-70. #199 — Group persistence/publication closure;
-71. #195 — social/group session addressing;
-72. #196 — PlayerRegistry storage closure;
-73. #138 — opaque session-directory relocation;
-74. #191 — mailbox protocol relocation;
-75. #137 — encapsulated Group owner move;
-76. #190 — durable creature-runtime rail relocation;
-77. #140 — Session mailbox pump;
-78. #252 — retire the temporary PlayerBroadcastInfo gameplay mirror;
-79. #182 — logical realm/instance routing;
-80. #183 — Session-only phase driver;
-81. #184 — login/logout lifecycle modules;
-82. #224 — character/loot/quest physical modules;
-83. #225 — Map/MapManager physical modules;
-84. #226 — Player/Unit physical modules;
-85. #227 — packet/spell-data physical modules;
-86. #228 — trusted linked external module API;
-87. #229 — deterministic external Cargo composition;
-88. #230 — agent-neutral module CLI and skeleton;
-89. #231 — typed module configuration/fixtures;
-90. #270 — retire the four PlayerBroadcastInfo transport endpoints;
-91. #359 — single dispatch mechanism for every opcode;
-92. #297 — promote the Session kernel to `wow-session`;
-93. #378 — move the remaining five session modules into `wow-session`;
-94. #153 — terminal architecture audit.
+64. #432 — remaining Player-login pet-reset and online writes through the SQLx-free lifecycle port;
+65. #189 — durable loot persistence coordination;
+66. #192 — runtime/fanout directory consumers;
+67. #193 — combat/loot directory consumers;
+68. #194 — quest/spell/movement directory consumers;
+69. #197 — atomic group invite/create transitions;
+70. #198 — atomic group membership/leadership transitions;
+71. #199 — Group persistence/publication closure;
+72. #195 — social/group session addressing;
+73. #196 — PlayerRegistry storage closure;
+74. #138 — opaque session-directory relocation;
+75. #191 — mailbox protocol relocation;
+76. #137 — encapsulated Group owner move;
+77. #190 — durable creature-runtime rail relocation;
+78. #140 — Session mailbox pump;
+79. #252 — retire the temporary PlayerBroadcastInfo gameplay mirror;
+80. #182 — logical realm/instance routing;
+81. #183 — Session-only phase driver;
+82. #184 — login/logout lifecycle modules;
+83. #224 — character/loot/quest physical modules;
+84. #225 — Map/MapManager physical modules;
+85. #226 — Player/Unit physical modules;
+86. #227 — packet/spell-data physical modules;
+87. #228 — trusted linked external module API;
+88. #229 — deterministic external Cargo composition;
+89. #230 — agent-neutral module CLI and skeleton;
+90. #231 — typed module configuration/fixtures;
+91. #270 — retire the four PlayerBroadcastInfo transport endpoints;
+92. #359 — single dispatch mechanism for every opcode;
+93. #297 — promote the Session kernel to `wow-session`;
+94. #378 — move the remaining five session modules into `wow-session`;
+95. #153 — terminal architecture audit.
 
 A slice may start once its declared prerequisites are merged and its branch is current. Independent
 physical work remains parallel to semantic authority cuts. Mechanical moves use focused compile and

@@ -56,8 +56,9 @@ use wow_persistence::{
     PlayerInitialWorldStateValueRowLikeCpp, PlayerInitialWorldStatesLoadOutcomeLikeCpp,
     PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
     PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginItemRepairRequestLikeCpp,
-    PlayerLoginTransportLoadOutcomeLikeCpp, PlayerLoginTransportLoadRequestLikeCpp,
-    PlayerOfflineMarkLikeCpp,
+    PlayerLoginPetTalentResetOutcomeLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
+    PlayerLoginTransportLoadRequestLikeCpp, PlayerOfflineMarkLikeCpp,
+    PlayerOnlineMarkRequestLikeCpp,
 };
 
 struct MapCorpseLoadPortFixtureLikeCpp {
@@ -295,6 +296,25 @@ impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
         Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
     }
 
+    fn reset_login_pet_talents_like_cpp<'a>(
+        &'a self,
+        _player_guid: u64,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerLoginPetTalentResetOutcomeLikeCpp> {
+        Box::pin(async {
+            PlayerLoginPetTalentResetOutcomeLikeCpp {
+                spell_delete: PersistenceOutcomeLikeCpp::Applied { rows: 0 },
+                specialization_reset: PersistenceOutcomeLikeCpp::Applied { rows: 0 },
+            }
+        })
+    }
+
+    fn mark_player_online_like_cpp<'a>(
+        &'a self,
+        _request: PlayerOnlineMarkRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
+    }
+
     fn save_account_collection_like_cpp<'a>(
         &'a self,
         _save: AccountCollectionSaveLikeCpp,
@@ -467,6 +487,25 @@ impl PlayerLifecyclePortLikeCpp for HomebindPortFixtureLikeCpp {
         Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
     }
 
+    fn reset_login_pet_talents_like_cpp<'a>(
+        &'a self,
+        _player_guid: u64,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerLoginPetTalentResetOutcomeLikeCpp> {
+        Box::pin(async {
+            PlayerLoginPetTalentResetOutcomeLikeCpp {
+                spell_delete: PersistenceOutcomeLikeCpp::Applied { rows: 0 },
+                specialization_reset: PersistenceOutcomeLikeCpp::Applied { rows: 0 },
+            }
+        })
+    }
+
+    fn mark_player_online_like_cpp<'a>(
+        &'a self,
+        _request: PlayerOnlineMarkRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
+    }
+
     fn save_account_collection_like_cpp<'a>(
         &'a self,
         _save: AccountCollectionSaveLikeCpp,
@@ -580,6 +619,33 @@ fn continue_login_item_repairs_cross_the_typed_lifecycle_port() {
         assert!(
             !handler.contains(statement),
             "handler still names {statement}"
+        );
+    }
+}
+
+#[test]
+fn continue_login_has_no_concrete_persistence_after_remaining_writes_move() {
+    let source = include_str!("character/world_entry.rs");
+    let (_, tail) = source
+        .split_once("pub async fn handle_continue_player_login")
+        .expect("continue-login handler starts");
+    let (handler, _) = tail
+        .split_once("pub(super) fn player_login_combat_stats_like_cpp")
+        .expect("continue-login handler ends before packet helper");
+
+    assert!(handler.contains("reset_login_pet_talents_like_cpp"));
+    assert!(handler.contains("mark_player_online_like_cpp"));
+    for concrete in [
+        "char_db()",
+        "CharStatements::",
+        "SqlTransaction::",
+        ".prepare(",
+        ".execute(",
+        ".commit_transaction(",
+    ] {
+        assert!(
+            !handler.contains(concrete),
+            "continue-login still contains concrete persistence: {concrete}"
         );
     }
 }

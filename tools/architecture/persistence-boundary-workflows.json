@@ -11823,43 +11823,6 @@
     },
     {
       "package": "wow-world",
-      "module": "crate::handlers::character::world_entry",
-      "source": "crates/wow-world/src/handlers/character/world_entry.rs",
-      "enclosing": "impl WorldSession::handle_continue_player_login",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Player login/logout lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::world_entry",
-      "source": "crates/wow-world/src/handlers/character/world_entry.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "characters",
-        "login",
-        "world"
-      ],
-      "boundary": "shared character service dependency surface",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for characters, login, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
       "module": "crate::handlers::group",
       "source": "crates/wow-world/src/handlers/group.rs",
       "enclosing": "fn current_player_party_invite_map_instance_like_cpp",
@@ -14897,6 +14860,66 @@
       "connection_affinity": "Every action in one request is appended to one transaction on one connection from the Characters pool; equipment and bag requests remain separate calls.",
       "current_order": "Expand the ordered semantic actions, append every resulting statement without reordering, then COMMIT once before returning the classified outcome.",
       "failure_and_unknown_commit": "DefinitelyRolledBack maps to Failed; CommitOutcomeUnknown maps to Unknown; an empty request returns Applied with zero rows without opening a transaction."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_login_pet_talent_reset_statements_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free remaining Player-login writes (#432)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure construction of two independent Characters-database statements; it opens no connection and exposes no adapter type to gameplay.",
+      "current_order": "Build DEL_ALL_PET_SPELLS_BY_OWNER first and UPD_PET_SPECS_BY_OWNER second, both with the same UInt64 owner bind.",
+      "failure_and_unknown_commit": "No I/O occurs here; each later non-transactional execution receives its own classified outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_online_mark_statement_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free remaining Player-login writes (#432)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure construction of the current Rust Characters-database online-mark statement; it opens no connection.",
+      "current_order": "Build UPD_CHAR_ONLINE with the existing Rust UInt32 GUID bind. C++ UInt64 binding and account-online timing remain separately documented fidelity gaps.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning adapter classifies the later non-transactional execution."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::reset_login_pet_talents_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free remaining Player-login writes (#432)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Each statement executes independently through the configured Characters adapter; no transaction or cross-database affinity is claimed.",
+      "current_order": "Execute the pet-spell delete, retain its outcome, then execute the specialization reset even when the first failed; return both outcomes in that order.",
+      "failure_and_unknown_commit": "Each single-statement execution maps success to Applied and driver error to Failed; there is no COMMIT phase and one failure does not suppress the other write."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::mark_player_online_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free remaining Player-login writes (#432)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One non-transactional statement executes through the configured Characters adapter at the caller's existing best-effort login point.",
+      "current_order": "Execute UPD_CHAR_ONLINE once and return before the caller dispatches its module login hook; no account-online write is invented by this refactor.",
+      "failure_and_unknown_commit": "Success maps to Applied and driver error to Failed; the caller intentionally preserves the existing best-effort ignored outcome and there is no COMMIT phase."
     }
   ]
 }
