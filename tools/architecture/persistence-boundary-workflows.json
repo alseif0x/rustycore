@@ -10496,12 +10496,27 @@
       "logical_databases": [
         "characters"
       ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free auxiliary Player-login reads (#390/#396/#398/#418/#420/#422/#424/#426)",
+      "boundary": "wow-database MariaDB adapter for SQLx-free auxiliary Player-login reads (#390/#396/#398/#418/#420/#422/#424/#426/#428)",
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "Pure Characters-database statement construction; each semantic request selects one existing statement and exact identity bind.",
-      "current_order": "Builds exactly one C++ LoginQueryHolder or PetLoadQueryHolder read statement; pet, group, profile, progression and character-aura requests preserve their exact identity and bind widths without introducing a wider transaction.",
+      "current_order": "Builds exactly one C++ LoginQueryHolder or PetLoadQueryHolder read statement; pet, group, profile, progression, character-aura and inventory requests preserve their exact identity and bind widths without introducing a wider transaction.",
       "failure_and_unknown_commit": "No I/O occurs here; the adapter classifies the later read as Loaded typed rows or Failed."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_inventory_item_load_row_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free Player-login inventory reads (#428)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of one successful Characters inventory result row; it opens no connection and executes no statement.",
+      "current_order": "Decodes the exact shared item-instance projection selected by CHAR_SEL_CHAR_EQUIPMENT and CHAR_SEL_CHAR_BAG_CONTENTS; the caller retains slot/container interpretation and repair decisions.",
+      "failure_and_unknown_commit": "The helper receives only a successful non-empty result; query failure and loaded-empty outcomes are classified by the owning adapter, and reads have no unknown-COMMIT state."
     },
     {
       "package": "wow-database",
@@ -10511,12 +10526,12 @@
       "logical_databases": [
         "characters"
       ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free auxiliary Player-login reads (#390/#396/#398/#418/#420/#422/#424/#426)",
+      "boundary": "wow-database MariaDB adapter for SQLx-free auxiliary Player-login reads (#390/#396/#398/#418/#420/#422/#424/#426/#428)",
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "Each read uses the configured Characters adapter and one prepared statement; these read-only loads claim no wider transaction.",
-      "current_order": "Runs only the statement selected by the typed request and decodes rows in database order. The caller preserves pet/group/profile publication, progression validation and side effects, plus character-aura correlation/application and item-mod ordering at their existing login points.",
-      "failure_and_unknown_commit": "A query error returns Failed without rows; successful and empty results return Loaded, and reads have no unknown-COMMIT state. Character aura and aura-effect reads retain independent outcomes so authority completes only after both succeed."
+      "current_order": "Runs only the statement selected by the typed request and decodes rows in database order. The caller preserves pet/group/profile publication, progression validation and side effects, plus character-aura correlation/application and inventory interpretation/repair/installation ordering at their existing login points.",
+      "failure_and_unknown_commit": "A query error returns Failed without rows; successful and empty results return Loaded, and reads have no unknown-COMMIT state. Character aura and aura-effect reads retain independent outcomes so authority completes only after both succeed. Inventory, bag-content and void-storage reads retain independent loaded-empty and failed outcomes."
     },
     {
       "package": "wow-database",

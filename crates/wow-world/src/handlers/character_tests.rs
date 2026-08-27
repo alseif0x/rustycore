@@ -513,6 +513,31 @@ fn continue_login_no_longer_names_location_or_guild_statements() {
     }
 }
 
+#[test]
+fn continue_login_inventory_reads_cross_the_typed_lifecycle_port() {
+    let source = include_str!("character/world_entry.rs");
+    let (_, tail) = source
+        .split_once("pub async fn handle_continue_player_login")
+        .expect("continue-login handler starts");
+    let (handler, _) = tail
+        .split_once("pub(super) fn player_login_combat_stats_like_cpp")
+        .expect("continue-login handler ends before packet helper");
+
+    assert!(handler.contains("PlayerLoginAuxiliaryLoadRequestLikeCpp::EquipmentInventory"));
+    assert!(handler.contains("PlayerLoginAuxiliaryLoadRequestLikeCpp::BagInventory"));
+    assert!(handler.contains("PlayerLoginAuxiliaryLoadRequestLikeCpp::VoidStorage"));
+    for statement in [
+        "CharStatements::SEL_CHAR_EQUIPMENT",
+        "CharStatements::SEL_CHAR_BAG_CONTENTS",
+        "CharStatements::SEL_CHAR_VOID_STORAGE",
+    ] {
+        assert!(
+            !handler.contains(statement),
+            "handler still names {statement}"
+        );
+    }
+}
+
 #[tokio::test]
 async fn account_collection_loads_cross_the_typed_port_in_login_order_like_cpp() {
     let port = CollectionLoadPortLikeCpp::new([
