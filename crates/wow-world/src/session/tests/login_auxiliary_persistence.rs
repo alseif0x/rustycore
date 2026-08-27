@@ -156,6 +156,17 @@ impl PlayerLifecyclePortLikeCpp for AuxiliaryLoadPortLikeCpp {
         })
     }
 
+    fn load_login_admission_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerLoginAdmissionLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerLoginAdmissionLoadOutcomeLikeCpp> {
+        Box::pin(async {
+            wow_persistence::PlayerLoginAdmissionLoadOutcomeLikeCpp::Failed {
+                reason: "auxiliary-load-only fixture".to_owned(),
+            }
+        })
+    }
+
     fn load_login_auxiliary_like_cpp<'a>(
         &'a self,
         request: PlayerLoginAuxiliaryLoadRequestLikeCpp,

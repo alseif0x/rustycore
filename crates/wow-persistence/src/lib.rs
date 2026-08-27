@@ -182,6 +182,22 @@ pub enum PlayerLoginAuxiliaryLoadRequestLikeCpp {
     TraitConfigs { player_guid: u64 },
 }
 
+/// Early Characters-database reads that decide where and under which guild
+/// projection a Player enters the world. They are distinct from the Eq-only
+/// auxiliary row families because locations carry floating-point coordinates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerLoginAdmissionLoadRequestLikeCpp {
+    BattlegroundLocation { player_guid: u64 },
+    HomebindLocation { player_guid: u64 },
+    GuildMembership { player_guid: u64 },
+}
+
+impl PlayerLoginAdmissionLoadRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
 /// The core `characters` row requested first by C++
 /// `CharacterLoginQueryHolder::Initialize` for `Player::LoadFromDB`.
 ///
@@ -378,6 +394,34 @@ pub struct PlayerCustomizationLoadRowLikeCpp {
     pub choice_id: u32,
 }
 
+/// Raw optional columns used by C++ `Player::_LoadBGData`. Missing values stay
+/// unknown until the Player lifecycle owner applies its existing validation.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerBattlegroundLocationLoadRowLikeCpp {
+    pub x: Option<f32>,
+    pub y: Option<f32>,
+    pub z: Option<f32>,
+    pub orientation: Option<f32>,
+    pub map_id: Option<u16>,
+}
+
+/// Raw optional columns used by C++ `Player::_LoadHomeBind`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerHomebindLocationLoadRowLikeCpp {
+    pub map_id: Option<u16>,
+    pub area_id: Option<u16>,
+    pub x: Option<f32>,
+    pub y: Option<f32>,
+    pub z: Option<f32>,
+    pub orientation: Option<f32>,
+}
+
+/// One raw guild-membership row. `None` is malformed/unknown, not guild zero.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerGuildMembershipLoadRowLikeCpp {
+    pub guild_id: Option<u64>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlayerInstanceTimeRestrictionLoadRowLikeCpp {
     pub instance_id: u32,
@@ -442,6 +486,21 @@ pub enum PlayerLoginAuxiliaryLoadedLikeCpp {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlayerLoginAuxiliaryLoadOutcomeLikeCpp {
     Loaded(PlayerLoginAuxiliaryLoadedLikeCpp),
+    Failed { reason: String },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PlayerLoginAdmissionLoadedLikeCpp {
+    BattlegroundLocation(Option<PlayerBattlegroundLocationLoadRowLikeCpp>),
+    HomebindLocation(Option<PlayerHomebindLocationLoadRowLikeCpp>),
+    GuildMembership(Vec<PlayerGuildMembershipLoadRowLikeCpp>),
+}
+
+/// Admission reads have no unknown-COMMIT state. Missing rows and driver
+/// failure stay distinct so the Player owner can preserve each C++ branch.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PlayerLoginAdmissionLoadOutcomeLikeCpp {
+    Loaded(PlayerLoginAdmissionLoadedLikeCpp),
     Failed { reason: String },
 }
 
@@ -1136,6 +1195,13 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
         request: AccountCollectionLoadRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, AccountCollectionLoadOutcomeLikeCpp>;
 
+    /// Load one early Player-login admission input. Location validation,
+    /// fallback/kick policy and guild publication remain caller-owned.
+    fn load_login_admission_like_cpp<'a>(
+        &'a self,
+        request: PlayerLoginAdmissionLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerLoginAdmissionLoadOutcomeLikeCpp>;
+
     /// Load one auxiliary Player-login input from the Characters database.
     /// Gameplay retains validation and publication into represented state.
     fn load_login_auxiliary_like_cpp<'a>(
@@ -1275,6 +1341,20 @@ mod tests {
             PlayerLoginAuxiliaryLoadRequestLikeCpp::InstanceTimeRestrictions { account_id: 2 },
             PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellCooldowns { player_guid: 1 },
             PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellCharges { player_guid: 1 },
+        ] {
+            assert_eq!(
+                request.logical_database(),
+                LogicalDatabaseLikeCpp::Characters
+            );
+        }
+    }
+
+    #[test]
+    fn every_player_login_admission_load_names_the_characters_database_like_cpp() {
+        for request in [
+            PlayerLoginAdmissionLoadRequestLikeCpp::BattlegroundLocation { player_guid: 1 },
+            PlayerLoginAdmissionLoadRequestLikeCpp::HomebindLocation { player_guid: 1 },
+            PlayerLoginAdmissionLoadRequestLikeCpp::GuildMembership { player_guid: 1 },
         ] {
             assert_eq!(
                 request.logical_database(),

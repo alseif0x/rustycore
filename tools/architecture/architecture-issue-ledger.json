@@ -66,6 +66,7 @@
     410,
     412,
     414,
+    416,
     189,
     192,
     193,
@@ -1150,7 +1151,7 @@
     },
     {
       "number": 414,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.16] Move the core character login row behind the lifecycle port",
       "kind": "slice",
       "parents": [
@@ -1159,6 +1160,19 @@
       ],
       "depends_on": [
         412
+      ]
+    },
+    {
+      "number": 416,
+      "state": "open",
+      "title": "[ARCH.DB.17] Move login location and guild reads behind the lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        414
       ]
     }
   ]

@@ -7556,6 +7556,36 @@
       "package": "wow-database",
       "module": "crate::player_lifecycle_adapter",
       "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_login_admission_load_statement_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free Player-login admission reads (#416)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure Characters-database statement construction; each semantic admission request binds one UInt64 Player GUID.",
+      "current_order": "Maps battleground location, homebind location and guild membership to their existing C++ LoginQueryHolder statements without reordering the caller's reads.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning adapter classifies the later read as Loaded or Failed."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::load_login_admission_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free Player-login admission reads (#416)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Each request uses one read on the configured Characters adapter and claims no transaction or cross-query affinity.",
+      "current_order": "Runs exactly one requested admission statement and returns raw optional location columns or every guild row; map/guild validation and publication remain in wow-world.",
+      "failure_and_unknown_commit": "A query error returns Failed; empty location rows remain Loaded(None), empty guild rows remain Loaded(empty), and malformed columns stay optional rather than becoming canonical zero."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
       "enclosing": "fn build_tutorials_save_statement_like_cpp",
       "logical_databases": [
         "characters"

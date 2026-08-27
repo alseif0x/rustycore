@@ -17,20 +17,24 @@ use wow_persistence::{
     AccountCollectionLoadedLikeCpp, AccountCollectionRowsLikeCpp, AccountCollectionSaveLikeCpp,
     AccountHeirloomLoadRowLikeCpp, AccountMaskBlockLikeCpp, AccountMountLoadRowLikeCpp,
     AccountToyLoadRowLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
-    PlayerBuybackClearRequestLikeCpp, PlayerCharacterBaseLoadOutcomeLikeCpp,
-    PlayerCharacterBaseLoadRequestLikeCpp, PlayerCharacterBaseLoadRowLikeCpp,
-    PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
-    PlayerCufProfileSaveLikeCpp, PlayerCustomizationLoadRowLikeCpp, PlayerEquipmentSetSaveLikeCpp,
+    PlayerBattlegroundLocationLoadRowLikeCpp, PlayerBuybackClearRequestLikeCpp,
+    PlayerCharacterBaseLoadOutcomeLikeCpp, PlayerCharacterBaseLoadRequestLikeCpp,
+    PlayerCharacterBaseLoadRowLikeCpp, PlayerCharacterSaveRequestLikeCpp,
+    PlayerCharacterSaveResultLikeCpp, PlayerCufProfileSaveLikeCpp,
+    PlayerCustomizationLoadRowLikeCpp, PlayerEquipmentSetSaveLikeCpp,
     PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp,
+    PlayerGuildMembershipLoadRowLikeCpp, PlayerHomebindLocationLoadRowLikeCpp,
     PlayerHomebindPersistenceRequestLikeCpp, PlayerInitialWorldStateRowsLikeCpp,
     PlayerInitialWorldStateTemplateRowLikeCpp, PlayerInitialWorldStateValueRowLikeCpp,
     PlayerInitialWorldStatesLoadOutcomeLikeCpp, PlayerInstanceTimeRestrictionLoadRowLikeCpp,
-    PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
-    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginAuxiliaryLoadedLikeCpp,
-    PlayerLoginTransportLoadOutcomeLikeCpp, PlayerLoginTransportLoadRequestLikeCpp,
-    PlayerLoginTransportLoadRowLikeCpp, PlayerOfflineMarkLikeCpp,
-    PlayerRealmCharacterCountRefreshRequestLikeCpp, PlayerSpellChargeLoadRowLikeCpp,
-    PlayerSpellCooldownLoadRowLikeCpp, PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp,
+    PlayerLifecyclePortLikeCpp, PlayerLoginAdmissionLoadOutcomeLikeCpp,
+    PlayerLoginAdmissionLoadRequestLikeCpp, PlayerLoginAdmissionLoadedLikeCpp,
+    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
+    PlayerLoginAuxiliaryLoadedLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
+    PlayerLoginTransportLoadRequestLikeCpp, PlayerLoginTransportLoadRowLikeCpp,
+    PlayerOfflineMarkLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
+    PlayerSpellChargeLoadRowLikeCpp, PlayerSpellCooldownLoadRowLikeCpp,
+    PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp,
     PlayerTalentResetPersistenceRequestLikeCpp, PlayerTraitConfigLoadRowLikeCpp,
     PlayerTraitEntryLoadRowLikeCpp, PlayerVoidStorageSaveLikeCpp,
     PlayerXpPersistenceRequestLikeCpp,
@@ -1116,6 +1120,30 @@ fn account_collection_load_statements_like_cpp(
         .collect()
 }
 
+fn player_login_admission_load_statement_like_cpp(
+    request: PlayerLoginAdmissionLoadRequestLikeCpp,
+) -> PreparedStatement {
+    match request {
+        PlayerLoginAdmissionLoadRequestLikeCpp::BattlegroundLocation { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHARACTER_BGDATA);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAdmissionLoadRequestLikeCpp::HomebindLocation { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHARACTER_HOMEBIND);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAdmissionLoadRequestLikeCpp::GuildMembership { player_guid } => {
+            let mut statement = PreparedStatement::for_statement(CharStatements::SEL_GUILD_MEMBER);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+    }
+}
+
 fn player_login_auxiliary_load_statement_like_cpp(
     request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
 ) -> PreparedStatement {
@@ -1970,6 +1998,63 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
         })
     }
 
+    fn load_login_admission_like_cpp<'a>(
+        &'a self,
+        request: PlayerLoginAdmissionLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerLoginAdmissionLoadOutcomeLikeCpp> {
+        Box::pin(async move {
+            let statement = player_login_admission_load_statement_like_cpp(request);
+            let mut result = match self.character_db.query(&statement).await {
+                Ok(result) => result,
+                Err(error) => {
+                    return PlayerLoginAdmissionLoadOutcomeLikeCpp::Failed {
+                        reason: error.to_string(),
+                    };
+                }
+            };
+
+            let loaded = match request {
+                PlayerLoginAdmissionLoadRequestLikeCpp::BattlegroundLocation { .. } => {
+                    let row =
+                        (!result.is_empty()).then(|| PlayerBattlegroundLocationLoadRowLikeCpp {
+                            x: result.try_read(2),
+                            y: result.try_read(3),
+                            z: result.try_read(4),
+                            orientation: result.try_read(5),
+                            map_id: result.try_read(6),
+                        });
+                    PlayerLoginAdmissionLoadedLikeCpp::BattlegroundLocation(row)
+                }
+                PlayerLoginAdmissionLoadRequestLikeCpp::HomebindLocation { .. } => {
+                    let row = (!result.is_empty()).then(|| PlayerHomebindLocationLoadRowLikeCpp {
+                        map_id: result.try_read(0),
+                        area_id: result.try_read(1),
+                        x: result.try_read(2),
+                        y: result.try_read(3),
+                        z: result.try_read(4),
+                        orientation: result.try_read(5),
+                    });
+                    PlayerLoginAdmissionLoadedLikeCpp::HomebindLocation(row)
+                }
+                PlayerLoginAdmissionLoadRequestLikeCpp::GuildMembership { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerGuildMembershipLoadRowLikeCpp {
+                                guild_id: result.try_read(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAdmissionLoadedLikeCpp::GuildMembership(rows)
+                }
+            };
+            PlayerLoginAdmissionLoadOutcomeLikeCpp::Loaded(loaded)
+        })
+    }
+
     fn load_login_auxiliary_like_cpp<'a>(
         &'a self,
         request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
@@ -2472,6 +2557,30 @@ mod tests {
             let statement = player_login_auxiliary_load_statement_like_cpp(request);
             assert_eq!(statement.sql(), expected_sql);
             assert_eq!(statement.params(), expected_params);
+        }
+    }
+
+    #[test]
+    fn player_login_admission_requests_map_to_exact_cpp_statements_and_guid_bind() {
+        let cases = [
+            (
+                PlayerLoginAdmissionLoadRequestLikeCpp::BattlegroundLocation { player_guid: 77 },
+                CharStatements::SEL_CHARACTER_BGDATA.sql(),
+            ),
+            (
+                PlayerLoginAdmissionLoadRequestLikeCpp::HomebindLocation { player_guid: 77 },
+                CharStatements::SEL_CHARACTER_HOMEBIND.sql(),
+            ),
+            (
+                PlayerLoginAdmissionLoadRequestLikeCpp::GuildMembership { player_guid: 77 },
+                CharStatements::SEL_GUILD_MEMBER.sql(),
+            ),
+        ];
+
+        for (request, expected_sql) in cases {
+            let statement = player_login_admission_load_statement_like_cpp(request);
+            assert_eq!(statement.sql(), expected_sql);
+            assert_eq!(statement.params(), [crate::SqlParam::U64(77)]);
         }
     }
 

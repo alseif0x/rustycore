@@ -265,6 +265,17 @@ impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
         })
     }
 
+    fn load_login_admission_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerLoginAdmissionLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerLoginAdmissionLoadOutcomeLikeCpp> {
+        Box::pin(async {
+            wow_persistence::PlayerLoginAdmissionLoadOutcomeLikeCpp::Failed {
+                reason: "collection-load-only fixture".to_owned(),
+            }
+        })
+    }
+
     fn load_login_auxiliary_like_cpp<'a>(
         &'a self,
         _request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
@@ -419,6 +430,17 @@ impl PlayerLifecyclePortLikeCpp for HomebindPortFixtureLikeCpp {
         })
     }
 
+    fn load_login_admission_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerLoginAdmissionLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerLoginAdmissionLoadOutcomeLikeCpp> {
+        Box::pin(async {
+            wow_persistence::PlayerLoginAdmissionLoadOutcomeLikeCpp::Failed {
+                reason: "homebind-only fixture".to_owned(),
+            }
+        })
+    }
+
     fn load_login_auxiliary_like_cpp<'a>(
         &'a self,
         _request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
@@ -464,6 +486,31 @@ fn continue_login_no_longer_names_the_core_character_statement() {
     assert!(handler.contains("PlayerCharacterBaseLoadOutcomeLikeCpp::Loaded(None)"));
     assert!(handler.contains("PlayerCharacterBaseLoadOutcomeLikeCpp::Failed { reason }"));
     assert!(!handler.contains("prepare(CharStatements::SEL_CHARACTER)"));
+}
+
+#[test]
+fn continue_login_no_longer_names_location_or_guild_statements() {
+    let source = include_str!("character/world_entry.rs");
+    let (_, tail) = source
+        .split_once("pub async fn handle_continue_player_login")
+        .expect("continue-login handler starts");
+    let (handler, _) = tail
+        .split_once("pub(super) fn player_login_combat_stats_like_cpp")
+        .expect("continue-login handler ends before packet helper");
+    assert!(handler.contains("load_login_admission_like_cpp"));
+    assert!(handler.contains("PlayerLoginAdmissionLoadedLikeCpp::BattlegroundLocation"));
+    assert!(handler.contains("PlayerLoginAdmissionLoadedLikeCpp::HomebindLocation"));
+    assert!(handler.contains("PlayerLoginAdmissionLoadedLikeCpp::GuildMembership"));
+    for statement in [
+        "CharStatements::SEL_CHARACTER_BGDATA",
+        "CharStatements::SEL_CHARACTER_HOMEBIND",
+        "CharStatements::SEL_GUILD_MEMBER",
+    ] {
+        assert!(
+            !handler.contains(statement),
+            "handler still names {statement}"
+        );
+    }
 }
 
 #[tokio::test]
