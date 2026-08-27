@@ -14382,6 +14382,66 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_character_base_load_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter"
+      ],
+      "enclosings": [
+        "fn player_character_base_load_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free core Player-login row (#414) currently owns the complete wow-database workflow fn player_character_base_load_row_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
+      "connection_affinity": "Pure decoding of one successful Characters result row; it opens no connection and executes no statement.",
+      "current_order": "Decodes the exact CHAR_SEL_CHARACTER columns consumed by the existing Rust Player-login path; required fields retain strict reads and optional fields remain Option values for caller-owned defaults.",
+      "failure_and_unknown_commit": "The helper receives only a successful non-empty result; query failure and absence are classified by the owning adapter, and reads have no unknown-COMMIT state.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_character_base_load_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter"
+      ],
+      "enclosings": [
+        "fn player_character_base_load_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free core Player-login row (#414) currently owns the complete wow-database workflow fn player_character_base_load_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
+      "connection_affinity": "Pure Characters-database statement construction; one semantic Player GUID selects the existing core login statement.",
+      "current_order": "Builds exactly CHAR_SEL_CHARACTER with the existing UInt64 GUID bind and introduces no wider query reordering.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning adapter classifies the later read as loaded, absent or failed.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_character_save_statement_like_cpp",
       "source_class": "production",
       "packages": [
@@ -14740,6 +14800,36 @@
       "connection_affinity": "Each collection read uses the configured Login adapter; these read-only queries do not claim a wider transaction.",
       "current_order": "Runs exactly the statement sequence selected by the semantic request; item appearances and favourites remain independent and ordered.",
       "failure_and_unknown_commit": "A failed single-query collection returns Failed; the two appearance reads retain independent Loaded/Failed outcomes so one failure does not erase the other result.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::load_character_base_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::load_character_base_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free core Player-login row (#414) currently owns the complete wow-database workflow impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::load_character_base_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
+      "connection_affinity": "The request uses the configured Characters adapter and exactly one prepared read; no transaction or wider affinity is inferred.",
+      "current_order": "Executes the core character read at the same point before the remaining login queries, then returns the typed row without publishing Player state.",
+      "failure_and_unknown_commit": "A successful row returns Loaded(Some), an empty result returns Loaded(None), and a query error returns Failed; reads have no unknown-COMMIT state.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true

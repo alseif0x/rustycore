@@ -182,6 +182,81 @@ pub enum PlayerLoginAuxiliaryLoadRequestLikeCpp {
     TraitConfigs { player_guid: u64 },
 }
 
+/// The core `characters` row requested first by C++
+/// `CharacterLoginQueryHolder::Initialize` for `Player::LoadFromDB`.
+///
+/// The request deliberately carries only semantic identity. Statement choice,
+/// bind width and MariaDB row decoding remain private to `wow-database`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerCharacterBaseLoadRequestLikeCpp {
+    pub player_guid: u64,
+}
+
+impl PlayerCharacterBaseLoadRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
+/// The subset of C++ `PlayerLoadData` currently consumed by Rust's represented
+/// login path. Optional columns remain unknown across the adapter boundary so
+/// the Player lifecycle caller, not the database adapter, retains its existing
+/// fallback rules.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayerCharacterBaseLoadRowLikeCpp {
+    pub name: String,
+    pub race: u8,
+    pub class: u8,
+    pub gender: u8,
+    pub level: u8,
+    pub xp: Option<u32>,
+    pub money: Option<u64>,
+    pub inventory_slots: Option<u8>,
+    pub bank_slots: Option<u8>,
+    pub rest_state: Option<u8>,
+    pub player_flags: Option<u32>,
+    pub player_flags_ex: Option<u32>,
+    pub position_x: Option<f32>,
+    pub position_y: Option<f32>,
+    pub position_z: Option<f32>,
+    pub map_id: Option<u16>,
+    pub orientation: Option<f32>,
+    pub create_mode: Option<u8>,
+    pub total_played_time: Option<u32>,
+    pub level_played_time: Option<u32>,
+    pub rest_bonus: Option<f32>,
+    pub logout_time_secs: Option<u64>,
+    pub logout_was_resting: Option<u8>,
+    pub talent_reset_cost: Option<u32>,
+    pub talent_reset_time_secs: Option<u64>,
+    pub active_talent_group: Option<u8>,
+    pub bonus_talent_groups: Option<u8>,
+    pub transport_x: Option<f32>,
+    pub transport_y: Option<f32>,
+    pub transport_z: Option<f32>,
+    pub transport_orientation: Option<f32>,
+    pub transport_guid_low: Option<u64>,
+    pub summoned_pet_number: Option<u32>,
+    pub at_login_flags: Option<u16>,
+    pub zone_id: Option<u16>,
+    pub dungeon_difficulty: Option<u32>,
+    pub chosen_title: Option<u32>,
+    pub health: Option<u32>,
+    pub powers: [Option<u32>; 10],
+    pub explored_zones: String,
+    pub known_titles: Option<String>,
+    pub raid_difficulty: Option<u32>,
+    pub legacy_raid_difficulty: Option<u32>,
+}
+
+/// A read has no ambiguous-COMMIT state. `Loaded(None)` preserves the distinct
+/// C++ missing-character branch; a driver failure remains separately reported.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PlayerCharacterBaseLoadOutcomeLikeCpp {
+    Loaded(Option<PlayerCharacterBaseLoadRowLikeCpp>),
+    Failed { reason: String },
+}
+
 /// One logout-time clear of the represented Player buyback inventory.
 ///
 /// The adapter deletes each item from `character_inventory` and then from
@@ -1046,6 +1121,14 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
         request: PlayerLoginTransportLoadRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PlayerLoginTransportLoadOutcomeLikeCpp>;
 
+    /// Load the core `characters` row consumed by `Player::LoadFromDB`.
+    /// Gameplay validation, fallback values and publication remain in the
+    /// Player lifecycle owner.
+    fn load_character_base_like_cpp<'a>(
+        &'a self,
+        request: PlayerCharacterBaseLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerCharacterBaseLoadOutcomeLikeCpp>;
+
     /// Load one account-wide collection from the Login database. The caller
     /// retains collection validation and represented-state publication.
     fn load_account_collection_like_cpp<'a>(
@@ -1172,6 +1255,14 @@ mod tests {
                 rest: None,
             }
             .logical_database(),
+            LogicalDatabaseLikeCpp::Characters
+        );
+    }
+
+    #[test]
+    fn character_base_load_names_the_characters_database_like_cpp() {
+        assert_eq!(
+            PlayerCharacterBaseLoadRequestLikeCpp { player_guid: 7 }.logical_database(),
             LogicalDatabaseLikeCpp::Characters
         );
     }
