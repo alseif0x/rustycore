@@ -13,10 +13,11 @@ use std::sync::Mutex;
 use wow_persistence::{
     AccountCollectionLoadOutcomeLikeCpp, AccountCollectionLoadRequestLikeCpp,
     AccountCollectionSaveLikeCpp, AccountMaskBlockLikeCpp, LogicalDatabaseLikeCpp,
-    PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerCharacterSaveRequestLikeCpp,
-    PlayerCharacterSaveResultLikeCpp, PlayerHomebindPersistenceRequestLikeCpp,
-    PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
-    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerOfflineMarkLikeCpp,
+    PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerBuybackClearRequestLikeCpp,
+    PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
+    PlayerHomebindPersistenceRequestLikeCpp, PlayerLifecyclePortLikeCpp,
+    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
+    PlayerOfflineMarkLikeCpp,
 };
 
 struct RecordingPortLikeCpp {
@@ -24,6 +25,7 @@ struct RecordingPortLikeCpp {
     collection_loads: Mutex<Vec<AccountCollectionLoadRequestLikeCpp>>,
     collections: Mutex<Vec<AccountCollectionSaveLikeCpp>>,
     character_saves: Mutex<Vec<PlayerCharacterSaveRequestLikeCpp>>,
+    buyback_clears: Mutex<Vec<PlayerBuybackClearRequestLikeCpp>>,
     outcome: PersistenceOutcomeLikeCpp,
 }
 
@@ -34,6 +36,7 @@ impl RecordingPortLikeCpp {
             collection_loads: Mutex::new(Vec::new()),
             collections: Mutex::new(Vec::new()),
             character_saves: Mutex::new(Vec::new()),
+            buyback_clears: Mutex::new(Vec::new()),
             outcome,
         })
     }
@@ -45,6 +48,9 @@ impl RecordingPortLikeCpp {
     }
     fn character_saves(&self) -> Vec<PlayerCharacterSaveRequestLikeCpp> {
         self.character_saves.lock().unwrap().clone()
+    }
+    fn buyback_clears(&self) -> Vec<PlayerBuybackClearRequestLikeCpp> {
+        self.buyback_clears.lock().unwrap().clone()
     }
 }
 
@@ -62,6 +68,15 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         &'a self,
         _request: PlayerHomebindPersistenceRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        let outcome = self.outcome.clone();
+        Box::pin(async move { outcome })
+    }
+
+    fn clear_buyback_like_cpp<'a>(
+        &'a self,
+        request: PlayerBuybackClearRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        self.buyback_clears.lock().unwrap().push(request);
         let outcome = self.outcome.clone();
         Box::pin(async move { outcome })
     }
@@ -196,6 +211,65 @@ async fn unknown_character_save_commit_fences_and_preserves_dirty_state_like_cpp
             .durable_loot_money_persistence_tracker_like_cpp()
             .is_indeterminate_like_cpp()
     );
+}
+
+fn represented_buyback_item_like_cpp(db_guid: u64) -> InventoryItem {
+    InventoryItem {
+        guid: ObjectGuid::create_item(1, db_guid as i64),
+        entry_id: 25,
+        db_guid,
+        inventory_type: None,
+    }
+}
+
+#[tokio::test]
+async fn logout_buyback_clear_reaches_port_and_publishes_only_after_apply_like_cpp() {
+    let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7500_0101)));
+    session.insert_buyback_item_like_cpp(94, represented_buyback_item_like_cpp(0x8100_0001));
+
+    session.clear_buyback_on_logout().await;
+
+    assert_eq!(
+        port.buyback_clears(),
+        vec![PlayerBuybackClearRequestLikeCpp {
+            player_guid: 0x7500_0101,
+            item_db_guids: vec![0x8100_0001],
+        }]
+    );
+    assert!(session.buyback_items_like_cpp().is_empty());
+}
+
+#[tokio::test]
+async fn logout_buyback_clear_preserves_runtime_for_failed_and_unknown_durability_like_cpp() {
+    for outcome in [
+        PersistenceOutcomeLikeCpp::Failed {
+            reason: "rolled back before COMMIT".to_owned(),
+        },
+        PersistenceOutcomeLikeCpp::Unknown {
+            reason: "connection lost after COMMIT".to_owned(),
+        },
+    ] {
+        let (mut session, port) = session_with_port(outcome);
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7500_0102)));
+        session.insert_buyback_item_like_cpp(94, represented_buyback_item_like_cpp(0x8100_0002));
+
+        session.clear_buyback_on_logout().await;
+
+        assert_eq!(port.buyback_clears().len(), 1);
+        assert!(session.buyback_items_like_cpp().contains_key(&94));
+    }
+}
+
+#[tokio::test]
+async fn logout_buyback_clear_without_port_does_not_fabricate_durable_success_like_cpp() {
+    let (mut session, _, _) = make_session();
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7500_0103)));
+    session.insert_buyback_item_like_cpp(94, represented_buyback_item_like_cpp(0x8100_0003));
+
+    session.clear_buyback_on_logout().await;
+
+    assert!(session.buyback_items_like_cpp().contains_key(&94));
 }
 
 /// Each offline mark reaches the port as its own request, naming the logical
