@@ -20,8 +20,9 @@ use wow_persistence::{
     PlayerBattlegroundLocationLoadRowLikeCpp, PlayerBuybackClearRequestLikeCpp,
     PlayerCharacterBaseLoadOutcomeLikeCpp, PlayerCharacterBaseLoadRequestLikeCpp,
     PlayerCharacterBaseLoadRowLikeCpp, PlayerCharacterSaveRequestLikeCpp,
-    PlayerCharacterSaveResultLikeCpp, PlayerCufProfileSaveLikeCpp,
-    PlayerCustomizationLoadRowLikeCpp, PlayerEquipmentSetSaveLikeCpp,
+    PlayerCharacterSaveResultLikeCpp, PlayerCufProfileLoadRowLikeCpp, PlayerCufProfileSaveLikeCpp,
+    PlayerCurrencyLoadRowLikeCpp, PlayerCustomizationLoadRowLikeCpp,
+    PlayerEquipmentSetLoadRowLikeCpp, PlayerEquipmentSetSaveLikeCpp,
     PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp,
     PlayerGuildMembershipLoadRowLikeCpp, PlayerHomebindLocationLoadRowLikeCpp,
     PlayerHomebindPersistenceRequestLikeCpp, PlayerInitialWorldStateRowsLikeCpp,
@@ -39,8 +40,8 @@ use wow_persistence::{
     PlayerSpellChargeLoadRowLikeCpp, PlayerSpellCooldownLoadRowLikeCpp,
     PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp,
     PlayerTalentResetPersistenceRequestLikeCpp, PlayerTraitConfigLoadRowLikeCpp,
-    PlayerTraitEntryLoadRowLikeCpp, PlayerVoidStorageSaveLikeCpp,
-    PlayerXpPersistenceRequestLikeCpp,
+    PlayerTraitEntryLoadRowLikeCpp, PlayerTransmogOutfitLoadRowLikeCpp,
+    PlayerVoidStorageSaveLikeCpp, PlayerXpPersistenceRequestLikeCpp,
 };
 
 use crate::params::PreparedStatement;
@@ -1241,7 +1242,39 @@ fn player_login_auxiliary_load_statement_like_cpp(
             statement.set_u64(0, player_guid);
             statement
         }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::EquipmentSets { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHARACTER_EQUIPMENTSETS);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::TransmogOutfits { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHARACTER_TRANSMOG_OUTFITS);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::CufProfiles { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHAR_CUF_PROFILES);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::Currencies { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_PLAYER_CURRENCY);
+            statement.set_u64(0, player_guid);
+            statement
+        }
     }
+}
+
+fn nonnegative_i64_to_u64_like_cpp(value: i64) -> Option<u64> {
+    u64::try_from(value).ok()
+}
+
+fn nonnegative_i32_to_u32_like_cpp(value: i32) -> Option<u32> {
+    u32::try_from(value).ok()
 }
 
 fn player_character_base_load_statement_like_cpp(
@@ -2386,6 +2419,109 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                     }
                     PlayerLoginAuxiliaryLoadedLikeCpp::GroupMembership(rows)
                 }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::EquipmentSets { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerEquipmentSetLoadRowLikeCpp {
+                                set_guid: result.try_read::<u64>(0).unwrap_or(0),
+                                set_id: result.try_read::<u8>(1).unwrap_or(0),
+                                name: result.try_read(2).unwrap_or_default(),
+                                icon: result.try_read(3).unwrap_or_default(),
+                                ignore_mask: result.try_read::<u32>(4).unwrap_or(0),
+                                assigned_spec_index: result.try_read::<i32>(5).unwrap_or(-1),
+                                item_low_guids: (0..19)
+                                    .map(|slot| result.try_read::<u64>(6 + slot).unwrap_or(0))
+                                    .collect(),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::EquipmentSets(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::TransmogOutfits { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            let set_guid = result
+                                .try_read::<i64>(0)
+                                .and_then(nonnegative_i64_to_u64_like_cpp)
+                                .or_else(|| result.try_read::<u64>(0))
+                                .unwrap_or(0);
+                            let ignore_mask = result
+                                .try_read::<i32>(4)
+                                .and_then(nonnegative_i32_to_u32_like_cpp)
+                                .or_else(|| result.try_read::<u32>(4))
+                                .unwrap_or(0);
+                            rows.push(PlayerTransmogOutfitLoadRowLikeCpp {
+                                set_guid,
+                                set_id: result.try_read::<u8>(1).unwrap_or(0),
+                                name: result.try_read(2).unwrap_or_default(),
+                                icon: result.try_read(3).unwrap_or_default(),
+                                ignore_mask,
+                                appearances: (0..19)
+                                    .map(|slot| result.try_read::<i32>(5 + slot).unwrap_or(0))
+                                    .collect(),
+                                enchants: [
+                                    result.try_read::<i32>(24).unwrap_or(0),
+                                    result.try_read::<i32>(25).unwrap_or(0),
+                                ],
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::TransmogOutfits(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::CufProfiles { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerCufProfileLoadRowLikeCpp {
+                                id: result.try_read::<u8>(0).unwrap_or(0),
+                                name: result.try_read(1).unwrap_or_default(),
+                                frame_height: result.try_read::<u16>(2).unwrap_or(0),
+                                frame_width: result.try_read::<u16>(3).unwrap_or(0),
+                                sort_by: result.try_read::<u8>(4).unwrap_or(0),
+                                health_text: result.try_read::<u8>(5).unwrap_or(0),
+                                bool_options: result.try_read::<u32>(6).unwrap_or(0),
+                                top_point: result.try_read::<u8>(7).unwrap_or(0),
+                                bottom_point: result.try_read::<u8>(8).unwrap_or(0),
+                                left_point: result.try_read::<u8>(9).unwrap_or(0),
+                                top_offset: result.try_read::<u16>(10).unwrap_or(0),
+                                bottom_offset: result.try_read::<u16>(11).unwrap_or(0),
+                                left_offset: result.try_read::<u16>(12).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::CufProfiles(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Currencies { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerCurrencyLoadRowLikeCpp {
+                                currency_id: result.try_read::<u16>(0).unwrap_or(0),
+                                quantity: result.try_read::<u32>(1).unwrap_or(0),
+                                weekly_quantity: result.try_read::<u32>(2).unwrap_or(0),
+                                tracked_quantity: result.try_read::<u32>(3).unwrap_or(0),
+                                increased_cap_quantity: result.try_read::<u32>(4).unwrap_or(0),
+                                earned_quantity: result.try_read::<u32>(5).unwrap_or(0),
+                                flags: result.try_read::<u8>(6).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::Currencies(rows)
+                }
             };
             PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(loaded)
         })
@@ -2794,6 +2930,26 @@ mod tests {
                 CharStatements::SEL_GROUP_MEMBER.sql(),
                 vec![crate::SqlParam::U64(77)],
             ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::EquipmentSets { player_guid: 77 },
+                CharStatements::SEL_CHARACTER_EQUIPMENTSETS.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::TransmogOutfits { player_guid: 77 },
+                CharStatements::SEL_CHARACTER_TRANSMOG_OUTFITS.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::CufProfiles { player_guid: 77 },
+                CharStatements::SEL_CHAR_CUF_PROFILES.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Currencies { player_guid: 77 },
+                CharStatements::SEL_PLAYER_CURRENCY.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
         ];
 
         for (request, expected_sql, expected_params) in cases {
@@ -2801,6 +2957,14 @@ mod tests {
             assert_eq!(statement.sql(), expected_sql);
             assert_eq!(statement.params(), expected_params);
         }
+    }
+
+    #[test]
+    fn transmog_signed_schema_values_decode_as_cpp_unsigned_fields() {
+        assert_eq!(nonnegative_i64_to_u64_like_cpp(3), Some(3));
+        assert_eq!(nonnegative_i32_to_u32_like_cpp(0x7_FFFF), Some(0x7_FFFF));
+        assert_eq!(nonnegative_i64_to_u64_like_cpp(-1), None);
+        assert_eq!(nonnegative_i32_to_u32_like_cpp(-1), None);
     }
 
     #[test]
