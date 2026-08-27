@@ -870,6 +870,36 @@ pub struct PlayerVoidStorageSaveLikeCpp {
     pub context: u8,
 }
 
+/// One retained talent row written by C++ `Player::_SaveTalents` after the
+/// active talent group has been reset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerTalentResetSaveRowLikeCpp {
+    pub talent_id: u32,
+    pub rank: u8,
+    pub talent_group: u8,
+}
+
+/// The complete represented talent-reset transaction.
+///
+/// `money_before`/`money_after` are part of the durability contract rather
+/// than gameplay state here: the MariaDB adapter uses the absolute money row
+/// to reconcile a lost COMMIT reply. Equal values deliberately prove nothing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerTalentResetPersistenceRequestLikeCpp {
+    pub player_guid: u64,
+    pub money_before: u64,
+    pub money_after: u64,
+    pub reset_cost: u32,
+    pub reset_time_secs: u64,
+    pub retained_talents: Vec<PlayerTalentResetSaveRowLikeCpp>,
+}
+
+impl PlayerTalentResetPersistenceRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerVoidStorageSlotSaveLikeCpp {
     pub slot: u8,
@@ -949,6 +979,14 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
     fn clear_buyback_like_cpp<'a>(
         &'a self,
         request: PlayerBuybackClearRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
+
+    /// Persist one represented talent reset as an ordered Characters
+    /// transaction. The adapter reconciles an ambiguous COMMIT with the exact
+    /// before/after money marker and returns `Unknown` when it cannot prove it.
+    fn persist_talent_reset_like_cpp<'a>(
+        &'a self,
+        request: PlayerTalentResetPersistenceRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 
     /// Count this account's live characters in Characters, then publish the
@@ -1069,6 +1107,22 @@ mod tests {
         ] {
             assert_eq!(request.logical_database(), LogicalDatabaseLikeCpp::World);
         }
+    }
+
+    #[test]
+    fn talent_reset_persistence_names_the_characters_database_like_cpp() {
+        let request = PlayerTalentResetPersistenceRequestLikeCpp {
+            player_guid: 7,
+            money_before: 10,
+            money_after: 5,
+            reset_cost: 5,
+            reset_time_secs: 123,
+            retained_talents: Vec::new(),
+        };
+        assert_eq!(
+            request.logical_database(),
+            LogicalDatabaseLikeCpp::Characters
+        );
     }
 
     #[test]

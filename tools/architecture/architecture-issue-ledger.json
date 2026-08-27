@@ -62,6 +62,7 @@
     402,
     404,
     406,
+    408,
     189,
     192,
     193,
@@ -1094,7 +1095,7 @@
     },
     {
       "number": 406,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.12] Move transport login reads behind the lifecycle port",
       "kind": "slice",
       "parents": [
@@ -1103,6 +1104,19 @@
       ],
       "depends_on": [
         404
+      ]
+    },
+    {
+      "number": 408,
+      "state": "open",
+      "title": "[ARCH.DB.13] Move talent-reset transaction behind the lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        406
       ]
     }
   ]

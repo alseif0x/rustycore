@@ -55457,33 +55457,6 @@ fn give_xp_runtime_does_not_spend_rested_bonus_without_victim_like_cpp() {
 }
 
 #[test]
-fn character_talent_reset_state_save_statement_matches_cpp_bind_order() {
-    let guid = ObjectGuid::create_player(1, 5004);
-
-    let stmt = WorldSession::build_character_talent_reset_state_save_statement_like_cpp(
-        150_000,
-        1_723_456_789,
-        guid.counter() as u64,
-    );
-
-    assert_eq!(
-        stmt.sql(),
-        CharStatements::UPD_CHAR_TALENT_RESET_STATE.sql()
-    );
-    assert!(matches!(
-        stmt.params()[0],
-        wow_database::SqlParam::U32(150_000)
-    ));
-    assert!(matches!(
-        stmt.params()[1],
-        wow_database::SqlParam::U64(1_723_456_789)
-    ));
-    assert!(
-        matches!(stmt.params()[2], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
-    );
-}
-
-#[test]
 fn represented_explored_zones_load_preserves_canonical_snapshot_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 0xE101);
@@ -57351,7 +57324,7 @@ fn update_talent_data_includes_loaded_talents_and_glyphs_like_cpp() {
 }
 
 #[test]
-fn talent_reset_transaction_plan_clears_active_preserves_inactive_and_persists_zero_cost() {
+fn talent_reset_persistence_plan_clears_active_preserves_inactive_and_keeps_zero_cost_marker() {
     let (mut session, _, _) = make_session();
     session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries([
         test_talent_entry_like_cpp(101, 0, 50_101),
@@ -57380,59 +57353,27 @@ fn talent_reset_transaction_plan_clears_active_preserves_inactive_and_persists_z
     session.mark_represented_talents_loaded_like_cpp();
     session.set_known_spells_like_cpp(vec![50_101, 60_101, 50_202]);
 
-    let (state_plan, statements) = session
-        .represented_talent_reset_transaction_statement_plan_like_cpp(42, 777, 777, 0, 123)
+    let (state_plan, request) = session
+        .represented_talent_reset_persistence_plan_like_cpp(42, 777, 777, 0, 123)
         .expect("coherent talent state should produce an atomic reset plan");
 
     assert_eq!(state_plan.active_group, 0);
     assert_eq!(state_plan.active_talents, BTreeMap::from([(101, 0)]));
     assert!(state_plan.post_talents[0].is_empty());
     assert_eq!(state_plan.post_talents[1], BTreeMap::from([(202, 1)]));
-    assert_eq!(statements.len(), 4);
-    assert_eq!(statements[0].sql(), CharStatements::UPD_CHAR_MONEY.sql());
+    assert_eq!(request.player_guid, 42);
+    assert_eq!(request.money_before, 777);
+    assert_eq!(request.money_after, 777);
+    assert_eq!(request.reset_cost, 0);
+    assert_eq!(request.reset_time_secs, 123);
     assert_eq!(
-        statements[0].params(),
-        &[
-            wow_database::SqlParam::U64(777),
-            wow_database::SqlParam::U64(42),
-        ],
-        "zero-cost reset still carries an absolute money marker in the same transaction"
-    );
-    assert_eq!(
-        statements[1].sql(),
-        CharStatements::UPD_CHAR_TALENT_RESET_STATE.sql()
-    );
-    assert_eq!(
-        statements[1].params(),
-        &[
-            wow_database::SqlParam::U32(0),
-            wow_database::SqlParam::U64(123),
-            wow_database::SqlParam::U64(42),
-        ]
-    );
-    assert_eq!(statements[2].sql(), CharStatements::DEL_CHAR_TALENT.sql());
-    assert_eq!(statements[3].sql(), CharStatements::INS_CHAR_TALENT.sql());
-    assert_eq!(
-        statements[3].params(),
-        &[
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U32(202),
-            wow_database::SqlParam::U8(1),
-            wow_database::SqlParam::U8(1),
-        ],
+        request.retained_talents,
+        vec![wow_persistence::PlayerTalentResetSaveRowLikeCpp {
+            talent_id: 202,
+            rank: 1,
+            talent_group: 1,
+        }],
         "the inactive talent group is reinserted after the delete-all"
-    );
-    assert!(
-        statements.iter().all(|statement| {
-            !matches!(
-                statement.sql(),
-                sql if sql == CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql()
-                    || sql == CharStatements::INS_CHAR_SPELL.sql()
-                    || sql == CharStatements::DEL_CHAR_SPELL_FAVORITE.sql()
-                    || sql == CharStatements::INS_CHAR_SPELL_FAVORITE.sql()
-            )
-        }),
-        "talent reset leaves character_spell ownership untouched until PlayerSpellMap is represented"
     );
 
     assert_eq!(session.player_gold_like_cpp(), 0);
@@ -57448,7 +57389,7 @@ fn talent_reset_transaction_plan_clears_active_preserves_inactive_and_persists_z
 }
 
 #[test]
-fn talent_reset_transaction_plan_persists_capped_fee_with_talent_delete() {
+fn talent_reset_persistence_plan_carries_capped_fee_and_empty_retained_set() {
     let (mut session, _, _) = make_session();
     session.mark_represented_talents_loaded_like_cpp();
     let month = TALENT_RESET_MONTH_SECS_LIKE_CPP;
@@ -57457,29 +57398,16 @@ fn talent_reset_transaction_plan_persists_capped_fee_with_talent_delete() {
     let cost = session.represented_next_reset_talents_cost_like_cpp(now);
     assert_eq!(cost, 500_000);
 
-    let (_, statements) = session
-        .represented_talent_reset_transaction_statement_plan_like_cpp(
-            42, 1_000_000, 500_000, cost, now,
-        )
+    let (_, request) = session
+        .represented_talent_reset_persistence_plan_like_cpp(42, 1_000_000, 500_000, cost, now)
         .expect("loaded empty active group should still persist its reset");
 
-    assert_eq!(statements.len(), 3);
-    assert_eq!(
-        statements[0].params(),
-        &[
-            wow_database::SqlParam::U64(500_000),
-            wow_database::SqlParam::U64(42),
-        ]
-    );
-    assert_eq!(
-        statements[1].params(),
-        &[
-            wow_database::SqlParam::U32(500_000),
-            wow_database::SqlParam::U64(now),
-            wow_database::SqlParam::U64(42),
-        ]
-    );
-    assert_eq!(statements[2].sql(), CharStatements::DEL_CHAR_TALENT.sql());
+    assert_eq!(request.player_guid, 42);
+    assert_eq!(request.money_before, 1_000_000);
+    assert_eq!(request.money_after, 500_000);
+    assert_eq!(request.reset_cost, 500_000);
+    assert_eq!(request.reset_time_secs, now);
+    assert!(request.retained_talents.is_empty());
 }
 
 #[test]
