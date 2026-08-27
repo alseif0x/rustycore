@@ -180,6 +180,13 @@ pub enum PlayerLoginAuxiliaryLoadRequestLikeCpp {
     SpellCharges { player_guid: u64 },
     TraitEntries { player_guid: u64 },
     TraitConfigs { player_guid: u64 },
+    PetStable { player_guid: u64 },
+    PetAuras { pet_number: u32 },
+    PetAuraEffects { pet_number: u32 },
+    PetSpells { pet_number: u32 },
+    PetSpellCooldowns { pet_number: u32 },
+    PetSpellCharges { pet_number: u32 },
+    PetDeclinedNames { player_guid: u64, pet_number: u32 },
 }
 
 /// Early Characters-database reads that decide where and under which guild
@@ -444,6 +451,75 @@ pub struct PlayerSpellChargeLoadRowLikeCpp {
     pub recharge_end: i64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerPetStableLoadRowLikeCpp {
+    pub pet_number: u32,
+    pub creature_id: u32,
+    pub display_id: u32,
+    pub level: u8,
+    pub experience: u32,
+    pub react_state: u8,
+    pub slot: i16,
+    pub name: String,
+    pub was_renamed: bool,
+    pub health: u32,
+    pub mana: u32,
+    pub action_bar: String,
+    pub last_save_time: u32,
+    pub created_by_spell_id: u32,
+    pub pet_type: u8,
+    pub specialization_id: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerPetAuraLoadRowLikeCpp {
+    pub caster_guid_binary: Vec<u8>,
+    pub spell_id: u32,
+    pub effect_mask: u32,
+    pub recalculate_mask: u32,
+    pub difficulty: u8,
+    pub stack_count: u8,
+    pub max_duration_ms: i32,
+    pub remain_time_ms: i32,
+    pub remain_charges: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerPetAuraEffectLoadRowLikeCpp {
+    pub caster_guid_binary: Vec<u8>,
+    pub spell_id: u32,
+    pub effect_mask: u32,
+    pub effect_index: u8,
+    pub amount: i32,
+    pub base_amount: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerPetSpellLoadRowLikeCpp {
+    pub spell_id: u32,
+    pub active: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerPetSpellCooldownLoadRowLikeCpp {
+    pub spell_id: u32,
+    pub cooldown_end_unix_secs: i64,
+    pub category_id: u32,
+    pub category_end_unix_secs: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerPetSpellChargeLoadRowLikeCpp {
+    pub category_id: u32,
+    pub recharge_start_unix_secs: i64,
+    pub recharge_end_unix_secs: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerPetDeclinedNamesLoadRowLikeCpp {
+    pub names: [String; 5],
+}
+
 /// One raw `character_trait_entry` row. Missing columns remain unknown so the
 /// Player owner can keep its represented authority incomplete instead of
 /// silently turning malformed database data into zero-valued gameplay state.
@@ -479,6 +555,13 @@ pub enum PlayerLoginAuxiliaryLoadedLikeCpp {
     SpellCharges(Vec<PlayerSpellChargeLoadRowLikeCpp>),
     TraitEntries(Vec<PlayerTraitEntryLoadRowLikeCpp>),
     TraitConfigs(Vec<PlayerTraitConfigLoadRowLikeCpp>),
+    PetStable(Vec<PlayerPetStableLoadRowLikeCpp>),
+    PetAuras(Vec<PlayerPetAuraLoadRowLikeCpp>),
+    PetAuraEffects(Vec<PlayerPetAuraEffectLoadRowLikeCpp>),
+    PetSpells(Vec<PlayerPetSpellLoadRowLikeCpp>),
+    PetSpellCooldowns(Vec<PlayerPetSpellCooldownLoadRowLikeCpp>),
+    PetSpellCharges(Vec<PlayerPetSpellChargeLoadRowLikeCpp>),
+    PetDeclinedNames(Vec<PlayerPetDeclinedNamesLoadRowLikeCpp>),
 }
 
 /// Read-only lifecycle loads have no unknown-COMMIT state: they either
@@ -1341,12 +1424,44 @@ mod tests {
             PlayerLoginAuxiliaryLoadRequestLikeCpp::InstanceTimeRestrictions { account_id: 2 },
             PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellCooldowns { player_guid: 1 },
             PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellCharges { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::TraitEntries { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::TraitConfigs { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::PetStable { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::PetAuras { pet_number: 2 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::PetAuraEffects { pet_number: 2 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::PetSpells { pet_number: 2 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::PetSpellCooldowns { pet_number: 2 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::PetSpellCharges { pet_number: 2 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::PetDeclinedNames {
+                player_guid: 1,
+                pet_number: 2,
+            },
         ] {
             assert_eq!(
                 request.logical_database(),
                 LogicalDatabaseLikeCpp::Characters
             );
         }
+    }
+
+    #[test]
+    fn pet_login_rows_keep_success_empty_and_failure_distinct_like_cpp() {
+        let loaded = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+            PlayerLoginAuxiliaryLoadedLikeCpp::PetSpells(vec![PlayerPetSpellLoadRowLikeCpp {
+                spell_id: 17253,
+                active: 1,
+            }]),
+        );
+        let empty = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+            PlayerLoginAuxiliaryLoadedLikeCpp::PetSpells(Vec::new()),
+        );
+        let failed = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+            reason: "pet query failed".to_owned(),
+        };
+
+        assert_ne!(loaded, empty);
+        assert_ne!(empty, failed);
+        assert_ne!(loaded, failed);
     }
 
     #[test]

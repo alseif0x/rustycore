@@ -32,7 +32,10 @@ use wow_persistence::{
     PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
     PlayerLoginAuxiliaryLoadedLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
     PlayerLoginTransportLoadRequestLikeCpp, PlayerLoginTransportLoadRowLikeCpp,
-    PlayerOfflineMarkLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
+    PlayerOfflineMarkLikeCpp, PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
+    PlayerPetDeclinedNamesLoadRowLikeCpp, PlayerPetSpellChargeLoadRowLikeCpp,
+    PlayerPetSpellCooldownLoadRowLikeCpp, PlayerPetSpellLoadRowLikeCpp,
+    PlayerPetStableLoadRowLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
     PlayerSpellChargeLoadRowLikeCpp, PlayerSpellCooldownLoadRowLikeCpp,
     PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp,
     PlayerTalentResetPersistenceRequestLikeCpp, PlayerTraitConfigLoadRowLikeCpp,
@@ -1190,6 +1193,49 @@ fn player_login_auxiliary_load_statement_like_cpp(
             statement.set_u64(0, player_guid);
             statement
         }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::PetStable { player_guid } => {
+            let mut statement = PreparedStatement::for_statement(CharStatements::SEL_CHAR_PETS);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::PetAuras { pet_number } => {
+            let mut statement = PreparedStatement::for_statement(CharStatements::SEL_PET_AURA);
+            statement.set_u32(0, pet_number);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::PetAuraEffects { pet_number } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_PET_AURA_EFFECT);
+            statement.set_u32(0, pet_number);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::PetSpells { pet_number } => {
+            let mut statement = PreparedStatement::for_statement(CharStatements::SEL_PET_SPELL);
+            statement.set_u32(0, pet_number);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::PetSpellCooldowns { pet_number } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_PET_SPELL_COOLDOWN);
+            statement.set_u32(0, pet_number);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::PetSpellCharges { pet_number } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_PET_SPELL_CHARGES);
+            statement.set_u32(0, pet_number);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::PetDeclinedNames {
+            player_guid,
+            pet_number,
+        } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_PET_DECLINED_NAME);
+            statement.set_u64(0, player_guid);
+            statement.set_u32(1, pet_number);
+            statement
+        }
     }
 }
 
@@ -2186,6 +2232,143 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                     }
                     PlayerLoginAuxiliaryLoadedLikeCpp::TraitConfigs(rows)
                 }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::PetStable { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerPetStableLoadRowLikeCpp {
+                                pet_number: result.try_read::<u32>(0).unwrap_or(0),
+                                creature_id: result.try_read::<u32>(1).unwrap_or(0),
+                                display_id: result.try_read::<u32>(2).unwrap_or(0),
+                                level: result.try_read::<u8>(3).unwrap_or(1),
+                                experience: result.try_read::<u32>(4).unwrap_or(0),
+                                react_state: result.try_read::<u8>(5).unwrap_or(0),
+                                slot: result.try_read::<i16>(6).unwrap_or(-1),
+                                name: result.read_string(7),
+                                was_renamed: result.try_read::<bool>(8).unwrap_or(false),
+                                health: result.try_read::<u32>(9).unwrap_or(1),
+                                mana: result.try_read::<u32>(10).unwrap_or(0),
+                                action_bar: result.try_read::<String>(11).unwrap_or_default(),
+                                last_save_time: result.try_read::<u32>(12).unwrap_or(0),
+                                created_by_spell_id: result.try_read::<u32>(13).unwrap_or(0),
+                                pet_type: result.try_read::<u8>(14).unwrap_or(0),
+                                specialization_id: result.try_read::<u16>(15).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::PetStable(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::PetAuras { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerPetAuraLoadRowLikeCpp {
+                                caster_guid_binary: result
+                                    .try_read::<Vec<u8>>(0)
+                                    .unwrap_or_default(),
+                                spell_id: result.try_read::<u32>(1).unwrap_or(0),
+                                effect_mask: result.try_read::<u32>(2).unwrap_or(0),
+                                recalculate_mask: result.try_read::<u32>(3).unwrap_or(0),
+                                difficulty: result.try_read::<u8>(4).unwrap_or(0),
+                                stack_count: result.try_read::<u8>(5).unwrap_or(0),
+                                max_duration_ms: result.try_read::<i32>(6).unwrap_or(0),
+                                remain_time_ms: result.try_read::<i32>(7).unwrap_or(0),
+                                remain_charges: result.try_read::<u8>(8).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::PetAuras(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::PetAuraEffects { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerPetAuraEffectLoadRowLikeCpp {
+                                caster_guid_binary: result
+                                    .try_read::<Vec<u8>>(0)
+                                    .unwrap_or_default(),
+                                spell_id: result.try_read::<u32>(1).unwrap_or(0),
+                                effect_mask: result.try_read::<u32>(2).unwrap_or(0),
+                                effect_index: result.try_read::<u8>(3).unwrap_or(0),
+                                amount: result.try_read::<i32>(4).unwrap_or(0),
+                                base_amount: result.try_read::<i32>(5).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::PetAuraEffects(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::PetSpells { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerPetSpellLoadRowLikeCpp {
+                                spell_id: result.try_read::<u32>(0).unwrap_or(0),
+                                active: result.try_read::<u8>(1).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::PetSpells(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::PetSpellCooldowns { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerPetSpellCooldownLoadRowLikeCpp {
+                                spell_id: result.try_read::<u32>(0).unwrap_or(0),
+                                cooldown_end_unix_secs: result.try_read::<i64>(1).unwrap_or(0),
+                                category_id: result.try_read::<u32>(2).unwrap_or(0),
+                                category_end_unix_secs: result.try_read::<i64>(3).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::PetSpellCooldowns(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::PetSpellCharges { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerPetSpellChargeLoadRowLikeCpp {
+                                category_id: result.try_read::<u32>(0).unwrap_or(0),
+                                recharge_start_unix_secs: result.try_read::<i64>(1).unwrap_or(0),
+                                recharge_end_unix_secs: result.try_read::<i64>(2).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::PetSpellCharges(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::PetDeclinedNames { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        rows.push(PlayerPetDeclinedNamesLoadRowLikeCpp {
+                            names: [
+                                result.read_string(0),
+                                result.read_string(1),
+                                result.read_string(2),
+                                result.read_string(3),
+                                result.read_string(4),
+                            ],
+                        });
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::PetDeclinedNames(rows)
+                }
             };
             PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(loaded)
         })
@@ -2550,6 +2733,44 @@ mod tests {
                 PlayerLoginAuxiliaryLoadRequestLikeCpp::TraitConfigs { player_guid: 77 },
                 CharStatements::SEL_CHAR_TRAIT_CONFIGS.sql(),
                 vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::PetStable { player_guid: 77 },
+                CharStatements::SEL_CHAR_PETS.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::PetAuras { pet_number: 42 },
+                CharStatements::SEL_PET_AURA.sql(),
+                vec![crate::SqlParam::U32(42)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::PetAuraEffects { pet_number: 42 },
+                CharStatements::SEL_PET_AURA_EFFECT.sql(),
+                vec![crate::SqlParam::U32(42)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::PetSpells { pet_number: 42 },
+                CharStatements::SEL_PET_SPELL.sql(),
+                vec![crate::SqlParam::U32(42)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::PetSpellCooldowns { pet_number: 42 },
+                CharStatements::SEL_PET_SPELL_COOLDOWN.sql(),
+                vec![crate::SqlParam::U32(42)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::PetSpellCharges { pet_number: 42 },
+                CharStatements::SEL_PET_SPELL_CHARGES.sql(),
+                vec![crate::SqlParam::U32(42)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::PetDeclinedNames {
+                    player_guid: 77,
+                    pet_number: 42,
+                },
+                CharStatements::SEL_PET_DECLINED_NAME.sql(),
+                vec![crate::SqlParam::U64(77), crate::SqlParam::U32(42)],
             ),
         ];
 
