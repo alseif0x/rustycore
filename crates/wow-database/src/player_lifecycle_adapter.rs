@@ -17,28 +17,30 @@ use wow_persistence::{
     AccountCollectionLoadedLikeCpp, AccountCollectionRowsLikeCpp, AccountCollectionSaveLikeCpp,
     AccountHeirloomLoadRowLikeCpp, AccountMaskBlockLikeCpp, AccountMountLoadRowLikeCpp,
     AccountToyLoadRowLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
-    PlayerBattlegroundLocationLoadRowLikeCpp, PlayerBuybackClearRequestLikeCpp,
-    PlayerCharacterBaseLoadOutcomeLikeCpp, PlayerCharacterBaseLoadRequestLikeCpp,
-    PlayerCharacterBaseLoadRowLikeCpp, PlayerCharacterSaveRequestLikeCpp,
-    PlayerCharacterSaveResultLikeCpp, PlayerCufProfileLoadRowLikeCpp, PlayerCufProfileSaveLikeCpp,
-    PlayerCurrencyLoadRowLikeCpp, PlayerCustomizationLoadRowLikeCpp,
-    PlayerEquipmentSetLoadRowLikeCpp, PlayerEquipmentSetSaveLikeCpp,
-    PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp,
-    PlayerGuildMembershipLoadRowLikeCpp, PlayerHomebindLocationLoadRowLikeCpp,
-    PlayerHomebindPersistenceRequestLikeCpp, PlayerInitialWorldStateRowsLikeCpp,
-    PlayerInitialWorldStateTemplateRowLikeCpp, PlayerInitialWorldStateValueRowLikeCpp,
-    PlayerInitialWorldStatesLoadOutcomeLikeCpp, PlayerInstanceTimeRestrictionLoadRowLikeCpp,
-    PlayerLifecyclePortLikeCpp, PlayerLoginAdmissionLoadOutcomeLikeCpp,
-    PlayerLoginAdmissionLoadRequestLikeCpp, PlayerLoginAdmissionLoadedLikeCpp,
-    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
-    PlayerLoginAuxiliaryLoadedLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
-    PlayerLoginTransportLoadRequestLikeCpp, PlayerLoginTransportLoadRowLikeCpp,
-    PlayerOfflineMarkLikeCpp, PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
+    PlayerActionButtonLoadRowLikeCpp, PlayerBattlegroundLocationLoadRowLikeCpp,
+    PlayerBuybackClearRequestLikeCpp, PlayerCharacterBaseLoadOutcomeLikeCpp,
+    PlayerCharacterBaseLoadRequestLikeCpp, PlayerCharacterBaseLoadRowLikeCpp,
+    PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
+    PlayerCufProfileLoadRowLikeCpp, PlayerCufProfileSaveLikeCpp, PlayerCurrencyLoadRowLikeCpp,
+    PlayerCustomizationLoadRowLikeCpp, PlayerEquipmentSetLoadRowLikeCpp,
+    PlayerEquipmentSetSaveLikeCpp, PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp,
+    PlayerGlyphLoadRowLikeCpp, PlayerGuildMembershipLoadRowLikeCpp,
+    PlayerHomebindLocationLoadRowLikeCpp, PlayerHomebindPersistenceRequestLikeCpp,
+    PlayerInitialWorldStateRowsLikeCpp, PlayerInitialWorldStateTemplateRowLikeCpp,
+    PlayerInitialWorldStateValueRowLikeCpp, PlayerInitialWorldStatesLoadOutcomeLikeCpp,
+    PlayerInstanceTimeRestrictionLoadRowLikeCpp, PlayerLifecyclePortLikeCpp,
+    PlayerLoginAdmissionLoadOutcomeLikeCpp, PlayerLoginAdmissionLoadRequestLikeCpp,
+    PlayerLoginAdmissionLoadedLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
+    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginAuxiliaryLoadedLikeCpp,
+    PlayerLoginTransportLoadOutcomeLikeCpp, PlayerLoginTransportLoadRequestLikeCpp,
+    PlayerLoginTransportLoadRowLikeCpp, PlayerOfflineMarkLikeCpp,
+    PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
     PlayerPetDeclinedNamesLoadRowLikeCpp, PlayerPetSpellChargeLoadRowLikeCpp,
     PlayerPetSpellCooldownLoadRowLikeCpp, PlayerPetSpellLoadRowLikeCpp,
     PlayerPetStableLoadRowLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
-    PlayerSpellChargeLoadRowLikeCpp, PlayerSpellCooldownLoadRowLikeCpp,
-    PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp,
+    PlayerReputationLoadRowLikeCpp, PlayerSkillLoadRowLikeCpp, PlayerSpellChargeLoadRowLikeCpp,
+    PlayerSpellCooldownLoadRowLikeCpp, PlayerSpellLoadRowLikeCpp, PlayerSpellSaveGroupLikeCpp,
+    PlayerSpellStateLikeCpp, PlayerTalentLoadRowLikeCpp,
     PlayerTalentResetPersistenceRequestLikeCpp, PlayerTraitConfigLoadRowLikeCpp,
     PlayerTraitEntryLoadRowLikeCpp, PlayerTransmogOutfitLoadRowLikeCpp,
     PlayerVoidStorageSaveLikeCpp, PlayerXpPersistenceRequestLikeCpp,
@@ -1263,6 +1265,54 @@ fn player_login_auxiliary_load_statement_like_cpp(
         PlayerLoginAuxiliaryLoadRequestLikeCpp::Currencies { player_guid } => {
             let mut statement =
                 PreparedStatement::for_statement(CharStatements::SEL_PLAYER_CURRENCY);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::Spells { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHARACTER_SPELL);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellFavorites { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHARACTER_SPELL_FAVORITES);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::Skills { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHARACTER_SKILLS);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::Talents { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHARACTER_TALENTS);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::Glyphs { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHARACTER_GLYPHS);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::ActionButtons {
+            player_guid,
+            active_spec,
+            trait_config_id,
+        } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHARACTER_ACTIONS_SPEC);
+            statement.set_u64(0, player_guid);
+            statement.set_u8(1, active_spec);
+            statement.set_i32(2, trait_config_id);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::Reputation { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHARACTER_REPUTATION);
             statement.set_u64(0, player_guid);
             statement
         }
@@ -2522,6 +2572,116 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                     }
                     PlayerLoginAuxiliaryLoadedLikeCpp::Currencies(rows)
                 }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Spells { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerSpellLoadRowLikeCpp {
+                                spell_id: result.try_read::<u32>(0).unwrap_or(0),
+                                active: result.try_read::<u8>(1).unwrap_or(1),
+                                disabled: result.try_read::<u8>(2).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::Spells(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellFavorites { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(result.try_read::<u32>(0).unwrap_or(0));
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::SpellFavorites(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Skills { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            let value = result.try_read::<u16>(1).unwrap_or(0);
+                            rows.push(PlayerSkillLoadRowLikeCpp {
+                                skill_id: result.try_read::<u16>(0).unwrap_or(0),
+                                value,
+                                max: result.try_read::<u16>(2).unwrap_or(value),
+                                profession_slot: result.try_read::<i8>(3).unwrap_or(-1),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::Skills(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Talents { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerTalentLoadRowLikeCpp {
+                                talent_id: result.try_read::<u32>(0).unwrap_or(0),
+                                rank: result.try_read::<u8>(1).unwrap_or(0),
+                                talent_group: result.try_read::<u8>(2).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::Talents(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Glyphs { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerGlyphLoadRowLikeCpp {
+                                talent_group: result.try_read::<u8>(0).unwrap_or(0),
+                                glyph_slot: result.try_read::<u8>(1).unwrap_or(0),
+                                glyph_id: result.try_read::<u16>(2).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::Glyphs(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::ActionButtons { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerActionButtonLoadRowLikeCpp {
+                                button: result.read(0),
+                                action: result.try_read::<u32>(1).unwrap_or(0),
+                                button_type: result.try_read::<u8>(2).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::ActionButtons(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Reputation { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerReputationLoadRowLikeCpp {
+                                faction_id: result.try_read::<u16>(0).unwrap_or(0),
+                                standing: result.try_read::<i32>(1).unwrap_or(0),
+                                flags: result.try_read::<u16>(2).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::Reputation(rows)
+                }
             };
             PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(loaded)
         })
@@ -2948,6 +3108,49 @@ mod tests {
             (
                 PlayerLoginAuxiliaryLoadRequestLikeCpp::Currencies { player_guid: 77 },
                 CharStatements::SEL_PLAYER_CURRENCY.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Spells { player_guid: 77 },
+                CharStatements::SEL_CHARACTER_SPELL.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellFavorites { player_guid: 77 },
+                CharStatements::SEL_CHARACTER_SPELL_FAVORITES.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Skills { player_guid: 77 },
+                CharStatements::SEL_CHARACTER_SKILLS.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Talents { player_guid: 77 },
+                CharStatements::SEL_CHARACTER_TALENTS.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Glyphs { player_guid: 77 },
+                CharStatements::SEL_CHARACTER_GLYPHS.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::ActionButtons {
+                    player_guid: 77,
+                    active_spec: 2,
+                    trait_config_id: -3,
+                },
+                CharStatements::SEL_CHARACTER_ACTIONS_SPEC.sql(),
+                vec![
+                    crate::SqlParam::U64(77),
+                    crate::SqlParam::U8(2),
+                    crate::SqlParam::I32(-3),
+                ],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::Reputation { player_guid: 77 },
+                CharStatements::SEL_CHARACTER_REPUTATION.sql(),
                 vec![crate::SqlParam::U64(77)],
             ),
         ];

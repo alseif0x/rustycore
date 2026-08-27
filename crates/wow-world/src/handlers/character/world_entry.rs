@@ -1586,79 +1586,80 @@ impl WorldSession {
         let mut skill_rewarded_removed_spells = HashSet::new();
         let mut loaded_player_spell_rows_complete_like_cpp = false;
         let mut favorite_spell_rows_complete_like_cpp = false;
+        match player_lifecycle_port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::Spells {
+                    player_guid: guid.counter() as u64,
+                },
+            )
+            .await
         {
-            let mut spell_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELL);
-            spell_stmt.set_u64(0, guid.counter() as u64);
-            match char_db.query(&spell_stmt).await {
-                Ok(mut spell_result) => {
-                    if !spell_result.is_empty() {
-                        loop {
-                            let spell_id: u32 = spell_result.try_read(0).unwrap_or(0);
-                            let active: u8 = spell_result.try_read(1).unwrap_or(1);
-                            let disabled: u8 = spell_result.try_read(2).unwrap_or(0);
-                            if let Ok(spell_id) = i32::try_from(spell_id)
-                                && spell_id > 0
-                            {
-                                loaded_player_spell_rows.push(
-                                    crate::session::RepresentedPlayerSpellLikeCpp {
-                                        spell_id,
-                                        active: active != 0,
-                                        disabled: disabled != 0,
-                                        dependent: false,
-                                        favorite: false,
-                                        state: crate::session::RepresentedPlayerSpellStateLikeCpp::Unchanged,
-                                    },
-                                );
-                            }
-                            if let Some(spell_id_i32) =
-                                loaded_spell_for_add_spell_side_effects_like_cpp(spell_id, disabled)
-                            {
-                                loaded_spell_side_effect_spells.push(spell_id_i32);
-                            }
-                            if let Some(spell_id) =
-                                active_known_spell_for_send_like_cpp(spell_id, active, disabled)
-                            {
-                                known_spells.push(spell_id);
-                            }
-                            if !spell_result.next_row() {
-                                break;
-                            }
-                        }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::Spells(rows),
+            ) => {
+                for row in rows {
+                    if let Ok(spell_id) = i32::try_from(row.spell_id)
+                        && spell_id > 0
+                    {
+                        loaded_player_spell_rows.push(
+                            crate::session::RepresentedPlayerSpellLikeCpp {
+                                spell_id,
+                                active: row.active != 0,
+                                disabled: row.disabled != 0,
+                                dependent: false,
+                                favorite: false,
+                                state:
+                                    crate::session::RepresentedPlayerSpellStateLikeCpp::Unchanged,
+                            },
+                        );
                     }
-                    loaded_player_spell_rows_complete_like_cpp = true;
-                    info!("Loaded {} DB spells for {:?}", known_spells.len(), guid);
+                    if let Some(spell_id_i32) =
+                        loaded_spell_for_add_spell_side_effects_like_cpp(row.spell_id, row.disabled)
+                    {
+                        loaded_spell_side_effect_spells.push(spell_id_i32);
+                    }
+                    if let Some(spell_id) =
+                        active_known_spell_for_send_like_cpp(row.spell_id, row.active, row.disabled)
+                    {
+                        known_spells.push(spell_id);
+                    }
                 }
-                Err(e) => {
-                    warn!("Failed to load spells for {:?}: {}", guid, e);
-                }
+                loaded_player_spell_rows_complete_like_cpp = true;
+                info!("Loaded {} DB spells for {:?}", known_spells.len(), guid);
             }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!("Failed to load spells for {:?}: {}", guid, reason);
+            }
+            _ => unreachable!("spell request returned a different row family"),
+        }
 
-            let mut favorite_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELL_FAVORITES);
-            favorite_stmt.set_u64(0, guid.counter() as u64);
-            match char_db.query(&favorite_stmt).await {
-                Ok(mut favorite_result) => {
-                    if !favorite_result.is_empty() {
-                        loop {
-                            let spell_id: u32 = favorite_result.try_read(0).unwrap_or(0);
-                            if let Ok(spell_id) = i32::try_from(spell_id) {
-                                favorite_spell_rows.insert(spell_id);
-                            }
-                            if !favorite_result.next_row() {
-                                break;
-                            }
-                        }
+        match player_lifecycle_port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellFavorites {
+                    player_guid: guid.counter() as u64,
+                },
+            )
+            .await
+        {
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::SpellFavorites(rows),
+            ) => {
+                for spell_id in rows {
+                    if let Ok(spell_id) = i32::try_from(spell_id) {
+                        favorite_spell_rows.insert(spell_id);
                     }
-                    favorite_spell_rows_complete_like_cpp = true;
-                    info!(
-                        "Loaded {} DB favorite spells for {:?}",
-                        favorite_spell_rows.len(),
-                        guid
-                    );
                 }
-                Err(e) => {
-                    warn!("Failed to load favorite spells for {:?}: {}", guid, e);
-                }
+                favorite_spell_rows_complete_like_cpp = true;
+                info!(
+                    "Loaded {} DB favorite spells for {:?}",
+                    favorite_spell_rows.len(),
+                    guid
+                );
             }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!("Failed to load favorite spells for {:?}: {}", guid, reason);
+            }
+            _ => unreachable!("favorite-spell request returned a different row family"),
         }
 
         // ── C++ Player::_LoadSkills ──
@@ -1666,46 +1667,44 @@ impl WorldSession {
             std::collections::HashMap::<u16, crate::session::RepresentedPlayerSkillLikeCpp>::new();
         let mut skill_info_by_id = BTreeMap::<u16, wow_data::SkillInfoEntry>::new();
         let mut loaded_skill_records_like_cpp = false;
+        match player_lifecycle_port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::Skills {
+                    player_guid: guid.counter() as u64,
+                },
+            )
+            .await
         {
-            let mut skill_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SKILLS);
-            skill_stmt.set_u64(0, guid.counter() as u64);
-            match char_db.query(&skill_stmt).await {
-                Ok(mut skill_result) => {
-                    loaded_skill_records_like_cpp = true;
-                    if !skill_result.is_empty() {
-                        loop {
-                            let skill_id: u16 = skill_result.try_read(0).unwrap_or(0);
-                            let skill_value: u16 = skill_result.try_read(1).unwrap_or(0);
-                            let skill_max: u16 = skill_result.try_read(2).unwrap_or(skill_value);
-                            let profession_slot: i8 = skill_result.try_read(3).unwrap_or(-1);
-                            if skill_id > 0 {
-                                skill_records.insert(
-                                    skill_id,
-                                    crate::session::RepresentedPlayerSkillLikeCpp {
-                                        skill_id,
-                                        step: 0,
-                                        value: skill_value,
-                                        max: skill_max,
-                                        profession_slot,
-                                        state: crate::session::RepresentedPlayerSkillStateLikeCpp::Unchanged,
-                                    },
-                                );
-                            }
-                            if !skill_result.next_row() {
-                                break;
-                            }
-                        }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::Skills(rows),
+            ) => {
+                loaded_skill_records_like_cpp = true;
+                for row in rows {
+                    if row.skill_id > 0 {
+                        skill_records.insert(
+                            row.skill_id,
+                            crate::session::RepresentedPlayerSkillLikeCpp {
+                                skill_id: row.skill_id,
+                                step: 0,
+                                value: row.value,
+                                max: row.max,
+                                profession_slot: row.profession_slot,
+                                state:
+                                    crate::session::RepresentedPlayerSkillStateLikeCpp::Unchanged,
+                            },
+                        );
                     }
-                    info!(
-                        "Loaded {} persisted skill rows for {:?}",
-                        skill_records.len(),
-                        guid
-                    );
                 }
-                Err(e) => {
-                    warn!("Failed to load character_skills for {:?}: {}", guid, e);
-                }
+                info!(
+                    "Loaded {} persisted skill rows for {:?}",
+                    skill_records.len(),
+                    guid
+                );
             }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!("Failed to load character_skills for {:?}: {}", guid, reason);
+            }
+            _ => unreachable!("skill request returned a different row family"),
         }
 
         // C++ `_LoadSkills` rejects forbidden race/class rows, fixes language,
@@ -1789,47 +1788,48 @@ impl WorldSession {
         // login AuraUpdate is built.
         self.reset_represented_talents_like_cpp();
         let mut talent_rows_complete_like_cpp = false;
+        match player_lifecycle_port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::Talents {
+                    player_guid: guid.counter() as u64,
+                },
+            )
+            .await
         {
-            let mut talent_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_TALENTS);
-            talent_stmt.set_u64(0, guid.counter() as u64);
-            match char_db.query(&talent_stmt).await {
-                Ok(mut talent_result) => {
-                    let mut loaded = 0usize;
-                    let mut skipped = 0usize;
-                    if !talent_result.is_empty() {
-                        loop {
-                            let talent_id: u32 = talent_result.try_read(0).unwrap_or(0);
-                            let rank: u8 = talent_result.try_read(1).unwrap_or(0);
-                            let talent_group: u8 = talent_result.try_read(2).unwrap_or(0);
-                            if self.load_represented_talent_row_with_spell_side_effects_like_cpp(
-                                talent_id,
-                                rank,
-                                talent_group,
-                                &mut known_spells,
-                                &mut skill_rewarded_dependent_spells,
-                            ) {
-                                loaded += 1;
-                            } else {
-                                skipped += 1;
-                            }
-                            if !talent_result.next_row() {
-                                break;
-                            }
-                        }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::Talents(rows),
+            ) => {
+                let mut loaded = 0usize;
+                let mut skipped = 0usize;
+                for row in rows {
+                    if self.load_represented_talent_row_with_spell_side_effects_like_cpp(
+                        row.talent_id,
+                        row.rank,
+                        row.talent_group,
+                        &mut known_spells,
+                        &mut skill_rewarded_dependent_spells,
+                    ) {
+                        loaded += 1;
+                    } else {
+                        skipped += 1;
                     }
-                    self.mark_represented_talents_loaded_like_cpp();
-                    talent_rows_complete_like_cpp = true;
-                    info!(
-                        loaded,
-                        skipped,
-                        player_guid = guid.counter(),
-                        "Loaded represented character talents like C++ Player::_LoadTalents"
-                    );
                 }
-                Err(e) => {
-                    warn!("Failed to load character talents for {:?}: {}", guid, e);
-                }
+                self.mark_represented_talents_loaded_like_cpp();
+                talent_rows_complete_like_cpp = true;
+                info!(
+                    loaded,
+                    skipped,
+                    player_guid = guid.counter(),
+                    "Loaded represented character talents like C++ Player::_LoadTalents"
+                );
             }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!(
+                    "Failed to load character talents for {:?}: {}",
+                    guid, reason
+                );
+            }
+            _ => unreachable!("talent request returned a different row family"),
         }
 
         let custom_spell_count =
@@ -1924,44 +1924,42 @@ impl WorldSession {
         // missing from GlyphProperties.db2.
         self.reset_represented_glyphs_like_cpp();
         let mut reputation_rows_complete_like_cpp = false;
+        match player_lifecycle_port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::Glyphs {
+                    player_guid: guid.counter() as u64,
+                },
+            )
+            .await
         {
-            let mut glyph_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_GLYPHS);
-            glyph_stmt.set_u64(0, guid.counter() as u64);
-            match char_db.query(&glyph_stmt).await {
-                Ok(mut glyph_result) => {
-                    let mut loaded = 0usize;
-                    let mut skipped = 0usize;
-                    if !glyph_result.is_empty() {
-                        loop {
-                            let talent_group: u8 = glyph_result.try_read(0).unwrap_or(0);
-                            let glyph_slot: u8 = glyph_result.try_read(1).unwrap_or(0);
-                            let glyph_id: u16 = glyph_result.try_read(2).unwrap_or(0);
-                            if self.load_represented_glyph_row_like_cpp(
-                                talent_group,
-                                glyph_slot,
-                                glyph_id,
-                            ) {
-                                loaded += 1;
-                            } else {
-                                skipped += 1;
-                            }
-                            if !glyph_result.next_row() {
-                                break;
-                            }
-                        }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::Glyphs(rows),
+            ) => {
+                let mut loaded = 0usize;
+                let mut skipped = 0usize;
+                for row in rows {
+                    if self.load_represented_glyph_row_like_cpp(
+                        row.talent_group,
+                        row.glyph_slot,
+                        row.glyph_id,
+                    ) {
+                        loaded += 1;
+                    } else {
+                        skipped += 1;
                     }
-                    self.mark_represented_glyphs_loaded_like_cpp();
-                    info!(
-                        loaded,
-                        skipped,
-                        player_guid = guid.counter(),
-                        "Loaded represented character glyphs like C++ Player::_LoadGlyphs"
-                    );
                 }
-                Err(e) => {
-                    warn!("Failed to load character glyphs for {:?}: {}", guid, e);
-                }
+                self.mark_represented_glyphs_loaded_like_cpp();
+                info!(
+                    loaded,
+                    skipped,
+                    player_guid = guid.counter(),
+                    "Loaded represented character glyphs like C++ Player::_LoadGlyphs"
+                );
             }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!("Failed to load character glyphs for {:?}: {}", guid, reason);
+            }
+            _ => unreachable!("glyph request returned a different row family"),
         }
 
         // ── Load action buttons from character_action ──
@@ -1969,42 +1967,43 @@ impl WorldSession {
         let mut action_buttons = [0i64; 180];
         let mut action_count = 0u32;
         self.reset_represented_action_buttons_like_cpp();
+        // C++ loads the action-button map for GetActiveTalentGroup(), not always spec 0.
+        let (active_spec, trait_config_id) = self.represented_action_button_db_context_like_cpp();
+        match player_lifecycle_port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::ActionButtons {
+                    player_guid: guid.counter() as u64,
+                    active_spec,
+                    trait_config_id,
+                },
+            )
+            .await
         {
-            let mut action_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_ACTIONS_SPEC);
-            action_stmt.set_u64(0, guid.counter() as u64);
-            // C++ loads the action-button map for GetActiveTalentGroup(), not always spec 0.
-            let (active_spec, trait_config_id) =
-                self.represented_action_button_db_context_like_cpp();
-            action_stmt.set_u8(1, active_spec);
-            action_stmt.set_i32(2, trait_config_id);
-            match char_db.query(&action_stmt).await {
-                Ok(mut action_result) => {
-                    if !action_result.is_empty() {
-                        loop {
-                            let button: u8 = action_result.read(0);
-                            let action: u32 = action_result.try_read(1).unwrap_or(0);
-                            let btn_type: u8 = action_result.try_read(2).unwrap_or(0);
-                            if (button as usize) < 180 && action > 0 {
-                                self.record_loaded_action_button_like_cpp(button, action, btn_type);
-                                action_buttons[button as usize] =
-                                    wow_packet::packets::misc::UpdateActionButtons::pack_button(
-                                        action as i32,
-                                        btn_type,
-                                    );
-                                action_count += 1;
-                            }
-                            if !action_result.next_row() {
-                                break;
-                            }
-                        }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::ActionButtons(rows),
+            ) => {
+                for row in rows {
+                    if (row.button as usize) < 180 && row.action > 0 {
+                        self.record_loaded_action_button_like_cpp(
+                            row.button,
+                            row.action,
+                            row.button_type,
+                        );
+                        action_buttons[row.button as usize] =
+                            wow_packet::packets::misc::UpdateActionButtons::pack_button(
+                                row.action as i32,
+                                row.button_type,
+                            );
+                        action_count += 1;
                     }
-                    self.mark_represented_action_buttons_loaded_like_cpp();
-                    info!("Loaded {} action buttons for {:?}", action_count, guid);
                 }
-                Err(e) => {
-                    warn!("Failed to load action buttons for {:?}: {}", guid, e);
-                }
+                self.mark_represented_action_buttons_loaded_like_cpp();
+                info!("Loaded {} action buttons for {:?}", action_count, guid);
             }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!("Failed to load action buttons for {:?}: {}", guid, reason);
+            }
+            _ => unreachable!("action-button request returned a different row family"),
         }
 
         // Store current map and character info for VALUES updates + stat recalculation
@@ -2070,38 +2069,42 @@ impl WorldSession {
 
         // C++ login query set includes CHAR_SEL_CHARACTER_REPUTATION and
         // ReputationMgr::LoadFromDB reinitializes from Faction.db2 before merging rows.
+        match player_lifecycle_port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::Reputation {
+                    player_guid: guid.counter() as u64,
+                },
+            )
+            .await
         {
-            let mut reputation_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_REPUTATION);
-            reputation_stmt.set_u64(0, guid.counter() as u64);
-            match char_db.query(&reputation_stmt).await {
-                Ok(mut reputation_result) => {
-                    let mut rows = Vec::new();
-                    if !reputation_result.is_empty() {
-                        loop {
-                            rows.push(CharacterReputationRowLikeCpp {
-                                faction_id: reputation_result.try_read(0).unwrap_or(0),
-                                standing: reputation_result.try_read(1).unwrap_or(0),
-                                flags: reputation_result.try_read(2).unwrap_or(0),
-                            });
-                            if !reputation_result.next_row() {
-                                break;
-                            }
-                        }
-                    }
-                    if self.load_character_reputation_rows_like_cpp(rows) {
-                        reputation_rows_complete_like_cpp = true;
-                        info!("Loaded character reputation rows for {:?}", guid);
-                    } else {
-                        warn!(
-                            "Skipped character reputation load for {:?}: missing Faction.db2 store",
-                            guid
-                        );
-                    }
-                }
-                Err(e) => {
-                    warn!("Failed to load character reputation for {:?}: {}", guid, e);
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::Reputation(rows),
+            ) => {
+                let rows: Vec<_> = rows
+                    .into_iter()
+                    .map(|row| CharacterReputationRowLikeCpp {
+                        faction_id: row.faction_id,
+                        standing: row.standing,
+                        flags: row.flags,
+                    })
+                    .collect();
+                if self.load_character_reputation_rows_like_cpp(rows) {
+                    reputation_rows_complete_like_cpp = true;
+                    info!("Loaded character reputation rows for {:?}", guid);
+                } else {
+                    warn!(
+                        "Skipped character reputation load for {:?}: missing Faction.db2 store",
+                        guid
+                    );
                 }
             }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!(
+                    "Failed to load character reputation for {:?}: {}",
+                    guid, reason
+                );
+            }
+            _ => unreachable!("reputation request returned a different row family"),
         }
 
         // C++ `Player::LoadFromDB` restores `fields.health` after `UpdateAllStats`,
