@@ -147,6 +147,84 @@ pub trait PacketSpoofBanPersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 }
 
+/// Commit classification for a transaction protected by the Session-owned
+/// player-money exclusion fence.
+///
+/// The concrete adapter observes the durable money row after an ambiguous
+/// COMMIT, but the Session remains the owner of reconciliation, quarantine and
+/// runtime publication.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlayerMoneyTransactionOutcomeLikeCpp {
+    Committed,
+    DefinitelyRolledBack {
+        reason: String,
+    },
+    CommitOutcomeUnknown {
+        reason: String,
+        observed_money: Option<u64>,
+    },
+}
+
+/// SQLx-free persisted shape of one `character_void_storage` row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VoidStorageItemWriteLikeCpp {
+    pub item_id: u64,
+    pub item_entry: u32,
+    pub creator_guid: u64,
+    pub fixed_scaling_level: u32,
+    pub random_properties_id: i32,
+    pub random_properties_seed: i32,
+    pub context: u8,
+}
+
+/// Atomic durable half of the represented void-storage unlock.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VoidStorageUnlockWriteRequestLikeCpp {
+    pub player_guid: u64,
+    pub money_before: u64,
+    pub money_after: u64,
+    pub player_flags_after: u32,
+}
+
+impl VoidStorageUnlockWriteRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
+/// Atomic durable half of one represented void-storage slot swap.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VoidStorageSwapWriteRequestLikeCpp {
+    pub player_guid: u64,
+    pub money_before: u64,
+    pub money_after: u64,
+    pub old_slot: u8,
+    pub new_slot: u8,
+    pub source_item: VoidStorageItemWriteLikeCpp,
+    pub destination_item: Option<VoidStorageItemWriteLikeCpp>,
+}
+
+impl VoidStorageSwapWriteRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
+/// SQLx-free CharacterDB capability for the two bounded void-storage
+/// workflows. Transfer is deliberately excluded until its complete mixed
+/// money/inventory/quest transaction moves as one unit.
+pub trait VoidStoragePersistencePortLikeCpp: Send + Sync {
+    fn persist_void_storage_unlock_like_cpp<'a>(
+        &'a self,
+        request: VoidStorageUnlockWriteRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerMoneyTransactionOutcomeLikeCpp>;
+
+    fn persist_void_storage_swap_like_cpp<'a>(
+        &'a self,
+        request: VoidStorageSwapWriteRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerMoneyTransactionOutcomeLikeCpp>;
+}
+
 /// Which Characters-database account-data table a session operation addresses.
 /// The identity is semantic; statement selection remains adapter-owned.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1815,6 +1893,41 @@ mod tests {
             }
             .logical_database(),
             LogicalDatabaseLikeCpp::Login
+        );
+    }
+
+    #[test]
+    fn void_storage_writes_name_the_characters_database_like_cpp() {
+        assert_eq!(
+            VoidStorageUnlockWriteRequestLikeCpp {
+                player_guid: 1,
+                money_before: 2,
+                money_after: 1,
+                player_flags_after: 4,
+            }
+            .logical_database(),
+            LogicalDatabaseLikeCpp::Characters
+        );
+        assert_eq!(
+            VoidStorageSwapWriteRequestLikeCpp {
+                player_guid: 1,
+                money_before: 2,
+                money_after: 2,
+                old_slot: 0,
+                new_slot: 1,
+                source_item: VoidStorageItemWriteLikeCpp {
+                    item_id: 3,
+                    item_entry: 4,
+                    creator_guid: 5,
+                    fixed_scaling_level: 6,
+                    random_properties_id: -7,
+                    random_properties_seed: 8,
+                    context: 9,
+                },
+                destination_item: None,
+            }
+            .logical_database(),
+            LogicalDatabaseLikeCpp::Characters
         );
     }
 

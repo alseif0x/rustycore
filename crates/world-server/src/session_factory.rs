@@ -291,6 +291,9 @@ pub(super) async fn create_session(
     if let Some(ref port) = resources.packet_spoof_ban_persistence_port {
         session.set_packet_spoof_ban_persistence_port_like_cpp(Arc::clone(port));
     }
+    if let Some(ref port) = resources.void_storage_persistence_port {
+        session.set_void_storage_persistence_port_like_cpp(Arc::clone(port));
+    }
     if let Some(ref port) = resources.map_corpse_persistence_port {
         session.set_map_corpse_persistence_port_like_cpp(Arc::clone(port));
     }

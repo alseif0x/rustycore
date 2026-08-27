@@ -13414,41 +13414,7 @@
       "package": "wow-world",
       "module": "crate::handlers::void_storage",
       "source": "crates/wow-world/src/handlers/void_storage.rs",
-      "enclosing": "impl WorldSession::handle_void_storage_swap_item",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-world residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::void_storage",
-      "source": "crates/wow-world/src/handlers/void_storage.rs",
       "enclosing": "impl WorldSession::handle_void_storage_transfer",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-world residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::void_storage",
-      "source": "crates/wow-world/src/handlers/void_storage.rs",
-      "enclosing": "impl WorldSession::handle_void_storage_unlock",
       "logical_databases": [
         "characters"
       ],
@@ -13878,24 +13844,6 @@
       "module": "crate::session",
       "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::build_character_gold_save_statement_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Player lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session/mod.rs",
-      "enclosing": "impl WorldSession::build_void_storage_delete_all_statement_like_cpp",
       "logical_databases": [
         "characters"
       ],
@@ -15007,6 +14955,175 @@
       "connection_affinity": "Account clear-plus-insert uses one Login transaction; IP insert remains one independent non-transactional Login execution.",
       "current_order": "Account appends clear-active then insert and commits once; IP executes its insert once after admission completed the lookup call.",
       "failure_and_unknown_commit": "Success maps to Applied and current driver errors to Failed; admission retains the exact pending-plan restage branch for every non-Applied outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_money_transaction_adapter",
+      "source": "crates/wow-database/src/player_money_transaction_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": ["characters"],
+      "boundary": "wow-database compatibility adapter for money-marked CharacterDB transactions (#436)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The module owns concrete CharacterDB transaction classification and the post-unknown-COMMIT money read; typed callers receive only a semantic outcome.",
+      "current_order": "Commit the supplied transaction once, then query the same character money row only when the COMMIT reply is unknown.",
+      "failure_and_unknown_commit": "Returns Committed, DefinitelyRolledBack, or CommitOutcomeUnknown with optional observed money without deciding Session quarantine."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_money_transaction_adapter",
+      "source": "crates/wow-database/src/player_money_transaction_adapter.rs",
+      "enclosing": "fn commit_player_money_transaction_and_observe_like_cpp",
+      "logical_databases": ["characters"],
+      "boundary": "wow-database compatibility adapter for money-marked CharacterDB transactions (#436)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The supplied transaction and any reconciliation read use the configured Characters adapter.",
+      "current_order": "Await COMMIT first; only an unknown outcome triggers SEL_CHAR_MONEY for the supplied player identity.",
+      "failure_and_unknown_commit": "Definite rollback and unknown COMMIT remain distinct; a failed or empty observation is preserved as observed_money None."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::void_storage_adapter",
+      "source": "crates/wow-database/src/void_storage_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": ["characters"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The module owns the one concrete Characters adapter used by both bounded transactions.",
+      "current_order": "Semantic unlock and swap calls expand to their frozen statement order before one commit.",
+      "failure_and_unknown_commit": "Concrete commit classification and observation stay adapter-owned while Session retains reconciliation and quarantine."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::void_storage_adapter",
+      "source": "crates/wow-database/src/void_storage_adapter.rs",
+      "enclosing": "struct MariaDbVoidStoragePersistenceAdapterLikeCpp",
+      "logical_databases": ["characters"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter stores one configured Characters handle.",
+      "current_order": "Storage construction performs no query, write or transaction.",
+      "failure_and_unknown_commit": "No I/O occurs while storing the adapter."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::void_storage_adapter",
+      "source": "crates/wow-database/src/void_storage_adapter.rs",
+      "enclosing": "impl MariaDbVoidStoragePersistenceAdapterLikeCpp::new",
+      "logical_databases": ["characters"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Composition supplies the process-wide Characters adapter before listeners start.",
+      "current_order": "Construction stores the handle only.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::void_storage_adapter",
+      "source": "crates/wow-database/src/void_storage_adapter.rs",
+      "enclosing": "fn void_storage_replace_statement_like_cpp",
+      "logical_databases": ["characters"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure construction of one character_void_storage replacement statement.",
+      "current_order": "Bind item identity, player, entry, slot and preserved metadata in the C++ statement order.",
+      "failure_and_unknown_commit": "No I/O occurs in statement construction."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::void_storage_adapter",
+      "source": "crates/wow-database/src/void_storage_adapter.rs",
+      "enclosing": "fn void_storage_delete_slot_statement_like_cpp",
+      "logical_databases": ["characters"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure construction of one slot delete statement.",
+      "current_order": "Bind slot before player GUID exactly as CHAR_DEL_CHAR_VOID_STORAGE_ITEM_BY_SLOT requires.",
+      "failure_and_unknown_commit": "No I/O occurs in statement construction."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::void_storage_adapter",
+      "source": "crates/wow-database/src/void_storage_adapter.rs",
+      "enclosing": "fn void_storage_delete_all_statement_like_cpp",
+      "logical_databases": ["characters"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure construction of one character-wide void-storage delete statement.",
+      "current_order": "Bind the player GUID once after unlock money and flags have been planned.",
+      "failure_and_unknown_commit": "No I/O occurs in statement construction."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::void_storage_adapter",
+      "source": "crates/wow-database/src/void_storage_adapter.rs",
+      "enclosing": "fn void_storage_unlock_statements_like_cpp",
+      "logical_databases": ["characters"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "All three statements are appended to one Characters transaction.",
+      "current_order": "Build money, player flags, then delete-all void rows without reordering.",
+      "failure_and_unknown_commit": "No I/O occurs here; the combined commit outcome is classified once."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::void_storage_adapter",
+      "source": "crates/wow-database/src/void_storage_adapter.rs",
+      "enclosing": "fn void_storage_swap_statements_like_cpp",
+      "logical_databases": ["characters"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Both slot mutations are appended to one Characters transaction.",
+      "current_order": "Replace the destination with the source first, then replace or delete the old source slot.",
+      "failure_and_unknown_commit": "No I/O occurs here; the combined commit outcome is classified once."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::void_storage_adapter",
+      "source": "crates/wow-database/src/void_storage_adapter.rs",
+      "enclosing": "impl MariaDbVoidStoragePersistenceAdapterLikeCpp::commit_and_observe_money_like_cpp",
+      "logical_databases": ["characters"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One Characters transaction is built and delegated to the shared money-marker commit adapter.",
+      "current_order": "Append the already ordered statements, commit once, then observe money only after an unknown reply.",
+      "failure_and_unknown_commit": "Returns the exact three-way transaction classification without publishing gameplay state."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::void_storage_adapter",
+      "source": "crates/wow-database/src/void_storage_adapter.rs",
+      "enclosing": "impl wow_persistence::VoidStoragePersistencePortLikeCpp for MariaDbVoidStoragePersistenceAdapterLikeCpp::persist_void_storage_unlock_like_cpp",
+      "logical_databases": ["characters"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The unlock request uses one Characters transaction and its player money marker.",
+      "current_order": "Expand money -> flags -> delete-all and delegate that exact sequence once.",
+      "failure_and_unknown_commit": "The typed outcome leaves runtime publication and quarantine to Session."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::void_storage_adapter",
+      "source": "crates/wow-database/src/void_storage_adapter.rs",
+      "enclosing": "impl wow_persistence::VoidStoragePersistencePortLikeCpp for MariaDbVoidStoragePersistenceAdapterLikeCpp::persist_void_storage_swap_like_cpp",
+      "logical_databases": ["characters"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The swap request uses one Characters transaction and its unchanged money marker.",
+      "current_order": "Expand destination replacement before source replacement/delete and delegate that exact sequence once.",
+      "failure_and_unknown_commit": "An unknown COMMIT with unchanged money remains unprovable and is returned for Session quarantine."
     }
   ]
 }

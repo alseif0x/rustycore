@@ -9,7 +9,7 @@ use super::*;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use crate::session::{PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP, SessionPlayerController};
+use crate::session::{PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP, SessionPlayerController, SessionState};
 use wow_constants::{
     Gender, InventoryType, ItemBondingType, ItemClass, ItemFieldFlags, ItemFlags, ItemQuality,
     ItemSubClassWeapon, ServerOpcodes,
@@ -25,6 +25,51 @@ use wow_database::StatementDef;
 use wow_entities::{INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START};
 use wow_packet::ServerPacket;
 use wow_packet::packets::loot::{CreatureLoot, LOOT_TYPE_ITEM_LIKE_CPP, LootEntry, LootEntryFlags};
+
+#[derive(Debug)]
+struct RecordingVoidStoragePersistencePortLikeCpp {
+    outcome: wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp,
+    unlocks: Mutex<Vec<wow_persistence::VoidStorageUnlockWriteRequestLikeCpp>>,
+    swaps: Mutex<Vec<wow_persistence::VoidStorageSwapWriteRequestLikeCpp>>,
+}
+
+impl RecordingVoidStoragePersistencePortLikeCpp {
+    fn new(outcome: wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp) -> Self {
+        Self {
+            outcome,
+            unlocks: Mutex::new(Vec::new()),
+            swaps: Mutex::new(Vec::new()),
+        }
+    }
+}
+
+impl wow_persistence::VoidStoragePersistencePortLikeCpp
+    for RecordingVoidStoragePersistencePortLikeCpp
+{
+    fn persist_void_storage_unlock_like_cpp<'a>(
+        &'a self,
+        request: wow_persistence::VoidStorageUnlockWriteRequestLikeCpp,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        'a,
+        wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp,
+    > {
+        self.unlocks.lock().unwrap().push(request);
+        let outcome = self.outcome.clone();
+        Box::pin(async move { outcome })
+    }
+
+    fn persist_void_storage_swap_like_cpp<'a>(
+        &'a self,
+        request: wow_persistence::VoidStorageSwapWriteRequestLikeCpp,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        'a,
+        wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp,
+    > {
+        self.swaps.lock().unwrap().push(request);
+        let outcome = self.outcome.clone();
+        Box::pin(async move { outcome })
+    }
+}
 
 fn make_void_storage_session() -> (
     WorldSession,
@@ -429,13 +474,60 @@ fn locked_login_discards_residual_void_rows_and_initializes_empty_storage_like_c
     assert!(session.void_storage_is_unlocked_like_cpp());
     assert!(session.represented_void_storage_loaded_like_cpp());
     assert_eq!(session.represented_void_storage_free_slots_like_cpp(), 160);
+}
 
-    let delete_all = WorldSession::build_void_storage_delete_all_statement_like_cpp(42);
-    assert_eq!(
-        delete_all.sql(),
-        CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_CHAR_GUID.sql()
+#[tokio::test]
+async fn unlock_submits_one_semantic_write_before_runtime_publication_like_cpp() {
+    let (mut session, _, canonical) = make_void_storage_session();
+    session.set_loaded_player_flags_like_cpp(0);
+    session.set_player_gold_like_cpp(2_000_000);
+    let vault_keeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1918, 43);
+    insert_vault_keeper(&canonical, vault_keeper, 1918);
+    let port = Arc::new(RecordingVoidStoragePersistencePortLikeCpp::new(
+        wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::Committed,
+    ));
+    session.set_void_storage_persistence_port_like_cpp(port.clone());
+
+    let mut packet = WorldPacket::new_empty();
+    packet.write_packed_guid(&vault_keeper);
+    session.handle_void_storage_unlock(packet).await;
+
+    assert!(session.void_storage_is_unlocked_like_cpp());
+    assert_eq!(port.unlocks.lock().unwrap().len(), 1);
+    let request = port.unlocks.lock().unwrap()[0].clone();
+    assert_eq!(request.player_guid, 42);
+    assert_eq!(request.money_before, 2_000_000);
+    assert_eq!(request.money_after, 1_000_000);
+    assert_ne!(
+        request.player_flags_after & PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP,
+        0
     );
-    assert_eq!(delete_all.params(), &[wow_database::SqlParam::U64(42)]);
+}
+
+#[test]
+fn unlock_and_swap_paths_have_no_concrete_persistence_after_port_cut() {
+    let source = include_str!("void_storage.rs");
+    for (start, end) in [
+        (
+            "pub async fn handle_void_storage_unlock",
+            "pub async fn handle_void_storage_query",
+        ),
+        (
+            "pub async fn handle_void_storage_swap_item",
+            "#[path = \"void_storage_tests.rs\"]",
+        ),
+    ] {
+        let body = source
+            .split_once(start)
+            .and_then(|(_, tail)| tail.split_once(end).map(|(body, _)| body))
+            .expect("audited void-storage handler body");
+        for forbidden in ["CharStatements", "SqlTransaction", ".prepare(", "char_db"] {
+            assert!(
+                !body.contains(forbidden),
+                "{start} regained concrete persistence syntax: {forbidden}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -1413,14 +1505,12 @@ async fn swap_definite_rollback_keeps_void_slots_unchanged() {
         Some(0)
     );
 
-    let failing_pool = sqlx::mysql::MySqlPoolOptions::new()
-        .max_connections(1)
-        .acquire_timeout(Duration::from_millis(100))
-        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
-        .expect("syntactically valid lazy CharacterDB pool");
-    session.set_char_db(Arc::new(wow_database::CharacterDatabase::from_pool(
-        failing_pool,
-    )));
+    let port = Arc::new(RecordingVoidStoragePersistencePortLikeCpp::new(
+        wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::DefinitelyRolledBack {
+            reason: "write failed".to_string(),
+        },
+    ));
+    session.set_void_storage_persistence_port_like_cpp(port.clone());
 
     let mut packet = WorldPacket::new_empty();
     packet.write_packed_guid(&vault_keeper);
@@ -1450,6 +1540,48 @@ async fn swap_definite_rollback_keeps_void_slots_unchanged() {
             .begin_like_cpp()
             .is_ok(),
         "definite rollback must reopen payout/save admission"
+    );
+    assert_eq!(port.swaps.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn swap_unknown_commit_with_unchanged_money_quarantines_session() {
+    let (mut session, _, canonical) = make_void_storage_session();
+    let vault_keeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1918, 43);
+    insert_vault_keeper(&canonical, vault_keeper, 1918);
+    let item = represented_void_item(77, 19019);
+    assert_eq!(
+        session.add_represented_void_storage_item_like_cpp(item.clone()),
+        Some(0)
+    );
+    let port = Arc::new(RecordingVoidStoragePersistencePortLikeCpp::new(
+        wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::CommitOutcomeUnknown {
+            reason: "commit reply lost".to_string(),
+            observed_money: Some(0),
+        },
+    ));
+    session.set_void_storage_persistence_port_like_cpp(port);
+
+    let mut packet = WorldPacket::new_empty();
+    packet.write_packed_guid(&vault_keeper);
+    packet.write_packed_guid(&ObjectGuid::create_item(1, 77));
+    packet.write_uint32(4);
+    session.handle_void_storage_swap_item(packet).await;
+
+    assert_eq!(session.state(), SessionState::Disconnecting);
+    assert!(
+        session
+            .durable_loot_money_persistence_tracker_like_cpp()
+            .is_indeterminate_like_cpp()
+    );
+    assert_eq!(
+        session.represented_void_storage_item_at_like_cpp(0),
+        Some(item)
+    );
+    assert!(
+        session
+            .represented_void_storage_item_at_like_cpp(4)
+            .is_none()
     );
 }
 

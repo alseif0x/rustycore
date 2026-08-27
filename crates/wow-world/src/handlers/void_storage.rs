@@ -228,6 +228,20 @@ impl WorldSession {
         dst_slot as u8
     }
 
+    fn void_storage_item_write_like_cpp(
+        item: &RepresentedVoidStorageItemLikeCpp,
+    ) -> wow_persistence::VoidStorageItemWriteLikeCpp {
+        wow_persistence::VoidStorageItemWriteLikeCpp {
+            item_id: item.item_id,
+            item_entry: item.item_entry,
+            creator_guid: item.creator_guid.counter() as u64,
+            fixed_scaling_level: item.fixed_scaling_level,
+            random_properties_id: item.random_properties_id,
+            random_properties_seed: item.random_properties_seed,
+            context: item.context,
+        }
+    }
+
     /// Resolve the state installed by C++ `Item::SetItemRandomProperties`.
     fn effective_void_storage_random_properties_like_cpp(
         &self,
@@ -625,7 +639,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let Some(port) = self.void_storage_persistence_port_like_cpp() else {
             return;
         };
         let Some(money_persistence) = self
@@ -641,27 +655,16 @@ impl WorldSession {
         let new_money = old_money.saturating_sub(VOID_STORAGE_UNLOCK_COST_LIKE_CPP);
         let new_flags = self.represented_player_flags_value_like_cpp()
             | crate::session::PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP;
-        let mut tx = SqlTransaction::new();
-        let mut update_money = char_db.prepare(CharStatements::UPD_CHAR_MONEY);
-        update_money.set_u64(0, new_money);
-        update_money.set_u64(1, player_guid.counter() as u64);
-        tx.append(update_money);
-        let mut update_flags = char_db.prepare(CharStatements::UPD_CHAR_PLAYER_FLAGS);
-        update_flags.set_u32(0, new_flags);
-        update_flags.set_u64(1, player_guid.counter() as u64);
-        tx.append(update_flags);
-        // A locked login deliberately skipped any residual rows like C++.
-        // Persist that coherent empty authority together with the flag so a
-        // restart cannot expose stale contents before the next full save.
-        tx.append(Self::build_void_storage_delete_all_statement_like_cpp(
-            player_guid.counter() as u64,
-        ));
-
+        let request = wow_persistence::VoidStorageUnlockWriteRequestLikeCpp {
+            player_guid: player_guid.counter() as u64,
+            money_before: old_money,
+            money_after: new_money,
+            player_flags_after: new_flags,
+        };
         let Some(money_persistence) = self
-            .commit_exclusive_player_money_transaction_like_cpp(
+            .await_exclusive_player_money_transaction_outcome_like_cpp(
                 money_persistence,
-                char_db.as_ref(),
-                tx,
+                port.persist_void_storage_unlock_like_cpp(request),
                 old_money,
                 new_money,
                 "void-storage unlock",
@@ -1584,7 +1587,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let Some(port) = self.void_storage_persistence_port_like_cpp() else {
             return;
         };
         let Some(money_persistence) = self
@@ -1594,28 +1597,21 @@ impl WorldSession {
             return;
         };
         let money = self.player_gold_like_cpp();
-        let mut tx = SqlTransaction::new();
-        tx.append(Self::build_void_storage_replace_statement_like_cpp(
-            player_guid.counter() as u64,
+        let request = wow_persistence::VoidStorageSwapWriteRequestLikeCpp {
+            player_guid: player_guid.counter() as u64,
+            money_before: money,
+            money_after: money,
+            old_slot,
             new_slot,
-            &source_item,
-        ));
-        match &destination_item {
-            Some(item) => tx.append(Self::build_void_storage_replace_statement_like_cpp(
-                player_guid.counter() as u64,
-                old_slot,
-                item,
-            )),
-            None => tx.append(Self::build_void_storage_delete_slot_statement_like_cpp(
-                player_guid.counter() as u64,
-                old_slot,
-            )),
-        }
+            source_item: Self::void_storage_item_write_like_cpp(&source_item),
+            destination_item: destination_item
+                .as_ref()
+                .map(Self::void_storage_item_write_like_cpp),
+        };
         let Some(money_persistence) = self
-            .commit_exclusive_player_money_transaction_like_cpp(
+            .await_exclusive_player_money_transaction_outcome_like_cpp(
                 money_persistence,
-                char_db.as_ref(),
-                tx,
+                port.persist_void_storage_swap_like_cpp(request),
                 money,
                 money,
                 "void-storage slot swap",
