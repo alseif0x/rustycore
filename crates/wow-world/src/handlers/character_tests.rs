@@ -55,8 +55,9 @@ use wow_persistence::{
     PlayerInitialWorldStateRowsLikeCpp, PlayerInitialWorldStateTemplateRowLikeCpp,
     PlayerInitialWorldStateValueRowLikeCpp, PlayerInitialWorldStatesLoadOutcomeLikeCpp,
     PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
-    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
-    PlayerLoginTransportLoadRequestLikeCpp, PlayerOfflineMarkLikeCpp,
+    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginItemRepairRequestLikeCpp,
+    PlayerLoginTransportLoadOutcomeLikeCpp, PlayerLoginTransportLoadRequestLikeCpp,
+    PlayerOfflineMarkLikeCpp,
 };
 
 struct MapCorpseLoadPortFixtureLikeCpp {
@@ -287,6 +288,13 @@ impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
         })
     }
 
+    fn persist_login_item_repairs_like_cpp<'a>(
+        &'a self,
+        _request: PlayerLoginItemRepairRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
+    }
+
     fn save_account_collection_like_cpp<'a>(
         &'a self,
         _save: AccountCollectionSaveLikeCpp,
@@ -452,6 +460,13 @@ impl PlayerLifecyclePortLikeCpp for HomebindPortFixtureLikeCpp {
         })
     }
 
+    fn persist_login_item_repairs_like_cpp<'a>(
+        &'a self,
+        _request: PlayerLoginItemRepairRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
+    }
+
     fn save_account_collection_like_cpp<'a>(
         &'a self,
         _save: AccountCollectionSaveLikeCpp,
@@ -530,6 +545,37 @@ fn continue_login_inventory_reads_cross_the_typed_lifecycle_port() {
         "CharStatements::SEL_CHAR_EQUIPMENT",
         "CharStatements::SEL_CHAR_BAG_CONTENTS",
         "CharStatements::SEL_CHAR_VOID_STORAGE",
+    ] {
+        assert!(
+            !handler.contains(statement),
+            "handler still names {statement}"
+        );
+    }
+}
+
+#[test]
+fn continue_login_item_repairs_cross_the_typed_lifecycle_port() {
+    let source = include_str!("character/world_entry.rs");
+    let (_, tail) = source
+        .split_once("pub async fn handle_continue_player_login")
+        .expect("continue-login handler starts");
+    let (handler, _) = tail
+        .split_once("pub(super) fn player_login_combat_stats_like_cpp")
+        .expect("continue-login handler ends before packet helper");
+
+    assert_eq!(
+        handler
+            .matches("persist_login_item_repairs_like_cpp")
+            .count(),
+        2
+    );
+    assert!(handler.contains("PlayerLoginItemRepairActionLikeCpp::ClearRefundable"));
+    assert!(handler.contains("PlayerLoginItemRepairActionLikeCpp::NormalizeOnLoad"));
+    assert!(!handler.contains("SqlTransaction::new()"));
+    for statement in [
+        "CharStatements::DEL_ITEM_REFUND_INSTANCE",
+        "CharStatements::UPD_ITEM_INSTANCE_FLAGS",
+        "CharStatements::UPD_ITEM_INSTANCE_ON_LOAD",
     ] {
         assert!(
             !handler.contains(statement),

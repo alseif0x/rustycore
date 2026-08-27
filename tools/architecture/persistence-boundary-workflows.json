@@ -14867,6 +14867,36 @@
       "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_login_item_repair_statements_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free Player-login item repair writes (#430)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure statement expansion for one Characters transaction; it opens no connection and the caller cannot observe a pool or driver type.",
+      "current_order": "Expands each typed action in caller order: ClearRefundable becomes DEL_ITEM_REFUND_INSTANCE then UPD_ITEM_INSTANCE_FLAGS, and NormalizeOnLoad becomes UPD_ITEM_INSTANCE_ON_LOAD.",
+      "failure_and_unknown_commit": "No I/O occurs in this helper; the owning adapter classifies the later COMMIT."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::persist_login_item_repairs_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free Player-login item repair writes (#430)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every action in one request is appended to one transaction on one connection from the Characters pool; equipment and bag requests remain separate calls.",
+      "current_order": "Expand the ordered semantic actions, append every resulting statement without reordering, then COMMIT once before returning the classified outcome.",
+      "failure_and_unknown_commit": "DefinitelyRolledBack maps to Failed; CommitOutcomeUnknown maps to Unknown; an empty request returns Applied with zero rows without opening a transaction."
     }
   ]
 }
