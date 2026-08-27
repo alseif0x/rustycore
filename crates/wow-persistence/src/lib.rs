@@ -900,6 +900,35 @@ impl PlayerTalentResetPersistenceRequestLikeCpp {
     }
 }
 
+/// The optional online rest-state row that accompanies one represented XP
+/// durability write. Gameplay owns the values; the adapter owns their SQL
+/// representation and transaction order.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerXpRestStateSaveLikeCpp {
+    pub rest_state: u8,
+    pub player_flags: u32,
+    pub rest_bonus: f32,
+}
+
+/// One SQLx-free request for Rusty's represented immediate XP durability
+/// boundary. Legacy C++ mutates XP in `Player::GiveXP` and persists it through
+/// the ordinary Player save; this contract deliberately preserves Rust's
+/// current immediate transaction without claiming parity for its timing.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerXpPersistenceRequestLikeCpp {
+    pub player_guid: u64,
+    pub level_changed: bool,
+    pub level: u8,
+    pub xp: u32,
+    pub rest: Option<PlayerXpRestStateSaveLikeCpp>,
+}
+
+impl PlayerXpPersistenceRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerVoidStorageSlotSaveLikeCpp {
     pub slot: u8,
@@ -987,6 +1016,13 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
     fn persist_talent_reset_like_cpp<'a>(
         &'a self,
         request: PlayerTalentResetPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
+
+    /// Persist the represented immediate XP/level row and, when changed, the
+    /// online rest-state row in one ordered Characters transaction.
+    fn persist_xp_like_cpp<'a>(
+        &'a self,
+        request: PlayerXpPersistenceRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 
     /// Count this account's live characters in Characters, then publish the
@@ -1121,6 +1157,21 @@ mod tests {
         };
         assert_eq!(
             request.logical_database(),
+            LogicalDatabaseLikeCpp::Characters
+        );
+    }
+
+    #[test]
+    fn xp_persistence_names_the_characters_database_like_cpp() {
+        assert_eq!(
+            PlayerXpPersistenceRequestLikeCpp {
+                player_guid: 7,
+                level_changed: false,
+                level: 10,
+                xp: 42,
+                rest: None,
+            }
+            .logical_database(),
             LogicalDatabaseLikeCpp::Characters
         );
     }

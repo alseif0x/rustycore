@@ -53721,37 +53721,7 @@ fn offline_rested_xp_login_does_not_modify_current_health_or_power_like_cpp() {
 }
 
 #[test]
-fn online_rest_state_save_statement_does_not_touch_logout_columns_like_cpp() {
-    let guid = ObjectGuid::create_player(1, 5008);
-
-    let stmt = WorldSession::build_character_online_rest_state_save_statement_like_cpp(
-        REST_STATE_RESTED_LIKE_CPP,
-        PLAYER_FLAGS_RESTING_LIKE_CPP,
-        42.5,
-        guid.counter() as u64,
-    );
-
-    assert_eq!(stmt.sql(), CharStatements::UPD_CHAR_ONLINE_REST_STATE.sql());
-    assert_eq!(
-        stmt.sql(),
-        "UPDATE characters SET restState = ?, playerFlags = ?, rest_bonus = ? WHERE guid = ?"
-    );
-    assert_eq!(
-        stmt.params()[0],
-        wow_database::SqlParam::U8(REST_STATE_RESTED_LIKE_CPP)
-    );
-    assert_eq!(
-        stmt.params()[1],
-        wow_database::SqlParam::U32(PLAYER_FLAGS_RESTING_LIKE_CPP)
-    );
-    assert!(matches!(stmt.params()[2], wow_database::SqlParam::F32(v) if v == 42.5));
-    assert!(
-        matches!(stmt.params()[3], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
-    );
-}
-
-#[test]
-fn xp_and_consumed_rest_state_share_one_transaction_plan_like_cpp() {
+fn xp_and_consumed_rest_state_share_one_semantic_request_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 5009);
     session.set_player_guid(Some(guid));
@@ -53762,21 +53732,16 @@ fn xp_and_consumed_rest_state_share_one_transaction_plan_like_cpp() {
     install_tapped_xp_victim_like_cpp(&mut session, victim);
     assert!(session.give_xp_runtime_like_cpp(50, victim, 1.0));
 
-    let plan =
-        session.current_player_xp_save_statement_plan_like_cpp(false, true, guid.counter() as u64);
+    let request =
+        session.current_player_xp_persistence_request_like_cpp(false, true, guid.counter() as u64);
 
-    assert_eq!(plan.len(), 2);
-    assert_eq!(plan[0].sql(), CharStatements::UPD_CHAR_XP.sql());
-    assert_eq!(
-        plan[1].sql(),
-        CharStatements::UPD_CHAR_ONLINE_REST_STATE.sql()
-    );
-    assert_eq!(plan[0].params()[0], wow_database::SqlParam::U32(100));
-    assert!(matches!(plan[1].params()[2], wow_database::SqlParam::F32(v) if v == 20.0));
+    assert!(!request.level_changed);
+    assert_eq!(request.xp, 100);
+    assert_eq!(request.rest.expect("consumed rest state").rest_bonus, 20.0);
 }
 
 #[test]
-fn xp_and_zero_award_rest_state_normalization_share_transaction_plan_like_cpp() {
+fn xp_and_zero_award_rest_state_normalization_share_semantic_request_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 0xE1C5);
     session.set_player_guid(Some(guid));
@@ -53791,7 +53756,7 @@ fn xp_and_zero_award_rest_state_normalization_share_transaction_plan_like_cpp() 
     assert!(session.give_xp_runtime_like_cpp(50, victim, 1.0));
     let rest_info_changed =
         session.represented_xp_rest_info_changed_since_like_cpp(old_rest_bonus, old_rest_state);
-    let plan = session.current_player_xp_save_statement_plan_like_cpp(
+    let request = session.current_player_xp_persistence_request_like_cpp(
         false,
         rest_info_changed,
         guid.counter() as u64,
@@ -53801,21 +53766,13 @@ fn xp_and_zero_award_rest_state_normalization_share_transaction_plan_like_cpp() 
         rest_info_changed,
         "state-only normalization must be persisted"
     );
-    assert_eq!(plan.len(), 2);
-    assert_eq!(plan[0].sql(), CharStatements::UPD_CHAR_XP.sql());
-    assert_eq!(
-        plan[1].sql(),
-        CharStatements::UPD_CHAR_ONLINE_REST_STATE.sql()
-    );
-    assert_eq!(
-        plan[1].params()[0],
-        wow_database::SqlParam::U8(REST_STATE_NORMAL_LIKE_CPP)
-    );
-    assert!(matches!(plan[1].params()[2], wow_database::SqlParam::F32(v) if v == 0.5));
+    let rest = request.rest.expect("normalized rest state");
+    assert_eq!(rest.rest_state, REST_STATE_NORMAL_LIKE_CPP);
+    assert_eq!(rest.rest_bonus, 0.5);
 }
 
 #[test]
-fn xp_and_sanitized_negative_rest_bonus_share_transaction_plan_like_cpp() {
+fn xp_and_sanitized_negative_rest_bonus_share_semantic_request_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 0xE1C7);
     session.set_player_guid(Some(guid));
@@ -53835,7 +53792,7 @@ fn xp_and_sanitized_negative_rest_bonus_share_transaction_plan_like_cpp() {
     );
     let rest_info_changed =
         session.represented_xp_rest_info_changed_since_like_cpp(old_rest_bonus, old_rest_state);
-    let plan = session.current_player_xp_save_statement_plan_like_cpp(
+    let request = session.current_player_xp_persistence_request_like_cpp(
         false,
         rest_info_changed,
         guid.counter() as u64,
@@ -53845,12 +53802,7 @@ fn xp_and_sanitized_negative_rest_bonus_share_transaction_plan_like_cpp() {
         rest_info_changed,
         "sanitizing a corrupt persisted float must not be lost on relog"
     );
-    assert_eq!(plan.len(), 2);
-    assert_eq!(
-        plan[1].sql(),
-        CharStatements::UPD_CHAR_ONLINE_REST_STATE.sql()
-    );
-    assert!(matches!(plan[1].params()[2], wow_database::SqlParam::F32(v) if v == 0.0));
+    assert_eq!(request.rest.expect("sanitized rest state").rest_bonus, 0.0);
 }
 
 #[test]
