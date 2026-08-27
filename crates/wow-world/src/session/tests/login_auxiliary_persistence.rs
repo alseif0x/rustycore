@@ -74,6 +74,17 @@ impl PlayerLifecyclePortLikeCpp for AuxiliaryLoadPortLikeCpp {
         })
     }
 
+    fn persist_talent_reset_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerTalentResetPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async {
+            PersistenceOutcomeLikeCpp::Failed {
+                reason: "auxiliary-load-only fixture".to_owned(),
+            }
+        })
+    }
+
     fn refresh_realm_character_count_like_cpp<'a>(
         &'a self,
         _request: wow_persistence::PlayerRealmCharacterCountRefreshRequestLikeCpp,

@@ -18,6 +18,7 @@ use wow_persistence::{
     PlayerHomebindPersistenceRequestLikeCpp, PlayerLifecyclePortLikeCpp,
     PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
     PlayerOfflineMarkLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
+    PlayerTalentResetPersistenceRequestLikeCpp,
 };
 
 struct RecordingPortLikeCpp {
@@ -26,6 +27,7 @@ struct RecordingPortLikeCpp {
     collections: Mutex<Vec<AccountCollectionSaveLikeCpp>>,
     character_saves: Mutex<Vec<PlayerCharacterSaveRequestLikeCpp>>,
     buyback_clears: Mutex<Vec<PlayerBuybackClearRequestLikeCpp>>,
+    talent_resets: Mutex<Vec<PlayerTalentResetPersistenceRequestLikeCpp>>,
     realm_character_count_refreshes: Mutex<Vec<PlayerRealmCharacterCountRefreshRequestLikeCpp>>,
     outcome: PersistenceOutcomeLikeCpp,
 }
@@ -38,6 +40,7 @@ impl RecordingPortLikeCpp {
             collections: Mutex::new(Vec::new()),
             character_saves: Mutex::new(Vec::new()),
             buyback_clears: Mutex::new(Vec::new()),
+            talent_resets: Mutex::new(Vec::new()),
             realm_character_count_refreshes: Mutex::new(Vec::new()),
             outcome,
         })
@@ -53,6 +56,9 @@ impl RecordingPortLikeCpp {
     }
     fn buyback_clears(&self) -> Vec<PlayerBuybackClearRequestLikeCpp> {
         self.buyback_clears.lock().unwrap().clone()
+    }
+    fn talent_resets(&self) -> Vec<PlayerTalentResetPersistenceRequestLikeCpp> {
+        self.talent_resets.lock().unwrap().clone()
     }
     fn realm_character_count_refreshes(
         &self,
@@ -84,6 +90,15 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         request: PlayerBuybackClearRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
         self.buyback_clears.lock().unwrap().push(request);
+        let outcome = self.outcome.clone();
+        Box::pin(async move { outcome })
+    }
+
+    fn persist_talent_reset_like_cpp<'a>(
+        &'a self,
+        request: PlayerTalentResetPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        self.talent_resets.lock().unwrap().push(request);
         let outcome = self.outcome.clone();
         Box::pin(async move { outcome })
     }
@@ -177,6 +192,91 @@ fn session_with_port(
     let port = RecordingPortLikeCpp::new(outcome);
     session.set_player_lifecycle_port_like_cpp(port.clone());
     (session, port)
+}
+
+fn talent_reset_session_with_port(
+    outcome: PersistenceOutcomeLikeCpp,
+    guid_counter: i64,
+) -> (WorldSession, Arc<RecordingPortLikeCpp>) {
+    let (mut session, port) = session_with_port(outcome);
+    session.set_player_guid(Some(ObjectGuid::create_player(1, guid_counter)));
+    session.set_player_gold_like_cpp(100_000);
+    session.mark_represented_talents_loaded_like_cpp();
+    session.set_represented_talent_reset_state_like_cpp(0, 0);
+    (session, port)
+}
+
+#[tokio::test]
+async fn talent_reset_reaches_the_sqlx_free_port_before_runtime_publication_like_cpp() {
+    let (mut session, port) =
+        talent_reset_session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 3 }, 0x7500_0201);
+
+    let committed = session
+        .commit_represented_talent_reset_at_like_cpp(123)
+        .await
+        .expect("an applied adapter outcome should return the unpublished runtime plan");
+
+    assert_eq!(
+        port.talent_resets(),
+        vec![PlayerTalentResetPersistenceRequestLikeCpp {
+            player_guid: 0x7500_0201,
+            money_before: 100_000,
+            money_after: 90_000,
+            reset_cost: 10_000,
+            reset_time_secs: 123,
+            retained_talents: Vec::new(),
+        }]
+    );
+    assert_eq!(session.player_gold_like_cpp(), 100_000);
+    drop(committed);
+}
+
+#[tokio::test]
+async fn definite_talent_reset_rollback_does_not_publish_runtime_state_like_cpp() {
+    let (mut session, port) = talent_reset_session_with_port(
+        PersistenceOutcomeLikeCpp::Failed {
+            reason: "constraint failure before COMMIT".to_owned(),
+        },
+        0x7500_0202,
+    );
+
+    assert!(
+        session
+            .commit_represented_talent_reset_at_like_cpp(123)
+            .await
+            .is_none()
+    );
+    assert_eq!(port.talent_resets().len(), 1);
+    assert_eq!(session.player_gold_like_cpp(), 100_000);
+    assert!(
+        !session
+            .durable_loot_money_persistence_tracker_like_cpp()
+            .is_indeterminate_like_cpp()
+    );
+}
+
+#[tokio::test]
+async fn unknown_talent_reset_commit_quarantines_without_publication_like_cpp() {
+    let (mut session, port) = talent_reset_session_with_port(
+        PersistenceOutcomeLikeCpp::Unknown {
+            reason: "connection lost after COMMIT".to_owned(),
+        },
+        0x7500_0203,
+    );
+
+    assert!(
+        session
+            .commit_represented_talent_reset_at_like_cpp(123)
+            .await
+            .is_none()
+    );
+    assert_eq!(port.talent_resets().len(), 1);
+    assert_eq!(session.player_gold_like_cpp(), 100_000);
+    assert!(
+        session
+            .durable_loot_money_persistence_tracker_like_cpp()
+            .is_indeterminate_like_cpp()
+    );
 }
 
 fn character_save_session_with_port(

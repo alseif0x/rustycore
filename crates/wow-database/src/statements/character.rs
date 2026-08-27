@@ -1199,6 +1199,9 @@ pub enum CharStatements {
     UPD_CHAR_PLAYER_FLAGS,
     /// SELECT money FROM characters WHERE guid = ? FOR UPDATE
     SEL_CHAR_MONEY_FOR_UPDATE,
+    /// Reconcile a lost COMMIT reply from an absolute-money transaction.
+    /// SELECT money FROM characters WHERE guid = ?
+    SEL_CHAR_MONEY,
     /// C++ `CHAR_UPD_CHARACTER` persists this field immediately before powers.
     /// UPDATE characters SET health = ? WHERE guid = ?
     UPD_CHAR_HEALTH,
@@ -2899,6 +2902,7 @@ impl StatementDef for CharStatements {
             Self::SEL_CHAR_MONEY_FOR_UPDATE => {
                 "SELECT money FROM characters WHERE guid = ? FOR UPDATE"
             }
+            Self::SEL_CHAR_MONEY => "SELECT money FROM characters WHERE guid = ?",
             Self::UPD_CHAR_HEALTH => "UPDATE characters SET health = ? WHERE guid = ?",
             Self::UPD_CHAR_POWERS => {
                 "UPDATE characters SET power1 = ?, power2 = ?, power3 = ?, power4 = ?, power5 = ?, power6 = ?, power7 = ?, power8 = ?, power9 = ?, power10 = ? WHERE guid = ?"

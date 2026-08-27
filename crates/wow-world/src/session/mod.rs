@@ -29249,19 +29249,6 @@ impl WorldSession {
             || self.represented_xp_rest_state_like_cpp() != old_rest_state
     }
 
-    fn build_character_talent_reset_state_save_statement_like_cpp(
-        reset_cost: u32,
-        reset_time_secs: u64,
-        guid_counter: u64,
-    ) -> PreparedStatement {
-        let mut stmt =
-            PreparedStatement::for_statement(CharStatements::UPD_CHAR_TALENT_RESET_STATE);
-        stmt.set_u32(0, reset_cost);
-        stmt.set_u64(1, reset_time_secs);
-        stmt.set_u64(2, guid_counter);
-        stmt
-    }
-
     pub(crate) fn current_played_time_values_like_cpp(&self) -> (u32, u32) {
         let session_secs: u32 = self
             .login_time
@@ -30439,12 +30426,10 @@ impl WorldSession {
         })
     }
 
-    /// Build the represented durable money/reset-metadata/talent transaction
-    /// without mutating the session. The absolute money write is retained even
-    /// for a zero-cost reset so a lost COMMIT reply cannot be mistaken for proof
-    /// that the talent statements rolled back. `character_spell` is deliberately
-    /// untouched until Rust retains the complete C++ `PlayerSpellMap` row state.
-    fn represented_talent_reset_transaction_statement_plan_like_cpp(
+    /// Build the represented durable talent-reset request without mutating the
+    /// session. Statement identity, transaction construction and ambiguous
+    /// COMMIT reconciliation belong to the lifecycle adapter.
+    fn represented_talent_reset_persistence_plan_like_cpp(
         &self,
         guid_counter: u64,
         old_money: u64,
@@ -30453,18 +30438,10 @@ impl WorldSession {
         reset_time_secs: u64,
     ) -> Option<(
         RepresentedTalentResetStatePlanLikeCpp,
-        Vec<PreparedStatement>,
+        wow_persistence::PlayerTalentResetPersistenceRequestLikeCpp,
     )> {
         let state_plan = self.represented_talent_reset_state_plan_like_cpp()?;
-        let mut statements = vec![
-            Self::build_character_gold_save_statement_like_cpp(new_money, guid_counter),
-            Self::build_character_talent_reset_state_save_statement_like_cpp(
-                cost,
-                reset_time_secs,
-                guid_counter,
-            ),
-            Self::build_character_talent_delete_statement_like_cpp(guid_counter),
-        ];
+        let mut retained_talents = Vec::new();
 
         for (talent_group, talents) in state_plan.post_talents.iter().enumerate() {
             for (talent_id, rank) in talents {
@@ -30474,39 +30451,26 @@ impl WorldSession {
                 {
                     continue;
                 }
-                statements.push(Self::build_character_talent_insert_statement_like_cpp(
-                    guid_counter,
-                    *talent_id,
-                    *rank,
-                    talent_group as u8,
-                ));
+                retained_talents.push(wow_persistence::PlayerTalentResetSaveRowLikeCpp {
+                    talent_id: *talent_id,
+                    rank: *rank,
+                    talent_group: talent_group as u8,
+                });
             }
         }
 
         debug_assert_eq!(old_money.saturating_sub(new_money), u64::from(cost));
-        Some((state_plan, statements))
-    }
-
-    pub(crate) fn build_character_talent_delete_statement_like_cpp(
-        guid_counter: u64,
-    ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_CHAR_TALENT);
-        stmt.set_u64(0, guid_counter);
-        stmt
-    }
-
-    pub(crate) fn build_character_talent_insert_statement_like_cpp(
-        guid_counter: u64,
-        talent_id: u32,
-        rank: u8,
-        talent_group: u8,
-    ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHAR_TALENT);
-        stmt.set_u64(0, guid_counter);
-        stmt.set_u32(1, talent_id);
-        stmt.set_u8(2, rank);
-        stmt.set_u8(3, talent_group);
-        stmt
+        Some((
+            state_plan,
+            wow_persistence::PlayerTalentResetPersistenceRequestLikeCpp {
+                player_guid: guid_counter,
+                money_before: old_money,
+                money_after: new_money,
+                reset_cost: cost,
+                reset_time_secs,
+                retained_talents,
+            },
+        ))
     }
 
     pub(crate) fn load_represented_glyph_row_like_cpp(
@@ -32338,22 +32302,17 @@ impl WorldSession {
         }
         let new_money = old_money - cost;
         let player_guid = self.player_guid()?;
-        let (state_plan, statements) = self
-            .represented_talent_reset_transaction_statement_plan_like_cpp(
+        let (state_plan, persistence_request) = self
+            .represented_talent_reset_persistence_plan_like_cpp(
                 player_guid.counter() as u64,
                 old_money,
                 new_money,
                 cost as u32,
                 now_secs,
             )?;
-        let mut transaction = SqlTransaction::new();
-        for statement in statements {
-            transaction.append(statement);
-        }
-
-        // Unit fixtures without a CharacterDatabase explicitly model a
-        // successful COMMIT. The failure seam proves that no covered runtime
-        // state is published on a definite rollback.
+        // Unit fixtures without a lifecycle port explicitly model a successful
+        // COMMIT. The failure seam proves that no covered runtime state is
+        // published on a definite rollback.
         #[cfg(test)]
         if self.loot_money_persistence_test_result_like_cpp == Some(false) {
             return None;
@@ -32361,23 +32320,47 @@ impl WorldSession {
         #[cfg(test)]
         let bypass_database_like_cpp = self.loot_money_persistence_test_result_like_cpp
             == Some(true)
-            || self.char_db.is_none();
+            || self.player_lifecycle_port_like_cpp().is_none();
         #[cfg(not(test))]
         let bypass_database_like_cpp = false;
 
         let money_persistence = if bypass_database_like_cpp {
             money_persistence
         } else {
-            let char_db = self.char_db.as_ref().map(Arc::clone)?;
-            self.commit_exclusive_player_money_transaction_like_cpp(
-                money_persistence,
-                char_db.as_ref(),
-                transaction,
-                old_money,
-                new_money,
-                "talent reset",
-            )
-            .await?
+            let port = self.player_lifecycle_port_like_cpp().cloned()?;
+            let mut cancellation_fence = PlayerMoneyCommitCancellationFenceLikeCpp::new(
+                Arc::clone(&self.durable_loot_money_persistence_like_cpp),
+            );
+            match port
+                .persist_talent_reset_like_cpp(persistence_request)
+                .await
+            {
+                wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {
+                    cancellation_fence.disarm_like_cpp();
+                    money_persistence
+                }
+                wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => {
+                    cancellation_fence.disarm_like_cpp();
+                    warn!(%reason, operation = "talent reset", "player-money transaction definitely rolled back");
+                    return None;
+                }
+                wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                    self.durable_loot_money_persistence_like_cpp
+                        .mark_indeterminate_like_cpp();
+                    cancellation_fence.disarm_like_cpp();
+                    self.kick(
+                        "player-money COMMIT outcome is unknown; relog required before another money mutation",
+                    );
+                    warn!(
+                        %reason,
+                        operation = "talent reset",
+                        money_before = old_money,
+                        money_after = new_money,
+                        "player-money COMMIT outcome remains indeterminate; quarantined the session"
+                    );
+                    return None;
+                }
+            }
         };
 
         Some(CommittedRepresentedTalentResetLikeCpp {

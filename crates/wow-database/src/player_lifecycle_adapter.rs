@@ -30,7 +30,8 @@ use wow_persistence::{
     PlayerLoginTransportLoadRowLikeCpp, PlayerOfflineMarkLikeCpp,
     PlayerRealmCharacterCountRefreshRequestLikeCpp, PlayerSpellChargeLoadRowLikeCpp,
     PlayerSpellCooldownLoadRowLikeCpp, PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp,
-    PlayerTraitConfigLoadRowLikeCpp, PlayerTraitEntryLoadRowLikeCpp, PlayerVoidStorageSaveLikeCpp,
+    PlayerTalentResetPersistenceRequestLikeCpp, PlayerTraitConfigLoadRowLikeCpp,
+    PlayerTraitEntryLoadRowLikeCpp, PlayerVoidStorageSaveLikeCpp,
 };
 
 use crate::params::PreparedStatement;
@@ -1235,6 +1236,64 @@ fn player_buyback_clear_statements_like_cpp(
     statements
 }
 
+fn player_talent_reset_statements_like_cpp(
+    request: &PlayerTalentResetPersistenceRequestLikeCpp,
+) -> Vec<PreparedStatement> {
+    let mut statements = Vec::with_capacity(3 + request.retained_talents.len());
+
+    let mut money = PreparedStatement::for_statement(CharStatements::UPD_CHAR_MONEY);
+    money.set_u64(0, request.money_after);
+    money.set_u64(1, request.player_guid);
+    statements.push(money);
+
+    let mut metadata =
+        PreparedStatement::for_statement(CharStatements::UPD_CHAR_TALENT_RESET_STATE);
+    metadata.set_u32(0, request.reset_cost);
+    metadata.set_u64(1, request.reset_time_secs);
+    metadata.set_u64(2, request.player_guid);
+    statements.push(metadata);
+
+    let mut delete = PreparedStatement::for_statement(CharStatements::DEL_CHAR_TALENT);
+    delete.set_u64(0, request.player_guid);
+    statements.push(delete);
+
+    for row in &request.retained_talents {
+        let mut insert = PreparedStatement::for_statement(CharStatements::INS_CHAR_TALENT);
+        insert.set_u64(0, request.player_guid);
+        insert.set_u32(1, row.talent_id);
+        insert.set_u8(2, row.rank);
+        insert.set_u8(3, row.talent_group);
+        statements.push(insert);
+    }
+    statements
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PlayerTalentResetCommitReconciliationLikeCpp {
+    Applied,
+    Failed,
+    Unknown,
+}
+
+fn reconcile_player_talent_reset_commit_like_cpp(
+    money_before: u64,
+    money_after: u64,
+    observed_money: Option<u64>,
+) -> PlayerTalentResetCommitReconciliationLikeCpp {
+    if money_before == money_after {
+        return PlayerTalentResetCommitReconciliationLikeCpp::Unknown;
+    }
+    match observed_money {
+        Some(observed) if observed == money_after => {
+            PlayerTalentResetCommitReconciliationLikeCpp::Applied
+        }
+        Some(observed) if observed == money_before => {
+            PlayerTalentResetCommitReconciliationLikeCpp::Failed
+        }
+        Some(_) | None => PlayerTalentResetCommitReconciliationLikeCpp::Unknown,
+    }
+}
+
 fn player_realm_character_count_statements_like_cpp(
     request: PlayerRealmCharacterCountRefreshRequestLikeCpp,
     num_chars: u8,
@@ -1438,6 +1497,67 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                 Err(SqlTransactionCommitError::CommitOutcomeUnknown(error)) => {
                     PersistenceOutcomeLikeCpp::Unknown {
                         reason: error.to_string(),
+                    }
+                }
+            }
+        })
+    }
+
+    fn persist_talent_reset_like_cpp<'a>(
+        &'a self,
+        request: PlayerTalentResetPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async move {
+            let statements = player_talent_reset_statements_like_cpp(&request);
+            let rows = statements.len() as u64;
+            let mut transaction = SqlTransaction::new();
+            for statement in statements {
+                transaction.append(statement);
+            }
+
+            match transaction
+                .commit_with_outcome_like_cpp(self.character_db.pool())
+                .await
+            {
+                Ok(()) => PersistenceOutcomeLikeCpp::Applied { rows },
+                Err(SqlTransactionCommitError::DefinitelyRolledBack(error)) => {
+                    PersistenceOutcomeLikeCpp::Failed {
+                        reason: error.to_string(),
+                    }
+                }
+                Err(SqlTransactionCommitError::CommitOutcomeUnknown(error)) => {
+                    let observed_money = if request.money_before == request.money_after {
+                        None
+                    } else {
+                        let mut observed =
+                            self.character_db.prepare(CharStatements::SEL_CHAR_MONEY);
+                        observed.set_u64(0, request.player_guid);
+                        self.character_db
+                            .query(&observed)
+                            .await
+                            .ok()
+                            .filter(|result| !result.is_empty())
+                            .and_then(|result| result.try_read::<u64>(0))
+                    };
+
+                    match reconcile_player_talent_reset_commit_like_cpp(
+                        request.money_before,
+                        request.money_after,
+                        observed_money,
+                    ) {
+                        PlayerTalentResetCommitReconciliationLikeCpp::Applied => {
+                            PersistenceOutcomeLikeCpp::Applied { rows }
+                        }
+                        PlayerTalentResetCommitReconciliationLikeCpp::Failed => {
+                            PersistenceOutcomeLikeCpp::Failed {
+                                reason: error.to_string(),
+                            }
+                        }
+                        PlayerTalentResetCommitReconciliationLikeCpp::Unknown => {
+                            PersistenceOutcomeLikeCpp::Unknown {
+                                reason: error.to_string(),
+                            }
+                        }
                     }
                 }
             }
@@ -2248,6 +2368,99 @@ mod tests {
                 &[crate::SqlParam::U64(77), crate::SqlParam::U64(92)][..],
                 &[crate::SqlParam::U64(92)][..],
             ]
+        );
+    }
+
+    #[test]
+    fn talent_reset_maps_to_one_ordered_character_transaction_plan_like_cpp() {
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let _capture = crate::persistence_trace::RecordingGuard::enable();
+        let statements =
+            player_talent_reset_statements_like_cpp(&PlayerTalentResetPersistenceRequestLikeCpp {
+                player_guid: 77,
+                money_before: 1_000,
+                money_after: 900,
+                reset_cost: 100,
+                reset_time_secs: 1234,
+                retained_talents: vec![
+                    PlayerTalentResetSaveRowLikeCpp {
+                        talent_id: 11,
+                        rank: 2,
+                        talent_group: 0,
+                    },
+                    PlayerTalentResetSaveRowLikeCpp {
+                        talent_id: 22,
+                        rank: 3,
+                        talent_group: 1,
+                    },
+                ],
+            });
+
+        assert_eq!(
+            statements
+                .iter()
+                .map(PreparedStatement::trace_identity)
+                .collect::<Vec<_>>(),
+            vec![
+                Some("UPD_CHAR_MONEY"),
+                Some("UPD_CHAR_TALENT_RESET_STATE"),
+                Some("DEL_CHAR_TALENT"),
+                Some("INS_CHAR_TALENT"),
+                Some("INS_CHAR_TALENT"),
+            ]
+        );
+        assert_eq!(
+            statements
+                .iter()
+                .map(PreparedStatement::params)
+                .collect::<Vec<_>>(),
+            vec![
+                &[crate::SqlParam::U64(900), crate::SqlParam::U64(77)][..],
+                &[
+                    crate::SqlParam::U32(100),
+                    crate::SqlParam::U64(1234),
+                    crate::SqlParam::U64(77),
+                ][..],
+                &[crate::SqlParam::U64(77)][..],
+                &[
+                    crate::SqlParam::U64(77),
+                    crate::SqlParam::U32(11),
+                    crate::SqlParam::U8(2),
+                    crate::SqlParam::U8(0),
+                ][..],
+                &[
+                    crate::SqlParam::U64(77),
+                    crate::SqlParam::U32(22),
+                    crate::SqlParam::U8(3),
+                    crate::SqlParam::U8(1),
+                ][..],
+            ]
+        );
+    }
+
+    #[test]
+    fn talent_reset_unknown_commit_requires_exact_changed_money_evidence_like_cpp() {
+        use PlayerTalentResetCommitReconciliationLikeCpp::{Applied, Failed, Unknown};
+
+        assert_eq!(
+            reconcile_player_talent_reset_commit_like_cpp(1_000, 900, Some(900)),
+            Applied
+        );
+        assert_eq!(
+            reconcile_player_talent_reset_commit_like_cpp(1_000, 900, Some(1_000)),
+            Failed
+        );
+        assert_eq!(
+            reconcile_player_talent_reset_commit_like_cpp(1_000, 900, Some(950)),
+            Unknown
+        );
+        assert_eq!(
+            reconcile_player_talent_reset_commit_like_cpp(1_000, 900, None),
+            Unknown
+        );
+        assert_eq!(
+            reconcile_player_talent_reset_commit_like_cpp(1_000, 1_000, Some(1_000)),
+            Unknown
         );
     }
 

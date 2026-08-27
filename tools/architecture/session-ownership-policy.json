@@ -21725,43 +21725,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "build_character_talent_delete_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_character_talent_delete_statement_like_cpp (guid_counter : u64 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_talent_insert_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_character_talent_insert_statement_like_cpp (guid_counter : u64 , talent_id : u32 , rank : u8 , talent_group : u8 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_character_talent_reset_state_save_statement_like_cpp",
-          "visibility": "private",
-          "signature": "fn build_character_talent_reset_state_save_statement_like_cpp (reset_cost : u32 , reset_time_secs : u64 , guid_counter : u64 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "build_void_storage_delete_all_statement_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn build_void_storage_delete_all_statement_like_cpp (player_guid_counter : u64 ,) -> PreparedStatement",
@@ -36741,6 +36704,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "represented_talent_reset_persistence_plan_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_talent_reset_persistence_plan_like_cpp (& self , guid_counter : u64 , old_money : u64 , new_money : u64 , cost : u32 , reset_time_secs : u64 ,) -> Option < (RepresentedTalentResetStatePlanLikeCpp , wow_persistence :: PlayerTalentResetPersistenceRequestLikeCpp ,) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "represented_talent_reset_script_hooks_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_talent_reset_script_hooks_like_cpp (& self ,) -> & [RepresentedTalentResetScriptHookLikeCpp]",
@@ -36775,17 +36749,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_talent_reset_transaction_statement_plan_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_talent_reset_transaction_statement_plan_like_cpp (& self , guid_counter : u64 , old_money : u64 , new_money : u64 , cost : u32 , reset_time_secs : u64 ,) -> Option < (RepresentedTalentResetStatePlanLikeCpp , Vec < PreparedStatement > ,) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
         },
         {
           "module": "crate::session",
