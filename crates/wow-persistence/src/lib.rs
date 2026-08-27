@@ -260,6 +260,15 @@ pub enum PlayerLoginAuxiliaryLoadRequestLikeCpp {
     CharacterAuraEffects {
         player_guid: u64,
     },
+    EquipmentInventory {
+        player_guid: u64,
+    },
+    BagInventory {
+        player_guid: u64,
+    },
+    VoidStorage {
+        player_guid: u64,
+    },
 }
 
 /// Early Characters-database reads that decide where and under which guild
@@ -709,6 +718,53 @@ pub struct PlayerCharacterAuraEffectLoadRowLikeCpp {
     pub base_amount: i32,
 }
 
+/// Shared item-instance projection selected by both halves of C++
+/// `Player::_LoadInventory`. The adapter owns the joined SQL column order;
+/// gameplay retains all item-template and slot interpretation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerInventoryItemLoadRowLikeCpp {
+    pub item_entry: u32,
+    pub item_db_guid: u64,
+    pub count: u32,
+    pub durability: u32,
+    pub context: u8,
+    pub flags: u32,
+    pub played_time: u32,
+    pub enchantments: String,
+    pub random_properties_id: i32,
+    pub random_properties_seed: i32,
+    pub gems: [(i32, String, u8); 3],
+    pub paid_money: Option<u64>,
+    pub paid_extended_cost: Option<u16>,
+    pub expiration: u32,
+    pub spell_charges: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerEquipmentInventoryLoadRowLikeCpp {
+    pub slot: u8,
+    pub item: PlayerInventoryItemLoadRowLikeCpp,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerBagInventoryLoadRowLikeCpp {
+    pub bag_slot: u8,
+    pub inner_slot: u8,
+    pub item: PlayerInventoryItemLoadRowLikeCpp,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerVoidStorageLoadRowLikeCpp {
+    pub item_id: u64,
+    pub item_entry: u32,
+    pub slot: u8,
+    pub creator_guid: u64,
+    pub fixed_scaling_level: u32,
+    pub random_properties_id: i32,
+    pub random_properties_seed: i32,
+    pub context: u8,
+}
+
 /// One raw `character_trait_entry` row. Missing columns remain unknown so the
 /// Player owner can keep its represented authority incomplete instead of
 /// silently turning malformed database data into zero-valued gameplay state.
@@ -765,6 +821,9 @@ pub enum PlayerLoginAuxiliaryLoadedLikeCpp {
     Reputation(Vec<PlayerReputationLoadRowLikeCpp>),
     CharacterAuras(Vec<PlayerCharacterAuraLoadRowLikeCpp>),
     CharacterAuraEffects(Vec<PlayerCharacterAuraEffectLoadRowLikeCpp>),
+    EquipmentInventory(Vec<PlayerEquipmentInventoryLoadRowLikeCpp>),
+    BagInventory(Vec<PlayerBagInventoryLoadRowLikeCpp>),
+    VoidStorage(Vec<PlayerVoidStorageLoadRowLikeCpp>),
 }
 
 /// Read-only lifecycle loads have no unknown-COMMIT state: they either
@@ -1657,6 +1716,9 @@ mod tests {
             PlayerLoginAuxiliaryLoadRequestLikeCpp::Reputation { player_guid: 1 },
             PlayerLoginAuxiliaryLoadRequestLikeCpp::CharacterAuras { player_guid: 1 },
             PlayerLoginAuxiliaryLoadRequestLikeCpp::CharacterAuraEffects { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::EquipmentInventory { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::BagInventory { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::VoidStorage { player_guid: 1 },
         ] {
             assert_eq!(
                 request.logical_database(),
@@ -1770,6 +1832,32 @@ mod tests {
         );
         let failed = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
             reason: "aura query failed".to_owned(),
+        };
+
+        assert_ne!(loaded, empty);
+        assert_ne!(empty, failed);
+        assert_ne!(loaded, failed);
+    }
+
+    #[test]
+    fn inventory_login_rows_keep_loaded_empty_and_failure_distinct_like_cpp() {
+        let loaded = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+            PlayerLoginAuxiliaryLoadedLikeCpp::VoidStorage(vec![PlayerVoidStorageLoadRowLikeCpp {
+                item_id: 1,
+                item_entry: 2,
+                slot: 3,
+                creator_guid: 4,
+                fixed_scaling_level: 5,
+                random_properties_id: 6,
+                random_properties_seed: 7,
+                context: 8,
+            }]),
+        );
+        let empty = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+            PlayerLoginAuxiliaryLoadedLikeCpp::VoidStorage(Vec::new()),
+        );
+        let failed = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+            reason: "inventory query failed".to_owned(),
         };
 
         assert_ne!(loaded, empty);

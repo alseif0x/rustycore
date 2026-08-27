@@ -17,25 +17,26 @@ use wow_persistence::{
     AccountCollectionLoadedLikeCpp, AccountCollectionRowsLikeCpp, AccountCollectionSaveLikeCpp,
     AccountHeirloomLoadRowLikeCpp, AccountMaskBlockLikeCpp, AccountMountLoadRowLikeCpp,
     AccountToyLoadRowLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
-    PlayerActionButtonLoadRowLikeCpp, PlayerBattlegroundLocationLoadRowLikeCpp,
-    PlayerBuybackClearRequestLikeCpp, PlayerCharacterAuraEffectLoadRowLikeCpp,
-    PlayerCharacterAuraLoadRowLikeCpp, PlayerCharacterBaseLoadOutcomeLikeCpp,
-    PlayerCharacterBaseLoadRequestLikeCpp, PlayerCharacterBaseLoadRowLikeCpp,
-    PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
-    PlayerCufProfileLoadRowLikeCpp, PlayerCufProfileSaveLikeCpp, PlayerCurrencyLoadRowLikeCpp,
-    PlayerCustomizationLoadRowLikeCpp, PlayerEquipmentSetLoadRowLikeCpp,
+    PlayerActionButtonLoadRowLikeCpp, PlayerBagInventoryLoadRowLikeCpp,
+    PlayerBattlegroundLocationLoadRowLikeCpp, PlayerBuybackClearRequestLikeCpp,
+    PlayerCharacterAuraEffectLoadRowLikeCpp, PlayerCharacterAuraLoadRowLikeCpp,
+    PlayerCharacterBaseLoadOutcomeLikeCpp, PlayerCharacterBaseLoadRequestLikeCpp,
+    PlayerCharacterBaseLoadRowLikeCpp, PlayerCharacterSaveRequestLikeCpp,
+    PlayerCharacterSaveResultLikeCpp, PlayerCufProfileLoadRowLikeCpp, PlayerCufProfileSaveLikeCpp,
+    PlayerCurrencyLoadRowLikeCpp, PlayerCustomizationLoadRowLikeCpp,
+    PlayerEquipmentInventoryLoadRowLikeCpp, PlayerEquipmentSetLoadRowLikeCpp,
     PlayerEquipmentSetSaveLikeCpp, PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp,
     PlayerGlyphLoadRowLikeCpp, PlayerGuildMembershipLoadRowLikeCpp,
     PlayerHomebindLocationLoadRowLikeCpp, PlayerHomebindPersistenceRequestLikeCpp,
     PlayerInitialWorldStateRowsLikeCpp, PlayerInitialWorldStateTemplateRowLikeCpp,
     PlayerInitialWorldStateValueRowLikeCpp, PlayerInitialWorldStatesLoadOutcomeLikeCpp,
-    PlayerInstanceTimeRestrictionLoadRowLikeCpp, PlayerLifecyclePortLikeCpp,
-    PlayerLoginAdmissionLoadOutcomeLikeCpp, PlayerLoginAdmissionLoadRequestLikeCpp,
-    PlayerLoginAdmissionLoadedLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
-    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginAuxiliaryLoadedLikeCpp,
-    PlayerLoginTransportLoadOutcomeLikeCpp, PlayerLoginTransportLoadRequestLikeCpp,
-    PlayerLoginTransportLoadRowLikeCpp, PlayerOfflineMarkLikeCpp,
-    PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
+    PlayerInstanceTimeRestrictionLoadRowLikeCpp, PlayerInventoryItemLoadRowLikeCpp,
+    PlayerLifecyclePortLikeCpp, PlayerLoginAdmissionLoadOutcomeLikeCpp,
+    PlayerLoginAdmissionLoadRequestLikeCpp, PlayerLoginAdmissionLoadedLikeCpp,
+    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
+    PlayerLoginAuxiliaryLoadedLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
+    PlayerLoginTransportLoadRequestLikeCpp, PlayerLoginTransportLoadRowLikeCpp,
+    PlayerOfflineMarkLikeCpp, PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
     PlayerPetDeclinedNamesLoadRowLikeCpp, PlayerPetSpellChargeLoadRowLikeCpp,
     PlayerPetSpellCooldownLoadRowLikeCpp, PlayerPetSpellLoadRowLikeCpp,
     PlayerPetStableLoadRowLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
@@ -44,7 +45,8 @@ use wow_persistence::{
     PlayerSpellStateLikeCpp, PlayerTalentLoadRowLikeCpp,
     PlayerTalentResetPersistenceRequestLikeCpp, PlayerTraitConfigLoadRowLikeCpp,
     PlayerTraitEntryLoadRowLikeCpp, PlayerTransmogOutfitLoadRowLikeCpp,
-    PlayerVoidStorageSaveLikeCpp, PlayerXpPersistenceRequestLikeCpp,
+    PlayerVoidStorageLoadRowLikeCpp, PlayerVoidStorageSaveLikeCpp,
+    PlayerXpPersistenceRequestLikeCpp,
 };
 
 use crate::params::PreparedStatement;
@@ -1329,6 +1331,73 @@ fn player_login_auxiliary_load_statement_like_cpp(
             statement.set_u64(0, player_guid);
             statement
         }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::EquipmentInventory { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHAR_EQUIPMENT);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::BagInventory { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHAR_BAG_CONTENTS);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::VoidStorage { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHAR_VOID_STORAGE);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+    }
+}
+
+fn player_inventory_item_load_row_like_cpp(
+    result: &crate::SqlResult,
+    first_column: usize,
+) -> PlayerInventoryItemLoadRowLikeCpp {
+    PlayerInventoryItemLoadRowLikeCpp {
+        item_entry: result.try_read::<u32>(first_column).unwrap_or(0),
+        item_db_guid: result.try_read::<u64>(first_column + 1).unwrap_or(0),
+        count: result.try_read::<u32>(first_column + 2).unwrap_or(1),
+        durability: result.try_read::<u32>(first_column + 3).unwrap_or(0),
+        context: result.try_read::<u8>(first_column + 4).unwrap_or(0),
+        flags: result.try_read::<u32>(first_column + 5).unwrap_or(0),
+        played_time: result.try_read::<u32>(first_column + 6).unwrap_or(0),
+        enchantments: result
+            .try_read::<String>(first_column + 7)
+            .unwrap_or_default(),
+        random_properties_id: result.try_read::<i32>(first_column + 8).unwrap_or(0),
+        random_properties_seed: result.try_read::<i32>(first_column + 9).unwrap_or(0),
+        gems: [
+            (
+                result.try_read::<i32>(first_column + 10).unwrap_or(0),
+                result
+                    .try_read::<String>(first_column + 11)
+                    .unwrap_or_default(),
+                result.try_read::<u8>(first_column + 12).unwrap_or(0),
+            ),
+            (
+                result.try_read::<i32>(first_column + 13).unwrap_or(0),
+                result
+                    .try_read::<String>(first_column + 14)
+                    .unwrap_or_default(),
+                result.try_read::<u8>(first_column + 15).unwrap_or(0),
+            ),
+            (
+                result.try_read::<i32>(first_column + 16).unwrap_or(0),
+                result
+                    .try_read::<String>(first_column + 17)
+                    .unwrap_or_default(),
+                result.try_read::<u8>(first_column + 18).unwrap_or(0),
+            ),
+        ],
+        paid_money: result.try_read::<u64>(first_column + 19),
+        paid_extended_cost: result.try_read::<u16>(first_column + 20),
+        expiration: result.try_read::<u32>(first_column + 21).unwrap_or(0),
+        spell_charges: result
+            .try_read::<String>(first_column + 22)
+            .unwrap_or_default(),
     }
 }
 
@@ -2740,6 +2809,58 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                     }
                     PlayerLoginAuxiliaryLoadedLikeCpp::CharacterAuraEffects(rows)
                 }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::EquipmentInventory { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerEquipmentInventoryLoadRowLikeCpp {
+                                slot: result.read(0),
+                                item: player_inventory_item_load_row_like_cpp(&result, 1),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::EquipmentInventory(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::BagInventory { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerBagInventoryLoadRowLikeCpp {
+                                bag_slot: result.read(0),
+                                inner_slot: result.read(1),
+                                item: player_inventory_item_load_row_like_cpp(&result, 2),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::BagInventory(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::VoidStorage { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerVoidStorageLoadRowLikeCpp {
+                                item_id: result.try_read::<u64>(0).unwrap_or(0),
+                                item_entry: result.try_read::<u32>(1).unwrap_or(0),
+                                slot: result.try_read::<u8>(2).unwrap_or(u8::MAX),
+                                creator_guid: result.try_read::<u64>(3).unwrap_or(0),
+                                fixed_scaling_level: result.try_read::<u32>(4).unwrap_or(0),
+                                random_properties_id: result.try_read::<i32>(5).unwrap_or(0),
+                                random_properties_seed: result.try_read::<i32>(6).unwrap_or(0),
+                                context: result.try_read::<u8>(7).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::VoidStorage(rows)
+                }
             };
             PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(loaded)
         })
@@ -3219,6 +3340,21 @@ mod tests {
             (
                 PlayerLoginAuxiliaryLoadRequestLikeCpp::CharacterAuraEffects { player_guid: 77 },
                 CharStatements::SEL_CHARACTER_AURA_EFFECTS.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::EquipmentInventory { player_guid: 77 },
+                CharStatements::SEL_CHAR_EQUIPMENT.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::BagInventory { player_guid: 77 },
+                CharStatements::SEL_CHAR_BAG_CONTENTS.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::VoidStorage { player_guid: 77 },
+                CharStatements::SEL_CHAR_VOID_STORAGE.sql(),
                 vec![crate::SqlParam::U64(77)],
             ),
         ];
