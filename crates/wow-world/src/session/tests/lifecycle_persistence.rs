@@ -179,6 +179,17 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         })
     }
 
+    fn load_login_admission_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerLoginAdmissionLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerLoginAdmissionLoadOutcomeLikeCpp> {
+        Box::pin(async {
+            wow_persistence::PlayerLoginAdmissionLoadOutcomeLikeCpp::Failed {
+                reason: "recording port has no login-admission fixture".to_owned(),
+            }
+        })
+    }
+
     fn load_login_auxiliary_like_cpp<'a>(
         &'a self,
         _request: PlayerLoginAuxiliaryLoadRequestLikeCpp,

@@ -260,29 +260,40 @@ impl WorldSession {
             .and_then(|store| store.get(map_id as u32))
             .is_some_and(|entry| entry.is_battleground_or_arena());
         let battleground_login_data = if saved_character_map_is_battleground {
-            let mut bg_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_BGDATA);
-            bg_stmt.set_u64(0, guid.counter() as u64);
-            match char_db.query(&bg_stmt).await {
-                Ok(bg_result) if !bg_result.is_empty() => {
-                    Some(CharacterBattlegroundLoginDataLikeCpp {
-                        entry_point: CharacterLoginLocationLikeCpp {
-                            map_id: u32::from(bg_result.try_read::<u16>(6).unwrap_or(u16::MAX)),
-                            bind_area_id: None,
-                            position: Position::new(
-                                bg_result.try_read::<f32>(2).unwrap_or(f32::NAN),
-                                bg_result.try_read::<f32>(3).unwrap_or(f32::NAN),
-                                bg_result.try_read::<f32>(4).unwrap_or(f32::NAN),
-                                bg_result.try_read::<f32>(5).unwrap_or(f32::NAN),
-                            ),
-                        },
-                    })
-                }
-                Ok(_) => None,
-                Err(error) => {
+            match player_lifecycle_port
+                .load_login_admission_like_cpp(
+                    wow_persistence::PlayerLoginAdmissionLoadRequestLikeCpp::BattlegroundLocation {
+                        player_guid: guid.counter() as u64,
+                    },
+                )
+                .await
+            {
+                wow_persistence::PlayerLoginAdmissionLoadOutcomeLikeCpp::Loaded(
+                    wow_persistence::PlayerLoginAdmissionLoadedLikeCpp::BattlegroundLocation(row),
+                ) => row.map(|row| CharacterBattlegroundLoginDataLikeCpp {
+                    entry_point: CharacterLoginLocationLikeCpp {
+                        map_id: u32::from(row.map_id.unwrap_or(u16::MAX)),
+                        bind_area_id: None,
+                        position: Position::new(
+                            row.x.unwrap_or(f32::NAN),
+                            row.y.unwrap_or(f32::NAN),
+                            row.z.unwrap_or(f32::NAN),
+                            row.orientation.unwrap_or(f32::NAN),
+                        ),
+                    },
+                }),
+                wow_persistence::PlayerLoginAdmissionLoadOutcomeLikeCpp::Failed { reason } => {
                     warn!(
                         player_guid = guid.counter(),
-                        %error,
+                        %reason,
                         "failed to load character_battleground_data like C++ Player::_LoadBGData"
+                    );
+                    None
+                }
+                _ => {
+                    warn!(
+                        player_guid = guid.counter(),
+                        "unexpected battleground-location lifecycle result"
                     );
                     None
                 }
@@ -290,67 +301,89 @@ impl WorldSession {
         } else {
             None
         };
-        let loaded_login_homebind = {
-            let mut homebind_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_HOMEBIND);
-            homebind_stmt.set_u64(0, guid.counter() as u64);
-            match char_db.query(&homebind_stmt).await {
-                Ok(homebind_result) if !homebind_result.is_empty() => {
-                    Some(CharacterLoginLocationLikeCpp {
-                        map_id: u32::from(homebind_result.try_read::<u16>(0).unwrap_or(u16::MAX)),
-                        bind_area_id: Some(u32::from(
-                            homebind_result.try_read::<u16>(1).unwrap_or(0),
-                        )),
-                        position: Position::new(
-                            homebind_result.try_read::<f32>(2).unwrap_or(f32::NAN),
-                            homebind_result.try_read::<f32>(3).unwrap_or(f32::NAN),
-                            homebind_result.try_read::<f32>(4).unwrap_or(f32::NAN),
-                            homebind_result.try_read::<f32>(5).unwrap_or(f32::NAN),
-                        ),
-                    })
-                }
-                Ok(_) => None,
-                Err(error) => {
-                    warn!(
-                        player_guid = guid.counter(),
-                        %error,
-                        "failed to load character homebind like C++ Player::_LoadHomeBind"
-                    );
-                    self.kick("WorldSession::HandlePlayerLogin Player::_LoadHomeBind query failed");
-                    return;
-                }
+        let loaded_login_homebind = match player_lifecycle_port
+            .load_login_admission_like_cpp(
+                wow_persistence::PlayerLoginAdmissionLoadRequestLikeCpp::HomebindLocation {
+                    player_guid: guid.counter() as u64,
+                },
+            )
+            .await
+        {
+            wow_persistence::PlayerLoginAdmissionLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAdmissionLoadedLikeCpp::HomebindLocation(row),
+            ) => row.map(|row| CharacterLoginLocationLikeCpp {
+                map_id: u32::from(row.map_id.unwrap_or(u16::MAX)),
+                bind_area_id: Some(u32::from(row.area_id.unwrap_or(0))),
+                position: Position::new(
+                    row.x.unwrap_or(f32::NAN),
+                    row.y.unwrap_or(f32::NAN),
+                    row.z.unwrap_or(f32::NAN),
+                    row.orientation.unwrap_or(f32::NAN),
+                ),
+            }),
+            wow_persistence::PlayerLoginAdmissionLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!(
+                    player_guid = guid.counter(),
+                    %reason,
+                    "failed to load character homebind like C++ Player::_LoadHomeBind"
+                );
+                self.kick("WorldSession::HandlePlayerLogin Player::_LoadHomeBind query failed");
+                return;
+            }
+            _ => {
+                warn!(
+                    player_guid = guid.counter(),
+                    "unexpected homebind-location lifecycle result"
+                );
+                self.kick("WorldSession::HandlePlayerLogin Player::_LoadHomeBind query failed");
+                return;
             }
         };
-        let loaded_guild_id_like_cpp = {
-            let mut guild_stmt = char_db.prepare(CharStatements::SEL_GUILD_MEMBER);
-            guild_stmt.set_u64(0, guid.counter() as u64);
-            match char_db.query(&guild_stmt).await {
-                Ok(guild_result) if guild_result.is_empty() => Some(0),
-                Ok(mut guild_result) => {
-                    let guild_id = guild_result.try_read::<u64>(0);
-                    if guild_result.next_row() {
-                        warn!(
-                            player_guid = guid.counter(),
-                            "Keeping guild membership authority incomplete: duplicate rows"
-                        );
-                        None
-                    } else if guild_id.is_none() {
-                        warn!(
-                            player_guid = guid.counter(),
-                            "Keeping guild membership authority incomplete: malformed row"
-                        );
-                        None
-                    } else {
-                        guild_id
-                    }
-                }
-                Err(error) => {
+        let loaded_guild_id_like_cpp = match player_lifecycle_port
+            .load_login_admission_like_cpp(
+                wow_persistence::PlayerLoginAdmissionLoadRequestLikeCpp::GuildMembership {
+                    player_guid: guid.counter() as u64,
+                },
+            )
+            .await
+        {
+            wow_persistence::PlayerLoginAdmissionLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAdmissionLoadedLikeCpp::GuildMembership(rows),
+            ) if rows.is_empty() => Some(0),
+            wow_persistence::PlayerLoginAdmissionLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAdmissionLoadedLikeCpp::GuildMembership(rows),
+            ) if rows.len() == 1 => {
+                if rows[0].guild_id.is_none() {
                     warn!(
                         player_guid = guid.counter(),
-                        %error,
-                        "Failed to load guild membership for player login"
+                        "Keeping guild membership authority incomplete: malformed row"
                     );
-                    None
                 }
+                rows[0].guild_id
+            }
+            wow_persistence::PlayerLoginAdmissionLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAdmissionLoadedLikeCpp::GuildMembership(_),
+            ) => {
+                warn!(
+                    player_guid = guid.counter(),
+                    "Keeping guild membership authority incomplete: duplicate rows"
+                );
+                None
+            }
+            wow_persistence::PlayerLoginAdmissionLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!(
+                    player_guid = guid.counter(),
+                    %reason,
+                    "Failed to load guild membership for player login"
+                );
+                None
+            }
+            _ => {
+                warn!(
+                    player_guid = guid.counter(),
+                    "unexpected guild-membership lifecycle result"
+                );
+                None
             }
         };
         let valid_login_homebind = loaded_login_homebind.filter(|homebind| {

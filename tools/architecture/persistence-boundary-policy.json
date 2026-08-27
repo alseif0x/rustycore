@@ -14532,6 +14532,36 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_login_admission_load_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter"
+      ],
+      "enclosings": [
+        "fn player_login_admission_load_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free Player-login admission reads (#416) currently owns the complete wow-database workflow fn player_login_admission_load_statement_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
+      "connection_affinity": "Pure Characters-database statement construction; each semantic admission request binds one UInt64 Player GUID.",
+      "current_order": "Maps battleground location, homebind location and guild membership to their existing C++ LoginQueryHolder statements without reordering the caller's reads.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning adapter classifies the later read as Loaded or Failed.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::fn player_login_auxiliary_load_statement_like_cpp",
       "source_class": "production",
       "packages": [
@@ -14861,6 +14891,36 @@
       "connection_affinity": "The World template query and Characters overlay query use their independently configured adapters in source order; no distributed ACID boundary is claimed.",
       "current_order": "Queries SEL_WORLD_STATES first and then SEL_WORLD_STATE_VALUES even when the first query fails; both successful result sets retain database row order.",
       "failure_and_unknown_commit": "The two read failures are classified independently in the typed result; neither read has an unknown-COMMIT state and one failure does not erase the other read's result.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_lifecycle_adapter:crates/wow-database/src/player_lifecycle_adapter.rs::impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::load_login_admission_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_lifecycle_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_lifecycle_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::load_login_admission_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free Player-login admission reads (#416) currently owns the complete wow-database workflow impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::load_login_admission_like_cpp in crates/wow-database/src/player_lifecycle_adapter.rs.",
+      "connection_affinity": "Each request uses one read on the configured Characters adapter and claims no transaction or cross-query affinity.",
+      "current_order": "Runs exactly one requested admission statement and returns raw optional location columns or every guild row; map/guild validation and publication remain in wow-world.",
+      "failure_and_unknown_commit": "A query error returns Failed; empty location rows remain Loaded(None), empty guild rows remain Loaded(empty), and malformed columns stay optional rather than becoming canonical zero.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
