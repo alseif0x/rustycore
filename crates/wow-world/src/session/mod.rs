@@ -5323,6 +5323,15 @@ struct PlayerTransportLoginStateLikeCpp {
 ///
 /// Receives deserialized packets from the socket layer via a channel,
 /// dispatches them to registered handlers, and sends responses back.
+#[derive(Default)]
+struct SessionPersistencePortsLikeCpp {
+    player_lifecycle: Option<Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>>,
+    session_account_state: Option<Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>>,
+    packet_spoof_ban: Option<Arc<dyn wow_persistence::PacketSpoofBanPersistencePortLikeCpp>>,
+    void_storage: Option<Arc<dyn wow_persistence::VoidStoragePersistencePortLikeCpp>>,
+    map_corpse: Option<Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>,
+}
+
 pub struct WorldSession {
     /// The realm/instance transport, owned by `wow-session` (#297).
     ///
@@ -5399,20 +5408,10 @@ pub struct WorldSession {
 
     // Login database (for realmcharacters updates)
     login_db: Option<Arc<LoginDatabase>>,
-    /// Typed Player lifecycle persistence capability (#200). The Session
-    /// publishes durable lifecycle state through this port instead of
-    /// reaching for a database handle; `wow-database` supplies the adapter.
-    player_lifecycle_port_like_cpp: Option<Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>>,
-    /// Account data and tutorials are authenticated-session state, so their
-    /// Characters-database persistence uses a distinct typed capability.
-    session_account_state_port_like_cpp:
-        Option<Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>>,
-    /// Login-database capability for the PacketSpoof admission ban workflow.
-    packet_spoof_ban_persistence_port_like_cpp:
-        Option<Arc<dyn wow_persistence::PacketSpoofBanPersistencePortLikeCpp>>,
-    /// SQLx-free adapter for canonical `Map::LoadCorpseData` hydration.
-    map_corpse_persistence_port_like_cpp:
-        Option<Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>,
+    /// Typed database capabilities live behind one indirection so adding a
+    /// persistence workflow does not keep growing this already-large session;
+    /// `wow-database` supplies the concrete adapters.
+    persistence_ports_like_cpp: Box<SessionPersistencePortsLikeCpp>,
 
     // World database (for creature templates, spawns, etc.)
     world_db: Option<Arc<WorldDatabase>>,
@@ -7777,10 +7776,7 @@ impl WorldSession {
             char_db: None,
             homebind_persistence_tx_like_cpp: None,
             login_db: None,
-            player_lifecycle_port_like_cpp: None,
-            session_account_state_port_like_cpp: None,
-            packet_spoof_ban_persistence_port_like_cpp: None,
-            map_corpse_persistence_port_like_cpp: None,
+            persistence_ports_like_cpp: Box::default(),
             world_db: None,
             trainer_store_like_cpp: None,
             bank_bag_slot_prices_store: None,
@@ -16391,40 +16387,53 @@ impl WorldSession {
         &mut self,
         port: Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>,
     ) {
-        self.player_lifecycle_port_like_cpp = Some(port);
+        self.persistence_ports_like_cpp.player_lifecycle = Some(port);
     }
 
     pub(crate) fn player_lifecycle_port_like_cpp(
         &self,
     ) -> Option<&Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>> {
-        self.player_lifecycle_port_like_cpp.as_ref()
+        self.persistence_ports_like_cpp.player_lifecycle.as_ref()
     }
 
     pub fn set_session_account_state_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>,
     ) {
-        self.session_account_state_port_like_cpp = Some(port);
+        self.persistence_ports_like_cpp.session_account_state = Some(port);
     }
 
     pub fn set_packet_spoof_ban_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::PacketSpoofBanPersistencePortLikeCpp>,
     ) {
-        self.packet_spoof_ban_persistence_port_like_cpp = Some(port);
+        self.persistence_ports_like_cpp.packet_spoof_ban = Some(port);
+    }
+
+    pub fn set_void_storage_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::VoidStoragePersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.void_storage = Some(port);
+    }
+
+    pub(crate) fn void_storage_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::VoidStoragePersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.void_storage.clone()
     }
 
     pub fn set_map_corpse_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>,
     ) {
-        self.map_corpse_persistence_port_like_cpp = Some(port);
+        self.persistence_ports_like_cpp.map_corpse = Some(port);
     }
 
     pub(crate) fn map_corpse_persistence_port_like_cpp(
         &self,
     ) -> Option<&Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>> {
-        self.map_corpse_persistence_port_like_cpp.as_ref()
+        self.persistence_ports_like_cpp.map_corpse.as_ref()
     }
 
     /// Attach this session to the one canonical journal owner for its
@@ -27883,16 +27892,8 @@ impl WorldSession {
         Some((old_money, new_money))
     }
 
-    /// Commit a transaction whose money change can act as its reconciliation
-    /// marker. On a definite rollback, dropping the returned `None` reopens
-    /// normal payout admission. On an ambiguous COMMIT, the current durable
-    /// money row is compared with the exact pre/post values while the shared
-    /// per-character mutation lock remains held.
-    ///
-    /// Callers must publish every runtime mutation covered by `transaction`
-    /// before dropping the returned guard. If `money_before == money_after`,
-    /// an ambiguous COMMIT is necessarily quarantined because an unchanged
-    /// money row cannot prove whether other statements committed.
+    /// Concrete compatibility wrapper retained for persistence workflows that
+    /// have not yet moved behind typed capability ports.
     pub(crate) async fn commit_exclusive_player_money_transaction_like_cpp(
         &mut self,
         money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
@@ -27902,82 +27903,21 @@ impl WorldSession {
         money_after: u64,
         operation: &'static str,
     ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
-        let mut cancellation_fence = PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(
-            &self.durable_loot_money_persistence_like_cpp,
-        ));
-        let commit_result = transaction
-            .commit_with_outcome_like_cpp(char_db.pool())
-            .await;
-        match commit_result {
-            Ok(()) => {
-                cancellation_fence.disarm_like_cpp();
-                Some(money_persistence)
-            }
-            Err(SqlTransactionCommitError::DefinitelyRolledBack(error)) => {
-                cancellation_fence.disarm_like_cpp();
-                warn!(%error, operation, "player-money transaction definitely rolled back");
-                None
-            }
-            Err(SqlTransactionCommitError::CommitOutcomeUnknown(error)) => {
-                let observed_money = match self.player_guid() {
-                    Some(player_guid) => {
-                        sqlx::query_scalar::<_, u64>("SELECT money FROM characters WHERE guid = ?")
-                            .bind(player_guid.counter() as u64)
-                            .fetch_optional(char_db.pool())
-                            .await
-                            .ok()
-                            .flatten()
-                    }
-                    None => None,
-                };
-
-                match reconcile_absolute_player_money_commit_like_cpp(
-                    money_before,
-                    money_after,
-                    observed_money,
-                ) {
-                    AbsolutePlayerMoneyCommitReconciliationLikeCpp::Committed => {
-                        cancellation_fence.disarm_like_cpp();
-                        warn!(
-                            %error,
-                            operation,
-                            money_before,
-                            money_after,
-                            "player-money COMMIT reply was lost but durable money proves the transaction committed"
-                        );
-                        Some(money_persistence)
-                    }
-                    AbsolutePlayerMoneyCommitReconciliationLikeCpp::RolledBack => {
-                        cancellation_fence.disarm_like_cpp();
-                        warn!(
-                            %error,
-                            operation,
-                            money_before,
-                            money_after,
-                            "player-money COMMIT reply was lost but durable money proves the transaction rolled back"
-                        );
-                        None
-                    }
-                    AbsolutePlayerMoneyCommitReconciliationLikeCpp::Indeterminate => {
-                        self.durable_loot_money_persistence_like_cpp
-                            .mark_indeterminate_like_cpp();
-                        cancellation_fence.disarm_like_cpp();
-                        self.kick(
-                            "player-money COMMIT outcome is unknown; relog required before another money mutation",
-                        );
-                        warn!(
-                            %error,
-                            operation,
-                            money_before,
-                            money_after,
-                            ?observed_money,
-                            "player-money COMMIT outcome remains indeterminate; quarantined the session"
-                        );
-                        None
-                    }
-                }
-            }
-        }
+        let player_guid = self.player_guid().map(|guid| guid.counter() as u64);
+        let outcome_future = wow_database::player_money_transaction_adapter::
+            commit_player_money_transaction_and_observe_like_cpp(
+                char_db,
+                transaction,
+                player_guid,
+            );
+        self.await_exclusive_player_money_transaction_outcome_like_cpp(
+            money_persistence,
+            outcome_future,
+            money_before,
+            money_after,
+            operation,
+        )
+        .await
     }
 
     /// Commit a trainer fee when the represented cast has no durable
@@ -30571,16 +30511,6 @@ impl WorldSession {
             PreparedStatement::for_statement(CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_SLOT);
         stmt.set_u8(0, slot);
         stmt.set_u64(1, player_guid_counter);
-        stmt
-    }
-
-    pub(crate) fn build_void_storage_delete_all_statement_like_cpp(
-        player_guid_counter: u64,
-    ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::for_statement(
-            CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_CHAR_GUID,
-        );
-        stmt.set_u64(0, player_guid_counter);
         stmt
     }
 
@@ -36998,7 +36928,11 @@ impl WorldSession {
         self.tutorials_loaded_coherently_like_cpp = false;
         self.tutorials_changed_like_cpp = false;
 
-        let Some(port) = self.session_account_state_port_like_cpp.clone() else {
+        let Some(port) = self
+            .persistence_ports_like_cpp
+            .session_account_state
+            .clone()
+        else {
             warn!(
                 account = self.account_id,
                 "LoadTutorialsData skipped: session account-state port unavailable"
@@ -37096,7 +37030,11 @@ impl WorldSession {
             }
         };
 
-        let Some(port) = self.session_account_state_port_like_cpp.clone() else {
+        let Some(port) = self
+            .persistence_ports_like_cpp
+            .session_account_state
+            .clone()
+        else {
             warn!(
                 account = self.account_id,
                 mask, "LoadAccountData skipped: session account-state port unavailable"
@@ -37167,7 +37105,11 @@ impl WorldSession {
             }
         };
 
-        let Some(port) = self.session_account_state_port_like_cpp.clone() else {
+        let Some(port) = self
+            .persistence_ports_like_cpp
+            .session_account_state
+            .clone()
+        else {
             warn!(
                 account = self.account_id,
                 data_type, "SetAccountData persisted fallback: account-state port unavailable"

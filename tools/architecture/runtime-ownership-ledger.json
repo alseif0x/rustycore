@@ -188,9 +188,9 @@
           "login_db",
           "login_time",
           "logout_time",
-          "map_corpse_persistence_port_like_cpp",
           "next_player_save_ms_like_cpp",
           "pending_periodic_player_save_like_cpp",
+          "persistence_ports_like_cpp",
           "player_loading",
           "player_login_claim_like_cpp",
           "player_logout_like_cpp",
@@ -202,7 +202,7 @@
           "tutorials_loaded_from_db_like_cpp",
           "world_db"
         ],
-        "current_storage": "Concrete database handles remain on WorldSession for residual workflows. The Player character-save plan, talent reset, represented XP/rest, offline marks and account collections cross the SQLx-free player_lifecycle_port_like_cpp; session-owned account data and tutorials cross session_account_state_port_like_cpp; lifecycle flags/timers, persistence trackers and durable snapshots remain Session-owned.",
+        "current_storage": "Concrete database handles remain on WorldSession for residual workflows. Typed lifecycle, account-state, PacketSpoof-ban, map-corpse and bounded void-storage capabilities are grouped behind persistence_ports_like_cpp so each new workflow does not enlarge WorldSession. Lifecycle flags/timers, persistence trackers and durable snapshots remain Session-owned.",
         "sole_writer": "The owning Session/lifecycle flow mutates session flags; concrete Character/Login/World database adapters execute durable work, sometimes through detached workers or sagas.",
         "readers": "Login/load, logout/save, periodic save, recovery, handlers, and post-commit publication paths.",
         "clock_lifetime": "Selected-character/session lifetime with periodic save and logout clocks; durable commands may outlive one handler call and must recover after restart.",
@@ -218,7 +218,7 @@
       },
       {
         "id": "immutable_catalogs_configuration_and_services",
-        "expected_field_count": 190,
+        "expected_field_count": 188,
         "field_names": [
           "access_requirement_store",
           "adventure_map_poi_store",
@@ -334,7 +334,6 @@
           "player_create_custom_spell_store_like_cpp",
           "player_create_info_store_like_cpp",
           "player_grid_load_resolver_like_cpp",
-          "player_lifecycle_port_like_cpp",
           "power_type_store",
           "pvp_item_store",
           "quest_faction_reward_store",
@@ -357,7 +356,6 @@
           "scaling_stat_values_store",
           "script_name_interner",
           "serverside_spell_store",
-          "session_account_state_port_like_cpp",
           "shield_block_regular_game_table",
           "skill_line_store",
           "skill_store",
@@ -1046,9 +1044,9 @@
         "retirement_condition": "This residual is empty, or every remaining field has an explicit reviewed stable-Session justification and a dedicated exact-membership rule."
       }
     ],
-    "expected_field_count": 731,
-    "expected_unique_field_count": 731,
-    "expected_production_field_count": 719,
+    "expected_field_count": 729,
+    "expected_unique_field_count": 729,
+    "expected_production_field_count": 717,
     "expected_test_fixture_field_count": 12
   },
   "inventories": {
@@ -1061,8 +1059,8 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.session_resources.fields"
       },
       "audited_summary": {
-        "field_count": 248,
-        "option_field_count": 191,
+        "field_count": 250,
+        "option_field_count": 193,
         "count_kind": "baseline observation; AST is authoritative"
       },
       "coverage_rule": {
@@ -1070,7 +1068,7 @@
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_field_count": 248,
+        "expected_field_count": 250,
         "validation": "Compare sorted AST field names with the sorted concatenation of every entry.field_names; reject gaps, duplicates, stale names, entry count drift, or total count drift."
       },
       "entries": [
@@ -1104,13 +1102,15 @@
         },
         {
           "id": "session_resources_runtime_handles",
-          "expected_field_count": 5,
+          "expected_field_count": 7,
           "field_names": [
             "instance_lock_mgr",
             "map_corpse_persistence_port",
             "module_registry",
+            "packet_spoof_ban_persistence_port",
             "player_lifecycle_port",
-            "session_account_state_port"
+            "session_account_state_port",
+            "void_storage_persistence_port"
           ],
           "owner": "world-server composition stores handles; legacy and canonical runtime owners remain distinct and audited by #188.",
           "open_retirement_issues": [
@@ -1378,7 +1378,7 @@
           "retirement_condition": "Every remaining field has an exact capability bundle/consumer owner or is removed from Session construction."
         }
       ],
-      "expected_field_count": 248
+      "expected_field_count": 250
     },
     "session_command": {
       "coverage_source": {
@@ -1660,14 +1660,14 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 72659,
+          "production_lines": 72683,
           "test_lines": 96535,
-          "total_lines": 169194,
+          "total_lines": 169218,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 promoted the transport-only kernel, and #252 owns the gameplay mirror. #378 then classified the five remaining module families: they stay as application/gameplay adapters until #252, #371, #169 and the terminal #153 audit remove their measured authority or port blockers. This row remains a reviewed exception to the epic's 4,000-line signal, not a target for forced relocation. #252 begins retiring that mirror family by family: the honor block is the first cut, so production drops 73601->73573 while tests rise 96177->96309 for the three focused directory cases proving inspect now reads the canonical owner live. #297 promoted the transport kernel to the wow-session crate, the first module to leave this type under the epic's P4 rule; production drops 73489 -> 73356. #371 retires the wall-clock comparisons, reducing production 73374 -> 73301, and adds the focused single-diff regression, raising tests 96328 -> 96359. #286 replaces the forbidden statement-shaped port shortcut with an explicit semantic snapshot of every represented Player save group. That required enumeration grows production 73301 -> 73517 and focused tests 96359 -> 96368, while the SQL statement decomposition, transaction and driver errors move behind the stable MariaDB adapter. #384 then retires the now-unreachable Session statement builders and their SQL-shaped tests, reducing production 73517 -> 72679 and tests 96368 -> 95257; semantic state coverage and the lifecycle adapter's exact statement-plan tests remain. #386 adds the typed collection-load operation to the shared lifecycle-port fixture, increasing tests 95257 -> 95272 without adding Session production authority. #388 replaces three concrete account-state workflows with one typed port, reducing production 72679 -> 72671; focused global/character scope, mask, empty-row reset, tutorial-coherence, failure, applied-write and fallback coverage raises tests 95272 -> 95484. #390 moves completed-achievement and instance-time reads behind the existing lifecycle port; explicit typed outcome handling raises production 72671 -> 72677 and positive, empty, malformed, failure and missing-port coverage raises tests 95484 -> 95781. #392 adds the transitional typed map-corpse port field, setter and accessor, raising production 72677 -> 72694 without adding concrete persistence access; #153 owns relocating that caller out of Session. #394 adds the startup-loaded safe-location catalog and semantic homebind request path, raising production 72694 -> 72705 and focused tests 95781 -> 95800 while removing the concrete SQL workflow. #398 adds positive, malformed-row and independent-failure coverage for the trait-load port, raising tests 95914 -> 96045 without adding Session production authority. #400 adds applied, rollback, unknown-COMMIT and missing-port coverage for logout buyback cleanup, raising tests 96045 -> 96130 without adding Session production authority. #408 removes the statement-shaped talent-reset plan and concrete transaction from Session, reducing production 72705 -> 72688; Applied/Failed/Unknown port coverage raises tests 96236 -> 96275. #410 removes the concrete XP/rest statement plan and transaction, reducing production 72688 -> 72664; semantic request and classified-outcome coverage raises tests 96275 -> 96289. #414 adds the new lifecycle load method to two Session-owned test fixtures, raising tests 96289 -> 96311 without adding Session production authority. #416 adds the separate admission-load method to those fixtures, raising tests 96311 -> 96333 without adding Session production authority. #430 extends the Session-owned lifecycle fixtures for the item-repair write, raising tests 96333 -> 96348 without adding Session production authority. #153 still owns removal of the residual Session authority."
+          "retirement_condition": "Session is a thin protocol/lifecycle shell with no mutable Player/Map gameplay, concrete DB/catalog bag, or external impl growth; LOC alone does not close it. #359 landed the dispatcher decoupling and #368 the mailbox inversion; #297 promoted the transport-only kernel, and #252 owns the gameplay mirror. #378 then classified the five remaining module families: they stay as application/gameplay adapters until #252, #371, #169 and the terminal #153 audit remove their measured authority or port blockers. This row remains a reviewed exception to the epic's 4,000-line signal, not a target for forced relocation. #252 begins retiring that mirror family by family: the honor block is the first cut, so production drops 73601->73573 while tests rise 96177->96309 for the three focused directory cases proving inspect now reads the canonical owner live. #297 promoted the transport kernel to the wow-session crate, the first module to leave this type under the epic's P4 rule; production drops 73489 -> 73356. #371 retires the wall-clock comparisons, reducing production 73374 -> 73301, and adds the focused single-diff regression, raising tests 96328 -> 96359. #286 replaces the forbidden statement-shaped port shortcut with an explicit semantic snapshot of every represented Player save group. That required enumeration grows production 73301 -> 73517 and focused tests 96359 -> 96368, while the SQL statement decomposition, transaction and driver errors move behind the stable MariaDB adapter. #384 then retires the now-unreachable Session statement builders and their SQL-shaped tests, reducing production 73517 -> 72679 and tests 96368 -> 95257; semantic state coverage and the lifecycle adapter's exact statement-plan tests remain. #386 adds the typed collection-load operation to the shared lifecycle-port fixture, increasing tests 95257 -> 95272 without adding Session production authority. #388 replaces three concrete account-state workflows with one typed port, reducing production 72679 -> 72671; focused global/character scope, mask, empty-row reset, tutorial-coherence, failure, applied-write and fallback coverage raises tests 95272 -> 95484. #390 moves completed-achievement and instance-time reads behind the existing lifecycle port; explicit typed outcome handling raises production 72671 -> 72677 and positive, empty, malformed, failure and missing-port coverage raises tests 95484 -> 95781. #392 adds the transitional typed map-corpse port field, setter and accessor, raising production 72677 -> 72694 without adding concrete persistence access; #153 owns relocating that caller out of Session. #394 adds the startup-loaded safe-location catalog and semantic homebind request path, raising production 72694 -> 72705 and focused tests 95781 -> 95800 while removing the concrete SQL workflow. #398 adds positive, malformed-row and independent-failure coverage for the trait-load port, raising tests 95914 -> 96045 without adding Session production authority. #400 adds applied, rollback, unknown-COMMIT and missing-port coverage for logout buyback cleanup, raising tests 96045 -> 96130 without adding Session production authority. #408 removes the statement-shaped talent-reset plan and concrete transaction from Session, reducing production 72705 -> 72688; Applied/Failed/Unknown port coverage raises tests 96236 -> 96275. #410 removes the concrete XP/rest statement plan and transaction, reducing production 72688 -> 72664; semantic request and classified-outcome coverage raises tests 96275 -> 96289. #414 adds the new lifecycle load method to two Session-owned test fixtures, raising tests 96289 -> 96311 without adding Session production authority. #416 adds the separate admission-load method to those fixtures, raising tests 96311 -> 96333 without adding Session production authority. #430 extends the Session-owned lifecycle fixtures for the item-repair write, raising tests 96333 -> 96348 without adding Session production authority. #436 groups five typed persistence handles behind one indirection, reducing the production field surface 721 -> 717; the four production lines are the named aggregate that prevents future persistence cuts from enlarging WorldSession. #153 still owns removal of the residual Session authority."
         },
         {
           "path": "crates/wow-map/src/map/mod.rs",
@@ -1705,9 +1705,9 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 25321,
+          "production_lines": 25334,
           "test_lines": 21667,
-          "total_lines": 46988,
+          "total_lines": 47001,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153

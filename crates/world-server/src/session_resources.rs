@@ -32,6 +32,9 @@ pub(super) struct SessionResources {
     /// Login-database capability for PacketSpoof admission bans.
     pub(super) packet_spoof_ban_persistence_port:
         Option<Arc<dyn wow_persistence::PacketSpoofBanPersistencePortLikeCpp>>,
+    /// Characters-database capability for bounded void-storage writes.
+    pub(super) void_storage_persistence_port:
+        Option<Arc<dyn wow_persistence::VoidStoragePersistencePortLikeCpp>>,
     /// Characters-database adapter for canonical `Map::LoadCorpseData`.
     pub(super) map_corpse_persistence_port:
         Option<Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>,

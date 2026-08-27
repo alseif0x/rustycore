@@ -76,6 +76,7 @@
     430,
     432,
     434,
+    436,
     189,
     192,
     193,
@@ -1290,7 +1291,7 @@
     },
     {
       "number": 434,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.26] Move PacketSpoof ban persistence behind a SQLx-free admission port",
       "kind": "slice",
       "parents": [
@@ -1299,6 +1300,19 @@
       ],
       "depends_on": [
         432
+      ]
+    },
+    {
+      "number": 436,
+      "state": "open",
+      "title": "[ARCH.DB.27] Move void-storage unlock and swap behind a SQLx-free capability",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        434
       ]
     }
   ]
