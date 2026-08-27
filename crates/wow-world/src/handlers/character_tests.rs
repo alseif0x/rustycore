@@ -142,6 +142,17 @@ impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
         })
     }
 
+    fn refresh_realm_character_count_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerRealmCharacterCountRefreshRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async {
+            PersistenceOutcomeLikeCpp::Failed {
+                reason: "collection-load-only fixture".to_owned(),
+            }
+        })
+    }
+
     fn load_account_collection_like_cpp<'a>(
         &'a self,
         request: AccountCollectionLoadRequestLikeCpp,
@@ -237,6 +248,13 @@ impl PlayerLifecyclePortLikeCpp for HomebindPortFixtureLikeCpp {
     fn clear_buyback_like_cpp<'a>(
         &'a self,
         _request: wow_persistence::PlayerBuybackClearRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
+    }
+
+    fn refresh_realm_character_count_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerRealmCharacterCountRefreshRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
         Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
     }

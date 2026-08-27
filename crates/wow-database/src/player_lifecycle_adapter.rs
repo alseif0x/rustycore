@@ -24,7 +24,8 @@ use wow_persistence::{
     PlayerHomebindPersistenceRequestLikeCpp, PlayerInstanceTimeRestrictionLoadRowLikeCpp,
     PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
     PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginAuxiliaryLoadedLikeCpp,
-    PlayerOfflineMarkLikeCpp, PlayerSpellChargeLoadRowLikeCpp, PlayerSpellCooldownLoadRowLikeCpp,
+    PlayerOfflineMarkLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
+    PlayerSpellChargeLoadRowLikeCpp, PlayerSpellCooldownLoadRowLikeCpp,
     PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp, PlayerTraitConfigLoadRowLikeCpp,
     PlayerTraitEntryLoadRowLikeCpp, PlayerVoidStorageSaveLikeCpp,
 };
@@ -1231,6 +1232,20 @@ fn player_buyback_clear_statements_like_cpp(
     statements
 }
 
+fn player_realm_character_count_statements_like_cpp(
+    request: PlayerRealmCharacterCountRefreshRequestLikeCpp,
+    num_chars: u8,
+) -> (PreparedStatement, PreparedStatement) {
+    let mut count = PreparedStatement::for_statement(CharStatements::SEL_SUM_CHARS);
+    count.set_u32(0, request.account_id);
+
+    let mut replace = PreparedStatement::for_statement(LoginStatements::REP_REALM_CHARACTERS);
+    replace.set_u8(0, num_chars);
+    replace.set_u32(1, request.account_id);
+    replace.set_u32(2, request.realm_id);
+    (count, replace)
+}
+
 /// Binds the port to the two logical databases the offline marks address.
 pub struct MariaDbPlayerLifecycleAdapterLikeCpp {
     character_db: Arc<CharacterDatabase>,
@@ -1324,6 +1339,32 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                         reason: error.to_string(),
                     }
                 }
+            }
+        })
+    }
+
+    fn refresh_realm_character_count_like_cpp<'a>(
+        &'a self,
+        request: PlayerRealmCharacterCountRefreshRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async move {
+            let (count_statement, _) = player_realm_character_count_statements_like_cpp(request, 0);
+            let num_chars = match self.character_db.query(&count_statement).await {
+                Ok(result) if !result.is_empty() => result.try_read::<i64>(0).unwrap_or(0) as u8,
+                Ok(_) => 0,
+                Err(error) => {
+                    return PersistenceOutcomeLikeCpp::Failed {
+                        reason: error.to_string(),
+                    };
+                }
+            };
+            let (_, replace_statement) =
+                player_realm_character_count_statements_like_cpp(request, num_chars);
+            match self.login_db.execute(&replace_statement).await {
+                Ok(rows) => PersistenceOutcomeLikeCpp::Applied { rows },
+                Err(error) => PersistenceOutcomeLikeCpp::Failed {
+                    reason: error.to_string(),
+                },
             }
         })
     }
@@ -2023,6 +2064,39 @@ mod tests {
                 &[crate::SqlParam::U64(91)][..],
                 &[crate::SqlParam::U64(77), crate::SqlParam::U64(92)][..],
                 &[crate::SqlParam::U64(92)][..],
+            ]
+        );
+    }
+
+    #[test]
+    fn realm_character_count_refresh_maps_to_characters_then_login_like_cpp() {
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let _capture = crate::persistence_trace::RecordingGuard::enable();
+        let (count, replace) = player_realm_character_count_statements_like_cpp(
+            PlayerRealmCharacterCountRefreshRequestLikeCpp {
+                account_id: 77,
+                realm_id: 12,
+            },
+            3,
+        );
+
+        assert_eq!(count.trace_identity(), Some("SEL_SUM_CHARS"));
+        assert_eq!(replace.trace_identity(), Some("REP_REALM_CHARACTERS"));
+        assert_eq!(
+            count.trace_database(),
+            Some(crate::persistence_trace::LogicalDatabase::Character)
+        );
+        assert_eq!(
+            replace.trace_database(),
+            Some(crate::persistence_trace::LogicalDatabase::Login)
+        );
+        assert_eq!(count.params(), &[crate::SqlParam::U32(77)]);
+        assert_eq!(
+            replace.params(),
+            &[
+                crate::SqlParam::U8(3),
+                crate::SqlParam::U32(77),
+                crate::SqlParam::U32(12),
             ]
         );
     }

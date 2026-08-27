@@ -7593,8 +7593,8 @@
           "trait_path": null,
           "kind": "method",
           "name": "update_realm_characters",
-          "visibility": "pub (super)",
-          "signature": "async fn update_realm_characters (& self , char_db : & wow_database :: CharacterDatabase)",
+          "visibility": "pub (crate)",
+          "signature": "async fn update_realm_characters (& self)",
           "cfg": [],
           "source_class": "production",
           "guards": [

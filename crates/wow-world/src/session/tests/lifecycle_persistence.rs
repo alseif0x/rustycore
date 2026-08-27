@@ -17,7 +17,7 @@ use wow_persistence::{
     PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
     PlayerHomebindPersistenceRequestLikeCpp, PlayerLifecyclePortLikeCpp,
     PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
-    PlayerOfflineMarkLikeCpp,
+    PlayerOfflineMarkLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
 };
 
 struct RecordingPortLikeCpp {
@@ -26,6 +26,7 @@ struct RecordingPortLikeCpp {
     collections: Mutex<Vec<AccountCollectionSaveLikeCpp>>,
     character_saves: Mutex<Vec<PlayerCharacterSaveRequestLikeCpp>>,
     buyback_clears: Mutex<Vec<PlayerBuybackClearRequestLikeCpp>>,
+    realm_character_count_refreshes: Mutex<Vec<PlayerRealmCharacterCountRefreshRequestLikeCpp>>,
     outcome: PersistenceOutcomeLikeCpp,
 }
 
@@ -37,6 +38,7 @@ impl RecordingPortLikeCpp {
             collections: Mutex::new(Vec::new()),
             character_saves: Mutex::new(Vec::new()),
             buyback_clears: Mutex::new(Vec::new()),
+            realm_character_count_refreshes: Mutex::new(Vec::new()),
             outcome,
         })
     }
@@ -51,6 +53,11 @@ impl RecordingPortLikeCpp {
     }
     fn buyback_clears(&self) -> Vec<PlayerBuybackClearRequestLikeCpp> {
         self.buyback_clears.lock().unwrap().clone()
+    }
+    fn realm_character_count_refreshes(
+        &self,
+    ) -> Vec<PlayerRealmCharacterCountRefreshRequestLikeCpp> {
+        self.realm_character_count_refreshes.lock().unwrap().clone()
     }
 }
 
@@ -77,6 +84,18 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         request: PlayerBuybackClearRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
         self.buyback_clears.lock().unwrap().push(request);
+        let outcome = self.outcome.clone();
+        Box::pin(async move { outcome })
+    }
+
+    fn refresh_realm_character_count_like_cpp<'a>(
+        &'a self,
+        request: PlayerRealmCharacterCountRefreshRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        self.realm_character_count_refreshes
+            .lock()
+            .unwrap()
+            .push(request);
         let outcome = self.outcome.clone();
         Box::pin(async move { outcome })
     }
@@ -270,6 +289,28 @@ async fn logout_buyback_clear_without_port_does_not_fabricate_durable_success_li
     session.clear_buyback_on_logout().await;
 
     assert!(session.buyback_items_like_cpp().contains_key(&94));
+}
+
+#[tokio::test]
+async fn realm_character_count_refresh_reaches_the_lifecycle_port_without_database_handles() {
+    let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
+    session.set_realm_id(12);
+
+    session.update_realm_characters().await;
+
+    assert_eq!(
+        port.realm_character_count_refreshes(),
+        vec![PlayerRealmCharacterCountRefreshRequestLikeCpp {
+            account_id: 1,
+            realm_id: 12,
+        }]
+    );
+}
+
+#[tokio::test]
+async fn realm_character_count_refresh_without_port_does_not_fabricate_a_request() {
+    let (session, _, _) = make_session();
+    session.update_realm_characters().await;
 }
 
 /// Each offline mark reaches the port as its own request, naming the logical

@@ -10475,6 +10475,38 @@
       "package": "wow-database",
       "module": "crate::player_lifecycle_adapter",
       "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_realm_character_count_statements_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free realm character-count refresh (#402)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure statement construction names one Characters count and one Login replacement; it creates no shared connection or distributed transaction.",
+      "current_order": "Builds SEL_SUM_CHARS before REP_REALM_CHARACTERS with the existing account/count/realm bind widths and order.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning adapter short-circuits a failed count and classifies the later single Login write as Applied or Failed."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::refresh_realm_character_count_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free realm character-count refresh (#402)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The Characters query and Login write use their independently configured adapters in source order; no distributed ACID boundary is claimed.",
+      "current_order": "Queries SEL_SUM_CHARS first, narrows the represented count exactly as before, then executes REP_REALM_CHARACTERS; a failed count suppresses the Login write.",
+      "failure_and_unknown_commit": "Either independent operation failure returns Failed; only a successful Login write returns Applied, and neither single statement has an unknown-COMMIT state."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
       "enclosing": "fn player_homebind_persistence_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -11405,25 +11437,6 @@
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::session_state",
-      "source": "crates/wow-world/src/handlers/character/session_state.rs",
-      "enclosing": "impl WorldSession::update_realm_characters",
-      "logical_databases": [
-        "characters",
-        "login"
-      ],
-      "boundary": "Player login/logout lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow uses independent characters, login connections/pools in source order; no distributed ACID boundary is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },

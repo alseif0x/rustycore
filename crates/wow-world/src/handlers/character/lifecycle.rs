@@ -255,7 +255,7 @@ impl WorldSession {
                 }
 
                 // Update realmcharacters count in login DB
-                self.update_realm_characters(&char_db).await;
+                self.update_realm_characters().await;
 
                 self.send_packet(&CreateChar {
                     code: response_codes::CHAR_CREATE_SUCCESS,
@@ -323,7 +323,7 @@ impl WorldSession {
                 self.remove_legit_character(&pkt.guid);
 
                 // Update realmcharacters count in login DB
-                self.update_realm_characters(&char_db).await;
+                self.update_realm_characters().await;
 
                 self.send_packet(&DeleteChar {
                     code: response_codes::CHAR_DELETE_SUCCESS,

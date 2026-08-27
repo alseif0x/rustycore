@@ -59,6 +59,7 @@
     396,
     398,
     400,
+    402,
     189,
     192,
     193,
@@ -1052,7 +1053,7 @@
     },
     {
       "number": 400,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.9] Move logout buyback cleanup behind the Player lifecycle port",
       "kind": "slice",
       "parents": [
@@ -1061,6 +1062,19 @@
       ],
       "depends_on": [
         398
+      ]
+    },
+    {
+      "number": 402,
+      "state": "open",
+      "title": "[ARCH.DB.10] Move realm character-count refresh behind the Player lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        400
       ]
     }
   ]
