@@ -288,6 +288,9 @@ pub(super) async fn create_session(
     if let Some(ref port) = resources.session_account_state_port {
         session.set_session_account_state_port_like_cpp(Arc::clone(port));
     }
+    if let Some(ref port) = resources.packet_spoof_ban_persistence_port {
+        session.set_packet_spoof_ban_persistence_port_like_cpp(Arc::clone(port));
+    }
     if let Some(ref port) = resources.map_corpse_persistence_port {
         session.set_map_corpse_persistence_port_like_cpp(Arc::clone(port));
     }

@@ -164,8 +164,8 @@ use wow_data::{
     spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
 };
 use wow_database::{
-    CharStatements, CharacterDatabase, DatabaseError, LoginDatabase, LoginStatements,
-    PreparedStatement, SqlTransaction, SqlTransactionCommitError, StatementDef, WorldDatabase,
+    CharStatements, CharacterDatabase, DatabaseError, LoginDatabase, PreparedStatement,
+    SqlTransaction, SqlTransactionCommitError, StatementDef, WorldDatabase,
     is_database_deadlock_like_cpp, retry_deadlocked_operation_like_cpp,
 };
 use wow_entities::{
@@ -5407,6 +5407,9 @@ pub struct WorldSession {
     /// Characters-database persistence uses a distinct typed capability.
     session_account_state_port_like_cpp:
         Option<Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>>,
+    /// Login-database capability for the PacketSpoof admission ban workflow.
+    packet_spoof_ban_persistence_port_like_cpp:
+        Option<Arc<dyn wow_persistence::PacketSpoofBanPersistencePortLikeCpp>>,
     /// SQLx-free adapter for canonical `Map::LoadCorpseData` hydration.
     map_corpse_persistence_port_like_cpp:
         Option<Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>,
@@ -7776,6 +7779,7 @@ impl WorldSession {
             login_db: None,
             player_lifecycle_port_like_cpp: None,
             session_account_state_port_like_cpp: None,
+            packet_spoof_ban_persistence_port_like_cpp: None,
             map_corpse_persistence_port_like_cpp: None,
             world_db: None,
             trainer_store_like_cpp: None,
@@ -16401,6 +16405,13 @@ impl WorldSession {
         port: Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>,
     ) {
         self.session_account_state_port_like_cpp = Some(port);
+    }
+
+    pub fn set_packet_spoof_ban_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::PacketSpoofBanPersistencePortLikeCpp>,
+    ) {
+        self.packet_spoof_ban_persistence_port_like_cpp = Some(port);
     }
 
     pub fn set_map_corpse_persistence_port_like_cpp(

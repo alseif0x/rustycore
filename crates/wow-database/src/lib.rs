@@ -37,6 +37,7 @@ pub mod database;
 pub mod error;
 pub mod loader;
 pub mod map_corpse_adapter;
+pub mod packet_spoof_ban_adapter;
 pub mod params;
 pub mod persistence_trace;
 pub mod player_lifecycle_adapter;
