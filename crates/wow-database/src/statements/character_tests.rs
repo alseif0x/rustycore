@@ -302,6 +302,10 @@ fn character_save_statements_match_cpp_sql_exactly() {
         "UPDATE characters SET resettalents_cost = ?, resettalents_time = ? WHERE guid = ?"
     );
     assert_eq!(
+        CharStatements::SEL_CHAR_MONEY.sql(),
+        "SELECT money FROM characters WHERE guid = ?"
+    );
+    assert_eq!(
         CharStatements::UPD_CHAR_EXPLORED_ZONES.sql(),
         "UPDATE characters SET exploredZones = ? WHERE guid = ?"
     );
