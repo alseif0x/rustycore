@@ -515,81 +515,74 @@ impl WorldSession {
             }
         }
         self.begin_represented_character_pet_authority_load_like_cpp();
+        match player_lifecycle_port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::PetStable {
+                    player_guid: guid.counter() as u64,
+                },
+            )
+            .await
         {
-            let mut pets_stmt = char_db.prepare(CharStatements::SEL_CHAR_PETS);
-            pets_stmt.set_u64(0, guid.counter() as u64);
-            match char_db.query(&pets_stmt).await {
-                Ok(mut pets_result) => {
-                    let mut rows = Vec::new();
-                    if !pets_result.is_empty() {
-                        loop {
-                            rows.push(CharacterPetStableRowLikeCpp {
-                                pet_number: pets_result.try_read::<u32>(0).unwrap_or(0),
-                                creature_id: pets_result.try_read::<u32>(1).unwrap_or(0),
-                                display_id: pets_result.try_read::<u32>(2).unwrap_or(0),
-                                level: pets_result.try_read::<u8>(3).unwrap_or(1),
-                                experience: pets_result.try_read::<u32>(4).unwrap_or(0),
-                                react_state: pets_result.try_read::<u8>(5).unwrap_or(0),
-                                slot: pets_result.try_read::<i16>(6).unwrap_or(-1),
-                                name: pets_result.read_string(7),
-                                was_renamed: pets_result.try_read::<bool>(8).unwrap_or(false),
-                                health: pets_result.try_read::<u32>(9).unwrap_or(1),
-                                mana: pets_result.try_read::<u32>(10).unwrap_or(0),
-                                action_bar: pets_result.try_read::<String>(11).unwrap_or_default(),
-                                last_save_time: pets_result.try_read::<u32>(12).unwrap_or(0),
-                                created_by_spell_id: pets_result.try_read::<u32>(13).unwrap_or(0),
-                                pet_type: pets_result.try_read::<u8>(14).unwrap_or(0),
-                                specialization_id: pets_result.try_read::<u16>(15).unwrap_or(0),
-                            });
-                            if !pets_result.next_row() {
-                                break;
-                            }
-                        }
-                    }
-                    let loaded =
-                        self.load_represented_pet_stable_rows_like_cpp(summoned_pet_number, rows);
-                    trace!(
-                        player_guid = guid.counter(),
-                        summoned_pet_number,
-                        loaded,
-                        "loaded represented character_pet stable rows like C++"
-                    );
-                }
-                Err(error) => {
-                    warn!(
-                        player_guid = guid.counter(),
-                        %error,
-                        "failed to load represented character_pet rows"
-                    );
-                }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::PetStable(rows),
+            ) => {
+                let rows = rows.into_iter().map(|row| CharacterPetStableRowLikeCpp {
+                    pet_number: row.pet_number,
+                    creature_id: row.creature_id,
+                    display_id: row.display_id,
+                    level: row.level,
+                    experience: row.experience,
+                    react_state: row.react_state,
+                    slot: row.slot,
+                    name: row.name,
+                    was_renamed: row.was_renamed,
+                    health: row.health,
+                    mana: row.mana,
+                    action_bar: row.action_bar,
+                    last_save_time: row.last_save_time,
+                    created_by_spell_id: row.created_by_spell_id,
+                    pet_type: row.pet_type,
+                    specialization_id: row.specialization_id,
+                });
+                let loaded =
+                    self.load_represented_pet_stable_rows_like_cpp(summoned_pet_number, rows);
+                trace!(
+                    player_guid = guid.counter(),
+                    summoned_pet_number,
+                    loaded,
+                    "loaded represented character_pet stable rows like C++"
+                );
             }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => warn!(
+                player_guid = guid.counter(),
+                error = %reason,
+                "failed to load represented character_pet rows"
+            ),
+            _ => unreachable!("pet stable request returned a different row family"),
         }
         if summoned_pet_number != 0 {
-            let mut pet_aura_stmt = char_db.prepare(CharStatements::SEL_PET_AURA);
-            pet_aura_stmt.set_u32(0, summoned_pet_number);
-            match char_db.query(&pet_aura_stmt).await {
-                Ok(mut aura_result) => {
-                    let mut rows = Vec::new();
-                    if !aura_result.is_empty() {
-                        loop {
-                            rows.push(CharacterPetAuraRowLikeCpp {
-                                caster_guid: object_guid_from_db_binary_like_cpp(
-                                    aura_result.try_read::<Vec<u8>>(0).unwrap_or_default(),
-                                ),
-                                spell_id: aura_result.try_read::<u32>(1).unwrap_or(0),
-                                effect_mask: aura_result.try_read::<u32>(2).unwrap_or(0),
-                                recalculate_mask: aura_result.try_read::<u32>(3).unwrap_or(0),
-                                difficulty: aura_result.try_read::<u8>(4).unwrap_or(0),
-                                stack_count: aura_result.try_read::<u8>(5).unwrap_or(0),
-                                max_duration_ms: aura_result.try_read::<i32>(6).unwrap_or(0),
-                                remain_time_ms: aura_result.try_read::<i32>(7).unwrap_or(0),
-                                remain_charges: aura_result.try_read::<u8>(8).unwrap_or(0),
-                            });
-                            if !aura_result.next_row() {
-                                break;
-                            }
-                        }
-                    }
+            match player_lifecycle_port
+                .load_login_auxiliary_like_cpp(
+                    wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::PetAuras {
+                        pet_number: summoned_pet_number,
+                    },
+                )
+                .await
+            {
+                wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                    wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::PetAuras(rows),
+                ) => {
+                    let rows = rows.into_iter().map(|row| CharacterPetAuraRowLikeCpp {
+                        caster_guid: object_guid_from_db_binary_like_cpp(row.caster_guid_binary),
+                        spell_id: row.spell_id,
+                        effect_mask: row.effect_mask,
+                        recalculate_mask: row.recalculate_mask,
+                        difficulty: row.difficulty,
+                        stack_count: row.stack_count,
+                        max_duration_ms: row.max_duration_ms,
+                        remain_time_ms: row.remain_time_ms,
+                        remain_charges: row.remain_charges,
+                    });
                     let loaded =
                         self.load_represented_pet_aura_rows_like_cpp(summoned_pet_number, rows);
                     trace!(
@@ -597,40 +590,35 @@ impl WorldSession {
                         summoned_pet_number, loaded, "loaded represented pet_aura rows like C++"
                     );
                 }
-                Err(error) => {
-                    warn!(
-                        player_guid = guid.counter(),
-                        summoned_pet_number,
-                        %error,
-                        "failed to load represented pet_aura rows"
-                    );
+                wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                    warn!(player_guid = guid.counter(), summoned_pet_number, error = %reason, "failed to load represented pet_aura rows")
                 }
+                _ => unreachable!("pet aura request returned a different row family"),
             }
 
-            let mut pet_aura_effect_stmt = char_db.prepare(CharStatements::SEL_PET_AURA_EFFECT);
-            pet_aura_effect_stmt.set_u32(0, summoned_pet_number);
-            match char_db.query(&pet_aura_effect_stmt).await {
-                Ok(mut aura_effect_result) => {
-                    let mut rows = Vec::new();
-                    if !aura_effect_result.is_empty() {
-                        loop {
-                            rows.push(CharacterPetAuraEffectRowLikeCpp {
-                                caster_guid: object_guid_from_db_binary_like_cpp(
-                                    aura_effect_result
-                                        .try_read::<Vec<u8>>(0)
-                                        .unwrap_or_default(),
-                                ),
-                                spell_id: aura_effect_result.try_read::<u32>(1).unwrap_or(0),
-                                effect_mask: aura_effect_result.try_read::<u32>(2).unwrap_or(0),
-                                effect_index: aura_effect_result.try_read::<u8>(3).unwrap_or(0),
-                                amount: aura_effect_result.try_read::<i32>(4).unwrap_or(0),
-                                base_amount: aura_effect_result.try_read::<i32>(5).unwrap_or(0),
-                            });
-                            if !aura_effect_result.next_row() {
-                                break;
-                            }
-                        }
-                    }
+            match player_lifecycle_port
+                .load_login_auxiliary_like_cpp(
+                    wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::PetAuraEffects {
+                        pet_number: summoned_pet_number,
+                    },
+                )
+                .await
+            {
+                wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                    wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::PetAuraEffects(rows),
+                ) => {
+                    let rows = rows
+                        .into_iter()
+                        .map(|row| CharacterPetAuraEffectRowLikeCpp {
+                            caster_guid: object_guid_from_db_binary_like_cpp(
+                                row.caster_guid_binary,
+                            ),
+                            spell_id: row.spell_id,
+                            effect_mask: row.effect_mask,
+                            effect_index: row.effect_index,
+                            amount: row.amount,
+                            base_amount: row.base_amount,
+                        });
                     let loaded = self
                         .load_represented_pet_aura_effect_rows_like_cpp(summoned_pet_number, rows);
                     trace!(
@@ -640,32 +628,27 @@ impl WorldSession {
                         "loaded represented pet_aura_effect rows like C++"
                     );
                 }
-                Err(error) => {
-                    warn!(
-                        player_guid = guid.counter(),
-                        summoned_pet_number,
-                        %error,
-                        "failed to load represented pet_aura_effect rows"
-                    );
+                wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                    warn!(player_guid = guid.counter(), summoned_pet_number, error = %reason, "failed to load represented pet_aura_effect rows")
                 }
+                _ => unreachable!("pet aura-effect request returned a different row family"),
             }
 
-            let mut pet_spell_stmt = char_db.prepare(CharStatements::SEL_PET_SPELL);
-            pet_spell_stmt.set_u32(0, summoned_pet_number);
-            match char_db.query(&pet_spell_stmt).await {
-                Ok(mut spells_result) => {
-                    let mut rows = Vec::new();
-                    if !spells_result.is_empty() {
-                        loop {
-                            rows.push(CharacterPetSpellRowLikeCpp {
-                                spell_id: spells_result.try_read::<u32>(0).unwrap_or(0),
-                                active: spells_result.try_read::<u8>(1).unwrap_or(0),
-                            });
-                            if !spells_result.next_row() {
-                                break;
-                            }
-                        }
-                    }
+            match player_lifecycle_port
+                .load_login_auxiliary_like_cpp(
+                    wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::PetSpells {
+                        pet_number: summoned_pet_number,
+                    },
+                )
+                .await
+            {
+                wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                    wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::PetSpells(rows),
+                ) => {
+                    let rows = rows.into_iter().map(|row| CharacterPetSpellRowLikeCpp {
+                        spell_id: row.spell_id,
+                        active: row.active,
+                    });
                     let loaded =
                         self.load_represented_pet_spell_rows_like_cpp(summoned_pet_number, rows);
                     trace!(
@@ -673,38 +656,31 @@ impl WorldSession {
                         summoned_pet_number, loaded, "loaded represented pet_spell rows like C++"
                     );
                 }
-                Err(error) => {
-                    warn!(
-                        player_guid = guid.counter(),
-                        summoned_pet_number,
-                        %error,
-                        "failed to load represented pet_spell rows"
-                    );
+                wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                    warn!(player_guid = guid.counter(), summoned_pet_number, error = %reason, "failed to load represented pet_spell rows")
                 }
+                _ => unreachable!("pet spell request returned a different row family"),
             }
 
-            let mut pet_cooldown_stmt = char_db.prepare(CharStatements::SEL_PET_SPELL_COOLDOWN);
-            pet_cooldown_stmt.set_u32(0, summoned_pet_number);
-            match char_db.query(&pet_cooldown_stmt).await {
-                Ok(mut cooldowns_result) => {
-                    let mut rows = Vec::new();
-                    if !cooldowns_result.is_empty() {
-                        loop {
-                            rows.push(CharacterPetSpellCooldownRowLikeCpp {
-                                spell_id: cooldowns_result.try_read::<u32>(0).unwrap_or(0),
-                                cooldown_end_unix_secs: cooldowns_result
-                                    .try_read::<i64>(1)
-                                    .unwrap_or(0),
-                                category_id: cooldowns_result.try_read::<u32>(2).unwrap_or(0),
-                                category_end_unix_secs: cooldowns_result
-                                    .try_read::<i64>(3)
-                                    .unwrap_or(0),
-                            });
-                            if !cooldowns_result.next_row() {
-                                break;
-                            }
-                        }
-                    }
+            match player_lifecycle_port
+                .load_login_auxiliary_like_cpp(
+                    wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::PetSpellCooldowns {
+                        pet_number: summoned_pet_number,
+                    },
+                )
+                .await
+            {
+                wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                    wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::PetSpellCooldowns(rows),
+                ) => {
+                    let rows = rows
+                        .into_iter()
+                        .map(|row| CharacterPetSpellCooldownRowLikeCpp {
+                            spell_id: row.spell_id,
+                            cooldown_end_unix_secs: row.cooldown_end_unix_secs,
+                            category_id: row.category_id,
+                            category_end_unix_secs: row.category_end_unix_secs,
+                        });
                     let loaded = self.load_represented_pet_spell_cooldown_rows_like_cpp(
                         summoned_pet_number,
                         rows,
@@ -716,37 +692,30 @@ impl WorldSession {
                         "loaded represented pet_spell_cooldown rows like C++"
                     );
                 }
-                Err(error) => {
-                    warn!(
-                        player_guid = guid.counter(),
-                        summoned_pet_number,
-                        %error,
-                        "failed to load represented pet_spell_cooldown rows"
-                    );
+                wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                    warn!(player_guid = guid.counter(), summoned_pet_number, error = %reason, "failed to load represented pet_spell_cooldown rows")
                 }
+                _ => unreachable!("pet cooldown request returned a different row family"),
             }
 
-            let mut pet_charges_stmt = char_db.prepare(CharStatements::SEL_PET_SPELL_CHARGES);
-            pet_charges_stmt.set_u32(0, summoned_pet_number);
-            match char_db.query(&pet_charges_stmt).await {
-                Ok(mut charges_result) => {
-                    let mut rows = Vec::new();
-                    if !charges_result.is_empty() {
-                        loop {
-                            rows.push(CharacterPetSpellChargeRowLikeCpp {
-                                category_id: charges_result.try_read::<u32>(0).unwrap_or(0),
-                                recharge_start_unix_secs: charges_result
-                                    .try_read::<i64>(1)
-                                    .unwrap_or(0),
-                                recharge_end_unix_secs: charges_result
-                                    .try_read::<i64>(2)
-                                    .unwrap_or(0),
-                            });
-                            if !charges_result.next_row() {
-                                break;
-                            }
-                        }
-                    }
+            match player_lifecycle_port
+                .load_login_auxiliary_like_cpp(
+                    wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::PetSpellCharges {
+                        pet_number: summoned_pet_number,
+                    },
+                )
+                .await
+            {
+                wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                    wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::PetSpellCharges(rows),
+                ) => {
+                    let rows = rows
+                        .into_iter()
+                        .map(|row| CharacterPetSpellChargeRowLikeCpp {
+                            category_id: row.category_id,
+                            recharge_start_unix_secs: row.recharge_start_unix_secs,
+                            recharge_end_unix_secs: row.recharge_end_unix_secs,
+                        });
                     let loaded = self
                         .load_represented_pet_spell_charge_rows_like_cpp(summoned_pet_number, rows);
                     trace!(
@@ -756,34 +725,28 @@ impl WorldSession {
                         "loaded represented pet_spell_charges rows like C++"
                     );
                 }
-                Err(error) => {
-                    warn!(
-                        player_guid = guid.counter(),
-                        summoned_pet_number,
-                        %error,
-                        "failed to load represented pet_spell_charges rows"
-                    );
+                wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                    warn!(player_guid = guid.counter(), summoned_pet_number, error = %reason, "failed to load represented pet_spell_charges rows")
                 }
+                _ => unreachable!("pet charge request returned a different row family"),
             }
 
-            let mut pet_declined_stmt = char_db.prepare(CharStatements::SEL_PET_DECLINED_NAME);
-            pet_declined_stmt.set_u64(0, guid.counter() as u64);
-            pet_declined_stmt.set_u32(1, summoned_pet_number);
-            match char_db.query(&pet_declined_stmt).await {
-                Ok(declined_result) => {
-                    let row = if declined_result.is_empty() {
-                        None
-                    } else {
-                        Some(CharacterPetDeclinedNamesRowLikeCpp {
-                            names: [
-                                declined_result.read_string(0),
-                                declined_result.read_string(1),
-                                declined_result.read_string(2),
-                                declined_result.read_string(3),
-                                declined_result.read_string(4),
-                            ],
-                        })
-                    };
+            match player_lifecycle_port
+                .load_login_auxiliary_like_cpp(
+                    wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::PetDeclinedNames {
+                        player_guid: guid.counter() as u64,
+                        pet_number: summoned_pet_number,
+                    },
+                )
+                .await
+            {
+                wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                    wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::PetDeclinedNames(rows),
+                ) => {
+                    let row = rows
+                        .into_iter()
+                        .next()
+                        .map(|row| CharacterPetDeclinedNamesRowLikeCpp { names: row.names });
                     let loaded =
                         self.load_represented_pet_declined_names_like_cpp(summoned_pet_number, row);
                     trace!(
@@ -793,14 +756,10 @@ impl WorldSession {
                         "loaded represented character_pet_declinedname row like C++"
                     );
                 }
-                Err(error) => {
-                    warn!(
-                        player_guid = guid.counter(),
-                        summoned_pet_number,
-                        %error,
-                        "failed to load represented character_pet_declinedname row"
-                    );
+                wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                    warn!(player_guid = guid.counter(), summoned_pet_number, error = %reason, "failed to load represented character_pet_declinedname row")
                 }
+                _ => unreachable!("pet declined-name request returned a different row family"),
             }
         }
         if (self.represented_at_login_flags_like_cpp() & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) != 0 {
