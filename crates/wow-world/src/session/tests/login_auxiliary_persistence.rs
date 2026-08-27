@@ -63,6 +63,17 @@ impl PlayerLifecyclePortLikeCpp for AuxiliaryLoadPortLikeCpp {
         })
     }
 
+    fn clear_buyback_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerBuybackClearRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async {
+            PersistenceOutcomeLikeCpp::Failed {
+                reason: "auxiliary-load-only fixture".to_owned(),
+            }
+        })
+    }
+
     fn load_account_collection_like_cpp<'a>(
         &'a self,
         _request: AccountCollectionLoadRequestLikeCpp,

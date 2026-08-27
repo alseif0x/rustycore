@@ -131,6 +131,17 @@ impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
         })
     }
 
+    fn clear_buyback_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerBuybackClearRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async {
+            PersistenceOutcomeLikeCpp::Failed {
+                reason: "collection-load-only fixture".to_owned(),
+            }
+        })
+    }
+
     fn load_account_collection_like_cpp<'a>(
         &'a self,
         request: AccountCollectionLoadRequestLikeCpp,
@@ -221,6 +232,13 @@ impl PlayerLifecyclePortLikeCpp for HomebindPortFixtureLikeCpp {
             .pop_front()
             .expect("one typed homebind outcome per request");
         Box::pin(async move { outcome })
+    }
+
+    fn clear_buyback_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerBuybackClearRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
     }
 
     fn load_account_collection_like_cpp<'a>(

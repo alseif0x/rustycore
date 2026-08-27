@@ -58,6 +58,7 @@
     394,
     396,
     398,
+    400,
     189,
     192,
     193,
@@ -1038,7 +1039,7 @@
     },
     {
       "number": 398,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.8] Move Player trait-config loads behind the lifecycle port",
       "kind": "slice",
       "parents": [
@@ -1047,6 +1048,19 @@
       ],
       "depends_on": [
         396
+      ]
+    },
+    {
+      "number": 400,
+      "state": "open",
+      "title": "[ARCH.DB.9] Move logout buyback cleanup behind the Player lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        398
       ]
     }
   ]

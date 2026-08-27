@@ -17,8 +17,9 @@ use wow_persistence::{
     AccountCollectionLoadedLikeCpp, AccountCollectionRowsLikeCpp, AccountCollectionSaveLikeCpp,
     AccountHeirloomLoadRowLikeCpp, AccountMaskBlockLikeCpp, AccountMountLoadRowLikeCpp,
     AccountToyLoadRowLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
-    PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
-    PlayerCufProfileSaveLikeCpp, PlayerCustomizationLoadRowLikeCpp, PlayerEquipmentSetSaveLikeCpp,
+    PlayerBuybackClearRequestLikeCpp, PlayerCharacterSaveRequestLikeCpp,
+    PlayerCharacterSaveResultLikeCpp, PlayerCufProfileSaveLikeCpp,
+    PlayerCustomizationLoadRowLikeCpp, PlayerEquipmentSetSaveLikeCpp,
     PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp,
     PlayerHomebindPersistenceRequestLikeCpp, PlayerInstanceTimeRestrictionLoadRowLikeCpp,
     PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
@@ -1212,6 +1213,24 @@ fn player_homebind_persistence_statement_like_cpp(
     }
 }
 
+fn player_buyback_clear_statements_like_cpp(
+    request: &PlayerBuybackClearRequestLikeCpp,
+) -> Vec<PreparedStatement> {
+    let mut statements = Vec::with_capacity(request.item_db_guids.len().saturating_mul(2));
+    for &item_db_guid in &request.item_db_guids {
+        let mut delete_inventory =
+            PreparedStatement::for_statement(CharStatements::DEL_CHAR_INVENTORY_ITEM);
+        delete_inventory.set_u64(0, request.player_guid);
+        delete_inventory.set_u64(1, item_db_guid);
+        statements.push(delete_inventory);
+
+        let mut delete_item = PreparedStatement::for_statement(CharStatements::DEL_ITEM_INSTANCE);
+        delete_item.set_u64(0, item_db_guid);
+        statements.push(delete_item);
+    }
+    statements
+}
+
 /// Binds the port to the two logical databases the offline marks address.
 pub struct MariaDbPlayerLifecycleAdapterLikeCpp {
     character_db: Arc<CharacterDatabase>,
@@ -1276,6 +1295,35 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                 Err(error) => PersistenceOutcomeLikeCpp::Failed {
                     reason: error.to_string(),
                 },
+            }
+        })
+    }
+
+    fn clear_buyback_like_cpp<'a>(
+        &'a self,
+        request: PlayerBuybackClearRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async move {
+            let item_count = request.item_db_guids.len() as u64;
+            let mut transaction = SqlTransaction::new();
+            for statement in player_buyback_clear_statements_like_cpp(&request) {
+                transaction.append(statement);
+            }
+            match transaction
+                .commit_with_outcome_like_cpp(self.character_db.pool())
+                .await
+            {
+                Ok(()) => PersistenceOutcomeLikeCpp::Applied { rows: item_count },
+                Err(SqlTransactionCommitError::DefinitelyRolledBack(error)) => {
+                    PersistenceOutcomeLikeCpp::Failed {
+                        reason: error.to_string(),
+                    }
+                }
+                Err(SqlTransactionCommitError::CommitOutcomeUnknown(error)) => {
+                    PersistenceOutcomeLikeCpp::Unknown {
+                        reason: error.to_string(),
+                    }
+                }
             }
         })
     }
@@ -1938,6 +1986,45 @@ mod tests {
             assert_eq!(statement.sql(), expected_sql);
             assert_eq!(statement.params(), expected_params);
         }
+    }
+
+    #[test]
+    fn buyback_clear_maps_to_one_ordered_character_transaction_plan_like_cpp() {
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let _capture = crate::persistence_trace::RecordingGuard::enable();
+        let statements =
+            player_buyback_clear_statements_like_cpp(&PlayerBuybackClearRequestLikeCpp {
+                player_guid: 77,
+                item_db_guids: vec![91, 92],
+            });
+
+        assert_eq!(
+            statements
+                .iter()
+                .map(PreparedStatement::trace_identity)
+                .collect::<Vec<_>>(),
+            vec![
+                Some("DEL_CHAR_INVENTORY_ITEM"),
+                Some("DEL_ITEM_INSTANCE"),
+                Some("DEL_CHAR_INVENTORY_ITEM"),
+                Some("DEL_ITEM_INSTANCE"),
+            ]
+        );
+        assert!(statements.iter().all(|statement| {
+            statement.trace_database() == Some(crate::persistence_trace::LogicalDatabase::Character)
+        }));
+        assert_eq!(
+            statements
+                .iter()
+                .map(PreparedStatement::params)
+                .collect::<Vec<_>>(),
+            vec![
+                &[crate::SqlParam::U64(77), crate::SqlParam::U64(91)][..],
+                &[crate::SqlParam::U64(91)][..],
+                &[crate::SqlParam::U64(77), crate::SqlParam::U64(92)][..],
+                &[crate::SqlParam::U64(92)][..],
+            ]
+        );
     }
 
     #[test]
