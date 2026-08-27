@@ -2334,66 +2334,74 @@ impl WorldSession {
             self.set_player_aura_authority_complete_like_cpp(false);
             let mut aura_rows = Vec::new();
             let mut aura_rows_complete = false;
-            let mut aura_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_AURAS);
-            aura_stmt.set_u64(0, guid.counter() as u64);
-            match char_db.query(&aura_stmt).await {
-                Ok(mut aura_result) => {
+            match player_lifecycle_port
+                .load_login_auxiliary_like_cpp(
+                    wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::CharacterAuras {
+                        player_guid: guid.counter() as u64,
+                    },
+                )
+                .await
+            {
+                wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                    wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::CharacterAuras(rows),
+                ) => {
                     aura_rows_complete = true;
-                    if !aura_result.is_empty() {
-                        loop {
-                            aura_rows.push(crate::session::CharacterAuraRowLikeCpp {
-                                caster_guid: object_guid_from_db_binary_like_cpp(
-                                    aura_result.try_read::<Vec<u8>>(0).unwrap_or_default(),
-                                ),
-                                spell_id: aura_result.try_read(2).unwrap_or(0),
-                                effect_mask: aura_result.try_read(3).unwrap_or(0),
-                                recalculate_mask: aura_result.try_read(4).unwrap_or(0),
-                                difficulty: aura_result.try_read(5).unwrap_or(0),
-                                stack_count: aura_result.try_read(6).unwrap_or(1),
-                                max_duration_ms: aura_result.try_read(7).unwrap_or(0),
-                                remain_time_ms: aura_result.try_read(8).unwrap_or(0),
-                                remain_charges: aura_result.try_read(9).unwrap_or(0),
-                            });
-                            if !aura_result.next_row() {
-                                break;
-                            }
+                    aura_rows.extend(rows.into_iter().map(|row| {
+                        crate::session::CharacterAuraRowLikeCpp {
+                            caster_guid: object_guid_from_db_binary_like_cpp(
+                                row.caster_guid_binary,
+                            ),
+                            spell_id: row.spell_id,
+                            effect_mask: row.effect_mask,
+                            recalculate_mask: row.recalculate_mask,
+                            difficulty: row.difficulty,
+                            stack_count: row.stack_count,
+                            max_duration_ms: row.max_duration_ms,
+                            remain_time_ms: row.remain_time_ms,
+                            remain_charges: row.remain_charges,
                         }
-                    }
+                    }));
                 }
-                Err(e) => warn!("Failed to load character auras for {:?}: {}", guid, e),
+                wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                    warn!("Failed to load character auras for {:?}: {}", guid, reason)
+                }
+                _ => unreachable!("character-aura request returned a different row family"),
             }
 
             let mut aura_effect_rows = Vec::new();
             let mut aura_effect_rows_complete = false;
-            let mut aura_effect_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_AURA_EFFECTS);
-            aura_effect_stmt.set_u64(0, guid.counter() as u64);
-            match char_db.query(&aura_effect_stmt).await {
-                Ok(mut aura_effect_result) => {
+            match player_lifecycle_port
+                .load_login_auxiliary_like_cpp(
+                    wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::CharacterAuraEffects {
+                        player_guid: guid.counter() as u64,
+                    },
+                )
+                .await
+            {
+                wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                    wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::CharacterAuraEffects(rows),
+                ) => {
                     aura_effect_rows_complete = true;
-                    if !aura_effect_result.is_empty() {
-                        loop {
-                            aura_effect_rows.push(crate::session::CharacterAuraEffectRowLikeCpp {
-                                caster_guid: object_guid_from_db_binary_like_cpp(
-                                    aura_effect_result
-                                        .try_read::<Vec<u8>>(0)
-                                        .unwrap_or_default(),
-                                ),
-                                spell_id: aura_effect_result.try_read(2).unwrap_or(0),
-                                effect_mask: aura_effect_result.try_read(3).unwrap_or(0),
-                                effect_index: aura_effect_result.try_read(4).unwrap_or(0),
-                                amount: aura_effect_result.try_read(5).unwrap_or(0),
-                                base_amount: aura_effect_result.try_read(6).unwrap_or(0),
-                            });
-                            if !aura_effect_result.next_row() {
-                                break;
-                            }
+                    aura_effect_rows.extend(rows.into_iter().map(|row| {
+                        crate::session::CharacterAuraEffectRowLikeCpp {
+                            caster_guid: object_guid_from_db_binary_like_cpp(
+                                row.caster_guid_binary,
+                            ),
+                            spell_id: row.spell_id,
+                            effect_mask: row.effect_mask,
+                            effect_index: row.effect_index,
+                            amount: row.amount,
+                            base_amount: row.base_amount,
                         }
-                    }
+                    }));
                 }
-                Err(e) => warn!(
-                    "Failed to load character aura effects for {:?}: {}",
-                    guid, e
-                ),
+                wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                    warn!(
+                        "Failed to load character aura effects for {:?}: {}",
+                        guid, reason
+                    )
+                }
+                _ => unreachable!("character-aura-effect request returned a different row family"),
             }
             let loaded_character_auras =
                 self.load_represented_character_auras_like_cpp(aura_rows, aura_effect_rows, 0);

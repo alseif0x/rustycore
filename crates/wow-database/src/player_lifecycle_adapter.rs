@@ -18,7 +18,8 @@ use wow_persistence::{
     AccountHeirloomLoadRowLikeCpp, AccountMaskBlockLikeCpp, AccountMountLoadRowLikeCpp,
     AccountToyLoadRowLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
     PlayerActionButtonLoadRowLikeCpp, PlayerBattlegroundLocationLoadRowLikeCpp,
-    PlayerBuybackClearRequestLikeCpp, PlayerCharacterBaseLoadOutcomeLikeCpp,
+    PlayerBuybackClearRequestLikeCpp, PlayerCharacterAuraEffectLoadRowLikeCpp,
+    PlayerCharacterAuraLoadRowLikeCpp, PlayerCharacterBaseLoadOutcomeLikeCpp,
     PlayerCharacterBaseLoadRequestLikeCpp, PlayerCharacterBaseLoadRowLikeCpp,
     PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
     PlayerCufProfileLoadRowLikeCpp, PlayerCufProfileSaveLikeCpp, PlayerCurrencyLoadRowLikeCpp,
@@ -1313,6 +1314,18 @@ fn player_login_auxiliary_load_statement_like_cpp(
         PlayerLoginAuxiliaryLoadRequestLikeCpp::Reputation { player_guid } => {
             let mut statement =
                 PreparedStatement::for_statement(CharStatements::SEL_CHARACTER_REPUTATION);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::CharacterAuras { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHARACTER_AURAS);
+            statement.set_u64(0, player_guid);
+            statement
+        }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::CharacterAuraEffects { player_guid } => {
+            let mut statement =
+                PreparedStatement::for_statement(CharStatements::SEL_CHARACTER_AURA_EFFECTS);
             statement.set_u64(0, player_guid);
             statement
         }
@@ -2682,6 +2695,51 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                     }
                     PlayerLoginAuxiliaryLoadedLikeCpp::Reputation(rows)
                 }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::CharacterAuras { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerCharacterAuraLoadRowLikeCpp {
+                                caster_guid_binary: result
+                                    .try_read::<Vec<u8>>(0)
+                                    .unwrap_or_default(),
+                                spell_id: result.try_read::<u32>(2).unwrap_or(0),
+                                effect_mask: result.try_read::<u32>(3).unwrap_or(0),
+                                recalculate_mask: result.try_read::<u32>(4).unwrap_or(0),
+                                difficulty: result.try_read::<u8>(5).unwrap_or(0),
+                                stack_count: result.try_read::<u8>(6).unwrap_or(1),
+                                max_duration_ms: result.try_read::<i32>(7).unwrap_or(0),
+                                remain_time_ms: result.try_read::<i32>(8).unwrap_or(0),
+                                remain_charges: result.try_read::<u8>(9).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::CharacterAuras(rows)
+                }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::CharacterAuraEffects { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(PlayerCharacterAuraEffectLoadRowLikeCpp {
+                                caster_guid_binary: result
+                                    .try_read::<Vec<u8>>(0)
+                                    .unwrap_or_default(),
+                                spell_id: result.try_read::<u32>(2).unwrap_or(0),
+                                effect_mask: result.try_read::<u32>(3).unwrap_or(0),
+                                effect_index: result.try_read::<u8>(4).unwrap_or(0),
+                                amount: result.try_read::<i32>(5).unwrap_or(0),
+                                base_amount: result.try_read::<i32>(6).unwrap_or(0),
+                            });
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::CharacterAuraEffects(rows)
+                }
             };
             PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(loaded)
         })
@@ -3151,6 +3209,16 @@ mod tests {
             (
                 PlayerLoginAuxiliaryLoadRequestLikeCpp::Reputation { player_guid: 77 },
                 CharStatements::SEL_CHARACTER_REPUTATION.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::CharacterAuras { player_guid: 77 },
+                CharStatements::SEL_CHARACTER_AURAS.sql(),
+                vec![crate::SqlParam::U64(77)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::CharacterAuraEffects { player_guid: 77 },
+                CharStatements::SEL_CHARACTER_AURA_EFFECTS.sql(),
                 vec![crate::SqlParam::U64(77)],
             ),
         ];

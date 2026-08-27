@@ -71,6 +71,7 @@
     420,
     422,
     424,
+    426,
     189,
     192,
     193,
@@ -1220,7 +1221,7 @@
     },
     {
       "number": 424,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.21] Move Player-login progression reads behind the lifecycle port",
       "kind": "slice",
       "parents": [
@@ -1229,6 +1230,19 @@
       ],
       "depends_on": [
         422
+      ]
+    },
+    {
+      "number": 426,
+      "state": "open",
+      "title": "[ARCH.DB.22] Move Player-login aura reads behind the lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        424
       ]
     }
   ]
