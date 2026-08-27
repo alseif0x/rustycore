@@ -67,6 +67,7 @@
     412,
     414,
     416,
+    418,
     189,
     192,
     193,
@@ -1164,7 +1165,7 @@
     },
     {
       "number": 416,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.17] Move login location and guild reads behind the lifecycle port",
       "kind": "slice",
       "parents": [
@@ -1173,6 +1174,19 @@
       ],
       "depends_on": [
         414
+      ]
+    },
+    {
+      "number": 418,
+      "state": "open",
+      "title": "[ARCH.DB.18] Move pet login reads behind the lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        416
       ]
     }
   ]
