@@ -254,6 +254,12 @@ pub enum PlayerLoginAuxiliaryLoadRequestLikeCpp {
     Reputation {
         player_guid: u64,
     },
+    CharacterAuras {
+        player_guid: u64,
+    },
+    CharacterAuraEffects {
+        player_guid: u64,
+    },
 }
 
 /// Early Characters-database reads that decide where and under which guild
@@ -680,6 +686,29 @@ pub struct PlayerReputationLoadRowLikeCpp {
     pub flags: u16,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerCharacterAuraLoadRowLikeCpp {
+    pub caster_guid_binary: Vec<u8>,
+    pub spell_id: u32,
+    pub effect_mask: u32,
+    pub recalculate_mask: u32,
+    pub difficulty: u8,
+    pub stack_count: u8,
+    pub max_duration_ms: i32,
+    pub remain_time_ms: i32,
+    pub remain_charges: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerCharacterAuraEffectLoadRowLikeCpp {
+    pub caster_guid_binary: Vec<u8>,
+    pub spell_id: u32,
+    pub effect_mask: u32,
+    pub effect_index: u8,
+    pub amount: i32,
+    pub base_amount: i32,
+}
+
 /// One raw `character_trait_entry` row. Missing columns remain unknown so the
 /// Player owner can keep its represented authority incomplete instead of
 /// silently turning malformed database data into zero-valued gameplay state.
@@ -734,6 +763,8 @@ pub enum PlayerLoginAuxiliaryLoadedLikeCpp {
     Glyphs(Vec<PlayerGlyphLoadRowLikeCpp>),
     ActionButtons(Vec<PlayerActionButtonLoadRowLikeCpp>),
     Reputation(Vec<PlayerReputationLoadRowLikeCpp>),
+    CharacterAuras(Vec<PlayerCharacterAuraLoadRowLikeCpp>),
+    CharacterAuraEffects(Vec<PlayerCharacterAuraEffectLoadRowLikeCpp>),
 }
 
 /// Read-only lifecycle loads have no unknown-COMMIT state: they either
@@ -1624,6 +1655,8 @@ mod tests {
                 trait_config_id: 0,
             },
             PlayerLoginAuxiliaryLoadRequestLikeCpp::Reputation { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::CharacterAuras { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::CharacterAuraEffects { player_guid: 1 },
         ] {
             assert_eq!(
                 request.logical_database(),
@@ -1708,6 +1741,35 @@ mod tests {
         );
         let failed = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
             reason: "progression query failed".to_owned(),
+        };
+
+        assert_ne!(loaded, empty);
+        assert_ne!(empty, failed);
+        assert_ne!(loaded, failed);
+    }
+
+    #[test]
+    fn character_aura_rows_keep_loaded_empty_and_failure_distinct_like_cpp() {
+        let loaded = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+            PlayerLoginAuxiliaryLoadedLikeCpp::CharacterAuras(vec![
+                PlayerCharacterAuraLoadRowLikeCpp {
+                    caster_guid_binary: vec![1],
+                    spell_id: 133,
+                    effect_mask: 1,
+                    recalculate_mask: 0,
+                    difficulty: 0,
+                    stack_count: 1,
+                    max_duration_ms: 10_000,
+                    remain_time_ms: 5_000,
+                    remain_charges: 0,
+                },
+            ]),
+        );
+        let empty = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+            PlayerLoginAuxiliaryLoadedLikeCpp::CharacterAuras(Vec::new()),
+        );
+        let failed = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+            reason: "aura query failed".to_owned(),
         };
 
         assert_ne!(loaded, empty);
