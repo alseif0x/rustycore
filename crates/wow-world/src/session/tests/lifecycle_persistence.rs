@@ -18,7 +18,7 @@ use wow_persistence::{
     PlayerHomebindPersistenceRequestLikeCpp, PlayerLifecyclePortLikeCpp,
     PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
     PlayerOfflineMarkLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
-    PlayerTalentResetPersistenceRequestLikeCpp,
+    PlayerTalentResetPersistenceRequestLikeCpp, PlayerXpPersistenceRequestLikeCpp,
 };
 
 struct RecordingPortLikeCpp {
@@ -28,6 +28,7 @@ struct RecordingPortLikeCpp {
     character_saves: Mutex<Vec<PlayerCharacterSaveRequestLikeCpp>>,
     buyback_clears: Mutex<Vec<PlayerBuybackClearRequestLikeCpp>>,
     talent_resets: Mutex<Vec<PlayerTalentResetPersistenceRequestLikeCpp>>,
+    xp_saves: Mutex<Vec<PlayerXpPersistenceRequestLikeCpp>>,
     realm_character_count_refreshes: Mutex<Vec<PlayerRealmCharacterCountRefreshRequestLikeCpp>>,
     outcome: PersistenceOutcomeLikeCpp,
 }
@@ -41,6 +42,7 @@ impl RecordingPortLikeCpp {
             character_saves: Mutex::new(Vec::new()),
             buyback_clears: Mutex::new(Vec::new()),
             talent_resets: Mutex::new(Vec::new()),
+            xp_saves: Mutex::new(Vec::new()),
             realm_character_count_refreshes: Mutex::new(Vec::new()),
             outcome,
         })
@@ -59,6 +61,9 @@ impl RecordingPortLikeCpp {
     }
     fn talent_resets(&self) -> Vec<PlayerTalentResetPersistenceRequestLikeCpp> {
         self.talent_resets.lock().unwrap().clone()
+    }
+    fn xp_saves(&self) -> Vec<PlayerXpPersistenceRequestLikeCpp> {
+        self.xp_saves.lock().unwrap().clone()
     }
     fn realm_character_count_refreshes(
         &self,
@@ -99,6 +104,15 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         request: PlayerTalentResetPersistenceRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
         self.talent_resets.lock().unwrap().push(request);
+        let outcome = self.outcome.clone();
+        Box::pin(async move { outcome })
+    }
+
+    fn persist_xp_like_cpp<'a>(
+        &'a self,
+        request: PlayerXpPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        self.xp_saves.lock().unwrap().push(request);
         let outcome = self.outcome.clone();
         Box::pin(async move { outcome })
     }
@@ -277,6 +291,43 @@ async fn unknown_talent_reset_commit_quarantines_without_publication_like_cpp() 
             .durable_loot_money_persistence_tracker_like_cpp()
             .is_indeterminate_like_cpp()
     );
+}
+
+#[tokio::test]
+async fn represented_xp_reaches_the_port_for_every_classified_outcome_like_cpp() {
+    for outcome in [
+        PersistenceOutcomeLikeCpp::Applied { rows: 2 },
+        PersistenceOutcomeLikeCpp::Failed {
+            reason: "rolled back".to_owned(),
+        },
+        PersistenceOutcomeLikeCpp::Unknown {
+            reason: "commit reply lost".to_owned(),
+        },
+    ] {
+        let (mut session, port) = session_with_port(outcome);
+        let guid = ObjectGuid::create_player(1, 0x7500_0301);
+        let victim = test_creature_guid(0x7500_0302);
+        session.set_player_guid(Some(guid));
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
+        install_tapped_xp_victim_like_cpp(&mut session, victim);
+
+        session.give_xp(50, victim, 1.0).await;
+
+        let requests = port.xp_saves();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].player_guid, guid.counter() as u64);
+        assert_eq!(requests[0].xp, 100);
+        assert_eq!(
+            requests[0]
+                .rest
+                .expect("rest consumption accompanies XP")
+                .rest_bonus,
+            20.0
+        );
+        assert_eq!(session.player_xp_like_cpp(), 100);
+    }
 }
 
 fn character_save_session_with_port(

@@ -63,6 +63,7 @@
     404,
     406,
     408,
+    410,
     189,
     192,
     193,
@@ -1108,7 +1109,7 @@
     },
     {
       "number": 408,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.13] Move talent-reset transaction behind the lifecycle port",
       "kind": "slice",
       "parents": [
@@ -1117,6 +1118,19 @@
       ],
       "depends_on": [
         406
+      ]
+    },
+    {
+      "number": 410,
+      "state": "open",
+      "title": "[ARCH.DB.14] Move represented XP/rest persistence behind the lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        408
       ]
     }
   ]

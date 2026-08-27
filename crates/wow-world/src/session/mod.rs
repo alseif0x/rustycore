@@ -29155,20 +29155,6 @@ impl WorldSession {
         }
     }
 
-    fn build_character_online_rest_state_save_statement_like_cpp(
-        rest_state: u8,
-        player_flags: u32,
-        rest_bonus: f32,
-        guid_counter: u64,
-    ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_ONLINE_REST_STATE);
-        stmt.set_u8(0, rest_state);
-        stmt.set_u32(1, player_flags);
-        stmt.set_f32(2, Self::sanitize_rest_bonus_like_cpp(rest_bonus));
-        stmt.set_u64(3, guid_counter);
-        stmt
-    }
-
     fn represented_player_flags_for_rest_state_save_like_cpp(&self) -> u32 {
         let canonical_flags =
             self.canonical_player_snapshot_like_cpp(|player| player.data().player_flags);
@@ -29207,37 +29193,25 @@ impl WorldSession {
         (player_flags, player_flags_ex)
     }
 
-    fn current_player_xp_save_statement_plan_like_cpp(
+    fn current_player_xp_persistence_request_like_cpp(
         &self,
         level_changed: bool,
         rest_info_changed: bool,
         guid_counter: u64,
-    ) -> Vec<PreparedStatement> {
-        let mut plan = Vec::with_capacity(2);
-        if level_changed {
-            let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_LEVEL);
-            stmt.set_u8(0, self.player_level_like_cpp());
-            stmt.set_u32(1, self.player_xp_like_cpp());
-            stmt.set_u64(2, guid_counter);
-            plan.push(stmt);
-        } else {
-            let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_XP);
-            stmt.set_u32(0, self.player_xp_like_cpp());
-            stmt.set_u64(1, guid_counter);
-            plan.push(stmt);
-        }
-
-        if rest_info_changed {
-            plan.push(
-                Self::build_character_online_rest_state_save_statement_like_cpp(
-                    self.represented_xp_rest_state_like_cpp(),
-                    self.represented_player_flags_for_rest_state_save_like_cpp(),
+    ) -> wow_persistence::PlayerXpPersistenceRequestLikeCpp {
+        wow_persistence::PlayerXpPersistenceRequestLikeCpp {
+            player_guid: guid_counter,
+            level_changed,
+            level: self.player_level_like_cpp(),
+            xp: self.player_xp_like_cpp(),
+            rest: rest_info_changed.then(|| wow_persistence::PlayerXpRestStateSaveLikeCpp {
+                rest_state: self.represented_xp_rest_state_like_cpp(),
+                player_flags: self.represented_player_flags_for_rest_state_save_like_cpp(),
+                rest_bonus: Self::sanitize_rest_bonus_like_cpp(
                     self.represented_xp_rest_bonus_like_cpp(),
-                    guid_counter,
                 ),
-            );
+            }),
         }
-        plan
     }
 
     fn represented_xp_rest_info_changed_since_like_cpp(
@@ -30849,24 +30823,26 @@ impl WorldSession {
             return;
         }
 
-        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
-        else {
+        let (Some(guid), Some(port)) = (
+            self.player_guid(),
+            self.player_lifecycle_port_like_cpp().map(Arc::clone),
+        ) else {
             return;
         };
-        let plan = self.current_player_xp_save_statement_plan_like_cpp(
+        let request = self.current_player_xp_persistence_request_like_cpp(
             self.player_level_like_cpp() != old_level,
             self.represented_xp_rest_info_changed_since_like_cpp(old_rest_bonus, old_rest_state),
             guid.counter() as u64,
         );
-        let mut transaction = SqlTransaction::new();
-        for statement in plan {
-            transaction.append(statement);
-        }
-        if let Err(err) = char_db.commit_transaction(transaction).await {
-            warn!(
-                guid = guid.counter(),
-                "Failed to atomically persist represented XP/rest state: {err}"
-            );
+        match port.persist_xp_like_cpp(request).await {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                warn!(
+                    guid = guid.counter(),
+                    "Failed to atomically persist represented XP/rest state: {reason}"
+                );
+            }
         }
     }
 

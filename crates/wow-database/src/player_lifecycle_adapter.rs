@@ -32,6 +32,7 @@ use wow_persistence::{
     PlayerSpellCooldownLoadRowLikeCpp, PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp,
     PlayerTalentResetPersistenceRequestLikeCpp, PlayerTraitConfigLoadRowLikeCpp,
     PlayerTraitEntryLoadRowLikeCpp, PlayerVoidStorageSaveLikeCpp,
+    PlayerXpPersistenceRequestLikeCpp,
 };
 
 use crate::params::PreparedStatement;
@@ -1268,6 +1269,35 @@ fn player_talent_reset_statements_like_cpp(
     statements
 }
 
+fn player_xp_persistence_statements_like_cpp(
+    request: &PlayerXpPersistenceRequestLikeCpp,
+) -> Vec<PreparedStatement> {
+    let mut statements = Vec::with_capacity(if request.rest.is_some() { 2 } else { 1 });
+    if request.level_changed {
+        let mut statement = PreparedStatement::for_statement(CharStatements::UPD_CHAR_LEVEL);
+        statement.set_u8(0, request.level);
+        statement.set_u32(1, request.xp);
+        statement.set_u64(2, request.player_guid);
+        statements.push(statement);
+    } else {
+        let mut statement = PreparedStatement::for_statement(CharStatements::UPD_CHAR_XP);
+        statement.set_u32(0, request.xp);
+        statement.set_u64(1, request.player_guid);
+        statements.push(statement);
+    }
+
+    if let Some(rest) = request.rest {
+        let mut statement =
+            PreparedStatement::for_statement(CharStatements::UPD_CHAR_ONLINE_REST_STATE);
+        statement.set_u8(0, rest.rest_state);
+        statement.set_u32(1, rest.player_flags);
+        statement.set_f32(2, rest.rest_bonus);
+        statement.set_u64(3, request.player_guid);
+        statements.push(statement);
+    }
+    statements
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PlayerTalentResetCommitReconciliationLikeCpp {
     Applied,
@@ -1558,6 +1588,36 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                                 reason: error.to_string(),
                             }
                         }
+                    }
+                }
+            }
+        })
+    }
+
+    fn persist_xp_like_cpp<'a>(
+        &'a self,
+        request: PlayerXpPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async move {
+            let statements = player_xp_persistence_statements_like_cpp(&request);
+            let rows = statements.len() as u64;
+            let mut transaction = SqlTransaction::new();
+            for statement in statements {
+                transaction.append(statement);
+            }
+            match transaction
+                .commit_with_outcome_like_cpp(self.character_db.pool())
+                .await
+            {
+                Ok(()) => PersistenceOutcomeLikeCpp::Applied { rows },
+                Err(SqlTransactionCommitError::DefinitelyRolledBack(error)) => {
+                    PersistenceOutcomeLikeCpp::Failed {
+                        reason: error.to_string(),
+                    }
+                }
+                Err(SqlTransactionCommitError::CommitOutcomeUnknown(error)) => {
+                    PersistenceOutcomeLikeCpp::Unknown {
+                        reason: error.to_string(),
                     }
                 }
             }
@@ -2461,6 +2521,66 @@ mod tests {
         assert_eq!(
             reconcile_player_talent_reset_commit_like_cpp(1_000, 1_000, Some(1_000)),
             Unknown
+        );
+    }
+
+    #[test]
+    fn xp_rest_request_maps_to_exact_order_and_binds_like_cpp() {
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let _capture = crate::persistence_trace::RecordingGuard::enable();
+        let statements =
+            player_xp_persistence_statements_like_cpp(&PlayerXpPersistenceRequestLikeCpp {
+                player_guid: 77,
+                level_changed: true,
+                level: 12,
+                xp: 345,
+                rest: Some(wow_persistence::PlayerXpRestStateSaveLikeCpp {
+                    rest_state: 1,
+                    player_flags: 0x20,
+                    rest_bonus: 42.5,
+                }),
+            });
+
+        assert_eq!(
+            statements
+                .iter()
+                .map(PreparedStatement::trace_identity)
+                .collect::<Vec<_>>(),
+            vec![Some("UPD_CHAR_LEVEL"), Some("UPD_CHAR_ONLINE_REST_STATE")]
+        );
+        assert_eq!(
+            statements
+                .iter()
+                .map(PreparedStatement::params)
+                .collect::<Vec<_>>(),
+            vec![
+                &[
+                    crate::SqlParam::U8(12),
+                    crate::SqlParam::U32(345),
+                    crate::SqlParam::U64(77),
+                ][..],
+                &[
+                    crate::SqlParam::U8(1),
+                    crate::SqlParam::U32(0x20),
+                    crate::SqlParam::F32(42.5),
+                    crate::SqlParam::U64(77),
+                ][..],
+            ]
+        );
+
+        let xp_only =
+            player_xp_persistence_statements_like_cpp(&PlayerXpPersistenceRequestLikeCpp {
+                player_guid: 88,
+                level_changed: false,
+                level: 12,
+                xp: 456,
+                rest: None,
+            });
+        assert_eq!(xp_only.len(), 1);
+        assert_eq!(xp_only[0].trace_identity(), Some("UPD_CHAR_XP"));
+        assert_eq!(
+            xp_only[0].params(),
+            &[crate::SqlParam::U32(456), crate::SqlParam::U64(88)]
         );
     }
 
