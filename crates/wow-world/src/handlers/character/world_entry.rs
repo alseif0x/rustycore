@@ -1400,110 +1400,79 @@ impl WorldSession {
         // one shared `_equipmentSets` container before `SendEquipmentSetList`.
         self.clear_represented_equipment_sets_like_cpp();
         let mut equipment_sets_loaded = true;
+        match player_lifecycle_port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::EquipmentSets {
+                    player_guid: guid.counter() as u64,
+                },
+            )
+            .await
         {
-            let mut equipment_set_stmt =
-                char_db.prepare(CharStatements::SEL_CHARACTER_EQUIPMENTSETS);
-            equipment_set_stmt.set_u64(0, guid.counter() as u64);
-            match char_db.query(&equipment_set_stmt).await {
-                Ok(mut equipment_set_result) => {
-                    if !equipment_set_result.is_empty() {
-                        loop {
-                            let set_guid: u64 = equipment_set_result.try_read(0).unwrap_or(0);
-                            let set_id: u32 =
-                                u32::from(equipment_set_result.try_read::<u8>(1).unwrap_or(0));
-                            let set_name: String =
-                                equipment_set_result.try_read(2).unwrap_or_default();
-                            let set_icon: String =
-                                equipment_set_result.try_read(3).unwrap_or_default();
-                            let ignore_mask: u32 = equipment_set_result.try_read(4).unwrap_or(0);
-                            let assigned_spec_index: i32 =
-                                equipment_set_result.try_read(5).unwrap_or(-1);
-                            let mut pieces = [ObjectGuid::EMPTY;
-                                wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP];
-                            for (slot, piece) in pieces.iter_mut().enumerate() {
-                                let item_low_guid: u64 =
-                                    equipment_set_result.try_read(6 + slot).unwrap_or(0);
-                                if item_low_guid != 0 {
-                                    *piece =
-                                        ObjectGuid::create_item(realm_id, item_low_guid as i64);
-                                }
-                            }
-                            self.load_represented_equipment_set_row_like_cpp(
-                                set_guid,
-                                set_id,
-                                set_name,
-                                set_icon,
-                                ignore_mask,
-                                assigned_spec_index,
-                                pieces,
-                            );
-                            if !equipment_set_result.next_row() {
-                                break;
-                            }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::EquipmentSets(rows),
+            ) => {
+                for row in rows {
+                    let mut pieces = [ObjectGuid::EMPTY;
+                        wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP];
+                    for (piece, item_low_guid) in
+                        pieces.iter_mut().zip(row.item_low_guids.into_iter())
+                    {
+                        if item_low_guid != 0 {
+                            *piece = ObjectGuid::create_item(realm_id, item_low_guid as i64);
                         }
                     }
-                }
-                Err(e) => {
-                    equipment_sets_loaded = false;
-                    warn!("Failed to load equipment sets for {:?}: {}", guid, e);
+                    self.load_represented_equipment_set_row_like_cpp(
+                        row.set_guid,
+                        u32::from(row.set_id),
+                        row.name,
+                        row.icon,
+                        row.ignore_mask,
+                        row.assigned_spec_index,
+                        pieces,
+                    );
                 }
             }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                equipment_sets_loaded = false;
+                warn!("Failed to load equipment sets for {:?}: {}", guid, reason);
+            }
+            _ => unreachable!("equipment-set request returned a different row family"),
         }
+        match player_lifecycle_port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::TransmogOutfits {
+                    player_guid: guid.counter() as u64,
+                },
+            )
+            .await
         {
-            let mut transmog_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_TRANSMOG_OUTFITS);
-            transmog_stmt.set_u64(0, guid.counter() as u64);
-            match char_db.query(&transmog_stmt).await {
-                Ok(mut transmog_result) => {
-                    if !transmog_result.is_empty() {
-                        loop {
-                            // The canonical CharacterDB schema keeps transmog
-                            // `setguid`/`ignore_mask` signed, unlike the
-                            // equipment-set table. C++ Field::GetUInt* accepts
-                            // their nonnegative values; mirror that conversion
-                            // instead of silently defaulting signed rows to 0.
-                            let set_guid = transmog_result
-                                .try_read::<i64>(0)
-                                .and_then(nonnegative_i64_to_u64_like_cpp)
-                                .or_else(|| transmog_result.try_read::<u64>(0))
-                                .unwrap_or(0);
-                            let set_id: u32 =
-                                u32::from(transmog_result.try_read::<u8>(1).unwrap_or(0));
-                            let set_name: String = transmog_result.try_read(2).unwrap_or_default();
-                            let set_icon: String = transmog_result.try_read(3).unwrap_or_default();
-                            let ignore_mask = transmog_result
-                                .try_read::<i32>(4)
-                                .and_then(nonnegative_i32_to_u32_like_cpp)
-                                .or_else(|| transmog_result.try_read::<u32>(4))
-                                .unwrap_or(0);
-                            let mut appearances =
-                                [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP];
-                            for (slot, appearance) in appearances.iter_mut().enumerate() {
-                                *appearance = transmog_result.try_read(5 + slot).unwrap_or(0);
-                            }
-                            let enchants = [
-                                transmog_result.try_read(24).unwrap_or(0),
-                                transmog_result.try_read(25).unwrap_or(0),
-                            ];
-                            self.load_represented_transmog_outfit_row_like_cpp(
-                                set_guid,
-                                set_id,
-                                set_name,
-                                set_icon,
-                                ignore_mask,
-                                appearances,
-                                enchants,
-                            );
-                            if !transmog_result.next_row() {
-                                break;
-                            }
-                        }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::TransmogOutfits(rows),
+            ) => {
+                for row in rows {
+                    let mut appearances =
+                        [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP];
+                    for (appearance, loaded) in
+                        appearances.iter_mut().zip(row.appearances.into_iter())
+                    {
+                        *appearance = loaded;
                     }
-                }
-                Err(e) => {
-                    equipment_sets_loaded = false;
-                    warn!("Failed to load transmog outfits for {:?}: {}", guid, e);
+                    self.load_represented_transmog_outfit_row_like_cpp(
+                        row.set_guid,
+                        u32::from(row.set_id),
+                        row.name,
+                        row.icon,
+                        row.ignore_mask,
+                        appearances,
+                        row.enchants,
+                    );
                 }
             }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                equipment_sets_loaded = false;
+                warn!("Failed to load transmog outfits for {:?}: {}", guid, reason);
+            }
+            _ => unreachable!("transmog-outfit request returned a different row family"),
         }
         if equipment_sets_loaded {
             self.mark_represented_equipment_sets_loaded_like_cpp();
@@ -1516,97 +1485,95 @@ impl WorldSession {
         // length MAX_CUF_PROFILES; Rust rejects `id >= MAX` to avoid the OOB
         // bug while preserving valid row semantics.
         self.clear_represented_cuf_profiles_like_cpp();
+        match player_lifecycle_port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::CufProfiles {
+                    player_guid: guid.counter() as u64,
+                },
+            )
+            .await
         {
-            let mut cuf_stmt = char_db.prepare(CharStatements::SEL_CHAR_CUF_PROFILES);
-            cuf_stmt.set_u64(0, guid.counter() as u64);
-            match char_db.query(&cuf_stmt).await {
-                Ok(mut cuf_result) => {
-                    if !cuf_result.is_empty() {
-                        loop {
-                            let id: u8 = cuf_result.try_read(0).unwrap_or(0);
-                            let profile = wow_packet::packets::misc::CufProfile {
-                                profile_name: cuf_result.try_read(1).unwrap_or_default(),
-                                frame_height: cuf_result.try_read(2).unwrap_or(0),
-                                frame_width: cuf_result.try_read(3).unwrap_or(0),
-                                sort_by: cuf_result.try_read(4).unwrap_or(0),
-                                health_text: cuf_result.try_read(5).unwrap_or(0),
-                                bool_options: cuf_result.try_read(6).unwrap_or(0),
-                                top_point: cuf_result.try_read(7).unwrap_or(0),
-                                bottom_point: cuf_result.try_read(8).unwrap_or(0),
-                                left_point: cuf_result.try_read(9).unwrap_or(0),
-                                top_offset: cuf_result.try_read(10).unwrap_or(0),
-                                bottom_offset: cuf_result.try_read(11).unwrap_or(0),
-                                left_offset: cuf_result.try_read(12).unwrap_or(0),
-                            };
-                            if !self.load_represented_cuf_profile_like_cpp(id, profile) {
-                                warn!(
-                                    player_guid = guid.counter(),
-                                    id,
-                                    max_profiles =
-                                        wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP,
-                                    "Skipping invalid CUF profile id"
-                                );
-                            }
-                            if !cuf_result.next_row() {
-                                break;
-                            }
-                        }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::CufProfiles(rows),
+            ) => {
+                for row in rows {
+                    let id = row.id;
+                    let profile = wow_packet::packets::misc::CufProfile {
+                        profile_name: row.name,
+                        frame_height: row.frame_height,
+                        frame_width: row.frame_width,
+                        sort_by: row.sort_by,
+                        health_text: row.health_text,
+                        bool_options: row.bool_options,
+                        top_point: row.top_point,
+                        bottom_point: row.bottom_point,
+                        left_point: row.left_point,
+                        top_offset: row.top_offset,
+                        bottom_offset: row.bottom_offset,
+                        left_offset: row.left_offset,
+                    };
+                    if !self.load_represented_cuf_profile_like_cpp(id, profile) {
+                        warn!(
+                            player_guid = guid.counter(),
+                            id,
+                            max_profiles = wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP,
+                            "Skipping invalid CUF profile id"
+                        );
                     }
-                    self.mark_represented_cuf_profiles_loaded_like_cpp();
                 }
-                Err(e) => {
-                    warn!("Failed to load CUF profiles for {:?}: {}", guid, e);
-                }
+                self.mark_represented_cuf_profiles_loaded_like_cpp();
             }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!("Failed to load CUF profiles for {:?}: {}", guid, reason);
+            }
+            _ => unreachable!("CUF-profile request returned a different row family"),
         }
 
         // ── Load character currencies from character_currency ──
         // C++ `Player::_LoadCurrency` skips rows not found in sCurrencyTypesStore.
+        match player_lifecycle_port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::Currencies {
+                    player_guid: guid.counter() as u64,
+                },
+            )
+            .await
         {
-            let mut currency_stmt = char_db.prepare(CharStatements::SEL_PLAYER_CURRENCY);
-            currency_stmt.set_u64(0, guid.counter() as u64);
-            match char_db.query(&currency_stmt).await {
-                Ok(mut currency_result) => {
-                    if !currency_result.is_empty() {
-                        loop {
-                            let currency_id: u32 =
-                                u32::from(currency_result.try_read::<u16>(0).unwrap_or(0));
-                            let known_currency = self
-                                .currency_types_store()
-                                .is_some_and(|store| store.has_record(currency_id));
-                            if known_currency {
-                                let mut currencies = self.player_currencies_like_cpp().clone();
-                                currencies.entry(currency_id).or_insert_with(|| {
-                                    crate::session::PlayerCurrency {
-                                        state: crate::session::PlayerCurrencyState::Unchanged,
-                                        quantity: currency_result.try_read(1).unwrap_or(0),
-                                        weekly_quantity: currency_result.try_read(2).unwrap_or(0),
-                                        tracked_quantity: currency_result.try_read(3).unwrap_or(0),
-                                        increased_cap_quantity: currency_result
-                                            .try_read(4)
-                                            .unwrap_or(0),
-                                        earned_quantity: currency_result.try_read(5).unwrap_or(0),
-                                        flags: currency_result.try_read(6).unwrap_or(0),
-                                    }
-                                });
-                                self.set_player_currencies_like_cpp(currencies);
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::Currencies(rows),
+            ) => {
+                for row in rows {
+                    let currency_id = u32::from(row.currency_id);
+                    let known_currency = self
+                        .currency_types_store()
+                        .is_some_and(|store| store.has_record(currency_id));
+                    if known_currency {
+                        let mut currencies = self.player_currencies_like_cpp().clone();
+                        currencies.entry(currency_id).or_insert_with(|| {
+                            crate::session::PlayerCurrency {
+                                state: crate::session::PlayerCurrencyState::Unchanged,
+                                quantity: row.quantity,
+                                weekly_quantity: row.weekly_quantity,
+                                tracked_quantity: row.tracked_quantity,
+                                increased_cap_quantity: row.increased_cap_quantity,
+                                earned_quantity: row.earned_quantity,
+                                flags: row.flags,
                             }
-                            if !currency_result.next_row() {
-                                break;
-                            }
-                        }
+                        });
+                        self.set_player_currencies_like_cpp(currencies);
                     }
-                    info!(
-                        "Loaded {} currencies for {:?}",
-                        self.player_currencies_like_cpp().len(),
-                        guid
-                    );
-                    self.sync_player_currencies_like_cpp();
                 }
-                Err(e) => {
-                    warn!("Failed to load currencies for {:?}: {}", guid, e);
-                }
+                info!(
+                    "Loaded {} currencies for {:?}",
+                    self.player_currencies_like_cpp().len(),
+                    guid
+                );
+                self.sync_player_currencies_like_cpp();
             }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!("Failed to load currencies for {:?}: {}", guid, reason);
+            }
+            _ => unreachable!("currency request returned a different row family"),
         }
 
         // ── Load known spells from character_spell ──

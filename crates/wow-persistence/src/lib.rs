@@ -188,6 +188,10 @@ pub enum PlayerLoginAuxiliaryLoadRequestLikeCpp {
     PetSpellCharges { pet_number: u32 },
     PetDeclinedNames { player_guid: u64, pet_number: u32 },
     GroupMembership { player_guid: u64 },
+    EquipmentSets { player_guid: u64 },
+    TransmogOutfits { player_guid: u64 },
+    CufProfiles { player_guid: u64 },
+    Currencies { player_guid: u64 },
 }
 
 /// Early Characters-database reads that decide where and under which guild
@@ -521,6 +525,56 @@ pub struct PlayerPetDeclinedNamesLoadRowLikeCpp {
     pub names: [String; 5],
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerEquipmentSetLoadRowLikeCpp {
+    pub set_guid: u64,
+    pub set_id: u8,
+    pub name: String,
+    pub icon: String,
+    pub ignore_mask: u32,
+    pub assigned_spec_index: i32,
+    pub item_low_guids: Vec<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerTransmogOutfitLoadRowLikeCpp {
+    pub set_guid: u64,
+    pub set_id: u8,
+    pub name: String,
+    pub icon: String,
+    pub ignore_mask: u32,
+    pub appearances: Vec<i32>,
+    pub enchants: [i32; 2],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerCufProfileLoadRowLikeCpp {
+    pub id: u8,
+    pub name: String,
+    pub frame_height: u16,
+    pub frame_width: u16,
+    pub sort_by: u8,
+    pub health_text: u8,
+    pub bool_options: u32,
+    pub top_point: u8,
+    pub bottom_point: u8,
+    pub left_point: u8,
+    pub top_offset: u16,
+    pub bottom_offset: u16,
+    pub left_offset: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerCurrencyLoadRowLikeCpp {
+    pub currency_id: u16,
+    pub quantity: u32,
+    pub weekly_quantity: u32,
+    pub tracked_quantity: u32,
+    pub increased_cap_quantity: u32,
+    pub earned_quantity: u32,
+    pub flags: u8,
+}
+
 /// One raw `character_trait_entry` row. Missing columns remain unknown so the
 /// Player owner can keep its represented authority incomplete instead of
 /// silently turning malformed database data into zero-valued gameplay state.
@@ -564,6 +618,10 @@ pub enum PlayerLoginAuxiliaryLoadedLikeCpp {
     PetSpellCharges(Vec<PlayerPetSpellChargeLoadRowLikeCpp>),
     PetDeclinedNames(Vec<PlayerPetDeclinedNamesLoadRowLikeCpp>),
     GroupMembership(Vec<u32>),
+    EquipmentSets(Vec<PlayerEquipmentSetLoadRowLikeCpp>),
+    TransmogOutfits(Vec<PlayerTransmogOutfitLoadRowLikeCpp>),
+    CufProfiles(Vec<PlayerCufProfileLoadRowLikeCpp>),
+    Currencies(Vec<PlayerCurrencyLoadRowLikeCpp>),
 }
 
 /// Read-only lifecycle loads have no unknown-COMMIT state: they either
@@ -1439,6 +1497,10 @@ mod tests {
                 pet_number: 2,
             },
             PlayerLoginAuxiliaryLoadRequestLikeCpp::GroupMembership { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::EquipmentSets { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::TransmogOutfits { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::CufProfiles { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::Currencies { player_guid: 1 },
         ] {
             assert_eq!(
                 request.logical_database(),
@@ -1477,6 +1539,31 @@ mod tests {
         );
         let failed = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
             reason: "group query failed".to_owned(),
+        };
+
+        assert_ne!(loaded, empty);
+        assert_ne!(empty, failed);
+        assert_ne!(loaded, failed);
+    }
+
+    #[test]
+    fn profile_login_rows_keep_loaded_empty_and_failure_distinct_like_cpp() {
+        let loaded = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+            PlayerLoginAuxiliaryLoadedLikeCpp::Currencies(vec![PlayerCurrencyLoadRowLikeCpp {
+                currency_id: 1,
+                quantity: 2,
+                weekly_quantity: 3,
+                tracked_quantity: 4,
+                increased_cap_quantity: 5,
+                earned_quantity: 6,
+                flags: 7,
+            }]),
+        );
+        let empty = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+            PlayerLoginAuxiliaryLoadedLikeCpp::Currencies(Vec::new()),
+        );
+        let failed = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+            reason: "profile query failed".to_owned(),
         };
 
         assert_ne!(loaded, empty);
