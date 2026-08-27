@@ -1705,14 +1705,14 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 25269,
-          "test_lines": 21631,
-          "total_lines": 46900,
+          "production_lines": 25307,
+          "test_lines": 21667,
+          "total_lines": 46974,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "The crate keeps main as a thin entry point and distributes bootstrap/loaders/runtime by cohesive private modules; gameplay algorithms and hidden mutable clocks are absent. #252's aggro-family cut moves the reputation/flag reads into the collector's existing canonical pass, adding 14 production lines here while deleting more from the mirror, plus 59 test lines for the positive and no-owner cases. #388 adds 14 production lines to compose and install the distinct session account-state persistence capability; no gameplay authority moves into the composition root. #392 adds 13 production lines to compose and install the map-corpse persistence capability; gameplay materialization remains in the transitional caller. #394 adds 6 production lines to share the startup-loaded safe-location catalog with Session construction; no gameplay or persistence authority moves into the composition root."
+          "retirement_condition": "The crate keeps main as a thin entry point and distributes bootstrap/loaders/runtime by cohesive private modules; gameplay algorithms and hidden mutable clocks are absent. #252's aggro-family cut moves the reputation/flag reads into the collector's existing canonical pass, adding 14 production lines here while deleting more from the mirror, plus 59 test lines for the positive and no-owner cases. #388 adds 14 production lines to compose and install the distinct session account-state persistence capability; no gameplay authority moves into the composition root. #392 adds 13 production lines to compose and install the map-corpse persistence capability; gameplay materialization remains in the transitional caller. #394 adds 6 production lines to share the startup-loaded safe-location catalog with Session construction; no gameplay or persistence authority moves into the composition root. #412 replaces four compact concrete-updater constructions with explicit typed populate/update adapter calls, adding 38 production lines while removing every MySqlPool/DbUpdater inventory row from run_inner; its exact source-contract test adds 36 test lines and pins 2 populate plus 4 update calls in Login -> Character -> World -> Hotfix order."
         },
         {
           "path": "crates/wow-world/src/handlers/quest/mod.rs",

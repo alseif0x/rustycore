@@ -363,24 +363,34 @@ async fn run_database_updates_like_cpp(login_db: &LoginDatabase, login_info: &Da
         return;
     }
 
-    use wow_database::updater::DbUpdater;
+    use wow_database::updater::{populate_typed_database_like_cpp, update_typed_database_like_cpp};
     let src = wow_config::get_string_default("Updates.SourcePath", ".");
-    let auth_up = DbUpdater::new(
-        login_db.pool().clone(),
+    if let Err(e) = populate_typed_database_like_cpp(
+        login_db,
         &login_info.host,
         &login_info.port_or_socket,
         &login_info.username,
         &login_info.password,
         &login_info.database,
         login_info.ssl,
-    );
-    if let Err(e) = auth_up
-        .populate(&format!("{src}/sql/base/auth_database.sql"))
-        .await
+        &format!("{src}/sql/base/auth_database.sql"),
+    )
+    .await
     {
         tracing::warn!("Auth populate skipped: {e}");
     }
-    if let Err(e) = auth_up.update(&src).await {
+    if let Err(e) = update_typed_database_like_cpp(
+        login_db,
+        &login_info.host,
+        &login_info.port_or_socket,
+        &login_info.username,
+        &login_info.password,
+        &login_info.database,
+        login_info.ssl,
+        &src,
+    )
+    .await
+    {
         tracing::warn!("Auth update error: {e}");
     }
 }
@@ -944,6 +954,28 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
         assert_eq!(
             db_keep_alive_interval_duration_like_cpp(1),
             std::time::Duration::from_secs(60)
+        );
+    }
+
+    #[test]
+    fn bnet_database_update_bootstrap_uses_only_typed_adapter_operations_like_cpp() {
+        let source = include_str!("main.rs");
+        let (_, update_tail) = source
+            .split_once("async fn run_database_updates_like_cpp")
+            .expect("BNet database updater starts");
+        let (updates, _) = update_tail
+            .split_once("fn log_database_target_like_cpp")
+            .expect("BNet database updater ends");
+
+        assert!(!updates.contains("DbUpdater"));
+        assert!(!updates.contains(".pool()"));
+        assert_eq!(
+            updates.matches("populate_typed_database_like_cpp(").count(),
+            1
+        );
+        assert_eq!(
+            updates.matches("update_typed_database_like_cpp(").count(),
+            1
         );
     }
 

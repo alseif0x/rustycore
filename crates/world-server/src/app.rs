@@ -180,74 +180,112 @@ async fn run_inner(
 
     // ── Database auto-update ──────────────────────────────────────────────
     if updates_database_mask != 0 {
-        use wow_database::updater::DbUpdater;
+        use wow_database::updater::{
+            populate_typed_database_like_cpp, update_typed_database_like_cpp,
+        };
         let src = wow_config::get_string_default("Updates.SourcePath", ".");
 
         if login_updates_enabled {
-            let auth_up = DbUpdater::new(
-                login_db.pool().clone(),
-                &login_info.host,
-                &login_info.port_or_socket,
-                &login_info.username,
-                &login_info.password,
-                &login_info.database,
-                login_info.ssl,
-            );
             db_updater_step_like_cpp(
-                auth_up
-                    .populate(&format!("{src}/sql/base/auth_database.sql"))
-                    .await,
+                populate_typed_database_like_cpp(
+                    &login_db,
+                    &login_info.host,
+                    &login_info.port_or_socket,
+                    &login_info.username,
+                    &login_info.password,
+                    &login_info.database,
+                    login_info.ssl,
+                    &format!("{src}/sql/base/auth_database.sql"),
+                )
+                .await,
                 "Login",
                 "populate",
             )?;
-            db_updater_step_like_cpp(auth_up.update(&src).await, "Login", "update")?;
+            db_updater_step_like_cpp(
+                update_typed_database_like_cpp(
+                    &login_db,
+                    &login_info.host,
+                    &login_info.port_or_socket,
+                    &login_info.username,
+                    &login_info.password,
+                    &login_info.database,
+                    login_info.ssl,
+                    &src,
+                )
+                .await,
+                "Login",
+                "update",
+            )?;
         }
 
         if character_updates_enabled {
-            let char_up = DbUpdater::new(
-                char_db.pool().clone(),
-                &char_info.host,
-                &char_info.port_or_socket,
-                &char_info.username,
-                &char_info.password,
-                &char_info.database,
-                char_info.ssl,
-            );
             db_updater_step_like_cpp(
-                char_up
-                    .populate(&format!("{src}/sql/base/characters_database.sql"))
-                    .await,
+                populate_typed_database_like_cpp(
+                    &char_db,
+                    &char_info.host,
+                    &char_info.port_or_socket,
+                    &char_info.username,
+                    &char_info.password,
+                    &char_info.database,
+                    char_info.ssl,
+                    &format!("{src}/sql/base/characters_database.sql"),
+                )
+                .await,
                 "Character",
                 "populate",
             )?;
-            db_updater_step_like_cpp(char_up.update(&src).await, "Character", "update")?;
+            db_updater_step_like_cpp(
+                update_typed_database_like_cpp(
+                    &char_db,
+                    &char_info.host,
+                    &char_info.port_or_socket,
+                    &char_info.username,
+                    &char_info.password,
+                    &char_info.database,
+                    char_info.ssl,
+                    &src,
+                )
+                .await,
+                "Character",
+                "update",
+            )?;
         }
 
         // world + hotfixes: only update (base SQL is the full TDB, downloaded separately)
         if world_updates_enabled {
-            let world_up = DbUpdater::new(
-                world_db.pool().clone(),
-                &world_info.host,
-                &world_info.port_or_socket,
-                &world_info.username,
-                &world_info.password,
-                &world_info.database,
-                world_info.ssl,
-            );
-            db_updater_step_like_cpp(world_up.update(&src).await, "World", "update")?;
+            db_updater_step_like_cpp(
+                update_typed_database_like_cpp(
+                    world_db.as_ref(),
+                    &world_info.host,
+                    &world_info.port_or_socket,
+                    &world_info.username,
+                    &world_info.password,
+                    &world_info.database,
+                    world_info.ssl,
+                    &src,
+                )
+                .await,
+                "World",
+                "update",
+            )?;
         }
 
         if hotfix_updates_enabled {
-            let hotfix_up = DbUpdater::new(
-                hotfix_db.pool().clone(),
-                &hotfix_info.host,
-                &hotfix_info.port_or_socket,
-                &hotfix_info.username,
-                &hotfix_info.password,
-                &hotfix_info.database,
-                hotfix_info.ssl,
-            );
-            db_updater_step_like_cpp(hotfix_up.update(&src).await, "Hotfix", "update")?;
+            db_updater_step_like_cpp(
+                update_typed_database_like_cpp(
+                    &hotfix_db,
+                    &hotfix_info.host,
+                    &hotfix_info.port_or_socket,
+                    &hotfix_info.username,
+                    &hotfix_info.password,
+                    &hotfix_info.database,
+                    hotfix_info.ssl,
+                    &src,
+                )
+                .await,
+                "Hotfix",
+                "update",
+            )?;
         }
     }
     // ─────────────────────────────────────────────────────────────────────

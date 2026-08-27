@@ -3786,6 +3786,42 @@ fn set_tick_owner_has_exactly_one_production_call_site_before_the_loop_spawns() 
 }
 
 #[test]
+fn database_update_bootstrap_uses_only_typed_adapter_operations_like_cpp() {
+    let app = include_str!("app.rs");
+    let (_, update_tail) = app
+        .split_once("// ── Database auto-update")
+        .expect("database updater section starts");
+    let (updates, _) = update_tail
+        .split_once("// ─────────────────────────────────────────────────────────────────────")
+        .expect("database updater section ends");
+
+    assert!(
+        !updates.contains("DbUpdater"),
+        "the composition root must not own the concrete updater"
+    );
+    assert!(
+        !updates.contains(".pool()"),
+        "the composition root must not extract a raw SQLx pool"
+    );
+    assert_eq!(
+        updates.matches("populate_typed_database_like_cpp(").count(),
+        2,
+        "Login and Character retain their C++ populate phase"
+    );
+    assert_eq!(
+        updates.matches("update_typed_database_like_cpp(").count(),
+        4,
+        "all four typed databases retain their C++ update phase"
+    );
+
+    let login = updates.find("if login_updates_enabled").unwrap();
+    let characters = updates.find("if character_updates_enabled").unwrap();
+    let world = updates.find("if world_updates_enabled").unwrap();
+    let hotfix = updates.find("if hotfix_updates_enabled").unwrap();
+    assert!(login < characters && characters < world && world < hotfix);
+}
+
+#[test]
 fn legacy_creature_global_runtime_config_defaults_to_cpp_map_owned_runtime() {
     let _guard = TEST_LOCK.lock().expect("test lock poisoned");
 
