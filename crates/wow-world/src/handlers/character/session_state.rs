@@ -9,7 +9,7 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::{CharStatements, LoginStatements, SqlResult, WorldStatements};
+use wow_database::{CharStatements, SqlResult, WorldStatements};
 
 use super::*;
 
@@ -1415,42 +1415,27 @@ impl WorldSession {
     ///
     /// Counts how many characters this account has on the character DB, then
     /// upserts the count into `realmcharacters` in the login DB.
-    pub(super) async fn update_realm_characters(&self, char_db: &wow_database::CharacterDatabase) {
-        let login_db = match self.login_db() {
-            Some(db) => Arc::clone(db),
+    pub(crate) async fn update_realm_characters(&self) {
+        let port = match self.player_lifecycle_port_like_cpp().map(Arc::clone) {
+            Some(port) => port,
             None => return,
         };
-
-        // Count characters for this account
-        let mut count_stmt = char_db.prepare(CharStatements::SEL_SUM_CHARS);
-        count_stmt.set_u32(0, self.account_id);
-
-        let num_chars: u8 = match char_db.query(&count_stmt).await {
-            Ok(result) => {
-                if result.is_empty() {
-                    0
-                } else {
-                    result.try_read::<i64>(0).unwrap_or(0) as u8
-                }
-            }
-            Err(_) => return,
+        let request = wow_persistence::PlayerRealmCharacterCountRefreshRequestLikeCpp {
+            account_id: self.account_id,
+            realm_id: self.realm_id() as u32,
         };
-
-        // REPLACE INTO realmcharacters (numchars, acctid, realmid)
-        let mut rep_stmt = login_db.prepare(LoginStatements::REP_REALM_CHARACTERS);
-        rep_stmt.set_u8(0, num_chars);
-        rep_stmt.set_u32(1, self.account_id);
-        rep_stmt.set_u32(2, self.realm_id() as u32);
-
-        if let Err(e) = login_db.execute(&rep_stmt).await {
-            warn!("Failed to update realmcharacters: {e}");
-        } else {
-            debug!(
-                "Updated realmcharacters: account={} realm={} count={}",
-                self.account_id,
-                self.realm_id(),
-                num_chars
-            );
+        match port.refresh_realm_character_count_like_cpp(request).await {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {
+                debug!(
+                    "Updated realmcharacters: account={} realm={}",
+                    self.account_id,
+                    self.realm_id()
+                );
+            }
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                warn!("Failed to update realmcharacters: {reason}");
+            }
         }
     }
 

@@ -192,6 +192,23 @@ pub struct PlayerBuybackClearRequestLikeCpp {
     pub item_db_guids: Vec<u64>,
 }
 
+/// Refresh the account's character count for one realm after a represented
+/// character lifecycle mutation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerRealmCharacterCountRefreshRequestLikeCpp {
+    pub account_id: u32,
+    pub realm_id: u32,
+}
+
+impl PlayerRealmCharacterCountRefreshRequestLikeCpp {
+    pub fn logical_databases(&self) -> [LogicalDatabaseLikeCpp; 2] {
+        [
+            LogicalDatabaseLikeCpp::Characters,
+            LogicalDatabaseLikeCpp::Login,
+        ]
+    }
+}
+
 impl PlayerBuybackClearRequestLikeCpp {
     pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
         LogicalDatabaseLikeCpp::Characters
@@ -858,6 +875,14 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
         request: PlayerBuybackClearRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 
+    /// Count this account's live characters in Characters, then publish the
+    /// result for one realm in Login. These remain two independent database
+    /// operations and do not claim a distributed transaction.
+    fn refresh_realm_character_count_like_cpp<'a>(
+        &'a self,
+        request: PlayerRealmCharacterCountRefreshRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
+
     /// Load one account-wide collection from the Login database. The caller
     /// retains collection validation and represented-state publication.
     fn load_account_collection_like_cpp<'a>(
@@ -929,6 +954,21 @@ mod tests {
             }
             .logical_database(),
             LogicalDatabaseLikeCpp::Characters
+        );
+    }
+
+    #[test]
+    fn realm_character_count_refresh_names_both_independent_databases_like_cpp() {
+        assert_eq!(
+            PlayerRealmCharacterCountRefreshRequestLikeCpp {
+                account_id: 1,
+                realm_id: 2,
+            }
+            .logical_databases(),
+            [
+                LogicalDatabaseLikeCpp::Characters,
+                LogicalDatabaseLikeCpp::Login,
+            ]
         );
     }
 
