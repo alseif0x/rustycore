@@ -168,6 +168,17 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         })
     }
 
+    fn load_character_base_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerCharacterBaseLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerCharacterBaseLoadOutcomeLikeCpp> {
+        Box::pin(async {
+            wow_persistence::PlayerCharacterBaseLoadOutcomeLikeCpp::Failed {
+                reason: "recording port has no character-base fixture".to_owned(),
+            }
+        })
+    }
+
     fn load_login_auxiliary_like_cpp<'a>(
         &'a self,
         _request: PlayerLoginAuxiliaryLoadRequestLikeCpp,

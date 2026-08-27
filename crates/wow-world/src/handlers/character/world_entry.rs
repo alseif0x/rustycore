@@ -201,53 +201,57 @@ impl WorldSession {
             }
         };
 
-        let mut stmt = char_db.prepare(CharStatements::SEL_CHARACTER);
-        stmt.set_u32(0, guid.counter() as u32);
-
-        let result = match char_db.query(&stmt).await {
-            Ok(r) => r,
-            Err(e) => {
-                warn!("Failed to load character {:?}: {e}", guid);
+        let Some(player_lifecycle_port) = self.player_lifecycle_port_like_cpp().map(Arc::clone)
+        else {
+            warn!("No player lifecycle persistence port for continue login");
+            self.release_character_login_claim_like_cpp();
+            return;
+        };
+        let base_row = match player_lifecycle_port
+            .load_character_base_like_cpp(wow_persistence::PlayerCharacterBaseLoadRequestLikeCpp {
+                player_guid: guid.counter() as u64,
+            })
+            .await
+        {
+            wow_persistence::PlayerCharacterBaseLoadOutcomeLikeCpp::Loaded(Some(row)) => row,
+            wow_persistence::PlayerCharacterBaseLoadOutcomeLikeCpp::Loaded(None) => {
+                warn!("Character {:?} not found in database", guid);
+                self.release_character_login_claim_like_cpp();
+                return;
+            }
+            wow_persistence::PlayerCharacterBaseLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!("Failed to load character {:?}: {reason}", guid);
                 self.release_character_login_claim_like_cpp();
                 return;
             }
         };
 
-        if result.is_empty() {
-            warn!("Character {:?} not found in database", guid);
-            self.release_character_login_claim_like_cpp();
-            return;
-        }
-
-        let name: String = result.read_string(2);
+        let name = base_row.name.clone();
         // Store character name for chat messages.
         self.set_loaded_player_name_like_cpp(name.clone());
-        let race: u8 = result.read(3);
-        let class: u8 = result.read(4);
-        let gender: u8 = result.read(5);
-        let level: u8 = result.read(6);
+        let race = base_row.race;
+        let class = base_row.class;
+        let gender = base_row.gender;
+        let level = base_row.level;
         // C++ CHAR_SEL_CHARACTER column order:
         // 7=xp, 8=money, 14..18=position/map/orientation, 21=createMode, 23..24=played time,
         // 28=resettalents_cost, 29=resettalents_time, 39=at_login, 40=zone.
-        let mut zone: i32 = result.try_read::<u16>(40).unwrap_or(0) as i32; // smallint unsigned
-        let at_login_flags = result.try_read::<u16>(39).unwrap_or(0);
-        let create_mode = result.try_read::<u8>(21).unwrap_or(0);
-        let mut map_id: i32 = result.try_read::<u16>(17).unwrap_or(0) as i32; // smallint unsigned
+        let mut zone: i32 = base_row.zone_id.unwrap_or(0) as i32; // smallint unsigned
+        let at_login_flags = base_row.at_login_flags.unwrap_or(0);
+        let create_mode = base_row.create_mode.unwrap_or(0);
+        let mut map_id: i32 = base_row.map_id.unwrap_or(0) as i32; // smallint unsigned
         let saved_map_id_for_transport = map_id as u16;
-        let saved_transport_guid_low = result
-            .try_read::<u64>(36)
-            .or_else(|| result.try_read::<i64>(36).map(|value| value.max(0) as u64))
-            .unwrap_or(0);
+        let saved_transport_guid_low = base_row.transport_guid_low.unwrap_or(0);
         let saved_transport_position = Position::new(
-            result.try_read::<f32>(32).unwrap_or(0.0),
-            result.try_read::<f32>(33).unwrap_or(0.0),
-            result.try_read::<f32>(34).unwrap_or(0.0),
-            result.try_read::<f32>(35).unwrap_or(0.0),
+            base_row.transport_x.unwrap_or(0.0),
+            base_row.transport_y.unwrap_or(0.0),
+            base_row.transport_z.unwrap_or(0.0),
+            base_row.transport_orientation.unwrap_or(0.0),
         );
-        let pos_x: f32 = result.try_read(14).unwrap_or(0.0);
-        let pos_y: f32 = result.try_read(15).unwrap_or(0.0);
-        let pos_z: f32 = result.try_read(16).unwrap_or(0.0);
-        let orientation: f32 = result.try_read(18).unwrap_or(0.0);
+        let pos_x = base_row.position_x.unwrap_or(0.0);
+        let pos_y = base_row.position_y.unwrap_or(0.0);
+        let pos_z = base_row.position_z.unwrap_or(0.0);
+        let orientation = base_row.orientation.unwrap_or(0.0);
 
         let mut position = Position::new(pos_x, pos_y, pos_z, orientation);
         let display_id = default_display_id(race, gender);
@@ -403,37 +407,36 @@ impl WorldSession {
         };
 
         // Load played time + money/xp from DB using C++ CHAR_SEL_CHARACTER order.
-        self.total_played_time = result.try_read::<u32>(23).unwrap_or(0);
-        self.level_played_time = result.try_read::<u32>(24).unwrap_or(0);
-        self.set_player_gold_like_cpp(result.try_read::<u64>(8).unwrap_or(0));
+        self.total_played_time = base_row.total_played_time.unwrap_or(0);
+        self.level_played_time = base_row.level_played_time.unwrap_or(0);
+        self.set_player_gold_like_cpp(base_row.money.unwrap_or(0));
         self.set_player_inventory_slot_count_like_cpp(
             loaded_inventory_slot_count_with_legacy_rust_compat(
-                result.try_read::<u8>(9).unwrap_or(INVENTORY_DEFAULT_SIZE),
+                base_row.inventory_slots.unwrap_or(INVENTORY_DEFAULT_SIZE),
             ),
         );
-        self.set_player_bank_bag_slot_count_like_cpp(result.try_read::<u8>(10).unwrap_or(0));
-        self.set_player_xp_like_cpp(result.try_read::<u32>(7).unwrap_or(0));
+        self.set_player_bank_bag_slot_count_like_cpp(base_row.bank_slots.unwrap_or(0));
+        self.set_player_xp_like_cpp(base_row.xp.unwrap_or(0));
         self.set_represented_talent_reset_state_like_cpp(
-            result.try_read::<u32>(28).unwrap_or(0),
-            result.try_read::<u64>(29).unwrap_or(0),
+            base_row.talent_reset_cost.unwrap_or(0),
+            base_row.talent_reset_time_secs.unwrap_or(0),
         );
-        self.set_represented_active_talent_group_like_cpp(result.try_read::<u8>(30).unwrap_or(0));
-        self.set_represented_bonus_talent_groups_like_cpp(result.try_read::<u8>(31).unwrap_or(0));
+        self.set_represented_active_talent_group_like_cpp(
+            base_row.active_talent_group.unwrap_or(0),
+        );
+        self.set_represented_bonus_talent_groups_like_cpp(
+            base_row.bonus_talent_groups.unwrap_or(0),
+        );
         self.set_player_create_mode_like_cpp(create_mode);
         self.set_represented_at_login_flags_like_cpp(at_login_flags);
-        let saved_rest_state = result
-            .try_read::<u8>(11)
-            .unwrap_or(REST_STATE_NORMAL_LIKE_CPP);
-        let saved_rest_bonus = result.try_read::<f32>(25).unwrap_or(0.0);
-        let saved_logout_time_secs = result
-            .try_read::<u64>(26)
-            .or_else(|| result.try_read::<i64>(26).map(|value| value.max(0) as u64))
-            .unwrap_or(0);
-        let saved_logout_was_resting = result.try_read::<u8>(27).unwrap_or(0) != 0;
-        self.load_represented_explored_zones_like_cpp(&result.read_string(64));
+        let saved_rest_state = base_row.rest_state.unwrap_or(REST_STATE_NORMAL_LIKE_CPP);
+        let saved_rest_bonus = base_row.rest_bonus.unwrap_or(0.0);
+        let saved_logout_time_secs = base_row.logout_time_secs.unwrap_or(0);
+        let saved_logout_was_resting = base_row.logout_was_resting.unwrap_or(0) != 0;
+        self.load_represented_explored_zones_like_cpp(&base_row.explored_zones);
         self.set_player_guid(Some(guid));
-        self.set_loaded_player_flags_like_cpp(result.try_read::<u32>(12).unwrap_or(0));
-        self.set_loaded_player_flags_ex_like_cpp(result.try_read::<u32>(13).unwrap_or(0));
+        self.set_loaded_player_flags_like_cpp(base_row.player_flags.unwrap_or(0));
+        self.set_loaded_player_flags_ex_like_cpp(base_row.player_flags_ex.unwrap_or(0));
         self.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
         // C++ recalculates zone/area from terrain after AddToMap
         // (`Player::SendInitialPacketsAfterAddToMap`). Seed from DB until
@@ -450,11 +453,11 @@ impl WorldSession {
             self.set_represented_guild_id_like_cpp(guild_id);
         }
         self.load_represented_player_difficulties_like_cpp(
-            result.try_read::<u32>(44).unwrap_or(0),
-            result.try_read::<u32>(67).unwrap_or(0),
-            result.try_read::<u32>(68).unwrap_or(0),
+            base_row.dungeon_difficulty.unwrap_or(0),
+            base_row.raid_difficulty.unwrap_or(0),
+            base_row.legacy_raid_difficulty.unwrap_or(0),
         );
-        let summoned_pet_number = result.try_read::<u32>(38).unwrap_or(0);
+        let summoned_pet_number = base_row.summoned_pet_number.unwrap_or(0);
         const AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP: u16 = 0x010;
         if (self.represented_at_login_flags_like_cpp() & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) != 0 {
             let mut delete_pet_spells =
@@ -873,8 +876,8 @@ impl WorldSession {
             );
         }
         self.load_represented_character_titles_like_cpp(
-            &result.try_read::<String>(65).unwrap_or_default(),
-            result.try_read::<u32>(48).unwrap_or(0),
+            &base_row.known_titles.clone().unwrap_or_default(),
+            base_row.chosen_title.unwrap_or(0),
         );
 
         self.load_account_toys_like_cpp().await;
@@ -2141,12 +2144,9 @@ impl WorldSession {
 
         // C++ `Player::LoadFromDB` restores `fields.health` after `UpdateAllStats`,
         // clamping it to the recalculated max and preserving zero as corpse state.
-        let saved_health = result.try_read::<u32>(51);
+        let saved_health = base_row.health;
         let loaded_powers = std::array::from_fn(|index| {
-            result
-                .try_read::<u32>(52 + index)
-                .unwrap_or(0)
-                .min(i32::MAX as u32) as i32
+            base_row.powers[index].unwrap_or(0).min(i32::MAX as u32) as i32
         });
         self.set_loaded_player_powers_like_cpp(loaded_powers);
         let saved_power0 = loaded_powers[0];

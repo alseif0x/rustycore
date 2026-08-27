@@ -10492,6 +10492,51 @@
       "package": "wow-database",
       "module": "crate::player_lifecycle_adapter",
       "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_character_base_load_statement_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free core Player-login row (#414)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure Characters-database statement construction; one semantic Player GUID selects the existing core login statement.",
+      "current_order": "Builds exactly CHAR_SEL_CHARACTER with the existing UInt64 GUID bind and introduces no wider query reordering.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning adapter classifies the later read as loaded, absent or failed."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_character_base_load_row_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free core Player-login row (#414)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of one successful Characters result row; it opens no connection and executes no statement.",
+      "current_order": "Decodes the exact CHAR_SEL_CHARACTER columns consumed by the existing Rust Player-login path; required fields retain strict reads and optional fields remain Option values for caller-owned defaults.",
+      "failure_and_unknown_commit": "The helper receives only a successful non-empty result; query failure and absence are classified by the owning adapter, and reads have no unknown-COMMIT state."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::load_character_base_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free core Player-login row (#414)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The request uses the configured Characters adapter and exactly one prepared read; no transaction or wider affinity is inferred.",
+      "current_order": "Executes the core character read at the same point before the remaining login queries, then returns the typed row without publishing Player state.",
+      "failure_and_unknown_commit": "A successful row returns Loaded(Some), an empty result returns Loaded(None), and a query error returns Failed; reads have no unknown-COMMIT state."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
       "enclosing": "fn player_buyback_clear_statements_like_cpp",
       "logical_databases": [
         "characters"
