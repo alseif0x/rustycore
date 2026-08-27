@@ -116,6 +116,17 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         })
     }
 
+    fn load_login_transports_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerLoginTransportLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerLoginTransportLoadOutcomeLikeCpp> {
+        Box::pin(async {
+            wow_persistence::PlayerLoginTransportLoadOutcomeLikeCpp::Failed {
+                reason: "recording port has no login-transport fixture".to_owned(),
+            }
+        })
+    }
+
     fn load_account_collection_like_cpp<'a>(
         &'a self,
         request: AccountCollectionLoadRequestLikeCpp,

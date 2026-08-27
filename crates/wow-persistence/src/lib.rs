@@ -98,6 +98,7 @@ impl PlayerHomebindPersistenceRequestLikeCpp {
 pub enum LogicalDatabaseLikeCpp {
     Characters,
     Login,
+    World,
 }
 
 /// Which Characters-database account-data table a session operation addresses.
@@ -236,6 +237,43 @@ pub enum PlayerInitialWorldStateRowsLikeCpp<Row> {
 pub struct PlayerInitialWorldStatesLoadOutcomeLikeCpp {
     pub templates: PlayerInitialWorldStateRowsLikeCpp<PlayerInitialWorldStateTemplateRowLikeCpp>,
     pub saved_values: PlayerInitialWorldStateRowsLikeCpp<PlayerInitialWorldStateValueRowLikeCpp>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerLoginTransportLoadRequestLikeCpp {
+    All,
+    ByGuid { guid_low: u64 },
+}
+
+impl PlayerLoginTransportLoadRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::World
+    }
+}
+
+/// One joined World-database transport row required by the represented login
+/// materialization path. Route, phase and time validation remain gameplay work.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerLoginTransportLoadRowLikeCpp {
+    pub guid_low: u32,
+    pub entry: u32,
+    pub phase_use_flags: u8,
+    pub phase_id: u16,
+    pub phase_group_id: u32,
+    pub display_id: u32,
+    pub scale: f32,
+    pub taxi_path_id: u16,
+    pub move_speed: u32,
+    pub accel_rate: u32,
+    pub allow_stopping: bool,
+    pub gameobject_flags: u32,
+    pub faction_template: i32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PlayerLoginTransportLoadOutcomeLikeCpp {
+    Loaded(Vec<PlayerLoginTransportLoadRowLikeCpp>),
+    Failed { reason: String },
 }
 
 impl PlayerRealmCharacterCountRefreshRequestLikeCpp {
@@ -927,6 +965,13 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
         &'a self,
     ) -> PersistenceFutureLikeCpp<'a, PlayerInitialWorldStatesLoadOutcomeLikeCpp>;
 
+    /// Load either all represented transport spawns or the one named spawn for
+    /// Player login. Statement identity and row decoding remain in the adapter.
+    fn load_login_transports_like_cpp<'a>(
+        &'a self,
+        request: PlayerLoginTransportLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerLoginTransportLoadOutcomeLikeCpp>;
+
     /// Load one account-wide collection from the Login database. The caller
     /// retains collection validation and represented-state publication.
     fn load_account_collection_like_cpp<'a>(
@@ -1014,6 +1059,16 @@ mod tests {
                 LogicalDatabaseLikeCpp::Login,
             ]
         );
+    }
+
+    #[test]
+    fn login_transport_load_names_the_world_database_like_cpp() {
+        for request in [
+            PlayerLoginTransportLoadRequestLikeCpp::All,
+            PlayerLoginTransportLoadRequestLikeCpp::ByGuid { guid_low: 7 },
+        ] {
+            assert_eq!(request.logical_database(), LogicalDatabaseLikeCpp::World);
+        }
     }
 
     #[test]

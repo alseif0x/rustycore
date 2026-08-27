@@ -127,23 +127,17 @@ impl WorldSession {
         saved_map_id: u16,
         offset: Position,
     ) -> Option<PersistedTransportLoginLikeCpp> {
-        let world_db = self.world_db().map(Arc::clone)?;
-        let query = format!(
-            "SELECT t.guid, t.entry, t.phaseUseFlags, t.phaseid, t.phasegroup, \
-             gt.displayId, gt.size, gt.Data0, gt.Data1, gt.Data2, gt.Data8, \
-             COALESCE(goo.flags, gta.flags, 0), COALESCE(goo.faction, gta.faction, 0) \
-             FROM transports t \
-             JOIN gameobject_template gt ON gt.entry = t.entry \
-             LEFT JOIN gameobject_template_addon gta ON gta.entry = t.entry \
-             LEFT JOIN gameobject_overrides goo ON goo.spawnId = t.guid \
-             WHERE gt.type = 15 AND t.guid = {guid_low} \
-             LIMIT 1"
-        );
-        let result = world_db.direct_query(&query).await.ok()?;
-        if result.is_empty() {
-            return None;
-        }
-        let transport_create = map_transport_create_from_row_like_cpp(&result);
+        let port = self.player_lifecycle_port_like_cpp()?;
+        let rows = match port
+            .load_login_transports_like_cpp(PlayerLoginTransportLoadRequestLikeCpp::ByGuid {
+                guid_low,
+            })
+            .await
+        {
+            PlayerLoginTransportLoadOutcomeLikeCpp::Loaded(rows) => rows,
+            PlayerLoginTransportLoadOutcomeLikeCpp::Failed { .. } => return None,
+        };
+        let transport_create = map_transport_create_from_load_row_like_cpp(*rows.first()?);
 
         let data_dir = self.mmap_runtime_config_like_cpp().data_dir.clone();
         let taxi_path_nodes = TaxiPathNodeStore::load(&data_dir, &self.locale).ok()?;
@@ -237,7 +231,7 @@ impl WorldSession {
                 self.set_player_transport_info_like_cpp(None);
             }
         }
-        let Some(world_db) = self.world_db().map(Arc::clone) else {
+        let Some(port) = self.player_lifecycle_port_like_cpp().cloned() else {
             return plan;
         };
 
@@ -265,42 +259,26 @@ impl WorldSession {
                 .push(node.clone());
         }
 
-        let mut result = match world_db
-            .direct_query(
-                "SELECT t.guid, t.entry, t.phaseUseFlags, t.phaseid, t.phasegroup, \
-                 gt.displayId, gt.size, gt.Data0, gt.Data1, gt.Data2, gt.Data8, \
-                 COALESCE(goo.flags, gta.flags, 0), COALESCE(goo.faction, gta.faction, 0) \
-                 FROM transports t \
-                 JOIN gameobject_template gt ON gt.entry = t.entry \
-                 LEFT JOIN gameobject_template_addon gta ON gta.entry = t.entry \
-                 LEFT JOIN gameobject_overrides goo ON goo.spawnId = t.guid \
-                 WHERE gt.type = 15 \
-                 ORDER BY t.guid",
-            )
+        let transports = match port
+            .load_login_transports_like_cpp(PlayerLoginTransportLoadRequestLikeCpp::All)
             .await
         {
-            Ok(result) => result,
-            Err(error) => {
+            PlayerLoginTransportLoadOutcomeLikeCpp::Loaded(rows) => rows
+                .into_iter()
+                .map(map_transport_create_from_load_row_like_cpp)
+                .collect::<Vec<_>>(),
+            PlayerLoginTransportLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     map_id,
-                    %error,
+                    %reason,
                     "RUST_LOGIN send_init_transports skipped: DB query failed"
                 );
                 return plan;
             }
         };
 
-        if result.is_empty() {
+        if transports.is_empty() {
             return plan;
-        }
-
-        let mut transports = Vec::new();
-        loop {
-            transports.push(map_transport_create_from_row_like_cpp(&result));
-
-            if !result.next_row() {
-                break;
-            }
         }
 
         let player_transport_guid = self.player_transport_guid_like_cpp();
