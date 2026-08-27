@@ -173,25 +173,87 @@ pub trait SessionAccountStatePortLikeCpp: Send + Sync {
 /// the concrete adapter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlayerLoginAuxiliaryLoadRequestLikeCpp {
-    Customizations { player_guid: u64 },
-    CompletedAchievements { player_guid: u64 },
-    InstanceTimeRestrictions { account_id: u32 },
-    SpellCooldowns { player_guid: u64 },
-    SpellCharges { player_guid: u64 },
-    TraitEntries { player_guid: u64 },
-    TraitConfigs { player_guid: u64 },
-    PetStable { player_guid: u64 },
-    PetAuras { pet_number: u32 },
-    PetAuraEffects { pet_number: u32 },
-    PetSpells { pet_number: u32 },
-    PetSpellCooldowns { pet_number: u32 },
-    PetSpellCharges { pet_number: u32 },
-    PetDeclinedNames { player_guid: u64, pet_number: u32 },
-    GroupMembership { player_guid: u64 },
-    EquipmentSets { player_guid: u64 },
-    TransmogOutfits { player_guid: u64 },
-    CufProfiles { player_guid: u64 },
-    Currencies { player_guid: u64 },
+    Customizations {
+        player_guid: u64,
+    },
+    CompletedAchievements {
+        player_guid: u64,
+    },
+    InstanceTimeRestrictions {
+        account_id: u32,
+    },
+    SpellCooldowns {
+        player_guid: u64,
+    },
+    SpellCharges {
+        player_guid: u64,
+    },
+    TraitEntries {
+        player_guid: u64,
+    },
+    TraitConfigs {
+        player_guid: u64,
+    },
+    PetStable {
+        player_guid: u64,
+    },
+    PetAuras {
+        pet_number: u32,
+    },
+    PetAuraEffects {
+        pet_number: u32,
+    },
+    PetSpells {
+        pet_number: u32,
+    },
+    PetSpellCooldowns {
+        pet_number: u32,
+    },
+    PetSpellCharges {
+        pet_number: u32,
+    },
+    PetDeclinedNames {
+        player_guid: u64,
+        pet_number: u32,
+    },
+    GroupMembership {
+        player_guid: u64,
+    },
+    EquipmentSets {
+        player_guid: u64,
+    },
+    TransmogOutfits {
+        player_guid: u64,
+    },
+    CufProfiles {
+        player_guid: u64,
+    },
+    Currencies {
+        player_guid: u64,
+    },
+    Spells {
+        player_guid: u64,
+    },
+    SpellFavorites {
+        player_guid: u64,
+    },
+    Skills {
+        player_guid: u64,
+    },
+    Talents {
+        player_guid: u64,
+    },
+    Glyphs {
+        player_guid: u64,
+    },
+    ActionButtons {
+        player_guid: u64,
+        active_spec: u8,
+        trait_config_id: i32,
+    },
+    Reputation {
+        player_guid: u64,
+    },
 }
 
 /// Early Characters-database reads that decide where and under which guild
@@ -575,6 +637,49 @@ pub struct PlayerCurrencyLoadRowLikeCpp {
     pub flags: u8,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerSpellLoadRowLikeCpp {
+    pub spell_id: u32,
+    pub active: u8,
+    pub disabled: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerSkillLoadRowLikeCpp {
+    pub skill_id: u16,
+    pub value: u16,
+    pub max: u16,
+    pub profession_slot: i8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerTalentLoadRowLikeCpp {
+    pub talent_id: u32,
+    pub rank: u8,
+    pub talent_group: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerGlyphLoadRowLikeCpp {
+    pub talent_group: u8,
+    pub glyph_slot: u8,
+    pub glyph_id: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerActionButtonLoadRowLikeCpp {
+    pub button: u8,
+    pub action: u32,
+    pub button_type: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerReputationLoadRowLikeCpp {
+    pub faction_id: u16,
+    pub standing: i32,
+    pub flags: u16,
+}
+
 /// One raw `character_trait_entry` row. Missing columns remain unknown so the
 /// Player owner can keep its represented authority incomplete instead of
 /// silently turning malformed database data into zero-valued gameplay state.
@@ -622,6 +727,13 @@ pub enum PlayerLoginAuxiliaryLoadedLikeCpp {
     TransmogOutfits(Vec<PlayerTransmogOutfitLoadRowLikeCpp>),
     CufProfiles(Vec<PlayerCufProfileLoadRowLikeCpp>),
     Currencies(Vec<PlayerCurrencyLoadRowLikeCpp>),
+    Spells(Vec<PlayerSpellLoadRowLikeCpp>),
+    SpellFavorites(Vec<u32>),
+    Skills(Vec<PlayerSkillLoadRowLikeCpp>),
+    Talents(Vec<PlayerTalentLoadRowLikeCpp>),
+    Glyphs(Vec<PlayerGlyphLoadRowLikeCpp>),
+    ActionButtons(Vec<PlayerActionButtonLoadRowLikeCpp>),
+    Reputation(Vec<PlayerReputationLoadRowLikeCpp>),
 }
 
 /// Read-only lifecycle loads have no unknown-COMMIT state: they either
@@ -1501,6 +1613,17 @@ mod tests {
             PlayerLoginAuxiliaryLoadRequestLikeCpp::TransmogOutfits { player_guid: 1 },
             PlayerLoginAuxiliaryLoadRequestLikeCpp::CufProfiles { player_guid: 1 },
             PlayerLoginAuxiliaryLoadRequestLikeCpp::Currencies { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::Spells { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::SpellFavorites { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::Skills { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::Talents { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::Glyphs { player_guid: 1 },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::ActionButtons {
+                player_guid: 1,
+                active_spec: 0,
+                trait_config_id: 0,
+            },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::Reputation { player_guid: 1 },
         ] {
             assert_eq!(
                 request.logical_database(),
@@ -1564,6 +1687,27 @@ mod tests {
         );
         let failed = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
             reason: "profile query failed".to_owned(),
+        };
+
+        assert_ne!(loaded, empty);
+        assert_ne!(empty, failed);
+        assert_ne!(loaded, failed);
+    }
+
+    #[test]
+    fn progression_login_rows_keep_loaded_empty_and_failure_distinct_like_cpp() {
+        let loaded = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+            PlayerLoginAuxiliaryLoadedLikeCpp::Spells(vec![PlayerSpellLoadRowLikeCpp {
+                spell_id: 133,
+                active: 1,
+                disabled: 0,
+            }]),
+        );
+        let empty = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+            PlayerLoginAuxiliaryLoadedLikeCpp::Spells(Vec::new()),
+        );
+        let failed = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+            reason: "progression query failed".to_owned(),
         };
 
         assert_ne!(loaded, empty);
