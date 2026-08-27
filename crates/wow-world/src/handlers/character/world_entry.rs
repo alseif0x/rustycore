@@ -766,25 +766,28 @@ impl WorldSession {
             self.apply_represented_login_pet_talent_reset_like_cpp();
         }
         self.group_guid = None;
+        match player_lifecycle_port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::GroupMembership {
+                    player_guid: guid.counter() as u64,
+                },
+            )
+            .await
         {
-            let mut group_stmt = char_db.prepare(CharStatements::SEL_GROUP_MEMBER);
-            group_stmt.set_u32(0, guid.counter() as u32);
-            match char_db.query(&group_stmt).await {
-                Ok(group_result) => {
-                    if !group_result.is_empty() {
-                        let db_store_id: u32 = group_result.read(0);
-                        let _ = self.load_represented_group_by_db_store_id_like_cpp(db_store_id);
-                        let _ = self.reset_group_update_sequence_if_needed_like_cpp();
-                    }
-                }
-                Err(error) => {
-                    warn!(
-                        player_guid = guid.counter(),
-                        %error,
-                        "failed to load represented group membership"
-                    );
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::GroupMembership(rows),
+            ) => {
+                if let Some(db_store_id) = rows.into_iter().next() {
+                    let _ = self.load_represented_group_by_db_store_id_like_cpp(db_store_id);
+                    let _ = self.reset_group_update_sequence_if_needed_like_cpp();
                 }
             }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => warn!(
+                player_guid = guid.counter(),
+                error = %reason,
+                "failed to load represented group membership"
+            ),
+            _ => unreachable!("group-membership request returned a different row family"),
         }
         self.refresh_next_level_xp();
         self.clamp_loaded_player_xp_to_next_level_like_cpp();
