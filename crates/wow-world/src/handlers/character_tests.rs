@@ -4412,14 +4412,6 @@ async fn set_player_declined_names_short_packet_does_not_send_like_cpp() {
     assert!(send_rx.try_recv().is_err());
 }
 
-#[test]
-fn transmog_signed_schema_values_load_as_cpp_unsigned_fields() {
-    assert_eq!(nonnegative_i64_to_u64_like_cpp(3), Some(3));
-    assert_eq!(nonnegative_i32_to_u32_like_cpp(0x7_FFFF), Some(0x7_FFFF));
-    assert_eq!(nonnegative_i64_to_u64_like_cpp(-1), None);
-    assert_eq!(nonnegative_i32_to_u32_like_cpp(-1), None);
-}
-
 #[tokio::test]
 async fn save_equipment_set_new_equipment_normalizes_and_sends_id_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_capacity(1);

@@ -1641,14 +1641,6 @@ fn optional_u32_column_like_cpp(row: &SqlResult, column: usize) -> Option<u32> {
         .or_else(|| row.try_read::<i64>(column).map(|value| value.max(0) as u32))
 }
 
-fn nonnegative_i64_to_u64_like_cpp(value: i64) -> Option<u64> {
-    u64::try_from(value).ok()
-}
-
-fn nonnegative_i32_to_u32_like_cpp(value: i32) -> Option<u32> {
-    u32::try_from(value).ok()
-}
-
 fn spawn_difficulties_contains_spawn_mode_like_cpp(
     spawn_difficulties: &str,
     spawn_mode: u8,
