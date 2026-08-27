@@ -15,9 +15,9 @@ use wow_persistence::{
     PlayerCustomizationLoadRowLikeCpp, PlayerHomebindPersistenceRequestLikeCpp,
     PlayerInstanceTimeRestrictionLoadRowLikeCpp, PlayerLifecyclePortLikeCpp,
     PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
-    PlayerLoginAuxiliaryLoadedLikeCpp, PlayerOfflineMarkLikeCpp, PlayerSpellChargeLoadRowLikeCpp,
-    PlayerSpellCooldownLoadRowLikeCpp, PlayerTraitConfigLoadRowLikeCpp,
-    PlayerTraitEntryLoadRowLikeCpp,
+    PlayerLoginAuxiliaryLoadedLikeCpp, PlayerLoginItemRepairRequestLikeCpp,
+    PlayerOfflineMarkLikeCpp, PlayerSpellChargeLoadRowLikeCpp, PlayerSpellCooldownLoadRowLikeCpp,
+    PlayerTraitConfigLoadRowLikeCpp, PlayerTraitEntryLoadRowLikeCpp,
 };
 
 struct AuxiliaryLoadPortLikeCpp {
@@ -190,6 +190,13 @@ impl PlayerLifecyclePortLikeCpp for AuxiliaryLoadPortLikeCpp {
                 reason: "auxiliary-load-only fixture".to_owned(),
             }
         })
+    }
+
+    fn persist_login_item_repairs_like_cpp<'a>(
+        &'a self,
+        _request: PlayerLoginItemRepairRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
     }
 
     fn save_character_like_cpp<'a>(
