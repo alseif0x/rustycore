@@ -10496,11 +10496,11 @@
       "logical_databases": [
         "characters"
       ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free auxiliary Player-login reads (#390/#396/#398/#418/#420/#422)",
+      "boundary": "wow-database MariaDB adapter for SQLx-free auxiliary Player-login reads (#390/#396/#398/#418/#420/#422/#424)",
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "Pure Characters-database statement construction; each semantic request selects one existing statement and exact identity bind.",
-      "current_order": "Builds exactly one C++ LoginQueryHolder or PetLoadQueryHolder read statement; pet, group, equipment/transmog, CUF and currency requests preserve their exact identity and bind widths without introducing a wider transaction.",
+      "current_order": "Builds exactly one C++ LoginQueryHolder or PetLoadQueryHolder read statement; pet, group, profile and progression requests preserve their exact identity and bind widths without introducing a wider transaction.",
       "failure_and_unknown_commit": "No I/O occurs here; the adapter classifies the later read as Loaded typed rows or Failed."
     },
     {
@@ -10511,11 +10511,11 @@
       "logical_databases": [
         "characters"
       ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free auxiliary Player-login reads (#390/#396/#398/#418/#420/#422)",
+      "boundary": "wow-database MariaDB adapter for SQLx-free auxiliary Player-login reads (#390/#396/#398/#418/#420/#422/#424)",
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "Each read uses the configured Characters adapter and one prepared statement; these read-only loads claim no wider transaction.",
-      "current_order": "Runs only the statement selected by the typed request and decodes rows in database order. The caller preserves pet-stable and active-pet publication, group resolution, equipment/transmog shared completion, CUF validation and currency filtering at their existing login points.",
+      "current_order": "Runs only the statement selected by the typed request and decodes rows in database order. The caller preserves pet/group/profile publication plus spell, skill, talent, glyph, action-button and reputation validation and side effects at their existing login points.",
       "failure_and_unknown_commit": "A query error returns Failed without rows; successful and empty results return Loaded, and reads have no unknown-COMMIT state."
     },
     {
