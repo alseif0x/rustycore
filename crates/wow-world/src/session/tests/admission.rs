@@ -3,6 +3,55 @@
 
 use super::*;
 
+#[derive(Debug)]
+struct RecordingPacketSpoofBanPortLikeCpp {
+    load_outcome: wow_persistence::PacketSpoofAffectedAccountsLoadOutcomeLikeCpp,
+    write_outcome: wow_persistence::PersistenceOutcomeLikeCpp,
+    load_addresses: std::sync::Mutex<Vec<String>>,
+    writes: std::sync::Mutex<Vec<wow_persistence::PacketSpoofBanWriteRequestLikeCpp>>,
+}
+
+impl RecordingPacketSpoofBanPortLikeCpp {
+    fn new(
+        load_outcome: wow_persistence::PacketSpoofAffectedAccountsLoadOutcomeLikeCpp,
+        write_outcome: wow_persistence::PersistenceOutcomeLikeCpp,
+    ) -> Self {
+        Self {
+            load_outcome,
+            write_outcome,
+            load_addresses: Default::default(),
+            writes: Default::default(),
+        }
+    }
+}
+
+impl wow_persistence::PacketSpoofBanPersistencePortLikeCpp for RecordingPacketSpoofBanPortLikeCpp {
+    fn load_accounts_by_ip_like_cpp<'a>(
+        &'a self,
+        address: &'a str,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        'a,
+        wow_persistence::PacketSpoofAffectedAccountsLoadOutcomeLikeCpp,
+    > {
+        self.load_addresses
+            .lock()
+            .expect("load address recorder")
+            .push(address.to_string());
+        let outcome = self.load_outcome.clone();
+        Box::pin(async move { outcome })
+    }
+
+    fn persist_packet_spoof_ban_like_cpp<'a>(
+        &'a self,
+        request: wow_persistence::PacketSpoofBanWriteRequestLikeCpp,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<'a, wow_persistence::PersistenceOutcomeLikeCpp>
+    {
+        self.writes.lock().expect("write recorder").push(request);
+        let outcome = self.write_outcome.clone();
+        Box::pin(async move { outcome })
+    }
+}
+
 #[test]
 fn update_empty_queue() {
     let (mut session, _, _) = make_session();
@@ -203,6 +252,103 @@ fn packet_spoof_policy_ban_stages_ip_ban_from_remote_address_like_cpp() {
             duration_secs: 7_200,
         })
     );
+}
+
+#[tokio::test]
+async fn packet_spoof_account_ban_uses_one_semantic_write_without_ip_lookup_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let port = Arc::new(RecordingPacketSpoofBanPortLikeCpp::new(
+        wow_persistence::PacketSpoofAffectedAccountsLoadOutcomeLikeCpp::Loaded(vec![99]),
+        wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+    ));
+    session.set_packet_spoof_ban_persistence_port_like_cpp(port.clone());
+    session.pending_packet_spoof_ban_like_cpp = Some(PacketSpoofPendingBanLikeCpp {
+        target: PacketSpoofPendingBanTargetLikeCpp::Account { account_id: 7 },
+        duration_secs: 60,
+    });
+
+    session.flush_packet_spoof_ban_like_cpp().await;
+
+    assert!(session.pending_packet_spoof_ban_like_cpp.is_none());
+    assert!(port.load_addresses.lock().unwrap().is_empty());
+    assert_eq!(
+        *port.writes.lock().unwrap(),
+        vec![wow_persistence::PacketSpoofBanWriteRequestLikeCpp {
+            target: wow_persistence::PacketSpoofBanTargetLikeCpp::Account { account_id: 7 },
+            duration_secs: 60,
+            author: PACKET_SPOOF_BAN_AUTHOR_LIKE_CPP.to_string(),
+            reason: PACKET_SPOOF_BAN_REASON_LIKE_CPP.to_string(),
+        }]
+    );
+}
+
+#[tokio::test]
+async fn packet_spoof_ip_lookup_failure_does_not_suppress_ban_write_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let port = Arc::new(RecordingPacketSpoofBanPortLikeCpp::new(
+        wow_persistence::PacketSpoofAffectedAccountsLoadOutcomeLikeCpp::Failed {
+            reason: "lookup failed".to_string(),
+        },
+        wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+    ));
+    session.set_packet_spoof_ban_persistence_port_like_cpp(port.clone());
+    session.pending_packet_spoof_ban_like_cpp = Some(PacketSpoofPendingBanLikeCpp {
+        target: PacketSpoofPendingBanTargetLikeCpp::Ip {
+            address: "203.0.113.77".to_string(),
+        },
+        duration_secs: 120,
+    });
+
+    session.flush_packet_spoof_ban_like_cpp().await;
+
+    assert!(session.pending_packet_spoof_ban_like_cpp.is_none());
+    assert_eq!(
+        *port.load_addresses.lock().unwrap(),
+        vec!["203.0.113.77".to_string()]
+    );
+    assert_eq!(port.writes.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn packet_spoof_persistence_failure_restages_the_exact_plan_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let port = Arc::new(RecordingPacketSpoofBanPortLikeCpp::new(
+        wow_persistence::PacketSpoofAffectedAccountsLoadOutcomeLikeCpp::Loaded(vec![7, 7, 9]),
+        wow_persistence::PersistenceOutcomeLikeCpp::Failed {
+            reason: "write failed".to_string(),
+        },
+    ));
+    session.set_packet_spoof_ban_persistence_port_like_cpp(port);
+    let plan = PacketSpoofPendingBanLikeCpp {
+        target: PacketSpoofPendingBanTargetLikeCpp::Ip {
+            address: "203.0.113.77".to_string(),
+        },
+        duration_secs: 120,
+    };
+    session.pending_packet_spoof_ban_like_cpp = Some(plan.clone());
+
+    session.flush_packet_spoof_ban_like_cpp().await;
+
+    assert_eq!(session.pending_packet_spoof_ban_like_cpp, Some(plan));
+}
+
+#[test]
+fn packet_spoof_admission_has_no_concrete_persistence_after_port_cut() {
+    let source = include_str!("../admission.rs");
+    for forbidden in [
+        "LoginDatabase",
+        "LoginStatements",
+        "SqlTransaction",
+        ".prepare(",
+        ".query(",
+        ".execute(",
+        ".commit_transaction(",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "admission regained concrete persistence syntax: {forbidden}"
+        );
+    }
 }
 
 #[tokio::test]
