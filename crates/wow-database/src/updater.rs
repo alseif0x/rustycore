@@ -24,6 +24,9 @@ use std::process::Command;
 use std::time::Instant;
 use tracing::{info, warn};
 
+use crate::database::Database;
+use crate::statements::StatementDef;
+
 const DELETE_UPDATE_ENTRY_BY_NAME_SQL_LIKE_CPP: &str = "DELETE FROM `updates` WHERE `name` = ?";
 const RENAME_UPDATE_ENTRY_SQL_LIKE_CPP: &str = "UPDATE `updates` SET `name` = ? WHERE `name` = ?";
 
@@ -39,6 +42,42 @@ pub struct DbUpdater {
     pass: String,
     db: String,
     ssl: bool,
+}
+
+/// Run C++ `DBUpdater<T>::Populate` through a typed database adapter.
+///
+/// Pool extraction and the concrete updater remain inside `wow-database`;
+/// composition roots provide only the already-selected typed adapter and its
+/// mysql-CLI connection parameters.
+pub async fn populate_typed_database_like_cpp<S: StatementDef>(
+    database: &Database<S>,
+    host: &str,
+    port_or_socket: &str,
+    user: &str,
+    pass: &str,
+    db: &str,
+    ssl: bool,
+    base_sql: &str,
+) -> Result<bool> {
+    DbUpdater::from_database(database, host, port_or_socket, user, pass, db, ssl)
+        .populate(base_sql)
+        .await
+}
+
+/// Run C++ `DBUpdater<T>::Update` through a typed database adapter.
+pub async fn update_typed_database_like_cpp<S: StatementDef>(
+    database: &Database<S>,
+    host: &str,
+    port_or_socket: &str,
+    user: &str,
+    pass: &str,
+    db: &str,
+    ssl: bool,
+    source_path: &str,
+) -> Result<()> {
+    DbUpdater::from_database(database, host, port_or_socket, user, pass, db, ssl)
+        .update(source_path)
+        .await
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,7 +168,29 @@ fn update_decision_like_cpp(
 }
 
 impl DbUpdater {
-    pub fn new(
+    /// Build an updater from a typed database adapter without exposing its
+    /// raw SQLx pool to the composition root.
+    fn from_database<S: StatementDef>(
+        database: &Database<S>,
+        host: &str,
+        port_or_socket: &str,
+        user: &str,
+        pass: &str,
+        db: &str,
+        ssl: bool,
+    ) -> Self {
+        Self::new(
+            database.pool().clone(),
+            host,
+            port_or_socket,
+            user,
+            pass,
+            db,
+            ssl,
+        )
+    }
+
+    fn new(
         pool: MySqlPool,
         host: &str,
         port_or_socket: &str,
@@ -906,6 +967,32 @@ mod tests {
                 .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
                 .unwrap_or(false),
         })
+    }
+
+    #[tokio::test]
+    async fn typed_database_constructor_keeps_the_raw_pool_inside_the_adapter() {
+        let pool = MySqlPoolOptions::new()
+            .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/auth")
+            .expect("lazy test pool");
+        let database = Database::<LoginStatements>::from_pool(pool);
+
+        let updater = DbUpdater::from_database(
+            &database,
+            "127.0.0.1",
+            "3306",
+            "rustycore",
+            "secret",
+            "auth",
+            false,
+        );
+
+        assert_eq!(updater.host, "127.0.0.1");
+        assert_eq!(updater.port_or_socket, "3306");
+        assert_eq!(updater.user, "rustycore");
+        assert_eq!(updater.pass, "secret");
+        assert_eq!(updater.db, "auth");
+        assert!(!updater.ssl);
+        assert!(!updater.pool.is_closed());
     }
 
     fn live_mariadb_server_url(config: &LiveMariaDbConfig) -> String {

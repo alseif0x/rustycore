@@ -2246,15 +2246,14 @@
         "login",
         "world"
       ],
-      "capability_owner": "world-server bootstrap composition root currently owns the complete world-server workflow fn run_inner in crates/world-server/src/app.rs.",
+      "capability_owner": "world-server typed database bootstrap composition root currently owns the complete world-server workflow fn run_inner in crates/world-server/src/app.rs.",
       "connection_affinity": "The workflow uses independent characters, hotfix, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
       "target_issues": [
-        153,
-        169
+        153
       ],
-      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -17969,6 +17968,66 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::fn populate_typed_database_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/updater.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::updater"
+      ],
+      "enclosings": [
+        "fn populate_typed_database_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow fn populate_typed_database_like_cpp in crates/wow-database/src/updater.rs.",
+      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::fn update_typed_database_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/updater.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::updater"
+      ],
+      "enclosings": [
+        "fn update_typed_database_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow fn update_typed_database_like_cpp in crates/wow-database/src/updater.rs.",
+      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::impl DbUpdater::apply_sql_file",
       "source_class": "production",
       "packages": [
@@ -18111,6 +18170,36 @@
         "updater-control"
       ],
       "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl DbUpdater::ensure_updates_table in crates/wow-database/src/updater.rs.",
+      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::impl DbUpdater::from_database",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/updater.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::updater"
+      ],
+      "enclosings": [
+        "impl DbUpdater::from_database"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl DbUpdater::from_database in crates/wow-database/src/updater.rs.",
       "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",

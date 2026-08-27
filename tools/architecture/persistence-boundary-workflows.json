@@ -675,10 +675,9 @@
         "login",
         "world"
       ],
-      "boundary": "world-server bootstrap composition root",
+      "boundary": "world-server typed database bootstrap composition root",
       "target_issues": [
-        153,
-        169
+        153
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow uses independent characters, hotfix, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
@@ -9079,6 +9078,51 @@
       "stable_boundary": true,
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::updater",
+      "source": "crates/wow-database/src/updater.rs",
+      "enclosing": "fn populate_typed_database_like_cpp",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::updater",
+      "source": "crates/wow-database/src/updater.rs",
+      "enclosing": "fn update_typed_database_like_cpp",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::updater",
+      "source": "crates/wow-database/src/updater.rs",
+      "enclosing": "impl DbUpdater::from_database",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
     {
