@@ -68,6 +68,7 @@
     414,
     416,
     418,
+    420,
     189,
     192,
     193,
@@ -1178,7 +1179,7 @@
     },
     {
       "number": 418,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.18] Move pet login reads behind the lifecycle port",
       "kind": "slice",
       "parents": [
@@ -1187,6 +1188,19 @@
       ],
       "depends_on": [
         416
+      ]
+    },
+    {
+      "number": 420,
+      "state": "open",
+      "title": "[ARCH.DB.19] Move Player-login group lookup behind the lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        418
       ]
     }
   ]

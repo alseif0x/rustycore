@@ -1236,6 +1236,11 @@ fn player_login_auxiliary_load_statement_like_cpp(
             statement.set_u32(1, pet_number);
             statement
         }
+        PlayerLoginAuxiliaryLoadRequestLikeCpp::GroupMembership { player_guid } => {
+            let mut statement = PreparedStatement::for_statement(CharStatements::SEL_GROUP_MEMBER);
+            statement.set_u64(0, player_guid);
+            statement
+        }
     }
 }
 
@@ -2369,6 +2374,18 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                     }
                     PlayerLoginAuxiliaryLoadedLikeCpp::PetDeclinedNames(rows)
                 }
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::GroupMembership { .. } => {
+                    let mut rows = Vec::new();
+                    if !result.is_empty() {
+                        loop {
+                            rows.push(result.try_read::<u32>(0).unwrap_or(0));
+                            if !result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    PlayerLoginAuxiliaryLoadedLikeCpp::GroupMembership(rows)
+                }
             };
             PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(loaded)
         })
@@ -2771,6 +2788,11 @@ mod tests {
                 },
                 CharStatements::SEL_PET_DECLINED_NAME.sql(),
                 vec![crate::SqlParam::U64(77), crate::SqlParam::U32(42)],
+            ),
+            (
+                PlayerLoginAuxiliaryLoadRequestLikeCpp::GroupMembership { player_guid: 77 },
+                CharStatements::SEL_GROUP_MEMBER.sql(),
+                vec![crate::SqlParam::U64(77)],
             ),
         ];
 

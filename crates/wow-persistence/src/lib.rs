@@ -187,6 +187,7 @@ pub enum PlayerLoginAuxiliaryLoadRequestLikeCpp {
     PetSpellCooldowns { pet_number: u32 },
     PetSpellCharges { pet_number: u32 },
     PetDeclinedNames { player_guid: u64, pet_number: u32 },
+    GroupMembership { player_guid: u64 },
 }
 
 /// Early Characters-database reads that decide where and under which guild
@@ -562,6 +563,7 @@ pub enum PlayerLoginAuxiliaryLoadedLikeCpp {
     PetSpellCooldowns(Vec<PlayerPetSpellCooldownLoadRowLikeCpp>),
     PetSpellCharges(Vec<PlayerPetSpellChargeLoadRowLikeCpp>),
     PetDeclinedNames(Vec<PlayerPetDeclinedNamesLoadRowLikeCpp>),
+    GroupMembership(Vec<u32>),
 }
 
 /// Read-only lifecycle loads have no unknown-COMMIT state: they either
@@ -1436,6 +1438,7 @@ mod tests {
                 player_guid: 1,
                 pet_number: 2,
             },
+            PlayerLoginAuxiliaryLoadRequestLikeCpp::GroupMembership { player_guid: 1 },
         ] {
             assert_eq!(
                 request.logical_database(),
@@ -1457,6 +1460,23 @@ mod tests {
         );
         let failed = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
             reason: "pet query failed".to_owned(),
+        };
+
+        assert_ne!(loaded, empty);
+        assert_ne!(empty, failed);
+        assert_ne!(loaded, failed);
+    }
+
+    #[test]
+    fn group_login_rows_keep_loaded_empty_and_failure_distinct_like_cpp() {
+        let loaded = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+            PlayerLoginAuxiliaryLoadedLikeCpp::GroupMembership(vec![77]),
+        );
+        let empty = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+            PlayerLoginAuxiliaryLoadedLikeCpp::GroupMembership(Vec::new()),
+        );
+        let failed = PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed {
+            reason: "group query failed".to_owned(),
         };
 
         assert_ne!(loaded, empty);

@@ -10496,11 +10496,11 @@
       "logical_databases": [
         "characters"
       ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free auxiliary Player-login reads (#390/#396/#398/#418)",
+      "boundary": "wow-database MariaDB adapter for SQLx-free auxiliary Player-login reads (#390/#396/#398/#418/#420)",
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "Pure Characters-database statement construction; each semantic request selects one existing statement and exact identity bind.",
-      "current_order": "Builds exactly one C++ LoginQueryHolder or PetLoadQueryHolder read statement; pet stable, aura, aura-effect, spell, cooldown, charge and declined-name requests preserve their exact identity and bind widths without introducing a wider transaction.",
+      "current_order": "Builds exactly one C++ LoginQueryHolder or PetLoadQueryHolder read statement; pet stable/active-pet and group-membership requests preserve their exact identity and bind widths without introducing a wider transaction.",
       "failure_and_unknown_commit": "No I/O occurs here; the adapter classifies the later read as Loaded typed rows or Failed."
     },
     {
@@ -10511,11 +10511,11 @@
       "logical_databases": [
         "characters"
       ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free auxiliary Player-login reads (#390/#396/#398/#418)",
+      "boundary": "wow-database MariaDB adapter for SQLx-free auxiliary Player-login reads (#390/#396/#398/#418/#420)",
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "Each read uses the configured Characters adapter and one prepared statement; these read-only loads claim no wider transaction.",
-      "current_order": "Runs only the statement selected by the typed request and decodes rows in database order. The caller keeps pet-stable publication before the six active-pet families, preserves their current apply order, and skips active-pet reads when the summoned pet number is zero.",
+      "current_order": "Runs only the statement selected by the typed request and decodes rows in database order. The caller keeps pet-stable publication before the six active-pet families, then performs the independent group lookup at its existing point before canonical Player attachment.",
       "failure_and_unknown_commit": "A query error returns Failed without rows; successful and empty results return Loaded, and reads have no unknown-COMMIT state."
     },
     {
