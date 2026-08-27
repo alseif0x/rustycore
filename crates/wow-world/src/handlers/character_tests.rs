@@ -52,6 +52,8 @@ use wow_persistence::{
     MapCorpseLoadRequestLikeCpp, MapCorpseLoadRowLikeCpp, MapCorpsePersistencePortLikeCpp,
     PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerCharacterSaveRequestLikeCpp,
     PlayerCharacterSaveResultLikeCpp, PlayerHomebindPersistenceRequestLikeCpp,
+    PlayerInitialWorldStateRowsLikeCpp, PlayerInitialWorldStateTemplateRowLikeCpp,
+    PlayerInitialWorldStateValueRowLikeCpp, PlayerInitialWorldStatesLoadOutcomeLikeCpp,
     PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
     PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerOfflineMarkLikeCpp,
 };
@@ -93,6 +95,8 @@ impl MapCorpsePersistencePortLikeCpp for MapCorpseLoadPortFixtureLikeCpp {
 struct CollectionLoadPortLikeCpp {
     requests: std::sync::Mutex<Vec<AccountCollectionLoadRequestLikeCpp>>,
     outcomes: std::sync::Mutex<std::collections::VecDeque<AccountCollectionLoadOutcomeLikeCpp>>,
+    initial_world_state_outcomes:
+        std::sync::Mutex<std::collections::VecDeque<PlayerInitialWorldStatesLoadOutcomeLikeCpp>>,
 }
 
 impl CollectionLoadPortLikeCpp {
@@ -100,6 +104,17 @@ impl CollectionLoadPortLikeCpp {
         Arc::new(Self {
             requests: std::sync::Mutex::new(Vec::new()),
             outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
+            initial_world_state_outcomes: std::sync::Mutex::new(Default::default()),
+        })
+    }
+
+    fn for_initial_world_states(
+        outcomes: impl IntoIterator<Item = PlayerInitialWorldStatesLoadOutcomeLikeCpp>,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            requests: std::sync::Mutex::new(Vec::new()),
+            outcomes: std::sync::Mutex::new(Default::default()),
+            initial_world_state_outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
         })
     }
 
@@ -151,6 +166,18 @@ impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
                 reason: "collection-load-only fixture".to_owned(),
             }
         })
+    }
+
+    fn load_initial_world_states_like_cpp<'a>(
+        &'a self,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerInitialWorldStatesLoadOutcomeLikeCpp> {
+        let outcome = self
+            .initial_world_state_outcomes
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("one typed initial-world-state outcome per request");
+        Box::pin(async move { outcome })
     }
 
     fn load_account_collection_like_cpp<'a>(
@@ -229,6 +256,21 @@ impl PlayerLifecyclePortLikeCpp for HomebindPortFixtureLikeCpp {
         _mark: PlayerOfflineMarkLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
         Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
+    }
+
+    fn load_initial_world_states_like_cpp<'a>(
+        &'a self,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerInitialWorldStatesLoadOutcomeLikeCpp> {
+        Box::pin(async {
+            PlayerInitialWorldStatesLoadOutcomeLikeCpp {
+                templates: PlayerInitialWorldStateRowsLikeCpp::Failed {
+                    reason: "homebind-only fixture".to_owned(),
+                },
+                saved_values: PlayerInitialWorldStateRowsLikeCpp::Failed {
+                    reason: "homebind-only fixture".to_owned(),
+                },
+            }
+        })
     }
 
     fn persist_homebind_like_cpp<'a>(
@@ -1375,6 +1417,73 @@ fn init_world_states_builder_orders_realm_then_map_and_filters_area_like_cpp() {
         ),
         vec![(10, 1), (50, 5), (20, 22), (30, 3)]
     );
+}
+
+#[tokio::test]
+async fn initial_world_state_port_applies_saved_overlay_after_templates_like_cpp() {
+    let port = CollectionLoadPortLikeCpp::for_initial_world_states([
+        PlayerInitialWorldStatesLoadOutcomeLikeCpp {
+            templates: PlayerInitialWorldStateRowsLikeCpp::Loaded(vec![
+                PlayerInitialWorldStateTemplateRowLikeCpp {
+                    id: 10,
+                    default_value: 1,
+                    map_ids_csv: String::new(),
+                    area_ids_csv: String::new(),
+                },
+            ]),
+            saved_values: PlayerInitialWorldStateRowsLikeCpp::Loaded(vec![
+                PlayerInitialWorldStateValueRowLikeCpp { id: 10, value: 22 },
+            ]),
+        },
+    ]);
+    let (mut session, _) = make_session_with_send_capacity(1);
+    session.set_player_lifecycle_port_like_cpp(port);
+
+    let states = session
+        .test_load_initial_world_states_for_login_like_cpp(571, 0)
+        .await;
+
+    assert!(states.contains(&(10, 22)));
+    assert!(!states.contains(&(10, 1)));
+}
+
+#[tokio::test]
+async fn initial_world_state_port_preserves_independent_read_failures_like_cpp() {
+    let port = CollectionLoadPortLikeCpp::for_initial_world_states([
+        PlayerInitialWorldStatesLoadOutcomeLikeCpp {
+            templates: PlayerInitialWorldStateRowsLikeCpp::Loaded(vec![
+                PlayerInitialWorldStateTemplateRowLikeCpp {
+                    id: 10,
+                    default_value: 1,
+                    map_ids_csv: String::new(),
+                    area_ids_csv: String::new(),
+                },
+            ]),
+            saved_values: PlayerInitialWorldStateRowsLikeCpp::Failed {
+                reason: "character read failed".to_owned(),
+            },
+        },
+        PlayerInitialWorldStatesLoadOutcomeLikeCpp {
+            templates: PlayerInitialWorldStateRowsLikeCpp::Failed {
+                reason: "world read failed".to_owned(),
+            },
+            saved_values: PlayerInitialWorldStateRowsLikeCpp::Loaded(vec![
+                PlayerInitialWorldStateValueRowLikeCpp { id: 10, value: 22 },
+            ]),
+        },
+    ]);
+    let (mut session, _) = make_session_with_send_capacity(1);
+    session.set_player_lifecycle_port_like_cpp(port);
+
+    let values_failed = session
+        .test_load_initial_world_states_for_login_like_cpp(571, 0)
+        .await;
+    let templates_failed = session
+        .test_load_initial_world_states_for_login_like_cpp(571, 0)
+        .await;
+
+    assert!(values_failed.contains(&(10, 1)));
+    assert!(!templates_failed.iter().any(|(id, _)| *id == 10));
 }
 
 #[test]
