@@ -29,6 +29,9 @@ pub(super) struct SessionResources {
     /// authenticated session (account data and tutorials).
     pub(super) session_account_state_port:
         Option<Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>>,
+    /// Login-database capability for PacketSpoof admission bans.
+    pub(super) packet_spoof_ban_persistence_port:
+        Option<Arc<dyn wow_persistence::PacketSpoofBanPersistencePortLikeCpp>>,
     /// Characters-database adapter for canonical `Map::LoadCorpseData`.
     pub(super) map_corpse_persistence_port:
         Option<Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>,

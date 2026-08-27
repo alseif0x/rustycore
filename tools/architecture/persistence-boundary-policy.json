@@ -13599,6 +13599,246 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::packet_spoof_ban_adapter:crates/wow-database/src/packet_spoof_ban_adapter.rs::fn account_ban_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/packet_spoof_ban_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::packet_spoof_ban_adapter"
+      ],
+      "enclosings": [
+        "fn account_ban_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free PacketSpoof admission bans (#434) currently owns the complete wow-database workflow fn account_ban_statements_like_cpp in crates/wow-database/src/packet_spoof_ban_adapter.rs.",
+      "connection_affinity": "Both statements are later appended to one Login transaction on one connection.",
+      "current_order": "Build LOGIN_UPD_ACCOUNT_NOT_BANNED first and LOGIN_INS_ACCOUNT_BANNED second with the existing binds.",
+      "failure_and_unknown_commit": "No I/O occurs here; transaction execution classifies the combined result.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::packet_spoof_ban_adapter:crates/wow-database/src/packet_spoof_ban_adapter.rs::fn accounts_by_ip_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/packet_spoof_ban_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::packet_spoof_ban_adapter"
+      ],
+      "enclosings": [
+        "fn accounts_by_ip_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free PacketSpoof admission bans (#434) currently owns the complete wow-database workflow fn accounts_by_ip_statement_like_cpp in crates/wow-database/src/packet_spoof_ban_adapter.rs.",
+      "connection_affinity": "Pure construction of LOGIN_SEL_ACCOUNT_BY_IP; it opens no connection.",
+      "current_order": "Bind the requested address once before the caller executes the lookup.",
+      "failure_and_unknown_commit": "No I/O occurs in statement construction.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::packet_spoof_ban_adapter:crates/wow-database/src/packet_spoof_ban_adapter.rs::fn ip_ban_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/packet_spoof_ban_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::packet_spoof_ban_adapter"
+      ],
+      "enclosings": [
+        "fn ip_ban_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free PacketSpoof admission bans (#434) currently owns the complete wow-database workflow fn ip_ban_statement_like_cpp in crates/wow-database/src/packet_spoof_ban_adapter.rs.",
+      "connection_affinity": "Pure construction of one LOGIN_INS_IP_BANNED statement; it opens no connection.",
+      "current_order": "Bind address, duration, author and reason in the existing statement order.",
+      "failure_and_unknown_commit": "No I/O occurs in statement construction.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::packet_spoof_ban_adapter:crates/wow-database/src/packet_spoof_ban_adapter.rs::impl MariaDbPacketSpoofBanPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/packet_spoof_ban_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::packet_spoof_ban_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbPacketSpoofBanPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free PacketSpoof admission bans (#434) currently owns the complete wow-database workflow impl MariaDbPacketSpoofBanPersistenceAdapterLikeCpp::new in crates/wow-database/src/packet_spoof_ban_adapter.rs.",
+      "connection_affinity": "Composition supplies one process-wide Login adapter before sessions are accepted.",
+      "current_order": "Construction performs no query or write.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::packet_spoof_ban_adapter:crates/wow-database/src/packet_spoof_ban_adapter.rs::impl wow_persistence::PacketSpoofBanPersistencePortLikeCpp for MariaDbPacketSpoofBanPersistenceAdapterLikeCpp::load_accounts_by_ip_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/packet_spoof_ban_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::packet_spoof_ban_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::PacketSpoofBanPersistencePortLikeCpp for MariaDbPacketSpoofBanPersistenceAdapterLikeCpp::load_accounts_by_ip_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free PacketSpoof admission bans (#434) currently owns the complete wow-database workflow impl wow_persistence::PacketSpoofBanPersistencePortLikeCpp for MariaDbPacketSpoofBanPersistenceAdapterLikeCpp::load_accounts_by_ip_like_cpp in crates/wow-database/src/packet_spoof_ban_adapter.rs.",
+      "connection_affinity": "One pooled Login query resolves affected account IDs before the independent ban write.",
+      "current_order": "Query, decode every account ID, then sort and deduplicate exactly as the former admission helper did.",
+      "failure_and_unknown_commit": "Query success returns Loaded, including empty; driver failure returns Failed and does not execute a write inside this method.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::packet_spoof_ban_adapter:crates/wow-database/src/packet_spoof_ban_adapter.rs::impl wow_persistence::PacketSpoofBanPersistencePortLikeCpp for MariaDbPacketSpoofBanPersistenceAdapterLikeCpp::persist_packet_spoof_ban_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/packet_spoof_ban_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::packet_spoof_ban_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::PacketSpoofBanPersistencePortLikeCpp for MariaDbPacketSpoofBanPersistenceAdapterLikeCpp::persist_packet_spoof_ban_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free PacketSpoof admission bans (#434) currently owns the complete wow-database workflow impl wow_persistence::PacketSpoofBanPersistencePortLikeCpp for MariaDbPacketSpoofBanPersistenceAdapterLikeCpp::persist_packet_spoof_ban_like_cpp in crates/wow-database/src/packet_spoof_ban_adapter.rs.",
+      "connection_affinity": "Account clear-plus-insert uses one Login transaction; IP insert remains one independent non-transactional Login execution.",
+      "current_order": "Account appends clear-active then insert and commits once; IP executes its insert once after admission completed the lookup call.",
+      "failure_and_unknown_commit": "Success maps to Applied and current driver errors to Failed; admission retains the exact pending-plan restage branch for every non-Applied outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::packet_spoof_ban_adapter:crates/wow-database/src/packet_spoof_ban_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/packet_spoof_ban_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::packet_spoof_ban_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free PacketSpoof admission bans (#434) currently owns the complete wow-database workflow module in crates/wow-database/src/packet_spoof_ban_adapter.rs.",
+      "connection_affinity": "The module owns only the concrete Login-database adapter; no pool, row, statement or transaction type crosses into admission.",
+      "current_order": "The caller retains lookup-before-write sequencing; this module maps each semantic capability call without adding a cross-database edge.",
+      "failure_and_unknown_commit": "Lookup and write failures remain separately classified so a failed IP lookup does not suppress the independent ban write.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::packet_spoof_ban_adapter:crates/wow-database/src/packet_spoof_ban_adapter.rs::struct MariaDbPacketSpoofBanPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/packet_spoof_ban_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::packet_spoof_ban_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbPacketSpoofBanPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free PacketSpoof admission bans (#434) currently owns the complete wow-database workflow struct MariaDbPacketSpoofBanPersistenceAdapterLikeCpp in crates/wow-database/src/packet_spoof_ban_adapter.rs.",
+      "connection_affinity": "The adapter holds the one configured Login-database handle used by both semantic operations.",
+      "current_order": "Construction stores the handle only; admission invokes lookup and persistence in its existing order.",
+      "failure_and_unknown_commit": "No I/O occurs while constructing or storing the adapter.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::params:crates/wow-database/src/params.rs::impl PreparedStatement",
       "source_class": "production",
       "packages": [
@@ -27144,38 +27384,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::session::admission:crates/wow-world/src/session/admission.rs::impl super :: WorldSession::flush_packet_spoof_ban_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session/admission.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session::admission"
-      ],
-      "enclosings": [
-        "impl super :: WorldSession::flush_packet_spoof_ban_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "login"
-      ],
-      "capability_owner": "Session residual persistence boundary currently owns the complete wow-world workflow impl super :: WorldSession::flush_packet_spoof_ban_like_cpp in crates/wow-world/src/session/admission.rs.",
-      "connection_affinity": "The workflow preserves one explicit login connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn apply_player_spell_acquisition_non_packet_runtime_actions_like_cpp",
       "source_class": "production",
       "packages": [
@@ -28067,6 +28275,7 @@
       "sources": [
         "crates/wow-database/src/database.rs",
         "crates/wow-database/src/map_corpse_adapter.rs",
+        "crates/wow-database/src/packet_spoof_ban_adapter.rs",
         "crates/wow-database/src/params.rs",
         "crates/wow-database/src/persistence_trace.rs",
         "crates/wow-database/src/player_lifecycle_adapter.rs",

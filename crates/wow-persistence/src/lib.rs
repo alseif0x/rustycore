@@ -101,6 +101,52 @@ pub enum LogicalDatabaseLikeCpp {
     World,
 }
 
+/// The two persistence targets supported by C++ `World::BanAccount` for the
+/// packet-spoof admission path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PacketSpoofBanTargetLikeCpp {
+    Account { account_id: u32 },
+    Ip { address: String },
+}
+
+/// One semantic PacketSpoof ban write. Statement selection and transaction
+/// construction remain private to the concrete adapter.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PacketSpoofBanWriteRequestLikeCpp {
+    pub target: PacketSpoofBanTargetLikeCpp,
+    pub duration_secs: u32,
+    pub author: String,
+    pub reason: String,
+}
+
+impl PacketSpoofBanWriteRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Login
+    }
+}
+
+/// The IP lookup is deliberately classified separately from the subsequent
+/// ban write: current Rust behavior still attempts the ban when this lookup
+/// fails, but has no affected sessions to kick afterward.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PacketSpoofAffectedAccountsLoadOutcomeLikeCpp {
+    Loaded(Vec<u32>),
+    Failed { reason: String },
+}
+
+/// SQLx-free admission persistence capability for PacketSpoof bans.
+pub trait PacketSpoofBanPersistencePortLikeCpp: Send + Sync {
+    fn load_accounts_by_ip_like_cpp<'a>(
+        &'a self,
+        address: &'a str,
+    ) -> PersistenceFutureLikeCpp<'a, PacketSpoofAffectedAccountsLoadOutcomeLikeCpp>;
+
+    fn persist_packet_spoof_ban_like_cpp<'a>(
+        &'a self,
+        request: PacketSpoofBanWriteRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
+}
+
 /// Which Characters-database account-data table a session operation addresses.
 /// The identity is semantic; statement selection remains adapter-owned.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1755,6 +1801,20 @@ mod tests {
         assert_eq!(
             PlayerOnlineMarkRequestLikeCpp { player_guid: 1 }.logical_database(),
             LogicalDatabaseLikeCpp::Characters
+        );
+    }
+
+    #[test]
+    fn packet_spoof_ban_write_names_the_login_database_like_cpp() {
+        assert_eq!(
+            PacketSpoofBanWriteRequestLikeCpp {
+                target: PacketSpoofBanTargetLikeCpp::Account { account_id: 1 },
+                duration_secs: 60,
+                author: "author".to_string(),
+                reason: "reason".to_string(),
+            }
+            .logical_database(),
+            LogicalDatabaseLikeCpp::Login
         );
     }
 

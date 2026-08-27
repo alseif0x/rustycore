@@ -2,10 +2,10 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 use super::{
-    Arc, ClientOpcodes, Duration, Instant, KickLikeCppCommand, LoginDatabase, LoginStatements,
-    PACKET_SPOOF_BAN_AUTHOR_LIKE_CPP, PACKET_SPOOF_BAN_REASON_LIKE_CPP, PLAYER_SLOT_END,
-    PacketSpoofConfigLikeCpp, PacketSpoofPendingBanLikeCpp, PacketSpoofPendingBanTargetLikeCpp,
-    SessionCommand, SessionState, SqlTransaction, SystemTime, UNIX_EPOCH, WorldPacket, warn,
+    ClientOpcodes, Duration, Instant, KickLikeCppCommand, PACKET_SPOOF_BAN_AUTHOR_LIKE_CPP,
+    PACKET_SPOOF_BAN_REASON_LIKE_CPP, PLAYER_SLOT_END, PacketSpoofConfigLikeCpp,
+    PacketSpoofPendingBanLikeCpp, PacketSpoofPendingBanTargetLikeCpp, SessionCommand, SessionState,
+    SystemTime, UNIX_EPOCH, WorldPacket, warn,
 };
 use std::vec::Vec;
 
@@ -334,7 +334,7 @@ impl super::WorldSession {
         let Some(plan) = self.pending_packet_spoof_ban_like_cpp.take() else {
             return;
         };
-        let Some(login_db) = self.login_db.as_ref().map(Arc::clone) else {
+        let Some(port) = self.packet_spoof_ban_persistence_port_like_cpp.clone() else {
             warn!(
                 account = self.account_id,
                 "AntiDOS: PacketSpoof ban requested but login DB is unavailable"
@@ -344,85 +344,69 @@ impl super::WorldSession {
         };
 
         let affected_account_ids = self
-            .packet_spoof_ban_affected_account_ids_like_cpp(&login_db, &plan)
+            .packet_spoof_ban_affected_account_ids_like_cpp(port.as_ref(), &plan)
             .await;
-
-        let result = match &plan.target {
+        let target = match &plan.target {
             PacketSpoofPendingBanTargetLikeCpp::Account { account_id } => {
-                let mut tx = SqlTransaction::new();
-                let mut clear_active = login_db.prepare(LoginStatements::UPD_ACCOUNT_NOT_BANNED);
-                clear_active.set_u32(0, *account_id);
-                tx.append(clear_active);
-
-                let mut insert = login_db.prepare(LoginStatements::INS_ACCOUNT_BANNED);
-                insert.set_u32(0, *account_id);
-                insert.set_u32(1, plan.duration_secs);
-                insert.set_string(2, PACKET_SPOOF_BAN_AUTHOR_LIKE_CPP);
-                insert.set_string(3, PACKET_SPOOF_BAN_REASON_LIKE_CPP);
-                tx.append(insert);
-
-                login_db.commit_transaction(tx).await
+                wow_persistence::PacketSpoofBanTargetLikeCpp::Account {
+                    account_id: *account_id,
+                }
             }
             PacketSpoofPendingBanTargetLikeCpp::Ip { address } => {
-                let mut insert = login_db.prepare(LoginStatements::INS_IP_BANNED);
-                insert.set_string(0, address);
-                insert.set_u32(1, plan.duration_secs);
-                insert.set_string(2, PACKET_SPOOF_BAN_AUTHOR_LIKE_CPP);
-                insert.set_string(3, PACKET_SPOOF_BAN_REASON_LIKE_CPP);
-
-                login_db.execute(&insert).await.map(|_| ())
+                wow_persistence::PacketSpoofBanTargetLikeCpp::Ip {
+                    address: address.clone(),
+                }
             }
         };
+        let result = port
+            .persist_packet_spoof_ban_like_cpp(wow_persistence::PacketSpoofBanWriteRequestLikeCpp {
+                target,
+                duration_secs: plan.duration_secs,
+                author: PACKET_SPOOF_BAN_AUTHOR_LIKE_CPP.to_string(),
+                reason: PACKET_SPOOF_BAN_REASON_LIKE_CPP.to_string(),
+            })
+            .await;
 
-        if let Err(error) = result {
-            warn!(
-                account = self.account_id,
-                error = %error,
-                "AntiDOS: failed to persist PacketSpoof ban"
-            );
-            self.pending_packet_spoof_ban_like_cpp = Some(plan);
-        } else {
-            self.kick_packet_spoof_affected_sessions_like_cpp(&affected_account_ids);
+        match result {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {
+                self.kick_packet_spoof_affected_sessions_like_cpp(&affected_account_ids);
+            }
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                warn!(
+                    account = self.account_id,
+                    error = %reason,
+                    "AntiDOS: failed to persist PacketSpoof ban"
+                );
+                self.pending_packet_spoof_ban_like_cpp = Some(plan);
+            }
         }
     }
 
     async fn packet_spoof_ban_affected_account_ids_like_cpp(
         &self,
-        login_db: &LoginDatabase,
+        port: &dyn wow_persistence::PacketSpoofBanPersistencePortLikeCpp,
         plan: &PacketSpoofPendingBanLikeCpp,
     ) -> Vec<u32> {
         match &plan.target {
             PacketSpoofPendingBanTargetLikeCpp::Account { account_id } => vec![*account_id],
             PacketSpoofPendingBanTargetLikeCpp::Ip { address } => {
-                let mut stmt = login_db.prepare(LoginStatements::SEL_ACCOUNT_BY_IP);
-                stmt.set_string(0, address);
-                let mut result = match login_db.query(&stmt).await {
-                    Ok(result) => result,
-                    Err(error) => {
+                match port.load_accounts_by_ip_like_cpp(address).await {
+                    wow_persistence::PacketSpoofAffectedAccountsLoadOutcomeLikeCpp::Loaded(
+                        account_ids,
+                    ) => account_ids,
+                    wow_persistence::PacketSpoofAffectedAccountsLoadOutcomeLikeCpp::Failed {
+                        reason,
+                    } => {
                         warn!(
                             account = self.account_id,
-                            error = %error,
+                            error = %reason,
                             ip = address,
                             "AntiDOS: failed to query accounts affected by PacketSpoof IP ban"
                         );
-                        return Vec::new();
-                    }
-                };
-
-                if result.is_empty() {
-                    return Vec::new();
-                }
-
-                let mut account_ids = Vec::with_capacity(result.count());
-                loop {
-                    account_ids.push(result.read(0));
-                    if !result.next_row() {
-                        break;
+                        Vec::new()
                     }
                 }
-                account_ids.sort_unstable();
-                account_ids.dedup();
-                account_ids
             }
         }
     }
