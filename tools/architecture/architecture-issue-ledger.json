@@ -64,6 +64,7 @@
     406,
     408,
     410,
+    412,
     189,
     192,
     193,
@@ -1122,7 +1123,7 @@
     },
     {
       "number": 410,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.14] Move represented XP/rest persistence behind the lifecycle port",
       "kind": "slice",
       "parents": [
@@ -1131,6 +1132,19 @@
       ],
       "depends_on": [
         408
+      ]
+    },
+    {
+      "number": 412,
+      "state": "open",
+      "title": "[ARCH.DB.15] Keep raw updater pools inside wow-database",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        410
       ]
     }
   ]
