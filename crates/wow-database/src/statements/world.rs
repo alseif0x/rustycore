@@ -70,6 +70,10 @@ pub enum WorldStatements {
     SEL_WORLD_STATE_IDS,
     /// Load C++ WorldStateMgr templates/default metadata.
     SEL_WORLD_STATES,
+    /// Joined transport materialization row used by the represented login path.
+    SEL_LOGIN_TRANSPORTS,
+    /// One joined transport materialization row by spawn GUID.
+    SEL_LOGIN_TRANSPORT_BY_GUID,
     /// C++ World::LoadDBVersion startup query.
     SEL_WORLD_DB_VERSION,
     /// C++ ObjectMgr::LoadReputationRewardRate startup query.
@@ -613,6 +617,26 @@ impl StatementDef for WorldStatements {
             Self::SEL_WORLD_STATES => {
                 "SELECT ID, DefaultValue, MapIDs, AreaIDs, ScriptName FROM world_state"
             }
+            Self::SEL_LOGIN_TRANSPORTS => concat!(
+                "SELECT t.guid, t.entry, t.phaseUseFlags, t.phaseid, t.phasegroup, ",
+                "gt.displayId, gt.size, gt.Data0, gt.Data1, gt.Data2, gt.Data8, ",
+                "COALESCE(goo.flags, gta.flags, 0), COALESCE(goo.faction, gta.faction, 0) ",
+                "FROM transports t ",
+                "JOIN gameobject_template gt ON gt.entry = t.entry ",
+                "LEFT JOIN gameobject_template_addon gta ON gta.entry = t.entry ",
+                "LEFT JOIN gameobject_overrides goo ON goo.spawnId = t.guid ",
+                "WHERE gt.type = 15 ORDER BY t.guid"
+            ),
+            Self::SEL_LOGIN_TRANSPORT_BY_GUID => concat!(
+                "SELECT t.guid, t.entry, t.phaseUseFlags, t.phaseid, t.phasegroup, ",
+                "gt.displayId, gt.size, gt.Data0, gt.Data1, gt.Data2, gt.Data8, ",
+                "COALESCE(goo.flags, gta.flags, 0), COALESCE(goo.faction, gta.faction, 0) ",
+                "FROM transports t ",
+                "JOIN gameobject_template gt ON gt.entry = t.entry ",
+                "LEFT JOIN gameobject_template_addon gta ON gta.entry = t.entry ",
+                "LEFT JOIN gameobject_overrides goo ON goo.spawnId = t.guid ",
+                "WHERE gt.type = 15 AND t.guid = ? LIMIT 1"
+            ),
             Self::SEL_WORLD_DB_VERSION => "SELECT db_version, cache_id FROM version LIMIT 1",
             Self::SEL_REPUTATION_REWARD_RATE => {
                 "SELECT faction, quest_rate, quest_daily_rate, quest_weekly_rate, quest_monthly_rate, quest_repeatable_rate, creature_rate, spell_rate FROM reputation_reward_rate"
@@ -1431,6 +1455,27 @@ mod tests {
             WorldStatements::SEL_WORLD_STATE_IDS.sql(),
             "SELECT ID FROM world_state"
         );
+    }
+
+    #[test]
+    fn login_transport_materialization_statements_keep_join_and_guid_filter_shape() {
+        let all = WorldStatements::SEL_LOGIN_TRANSPORTS.sql();
+        let one = WorldStatements::SEL_LOGIN_TRANSPORT_BY_GUID.sql();
+
+        assert!(
+            all.starts_with("SELECT t.guid, t.entry, t.phaseUseFlags, t.phaseid, t.phasegroup, ")
+        );
+        assert!(all.contains("JOIN gameobject_template gt ON gt.entry = t.entry"));
+        assert!(all.contains("LEFT JOIN gameobject_template_addon gta ON gta.entry = t.entry"));
+        assert!(all.contains("LEFT JOIN gameobject_overrides goo ON goo.spawnId = t.guid"));
+        assert!(all.ends_with("WHERE gt.type = 15 ORDER BY t.guid"));
+        assert_eq!(all.matches('?').count(), 0);
+
+        assert_eq!(
+            one,
+            all.replace(" ORDER BY t.guid", " AND t.guid = ? LIMIT 1")
+        );
+        assert_eq!(one.matches('?').count(), 1);
     }
 
     #[test]

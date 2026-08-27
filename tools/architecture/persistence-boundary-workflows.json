@@ -10526,6 +10526,51 @@
       "package": "wow-database",
       "module": "crate::player_lifecycle_adapter",
       "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_login_transport_load_statement_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free transport login reads (#406)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure World-database statement construction; each semantic request selects the all-transports statement or the single bound-GUID statement.",
+      "current_order": "Builds exactly one statement; the all request retains GUID ordering and the by-GUID request binds one GUID before its limit.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning adapter classifies the later read as Loaded or Failed."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_login_transport_load_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free transport login reads (#406)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of one World query result; it opens no connection and executes no statement.",
+      "current_order": "Decodes every joined transport row in database order and preserves the existing defensive field narrowing/default rules.",
+      "failure_and_unknown_commit": "The helper receives only a successful result set; query failure is classified by the owning adapter and reads have no unknown-COMMIT state."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::load_login_transports_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free transport login reads (#406)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Each request uses the configured World adapter and exactly one prepared statement; no transaction or wider affinity is inferred.",
+      "current_order": "Selects and executes the typed all-or-by-GUID statement once, then decodes successful rows without reordering them.",
+      "failure_and_unknown_commit": "A query error returns Failed and suppresses decoding; a successful empty result remains Loaded with no rows, and reads have no unknown-COMMIT state."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
       "enclosing": "fn player_homebind_persistence_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -11234,23 +11279,6 @@
       "package": "wow-world",
       "module": "crate::handlers::character",
       "source": "crates/wow-world/src/handlers/character/mod.rs",
-      "enclosing": "fn map_transport_create_from_row_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-world runtime boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character",
-      "source": "crates/wow-world/src/handlers/character/mod.rs",
       "enclosing": "fn optional_u32_column_like_cpp",
       "logical_databases": [
         "characters"
@@ -11398,42 +11426,6 @@
       "boundary": "character service persistence boundary",
       "target_issues": [
         153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::session_state",
-      "source": "crates/wow-world/src/handlers/character/session_state.rs",
-      "enclosing": "impl WorldSession::plan_init_transports_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "Player login/logout lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::session_state",
-      "source": "crates/wow-world/src/handlers/character/session_state.rs",
-      "enclosing": "impl WorldSession::resolve_persisted_transport_login_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "Player login/logout lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",

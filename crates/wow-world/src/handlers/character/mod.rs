@@ -82,7 +82,10 @@ use wow_packet::packets::quest::QuestGiverStatusMultiple;
 use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
 use wow_packet::packets::update::*;
 use wow_packet::{ClientPacket, WorldPacket};
-use wow_persistence::PlayerInitialWorldStateRowsLikeCpp;
+use wow_persistence::{
+    PlayerInitialWorldStateRowsLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
+    PlayerLoginTransportLoadRequestLikeCpp, PlayerLoginTransportLoadRowLikeCpp,
+};
 
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::map_manager::{
@@ -1190,66 +1193,23 @@ struct MapTransportCreateLikeCpp {
     faction_template: i32,
 }
 
-fn map_transport_create_from_row_like_cpp(result: &SqlResult) -> MapTransportCreateLikeCpp {
+fn map_transport_create_from_load_row_like_cpp(
+    row: PlayerLoginTransportLoadRowLikeCpp,
+) -> MapTransportCreateLikeCpp {
     MapTransportCreateLikeCpp {
-        guid_low: result
-            .try_read::<i64>(0)
-            .map(|value| value.max(0) as u32)
-            .or_else(|| result.try_read::<u32>(0))
-            .unwrap_or(0),
-        entry: result
-            .try_read::<i32>(1)
-            .map(|value| value.max(0) as u32)
-            .or_else(|| result.try_read::<u32>(1))
-            .unwrap_or(0),
-        phase_use_flags: result
-            .try_read::<u8>(2)
-            .or_else(|| result.try_read::<i16>(2).map(|value| value.max(0) as u8))
-            .unwrap_or(0),
-        phase_id: result
-            .try_read::<u16>(3)
-            .or_else(|| result.try_read::<i32>(3).map(|value| value.max(0) as u16))
-            .unwrap_or(0),
-        phase_group_id: result
-            .try_read::<u32>(4)
-            .or_else(|| result.try_read::<i32>(4).map(|value| value.max(0) as u32))
-            .unwrap_or(0),
-        display_id: result
-            .try_read::<i32>(5)
-            .map(|value| value.max(0) as u32)
-            .or_else(|| result.try_read::<u32>(5))
-            .unwrap_or(0),
-        scale: result.try_read::<f32>(6).unwrap_or(1.0),
-        taxi_path_id: result
-            .try_read::<i32>(7)
-            .map(|value| value.max(0) as u16)
-            .or_else(|| result.try_read::<u16>(7))
-            .unwrap_or(0),
-        move_speed: result
-            .try_read::<i32>(8)
-            .map(|value| value.max(1) as u32)
-            .or_else(|| result.try_read::<u32>(8))
-            .unwrap_or(1),
-        accel_rate: result
-            .try_read::<i32>(9)
-            .map(|value| value.max(1) as u32)
-            .or_else(|| result.try_read::<u32>(9))
-            .unwrap_or(1),
-        allow_stopping: result
-            .try_read::<i32>(10)
-            .map(|value| value != 0)
-            .or_else(|| result.try_read::<u8>(10).map(|value| value != 0))
-            .unwrap_or(false),
-        gameobject_flags: result
-            .try_read::<i64>(11)
-            .map(|value| value.max(0) as u32)
-            .or_else(|| result.try_read::<u32>(11))
-            .unwrap_or(0),
-        faction_template: result
-            .try_read::<i64>(12)
-            .map(|value| value as i32)
-            .or_else(|| result.try_read::<i32>(12))
-            .unwrap_or(0),
+        guid_low: row.guid_low,
+        entry: row.entry,
+        phase_use_flags: row.phase_use_flags,
+        phase_id: row.phase_id,
+        phase_group_id: row.phase_group_id,
+        display_id: row.display_id,
+        scale: row.scale,
+        taxi_path_id: row.taxi_path_id,
+        move_speed: row.move_speed,
+        accel_rate: row.accel_rate,
+        allow_stopping: row.allow_stopping,
+        gameobject_flags: row.gameobject_flags,
+        faction_template: row.faction_template,
     }
 }
 

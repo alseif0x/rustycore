@@ -26,10 +26,11 @@ use wow_persistence::{
     PlayerInitialWorldStatesLoadOutcomeLikeCpp, PlayerInstanceTimeRestrictionLoadRowLikeCpp,
     PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
     PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginAuxiliaryLoadedLikeCpp,
-    PlayerOfflineMarkLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
-    PlayerSpellChargeLoadRowLikeCpp, PlayerSpellCooldownLoadRowLikeCpp,
-    PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp, PlayerTraitConfigLoadRowLikeCpp,
-    PlayerTraitEntryLoadRowLikeCpp, PlayerVoidStorageSaveLikeCpp,
+    PlayerLoginTransportLoadOutcomeLikeCpp, PlayerLoginTransportLoadRequestLikeCpp,
+    PlayerLoginTransportLoadRowLikeCpp, PlayerOfflineMarkLikeCpp,
+    PlayerRealmCharacterCountRefreshRequestLikeCpp, PlayerSpellChargeLoadRowLikeCpp,
+    PlayerSpellCooldownLoadRowLikeCpp, PlayerSpellSaveGroupLikeCpp, PlayerSpellStateLikeCpp,
+    PlayerTraitConfigLoadRowLikeCpp, PlayerTraitEntryLoadRowLikeCpp, PlayerVoidStorageSaveLikeCpp,
 };
 
 use crate::params::PreparedStatement;
@@ -1248,7 +1249,99 @@ fn player_realm_character_count_statements_like_cpp(
     (count, replace)
 }
 
-/// Binds the port to the two logical databases the offline marks address.
+fn player_login_transport_load_statement_like_cpp(
+    request: PlayerLoginTransportLoadRequestLikeCpp,
+) -> PreparedStatement {
+    match request {
+        PlayerLoginTransportLoadRequestLikeCpp::All => {
+            PreparedStatement::for_statement(WorldStatements::SEL_LOGIN_TRANSPORTS)
+        }
+        PlayerLoginTransportLoadRequestLikeCpp::ByGuid { guid_low } => {
+            let mut statement =
+                PreparedStatement::for_statement(WorldStatements::SEL_LOGIN_TRANSPORT_BY_GUID);
+            statement.set_u64(0, guid_low);
+            statement
+        }
+    }
+}
+
+fn player_login_transport_load_rows_like_cpp(
+    mut result: crate::SqlResult,
+) -> Vec<PlayerLoginTransportLoadRowLikeCpp> {
+    let mut rows = Vec::new();
+    if result.is_empty() {
+        return rows;
+    }
+    loop {
+        rows.push(PlayerLoginTransportLoadRowLikeCpp {
+            guid_low: result
+                .try_read::<i64>(0)
+                .map(|value| value.max(0) as u32)
+                .or_else(|| result.try_read::<u32>(0))
+                .unwrap_or(0),
+            entry: result
+                .try_read::<i32>(1)
+                .map(|value| value.max(0) as u32)
+                .or_else(|| result.try_read::<u32>(1))
+                .unwrap_or(0),
+            phase_use_flags: result
+                .try_read::<u8>(2)
+                .or_else(|| result.try_read::<i16>(2).map(|value| value.max(0) as u8))
+                .unwrap_or(0),
+            phase_id: result
+                .try_read::<u16>(3)
+                .or_else(|| result.try_read::<i32>(3).map(|value| value.max(0) as u16))
+                .unwrap_or(0),
+            phase_group_id: result
+                .try_read::<u32>(4)
+                .or_else(|| result.try_read::<i32>(4).map(|value| value.max(0) as u32))
+                .unwrap_or(0),
+            display_id: result
+                .try_read::<i32>(5)
+                .map(|value| value.max(0) as u32)
+                .or_else(|| result.try_read::<u32>(5))
+                .unwrap_or(0),
+            scale: result.try_read::<f32>(6).unwrap_or(1.0),
+            taxi_path_id: result
+                .try_read::<i32>(7)
+                .map(|value| value.max(0) as u16)
+                .or_else(|| result.try_read::<u16>(7))
+                .unwrap_or(0),
+            move_speed: result
+                .try_read::<i32>(8)
+                .map(|value| value.max(1) as u32)
+                .or_else(|| result.try_read::<u32>(8))
+                .unwrap_or(1),
+            accel_rate: result
+                .try_read::<i32>(9)
+                .map(|value| value.max(1) as u32)
+                .or_else(|| result.try_read::<u32>(9))
+                .unwrap_or(1),
+            allow_stopping: result
+                .try_read::<i32>(10)
+                .map(|value| value != 0)
+                .or_else(|| result.try_read::<u8>(10).map(|value| value != 0))
+                .unwrap_or(false),
+            gameobject_flags: result
+                .try_read::<i64>(11)
+                .map(|value| value.max(0) as u32)
+                .or_else(|| result.try_read::<u32>(11))
+                .unwrap_or(0),
+            faction_template: result
+                .try_read::<i64>(12)
+                .map(|value| value as i32)
+                .or_else(|| result.try_read::<i32>(12))
+                .unwrap_or(0),
+        });
+        if !result.next_row() {
+            break;
+        }
+    }
+    rows
+}
+
+/// Binds the lifecycle port to the Characters, Login and World adapters its
+/// semantic requests address.
 pub struct MariaDbPlayerLifecycleAdapterLikeCpp {
     character_db: Arc<CharacterDatabase>,
     login_db: Arc<LoginDatabase>,
@@ -1438,6 +1531,23 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
             PlayerInitialWorldStatesLoadOutcomeLikeCpp {
                 templates,
                 saved_values,
+            }
+        })
+    }
+
+    fn load_login_transports_like_cpp<'a>(
+        &'a self,
+        request: PlayerLoginTransportLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerLoginTransportLoadOutcomeLikeCpp> {
+        Box::pin(async move {
+            let statement = player_login_transport_load_statement_like_cpp(request);
+            match self.world_db.query(&statement).await {
+                Ok(result) => PlayerLoginTransportLoadOutcomeLikeCpp::Loaded(
+                    player_login_transport_load_rows_like_cpp(result),
+                ),
+                Err(error) => PlayerLoginTransportLoadOutcomeLikeCpp::Failed {
+                    reason: error.to_string(),
+                },
             }
         })
     }
@@ -2172,6 +2282,32 @@ mod tests {
                 crate::SqlParam::U32(12),
             ]
         );
+    }
+
+    #[test]
+    fn login_transport_requests_map_to_world_statements_and_bound_guid_like_cpp() {
+        let _serialized = crate::persistence_trace::capture_flag_test_lock();
+        let _capture = crate::persistence_trace::RecordingGuard::enable();
+
+        let all = player_login_transport_load_statement_like_cpp(
+            PlayerLoginTransportLoadRequestLikeCpp::All,
+        );
+        let one = player_login_transport_load_statement_like_cpp(
+            PlayerLoginTransportLoadRequestLikeCpp::ByGuid { guid_low: 77 },
+        );
+
+        assert_eq!(all.trace_identity(), Some("SEL_LOGIN_TRANSPORTS"));
+        assert_eq!(one.trace_identity(), Some("SEL_LOGIN_TRANSPORT_BY_GUID"));
+        assert_eq!(
+            all.trace_database(),
+            Some(crate::persistence_trace::LogicalDatabase::World)
+        );
+        assert_eq!(
+            one.trace_database(),
+            Some(crate::persistence_trace::LogicalDatabase::World)
+        );
+        assert!(all.params().is_empty());
+        assert_eq!(one.params(), &[crate::SqlParam::U64(77)]);
     }
 
     #[test]

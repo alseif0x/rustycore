@@ -55,7 +55,8 @@ use wow_persistence::{
     PlayerInitialWorldStateRowsLikeCpp, PlayerInitialWorldStateTemplateRowLikeCpp,
     PlayerInitialWorldStateValueRowLikeCpp, PlayerInitialWorldStatesLoadOutcomeLikeCpp,
     PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
-    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerOfflineMarkLikeCpp,
+    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
+    PlayerLoginTransportLoadRequestLikeCpp, PlayerOfflineMarkLikeCpp,
 };
 
 struct MapCorpseLoadPortFixtureLikeCpp {
@@ -94,17 +95,22 @@ impl MapCorpsePersistencePortLikeCpp for MapCorpseLoadPortFixtureLikeCpp {
 
 struct CollectionLoadPortLikeCpp {
     requests: std::sync::Mutex<Vec<AccountCollectionLoadRequestLikeCpp>>,
+    login_transport_requests: std::sync::Mutex<Vec<PlayerLoginTransportLoadRequestLikeCpp>>,
     outcomes: std::sync::Mutex<std::collections::VecDeque<AccountCollectionLoadOutcomeLikeCpp>>,
     initial_world_state_outcomes:
         std::sync::Mutex<std::collections::VecDeque<PlayerInitialWorldStatesLoadOutcomeLikeCpp>>,
+    login_transport_outcomes:
+        std::sync::Mutex<std::collections::VecDeque<PlayerLoginTransportLoadOutcomeLikeCpp>>,
 }
 
 impl CollectionLoadPortLikeCpp {
     fn new(outcomes: impl IntoIterator<Item = AccountCollectionLoadOutcomeLikeCpp>) -> Arc<Self> {
         Arc::new(Self {
             requests: std::sync::Mutex::new(Vec::new()),
+            login_transport_requests: std::sync::Mutex::new(Vec::new()),
             outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
             initial_world_state_outcomes: std::sync::Mutex::new(Default::default()),
+            login_transport_outcomes: std::sync::Mutex::new(Default::default()),
         })
     }
 
@@ -113,13 +119,31 @@ impl CollectionLoadPortLikeCpp {
     ) -> Arc<Self> {
         Arc::new(Self {
             requests: std::sync::Mutex::new(Vec::new()),
+            login_transport_requests: std::sync::Mutex::new(Vec::new()),
             outcomes: std::sync::Mutex::new(Default::default()),
             initial_world_state_outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
+            login_transport_outcomes: std::sync::Mutex::new(Default::default()),
+        })
+    }
+
+    fn for_login_transports(
+        outcomes: impl IntoIterator<Item = PlayerLoginTransportLoadOutcomeLikeCpp>,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            requests: std::sync::Mutex::new(Vec::new()),
+            login_transport_requests: std::sync::Mutex::new(Vec::new()),
+            outcomes: std::sync::Mutex::new(Default::default()),
+            initial_world_state_outcomes: std::sync::Mutex::new(Default::default()),
+            login_transport_outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
         })
     }
 
     fn requests(&self) -> Vec<AccountCollectionLoadRequestLikeCpp> {
         self.requests.lock().unwrap().clone()
+    }
+
+    fn login_transport_requests(&self) -> Vec<PlayerLoginTransportLoadRequestLikeCpp> {
+        self.login_transport_requests.lock().unwrap().clone()
     }
 }
 
@@ -177,6 +201,20 @@ impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
             .unwrap()
             .pop_front()
             .expect("one typed initial-world-state outcome per request");
+        Box::pin(async move { outcome })
+    }
+
+    fn load_login_transports_like_cpp<'a>(
+        &'a self,
+        request: PlayerLoginTransportLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerLoginTransportLoadOutcomeLikeCpp> {
+        self.login_transport_requests.lock().unwrap().push(request);
+        let outcome = self
+            .login_transport_outcomes
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("one typed login-transport outcome per request");
         Box::pin(async move { outcome })
     }
 
@@ -269,6 +307,17 @@ impl PlayerLifecyclePortLikeCpp for HomebindPortFixtureLikeCpp {
                 saved_values: PlayerInitialWorldStateRowsLikeCpp::Failed {
                     reason: "homebind-only fixture".to_owned(),
                 },
+            }
+        })
+    }
+
+    fn load_login_transports_like_cpp<'a>(
+        &'a self,
+        _request: PlayerLoginTransportLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerLoginTransportLoadOutcomeLikeCpp> {
+        Box::pin(async {
+            PlayerLoginTransportLoadOutcomeLikeCpp::Failed {
+                reason: "homebind-only fixture".to_owned(),
             }
         })
     }
@@ -1484,6 +1533,35 @@ async fn initial_world_state_port_preserves_independent_read_failures_like_cpp()
 
     assert!(values_failed.contains(&(10, 1)));
     assert!(!templates_failed.iter().any(|(id, _)| *id == 10));
+}
+
+#[tokio::test]
+async fn persisted_transport_login_requests_world_row_by_guid_and_keeps_absence_unknown_like_cpp() {
+    let port = CollectionLoadPortLikeCpp::for_login_transports([
+        PlayerLoginTransportLoadOutcomeLikeCpp::Loaded(Vec::new()),
+        PlayerLoginTransportLoadOutcomeLikeCpp::Failed {
+            reason: "world transport read failed".to_owned(),
+        },
+    ]);
+    let (mut session, _) = make_session_with_send_capacity(1);
+    session.set_player_lifecycle_port_like_cpp(port.clone());
+
+    let empty = session
+        .resolve_persisted_transport_login_like_cpp(77, 571, Position::new(1.0, 2.0, 3.0, 4.0))
+        .await;
+    let failed = session
+        .resolve_persisted_transport_login_like_cpp(88, 571, Position::new(1.0, 2.0, 3.0, 4.0))
+        .await;
+
+    assert!(empty.is_none());
+    assert!(failed.is_none());
+    assert_eq!(
+        port.login_transport_requests(),
+        vec![
+            PlayerLoginTransportLoadRequestLikeCpp::ByGuid { guid_low: 77 },
+            PlayerLoginTransportLoadRequestLikeCpp::ByGuid { guid_low: 88 },
+        ]
+    );
 }
 
 #[test]

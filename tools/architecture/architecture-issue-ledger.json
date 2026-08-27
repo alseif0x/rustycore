@@ -61,6 +61,7 @@
     400,
     402,
     404,
+    406,
     189,
     192,
     193,
@@ -1080,7 +1081,7 @@
     },
     {
       "number": 404,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.11] Move initial world-state login reads behind the lifecycle port",
       "kind": "slice",
       "parents": [
@@ -1089,6 +1090,19 @@
       ],
       "depends_on": [
         402
+      ]
+    },
+    {
+      "number": 406,
+      "state": "open",
+      "title": "[ARCH.DB.12] Move transport login reads behind the lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        404
       ]
     }
   ]
