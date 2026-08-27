@@ -17,9 +17,10 @@ use wow_persistence::{
     AccountCollectionLoadedLikeCpp, AccountCollectionRowsLikeCpp, AccountCollectionSaveLikeCpp,
     AccountHeirloomLoadRowLikeCpp, AccountMaskBlockLikeCpp, AccountMountLoadRowLikeCpp,
     AccountToyLoadRowLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
-    PlayerBuybackClearRequestLikeCpp, PlayerCharacterSaveRequestLikeCpp,
-    PlayerCharacterSaveResultLikeCpp, PlayerCufProfileSaveLikeCpp,
-    PlayerCustomizationLoadRowLikeCpp, PlayerEquipmentSetSaveLikeCpp,
+    PlayerBuybackClearRequestLikeCpp, PlayerCharacterBaseLoadOutcomeLikeCpp,
+    PlayerCharacterBaseLoadRequestLikeCpp, PlayerCharacterBaseLoadRowLikeCpp,
+    PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
+    PlayerCufProfileSaveLikeCpp, PlayerCustomizationLoadRowLikeCpp, PlayerEquipmentSetSaveLikeCpp,
     PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp,
     PlayerHomebindPersistenceRequestLikeCpp, PlayerInitialWorldStateRowsLikeCpp,
     PlayerInitialWorldStateTemplateRowLikeCpp, PlayerInitialWorldStateValueRowLikeCpp,
@@ -1164,6 +1165,68 @@ fn player_login_auxiliary_load_statement_like_cpp(
     }
 }
 
+fn player_character_base_load_statement_like_cpp(
+    request: PlayerCharacterBaseLoadRequestLikeCpp,
+) -> PreparedStatement {
+    let mut statement = PreparedStatement::for_statement(CharStatements::SEL_CHARACTER);
+    statement.set_u64(0, request.player_guid);
+    statement
+}
+
+fn player_character_base_load_row_like_cpp(
+    result: &crate::SqlResult,
+) -> PlayerCharacterBaseLoadRowLikeCpp {
+    PlayerCharacterBaseLoadRowLikeCpp {
+        name: result.read_string(2),
+        race: result.read(3),
+        class: result.read(4),
+        gender: result.read(5),
+        level: result.read(6),
+        xp: result.try_read(7),
+        money: result.try_read(8),
+        inventory_slots: result.try_read(9),
+        bank_slots: result.try_read(10),
+        rest_state: result.try_read(11),
+        player_flags: result.try_read(12),
+        player_flags_ex: result.try_read(13),
+        position_x: result.try_read(14),
+        position_y: result.try_read(15),
+        position_z: result.try_read(16),
+        map_id: result.try_read(17),
+        orientation: result.try_read(18),
+        create_mode: result.try_read(21),
+        total_played_time: result.try_read(23),
+        level_played_time: result.try_read(24),
+        rest_bonus: result.try_read(25),
+        logout_time_secs: result
+            .try_read::<u64>(26)
+            .or_else(|| result.try_read::<i64>(26).map(|value| value.max(0) as u64)),
+        logout_was_resting: result.try_read(27),
+        talent_reset_cost: result.try_read(28),
+        talent_reset_time_secs: result.try_read(29),
+        active_talent_group: result.try_read(30),
+        bonus_talent_groups: result.try_read(31),
+        transport_x: result.try_read(32),
+        transport_y: result.try_read(33),
+        transport_z: result.try_read(34),
+        transport_orientation: result.try_read(35),
+        transport_guid_low: result
+            .try_read::<u64>(36)
+            .or_else(|| result.try_read::<i64>(36).map(|value| value.max(0) as u64)),
+        summoned_pet_number: result.try_read(38),
+        at_login_flags: result.try_read(39),
+        zone_id: result.try_read(40),
+        dungeon_difficulty: result.try_read(44),
+        chosen_title: result.try_read(48),
+        health: result.try_read(51),
+        powers: std::array::from_fn(|index| result.try_read(52 + index)),
+        explored_zones: result.read_string(64),
+        known_titles: result.try_read(65),
+        raid_difficulty: result.try_read(67),
+        legacy_raid_difficulty: result.try_read(68),
+    }
+}
+
 fn player_homebind_persistence_statement_like_cpp(
     request: PlayerHomebindPersistenceRequestLikeCpp,
 ) -> PreparedStatement {
@@ -1726,6 +1789,26 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
                     player_login_transport_load_rows_like_cpp(result),
                 ),
                 Err(error) => PlayerLoginTransportLoadOutcomeLikeCpp::Failed {
+                    reason: error.to_string(),
+                },
+            }
+        })
+    }
+
+    fn load_character_base_like_cpp<'a>(
+        &'a self,
+        request: PlayerCharacterBaseLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerCharacterBaseLoadOutcomeLikeCpp> {
+        Box::pin(async move {
+            let statement = player_character_base_load_statement_like_cpp(request);
+            match self.character_db.query(&statement).await {
+                Ok(result) if result.is_empty() => {
+                    PlayerCharacterBaseLoadOutcomeLikeCpp::Loaded(None)
+                }
+                Ok(result) => PlayerCharacterBaseLoadOutcomeLikeCpp::Loaded(Some(
+                    player_character_base_load_row_like_cpp(&result),
+                )),
+                Err(error) => PlayerCharacterBaseLoadOutcomeLikeCpp::Failed {
                     reason: error.to_string(),
                 },
             }
@@ -2390,6 +2473,16 @@ mod tests {
             assert_eq!(statement.sql(), expected_sql);
             assert_eq!(statement.params(), expected_params);
         }
+    }
+
+    #[test]
+    fn character_base_load_maps_to_exact_cpp_statement_and_guid_bind() {
+        let statement =
+            player_character_base_load_statement_like_cpp(PlayerCharacterBaseLoadRequestLikeCpp {
+                player_guid: 77,
+            });
+        assert_eq!(statement.sql(), CharStatements::SEL_CHARACTER.sql());
+        assert_eq!(statement.params(), [crate::SqlParam::U64(77)]);
     }
 
     #[test]

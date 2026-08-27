@@ -254,6 +254,17 @@ impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
         Box::pin(async move { outcome })
     }
 
+    fn load_character_base_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerCharacterBaseLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerCharacterBaseLoadOutcomeLikeCpp> {
+        Box::pin(async {
+            wow_persistence::PlayerCharacterBaseLoadOutcomeLikeCpp::Failed {
+                reason: "collection-load-only fixture".to_owned(),
+            }
+        })
+    }
+
     fn load_login_auxiliary_like_cpp<'a>(
         &'a self,
         _request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
@@ -397,6 +408,17 @@ impl PlayerLifecyclePortLikeCpp for HomebindPortFixtureLikeCpp {
         })
     }
 
+    fn load_character_base_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerCharacterBaseLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerCharacterBaseLoadOutcomeLikeCpp> {
+        Box::pin(async {
+            wow_persistence::PlayerCharacterBaseLoadOutcomeLikeCpp::Failed {
+                reason: "homebind-only fixture".to_owned(),
+            }
+        })
+    }
+
     fn load_login_auxiliary_like_cpp<'a>(
         &'a self,
         _request: PlayerLoginAuxiliaryLoadRequestLikeCpp,
@@ -426,6 +448,22 @@ impl PlayerLifecyclePortLikeCpp for HomebindPortFixtureLikeCpp {
             }
         })
     }
+}
+
+#[test]
+fn continue_login_no_longer_names_the_core_character_statement() {
+    let source = include_str!("character/world_entry.rs");
+    let (_, tail) = source
+        .split_once("pub async fn handle_continue_player_login")
+        .expect("continue-login handler starts");
+    let (handler, _) = tail
+        .split_once("pub(super) fn player_login_combat_stats_like_cpp")
+        .expect("continue-login handler ends before packet helper");
+    assert!(handler.contains("load_character_base_like_cpp"));
+    assert!(handler.contains("PlayerCharacterBaseLoadOutcomeLikeCpp::Loaded(Some(row))"));
+    assert!(handler.contains("PlayerCharacterBaseLoadOutcomeLikeCpp::Loaded(None)"));
+    assert!(handler.contains("PlayerCharacterBaseLoadOutcomeLikeCpp::Failed { reason }"));
+    assert!(!handler.contains("prepare(CharStatements::SEL_CHARACTER)"));
 }
 
 #[tokio::test]
