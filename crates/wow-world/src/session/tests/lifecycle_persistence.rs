@@ -100,6 +100,22 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         Box::pin(async move { outcome })
     }
 
+    fn load_initial_world_states_like_cpp<'a>(
+        &'a self,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerInitialWorldStatesLoadOutcomeLikeCpp>
+    {
+        Box::pin(async {
+            wow_persistence::PlayerInitialWorldStatesLoadOutcomeLikeCpp {
+                templates: wow_persistence::PlayerInitialWorldStateRowsLikeCpp::Failed {
+                    reason: "recording port has no initial-world-state fixture".to_owned(),
+                },
+                saved_values: wow_persistence::PlayerInitialWorldStateRowsLikeCpp::Failed {
+                    reason: "recording port has no initial-world-state fixture".to_owned(),
+                },
+            }
+        })
+    }
+
     fn load_account_collection_like_cpp<'a>(
         &'a self,
         request: AccountCollectionLoadRequestLikeCpp,

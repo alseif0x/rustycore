@@ -200,6 +200,44 @@ pub struct PlayerRealmCharacterCountRefreshRequestLikeCpp {
     pub realm_id: u32,
 }
 
+/// One raw World-database template row loaded by C++ `WorldStateMgr::LoadFromDB`.
+///
+/// Map/area validation stays in the gameplay/data owner because it requires the
+/// canonical DB2 stores; the persistence adapter owns only statement selection
+/// and row decoding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerInitialWorldStateTemplateRowLikeCpp {
+    pub id: i32,
+    pub default_value: i32,
+    pub map_ids_csv: String,
+    pub area_ids_csv: String,
+}
+
+/// One Characters-database override loaded after the World templates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerInitialWorldStateValueRowLikeCpp {
+    pub id: i32,
+    pub value: i32,
+}
+
+/// Independently classified half of C++ `WorldStateMgr::LoadFromDB`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlayerInitialWorldStateRowsLikeCpp<Row> {
+    Loaded(Vec<Row>),
+    Failed { reason: String },
+}
+
+/// Ordered result of loading World templates followed by Characters values.
+///
+/// The two outcomes remain independent: the existing runtime still performs
+/// the second read after a failed first read, and retains template defaults
+/// when only the second read fails.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerInitialWorldStatesLoadOutcomeLikeCpp {
+    pub templates: PlayerInitialWorldStateRowsLikeCpp<PlayerInitialWorldStateTemplateRowLikeCpp>,
+    pub saved_values: PlayerInitialWorldStateRowsLikeCpp<PlayerInitialWorldStateValueRowLikeCpp>,
+}
+
 impl PlayerRealmCharacterCountRefreshRequestLikeCpp {
     pub fn logical_databases(&self) -> [LogicalDatabaseLikeCpp; 2] {
         [
@@ -882,6 +920,12 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
         &'a self,
         request: PlayerRealmCharacterCountRefreshRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
+
+    /// Load the raw World templates and then the Characters value overlay used
+    /// by the represented Player-login world-state path.
+    fn load_initial_world_states_like_cpp<'a>(
+        &'a self,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerInitialWorldStatesLoadOutcomeLikeCpp>;
 
     /// Load one account-wide collection from the Login database. The caller
     /// retains collection validation and represented-state publication.
