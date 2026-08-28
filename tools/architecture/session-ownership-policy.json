@@ -47460,7 +47460,7 @@
           "kind": "method",
           "name": "uncage_item_state_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn uncage_item_state_like_cpp (char_db : & CharacterDatabase , player_db_guid : u64 , item_db_guid : u64 ,) -> Result < (Option < u64 > , bool) , DatabaseError >",
+          "signature": "async fn uncage_item_state_like_cpp (& self , player_db_guid : u64 , item_db_guid : u64 ,) -> wow_persistence :: PlayerUncageItemStateLoadOutcomeLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [

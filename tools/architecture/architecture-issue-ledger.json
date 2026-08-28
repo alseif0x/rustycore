@@ -91,6 +91,7 @@
     460,
     462,
     464,
+    466,
     189,
     192,
     193,
@@ -1500,7 +1501,7 @@
     },
     {
       "number": 464,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.41] Move bank-slot purchase persistence behind the Player lifecycle port",
       "kind": "slice",
       "parents": [
@@ -1509,6 +1510,19 @@
       ],
       "depends_on": [
         462
+      ]
+    },
+    {
+      "number": 466,
+      "state": "open",
+      "title": "[ARCH.DB.42] Move uncaged battle-pet item-state reads behind the Player lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        464
       ]
     }
   ]

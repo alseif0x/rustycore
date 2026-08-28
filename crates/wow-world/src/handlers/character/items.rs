@@ -3440,23 +3440,25 @@ impl WorldSession {
         }
 
         if let Some(expected_owner_db_guid) = expected_owner_db_guid {
-            match Self::uncage_item_state_like_cpp(&char_db, expected_owner_db_guid, item.db_guid)
+            match self
+                .uncage_item_state_like_cpp(expected_owner_db_guid, item.db_guid)
                 .await
             {
-                Ok((None, false)) => {}
-                Ok((owner_guid, inventory_linked)) => {
+                wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp::Loaded(state)
+                    if state.owner_guid.is_none() && !state.inventory_linked => {}
+                wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp::Loaded(state) => {
                     warn!(
                         item_guid = item.db_guid,
-                        ?owner_guid,
-                        inventory_linked,
+                        owner_guid = ?state.owner_guid,
+                        inventory_linked = state.inventory_linked,
                         "{context}: guarded item deletion did not reach its durable postcondition"
                     );
                     return false;
                 }
-                Err(error) => {
+                wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp::Failed { reason } => {
                     warn!(
                         item_guid = item.db_guid,
-                        %error,
+                        %reason,
                         "{context}: failed to verify guarded item deletion"
                     );
                     return false;

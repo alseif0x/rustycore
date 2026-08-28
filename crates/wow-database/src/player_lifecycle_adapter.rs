@@ -50,8 +50,9 @@ use wow_persistence::{
     PlayerSpellStateLikeCpp, PlayerTalentLoadRowLikeCpp,
     PlayerTalentResetPersistenceRequestLikeCpp, PlayerTraitConfigLoadRowLikeCpp,
     PlayerTraitEntryLoadRowLikeCpp, PlayerTransmogOutfitLoadRowLikeCpp,
-    PlayerVoidStorageLoadRowLikeCpp, PlayerVoidStorageSaveLikeCpp,
-    PlayerXpPersistenceRequestLikeCpp,
+    PlayerUncageItemStateLikeCpp, PlayerUncageItemStateLoadOutcomeLikeCpp,
+    PlayerUncageItemStateRequestLikeCpp, PlayerVoidStorageLoadRowLikeCpp,
+    PlayerVoidStorageSaveLikeCpp, PlayerXpPersistenceRequestLikeCpp,
 };
 
 use crate::params::PreparedStatement;
@@ -103,6 +104,16 @@ fn player_bank_slot_purchase_statement_like_cpp(
     statement.set_u64(0, request.money_after);
     statement.set_u8(1, request.bank_slot_count);
     statement.set_u64(2, request.player_guid);
+    statement
+}
+
+fn player_uncage_item_state_statement_like_cpp(
+    request: PlayerUncageItemStateRequestLikeCpp,
+) -> PreparedStatement {
+    let mut statement = PreparedStatement::for_statement(CharStatements::SEL_UNCAGE_ITEM_STATE);
+    statement.set_u64(0, request.item_guid);
+    statement.set_u64(1, request.player_guid);
+    statement.set_u64(2, request.item_guid);
     statement
 }
 
@@ -2039,6 +2050,26 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
         })
     }
 
+    fn load_uncage_item_state_like_cpp<'a>(
+        &'a self,
+        request: PlayerUncageItemStateRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerUncageItemStateLoadOutcomeLikeCpp> {
+        Box::pin(async move {
+            let statement = player_uncage_item_state_statement_like_cpp(request);
+            match self.character_db.query(&statement).await {
+                Ok(result) => {
+                    PlayerUncageItemStateLoadOutcomeLikeCpp::Loaded(PlayerUncageItemStateLikeCpp {
+                        owner_guid: result.try_read::<Option<u64>>(0).flatten(),
+                        inventory_linked: result.try_read::<u64>(1).unwrap_or_default() != 0,
+                    })
+                }
+                Err(error) => PlayerUncageItemStateLoadOutcomeLikeCpp::Failed {
+                    reason: error.to_string(),
+                },
+            }
+        })
+    }
+
     fn persist_durability_repair_like_cpp<'a>(
         &'a self,
         repair: PlayerDurabilityRepairSaveLikeCpp,
@@ -3399,6 +3430,20 @@ mod tests {
         assert_eq!(
             statement.params(),
             vec![SqlParam::U64(12_345), SqlParam::U8(3), SqlParam::U64(42)]
+        );
+    }
+
+    #[test]
+    fn uncage_item_state_preserves_statement_identity_bind_order_and_projection() {
+        let request = PlayerUncageItemStateRequestLikeCpp {
+            player_guid: 42,
+            item_guid: 71,
+        };
+        let statement = player_uncage_item_state_statement_like_cpp(request);
+        assert_eq!(statement.sql(), CharStatements::SEL_UNCAGE_ITEM_STATE.sql());
+        assert_eq!(
+            statement.params(),
+            vec![SqlParam::U64(71), SqlParam::U64(42), SqlParam::U64(71)]
         );
     }
 
