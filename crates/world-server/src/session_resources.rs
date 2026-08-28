@@ -35,6 +35,9 @@ pub(super) struct SessionResources {
     /// Characters-database capability for bounded void-storage writes.
     pub(super) void_storage_persistence_port:
         Option<Arc<dyn wow_persistence::VoidStoragePersistencePortLikeCpp>>,
+    /// Characters-database capability for Player social-list reads and writes.
+    pub(super) social_persistence_port:
+        Option<Arc<dyn wow_persistence::SocialPersistencePortLikeCpp>>,
     /// Characters-database adapter for canonical `Map::LoadCorpseData`.
     pub(super) map_corpse_persistence_port:
         Option<Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>,

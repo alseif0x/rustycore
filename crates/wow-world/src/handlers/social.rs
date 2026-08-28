@@ -6,7 +6,6 @@
 //! Handlers for social opcodes: AddFriend, AddIgnore, DelFriend, DelIgnore, SendContactList,
 //! SetContactNotes, SocialContractRequest.
 
-use std::sync::Arc;
 use wow_packet::ClientPacket;
 
 use tracing::{info, warn};
@@ -21,6 +20,10 @@ use wow_packet::packets::social::{
 };
 
 use crate::session::{WorldSession, player_team_for_race_cpp};
+use wow_persistence::{
+    PersistenceOutcomeLikeCpp, SocialAddCandidateLoadOutcomeLikeCpp,
+    SocialContactListLoadOutcomeLikeCpp, SocialRelationshipKindLikeCpp,
+};
 
 const FRIEND_STATUS_OFFLINE_LIKE_CPP: u8 = 0x00;
 const FRIEND_STATUS_ONLINE_LIKE_CPP: u8 = 0x01;
@@ -202,8 +205,8 @@ impl WorldSession {
             None => return,
         };
 
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.social_persistence_port_like_cpp() {
+            Some(port) => port,
             None => {
                 // C++ sends `ContactList` even when the loaded social map is
                 // empty; it never follows it with a name-query response.
@@ -217,32 +220,20 @@ impl WorldSession {
 
         // C++ `PlayerSocial::SendSocialList` iterates the loaded social map and
         // writes only entries matching the requested `SocialFlag` bitmask.
-        let rows = sqlx::query(
-            "SELECT CAST(cs.friend AS SIGNED), cs.flags, cs.note, c.class, c.level, c.zone \
-             FROM character_social cs \
-             JOIN characters c ON c.guid = cs.friend \
-             WHERE cs.guid = ? AND (cs.flags & ?) <> 0",
-        )
-        .bind(my_guid.counter())
-        .bind(flags)
-        .fetch_all(char_db.pool())
-        .await
-        .unwrap_or_default();
+        let rows = match port.load_contacts_like_cpp(my_guid.counter(), flags).await {
+            SocialContactListLoadOutcomeLikeCpp::Loaded(rows) => rows,
+            SocialContactListLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!("SendContactList persistence error: {}", reason);
+                Vec::new()
+            }
+        };
 
         let vra = self.virtual_realm_address();
 
         let mut contacts: Vec<ContactInfo> = Vec::new();
 
         for row in rows {
-            use sqlx::Row;
-            let friend_raw: i64 = row.try_get(0).unwrap_or(0);
-            let type_flags: u32 = row.try_get::<u8, _>(1).unwrap_or(0) as u32;
-            let note: String = row.try_get(2).unwrap_or_default();
-            let class_id: u32 = row.try_get::<u8, _>(3).unwrap_or(0) as u32;
-            let level: u32 = row.try_get::<u8, _>(4).unwrap_or(0) as u32;
-            let zone: u32 = row.try_get::<i32, _>(5).unwrap_or(0) as u32;
-
-            let friend_guid = ObjectGuid::create_player(0, friend_raw);
+            let friend_guid = ObjectGuid::create_player(0, row.friend_guid);
             let friend_status = self.friend_status_for_guid_like_cpp(friend_guid);
 
             contacts.push(ContactInfo {
@@ -250,12 +241,12 @@ impl WorldSession {
                 wow_account_guid: ObjectGuid::EMPTY,
                 virtual_realm_address: vra,
                 native_realm_address: vra,
-                type_flags,
-                note,
+                type_flags: row.type_flags,
+                note: row.note,
                 status: friend_status,
-                area_id: zone,
-                level,
-                class_id,
+                area_id: row.zone_id,
+                level: row.level,
+                class_id: row.class_id,
                 is_mobile: false,
             });
         }
@@ -301,8 +292,8 @@ impl WorldSession {
             None => return,
         };
 
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.social_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return,
         };
 
@@ -324,35 +315,21 @@ impl WorldSession {
             };
         }
 
-        // Lookup friend by name in characters table
-        // CAST guid AS SIGNED: sqlx cannot decode BIGINT UNSIGNED as i64 without explicit cast
-        let row = sqlx::query(
-            "SELECT CAST(guid AS SIGNED), account, race, class, level, zone FROM characters WHERE name = ? LIMIT 1",
-        )
-        .bind(&name)
-        .fetch_optional(char_db.pool())
-        .await;
-
-        let row = match row {
-            Ok(Some(r)) => r,
-            Ok(None) => {
+        let candidate = match port
+            .load_add_candidate_like_cpp(name.clone(), SocialRelationshipKindLikeCpp::Friend)
+            .await
+        {
+            SocialAddCandidateLoadOutcomeLikeCpp::Found(candidate) => candidate,
+            SocialAddCandidateLoadOutcomeLikeCpp::NotFound => {
                 send_status!(FriendsResult::NotFound, ObjectGuid::EMPTY);
                 return;
             }
-            Err(e) => {
-                warn!("AddFriend DB error looking up '{}': {}", name, e);
+            SocialAddCandidateLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!("AddFriend DB error looking up '{}': {}", name, reason);
                 return;
             }
         };
-
-        use sqlx::Row;
-        let friend_guid_raw: i64 = row.try_get(0).unwrap_or(0);
-        let friend_race: u8 = row.try_get(2).unwrap_or(0);
-        let friend_class: u32 = row.try_get::<u8, _>(3).unwrap_or(0) as u32;
-        let friend_level: i32 = row.try_get::<u8, _>(4).unwrap_or(0) as i32;
-        let friend_zone: i32 = row.try_get::<i32, _>(5).unwrap_or(0);
-
-        let friend_guid = ObjectGuid::create_player(0, friend_guid_raw);
+        let friend_guid = ObjectGuid::create_player(0, candidate.guid);
 
         // Can't add yourself
         if friend_guid == my_guid {
@@ -365,65 +342,45 @@ impl WorldSession {
         // does not yet have AccountMgr/RBAC runtime, so normal-player behavior
         // is represented conservatively and the GM bypass remains a tracked gap.
         let player_team = player_team_for_race_cpp(self.player_race_like_cpp());
-        let friend_team = player_team_for_race_cpp(friend_race);
+        let friend_team = player_team_for_race_cpp(candidate.race);
         if player_team != friend_team {
             send_status!(FriendsResult::Enemy, friend_guid);
             return;
         }
 
-        // Check if already a friend
-        let already_row = sqlx::query(
-            "SELECT COUNT(*) FROM character_social WHERE guid = ? AND friend = ? AND flags & 1",
-        )
-        .bind(my_guid.counter())
-        .bind(friend_guid_raw)
-        .fetch_one(char_db.pool())
-        .await;
-
-        let already = match already_row {
-            Ok(r) => {
-                let count: i64 = r.try_get(0).unwrap_or(0);
-                count > 0
-            }
-            Err(_) => false,
-        };
-
-        if already {
+        let relationship = port
+            .load_relationship_state_like_cpp(
+                my_guid.counter(),
+                candidate.guid,
+                SocialRelationshipKindLikeCpp::Friend,
+            )
+            .await;
+        if relationship.already_present {
             send_status!(FriendsResult::Already, friend_guid);
             return;
         }
-
-        let friend_count_row =
-            sqlx::query("SELECT COUNT(*) FROM character_social WHERE guid = ? AND flags & 1")
-                .bind(my_guid.counter())
-                .fetch_one(char_db.pool())
-                .await;
-
-        let friend_count = match friend_count_row {
-            Ok(r) => r.try_get::<i64, _>(0).unwrap_or(0),
-            Err(_) => 0,
-        };
-
-        if friend_count >= 50 {
+        if relationship.relationship_count >= 50 {
             send_status!(FriendsResult::ListFull, friend_guid);
             return;
         }
 
         // AddToSocialList ORs the flag into an existing social row; preserve
         // ignore/mute bits instead of dropping this request with INSERT IGNORE.
-        let insert = sqlx::query(
-            "INSERT INTO character_social (guid, friend, flags, note) VALUES (?, ?, 1, ?) \
-             ON DUPLICATE KEY UPDATE flags = flags | 1, note = VALUES(note)",
-        )
-        .bind(my_guid.counter())
-        .bind(friend_guid_raw)
-        .bind(&notes)
-        .execute(char_db.pool())
-        .await;
-
-        if let Err(e) = insert {
-            warn!("AddFriend insert error: {}", e);
-            return;
+        match port
+            .add_relationship_like_cpp(
+                my_guid.counter(),
+                candidate.guid,
+                SocialRelationshipKindLikeCpp::Friend,
+                notes.clone(),
+            )
+            .await
+        {
+            PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            PersistenceOutcomeLikeCpp::Failed { reason }
+            | PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                warn!("AddFriend insert error: {}", reason);
+                return;
+            }
         }
 
         // Is friend online? Check player registry.
@@ -442,9 +399,9 @@ impl WorldSession {
             account_guid: ObjectGuid::EMPTY,
             virtual_realm_address: vra,
             status: friend_status,
-            area_id: friend_zone,
-            level: friend_level,
-            class_id: friend_class,
+            area_id: candidate.zone_id,
+            level: candidate.level,
+            class_id: candidate.class_id,
             notes: notes.clone(),
         };
         self.send_packet(&p);
@@ -467,8 +424,8 @@ impl WorldSession {
             None => return,
         };
 
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.social_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return,
         };
 
@@ -493,77 +450,57 @@ impl WorldSession {
             return;
         };
 
-        let row = sqlx::query("SELECT CAST(guid AS SIGNED) FROM characters WHERE name = ? LIMIT 1")
-            .bind(&name)
-            .fetch_optional(char_db.pool())
-            .await;
-
-        let row = match row {
-            Ok(Some(row)) => row,
-            Ok(None) => {
+        let candidate = match port
+            .load_add_candidate_like_cpp(name.clone(), SocialRelationshipKindLikeCpp::Ignored)
+            .await
+        {
+            SocialAddCandidateLoadOutcomeLikeCpp::Found(candidate) => candidate,
+            SocialAddCandidateLoadOutcomeLikeCpp::NotFound => {
                 send_status!(FriendsResult::IgnoreNotFound, ObjectGuid::EMPTY);
                 return;
             }
-            Err(e) => {
-                warn!("AddIgnore DB error looking up '{}': {}", name, e);
+            SocialAddCandidateLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!("AddIgnore DB error looking up '{}': {}", name, reason);
                 return;
             }
         };
-
-        use sqlx::Row;
-        let ignore_guid_raw: i64 = row.try_get(0).unwrap_or(0);
-        let ignore_guid = ObjectGuid::create_player(0, ignore_guid_raw);
+        let ignore_guid = ObjectGuid::create_player(0, candidate.guid);
 
         if ignore_guid == my_guid {
             send_status!(FriendsResult::IgnoreSelf, ignore_guid);
             return;
         }
 
-        let already_row = sqlx::query(
-            "SELECT COUNT(*) FROM character_social WHERE guid = ? AND friend = ? AND flags & 2",
-        )
-        .bind(my_guid.counter())
-        .bind(ignore_guid_raw)
-        .fetch_one(char_db.pool())
-        .await;
-
-        let already = match already_row {
-            Ok(row) => row.try_get::<i64, _>(0).unwrap_or(0) > 0,
-            Err(_) => false,
-        };
-
-        if already {
+        let relationship = port
+            .load_relationship_state_like_cpp(
+                my_guid.counter(),
+                candidate.guid,
+                SocialRelationshipKindLikeCpp::Ignored,
+            )
+            .await;
+        if relationship.already_present {
             send_status!(FriendsResult::IgnoreAlready, ignore_guid);
             return;
         }
-
-        let ignore_count_row =
-            sqlx::query("SELECT COUNT(*) FROM character_social WHERE guid = ? AND flags & 2")
-                .bind(my_guid.counter())
-                .fetch_one(char_db.pool())
-                .await;
-
-        let ignore_count = match ignore_count_row {
-            Ok(row) => row.try_get::<i64, _>(0).unwrap_or(0),
-            Err(_) => 0,
-        };
-        if ignore_count >= 50 {
+        if relationship.relationship_count >= 50 {
             send_status!(FriendsResult::IgnoreFull, ignore_guid);
             return;
         }
-
-        let insert = sqlx::query(
-            "INSERT INTO character_social (guid, friend, flags, note) VALUES (?, ?, 2, '') \
-             ON DUPLICATE KEY UPDATE flags = flags | 2",
-        )
-        .bind(my_guid.counter())
-        .bind(ignore_guid_raw)
-        .execute(char_db.pool())
-        .await;
-
-        if let Err(e) = insert {
-            warn!("AddIgnore insert error: {}", e);
-            return;
+        match port
+            .add_relationship_like_cpp(
+                my_guid.counter(),
+                candidate.guid,
+                SocialRelationshipKindLikeCpp::Ignored,
+                String::new(),
+            )
+            .await
+        {
+            PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            PersistenceOutcomeLikeCpp::Failed { reason }
+            | PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                warn!("AddIgnore insert error: {}", reason);
+                return;
+            }
         }
 
         send_status!(FriendsResult::IgnoreAdded, ignore_guid);
@@ -589,34 +526,24 @@ impl WorldSession {
             None => return,
         };
 
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.social_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return,
         };
-
-        let update = sqlx::query(
-            "UPDATE character_social SET flags = flags & 254 \
-             WHERE guid = ? AND friend = ? AND flags & 1",
-        )
-        .bind(my_guid.counter())
-        .bind(friend_guid.counter())
-        .execute(char_db.pool())
-        .await;
-
-        if let Err(e) = update {
-            warn!("DelFriend update error: {}", e);
-            return;
-        }
-
-        if let Err(e) =
-            sqlx::query("DELETE FROM character_social WHERE guid = ? AND friend = ? AND flags = 0")
-                .bind(my_guid.counter())
-                .bind(friend_guid.counter())
-                .execute(char_db.pool())
-                .await
+        match port
+            .remove_relationship_like_cpp(
+                my_guid.counter(),
+                friend_guid.counter(),
+                SocialRelationshipKindLikeCpp::Friend,
+            )
+            .await
         {
-            warn!("DelFriend cleanup error: {}", e);
-            return;
+            PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            PersistenceOutcomeLikeCpp::Failed { reason }
+            | PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                warn!("DelFriend persistence error: {}", reason);
+                return;
+            }
         }
 
         let p = FriendStatusPkt {
@@ -645,37 +572,28 @@ impl WorldSession {
             None => return,
         };
 
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.social_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return,
         };
 
         let target_guid = ignore.player_guid;
         let target_counter = target_guid.counter();
 
-        let update = sqlx::query(
-            "UPDATE character_social SET flags = flags & 253 \
-             WHERE guid = ? AND friend = ? AND flags & 2",
-        )
-        .bind(my_guid.counter())
-        .bind(target_counter)
-        .execute(char_db.pool())
-        .await;
-
-        if let Err(e) = update {
-            warn!("DelIgnore update error: {}", e);
-            return;
-        }
-
-        if let Err(e) =
-            sqlx::query("DELETE FROM character_social WHERE guid = ? AND friend = ? AND flags = 0")
-                .bind(my_guid.counter())
-                .bind(target_counter)
-                .execute(char_db.pool())
-                .await
+        match port
+            .remove_relationship_like_cpp(
+                my_guid.counter(),
+                target_counter,
+                SocialRelationshipKindLikeCpp::Ignored,
+            )
+            .await
         {
-            warn!("DelIgnore cleanup error: {}", e);
-            return;
+            PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            PersistenceOutcomeLikeCpp::Failed { reason }
+            | PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                warn!("DelIgnore persistence error: {}", reason);
+                return;
+            }
         }
 
         self.send_packet(&FriendStatusPkt {
@@ -702,21 +620,21 @@ impl WorldSession {
             None => return,
         };
 
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.social_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return,
         };
 
         let note: String = contact.notes.chars().take(48).collect();
-        if let Err(e) =
-            sqlx::query("UPDATE character_social SET note = ? WHERE guid = ? AND friend = ?")
-                .bind(note)
-                .bind(my_guid.counter())
-                .bind(contact.player_guid.counter())
-                .execute(char_db.pool())
-                .await
+        match port
+            .set_contact_note_like_cpp(my_guid.counter(), contact.player_guid.counter(), note)
+            .await
         {
-            warn!("SetContactNotes update error: {}", e);
+            PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            PersistenceOutcomeLikeCpp::Failed { reason }
+            | PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                warn!("SetContactNotes update error: {}", reason);
+            }
         }
     }
 
@@ -771,7 +689,101 @@ impl WorldSession {
 mod tests {
     use super::*;
     use num_traits::ToPrimitive;
+    use std::sync::{Arc, Mutex};
     use wow_constants::ServerOpcodes;
+    use wow_persistence::{
+        PersistenceFutureLikeCpp, SocialAddCandidateLoadOutcomeLikeCpp,
+        SocialContactLoadRowLikeCpp, SocialPersistencePortLikeCpp, SocialRelationshipStateLikeCpp,
+    };
+
+    struct RecordingSocialPort {
+        contacts: SocialContactListLoadOutcomeLikeCpp,
+        mutation: PersistenceOutcomeLikeCpp,
+        calls: Mutex<Vec<String>>,
+    }
+
+    impl SocialPersistencePortLikeCpp for RecordingSocialPort {
+        fn load_contacts_like_cpp<'a>(
+            &'a self,
+            player_guid: i64,
+            flags: u32,
+        ) -> PersistenceFutureLikeCpp<'a, SocialContactListLoadOutcomeLikeCpp> {
+            self.calls
+                .lock()
+                .unwrap()
+                .push(format!("load:{player_guid}:{flags}"));
+            let outcome = self.contacts.clone();
+            Box::pin(async move { outcome })
+        }
+
+        fn load_add_candidate_like_cpp<'a>(
+            &'a self,
+            _normalized_name: String,
+            _kind: SocialRelationshipKindLikeCpp,
+        ) -> PersistenceFutureLikeCpp<'a, SocialAddCandidateLoadOutcomeLikeCpp> {
+            Box::pin(async { SocialAddCandidateLoadOutcomeLikeCpp::NotFound })
+        }
+
+        fn load_relationship_state_like_cpp<'a>(
+            &'a self,
+            _player_guid: i64,
+            _target_guid: i64,
+            _kind: SocialRelationshipKindLikeCpp,
+        ) -> PersistenceFutureLikeCpp<'a, SocialRelationshipStateLikeCpp> {
+            Box::pin(async {
+                SocialRelationshipStateLikeCpp {
+                    already_present: false,
+                    relationship_count: 0,
+                }
+            })
+        }
+
+        fn add_relationship_like_cpp<'a>(
+            &'a self,
+            _player_guid: i64,
+            _target_guid: i64,
+            _kind: SocialRelationshipKindLikeCpp,
+            _note: String,
+        ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+            let outcome = self.mutation.clone();
+            Box::pin(async move { outcome })
+        }
+
+        fn remove_relationship_like_cpp<'a>(
+            &'a self,
+            player_guid: i64,
+            target_guid: i64,
+            kind: SocialRelationshipKindLikeCpp,
+        ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+            self.calls
+                .lock()
+                .unwrap()
+                .push(format!("remove:{player_guid}:{target_guid}:{kind:?}"));
+            let outcome = self.mutation.clone();
+            Box::pin(async move { outcome })
+        }
+
+        fn set_contact_note_like_cpp<'a>(
+            &'a self,
+            _player_guid: i64,
+            _target_guid: i64,
+            _note: String,
+        ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+            let outcome = self.mutation.clone();
+            Box::pin(async move { outcome })
+        }
+    }
+
+    fn recording_port(
+        contacts: SocialContactListLoadOutcomeLikeCpp,
+        mutation: PersistenceOutcomeLikeCpp,
+    ) -> Arc<RecordingSocialPort> {
+        Arc::new(RecordingSocialPort {
+            contacts,
+            mutation,
+            calls: Mutex::new(Vec::new()),
+        })
+    }
 
     fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
         let (_pkt_tx, pkt_rx) = flume::bounded(8);
@@ -860,6 +872,80 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn contact_list_uses_the_sqlx_free_port_and_projects_loaded_rows() {
+        let (mut session, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let port = recording_port(
+            SocialContactListLoadOutcomeLikeCpp::Loaded(vec![SocialContactLoadRowLikeCpp {
+                friend_guid: 77,
+                type_flags: 1,
+                note: "raid".into(),
+                class_id: 8,
+                level: 80,
+                zone_id: 1519,
+            }]),
+            PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+        );
+        session.set_social_persistence_port_like_cpp(port.clone());
+
+        session.send_contact_list_like_cpp(1).await;
+
+        let bytes = send_rx.try_recv().expect("contact list");
+        assert_eq!(opcode(&bytes), ServerOpcodes::ContactList.to_u16().unwrap());
+        assert_eq!(port.calls.lock().unwrap().as_slice(), ["load:42:1"]);
+    }
+
+    #[tokio::test]
+    async fn failed_remove_does_not_publish_the_friend_status_packet() {
+        let (mut session, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let port = recording_port(
+            SocialContactListLoadOutcomeLikeCpp::Loaded(Vec::new()),
+            PersistenceOutcomeLikeCpp::Failed {
+                reason: "write failed".into(),
+            },
+        );
+        session.set_social_persistence_port_like_cpp(port.clone());
+
+        session
+            .handle_del_ignore(DelIgnore {
+                player_guid: ObjectGuid::create_player(1, 77),
+                virtual_realm_address: 0,
+            })
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            port.calls.lock().unwrap().as_slice(),
+            ["remove:42:77:Ignored"]
+        );
+    }
+
+    #[tokio::test]
+    async fn committed_remove_publishes_after_the_port_returns() {
+        let (mut session, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let port = recording_port(
+            SocialContactListLoadOutcomeLikeCpp::Loaded(Vec::new()),
+            PersistenceOutcomeLikeCpp::Applied { rows: 2 },
+        );
+        session.set_social_persistence_port_like_cpp(port);
+
+        session
+            .handle_del_ignore(DelIgnore {
+                player_guid: ObjectGuid::create_player(1, 77),
+                virtual_realm_address: 0,
+            })
+            .await;
+
+        let bytes = send_rx.try_recv().expect("remove status");
+        assert_eq!(
+            opcode(&bytes),
+            ServerOpcodes::FriendStatus.to_u16().unwrap()
+        );
+    }
+
     #[test]
     fn normalize_player_name_empty_rejects_like_cpp() {
         assert_eq!(normalize_player_name_like_cpp(""), None);
@@ -895,5 +981,29 @@ mod tests {
         assert_eq!(entry.status, SessionStatus::LoggedIn);
         assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
         assert_eq!(entry.handler_name, "handle_del_ignore");
+    }
+
+    #[test]
+    fn social_handler_source_cannot_reacquire_concrete_persistence() {
+        let source = include_str!("social.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("production source prefix");
+        for forbidden in [
+            "sqlx::",
+            "CharacterDatabase",
+            "CharStatements",
+            ".pool()",
+            "self.char_db()",
+            "SELECT ",
+            "INSERT INTO character_social",
+            "UPDATE character_social",
+            "DELETE FROM character_social",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "social handler reacquired concrete persistence syntax: {forbidden}"
+            );
+        }
     }
 }

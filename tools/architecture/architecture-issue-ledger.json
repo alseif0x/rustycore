@@ -78,6 +78,7 @@
     434,
     436,
     438,
+    440,
     189,
     192,
     193,
@@ -1318,7 +1319,7 @@
     },
     {
       "number": 438,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.28] Move void-storage transfer behind the SQLx-free capability",
       "kind": "slice",
       "parents": [
@@ -1327,6 +1328,19 @@
       ],
       "depends_on": [
         436
+      ]
+    },
+    {
+      "number": 440,
+      "state": "open",
+      "title": "[ARCH.DB.29] Move social-list persistence behind a SQLx-free capability",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        438
       ]
     }
   ]

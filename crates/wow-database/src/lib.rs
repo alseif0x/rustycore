@@ -45,6 +45,7 @@ pub mod player_money_transaction_adapter;
 pub mod query_holder;
 pub mod result;
 pub mod session_account_state_adapter;
+pub mod social_adapter;
 pub mod statements;
 pub mod transaction;
 pub mod updater;
