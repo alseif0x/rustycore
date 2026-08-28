@@ -1059,8 +1059,8 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.session_resources.fields"
       },
       "audited_summary": {
-        "field_count": 255,
-        "option_field_count": 197,
+        "field_count": 256,
+        "option_field_count": 198,
         "count_kind": "baseline observation; AST is authoritative"
       },
       "coverage_rule": {
@@ -1068,7 +1068,7 @@
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_field_count": 255,
+        "expected_field_count": 256,
         "validation": "Compare sorted AST field names with the sorted concatenation of every entry.field_names; reject gaps, duplicates, stale names, entry count drift, or total count drift."
       },
       "entries": [
@@ -1102,12 +1102,13 @@
         },
         {
           "id": "session_resources_runtime_handles",
-          "expected_field_count": 12,
+          "expected_field_count": 13,
           "field_names": [
             "group_loot_money_persistence_port",
             "instance_lock_mgr",
             "map_corpse_persistence_port",
             "module_registry",
+            "next_mail_time_persistence_port",
             "packet_spoof_ban_persistence_port",
             "player_lifecycle_port",
             "quest_poi_persistence_port",
@@ -1121,7 +1122,7 @@
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "Session receives only the minimal typed runtime ports/PlayerHandle and cannot select or tick duplicate map authorities. #452 adds the narrow stored Item money capability, #454 adds the distinct multi-recipient payout capability, and #458 adds the dedicated support bug-report capability without exposing a pool, row, transaction or generic query API."
+          "retirement_condition": "Session receives only the minimal typed runtime ports/PlayerHandle and cannot select or tick duplicate map authorities. #452 adds the narrow stored Item money capability, #454 adds the distinct multi-recipient payout capability, #458 adds the dedicated support bug-report capability, and #460 adds the transitional next-mail read capability without exposing a pool, row, transaction or generic query API."
         },
         {
           "id": "session_resources_catalogs_and_configuration",
@@ -1383,7 +1384,7 @@
           "retirement_condition": "Every remaining field has an exact capability bundle/consumer owner or is removed from Session construction."
         }
       ],
-      "expected_field_count": 255
+      "expected_field_count": 256
     },
     "session_command": {
       "coverage_source": {
@@ -1660,14 +1661,14 @@
         "command": "python3 tools/architecture/check_architecture.py hotspots --limit 20",
         "measurement": "two independent views: every real Rust file is reported physically, while each checked-in row is a logical owner ceiling including its reviewed private descendants; production/test/total remain independent non-growth ceilings",
         "physical_review_signals": "review a productive file around 2,000 lines; above 4,000 lines require a split plan or explicit cohesive exception; these are review signals, not daily blocking limits",
-        "baseline_commit": "bad2194a685206ada645600240fc4e9e8978aec4"
+        "baseline_commit": "e3779a3c88e75245ca8cae7e2f2f00aebe1b871d"
       },
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 72556,
+          "production_lines": 72570,
           "test_lines": 96885,
-          "total_lines": 169441,
+          "total_lines": 169455,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153
@@ -1710,9 +1711,9 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 25401,
+          "production_lines": 25415,
           "test_lines": 21667,
-          "total_lines": 47068,
+          "total_lines": 47082,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153

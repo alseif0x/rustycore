@@ -9940,6 +9940,81 @@
     },
     {
       "package": "wow-database",
+      "module": "crate::next_mail_time_adapter",
+      "source": "crates/wow-database/src/next_mail_time_adapter.rs",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "enclosing": "fn next_mail_time_load_statement_like_cpp",
+      "connection_affinity": "Pure construction of one Characters-database statement; it opens no connection or transaction.",
+      "current_order": "Builds CHAR_SEL_MAIL and binds the player GUID as one unsigned 64-bit parameter exactly once.",
+      "failure_and_unknown_commit": "No I/O occurs while constructing the statement."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::next_mail_time_adapter",
+      "source": "crates/wow-database/src/next_mail_time_adapter.rs",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "enclosing": "impl MariaDbNextMailTimePersistenceAdapterLikeCpp::new",
+      "connection_affinity": "Composition supplies one process-wide Characters adapter before sessions are accepted.",
+      "current_order": "Construction stores the handle only and performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::next_mail_time_adapter",
+      "source": "crates/wow-database/src/next_mail_time_adapter.rs",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "enclosing": "impl wow_persistence::NextMailTimePersistencePortLikeCpp for MariaDbNextMailTimePersistenceAdapterLikeCpp::load_next_mail_time_rows_like_cpp",
+      "connection_affinity": "Executes one non-transactional prepared read through the configured Characters adapter.",
+      "current_order": "Executes CHAR_SEL_MAIL, projects message type, sender, delivery time, checked flags and stationery from their C++ column positions, then returns typed rows to the session.",
+      "failure_and_unknown_commit": "Successful execution maps to Loaded and a driver error to Failed; this read has no commit or unknown-commit phase."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::next_mail_time_adapter",
+      "source": "crates/wow-database/src/next_mail_time_adapter.rs",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "enclosing": "module",
+      "connection_affinity": "The module is bound to one configured Characters adapter and opens no cross-database workflow.",
+      "current_order": "The adapter preserves the represented Rust query identity, bind and projection while leaving mail filtering, sender deduplication, cap and packet routing in the session.",
+      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed mail-read port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::next_mail_time_adapter",
+      "source": "crates/wow-database/src/next_mail_time_adapter.rs",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "enclosing": "struct MariaDbNextMailTimePersistenceAdapterLikeCpp",
+      "connection_affinity": "The adapter stores exactly one Characters-database handle.",
+      "current_order": "Construction stores the handle only; the typed method owns statement execution and row projection.",
+      "failure_and_unknown_commit": "No I/O occurs while storing the adapter."
+    },
+    {
+      "package": "wow-database",
       "module": "crate::support_bug_report_adapter",
       "source": "crates/wow-database/src/support_bug_report_adapter.rs",
       "logical_databases": [
@@ -13681,23 +13756,6 @@
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::misc::player",
-      "source": "crates/wow-world/src/handlers/misc/player.rs",
-      "enclosing": "impl crate :: session :: WorldSession::handle_query_next_mail_time",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "player mail persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
     {
       "package": "wow-world",

@@ -13809,6 +13809,156 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::next_mail_time_adapter:crates/wow-database/src/next_mail_time_adapter.rs::fn next_mail_time_load_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/next_mail_time_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::next_mail_time_adapter"
+      ],
+      "enclosings": [
+        "fn next_mail_time_load_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460) currently owns the complete wow-database workflow fn next_mail_time_load_statement_like_cpp in crates/wow-database/src/next_mail_time_adapter.rs.",
+      "connection_affinity": "Pure construction of one Characters-database statement; it opens no connection or transaction.",
+      "current_order": "Builds CHAR_SEL_MAIL and binds the player GUID as one unsigned 64-bit parameter exactly once.",
+      "failure_and_unknown_commit": "No I/O occurs while constructing the statement.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::next_mail_time_adapter:crates/wow-database/src/next_mail_time_adapter.rs::impl MariaDbNextMailTimePersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/next_mail_time_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::next_mail_time_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbNextMailTimePersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460) currently owns the complete wow-database workflow impl MariaDbNextMailTimePersistenceAdapterLikeCpp::new in crates/wow-database/src/next_mail_time_adapter.rs.",
+      "connection_affinity": "Composition supplies one process-wide Characters adapter before sessions are accepted.",
+      "current_order": "Construction stores the handle only and performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::next_mail_time_adapter:crates/wow-database/src/next_mail_time_adapter.rs::impl wow_persistence::NextMailTimePersistencePortLikeCpp for MariaDbNextMailTimePersistenceAdapterLikeCpp::load_next_mail_time_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/next_mail_time_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::next_mail_time_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::NextMailTimePersistencePortLikeCpp for MariaDbNextMailTimePersistenceAdapterLikeCpp::load_next_mail_time_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460) currently owns the complete wow-database workflow impl wow_persistence::NextMailTimePersistencePortLikeCpp for MariaDbNextMailTimePersistenceAdapterLikeCpp::load_next_mail_time_rows_like_cpp in crates/wow-database/src/next_mail_time_adapter.rs.",
+      "connection_affinity": "Executes one non-transactional prepared read through the configured Characters adapter.",
+      "current_order": "Executes CHAR_SEL_MAIL, projects message type, sender, delivery time, checked flags and stationery from their C++ column positions, then returns typed rows to the session.",
+      "failure_and_unknown_commit": "Successful execution maps to Loaded and a driver error to Failed; this read has no commit or unknown-commit phase.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::next_mail_time_adapter:crates/wow-database/src/next_mail_time_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/next_mail_time_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::next_mail_time_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460) currently owns the complete wow-database workflow module in crates/wow-database/src/next_mail_time_adapter.rs.",
+      "connection_affinity": "The module is bound to one configured Characters adapter and opens no cross-database workflow.",
+      "current_order": "The adapter preserves the represented Rust query identity, bind and projection while leaving mail filtering, sender deduplication, cap and packet routing in the session.",
+      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed mail-read port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::next_mail_time_adapter:crates/wow-database/src/next_mail_time_adapter.rs::struct MariaDbNextMailTimePersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/next_mail_time_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::next_mail_time_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbNextMailTimePersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented next-mail-time reads (#460) currently owns the complete wow-database workflow struct MariaDbNextMailTimePersistenceAdapterLikeCpp in crates/wow-database/src/next_mail_time_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one Characters-database handle.",
+      "current_order": "Construction stores the handle only; the typed method owns statement execution and row projection.",
+      "failure_and_unknown_commit": "No I/O occurs while storing the adapter.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::packet_spoof_ban_adapter:crates/wow-database/src/packet_spoof_ban_adapter.rs::fn account_ban_statements_like_cpp",
       "source_class": "production",
       "packages": [
@@ -25852,38 +26002,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::misc::player:crates/wow-world/src/handlers/misc/player.rs::impl crate :: session :: WorldSession::handle_query_next_mail_time",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/misc/player.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::misc::player"
-      ],
-      "enclosings": [
-        "impl crate :: session :: WorldSession::handle_query_next_mail_time"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "player mail persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::handle_query_next_mail_time in crates/wow-world/src/handlers/misc/player.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-world:crate::handlers::misc::player:crates/wow-world/src/handlers/misc/player.rs::module",
       "source_class": "production",
       "packages": [
@@ -28841,6 +28959,7 @@
         "crates/wow-database/src/database.rs",
         "crates/wow-database/src/group_loot_money_adapter.rs",
         "crates/wow-database/src/map_corpse_adapter.rs",
+        "crates/wow-database/src/next_mail_time_adapter.rs",
         "crates/wow-database/src/packet_spoof_ban_adapter.rs",
         "crates/wow-database/src/params.rs",
         "crates/wow-database/src/persistence_trace.rs",
