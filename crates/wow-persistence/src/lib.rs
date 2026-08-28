@@ -208,6 +208,48 @@ pub trait NextMailTimePersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<'a, NextMailTimeLoadOutcomeLikeCpp>;
 }
 
+pub const GAMEOBJECT_USE_TEMPLATE_DATA_COUNT_LIKE_CPP: usize = 35;
+
+/// SQLx-free request for Rust's transitional per-interaction gameobject
+/// template read. C++ resolves this data from ObjectMgr's startup store.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GameObjectUseTemplateLoadRequestLikeCpp {
+    pub entry: u32,
+}
+
+impl GameObjectUseTemplateLoadRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::World
+    }
+}
+
+/// Only the template projection consumed by the represented gameobject-use
+/// path; database rows and statement vocabulary do not cross this boundary.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GameObjectUseTemplateLoadRowLikeCpp {
+    pub go_type: u32,
+    pub icon_name: String,
+    pub size: f32,
+    pub data: [u32; GAMEOBJECT_USE_TEMPLATE_DATA_COUNT_LIKE_CPP],
+    pub content_tuning_id: u32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum GameObjectUseTemplateLoadOutcomeLikeCpp {
+    Found(GameObjectUseTemplateLoadRowLikeCpp),
+    Missing,
+    Failed { reason: String },
+}
+
+/// Dedicated SQLx-free capability for the transitional gameobject template
+/// read. #153 owns replacing it with the canonical startup-loaded store.
+pub trait GameObjectUseTemplatePersistencePortLikeCpp: Send + Sync {
+    fn load_gameobject_use_template_like_cpp<'a>(
+        &'a self,
+        request: GameObjectUseTemplateLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, GameObjectUseTemplateLoadOutcomeLikeCpp>;
+}
+
 /// Commit classification for a transaction protected by the Session-owned
 /// player-money exclusion fence.
 ///
@@ -2948,6 +2990,14 @@ mod tests {
         assert_eq!(
             NextMailTimeLoadRequestLikeCpp { player_guid: 17 }.logical_database(),
             LogicalDatabaseLikeCpp::Characters
+        );
+    }
+
+    #[test]
+    fn gameobject_use_template_load_names_the_world_database_like_cpp() {
+        assert_eq!(
+            GameObjectUseTemplateLoadRequestLikeCpp { entry: 42 }.logical_database(),
+            LogicalDatabaseLikeCpp::World
         );
     }
 }

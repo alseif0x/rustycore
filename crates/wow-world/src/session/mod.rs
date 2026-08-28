@@ -5183,6 +5183,8 @@ struct SessionPersistencePortsLikeCpp {
     group_loot_money: Option<Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>>,
     support_bug_report: Option<Arc<dyn wow_persistence::SupportBugReportPersistencePortLikeCpp>>,
     next_mail_time: Option<Arc<dyn wow_persistence::NextMailTimePersistencePortLikeCpp>>,
+    gameobject_use_template:
+        Option<Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>>,
 }
 
 pub struct WorldSession {
@@ -16365,6 +16367,21 @@ impl WorldSession {
         &self,
     ) -> Option<Arc<dyn wow_persistence::NextMailTimePersistencePortLikeCpp>> {
         self.persistence_ports_like_cpp.next_mail_time.clone()
+    }
+
+    pub fn set_gameobject_use_template_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.gameobject_use_template = Some(port);
+    }
+
+    pub(crate) fn gameobject_use_template_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .gameobject_use_template
+            .clone()
     }
 
     /// Attach this session to the one canonical journal owner for its

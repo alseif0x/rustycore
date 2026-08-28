@@ -5,6 +5,159 @@
 
 use super::*;
 
+#[derive(Debug)]
+struct RecordingGameObjectUseTemplatePortLikeCpp {
+    requests: Mutex<Vec<wow_persistence::GameObjectUseTemplateLoadRequestLikeCpp>>,
+    outcome: wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp,
+}
+
+impl wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp
+    for RecordingGameObjectUseTemplatePortLikeCpp
+{
+    fn load_gameobject_use_template_like_cpp<'a>(
+        &'a self,
+        request: wow_persistence::GameObjectUseTemplateLoadRequestLikeCpp,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        'a,
+        wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp,
+    > {
+        Box::pin(async move {
+            self.requests.lock().unwrap().push(request);
+            self.outcome.clone()
+        })
+    }
+}
+
+fn game_obj_use_test_session_like_cpp(
+    outcome: wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp,
+) -> (
+    crate::session::WorldSession,
+    Arc<RecordingGameObjectUseTemplatePortLikeCpp>,
+    ObjectGuid,
+    ObjectGuid,
+) {
+    let (mut session, _send_rx) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 99);
+    let gameobject_guid =
+        ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 8);
+    let port = Arc::new(RecordingGameObjectUseTemplatePortLikeCpp {
+        requests: Mutex::new(Vec::new()),
+        outcome,
+    });
+
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 10, 0);
+    session.set_player_position_like_cpp(Position::new(10.0, 0.0, 0.0, 0.0));
+    session.record_represented_gameobject_runtime_state_like_cpp(
+        571,
+        gameobject_guid,
+        777,
+        Position::new(12.0, 0.0, 0.0, 0.0),
+        wow_entities::GAMEOBJECT_TYPE_DOOR as u8,
+    );
+    session
+        .client_visible_guids_like_cpp
+        .insert(gameobject_guid);
+    session.set_gameobject_use_template_persistence_port_like_cpp(port.clone());
+
+    (session, port, player_guid, gameobject_guid)
+}
+
+fn game_obj_use_packet_like_cpp(gameobject_guid: ObjectGuid) -> WorldPacket {
+    let mut packet = WorldPacket::new_empty();
+    packet.write_packed_guid(&gameobject_guid);
+    packet.reset_read();
+    packet
+}
+
+#[tokio::test]
+async fn game_obj_use_loaded_template_dispatches_door_without_concrete_db_like_cpp() {
+    let mut data = [0_u32; wow_persistence::GAMEOBJECT_USE_TEMPLATE_DATA_COUNT_LIKE_CPP];
+    data[2] = 2_500;
+    let (mut session, port, player_guid, gameobject_guid) = game_obj_use_test_session_like_cpp(
+        wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp::Found(
+            wow_persistence::GameObjectUseTemplateLoadRowLikeCpp {
+                go_type: wow_entities::GAMEOBJECT_TYPE_DOOR,
+                icon_name: "Gossip".to_string(),
+                size: 1.0,
+                data,
+                content_tuning_id: 0,
+            },
+        ),
+    );
+
+    session
+        .handle_game_obj_use(game_obj_use_packet_like_cpp(gameobject_guid))
+        .await;
+
+    assert_eq!(
+        port.requests.lock().unwrap().as_slice(),
+        [wow_persistence::GameObjectUseTemplateLoadRequestLikeCpp { entry: 777 }]
+    );
+    assert!(
+        session
+            .represented_gameobject_use_effects
+            .iter()
+            .any(|effect| {
+                matches!(
+                    effect,
+                    crate::session::RepresentedGameObjectUseEffect::DoorOrButtonUsed {
+                        gameobject_guid: effect_guid,
+                        user_guid,
+                        restore_time_ms: 2_500,
+                        ..
+                    } if *effect_guid == gameobject_guid && *user_guid == player_guid
+                )
+            })
+    );
+}
+
+#[tokio::test]
+async fn game_obj_use_missing_or_failed_template_is_noop_like_cpp() {
+    for outcome in [
+        wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp::Missing,
+        wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp::Failed {
+            reason: "database unavailable".to_string(),
+        },
+    ] {
+        let (mut session, port, _player_guid, gameobject_guid) =
+            game_obj_use_test_session_like_cpp(outcome);
+
+        session
+            .handle_game_obj_use(game_obj_use_packet_like_cpp(gameobject_guid))
+            .await;
+
+        assert_eq!(port.requests.lock().unwrap().len(), 1);
+        assert!(session.represented_gameobject_use_effects.is_empty());
+    }
+}
+
+#[tokio::test]
+async fn game_obj_use_missing_port_is_noop_before_template_read_like_cpp() {
+    let (mut session, _send_rx) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 99);
+    let gameobject_guid =
+        ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 9);
+    session.set_player_guid(Some(player_guid));
+    session.set_player_position_like_cpp(Position::new(10.0, 0.0, 0.0, 0.0));
+    session.record_represented_gameobject_runtime_state_like_cpp(
+        571,
+        gameobject_guid,
+        777,
+        Position::new(12.0, 0.0, 0.0, 0.0),
+        wow_entities::GAMEOBJECT_TYPE_DOOR as u8,
+    );
+    session
+        .client_visible_guids_like_cpp
+        .insert(gameobject_guid);
+
+    session
+        .handle_game_obj_use(game_obj_use_packet_like_cpp(gameobject_guid))
+        .await;
+
+    assert!(session.represented_gameobject_use_effects.is_empty());
+}
+
 #[test]
 fn gameobject_point_icon_is_not_interactable_like_cpp() {
     assert!(!represented_gameobject_icon_allows_interaction_like_cpp(
