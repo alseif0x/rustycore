@@ -87,6 +87,7 @@
     452,
     454,
     456,
+    458,
     189,
     192,
     193,
@@ -1444,7 +1445,7 @@
     },
     {
       "number": 456,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.37] Move standalone item-durability repair write behind lifecycle port",
       "kind": "slice",
       "parents": [
@@ -1453,6 +1454,19 @@
       ],
       "depends_on": [
         454
+      ]
+    },
+    {
+      "number": 458,
+      "state": "open",
+      "title": "[ARCH.DB.38] Move legacy bug-report insert behind a typed support port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        456
       ]
     }
   ]

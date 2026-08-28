@@ -55,7 +55,6 @@ use wow_data::{
     ItemRecord, ItemSearchNameEntry, ItemSearchNameStore, ItemSparseTemplateEntry, ItemStatsStore,
     ItemStore, MapDifficultyEntry, MapDifficultyStore, MapEntry, MapStore, SpellInfo, SpellStore,
 };
-use wow_database::SqlParam;
 use wow_packet::ServerPacket;
 use wow_packet::WorldPacket;
 use wow_packet::packets::misc::TRADE_STATUS_INITIATED_LIKE_CPP;

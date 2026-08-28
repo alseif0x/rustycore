@@ -147,6 +147,28 @@ pub trait PacketSpoofBanPersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 }
 
+/// One legacy `CMSG_BUG_REPORT` write. The packet's report-type bit is parsed
+/// by gameplay but C++ persists only Text and DiagInfo in that order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SupportBugReportWriteRequestLikeCpp {
+    pub text: String,
+    pub diagnostic_info: String,
+}
+
+impl SupportBugReportWriteRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
+/// SQLx-free persistence capability for the legacy bug-report opcode.
+pub trait SupportBugReportPersistencePortLikeCpp: Send + Sync {
+    fn persist_bug_report_like_cpp<'a>(
+        &'a self,
+        request: SupportBugReportWriteRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
+}
+
 /// Commit classification for a transaction protected by the Session-owned
 /// player-money exclusion fence.
 ///
@@ -2864,6 +2886,18 @@ mod tests {
             PlayerDurabilityRepairSaveLikeCpp {
                 item_db_guid: 7,
                 durability: 80,
+            }
+            .logical_database(),
+            LogicalDatabaseLikeCpp::Characters
+        );
+    }
+
+    #[test]
+    fn support_bug_report_names_the_character_database_like_cpp() {
+        assert_eq!(
+            SupportBugReportWriteRequestLikeCpp {
+                text: "bug".to_owned(),
+                diagnostic_info: "diag".to_owned(),
             }
             .logical_database(),
             LogicalDatabaseLikeCpp::Characters

@@ -153,6 +153,7 @@ last-writer-wins policy.
 | Quest POI persistence capability | `wow_persistence::QuestPoiPersistencePortLikeCpp` owns typed point/blob rows and a stage-classified load outcome without a database or packet dependency | `wow_database::quest_poi_adapter` alone owns the two World queries and SQLx row decoding | Session retains the represented lazy cache, point/blob association, missing-point skip, packet projection and empty-on-failure behavior | composed once in `world-server`; the current points-then-blobs read order remains unchanged in this structural cut | #450 removes the quest-POI SQLx/WorldDatabase leak from `handlers::quest`; C++-faithful process-wide startup loading remains an explicit later convergence rather than a hidden timing change. |
 | Stored Item loot-money persistence capability | `wow_persistence::StoredItemMoneyPersistencePortLikeCpp` owns the semantic player/item request, all-or-nothing capped-money outcome, definite-rollback/unknown-COMMIT result and joint-fact reconciliation classification without a database dependency | `wow_database::stored_item_money_adapter` alone owns the Character SQLx transaction, row locks, affected-row checks, trace identities and driver/deadlock classification | the loot application retains the per-character mutation mutex, retry policy, durable completion guards, runtime balance application, kick decision and packet publication | composed once in `world-server`; mutation locks character before container, updates money and consumes exactly one source row atomically, while reconciliation locks the same facts in the same order and rolls back its read-only transaction | #452 removes the stored-item raw SQL/SQLx transaction from `handlers::loot` without changing C++ loot rules or the existing crash-safe extension; #454 handles the distinct multi-recipient group transaction rather than broadening this port. |
 | Group loot-money persistence capability | `wow_persistence::GroupLootMoneyPersistencePortLikeCpp` owns the SQLx-free payout request, per-recipient durable outcomes and definite-rollback/unknown-COMMIT/reconciliation vocabulary | `wow_database::group_loot_money_adapter` alone owns the Character SQLx transaction, stable GUID row-lock order, capped updates, affected-row checks, trace identities, driver/deadlock classification and reconciliation reads | the loot application retains recipient admission and deduplication, every per-character mutation mutex, deadlock retry policy, durable guards, authority commit/quarantine, runtime balance application, kicks and packet/viewer publication | composed once in `world-server`; all admitted rows lock and update in one transaction with one commit, while unknown COMMIT compares every changed recipient and treats all-before as rollback, all-after or cap-only no-op as committed, and mixed/missing/error as indeterminate | #454 removes the group payout SQLx transaction and reconciliation reads from `WorldSession` without changing C++ loot rules or RustyCore's existing crash-safe extension. Remaining concrete workflows stay explicit #169 cuts. |
+| Support bug-report persistence capability | `wow_persistence::SupportBugReportPersistencePortLikeCpp` owns the SQLx-free text/diagnostic request and classified result | `wow_database::support_bug_report_adapter` alone maps the request to `CHAR_INS_BUG_REPORT` and owns the Character database handle | the support handler retains the feature gate, packet decode and wire-silent failure behavior; it cannot name a statement or database | composed once in `world-server`; one non-transactional Character statement binds text before diagnostic information exactly like C++ | #458 removes the legacy bug-report insert from `WorldSession` through a dedicated support capability instead of broadening the Player lifecycle port. The parsed report-type bit remains intentionally unpersisted like C++. |
 | Canonical map-corpse persistence capability | `wow_persistence::MapCorpsePersistencePortLikeCpp` owns the SQLx-free `(map, instance)` request, raw persisted corpse/phase/customization rows and independent base/auxiliary outcomes | `wow_database::map_corpse_adapter` alone maps that request to `SEL_CORPSES`, `SEL_CORPSE_PHASES` and `SEL_CORPSE_CUSTOMIZATIONS`, preserving exact bind width, order and query failure classification | the transitional `wow-world` application adapter retains corpse validation, item-cache parsing, faction resolution, map-local GUID allocation and publication into canonical `wow_map::Map` | composed once in `world-server`; the map lock is checked before I/O and reacquired only after the complete typed result returns | #392 removes concrete Character-database access from `Map::LoadCorpseData` hydration without folding map state into the Player lifecycle port. #153 owns relocating the transitional Session caller; the canonical corpse owner and clock do not change in this cut. |
 | Session login/logout lifecycle | private `wow_world::session::lifecycle`: `login` (the single-live-session character claim), `logout` (timed logout finalize and the disconnect save), `cleanup` (registry/visibility/map/accessor teardown) | the owning Session task on its exit paths | the Session driver's logout timer, the disconnect path in the composition root, and the login handlers | claim held from before the login sequence commits until any exit path; cleanup tears down publication before ownership, and the disconnect save keeps the represented player alive until it has run — C++ `LogoutPlayer(true)` saves while `_player` still exists | #184 extracted the exact current behaviour, concrete DB calls included, behind one private seam. #200 replaces that persistence seam once #187 freezes the focused Player contract. |
 | Session phase driver | private `wow_world::session::driver`: the ordered pass (`update` ingestion + Session timers, `process_pending` async phases), the shared ingestion budget in `driver::budget`, and the frozen phase trace in `driver::phases` | the one Session task; there is no second scheduler | the composition root that spawns the Session task calls the pass and owns cadence, cancellation and the idle sleep | one pass per loop iteration; ingestion is bounded by a single shared budget so a busy realm channel cannot starve the instance channel, and exit is decided inside the pass (disconnected channel, idle deadline, logout timer) | #183 extracted the driver from `session/mod.rs`. It is deliberately not the world/Map/gameplay tick owner — those clocks are unchanged and traced in `runtime-clock-phase-trace.md` (#188). #28 and #153 own semantic convergence. |
@@ -733,37 +734,38 @@ display is checked against the JSON ledger:
 74. #452 — stored Item loot-money SQLx through a typed persistence port;
 75. #454 — group loot-money SQLx through a distinct typed persistence port;
 76. #456 — standalone no-cost item-durability write through the lifecycle port;
-77. #189 — durable loot persistence coordination;
-78. #192 — runtime/fanout directory consumers;
-79. #193 — combat/loot directory consumers;
-80. #194 — quest/spell/movement directory consumers;
-81. #197 — atomic group invite/create transitions;
-82. #198 — atomic group membership/leadership transitions;
-83. #199 — Group persistence/publication closure;
-84. #195 — social/group session addressing;
-85. #196 — PlayerRegistry storage closure;
-86. #138 — opaque session-directory relocation;
-87. #191 — mailbox protocol relocation;
-88. #137 — encapsulated Group owner move;
-89. #190 — durable creature-runtime rail relocation;
-90. #140 — Session mailbox pump;
-91. #252 — retire the temporary PlayerBroadcastInfo gameplay mirror;
-92. #182 — logical realm/instance routing;
-93. #183 — Session-only phase driver;
-94. #184 — login/logout lifecycle modules;
-95. #224 — character/loot/quest physical modules;
-96. #225 — Map/MapManager physical modules;
-97. #226 — Player/Unit physical modules;
-98. #227 — packet/spell-data physical modules;
-99. #228 — trusted linked external module API;
-100. #229 — deterministic external Cargo composition;
-101. #230 — agent-neutral module CLI and skeleton;
-102. #231 — typed module configuration/fixtures;
-103. #270 — retire the four PlayerBroadcastInfo transport endpoints;
-104. #359 — single dispatch mechanism for every opcode;
-105. #297 — promote the Session kernel to `wow-session`;
-106. #378 — move the remaining five session modules into `wow-session`;
-107. #153 — terminal architecture audit.
+77. #458 — legacy bug-report insert through a typed support port;
+78. #189 — durable loot persistence coordination;
+79. #192 — runtime/fanout directory consumers;
+80. #193 — combat/loot directory consumers;
+81. #194 — quest/spell/movement directory consumers;
+82. #197 — atomic group invite/create transitions;
+83. #198 — atomic group membership/leadership transitions;
+84. #199 — Group persistence/publication closure;
+85. #195 — social/group session addressing;
+86. #196 — PlayerRegistry storage closure;
+87. #138 — opaque session-directory relocation;
+88. #191 — mailbox protocol relocation;
+89. #137 — encapsulated Group owner move;
+90. #190 — durable creature-runtime rail relocation;
+91. #140 — Session mailbox pump;
+92. #252 — retire the temporary PlayerBroadcastInfo gameplay mirror;
+93. #182 — logical realm/instance routing;
+94. #183 — Session-only phase driver;
+95. #184 — login/logout lifecycle modules;
+96. #224 — character/loot/quest physical modules;
+97. #225 — Map/MapManager physical modules;
+98. #226 — Player/Unit physical modules;
+99. #227 — packet/spell-data physical modules;
+100. #228 — trusted linked external module API;
+101. #229 — deterministic external Cargo composition;
+102. #230 — agent-neutral module CLI and skeleton;
+103. #231 — typed module configuration/fixtures;
+104. #270 — retire the four PlayerBroadcastInfo transport endpoints;
+105. #359 — single dispatch mechanism for every opcode;
+106. #297 — promote the Session kernel to `wow-session`;
+107. #378 — move the remaining five session modules into `wow-session`;
+108. #153 — terminal architecture audit.
 
 A slice may start once its declared prerequisites are merged and its branch is current. Independent
 physical work remains parallel to semantic authority cuts. Mechanical moves use focused compile and
