@@ -927,20 +927,21 @@ impl WorldSession {
             }
         };
 
-        if let Some(char_db) = self.char_db().map(Arc::clone) {
-            if let Some(player_guid) = self.player_guid() {
-                let mut tx = SqlTransaction::new();
-                self.append_player_currency_save_statements(&mut tx, player_guid.counter() as u64);
-                if let Err(error) = char_db.commit_transaction(tx).await {
-                    self.set_player_currencies_like_cpp(currency_snapshot);
-                    warn!(
-                        account = self.account_id,
-                        currency_id,
-                        ?error,
-                        "ChooseReward: quest reward currency save failed"
-                    );
-                    return false;
-                }
+        if let Some(player_guid) = self.player_guid() {
+            if let Err(outcome) = self
+                .persist_standalone_player_currency_save_like_cpp(
+                    player_guid.counter() as u64,
+                    currency_snapshot,
+                )
+                .await
+            {
+                warn!(
+                    account = self.account_id,
+                    currency_id,
+                    ?outcome,
+                    "ChooseReward: quest reward currency save failed"
+                );
+                return false;
             }
         }
 
@@ -1142,7 +1143,14 @@ impl WorldSession {
                 player_guid,
                 &item_changes,
             );
-            self.append_player_currency_save_statements(&mut tx, player_guid.counter() as u64);
+            let mut currencies = self.player_currencies_like_cpp().clone();
+            let currency_save = self
+                .plan_player_currency_save_like_cpp(player_guid.counter() as u64, &mut currencies);
+            self.set_player_currencies_like_cpp(currencies);
+            wow_database::player_lifecycle_adapter::append_player_currency_save_request_like_cpp(
+                &mut tx,
+                &currency_save,
+            );
             if let Err(error) = char_db.commit_transaction(tx).await {
                 self.set_player_currencies_like_cpp(currency_snapshot);
                 warn!(
