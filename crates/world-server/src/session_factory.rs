@@ -294,6 +294,9 @@ pub(super) async fn create_session(
     if let Some(ref port) = resources.void_storage_persistence_port {
         session.set_void_storage_persistence_port_like_cpp(Arc::clone(port));
     }
+    if let Some(ref port) = resources.social_persistence_port {
+        session.set_social_persistence_port_like_cpp(Arc::clone(port));
+    }
     if let Some(ref port) = resources.map_corpse_persistence_port {
         session.set_map_corpse_persistence_port_like_cpp(Arc::clone(port));
     }
