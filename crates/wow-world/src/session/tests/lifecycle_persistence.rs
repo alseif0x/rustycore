@@ -145,6 +145,27 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         Box::pin(async move { outcome })
     }
 
+    fn persist_bank_slot_purchase_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerBankSlotPurchaseRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerMoneyTransactionOutcomeLikeCpp> {
+        let outcome = match self.outcome.clone() {
+            PersistenceOutcomeLikeCpp::Applied { .. } => {
+                PlayerMoneyTransactionOutcomeLikeCpp::Committed
+            }
+            PersistenceOutcomeLikeCpp::Failed { reason } => {
+                PlayerMoneyTransactionOutcomeLikeCpp::DefinitelyRolledBack { reason }
+            }
+            PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                PlayerMoneyTransactionOutcomeLikeCpp::CommitOutcomeUnknown {
+                    reason,
+                    observed_money: None,
+                }
+            }
+        };
+        Box::pin(async move { outcome })
+    }
+
     fn persist_durability_repair_like_cpp<'a>(
         &'a self,
         repair: PlayerDurabilityRepairSaveLikeCpp,

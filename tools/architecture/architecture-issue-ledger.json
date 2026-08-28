@@ -90,6 +90,7 @@
     458,
     460,
     462,
+    464,
     189,
     192,
     193,
@@ -1486,7 +1487,7 @@
     },
     {
       "number": 462,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.40] Move gameobject-use template query behind a typed world-read port",
       "kind": "slice",
       "parents": [
@@ -1495,6 +1496,19 @@
       ],
       "depends_on": [
         460
+      ]
+    },
+    {
+      "number": 464,
+      "state": "open",
+      "title": "[ARCH.DB.41] Move bank-slot purchase persistence behind the Player lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        462
       ]
     }
   ]

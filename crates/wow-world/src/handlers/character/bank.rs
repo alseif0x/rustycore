@@ -5,12 +5,6 @@
 
 //! Bank, reagent bank and void storage.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::SqlTransaction;
-
 use super::*;
 
 impl WorldSession {
@@ -153,13 +147,13 @@ impl WorldSession {
         #[cfg(not(test))]
         let test_commit_result: Option<bool> = None;
 
-        let char_db = if test_commit_result.is_some() {
+        let lifecycle_port = if test_commit_result.is_some() {
             None
         } else {
-            let Some(char_db) = self.char_db().map(Arc::clone) else {
+            let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
                 return;
             };
-            Some(char_db)
+            Some(port)
         };
 
         // Close payout admission before reading money. A previously admitted
@@ -187,24 +181,24 @@ impl WorldSession {
         let new_count = u8::try_from(next_slot).unwrap_or(u8::MAX);
         let new_money = old_money - u64::from(price);
 
-        let mut transaction = SqlTransaction::new();
-        transaction.append_expect_rows_affected(
-            bank_slot_purchase_update_statement_like_cpp(player_guid, new_money, new_count),
-            1,
-        );
         let money_persistence = if let Some(success) = test_commit_result {
             if !success {
                 return;
             }
             money_persistence
         } else {
+            let request = wow_persistence::PlayerBankSlotPurchaseRequestLikeCpp {
+                player_guid: player_guid.counter() as u64,
+                money_after: new_money,
+                bank_slot_count: new_count,
+            };
             let Some(money_persistence) = self
-                .commit_exclusive_player_money_transaction_like_cpp(
+                .await_exclusive_player_money_transaction_outcome_like_cpp(
                     money_persistence,
-                    char_db
+                    lifecycle_port
                         .as_ref()
-                        .expect("production bank-slot purchase retains its database"),
-                    transaction,
+                        .expect("production bank-slot purchase retains its lifecycle port")
+                        .persist_bank_slot_purchase_like_cpp(request),
                     old_money,
                     new_money,
                     "bank-slot purchase",

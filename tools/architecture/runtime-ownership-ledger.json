@@ -1662,14 +1662,14 @@
         "command": "python3 tools/architecture/check_architecture.py hotspots --limit 20",
         "measurement": "two independent views: every real Rust file is reported physically, while each checked-in row is a logical owner ceiling including its reviewed private descendants; production/test/total remain independent non-growth ceilings",
         "physical_review_signals": "review a productive file around 2,000 lines; above 4,000 lines require a split plan or explicit cohesive exception; these are review signals, not daily blocking limits",
-        "baseline_commit": "efac7fe827cb0a36e846ca775a7731f17c7ff247"
+        "baseline_commit": "d109c9d18be4559a229afeaf3dbf476fdf6d1318"
       },
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
           "production_lines": 72587,
-          "test_lines": 96885,
-          "total_lines": 169472,
+          "test_lines": 96917,
+          "total_lines": 169504,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153
@@ -1689,9 +1689,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20710,
-          "test_lines": 11919,
-          "total_lines": 32629,
+          "production_lines": 20689,
+          "test_lines": 11975,
+          "total_lines": 32664,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "open_retirement_issues": [
             153

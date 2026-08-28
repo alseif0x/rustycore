@@ -103,6 +103,11 @@ struct CollectionLoadPortLikeCpp {
         std::sync::Mutex<std::collections::VecDeque<PlayerInitialWorldStatesLoadOutcomeLikeCpp>>,
     login_transport_outcomes:
         std::sync::Mutex<std::collections::VecDeque<PlayerLoginTransportLoadOutcomeLikeCpp>>,
+    bank_slot_purchase_requests:
+        std::sync::Mutex<Vec<wow_persistence::PlayerBankSlotPurchaseRequestLikeCpp>>,
+    bank_slot_purchase_outcomes: std::sync::Mutex<
+        std::collections::VecDeque<wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp>,
+    >,
 }
 
 impl CollectionLoadPortLikeCpp {
@@ -113,6 +118,8 @@ impl CollectionLoadPortLikeCpp {
             outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
             initial_world_state_outcomes: std::sync::Mutex::new(Default::default()),
             login_transport_outcomes: std::sync::Mutex::new(Default::default()),
+            bank_slot_purchase_requests: std::sync::Mutex::new(Vec::new()),
+            bank_slot_purchase_outcomes: std::sync::Mutex::new(Default::default()),
         })
     }
 
@@ -125,6 +132,8 @@ impl CollectionLoadPortLikeCpp {
             outcomes: std::sync::Mutex::new(Default::default()),
             initial_world_state_outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
             login_transport_outcomes: std::sync::Mutex::new(Default::default()),
+            bank_slot_purchase_requests: std::sync::Mutex::new(Vec::new()),
+            bank_slot_purchase_outcomes: std::sync::Mutex::new(Default::default()),
         })
     }
 
@@ -137,6 +146,22 @@ impl CollectionLoadPortLikeCpp {
             outcomes: std::sync::Mutex::new(Default::default()),
             initial_world_state_outcomes: std::sync::Mutex::new(Default::default()),
             login_transport_outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
+            bank_slot_purchase_requests: std::sync::Mutex::new(Vec::new()),
+            bank_slot_purchase_outcomes: std::sync::Mutex::new(Default::default()),
+        })
+    }
+
+    fn for_bank_slot_purchase(
+        outcomes: impl IntoIterator<Item = wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp>,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            requests: std::sync::Mutex::new(Vec::new()),
+            login_transport_requests: std::sync::Mutex::new(Vec::new()),
+            outcomes: std::sync::Mutex::new(Default::default()),
+            initial_world_state_outcomes: std::sync::Mutex::new(Default::default()),
+            login_transport_outcomes: std::sync::Mutex::new(Default::default()),
+            bank_slot_purchase_requests: std::sync::Mutex::new(Vec::new()),
+            bank_slot_purchase_outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
         })
     }
 
@@ -146,6 +171,12 @@ impl CollectionLoadPortLikeCpp {
 
     fn login_transport_requests(&self) -> Vec<PlayerLoginTransportLoadRequestLikeCpp> {
         self.login_transport_requests.lock().unwrap().clone()
+    }
+
+    fn bank_slot_purchase_requests(
+        &self,
+    ) -> Vec<wow_persistence::PlayerBankSlotPurchaseRequestLikeCpp> {
+        self.bank_slot_purchase_requests.lock().unwrap().clone()
     }
 }
 
@@ -192,6 +223,23 @@ impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
                 reason: "collection-load-only fixture".to_owned(),
             }
         })
+    }
+
+    fn persist_bank_slot_purchase_like_cpp<'a>(
+        &'a self,
+        request: wow_persistence::PlayerBankSlotPurchaseRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp> {
+        self.bank_slot_purchase_requests
+            .lock()
+            .unwrap()
+            .push(request);
+        let outcome = self
+            .bank_slot_purchase_outcomes
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("one bank-slot-purchase outcome per request");
+        Box::pin(async move { outcome })
     }
 
     fn persist_durability_repair_like_cpp<'a>(
@@ -462,6 +510,13 @@ impl PlayerLifecyclePortLikeCpp for HomebindPortFixtureLikeCpp {
     fn persist_money_transaction_like_cpp<'a>(
         &'a self,
         _request: wow_persistence::PlayerMoneyTransactionRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp> {
+        Box::pin(async { wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::Committed })
+    }
+
+    fn persist_bank_slot_purchase_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerBankSlotPurchaseRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp> {
         Box::pin(async { wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::Committed })
     }
@@ -7437,7 +7492,10 @@ async fn buy_bank_slot_buys_next_slot_and_spends_money_like_cpp() {
     let (mut session, send_rx, canonical) = make_bank_slot_session(4);
     let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 1);
     insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
-    session.set_loot_money_persistence_test_result_like_cpp(true);
+    let port = CollectionLoadPortLikeCpp::for_bank_slot_purchase([
+        wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::Committed,
+    ]);
+    session.set_player_lifecycle_port_like_cpp(port.clone());
 
     session
         .handle_buy_bank_slot(BuyBankSlot { guid: banker })
@@ -7451,6 +7509,14 @@ async fn buy_bank_slot_buys_next_slot_and_spends_money_like_cpp() {
     );
     assert!(send_rx.try_recv().is_ok(), "money update should be sent");
     assert!(send_rx.try_recv().is_err());
+    assert_eq!(
+        port.bank_slot_purchase_requests(),
+        vec![wow_persistence::PlayerBankSlotPurchaseRequestLikeCpp {
+            player_guid: 42,
+            money_after: 50,
+            bank_slot_count: 1,
+        }]
+    );
 }
 
 #[tokio::test]
@@ -7458,7 +7524,12 @@ async fn buy_bank_slot_definite_rollback_keeps_runtime_and_packets_unchanged_lik
     let (mut session, send_rx, canonical) = make_bank_slot_session(4);
     let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 4);
     insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
-    session.set_loot_money_persistence_test_result_like_cpp(false);
+    let port = CollectionLoadPortLikeCpp::for_bank_slot_purchase([
+        wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::DefinitelyRolledBack {
+            reason: "fixture rollback".to_owned(),
+        },
+    ]);
+    session.set_player_lifecycle_port_like_cpp(port.clone());
 
     session
         .handle_buy_bank_slot(BuyBankSlot { guid: banker })
@@ -7474,29 +7545,14 @@ async fn buy_bank_slot_definite_rollback_keeps_runtime_and_packets_unchanged_lik
             .is_ok(),
         "a definite rollback must reopen payout admission"
     );
-}
-
-#[test]
-fn bank_slot_purchase_persists_money_and_slot_in_one_checked_statement_like_cpp() {
-    let player_guid = ObjectGuid::create_player(1, 42);
-    let statement = bank_slot_purchase_update_statement_like_cpp(player_guid, 12_345, 3);
-
     assert_eq!(
-        statement.sql(),
-        "UPDATE characters SET money = ?, bankSlots = ? WHERE guid = ?"
+        port.bank_slot_purchase_requests(),
+        vec![wow_persistence::PlayerBankSlotPurchaseRequestLikeCpp {
+            player_guid: 42,
+            money_after: 50,
+            bank_slot_count: 1,
+        }]
     );
-    assert!(matches!(
-        statement.params()[0],
-        wow_database::SqlParam::U64(12_345)
-    ));
-    assert!(matches!(
-        statement.params()[1],
-        wow_database::SqlParam::U8(3)
-    ));
-    assert!(matches!(
-        statement.params()[2],
-        wow_database::SqlParam::U64(42)
-    ));
 }
 
 #[tokio::test]

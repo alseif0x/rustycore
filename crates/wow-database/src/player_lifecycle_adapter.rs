@@ -18,12 +18,13 @@ use wow_persistence::{
     AccountHeirloomLoadRowLikeCpp, AccountMaskBlockLikeCpp, AccountMountLoadRowLikeCpp,
     AccountToyLoadRowLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
     PlayerActionButtonLoadRowLikeCpp, PlayerBagInventoryLoadRowLikeCpp,
-    PlayerBattlegroundLocationLoadRowLikeCpp, PlayerBuybackClearRequestLikeCpp,
-    PlayerCharacterAuraEffectLoadRowLikeCpp, PlayerCharacterAuraLoadRowLikeCpp,
-    PlayerCharacterBaseLoadOutcomeLikeCpp, PlayerCharacterBaseLoadRequestLikeCpp,
-    PlayerCharacterBaseLoadRowLikeCpp, PlayerCharacterSaveRequestLikeCpp,
-    PlayerCharacterSaveResultLikeCpp, PlayerCufProfileLoadRowLikeCpp, PlayerCufProfileSaveLikeCpp,
-    PlayerCurrencyLoadRowLikeCpp, PlayerCurrencySaveKindLikeCpp, PlayerCurrencySaveRequestLikeCpp,
+    PlayerBankSlotPurchaseRequestLikeCpp, PlayerBattlegroundLocationLoadRowLikeCpp,
+    PlayerBuybackClearRequestLikeCpp, PlayerCharacterAuraEffectLoadRowLikeCpp,
+    PlayerCharacterAuraLoadRowLikeCpp, PlayerCharacterBaseLoadOutcomeLikeCpp,
+    PlayerCharacterBaseLoadRequestLikeCpp, PlayerCharacterBaseLoadRowLikeCpp,
+    PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
+    PlayerCufProfileLoadRowLikeCpp, PlayerCufProfileSaveLikeCpp, PlayerCurrencyLoadRowLikeCpp,
+    PlayerCurrencySaveKindLikeCpp, PlayerCurrencySaveRequestLikeCpp,
     PlayerCustomizationLoadRowLikeCpp, PlayerDurabilityRepairSaveLikeCpp,
     PlayerEquipmentInventoryLoadRowLikeCpp, PlayerEquipmentSetLoadRowLikeCpp,
     PlayerEquipmentSetSaveLikeCpp, PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp,
@@ -90,6 +91,19 @@ fn player_money_transaction_statements_like_cpp(
         statements.push(player_durability_repair_statement_like_cpp(repair));
     }
     statements
+}
+
+const UPD_CHARACTER_MONEY_AND_BANK_SLOTS_LIKE_CPP: &str =
+    "UPDATE characters SET money = ?, bankSlots = ? WHERE guid = ?";
+
+fn player_bank_slot_purchase_statement_like_cpp(
+    request: &PlayerBankSlotPurchaseRequestLikeCpp,
+) -> PreparedStatement {
+    let mut statement = PreparedStatement::new(UPD_CHARACTER_MONEY_AND_BANK_SLOTS_LIKE_CPP);
+    statement.set_u64(0, request.money_after);
+    statement.set_u8(1, request.bank_slot_count);
+    statement.set_u64(2, request.player_guid);
+    statement
 }
 
 fn player_currency_save_statements_like_cpp(
@@ -2006,6 +2020,25 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
         })
     }
 
+    fn persist_bank_slot_purchase_like_cpp<'a>(
+        &'a self,
+        request: PlayerBankSlotPurchaseRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerMoneyTransactionOutcomeLikeCpp> {
+        Box::pin(async move {
+            let mut transaction = SqlTransaction::new();
+            transaction.append_expect_rows_affected(
+                player_bank_slot_purchase_statement_like_cpp(&request),
+                1,
+            );
+            crate::player_money_transaction_adapter::commit_player_money_transaction_and_observe_like_cpp(
+                self.character_db.as_ref(),
+                transaction,
+                Some(request.player_guid),
+            )
+            .await
+        })
+    }
+
     fn persist_durability_repair_like_cpp<'a>(
         &'a self,
         repair: PlayerDurabilityRepairSaveLikeCpp,
@@ -3348,6 +3381,24 @@ mod tests {
         assert_eq!(
             request.logical_database(),
             LogicalDatabaseLikeCpp::Characters
+        );
+    }
+
+    #[test]
+    fn bank_slot_purchase_preserves_checked_statement_and_bind_order_like_cpp() {
+        let request = PlayerBankSlotPurchaseRequestLikeCpp {
+            player_guid: 42,
+            money_after: 12_345,
+            bank_slot_count: 3,
+        };
+        let statement = player_bank_slot_purchase_statement_like_cpp(&request);
+        assert_eq!(
+            statement.sql(),
+            "UPDATE characters SET money = ?, bankSlots = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            statement.params(),
+            vec![SqlParam::U64(12_345), SqlParam::U8(3), SqlParam::U64(42)]
         );
     }
 

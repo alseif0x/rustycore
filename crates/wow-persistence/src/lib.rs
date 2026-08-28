@@ -316,6 +316,25 @@ impl PlayerMoneyWriteRequestLikeCpp {
     }
 }
 
+/// One represented personal-bank slot purchase persisted atomically with the
+/// resulting absolute player-money value.
+///
+/// Gameplay owns banker/price validation and runtime publication. The
+/// concrete adapter owns the MariaDB statement, expected-row contract and
+/// ambiguous-COMMIT observation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerBankSlotPurchaseRequestLikeCpp {
+    pub player_guid: u64,
+    pub money_after: u64,
+    pub bank_slot_count: u8,
+}
+
+impl PlayerBankSlotPurchaseRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
 /// C++ `PlayerCurrencyState` rows that `_SaveCurrency` writes durably.
 /// Unchanged/removed rows never cross the persistence boundary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2101,6 +2120,13 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
         request: PlayerMoneyTransactionRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PlayerMoneyTransactionOutcomeLikeCpp>;
 
+    /// Persist the absolute money and bank-slot count selected by one bank
+    /// purchase as a single checked Characters transaction.
+    fn persist_bank_slot_purchase_like_cpp<'a>(
+        &'a self,
+        request: PlayerBankSlotPurchaseRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerMoneyTransactionOutcomeLikeCpp>;
+
     /// Execute one standalone non-transactional item-durability replacement.
     /// The caller retains item selection, runtime mutation and publication.
     fn persist_durability_repair_like_cpp<'a>(
@@ -2998,6 +3024,19 @@ mod tests {
         assert_eq!(
             GameObjectUseTemplateLoadRequestLikeCpp { entry: 42 }.logical_database(),
             LogicalDatabaseLikeCpp::World
+        );
+    }
+
+    #[test]
+    fn bank_slot_purchase_names_the_character_database_like_cpp() {
+        assert_eq!(
+            PlayerBankSlotPurchaseRequestLikeCpp {
+                player_guid: 17,
+                money_after: 900,
+                bank_slot_count: 3,
+            }
+            .logical_database(),
+            LogicalDatabaseLikeCpp::Characters
         );
     }
 }
