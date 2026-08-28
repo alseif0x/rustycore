@@ -30514,37 +30514,6 @@ impl WorldSession {
         stmt
     }
 
-    pub(crate) fn build_void_storage_withdrawal_item_insert_statement_like_cpp(
-        db_guid: u64,
-        player_guid_counter: u64,
-        item: &RepresentedVoidStorageItemLikeCpp,
-        count: u32,
-        max_durability: u32,
-        total_played_time: u32,
-        random_properties_id: i32,
-        random_properties_seed: i32,
-        item_flags: u32,
-        enchantments: &str,
-    ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::for_statement(CharStatements::INS_ITEM_INSTANCE_CLONE);
-        stmt.set_u64(0, db_guid);
-        stmt.set_u32(1, item.item_entry);
-        stmt.set_u64(2, player_guid_counter);
-        stmt.set_u64(3, item.creator_guid.counter() as u64);
-        stmt.set_u64(4, 0);
-        stmt.set_u32(5, count);
-        stmt.set_u32(6, 0);
-        stmt.set_string(7, "");
-        stmt.set_string(8, enchantments);
-        stmt.set_u32(9, item_flags);
-        stmt.set_u32(10, max_durability);
-        stmt.set_u32(11, total_played_time);
-        stmt.set_i32(12, random_properties_id);
-        stmt.set_i32(13, random_properties_seed);
-        stmt.set_u8(14, item.context);
-        stmt
-    }
-
     pub(crate) fn character_void_storage_save_statements_like_cpp(
         &self,
         player_guid_counter: u64,
