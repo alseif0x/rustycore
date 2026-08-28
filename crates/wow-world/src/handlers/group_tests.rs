@@ -9,15 +9,13 @@
 #![cfg(test)]
 
 use super::{
-    PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP, SOCIAL_FLAG_FRIEND_LIKE_CPP,
-    SOCIAL_FLAG_IGNORED_LIKE_CPP, current_group_guid_like_cpp,
+    PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP, current_group_guid_like_cpp,
     first_connected_group_member_like_cpp, group_delete_statement_like_cpp,
     group_leader_update_statement_like_cpp, group_lfg_data_delete_statement_like_cpp,
     group_member_delete_all_statement_like_cpp, group_member_delete_statement_like_cpp,
     group_member_flag_update_statement_like_cpp, group_member_insert_statement_like_cpp,
     group_member_subgroup_update_statement_like_cpp, group_persistence_statement_like_cpp,
-    group_type_update_statement_like_cpp, party_invite_social_friend_match_like_cpp,
-    party_invite_social_ignore_match_like_cpp, party_player_info_like_cpp,
+    group_type_update_statement_like_cpp, party_player_info_like_cpp,
     send_group_new_leader_like_cpp, send_party_update, send_ready_check_events_like_cpp,
     sender_can_start_ready_check_like_cpp,
 };
@@ -27,7 +25,10 @@ use crate::session::directory::{
 };
 use crate::session::mailbox::{SendRealmPacketLikeCppCommand, SessionCommand};
 use flume::bounded;
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
 use wow_database::{CharStatements, SqlParam, StatementDef};
@@ -35,6 +36,11 @@ use wow_handler::{PacketProcessing, SessionStatus};
 
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::{ServerPacket, WorldPacket, packets::party::party_result};
+use wow_persistence::{
+    PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, SocialAddCandidateLoadOutcomeLikeCpp,
+    SocialContactListLoadOutcomeLikeCpp, SocialPartyInviteLookupOutcomeLikeCpp,
+    SocialPersistencePortLikeCpp, SocialRelationshipKindLikeCpp, SocialRelationshipStateLikeCpp,
+};
 use wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP;
 use wow_social::group::{
     GroupInfo, GroupMemberCharacterLikeCpp, GroupRegistry, PendingInviteLikeCpp, PendingInvites,
@@ -42,6 +48,115 @@ use wow_social::group::{
 };
 
 use crate::session::WorldSession;
+
+struct PartyInviteSocialPortLikeCpp {
+    ignore: SocialPartyInviteLookupOutcomeLikeCpp,
+    friend: SocialPartyInviteLookupOutcomeLikeCpp,
+    calls: Mutex<Vec<String>>,
+}
+
+impl PartyInviteSocialPortLikeCpp {
+    fn new(
+        ignore: SocialPartyInviteLookupOutcomeLikeCpp,
+        friend: SocialPartyInviteLookupOutcomeLikeCpp,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            ignore,
+            friend,
+            calls: Mutex::new(Vec::new()),
+        })
+    }
+
+    fn calls(&self) -> Vec<String> {
+        self.calls.lock().unwrap().clone()
+    }
+}
+
+impl SocialPersistencePortLikeCpp for PartyInviteSocialPortLikeCpp {
+    fn load_contacts_like_cpp<'a>(
+        &'a self,
+        _player_guid: i64,
+        _flags: u32,
+    ) -> PersistenceFutureLikeCpp<'a, SocialContactListLoadOutcomeLikeCpp> {
+        Box::pin(async { SocialContactListLoadOutcomeLikeCpp::Loaded(Vec::new()) })
+    }
+
+    fn load_add_candidate_like_cpp<'a>(
+        &'a self,
+        _normalized_name: String,
+        _kind: SocialRelationshipKindLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, SocialAddCandidateLoadOutcomeLikeCpp> {
+        Box::pin(async { SocialAddCandidateLoadOutcomeLikeCpp::NotFound })
+    }
+
+    fn load_relationship_state_like_cpp<'a>(
+        &'a self,
+        _player_guid: i64,
+        _target_guid: i64,
+        _kind: SocialRelationshipKindLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, SocialRelationshipStateLikeCpp> {
+        Box::pin(async {
+            SocialRelationshipStateLikeCpp {
+                already_present: false,
+                relationship_count: 0,
+            }
+        })
+    }
+
+    fn party_invite_target_ignores_like_cpp<'a>(
+        &'a self,
+        target_guid: i64,
+        inviter_guid: i64,
+        inviter_account_id: u32,
+    ) -> PersistenceFutureLikeCpp<'a, SocialPartyInviteLookupOutcomeLikeCpp> {
+        self.calls.lock().unwrap().push(format!(
+            "ignore:{target_guid}:{inviter_guid}:{inviter_account_id}"
+        ));
+        let outcome = self.ignore.clone();
+        Box::pin(async move { outcome })
+    }
+
+    fn party_invite_target_has_friend_like_cpp<'a>(
+        &'a self,
+        target_guid: i64,
+        inviter_guid: i64,
+    ) -> PersistenceFutureLikeCpp<'a, SocialPartyInviteLookupOutcomeLikeCpp> {
+        self.calls
+            .lock()
+            .unwrap()
+            .push(format!("friend:{target_guid}:{inviter_guid}"));
+        let outcome = self.friend.clone();
+        Box::pin(async move { outcome })
+    }
+
+    fn add_relationship_like_cpp<'a>(
+        &'a self,
+        _player_guid: i64,
+        _target_guid: i64,
+        _kind: SocialRelationshipKindLikeCpp,
+        _note: String,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
+    }
+
+    fn remove_relationship_like_cpp<'a>(
+        &'a self,
+        _player_guid: i64,
+        _target_guid: i64,
+        _kind: SocialRelationshipKindLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
+    }
+
+    fn set_contact_note_like_cpp<'a>(
+        &'a self,
+        _player_guid: i64,
+        _target_guid: i64,
+        _note: String,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
+    }
+}
 
 fn test_session_command_dispatcher(
     guid: ObjectGuid,
@@ -1428,48 +1543,107 @@ async fn party_invite_rejects_low_level_non_friend_like_cpp() {
     assert!(pending_invites.get(&target).is_none());
 }
 
-#[test]
-fn party_invite_social_matching_covers_guid_account_and_friend_like_cpp() {
+#[tokio::test]
+async fn party_invite_ignore_port_short_circuits_friend_lookup_like_cpp() {
+    let (mut session, send_rx) = make_session_with_send();
     let inviter = ObjectGuid::create_player(1, 42);
+    let target = ObjectGuid::create_player(1, 77);
+    let target_name = format!("Player{}", target.low_value());
 
-    assert!(party_invite_social_ignore_match_like_cpp(
-        inviter.counter(),
-        7,
-        SOCIAL_FLAG_IGNORED_LIKE_CPP,
-        inviter,
-        1
-    ));
-    assert!(party_invite_social_ignore_match_like_cpp(
-        77,
-        1,
-        SOCIAL_FLAG_IGNORED_LIKE_CPP,
-        inviter,
-        1
-    ));
-    assert!(!party_invite_social_ignore_match_like_cpp(
-        77,
-        7,
-        SOCIAL_FLAG_IGNORED_LIKE_CPP,
-        inviter,
-        1
-    ));
-    assert!(!party_invite_social_ignore_match_like_cpp(
-        inviter.counter(),
-        1,
-        SOCIAL_FLAG_FRIEND_LIKE_CPP,
-        inviter,
-        1
-    ));
-    assert!(party_invite_social_friend_match_like_cpp(
-        inviter.counter(),
-        SOCIAL_FLAG_FRIEND_LIKE_CPP,
-        inviter
-    ));
-    assert!(!party_invite_social_friend_match_like_cpp(
-        77,
-        SOCIAL_FLAG_FRIEND_LIKE_CPP,
-        inviter
-    ));
+    let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
+    let (target_tx, target_rx) = bounded(8);
+    player_registry.register_or_replace(
+        target,
+        broadcast_info(target, target_tx),
+        Default::default(),
+    );
+    let pending_invites = Arc::new(PendingInvites::default());
+    let port = PartyInviteSocialPortLikeCpp::new(
+        SocialPartyInviteLookupOutcomeLikeCpp::Resolved(true),
+        SocialPartyInviteLookupOutcomeLikeCpp::Resolved(true),
+    );
+
+    session.set_player_guid(Some(inviter));
+    session.set_loaded_player_identity_like_cpp(0, 1, 1, 1, 0);
+    session.set_party_level_req_like_cpp(2);
+    session.set_player_registry(player_registry);
+    session.set_group_registry(
+        Arc::new(GroupRegistry::default()),
+        Arc::clone(&pending_invites),
+    );
+    session.set_social_persistence_port_like_cpp(port.clone());
+
+    session
+        .handle_party_invite(party_invite_packet(target, &target_name, None, 0))
+        .await;
+
+    assert_eq!(
+        party_command_result_code(&send_rx.try_recv().expect("party command result")),
+        party_result::IGNORING_YOU
+    );
+    assert_eq!(port.calls(), vec!["ignore:77:42:1"]);
+    assert!(target_rx.try_recv().is_err());
+    assert!(pending_invites.get(&target).is_none());
+}
+
+#[tokio::test]
+async fn party_invite_low_level_friend_port_preserves_ignore_then_friend_order_like_cpp() {
+    let (mut session, _send_rx) = make_session_with_send();
+    let inviter = ObjectGuid::create_player(1, 42);
+    let target = ObjectGuid::create_player(1, 77);
+    let target_name = format!("Player{}", target.low_value());
+
+    let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
+    let (target_tx, target_rx) = bounded(8);
+    player_registry.register_or_replace(
+        target,
+        broadcast_info(target, target_tx),
+        Default::default(),
+    );
+    let pending_invites = Arc::new(PendingInvites::default());
+    let port = PartyInviteSocialPortLikeCpp::new(
+        SocialPartyInviteLookupOutcomeLikeCpp::Resolved(false),
+        SocialPartyInviteLookupOutcomeLikeCpp::Resolved(true),
+    );
+
+    session.set_player_guid(Some(inviter));
+    session.set_loaded_player_identity_like_cpp(0, 1, 1, 1, 0);
+    session.set_party_level_req_like_cpp(2);
+    session.set_player_registry(player_registry);
+    session.set_group_registry(
+        Arc::new(GroupRegistry::default()),
+        Arc::clone(&pending_invites),
+    );
+    session.set_social_persistence_port_like_cpp(port.clone());
+
+    session
+        .handle_party_invite(party_invite_packet(target, &target_name, None, 0))
+        .await;
+
+    assert_eq!(port.calls(), vec!["ignore:77:42:1", "friend:77:42"]);
+    assert!(pending_invites.get(&target).is_some());
+    assert!(party_invite_can_accept(&recv_dispatched_packet(
+        &target_rx,
+        "target invite packet"
+    )));
+}
+
+#[tokio::test]
+async fn failed_party_invite_social_lookup_retains_the_existing_fail_open_result() {
+    let inviter = ObjectGuid::create_player(1, 42);
+    let target = ObjectGuid::create_player(1, 77);
+    let port = PartyInviteSocialPortLikeCpp::new(
+        SocialPartyInviteLookupOutcomeLikeCpp::Failed {
+            reason: "database unavailable".to_owned(),
+        },
+        SocialPartyInviteLookupOutcomeLikeCpp::Resolved(false),
+    );
+
+    assert!(
+        !super::target_social_ignores_inviter_like_cpp(Some(port.clone()), target, inviter, 1,)
+            .await
+    );
+    assert_eq!(port.calls(), vec!["ignore:77:42:1"]);
 }
 
 #[tokio::test]

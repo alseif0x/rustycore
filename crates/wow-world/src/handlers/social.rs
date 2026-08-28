@@ -693,7 +693,8 @@ mod tests {
     use wow_constants::ServerOpcodes;
     use wow_persistence::{
         PersistenceFutureLikeCpp, SocialAddCandidateLoadOutcomeLikeCpp,
-        SocialContactLoadRowLikeCpp, SocialPersistencePortLikeCpp, SocialRelationshipStateLikeCpp,
+        SocialContactLoadRowLikeCpp, SocialPartyInviteLookupOutcomeLikeCpp,
+        SocialPersistencePortLikeCpp, SocialRelationshipStateLikeCpp,
     };
 
     struct RecordingSocialPort {
@@ -736,6 +737,23 @@ mod tests {
                     relationship_count: 0,
                 }
             })
+        }
+
+        fn party_invite_target_ignores_like_cpp<'a>(
+            &'a self,
+            _target_guid: i64,
+            _inviter_guid: i64,
+            _inviter_account_id: u32,
+        ) -> PersistenceFutureLikeCpp<'a, SocialPartyInviteLookupOutcomeLikeCpp> {
+            Box::pin(async { SocialPartyInviteLookupOutcomeLikeCpp::Resolved(false) })
+        }
+
+        fn party_invite_target_has_friend_like_cpp<'a>(
+            &'a self,
+            _target_guid: i64,
+            _inviter_guid: i64,
+        ) -> PersistenceFutureLikeCpp<'a, SocialPartyInviteLookupOutcomeLikeCpp> {
+            Box::pin(async { SocialPartyInviteLookupOutcomeLikeCpp::Resolved(false) })
         }
 
         fn add_relationship_like_cpp<'a>(
