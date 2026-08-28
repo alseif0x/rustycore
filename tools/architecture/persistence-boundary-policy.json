@@ -18283,6 +18283,246 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::stored_item_money_adapter:crates/wow-database/src/stored_item_money_adapter.rs::const STORED_ITEM_MONEY_ATTEMPT_ORDER_LIKE_CPP",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/stored_item_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::stored_item_money_adapter"
+      ],
+      "enclosings": [
+        "const STORED_ITEM_MONEY_ATTEMPT_ORDER_LIKE_CPP"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free stored Item loot money (#452) currently owns the complete wow-database workflow const STORED_ITEM_MONEY_ATTEMPT_ORDER_LIKE_CPP in crates/wow-database/src/stored_item_money_adapter.rs.",
+      "connection_affinity": "Statement identity is fixed to the Characters adapter.",
+      "current_order": "Character lock, container lock, optional absolute-money update, then exactly-one source deletion.",
+      "failure_and_unknown_commit": "The constant performs no I/O; the typed attempt classifies failures.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::stored_item_money_adapter:crates/wow-database/src/stored_item_money_adapter.rs::const STORED_ITEM_MONEY_RECONCILIATION_ORDER_LIKE_CPP",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/stored_item_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::stored_item_money_adapter"
+      ],
+      "enclosings": [
+        "const STORED_ITEM_MONEY_RECONCILIATION_ORDER_LIKE_CPP"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free stored Item loot money (#452) currently owns the complete wow-database workflow const STORED_ITEM_MONEY_RECONCILIATION_ORDER_LIKE_CPP in crates/wow-database/src/stored_item_money_adapter.rs.",
+      "connection_affinity": "Statement identity is fixed to the Characters adapter.",
+      "current_order": "Character lock precedes container lock exactly as in the mutation.",
+      "failure_and_unknown_commit": "The constant performs no I/O; reconciliation maps any read/rollback failure to indeterminate.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::stored_item_money_adapter:crates/wow-database/src/stored_item_money_adapter.rs::fn rolled_back_database_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/stored_item_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::stored_item_money_adapter"
+      ],
+      "enclosings": [
+        "fn rolled_back_database_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free stored Item loot money (#452) currently owns the complete wow-database workflow fn rolled_back_database_like_cpp in crates/wow-database/src/stored_item_money_adapter.rs.",
+      "connection_affinity": "Receives only an error produced by the bound Characters transaction.",
+      "current_order": "Classification occurs at the failing adapter step without reordering SQL.",
+      "failure_and_unknown_commit": "MySQL deadlock is retained as retryable definite rollback; all other pre-COMMIT errors are non-retryable definite rollback.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::stored_item_money_adapter:crates/wow-database/src/stored_item_money_adapter.rs::impl MariaDbStoredItemMoneyPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/stored_item_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::stored_item_money_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbStoredItemMoneyPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free stored Item loot money (#452) currently owns the complete wow-database workflow impl MariaDbStoredItemMoneyPersistenceAdapterLikeCpp::new in crates/wow-database/src/stored_item_money_adapter.rs.",
+      "connection_affinity": "Composition supplies one process-wide Characters adapter before sessions are accepted.",
+      "current_order": "Construction performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::stored_item_money_adapter:crates/wow-database/src/stored_item_money_adapter.rs::impl wow_persistence::StoredItemMoneyPersistencePortLikeCpp for MariaDbStoredItemMoneyPersistenceAdapterLikeCpp::attempt_stored_item_money_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/stored_item_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::stored_item_money_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::StoredItemMoneyPersistencePortLikeCpp for MariaDbStoredItemMoneyPersistenceAdapterLikeCpp::attempt_stored_item_money_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free stored Item loot money (#452) currently owns the complete wow-database workflow impl wow_persistence::StoredItemMoneyPersistencePortLikeCpp for MariaDbStoredItemMoneyPersistenceAdapterLikeCpp::attempt_stored_item_money_like_cpp in crates/wow-database/src/stored_item_money_adapter.rs.",
+      "connection_affinity": "One Characters transaction owns both locked reads, the optional balance update and source consumption.",
+      "current_order": "Lock character, lock container, derive capped outcome, optionally update money, delete exactly one source row, then COMMIT.",
+      "failure_and_unknown_commit": "Begin/query/affected-row failures are definite rollback; deadlock is retryable; a non-deadlock COMMIT error returns the proposed outcome as unknown.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::stored_item_money_adapter:crates/wow-database/src/stored_item_money_adapter.rs::impl wow_persistence::StoredItemMoneyPersistencePortLikeCpp for MariaDbStoredItemMoneyPersistenceAdapterLikeCpp::reconcile_stored_item_money_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/stored_item_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::stored_item_money_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::StoredItemMoneyPersistencePortLikeCpp for MariaDbStoredItemMoneyPersistenceAdapterLikeCpp::reconcile_stored_item_money_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free stored Item loot money (#452) currently owns the complete wow-database workflow impl wow_persistence::StoredItemMoneyPersistencePortLikeCpp for MariaDbStoredItemMoneyPersistenceAdapterLikeCpp::reconcile_stored_item_money_like_cpp in crates/wow-database/src/stored_item_money_adapter.rs.",
+      "connection_affinity": "One read-only Characters transaction locks both facts under the caller-held per-character mutex.",
+      "current_order": "Lock character then container, classify joint before/after evidence, and roll back the read-only transaction.",
+      "failure_and_unknown_commit": "Missing/mixed facts or any begin/read/rollback failure return indeterminate; no success is fabricated.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::stored_item_money_adapter:crates/wow-database/src/stored_item_money_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/stored_item_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::stored_item_money_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free stored Item loot money (#452) currently owns the complete wow-database workflow module in crates/wow-database/src/stored_item_money_adapter.rs.",
+      "connection_affinity": "The module is bound to one configured Characters adapter and opens no cross-database workflow.",
+      "current_order": "The adapter preserves character-row before container-row locking for both mutation and reconciliation.",
+      "failure_and_unknown_commit": "Driver errors are normalized as definite rollback/deadlock or unknown COMMIT; no SQLx error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::stored_item_money_adapter:crates/wow-database/src/stored_item_money_adapter.rs::struct MariaDbStoredItemMoneyPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/stored_item_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::stored_item_money_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbStoredItemMoneyPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free stored Item loot money (#452) currently owns the complete wow-database workflow struct MariaDbStoredItemMoneyPersistenceAdapterLikeCpp in crates/wow-database/src/stored_item_money_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one Characters-database handle.",
+      "current_order": "Construction stores the handle only; typed methods own transaction order.",
+      "failure_and_unknown_commit": "No I/O or transaction occurs while storing the adapter.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::transaction:crates/wow-database/src/transaction.rs::enum SqlTransactionCommitError::CommitOutcomeUnknown",
       "source_class": "production",
       "packages": [
@@ -24415,102 +24655,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::loot:crates/wow-world/src/handlers/loot/mod.rs::enum StoredItemMoneyAttemptErrorLikeCpp::CommitOutcomeUnknown",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/loot/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::loot"
-      ],
-      "enclosings": [
-        "enum StoredItemMoneyAttemptErrorLikeCpp::CommitOutcomeUnknown"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world runtime boundary currently owns the complete wow-world workflow enum StoredItemMoneyAttemptErrorLikeCpp::CommitOutcomeUnknown in crates/wow-world/src/handlers/loot/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::loot:crates/wow-world/src/handlers/loot/mod.rs::fn attempt_stored_item_money_transaction_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/loot/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::loot"
-      ],
-      "enclosings": [
-        "fn attempt_stored_item_money_transaction_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world runtime boundary currently owns the complete wow-world workflow fn attempt_stored_item_money_transaction_like_cpp in crates/wow-world/src/handlers/loot/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::loot:crates/wow-world/src/handlers/loot/mod.rs::fn reconcile_stored_item_money_commit_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/loot/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::loot"
-      ],
-      "enclosings": [
-        "fn reconcile_stored_item_money_commit_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world runtime boundary currently owns the complete wow-world workflow fn reconcile_stored_item_money_commit_like_cpp in crates/wow-world/src/handlers/loot/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-world:crate::handlers::loot:crates/wow-world/src/handlers/loot/mod.rs::fn spawn_sql_loot_claim_persistence_worker_like_cpp",
       "source_class": "production",
       "packages": [
@@ -24729,38 +24873,6 @@
       ],
       "capability_owner": "world catalog data-source boundary currently owns the complete wow-world workflow impl WorldSession::load_gameobject_template_addon_money_loot_like_cpp in crates/wow-world/src/handlers/loot/money.rs.",
       "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::loot::money:crates/wow-world/src/handlers/loot/money.rs::impl WorldSession::spawn_stored_item_money_persistence_worker_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/loot/money.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::loot::money"
-      ],
-      "enclosings": [
-        "impl WorldSession::spawn_stored_item_money_persistence_worker_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable loot persistence/publication capability currently owns the complete wow-world workflow impl WorldSession::spawn_stored_item_money_persistence_worker_like_cpp in crates/wow-world/src/handlers/loot/money.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
@@ -28607,6 +28719,7 @@
         "crates/wow-database/src/statements/hotfix.rs",
         "crates/wow-database/src/statements/mod.rs",
         "crates/wow-database/src/statements/world.rs",
+        "crates/wow-database/src/stored_item_money_adapter.rs",
         "crates/wow-database/src/transaction.rs",
         "crates/wow-database/src/updater.rs",
         "crates/wow-database/src/void_storage_adapter.rs"
