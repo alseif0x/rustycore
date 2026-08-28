@@ -35,6 +35,7 @@
 
 pub mod database;
 pub mod error;
+pub mod group_loot_money_adapter;
 pub mod loader;
 pub mod map_corpse_adapter;
 pub mod packet_spoof_ban_adapter;

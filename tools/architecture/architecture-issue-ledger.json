@@ -85,6 +85,7 @@
     448,
     450,
     452,
+    454,
     189,
     192,
     193,
@@ -1416,7 +1417,7 @@
     },
     {
       "number": 452,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.35] Move stored-item loot-money SQLx behind a typed port",
       "kind": "slice",
       "parents": [
@@ -1425,6 +1426,19 @@
       ],
       "depends_on": [
         450
+      ]
+    },
+    {
+      "number": 454,
+      "state": "open",
+      "title": "[ARCH.DB.36] Move group loot-money SQLx behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        452
       ]
     }
   ]

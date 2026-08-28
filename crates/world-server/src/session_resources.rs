@@ -47,6 +47,9 @@ pub(super) struct SessionResources {
     /// Characters-database capability for atomic stored Item loot money.
     pub(super) stored_item_money_persistence_port:
         Option<Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>>,
+    /// Characters-database capability for atomic multi-recipient loot money.
+    pub(super) group_loot_money_persistence_port:
+        Option<Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>>,
     pub(super) world_db: Option<Arc<wow_database::WorldDatabase>>,
     /// Process-wide C++ `ObjectMgr::_trainers` /
     /// `_creatureDefaultTrainers` snapshot.

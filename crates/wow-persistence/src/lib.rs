@@ -2252,6 +2252,101 @@ pub trait StoredItemMoneyPersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<'_, StoredItemMoneyReconciliationLikeCpp>;
 }
 
+/// One recipient in an atomic group corpse-loot payout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GroupLootMoneyPayoutLikeCpp {
+    pub recipient_guid: u64,
+    pub requested_delta: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GroupLootMoneyPersistenceRequestLikeCpp {
+    pub payouts: Vec<GroupLootMoneyPayoutLikeCpp>,
+    pub max_money: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GroupLootMoneyPersistenceOutcomeLikeCpp {
+    pub recipient_guid: u64,
+    pub before: u64,
+    pub after: u64,
+    pub applied_delta: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GroupLootMoneyRollbackKindLikeCpp {
+    MissingPlayer { recipient_guid: u64 },
+    Database,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GroupLootMoneyPersistenceAttemptLikeCpp {
+    Applied(Vec<GroupLootMoneyPersistenceOutcomeLikeCpp>),
+    DefinitelyRolledBack {
+        kind: GroupLootMoneyRollbackKindLikeCpp,
+        reason: String,
+        retryable_deadlock: bool,
+    },
+    CommitOutcomeUnknown {
+        reason: String,
+        outcomes: Vec<GroupLootMoneyPersistenceOutcomeLikeCpp>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GroupLootMoneyReconciliationLikeCpp {
+    CommittedOrCapOnlyNoop,
+    RolledBack,
+    Indeterminate { reason: Option<String> },
+}
+
+pub fn classify_group_loot_money_reconciliation_like_cpp(
+    outcomes: &[GroupLootMoneyPersistenceOutcomeLikeCpp],
+    observed: &[(u64, Option<u64>)],
+) -> GroupLootMoneyReconciliationLikeCpp {
+    let changed = outcomes
+        .iter()
+        .filter(|outcome| outcome.before != outcome.after)
+        .collect::<Vec<_>>();
+    if changed.is_empty() {
+        return GroupLootMoneyReconciliationLikeCpp::CommittedOrCapOnlyNoop;
+    }
+    if changed.len() != observed.len() {
+        return GroupLootMoneyReconciliationLikeCpp::Indeterminate { reason: None };
+    }
+
+    let mut all_before = true;
+    let mut all_after = true;
+    for outcome in changed {
+        let Some((_, Some(current))) = observed
+            .iter()
+            .find(|(recipient_guid, _)| *recipient_guid == outcome.recipient_guid)
+        else {
+            return GroupLootMoneyReconciliationLikeCpp::Indeterminate { reason: None };
+        };
+        all_before &= *current == outcome.before;
+        all_after &= *current == outcome.after;
+    }
+    match (all_before, all_after) {
+        (true, false) => GroupLootMoneyReconciliationLikeCpp::RolledBack,
+        (false, true) => GroupLootMoneyReconciliationLikeCpp::CommittedOrCapOnlyNoop,
+        _ => GroupLootMoneyReconciliationLikeCpp::Indeterminate { reason: None },
+    }
+}
+
+/// SQLx-free Characters-database capability for one group loot-money payout.
+pub trait GroupLootMoneyPersistencePortLikeCpp: Send + Sync {
+    fn attempt_group_loot_money_like_cpp(
+        &self,
+        request: GroupLootMoneyPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'_, GroupLootMoneyPersistenceAttemptLikeCpp>;
+
+    fn reconcile_group_loot_money_like_cpp(
+        &self,
+        outcomes: Vec<GroupLootMoneyPersistenceOutcomeLikeCpp>,
+    ) -> PersistenceFutureLikeCpp<'_, GroupLootMoneyReconciliationLikeCpp>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2695,5 +2790,58 @@ mod tests {
             })
         );
         assert!(stored_item_money_zero_without_source_outcome_like_cpp(41, 1).is_none());
+    }
+
+    #[test]
+    fn group_loot_money_reconciliation_requires_one_coherent_side_like_cpp() {
+        let outcomes = vec![
+            GroupLootMoneyPersistenceOutcomeLikeCpp {
+                recipient_guid: 1,
+                before: 10,
+                after: 15,
+                applied_delta: 5,
+            },
+            GroupLootMoneyPersistenceOutcomeLikeCpp {
+                recipient_guid: 2,
+                before: 20,
+                after: 27,
+                applied_delta: 7,
+            },
+        ];
+        assert_eq!(
+            classify_group_loot_money_reconciliation_like_cpp(
+                &outcomes,
+                &[(1, Some(10)), (2, Some(20))]
+            ),
+            GroupLootMoneyReconciliationLikeCpp::RolledBack
+        );
+        assert_eq!(
+            classify_group_loot_money_reconciliation_like_cpp(
+                &outcomes,
+                &[(1, Some(15)), (2, Some(27))]
+            ),
+            GroupLootMoneyReconciliationLikeCpp::CommittedOrCapOnlyNoop
+        );
+        assert_eq!(
+            classify_group_loot_money_reconciliation_like_cpp(
+                &outcomes,
+                &[(1, Some(10)), (2, Some(27))]
+            ),
+            GroupLootMoneyReconciliationLikeCpp::Indeterminate { reason: None }
+        );
+    }
+
+    #[test]
+    fn group_loot_money_cap_only_noop_needs_no_commit_evidence_like_cpp() {
+        let outcomes = [GroupLootMoneyPersistenceOutcomeLikeCpp {
+            recipient_guid: 1,
+            before: 100,
+            after: 100,
+            applied_delta: 0,
+        }];
+        assert_eq!(
+            classify_group_loot_money_reconciliation_like_cpp(&outcomes, &[]),
+            GroupLootMoneyReconciliationLikeCpp::CommittedOrCapOnlyNoop
+        );
     }
 }

@@ -13449,6 +13449,216 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter:crates/wow-database/src/group_loot_money_adapter.rs::const GROUP_LOOT_MONEY_ATTEMPT_ORDER_LIKE_CPP",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter"
+      ],
+      "enclosings": [
+        "const GROUP_LOOT_MONEY_ATTEMPT_ORDER_LIKE_CPP"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free group loot money (#454) currently owns the complete wow-database workflow const GROUP_LOOT_MONEY_ATTEMPT_ORDER_LIKE_CPP in crates/wow-database/src/group_loot_money_adapter.rs.",
+      "connection_affinity": "Statement identity is fixed to the Characters adapter.",
+      "current_order": "For every recipient in stable GUID order, lock the Character row and then optionally update its absolute balance.",
+      "failure_and_unknown_commit": "The constant performs no I/O; the typed attempt classifies failures.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter:crates/wow-database/src/group_loot_money_adapter.rs::fn rolled_back_database_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter"
+      ],
+      "enclosings": [
+        "fn rolled_back_database_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free group loot money (#454) currently owns the complete wow-database workflow fn rolled_back_database_like_cpp in crates/wow-database/src/group_loot_money_adapter.rs.",
+      "connection_affinity": "Receives only an error produced by the bound Characters transaction.",
+      "current_order": "Classification occurs at the failing adapter step without reordering SQL.",
+      "failure_and_unknown_commit": "MySQL deadlock is retained as retryable definite rollback; all other pre-COMMIT errors are non-retryable definite rollback.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter:crates/wow-database/src/group_loot_money_adapter.rs::impl MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free group loot money (#454) currently owns the complete wow-database workflow impl MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::new in crates/wow-database/src/group_loot_money_adapter.rs.",
+      "connection_affinity": "Composition supplies one process-wide Characters adapter before sessions are accepted.",
+      "current_order": "Construction performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter:crates/wow-database/src/group_loot_money_adapter.rs::impl wow_persistence::GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::attempt_group_loot_money_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::attempt_group_loot_money_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free group loot money (#454) currently owns the complete wow-database workflow impl wow_persistence::GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::attempt_group_loot_money_like_cpp in crates/wow-database/src/group_loot_money_adapter.rs.",
+      "connection_affinity": "One Characters transaction owns every recipient lock, optional capped balance update and the single commit.",
+      "current_order": "Sort by GUID, lock each Character row, derive its all-or-nothing capped outcome, update only changed balances, then COMMIT once.",
+      "failure_and_unknown_commit": "Begin/query/affected-row failures are definite rollback; deadlock is retryable; a non-deadlock COMMIT error returns every proposed outcome as unknown.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter:crates/wow-database/src/group_loot_money_adapter.rs::impl wow_persistence::GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::reconcile_group_loot_money_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::reconcile_group_loot_money_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free group loot money (#454) currently owns the complete wow-database workflow impl wow_persistence::GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::reconcile_group_loot_money_like_cpp in crates/wow-database/src/group_loot_money_adapter.rs.",
+      "connection_affinity": "Every read uses the same configured Characters adapter while the caller retains all per-character mutation mutexes.",
+      "current_order": "Read only changed recipients in the stable proposed-outcome order and compare the complete before/after evidence.",
+      "failure_and_unknown_commit": "All-before is rollback; all-after or cap-only no-op is committed; mixed, missing or read failure is indeterminate and never fabricates success.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter:crates/wow-database/src/group_loot_money_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free group loot money (#454) currently owns the complete wow-database workflow module in crates/wow-database/src/group_loot_money_adapter.rs.",
+      "connection_affinity": "The module is bound to one configured Characters adapter and opens no cross-database workflow.",
+      "current_order": "The adapter preserves stable recipient lock order, one atomic payout commit and complete changed-row reconciliation.",
+      "failure_and_unknown_commit": "Driver errors are normalized as definite rollback/deadlock or unknown COMMIT; no SQLx error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::group_loot_money_adapter:crates/wow-database/src/group_loot_money_adapter.rs::struct MariaDbGroupLootMoneyPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/group_loot_money_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::group_loot_money_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbGroupLootMoneyPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free group loot money (#454) currently owns the complete wow-database workflow struct MariaDbGroupLootMoneyPersistenceAdapterLikeCpp in crates/wow-database/src/group_loot_money_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one Characters-database handle.",
+      "current_order": "Construction stores the handle only; typed methods own transaction and reconciliation order.",
+      "failure_and_unknown_commit": "No I/O or transaction occurs while storing the adapter.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::map_corpse_adapter:crates/wow-database/src/map_corpse_adapter.rs::fn map_corpse_load_statements_like_cpp",
       "source_class": "production",
       "packages": [
@@ -27044,134 +27254,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::enum GroupLootMoneyAttemptErrorLikeCpp::CommitOutcomeUnknown",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session"
-      ],
-      "enclosings": [
-        "enum GroupLootMoneyAttemptErrorLikeCpp::CommitOutcomeUnknown"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable loot persistence/publication capability currently owns the complete wow-world workflow enum GroupLootMoneyAttemptErrorLikeCpp::CommitOutcomeUnknown in crates/wow-world/src/session/mod.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::enum LootMoneyPersistenceErrorLikeCpp::CommitOutcomeUnknown",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session"
-      ],
-      "enclosings": [
-        "enum LootMoneyPersistenceErrorLikeCpp::CommitOutcomeUnknown"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable loot persistence/publication capability currently owns the complete wow-world workflow enum LootMoneyPersistenceErrorLikeCpp::CommitOutcomeUnknown in crates/wow-world/src/session/mod.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::enum LootMoneyPersistenceErrorLikeCpp::Database",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session"
-      ],
-      "enclosings": [
-        "enum LootMoneyPersistenceErrorLikeCpp::Database"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable loot persistence/publication capability currently owns the complete wow-world workflow enum LootMoneyPersistenceErrorLikeCpp::Database in crates/wow-world/src/session/mod.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::fn attempt_group_loot_money_transaction_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session"
-      ],
-      "enclosings": [
-        "fn attempt_group_loot_money_transaction_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable loot persistence/publication capability currently owns the complete wow-world workflow fn attempt_group_loot_money_transaction_like_cpp in crates/wow-world/src/session/mod.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::fn run_legacy_creature_lifecycle_tick_once_like_cpp",
       "source_class": "production",
       "packages": [
@@ -27613,38 +27695,6 @@
       ],
       "capability_owner": "Session residual persistence boundary currently owns the complete wow-world workflow impl WorldSession::set_world_db in crates/wow-world/src/session/mod.rs.",
       "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::impl WorldSession::spawn_group_loot_money_persistence_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session"
-      ],
-      "enclosings": [
-        "impl WorldSession::spawn_group_loot_money_persistence_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable loot persistence/publication capability currently owns the complete wow-world workflow impl WorldSession::spawn_group_loot_money_persistence_like_cpp in crates/wow-world/src/session/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
@@ -28708,6 +28758,7 @@
       ],
       "sources": [
         "crates/wow-database/src/database.rs",
+        "crates/wow-database/src/group_loot_money_adapter.rs",
         "crates/wow-database/src/map_corpse_adapter.rs",
         "crates/wow-database/src/packet_spoof_ban_adapter.rs",
         "crates/wow-database/src/params.rs",
