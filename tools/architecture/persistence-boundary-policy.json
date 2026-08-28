@@ -2673,134 +2673,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::fn load_group_db_rows_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/map.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::map"
-      ],
-      "enclosings": [
-        "fn load_group_db_rows_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow fn load_group_db_rows_like_cpp in crates/world-server/src/runtime/map.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::fn load_group_member_character_cache_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/map.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::map"
-      ],
-      "enclosings": [
-        "fn load_group_member_character_cache_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow fn load_group_member_character_cache_like_cpp in crates/world-server/src/runtime/map.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::fn load_group_member_db_rows_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/map.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::map"
-      ],
-      "enclosings": [
-        "fn load_group_member_db_rows_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow fn load_group_member_db_rows_like_cpp in crates/world-server/src/runtime/map.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::fn load_groups_from_character_database_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/map.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::map"
-      ],
-      "enclosings": [
-        "fn load_groups_from_character_database_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow fn load_groups_from_character_database_like_cpp in crates/world-server/src/runtime/map.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::fn materialize_game_event_quest_complete_db_bridge_like_cpp",
       "source_class": "production",
       "packages": [
@@ -17320,6 +17192,36 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::represented_group_persistence_adapter:crates/wow-database/src/represented_group_persistence_adapter.rs::fn represented_group_startup_cleanup_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/represented_group_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::represented_group_persistence_adapter"
+      ],
+      "enclosings": [
+        "fn represented_group_startup_cleanup_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented Group persistence (#468/#470) currently owns the complete wow-database workflow fn represented_group_startup_cleanup_statement_like_cpp in crates/wow-database/src/represented_group_persistence_adapter.rs.",
+      "connection_affinity": "The adapter retains the Characters database connection and the existing pooled execute/query behavior.",
+      "current_order": "Preserve the four C++ cleanup statements before character-cache, group and member queries.",
+      "failure_and_unknown_commit": "Each cleanup/query failure identifies its exact stage and stops before aggregate materialization; no transaction or unknown-COMMIT claim is introduced.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::represented_group_persistence_adapter:crates/wow-database/src/represented_group_persistence_adapter.rs::fn represented_group_statement_like_cpp",
       "source_class": "production",
       "packages": [
@@ -17405,6 +17307,36 @@
       "connection_affinity": "Sequential mode uses one pooled Characters execute per command; Atomic mode retains the existing explicit Characters transaction.",
       "current_order": "Consumes commands in vector order. Sequential mode stops at the first failed execute; Atomic mode appends every command in order and commits once.",
       "failure_and_unknown_commit": "Sequential failure reports the applied prefix. Atomic failure distinguishes definite rollback from unknown COMMIT and never reports partial application as rollback.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::represented_group_persistence_adapter:crates/wow-database/src/represented_group_persistence_adapter.rs::impl wow_persistence::RepresentedGroupStartupLoadPortLikeCpp for MariaDbRepresentedGroupPersistenceAdapterLikeCpp::load_represented_groups_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/represented_group_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::represented_group_persistence_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::RepresentedGroupStartupLoadPortLikeCpp for MariaDbRepresentedGroupPersistenceAdapterLikeCpp::load_represented_groups_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented Group persistence (#468/#470) currently owns the complete wow-database workflow impl wow_persistence::RepresentedGroupStartupLoadPortLikeCpp for MariaDbRepresentedGroupPersistenceAdapterLikeCpp::load_represented_groups_like_cpp in crates/wow-database/src/represented_group_persistence_adapter.rs.",
+      "connection_affinity": "The adapter retains the Characters database connection and the existing pooled execute/query behavior.",
+      "current_order": "Preserve the four C++ cleanup statements before character-cache, group and member queries.",
+      "failure_and_unknown_commit": "Each cleanup/query failure identifies its exact stage and stops before aggregate materialization; no transaction or unknown-COMMIT claim is introduced.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true

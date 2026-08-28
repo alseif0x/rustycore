@@ -93,6 +93,7 @@
     464,
     466,
     468,
+    470,
     189,
     192,
     193,
@@ -1528,7 +1529,7 @@
     },
     {
       "number": 468,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.43] Move represented Group persistence intents behind a typed port",
       "kind": "slice",
       "parents": [
@@ -1537,6 +1538,19 @@
       ],
       "depends_on": [
         466
+      ]
+    },
+    {
+      "number": 470,
+      "state": "open",
+      "title": "[ARCH.DB.44] Move represented Group startup loading behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        468
       ]
     }
   ]

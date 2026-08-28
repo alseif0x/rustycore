@@ -1663,7 +1663,7 @@
         "command": "python3 tools/architecture/check_architecture.py hotspots --limit 20",
         "measurement": "two independent views: every real Rust file is reported physically, while each checked-in row is a logical owner ceiling including its reviewed private descendants; production/test/total remain independent non-growth ceilings",
         "physical_review_signals": "review a productive file around 2,000 lines; above 4,000 lines require a split plan or explicit cohesive exception; these are review signals, not daily blocking limits",
-        "baseline_commit": "3c7c0f8114a6f5f6cf571f1f146f8e8adbe766ee"
+        "baseline_commit": "998d59bd5328ef690412f99e54e0253371803598"
       },
       "entries": [
         {
@@ -1713,9 +1713,9 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 25445,
-          "test_lines": 21667,
-          "total_lines": 47112,
+          "production_lines": 25360,
+          "test_lines": 21708,
+          "total_lines": 47068,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153

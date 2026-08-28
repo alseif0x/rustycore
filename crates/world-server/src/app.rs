@@ -4032,8 +4032,13 @@ async fn run_inner(
     // Shared group registry and pending invites
     let group_registry = Arc::new(GroupRegistry::new());
     let pending_invites = Arc::new(PendingInvites::new());
+    let represented_group_persistence_adapter = Arc::new(
+        wow_database::represented_group_persistence_adapter::MariaDbRepresentedGroupPersistenceAdapterLikeCpp::new(
+            Arc::clone(&char_db),
+        ),
+    );
     let group_load_summary = load_groups_from_character_database_like_cpp(
-        char_db.as_ref(),
+        represented_group_persistence_adapter.as_ref(),
         group_registry.as_ref(),
         difficulty_store.as_ref(),
     )
@@ -4409,11 +4414,7 @@ async fn run_inner(
     );
     let represented_group_persistence_port: Arc<
         dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp,
-    > = Arc::new(
-        wow_database::represented_group_persistence_adapter::MariaDbRepresentedGroupPersistenceAdapterLikeCpp::new(
-            Arc::clone(&char_db),
-        ),
-    );
+    > = represented_group_persistence_adapter;
     let support_bug_report_persistence_port: Arc<
         dyn wow_persistence::SupportBugReportPersistencePortLikeCpp,
     > = Arc::new(
