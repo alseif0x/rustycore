@@ -44,6 +44,9 @@ pub(super) struct SessionResources {
     /// World-database capability for the represented quest POI cache.
     pub(super) quest_poi_persistence_port:
         Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>>,
+    /// Characters-database capability for atomic stored Item loot money.
+    pub(super) stored_item_money_persistence_port:
+        Option<Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>>,
     pub(super) world_db: Option<Arc<wow_database::WorldDatabase>>,
     /// Process-wide C++ `ObjectMgr::_trainers` /
     /// `_creatureDefaultTrainers` snapshot.

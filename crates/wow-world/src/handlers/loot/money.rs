@@ -9,7 +9,7 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::{DatabaseError, WorldStatements};
+use wow_database::WorldStatements;
 
 use super::*;
 
@@ -327,10 +327,10 @@ impl WorldSession {
             return None;
         };
         let test_result = self.loot_money_persistence_test_result_for_worker_like_cpp();
-        let char_db = if test_result.is_some() {
+        let persistence_port = if test_result.is_some() {
             None
         } else {
-            Some(self.char_db().map(Arc::clone)?)
+            Some(self.stored_item_money_persistence_port_like_cpp()?)
         };
         let test_current_money = self.player_gold_like_cpp();
         let balance_applied = Arc::new(AtomicBool::new(false));
@@ -360,52 +360,80 @@ impl WorldSession {
                     cached_notified_amount,
                 )
             } else {
-                let char_db = char_db.expect("production stored-money worker has a database");
+                let persistence_port = persistence_port
+                    .expect("production stored-money worker has a persistence port");
+                let request = StoredItemMoneyPersistenceRequestLikeCpp {
+                    player_guid: player_guid.counter() as u64,
+                    item_guid: item_guid.counter() as u64,
+                    cached_notified_amount,
+                    max_money: MAX_MONEY_AMOUNT,
+                };
                 let attempt = retry_deadlocked_operation_like_cpp(
-                    || {
-                        attempt_stored_item_money_transaction_like_cpp(
-                            char_db.as_ref(),
-                            player_guid,
-                            item_guid,
-                            cached_notified_amount,
+                    || async {
+                        match persistence_port
+                            .attempt_stored_item_money_like_cpp(request)
+                            .await
+                        {
+                            StoredItemMoneyPersistenceAttemptLikeCpp::Applied(outcome) => {
+                                Ok(outcome)
+                            }
+                            other => Err(other),
+                        }
+                    },
+                    |error| {
+                        matches!(
+                            error,
+                            StoredItemMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
+                                retryable_deadlock: true,
+                                ..
+                            }
                         )
                     },
-                    stored_item_money_attempt_is_deadlock_like_cpp,
                 )
                 .await;
                 let outcome = match attempt {
                     Ok(outcome) => outcome,
-                    Err(StoredItemMoneyAttemptErrorLikeCpp::DefinitelyRolledBack(error)) => {
-                        return Err(error);
+                    Err(StoredItemMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
+                        kind,
+                        reason,
+                        ..
+                    }) => {
+                        return Err(match kind {
+                            StoredItemMoneyRollbackKindLikeCpp::MissingPlayer => {
+                                LootMoneyPersistenceErrorLikeCpp::MissingPlayer
+                            }
+                            StoredItemMoneyRollbackKindLikeCpp::SourceAlreadyConsumed
+                            | StoredItemMoneyRollbackKindLikeCpp::Database => {
+                                LootMoneyPersistenceErrorLikeCpp::Persistence(reason)
+                            }
+                        });
                     }
-                    Err(StoredItemMoneyAttemptErrorLikeCpp::CommitOutcomeUnknown {
-                        error,
+                    Err(StoredItemMoneyPersistenceAttemptLikeCpp::CommitOutcomeUnknown {
+                        reason,
                         outcome,
-                    }) => match reconcile_stored_item_money_commit_like_cpp(
-                        char_db.as_ref(),
-                        player_guid,
-                        item_guid,
-                        outcome,
-                    )
-                    .await
+                    }) => match persistence_port
+                        .reconcile_stored_item_money_like_cpp(request, outcome)
+                        .await
                     {
-                        Ok(StoredItemMoneyCommitReconciliationLikeCpp::Committed) => outcome,
-                        Ok(StoredItemMoneyCommitReconciliationLikeCpp::RolledBack) => {
-                            return Err(LootMoneyPersistenceErrorLikeCpp::Database(
-                                DatabaseError::Transaction(
-                                    "stored Item money COMMIT was reconciled as rolled back"
-                                        .to_string(),
-                                ),
+                        StoredItemMoneyReconciliationLikeCpp::Committed => outcome,
+                        StoredItemMoneyReconciliationLikeCpp::RolledBack => {
+                            return Err(LootMoneyPersistenceErrorLikeCpp::Persistence(
+                                "stored Item money COMMIT was reconciled as rolled back".to_owned(),
                             ));
                         }
-                        Ok(StoredItemMoneyCommitReconciliationLikeCpp::Indeterminate) | Err(_) => {
+                        StoredItemMoneyReconciliationLikeCpp::Indeterminate { .. } => {
                             money_persistence_guard.mark_indeterminate_like_cpp();
                             queue_stored_item_money_indeterminate_kick_like_cpp(&command_tx);
-                            return Err(LootMoneyPersistenceErrorLikeCpp::CommitOutcomeUnknown(
-                                error,
-                            ));
+                            return Err(
+                                LootMoneyPersistenceErrorLikeCpp::CommitOutcomeUnknownPersistence(
+                                    reason,
+                                ),
+                            );
                         }
                     },
+                    Err(StoredItemMoneyPersistenceAttemptLikeCpp::Applied(_)) => {
+                        unreachable!("applied stored-money outcome is returned through Ok")
+                    }
                 };
                 (
                     outcome.before,

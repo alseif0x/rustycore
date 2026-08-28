@@ -21,12 +21,12 @@ use super::{
     LootStoreRandomProperties, ROLL_ALL_TYPE_NO_DISENCHANT_LIKE_CPP, ROLL_FLAG_TYPE_NEED_LIKE_CPP,
     ROLL_VOTE_GREED_LIKE_CPP, ROLL_VOTE_NEED_LIKE_CPP, ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP,
     ROLL_VOTE_NOT_VALID_LIKE_CPP, ROLL_VOTE_PASS_LIKE_CPP, RepresentedLootPlayerContext,
-    SPELL_EFFECT_OPEN_LOCK_LIKE_CPP, StoredItemMoneyCommitReconciliationLikeCpp,
-    StoredItemMoneyDbOutcomeLikeCpp, SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    SPELL_EFFECT_OPEN_LOCK_LIKE_CPP, StoredItemMoneyPersistenceOutcomeLikeCpp,
+    StoredItemMoneyReconciliationLikeCpp, SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
     SyncGooberGameobjectStateAndRefreshLikeCppCommand,
     assign_represented_personal_loot_items_like_cpp,
-    classify_stored_item_money_commit_reconciliation_like_cpp,
+    classify_stored_item_money_reconciliation_like_cpp,
     creature_loot_is_allowed_to_player_like_cpp, direct_item_count_after_loot_release_like_cpp,
     generated_creature_loot_item_to_entry_like_cpp,
     generated_shared_gameobject_loot_item_to_entry_like_cpp, loot_is_looted_like_cpp,
@@ -109,6 +109,10 @@ use wow_packet::packets::update::{
     CreatureCreateData, ObjectDataValuesUpdate, UnitDataValuesDeltaUpdate,
 };
 use wow_packet::{ServerPacket, WorldPacket};
+use wow_persistence::{
+    PersistenceFutureLikeCpp, StoredItemMoneyPersistenceAttemptLikeCpp,
+    StoredItemMoneyPersistencePortLikeCpp, StoredItemMoneyPersistenceRequestLikeCpp,
+};
 use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
 
 use crate::session::{
@@ -353,54 +357,46 @@ async fn creature_spell_cast_rejects_command_committed_for_another_session_like_
 
 #[test]
 fn stored_item_money_commit_unknown_requires_joint_balance_and_source_evidence_like_cpp() {
-    let outcome = StoredItemMoneyDbOutcomeLikeCpp {
+    let outcome = StoredItemMoneyPersistenceOutcomeLikeCpp {
         before: 100,
         after: 107,
         applied_delta: 7,
         notified_amount: 7,
     };
     assert_eq!(
-        classify_stored_item_money_commit_reconciliation_like_cpp(outcome, 100, Some(7)),
-        StoredItemMoneyCommitReconciliationLikeCpp::RolledBack
+        classify_stored_item_money_reconciliation_like_cpp(outcome, 100, Some(7)),
+        StoredItemMoneyReconciliationLikeCpp::RolledBack
     );
     assert_eq!(
-        classify_stored_item_money_commit_reconciliation_like_cpp(outcome, 107, None),
-        StoredItemMoneyCommitReconciliationLikeCpp::Committed
+        classify_stored_item_money_reconciliation_like_cpp(outcome, 107, None),
+        StoredItemMoneyReconciliationLikeCpp::Committed
     );
     assert_eq!(
-        classify_stored_item_money_commit_reconciliation_like_cpp(outcome, 100, None),
-        StoredItemMoneyCommitReconciliationLikeCpp::Indeterminate,
+        classify_stored_item_money_reconciliation_like_cpp(outcome, 100, None),
+        StoredItemMoneyReconciliationLikeCpp::Indeterminate { reason: None },
         "a missing source alone cannot attribute a later consumer's commit to this attempt"
     );
     assert_eq!(
-        classify_stored_item_money_commit_reconciliation_like_cpp(outcome, 107, Some(7)),
-        StoredItemMoneyCommitReconciliationLikeCpp::Indeterminate
+        classify_stored_item_money_reconciliation_like_cpp(outcome, 107, Some(7)),
+        StoredItemMoneyReconciliationLikeCpp::Indeterminate { reason: None }
     );
 }
 
 #[test]
 fn stored_item_money_cap_noop_still_reconciles_source_consumption_like_cpp() {
-    let outcome = StoredItemMoneyDbOutcomeLikeCpp {
+    let outcome = StoredItemMoneyPersistenceOutcomeLikeCpp {
         before: MAX_MONEY_AMOUNT - 1,
         after: MAX_MONEY_AMOUNT - 1,
         applied_delta: 0,
         notified_amount: 2,
     };
     assert_eq!(
-        classify_stored_item_money_commit_reconciliation_like_cpp(
-            outcome,
-            MAX_MONEY_AMOUNT - 1,
-            None,
-        ),
-        StoredItemMoneyCommitReconciliationLikeCpp::Committed
+        classify_stored_item_money_reconciliation_like_cpp(outcome, MAX_MONEY_AMOUNT - 1, None,),
+        StoredItemMoneyReconciliationLikeCpp::Committed
     );
     assert_eq!(
-        classify_stored_item_money_commit_reconciliation_like_cpp(
-            outcome,
-            MAX_MONEY_AMOUNT - 1,
-            Some(2),
-        ),
-        StoredItemMoneyCommitReconciliationLikeCpp::RolledBack
+        classify_stored_item_money_reconciliation_like_cpp(outcome, MAX_MONEY_AMOUNT - 1, Some(2),),
+        StoredItemMoneyReconciliationLikeCpp::RolledBack
     );
 }
 
@@ -412,6 +408,64 @@ fn stored_item_money_zero_without_db_source_is_success_but_positive_is_consumed(
     assert_eq!(zero.applied_delta, 0);
     assert_eq!(zero.notified_amount, 0);
     assert!(stored_item_money_zero_without_source_outcome_like_cpp(41, 1).is_none());
+}
+
+struct StoredItemMoneyPortFixtureLikeCpp {
+    attempt: StoredItemMoneyPersistenceAttemptLikeCpp,
+}
+
+impl StoredItemMoneyPersistencePortLikeCpp for StoredItemMoneyPortFixtureLikeCpp {
+    fn attempt_stored_item_money_like_cpp(
+        &self,
+        _request: StoredItemMoneyPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'_, StoredItemMoneyPersistenceAttemptLikeCpp> {
+        Box::pin(std::future::ready(self.attempt.clone()))
+    }
+
+    fn reconcile_stored_item_money_like_cpp(
+        &self,
+        _request: StoredItemMoneyPersistenceRequestLikeCpp,
+        _outcome: StoredItemMoneyPersistenceOutcomeLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'_, StoredItemMoneyReconciliationLikeCpp> {
+        Box::pin(std::future::ready(
+            StoredItemMoneyReconciliationLikeCpp::Committed,
+        ))
+    }
+}
+
+#[tokio::test]
+async fn stored_item_money_worker_requires_and_uses_the_typed_persistence_port_like_cpp() {
+    let mut session = make_session();
+    let player_guid = ObjectGuid::create_player(1, 501);
+    let item_guid = ObjectGuid::create_item(1, 502);
+    session.set_player_guid(Some(player_guid));
+    session.clear_loot_money_persistence_test_result_like_cpp();
+
+    assert!(
+        session
+            .persist_and_consume_stored_item_money_like_cpp(item_guid, 7)
+            .await
+            .is_none(),
+        "production-shaped stored money fails closed without its typed port"
+    );
+
+    session.set_stored_item_money_persistence_port_like_cpp(Arc::new(
+        StoredItemMoneyPortFixtureLikeCpp {
+            attempt: StoredItemMoneyPersistenceAttemptLikeCpp::Applied(
+                StoredItemMoneyPersistenceOutcomeLikeCpp {
+                    before: 100,
+                    after: 107,
+                    applied_delta: 7,
+                    notified_amount: 7,
+                },
+            ),
+        },
+    ));
+    let (_, _, applied_delta, notified_amount) = session
+        .persist_and_consume_stored_item_money_like_cpp(item_guid, 7)
+        .await
+        .expect("typed stored-money port outcome");
+    assert_eq!((applied_delta, notified_amount), (7, 7));
 }
 
 #[test]

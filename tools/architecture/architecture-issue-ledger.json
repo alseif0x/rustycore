@@ -84,6 +84,7 @@
     446,
     448,
     450,
+    452,
     189,
     192,
     193,
@@ -1402,7 +1403,7 @@
     },
     {
       "number": 450,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.34] Move quest POI reads behind a typed World-data port",
       "kind": "slice",
       "parents": [
@@ -1411,6 +1412,19 @@
       ],
       "depends_on": [
         448
+      ]
+    },
+    {
+      "number": 452,
+      "state": "open",
+      "title": "[ARCH.DB.35] Move stored-item loot-money SQLx behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        450
       ]
     }
   ]

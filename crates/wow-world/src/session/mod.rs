@@ -295,6 +295,7 @@ pub(crate) enum LootMoneyPersistenceErrorLikeCpp {
     Persistence(String),
     Database(DatabaseError),
     CommitOutcomeUnknown(DatabaseError),
+    CommitOutcomeUnknownPersistence(String),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -713,6 +714,9 @@ impl std::fmt::Display for LootMoneyPersistenceErrorLikeCpp {
             Self::CommitOutcomeUnknown(error) => {
                 write!(formatter, "loot-money COMMIT outcome is unknown: {error}")
             }
+            Self::CommitOutcomeUnknownPersistence(reason) => {
+                write!(formatter, "loot-money COMMIT outcome is unknown: {reason}")
+            }
         }
     }
 }
@@ -725,7 +729,8 @@ impl std::error::Error for LootMoneyPersistenceErrorLikeCpp {
             | Self::MissingCharacterDatabase
             | Self::WorkerTerminated
             | Self::Claim(_)
-            | Self::Persistence(_) => None,
+            | Self::Persistence(_)
+            | Self::CommitOutcomeUnknownPersistence(_) => None,
         }
     }
 }
@@ -5337,6 +5342,7 @@ struct SessionPersistencePortsLikeCpp {
     social: Option<Arc<dyn wow_persistence::SocialPersistencePortLikeCpp>>,
     map_corpse: Option<Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>,
     quest_poi: Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>>,
+    stored_item_money: Option<Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>>,
 }
 
 pub struct WorldSession {
@@ -16467,6 +16473,19 @@ impl WorldSession {
         &self,
     ) -> Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>> {
         self.persistence_ports_like_cpp.quest_poi.clone()
+    }
+
+    pub fn set_stored_item_money_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.stored_item_money = Some(port);
+    }
+
+    pub(crate) fn stored_item_money_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.stored_item_money.clone()
     }
 
     /// Attach this session to the one canonical journal owner for its
@@ -28453,6 +28472,11 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn set_loot_money_persistence_test_result_like_cpp(&mut self, success: bool) {
         self.loot_money_persistence_test_result_like_cpp = Some(success);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn clear_loot_money_persistence_test_result_like_cpp(&mut self) {
+        self.loot_money_persistence_test_result_like_cpp = None;
     }
 
     pub(crate) fn loot_money_persistence_test_result_for_worker_like_cpp(&self) -> Option<bool> {
