@@ -4387,6 +4387,12 @@ async fn run_inner(
                 Arc::clone(&char_db),
             ),
         );
+    let quest_poi_persistence_port: Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp> =
+        Arc::new(
+            wow_database::quest_poi_adapter::MariaDbQuestPoiPersistenceAdapterLikeCpp::new(
+                Arc::clone(&world_db),
+            ),
+        );
 
     // Build session resources
     let session_resources = Arc::new(SessionResources {
@@ -4398,6 +4404,7 @@ async fn run_inner(
         void_storage_persistence_port: Some(Arc::clone(&void_storage_persistence_port)),
         social_persistence_port: Some(Arc::clone(&social_persistence_port)),
         map_corpse_persistence_port: Some(Arc::clone(&map_corpse_persistence_port)),
+        quest_poi_persistence_port: Some(Arc::clone(&quest_poi_persistence_port)),
         world_db: Some(Arc::clone(&world_db)),
         trainer_store: Some(Arc::clone(&trainer_data_store)),
         guid_generator: Some(Arc::clone(&guid_generator)),

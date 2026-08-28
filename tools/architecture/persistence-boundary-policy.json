@@ -16510,6 +16510,126 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::quest_poi_adapter:crates/wow-database/src/quest_poi_adapter.rs::impl MariaDbQuestPoiPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/quest_poi_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::quest_poi_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbQuestPoiPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free quest POI reads (#450) currently owns the complete wow-database workflow impl MariaDbQuestPoiPersistenceAdapterLikeCpp::new in crates/wow-database/src/quest_poi_adapter.rs.",
+      "connection_affinity": "Composition supplies one process-wide World adapter before sessions are accepted.",
+      "current_order": "Construction performs no query; the caller later requests the typed load.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::quest_poi_adapter:crates/wow-database/src/quest_poi_adapter.rs::impl wow_persistence::QuestPoiPersistencePortLikeCpp for MariaDbQuestPoiPersistenceAdapterLikeCpp::load_quest_poi_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/quest_poi_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::quest_poi_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::QuestPoiPersistencePortLikeCpp for MariaDbQuestPoiPersistenceAdapterLikeCpp::load_quest_poi_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free quest POI reads (#450) currently owns the complete wow-database workflow impl wow_persistence::QuestPoiPersistencePortLikeCpp for MariaDbQuestPoiPersistenceAdapterLikeCpp::load_quest_poi_rows_like_cpp in crates/wow-database/src/quest_poi_adapter.rs.",
+      "connection_affinity": "Both reads use the one configured World adapter and no transaction.",
+      "current_order": "Preserves the represented points query before the blob query; any point query or decode failure short-circuits the blob read.",
+      "failure_and_unknown_commit": "Returns a stage-classified read failure; no COMMIT occurs and Session preserves its cached empty response on failure.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::quest_poi_adapter:crates/wow-database/src/quest_poi_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/quest_poi_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::quest_poi_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free quest POI reads (#450) currently owns the complete wow-database workflow module in crates/wow-database/src/quest_poi_adapter.rs.",
+      "connection_affinity": "The module is bound to the one configured World adapter and opens no cross-database workflow.",
+      "current_order": "The typed load operation preserves the represented points query before the blob query.",
+      "failure_and_unknown_commit": "Read and decode failures are stage-classified; no COMMIT occurs.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::quest_poi_adapter:crates/wow-database/src/quest_poi_adapter.rs::struct MariaDbQuestPoiPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/quest_poi_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::quest_poi_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbQuestPoiPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free quest POI reads (#450) currently owns the complete wow-database workflow struct MariaDbQuestPoiPersistenceAdapterLikeCpp in crates/wow-database/src/quest_poi_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one World-database handle.",
+      "current_order": "Construction stores the handle only; the load method owns read order.",
+      "failure_and_unknown_commit": "No I/O or transaction occurs while storing the adapter.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::result:crates/wow-database/src/result.rs::impl SqlFields < 'a >",
       "source_class": "production",
       "packages": [
@@ -25362,38 +25482,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::quest:crates/wow-world/src/handlers/quest/mod.rs::fn load_quest_poi_store_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/quest/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::quest"
-      ],
-      "enclosings": [
-        "fn load_quest_poi_store_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-world runtime boundary currently owns the complete wow-world workflow fn load_quest_poi_store_like_cpp in crates/wow-world/src/handlers/quest/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-world:crate::handlers::quest:crates/wow-world/src/handlers/quest/mod.rs::module",
       "source_class": "production",
       "packages": [
@@ -25611,38 +25699,6 @@
       ],
       "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl WorldSession::load_player_quests in crates/wow-world/src/handlers/quest/persistence.rs.",
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::quest::persistence:crates/wow-world/src/handlers/quest/persistence.rs::impl WorldSession::quest_poi_store_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/quest/persistence.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::quest::persistence"
-      ],
-      "enclosings": [
-        "impl WorldSession::quest_poi_store_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl WorldSession::quest_poi_store_like_cpp in crates/wow-world/src/handlers/quest/persistence.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
