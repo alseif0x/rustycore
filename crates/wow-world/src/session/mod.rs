@@ -5181,6 +5181,7 @@ struct SessionPersistencePortsLikeCpp {
     quest_poi: Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>>,
     stored_item_money: Option<Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>>,
     group_loot_money: Option<Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>>,
+    represented_group: Option<Arc<dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp>>,
     support_bug_report: Option<Arc<dyn wow_persistence::SupportBugReportPersistencePortLikeCpp>>,
     next_mail_time: Option<Arc<dyn wow_persistence::NextMailTimePersistencePortLikeCpp>>,
     gameobject_use_template:
@@ -16343,6 +16344,19 @@ impl WorldSession {
         self.persistence_ports_like_cpp.group_loot_money.clone()
     }
 
+    pub fn set_represented_group_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.represented_group = Some(port);
+    }
+
+    pub(crate) fn represented_group_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.represented_group.clone()
+    }
+
     pub fn set_support_bug_report_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::SupportBugReportPersistencePortLikeCpp>,
@@ -23983,7 +23997,7 @@ impl WorldSession {
     pub(crate) fn represented_set_difficulty_id_like_cpp(
         &mut self,
         difficulty_id: u32,
-    ) -> Vec<PreparedStatement> {
+    ) -> Vec<wow_persistence::RepresentedGroupPersistenceCommandLikeCpp> {
         let Some(entry) = self
             .difficulty_store()
             .and_then(|store| store.get(difficulty_id))
@@ -24085,7 +24099,7 @@ impl WorldSession {
         &mut self,
         difficulty_id: u32,
         kind: wow_social::group::GroupDifficultyKindLikeCpp,
-    ) -> Option<PreparedStatement> {
+    ) -> Option<wow_persistence::RepresentedGroupPersistenceCommandLikeCpp> {
         let group_guid = self.group_guid?;
         let player_guid = self.player_guid()?;
         let registry = self.group_registry.as_ref()?;
@@ -24120,7 +24134,7 @@ impl WorldSession {
         persistence
             .into_iter()
             .next()
-            .map(crate::handlers::group::group_persistence_statement_like_cpp)
+            .map(crate::handlers::group::group_persistence_command_like_cpp)
     }
 
     pub(crate) fn represented_set_difficulty_reset_owner_like_cpp(

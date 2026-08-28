@@ -10,14 +10,9 @@
 
 use super::{
     PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP, current_group_guid_like_cpp,
-    first_connected_group_member_like_cpp, group_delete_statement_like_cpp,
-    group_leader_update_statement_like_cpp, group_lfg_data_delete_statement_like_cpp,
-    group_member_delete_all_statement_like_cpp, group_member_delete_statement_like_cpp,
-    group_member_flag_update_statement_like_cpp, group_member_insert_statement_like_cpp,
-    group_member_subgroup_update_statement_like_cpp, group_persistence_statement_like_cpp,
-    group_type_update_statement_like_cpp, party_player_info_like_cpp,
-    send_group_new_leader_like_cpp, send_party_update, send_ready_check_events_like_cpp,
-    sender_can_start_ready_check_like_cpp,
+    first_connected_group_member_like_cpp, group_persistence_command_like_cpp,
+    party_player_info_like_cpp, send_group_new_leader_like_cpp, send_party_update,
+    send_ready_check_events_like_cpp, sender_can_start_ready_check_like_cpp,
 };
 use crate::session::directory::{
     PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp, PlayerRegistry,
@@ -31,15 +26,16 @@ use std::{
 };
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
-use wow_database::{CharStatements, SqlParam, StatementDef};
 use wow_handler::{PacketProcessing, SessionStatus};
 
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::{ServerPacket, WorldPacket, packets::party::party_result};
 use wow_persistence::{
-    PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, SocialAddCandidateLoadOutcomeLikeCpp,
-    SocialContactListLoadOutcomeLikeCpp, SocialPartyInviteLookupOutcomeLikeCpp,
-    SocialPersistencePortLikeCpp, SocialRelationshipKindLikeCpp, SocialRelationshipStateLikeCpp,
+    PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, RepresentedGroupPersistenceOutcomeLikeCpp,
+    RepresentedGroupPersistencePortLikeCpp, RepresentedGroupPersistenceRequestLikeCpp,
+    SocialAddCandidateLoadOutcomeLikeCpp, SocialContactListLoadOutcomeLikeCpp,
+    SocialPartyInviteLookupOutcomeLikeCpp, SocialPersistencePortLikeCpp,
+    SocialRelationshipKindLikeCpp, SocialRelationshipStateLikeCpp,
 };
 use wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP;
 use wow_social::group::{
@@ -48,6 +44,31 @@ use wow_social::group::{
 };
 
 use crate::session::WorldSession;
+
+struct RecordingGroupPersistencePortLikeCpp {
+    outcome: RepresentedGroupPersistenceOutcomeLikeCpp,
+    requests: Mutex<Vec<RepresentedGroupPersistenceRequestLikeCpp>>,
+}
+
+impl RecordingGroupPersistencePortLikeCpp {
+    fn new(outcome: RepresentedGroupPersistenceOutcomeLikeCpp) -> Arc<Self> {
+        Arc::new(Self {
+            outcome,
+            requests: Mutex::new(Vec::new()),
+        })
+    }
+}
+
+impl RepresentedGroupPersistencePortLikeCpp for RecordingGroupPersistencePortLikeCpp {
+    fn persist_group_commands_like_cpp(
+        &self,
+        request: RepresentedGroupPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'_, RepresentedGroupPersistenceOutcomeLikeCpp> {
+        self.requests.lock().unwrap().push(request);
+        let outcome = self.outcome.clone();
+        Box::pin(async move { outcome })
+    }
+}
 
 struct PartyInviteSocialPortLikeCpp {
     ignore: SocialPartyInviteLookupOutcomeLikeCpp,
@@ -709,67 +730,10 @@ fn party_update_serializes_raid_group_flag_like_cpp() {
 }
 
 #[test]
-fn group_type_update_statement_binds_cpp_group_flags_and_db_guid() {
-    let stmt =
-        group_type_update_statement_like_cpp(wow_social::group::GROUP_FLAG_RAID_LIKE_CPP, 77);
-
-    assert_eq!(stmt.sql(), CharStatements::UPD_GROUP_TYPE.sql());
-    assert_eq!(
-        stmt.params(),
-        &[
-            SqlParam::U16(wow_social::group::GROUP_FLAG_RAID_LIKE_CPP),
-            SqlParam::U32(77)
-        ]
-    );
-}
-
-#[test]
-fn group_member_insert_statement_binds_cpp_member_row_like_cpp() {
-    let member = ObjectGuid::create_player(1, 42);
-    let stmt = group_member_insert_statement_like_cpp(77, member, 0, 3, 2);
-
-    assert_eq!(stmt.sql(), CharStatements::INS_GROUP_MEMBER.sql());
-    assert_eq!(
-        stmt.params(),
-        &[
-            SqlParam::U32(77),
-            SqlParam::U64(member.counter() as u64),
-            SqlParam::U8(0),
-            SqlParam::U8(3),
-            SqlParam::U8(2)
-        ]
-    );
-}
-
-#[test]
-fn group_member_subgroup_update_statement_binds_cpp_member_row_like_cpp() {
-    let member = ObjectGuid::create_player(1, 42);
-    let stmt = group_member_subgroup_update_statement_like_cpp(member, 6);
-
-    assert_eq!(stmt.sql(), CharStatements::UPD_GROUP_MEMBER_SUBGROUP.sql());
-    assert_eq!(
-        stmt.params(),
-        &[SqlParam::U8(6), SqlParam::U64(member.counter() as u64)]
-    );
-}
-
-#[test]
-fn group_member_flag_update_statement_binds_cpp_member_row_like_cpp() {
-    let member = ObjectGuid::create_player(1, 42);
-    let stmt = group_member_flag_update_statement_like_cpp(member, 0x01);
-
-    assert_eq!(stmt.sql(), CharStatements::UPD_GROUP_MEMBER_FLAG.sql());
-    assert_eq!(
-        stmt.params(),
-        &[SqlParam::U8(0x01), SqlParam::U64(member.counter() as u64)]
-    );
-}
-
-#[test]
-fn group_insert_statement_binds_cpp_group_row_like_cpp() {
+fn group_insert_intent_maps_to_sqlx_free_command_like_cpp() {
     let leader = ObjectGuid::create_player(1, 42);
     let group = GroupInfo::new(leader);
-    let stmt = group_persistence_statement_like_cpp(
+    let command = group_persistence_command_like_cpp(
         wow_social::group::GroupPersistenceIntentLikeCpp::InsertGroup {
             db_store_id: 77,
             leader_guid: group.leader_guid,
@@ -783,57 +747,118 @@ fn group_insert_statement_binds_cpp_group_row_like_cpp() {
             master_looter_guid: group.master_looter_guid,
         },
     );
-
-    assert_eq!(stmt.sql(), CharStatements::INS_GROUP.sql());
-    assert_eq!(stmt.params().len(), 18);
-    assert_eq!(stmt.params()[0], SqlParam::U32(77));
-    assert_eq!(stmt.params()[1], SqlParam::U64(leader.counter() as u64));
     assert_eq!(
-        stmt.params()[2],
-        SqlParam::U8(wow_social::group::LOOT_METHOD_PERSONAL_LIKE_CPP)
+        command,
+        wow_persistence::RepresentedGroupPersistenceCommandLikeCpp::InsertGroup {
+            db_store_id: 77,
+            leader_guid: leader.counter() as u64,
+            loot_method: wow_social::group::LOOT_METHOD_PERSONAL_LIKE_CPP,
+            looter_guid: leader.counter() as u64,
+            loot_threshold: 2,
+            group_flags: 0,
+            dungeon_difficulty_id: 1,
+            raid_difficulty_id: 14,
+            legacy_raid_difficulty_id: 3,
+            master_looter_guid: 0,
+        }
     );
-    assert_eq!(stmt.params()[3], SqlParam::U64(leader.counter() as u64));
-    assert_eq!(stmt.params()[4], SqlParam::U8(2));
-    for param in &stmt.params()[5..13] {
-        assert_eq!(param, &SqlParam::Bytes(vec![0; 16]));
-    }
-    assert_eq!(stmt.params()[13], SqlParam::U16(0));
-    assert_eq!(stmt.params()[14], SqlParam::U32(1));
-    assert_eq!(stmt.params()[15], SqlParam::U32(14));
-    assert_eq!(stmt.params()[16], SqlParam::U32(3));
-    assert_eq!(stmt.params()[17], SqlParam::U64(0));
 }
 
 #[test]
-fn group_leave_statements_bind_cpp_cleanup_rows_like_cpp() {
+fn group_leave_intents_map_to_order_preserving_sqlx_free_commands_like_cpp() {
     let old_member = ObjectGuid::create_player(1, 42);
     let new_leader = ObjectGuid::create_player(1, 77);
-
-    let stmt = group_member_delete_statement_like_cpp(old_member);
-    assert_eq!(stmt.sql(), CharStatements::DEL_GROUP_MEMBER.sql());
-    assert_eq!(stmt.params(), &[SqlParam::U64(old_member.counter() as u64)]);
-
-    let stmt = group_leader_update_statement_like_cpp(new_leader, 99);
-    assert_eq!(stmt.sql(), CharStatements::UPD_GROUP_LEADER.sql());
     assert_eq!(
-        stmt.params(),
-        &[
-            SqlParam::U64(new_leader.counter() as u64),
-            SqlParam::U32(99)
+        [
+            group_persistence_command_like_cpp(
+                wow_social::group::GroupPersistenceIntentLikeCpp::DeleteMember {
+                    member_guid: old_member,
+                }
+            ),
+            group_persistence_command_like_cpp(
+                wow_social::group::GroupPersistenceIntentLikeCpp::UpdateLeader {
+                    db_store_id: 99,
+                    leader_guid: new_leader,
+                }
+            ),
+            group_persistence_command_like_cpp(
+                wow_social::group::GroupPersistenceIntentLikeCpp::DeleteGroup { db_store_id: 99 }
+            ),
+        ],
+        [
+            wow_persistence::RepresentedGroupPersistenceCommandLikeCpp::DeleteMember {
+                member_guid: old_member.counter() as u64,
+            },
+            wow_persistence::RepresentedGroupPersistenceCommandLikeCpp::UpdateLeader {
+                db_store_id: 99,
+                leader_guid: new_leader.counter() as u64,
+            },
+            wow_persistence::RepresentedGroupPersistenceCommandLikeCpp::DeleteGroup {
+                db_store_id: 99,
+            },
         ]
     );
+}
 
-    let stmt = group_delete_statement_like_cpp(99);
-    assert_eq!(stmt.sql(), CharStatements::DEL_GROUP.sql());
-    assert_eq!(stmt.params(), &[SqlParam::U32(99)]);
+#[tokio::test]
+async fn represented_group_persistence_seam_preserves_intent_order_and_sequential_mode() {
+    let (mut session, _) = make_session_with_send();
+    let port = RecordingGroupPersistencePortLikeCpp::new(
+        RepresentedGroupPersistenceOutcomeLikeCpp::Applied { command_count: 2 },
+    );
+    session.set_represented_group_persistence_port_like_cpp(port.clone());
 
-    let stmt = group_member_delete_all_statement_like_cpp(99);
-    assert_eq!(stmt.sql(), CharStatements::DEL_GROUP_MEMBER_ALL.sql());
-    assert_eq!(stmt.params(), &[SqlParam::U32(99)]);
+    session
+        .persist_group_intents_like_cpp(
+            99,
+            vec![
+                wow_social::group::GroupPersistenceIntentLikeCpp::DeleteMember {
+                    member_guid: ObjectGuid::create_player(1, 42),
+                },
+                wow_social::group::GroupPersistenceIntentLikeCpp::UpdateLeader {
+                    db_store_id: 99,
+                    leader_guid: ObjectGuid::create_player(1, 77),
+                },
+            ],
+        )
+        .await;
 
-    let stmt = group_lfg_data_delete_statement_like_cpp(99);
-    assert_eq!(stmt.sql(), CharStatements::DEL_LFG_DATA.sql());
-    assert_eq!(stmt.params(), &[SqlParam::U32(99)]);
+    assert_eq!(
+        port.requests.lock().unwrap().as_slice(),
+        &[RepresentedGroupPersistenceRequestLikeCpp {
+            commands: vec![
+                wow_persistence::RepresentedGroupPersistenceCommandLikeCpp::DeleteMember {
+                    member_guid: 42,
+                },
+                wow_persistence::RepresentedGroupPersistenceCommandLikeCpp::UpdateLeader {
+                    db_store_id: 99,
+                    leader_guid: 77,
+                },
+            ],
+            mode: wow_persistence::RepresentedGroupPersistenceModeLikeCpp::Sequential,
+        }]
+    );
+}
+
+#[tokio::test]
+async fn represented_group_persistence_seam_accepts_typed_prefix_failure_without_db_types() {
+    let (mut session, _) = make_session_with_send();
+    let port = RecordingGroupPersistencePortLikeCpp::new(
+        RepresentedGroupPersistenceOutcomeLikeCpp::FailedAfterPrefix {
+            applied: 1,
+            reason: "second command failed".to_owned(),
+        },
+    );
+    session.set_represented_group_persistence_port_like_cpp(port.clone());
+
+    session
+        .persist_group_intents_like_cpp(
+            99,
+            vec![wow_social::group::GroupPersistenceIntentLikeCpp::DeleteGroup { db_store_id: 99 }],
+        )
+        .await;
+
+    assert_eq!(port.requests.lock().unwrap().len(), 1);
 }
 
 #[test]
