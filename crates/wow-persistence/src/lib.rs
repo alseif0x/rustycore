@@ -207,6 +207,41 @@ impl PlayerMoneyWriteRequestLikeCpp {
     }
 }
 
+/// C++ `PlayerCurrencyState` rows that `_SaveCurrency` writes durably.
+/// Unchanged/removed rows never cross the persistence boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerCurrencySaveKindLikeCpp {
+    New,
+    Changed,
+}
+
+/// One SQLx-free `_SaveCurrency` row. Gameplay owns state selection and the
+/// adapter owns the REPLACE/UPDATE statement identity and bind order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerCurrencySaveRowLikeCpp {
+    pub kind: PlayerCurrencySaveKindLikeCpp,
+    pub currency_id: u16,
+    pub quantity: u32,
+    pub weekly_quantity: u32,
+    pub tracked_quantity: u32,
+    pub increased_cap_quantity: u32,
+    pub earned_quantity: u32,
+    pub flags: u8,
+}
+
+/// Ordered Characters-database half of one standalone Player currency save.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerCurrencySaveRequestLikeCpp {
+    pub player_guid: u64,
+    pub rows: Vec<PlayerCurrencySaveRowLikeCpp>,
+}
+
+impl PlayerCurrencySaveRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
 /// SQLx-free persisted shape of one `character_void_storage` row.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VoidStorageItemWriteLikeCpp {
@@ -1936,6 +1971,14 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
     fn persist_money_write_like_cpp<'a>(
         &'a self,
         request: PlayerMoneyWriteRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
+
+    /// Persist one standalone C++ `_SaveCurrency` plan in a single ordered
+    /// Characters transaction. Mixed inventory/currency workflows keep their
+    /// wider transaction boundary and reuse the same typed rows separately.
+    fn persist_currency_save_like_cpp<'a>(
+        &'a self,
+        request: PlayerCurrencySaveRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 
     /// Persist one represented talent reset as an ordered Characters

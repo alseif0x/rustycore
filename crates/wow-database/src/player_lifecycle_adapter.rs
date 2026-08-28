@@ -23,23 +23,24 @@ use wow_persistence::{
     PlayerCharacterBaseLoadOutcomeLikeCpp, PlayerCharacterBaseLoadRequestLikeCpp,
     PlayerCharacterBaseLoadRowLikeCpp, PlayerCharacterSaveRequestLikeCpp,
     PlayerCharacterSaveResultLikeCpp, PlayerCufProfileLoadRowLikeCpp, PlayerCufProfileSaveLikeCpp,
-    PlayerCurrencyLoadRowLikeCpp, PlayerCustomizationLoadRowLikeCpp,
-    PlayerEquipmentInventoryLoadRowLikeCpp, PlayerEquipmentSetLoadRowLikeCpp,
-    PlayerEquipmentSetSaveLikeCpp, PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp,
-    PlayerGlyphLoadRowLikeCpp, PlayerGuildMembershipLoadRowLikeCpp,
-    PlayerHomebindLocationLoadRowLikeCpp, PlayerHomebindPersistenceRequestLikeCpp,
-    PlayerInitialWorldStateRowsLikeCpp, PlayerInitialWorldStateTemplateRowLikeCpp,
-    PlayerInitialWorldStateValueRowLikeCpp, PlayerInitialWorldStatesLoadOutcomeLikeCpp,
-    PlayerInstanceTimeRestrictionLoadRowLikeCpp, PlayerInventoryItemLoadRowLikeCpp,
-    PlayerLifecyclePortLikeCpp, PlayerLoginAdmissionLoadOutcomeLikeCpp,
-    PlayerLoginAdmissionLoadRequestLikeCpp, PlayerLoginAdmissionLoadedLikeCpp,
-    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
-    PlayerLoginAuxiliaryLoadedLikeCpp, PlayerLoginItemRepairActionLikeCpp,
-    PlayerLoginItemRepairRequestLikeCpp, PlayerLoginPetTalentResetOutcomeLikeCpp,
-    PlayerLoginTransportLoadOutcomeLikeCpp, PlayerLoginTransportLoadRequestLikeCpp,
-    PlayerLoginTransportLoadRowLikeCpp, PlayerMoneyTransactionOutcomeLikeCpp,
-    PlayerMoneyTransactionRequestLikeCpp, PlayerMoneyWriteRequestLikeCpp, PlayerOfflineMarkLikeCpp,
-    PlayerOnlineMarkRequestLikeCpp, PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
+    PlayerCurrencyLoadRowLikeCpp, PlayerCurrencySaveKindLikeCpp, PlayerCurrencySaveRequestLikeCpp,
+    PlayerCustomizationLoadRowLikeCpp, PlayerEquipmentInventoryLoadRowLikeCpp,
+    PlayerEquipmentSetLoadRowLikeCpp, PlayerEquipmentSetSaveLikeCpp,
+    PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp, PlayerGlyphLoadRowLikeCpp,
+    PlayerGuildMembershipLoadRowLikeCpp, PlayerHomebindLocationLoadRowLikeCpp,
+    PlayerHomebindPersistenceRequestLikeCpp, PlayerInitialWorldStateRowsLikeCpp,
+    PlayerInitialWorldStateTemplateRowLikeCpp, PlayerInitialWorldStateValueRowLikeCpp,
+    PlayerInitialWorldStatesLoadOutcomeLikeCpp, PlayerInstanceTimeRestrictionLoadRowLikeCpp,
+    PlayerInventoryItemLoadRowLikeCpp, PlayerLifecyclePortLikeCpp,
+    PlayerLoginAdmissionLoadOutcomeLikeCpp, PlayerLoginAdmissionLoadRequestLikeCpp,
+    PlayerLoginAdmissionLoadedLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
+    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginAuxiliaryLoadedLikeCpp,
+    PlayerLoginItemRepairActionLikeCpp, PlayerLoginItemRepairRequestLikeCpp,
+    PlayerLoginPetTalentResetOutcomeLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
+    PlayerLoginTransportLoadRequestLikeCpp, PlayerLoginTransportLoadRowLikeCpp,
+    PlayerMoneyTransactionOutcomeLikeCpp, PlayerMoneyTransactionRequestLikeCpp,
+    PlayerMoneyWriteRequestLikeCpp, PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
+    PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
     PlayerPetDeclinedNamesLoadRowLikeCpp, PlayerPetSpellChargeLoadRowLikeCpp,
     PlayerPetSpellCooldownLoadRowLikeCpp, PlayerPetSpellLoadRowLikeCpp,
     PlayerPetStableLoadRowLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
@@ -83,6 +84,55 @@ fn player_money_transaction_statements_like_cpp(
         statements.push(durability);
     }
     statements
+}
+
+fn player_currency_save_statements_like_cpp(
+    request: &PlayerCurrencySaveRequestLikeCpp,
+) -> Vec<PreparedStatement> {
+    request
+        .rows
+        .iter()
+        .map(|row| match row.kind {
+            PlayerCurrencySaveKindLikeCpp::New => {
+                let mut statement =
+                    PreparedStatement::for_statement(CharStatements::REP_PLAYER_CURRENCY);
+                statement.set_u64(0, request.player_guid);
+                statement.set_u16(1, row.currency_id);
+                statement.set_u32(2, row.quantity);
+                statement.set_u32(3, row.weekly_quantity);
+                statement.set_u32(4, row.tracked_quantity);
+                statement.set_u32(5, row.increased_cap_quantity);
+                statement.set_u32(6, row.earned_quantity);
+                statement.set_u8(7, row.flags);
+                statement
+            }
+            PlayerCurrencySaveKindLikeCpp::Changed => {
+                let mut statement =
+                    PreparedStatement::for_statement(CharStatements::UPD_PLAYER_CURRENCY);
+                statement.set_u32(0, row.quantity);
+                statement.set_u32(1, row.weekly_quantity);
+                statement.set_u32(2, row.tracked_quantity);
+                statement.set_u32(3, row.increased_cap_quantity);
+                statement.set_u32(4, row.earned_quantity);
+                statement.set_u8(5, row.flags);
+                statement.set_u64(6, request.player_guid);
+                statement.set_u16(7, row.currency_id);
+                statement
+            }
+        })
+        .collect()
+}
+
+/// Transitional MariaDB bridge for mixed inventory/currency transactions.
+/// The application still owns those wider transaction boundaries, while this
+/// adapter alone owns `_SaveCurrency` statement identity and bind order.
+pub fn append_player_currency_save_request_like_cpp(
+    transaction: &mut SqlTransaction,
+    request: &PlayerCurrencySaveRequestLikeCpp,
+) {
+    for statement in player_currency_save_statements_like_cpp(request) {
+        transaction.append(statement);
+    }
 }
 
 fn player_login_item_repair_statements_like_cpp(
@@ -1965,6 +2015,33 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
         })
     }
 
+    fn persist_currency_save_like_cpp<'a>(
+        &'a self,
+        request: PlayerCurrencySaveRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async move {
+            let rows = request.rows.len() as u64;
+            let mut transaction = SqlTransaction::new();
+            append_player_currency_save_request_like_cpp(&mut transaction, &request);
+            match transaction
+                .commit_with_outcome_like_cpp(self.character_db.pool())
+                .await
+            {
+                Ok(()) => PersistenceOutcomeLikeCpp::Applied { rows },
+                Err(SqlTransactionCommitError::DefinitelyRolledBack(error)) => {
+                    PersistenceOutcomeLikeCpp::Failed {
+                        reason: error.to_string(),
+                    }
+                }
+                Err(SqlTransactionCommitError::CommitOutcomeUnknown(error)) => {
+                    PersistenceOutcomeLikeCpp::Unknown {
+                        reason: error.to_string(),
+                    }
+                }
+            }
+        })
+    }
+
     fn persist_talent_reset_like_cpp<'a>(
         &'a self,
         request: PlayerTalentResetPersistenceRequestLikeCpp,
@@ -3264,6 +3341,76 @@ mod tests {
         assert_eq!(
             statement.params(),
             vec![SqlParam::U64(1234), SqlParam::U64(99)]
+        );
+        assert_eq!(
+            request.logical_database(),
+            LogicalDatabaseLikeCpp::Characters
+        );
+    }
+
+    #[test]
+    fn currency_save_preserves_cpp_statement_identity_and_bind_order() {
+        let request = PlayerCurrencySaveRequestLikeCpp {
+            player_guid: 42,
+            rows: vec![
+                PlayerCurrencySaveRowLikeCpp {
+                    kind: PlayerCurrencySaveKindLikeCpp::New,
+                    currency_id: 395,
+                    quantity: 10,
+                    weekly_quantity: 11,
+                    tracked_quantity: 12,
+                    increased_cap_quantity: 13,
+                    earned_quantity: 14,
+                    flags: 15,
+                },
+                PlayerCurrencySaveRowLikeCpp {
+                    kind: PlayerCurrencySaveKindLikeCpp::Changed,
+                    currency_id: 396,
+                    quantity: 20,
+                    weekly_quantity: 21,
+                    tracked_quantity: 22,
+                    increased_cap_quantity: 23,
+                    earned_quantity: 24,
+                    flags: 25,
+                },
+            ],
+        };
+
+        let statements = player_currency_save_statements_like_cpp(&request);
+        assert_eq!(statements.len(), 2);
+        assert_eq!(
+            statements[0].sql(),
+            CharStatements::REP_PLAYER_CURRENCY.sql()
+        );
+        assert_eq!(
+            statements[0].params(),
+            vec![
+                SqlParam::U64(42),
+                SqlParam::U16(395),
+                SqlParam::U32(10),
+                SqlParam::U32(11),
+                SqlParam::U32(12),
+                SqlParam::U32(13),
+                SqlParam::U32(14),
+                SqlParam::U8(15),
+            ]
+        );
+        assert_eq!(
+            statements[1].sql(),
+            CharStatements::UPD_PLAYER_CURRENCY.sql()
+        );
+        assert_eq!(
+            statements[1].params(),
+            vec![
+                SqlParam::U32(20),
+                SqlParam::U32(21),
+                SqlParam::U32(22),
+                SqlParam::U32(23),
+                SqlParam::U32(24),
+                SqlParam::U8(25),
+                SqlParam::U64(42),
+                SqlParam::U16(396),
+            ]
         );
         assert_eq!(
             request.logical_database(),
