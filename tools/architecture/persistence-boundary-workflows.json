@@ -10612,6 +10612,66 @@
       "package": "wow-database",
       "module": "crate::player_lifecycle_adapter",
       "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_money_transaction_statements_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free direct player-money and durability persistence (#444)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure Characters-database statement construction; the lifecycle adapter appends the complete money/durability plan to one transaction.",
+      "current_order": "Builds the absolute money update first, then every requested item-durability replacement in gameplay-selected order with the existing bind widths.",
+      "failure_and_unknown_commit": "No I/O occurs here; the owning lifecycle adapter classifies definite rollback and observes durable money after unknown COMMIT before Session publication."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_money_write_statement_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free direct player-money persistence (#444)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure construction of one Characters-database statement; it opens no connection and exposes no adapter type to gameplay.",
+      "current_order": "Builds UPD_CHAR_MONEY with the absolute money value followed by the player GUID, preserving the pre-cut bind order.",
+      "failure_and_unknown_commit": "No I/O occurs here; the transactional or checked-write adapter method owns the relevant outcome classification."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::persist_money_transaction_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free direct player-money and durability persistence (#444)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The complete request executes on one connection from the configured Characters pool and shares one transaction.",
+      "current_order": "Appends absolute money first and each durability row afterward, then COMMITs before returning the typed outcome; Session publishes runtime money/items only after success.",
+      "failure_and_unknown_commit": "Returns Committed or DefinitelyRolledBack directly; after CommitOutcomeUnknown it reads the same player's durable money and leaves reconciliation/quarantine to Session."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::persist_money_write_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free checked player-money persistence (#444)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Executes one non-transactional prepared write through the configured Characters adapter, preserving the pre-cut checked payout boundary.",
+      "current_order": "Executes the absolute money statement and returns its classified result before the caller exposes the durable payout.",
+      "failure_and_unknown_commit": "Successful execution maps to Applied and a driver error to Failed; this non-transactional path does not claim a COMMIT-unknown state."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
       "enclosing": "fn player_talent_reset_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -13673,24 +13733,6 @@
       "package": "wow-world",
       "module": "crate::session",
       "source": "crates/wow-world/src/session/mod.rs",
-      "enclosing": "impl WorldSession::build_character_gold_save_statement_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Player lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::char_db",
       "logical_databases": [
         "characters"
@@ -13742,23 +13784,6 @@
       "package": "wow-world",
       "module": "crate::session",
       "source": "crates/wow-world/src/session/mod.rs",
-      "enclosing": "impl WorldSession::commit_exclusive_trainer_money_only_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Session residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::destroy_uncaged_battle_pet_item_durable_like_cpp",
       "logical_databases": [
         "characters"
@@ -13805,57 +13830,6 @@
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session/mod.rs",
-      "enclosing": "impl WorldSession::mutate_and_persist_player_gold_exclusive_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Session residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session/mod.rs",
-      "enclosing": "impl WorldSession::persist_player_gold_checked_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Session residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session/mod.rs",
-      "enclosing": "impl WorldSession::repair_all_inventory_item_durability_with_player_money_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Session residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
     },
     {
       "package": "wow-world",

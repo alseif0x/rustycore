@@ -292,6 +292,7 @@ pub(crate) enum LootMoneyPersistenceErrorLikeCpp {
     MissingCharacterDatabase,
     WorkerTerminated,
     Claim(wow_loot::LootClaimCommitError),
+    Persistence(String),
     Database(DatabaseError),
     CommitOutcomeUnknown(DatabaseError),
 }
@@ -705,6 +706,9 @@ impl std::fmt::Display for LootMoneyPersistenceErrorLikeCpp {
             }
             Self::WorkerTerminated => formatter.write_str("loot-money persistence worker stopped"),
             Self::Claim(error) => write!(formatter, "loot-money claim failure: {error:?}"),
+            Self::Persistence(reason) => {
+                write!(formatter, "loot-money persistence failure: {reason}")
+            }
             Self::Database(error) => write!(formatter, "loot-money database failure: {error}"),
             Self::CommitOutcomeUnknown(error) => {
                 write!(formatter, "loot-money COMMIT outcome is unknown: {error}")
@@ -720,7 +724,8 @@ impl std::error::Error for LootMoneyPersistenceErrorLikeCpp {
             Self::MissingPlayer
             | Self::MissingCharacterDatabase
             | Self::WorkerTerminated
-            | Self::Claim(_) => None,
+            | Self::Claim(_)
+            | Self::Persistence(_) => None,
         }
     }
 }
@@ -21207,24 +21212,24 @@ impl WorldSession {
             }
             let new_money = old_money - cost;
 
-            let money_persistence = if let Some(char_db) = self.char_db.as_ref().map(Arc::clone) {
+            let money_persistence = if let Some(port) =
+                self.player_lifecycle_port_like_cpp().map(Arc::clone)
+            {
                 let Some(player_guid) = self.player_guid() else {
                     return false;
                 };
-                let mut transaction = SqlTransaction::new();
-                transaction.append(Self::build_character_gold_save_statement_like_cpp(
-                    new_money,
-                    player_guid.counter() as u64,
-                ));
-                let mut durability = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_DURABILITY);
-                durability.set_u32(0, max_durability);
-                durability.set_u64(1, item_db_guid);
-                transaction.append(durability);
+                let request = wow_persistence::PlayerMoneyTransactionRequestLikeCpp {
+                    player_guid: player_guid.counter() as u64,
+                    money_after: new_money,
+                    durability_repairs: vec![wow_persistence::PlayerDurabilityRepairSaveLikeCpp {
+                        item_db_guid,
+                        durability: max_durability,
+                    }],
+                };
                 let Some(money_persistence) = self
-                    .commit_exclusive_player_money_transaction_like_cpp(
+                    .await_exclusive_player_money_transaction_outcome_like_cpp(
                         money_persistence,
-                        char_db.as_ref(),
-                        transaction,
+                        port.persist_money_transaction_like_cpp(request),
                         old_money,
                         new_money,
                         "single item durability repair",
@@ -21360,38 +21365,40 @@ impl WorldSession {
         }
         let new_money = old_money - total_cost;
 
-        let money_persistence = if let Some(char_db) = self.char_db.as_ref().map(Arc::clone) {
-            let Some(player_guid) = self.player_guid() else {
-                return false;
+        let money_persistence =
+            if let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) {
+                let Some(player_guid) = self.player_guid() else {
+                    return false;
+                };
+                let request = wow_persistence::PlayerMoneyTransactionRequestLikeCpp {
+                    player_guid: player_guid.counter() as u64,
+                    money_after: new_money,
+                    durability_repairs: planned_repairs
+                        .iter()
+                        .map(|&(_, item_db_guid, durability)| {
+                            wow_persistence::PlayerDurabilityRepairSaveLikeCpp {
+                                item_db_guid,
+                                durability,
+                            }
+                        })
+                        .collect(),
+                };
+                let Some(money_persistence) = self
+                    .await_exclusive_player_money_transaction_outcome_like_cpp(
+                        money_persistence,
+                        port.persist_money_transaction_like_cpp(request),
+                        old_money,
+                        new_money,
+                        "all-items durability repair",
+                    )
+                    .await
+                else {
+                    return false;
+                };
+                money_persistence
+            } else {
+                money_persistence
             };
-            let mut transaction = SqlTransaction::new();
-            transaction.append(Self::build_character_gold_save_statement_like_cpp(
-                new_money,
-                player_guid.counter() as u64,
-            ));
-            for &(_, db_guid, max_durability) in &planned_repairs {
-                let mut durability = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_DURABILITY);
-                durability.set_u32(0, max_durability);
-                durability.set_u64(1, db_guid);
-                transaction.append(durability);
-            }
-            let Some(money_persistence) = self
-                .commit_exclusive_player_money_transaction_like_cpp(
-                    money_persistence,
-                    char_db.as_ref(),
-                    transaction,
-                    old_money,
-                    new_money,
-                    "all-items durability repair",
-                )
-                .await
-            else {
-                return false;
-            };
-            money_persistence
-        } else {
-            money_persistence
-        };
 
         // Money and every durability row share one COMMIT. Mirror all of those
         // rows in runtime while admission is still fenced and before the first
@@ -27886,16 +27893,16 @@ impl WorldSession {
             return Some((old_money, new_money));
         }
 
-        let char_db = self.char_db().map(Arc::clone)?;
-        let mut transaction = SqlTransaction::new();
-        transaction.append(Self::build_character_gold_save_statement_like_cpp(
-            new_money, guid,
-        ));
+        let port = self.player_lifecycle_port_like_cpp().map(Arc::clone)?;
+        let request = wow_persistence::PlayerMoneyTransactionRequestLikeCpp {
+            player_guid: guid,
+            money_after: new_money,
+            durability_repairs: Vec::new(),
+        };
         let money_persistence = self
-            .commit_exclusive_player_money_transaction_like_cpp(
+            .await_exclusive_player_money_transaction_outcome_like_cpp(
                 money_persistence,
-                char_db.as_ref(),
-                transaction,
+                port.persist_money_transaction_like_cpp(request),
                 old_money,
                 new_money,
                 "exclusive player-money mutation",
@@ -27941,7 +27948,6 @@ impl WorldSession {
     pub(crate) async fn commit_exclusive_trainer_money_only_like_cpp(
         &mut self,
         money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
-        character_db: Option<&CharacterDatabase>,
         money_before: u64,
         money_after: u64,
     ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
@@ -27953,17 +27959,16 @@ impl WorldSession {
         if money_before == money_after {
             return Some(money_persistence);
         }
-        let character_db = character_db?;
         let guid = self.player_guid()?.counter() as u64;
-        let mut transaction = SqlTransaction::new();
-        transaction.append(Self::build_character_gold_save_statement_like_cpp(
+        let port = self.player_lifecycle_port_like_cpp().map(Arc::clone)?;
+        let request = wow_persistence::PlayerMoneyTransactionRequestLikeCpp {
+            player_guid: guid,
             money_after,
-            guid,
-        ));
-        self.commit_exclusive_player_money_transaction_like_cpp(
+            durability_repairs: Vec::new(),
+        };
+        self.await_exclusive_player_money_transaction_outcome_like_cpp(
             money_persistence,
-            character_db,
-            transaction,
+            port.persist_money_transaction_like_cpp(request),
             money_before,
             money_after,
             "trainer fee without durable acquisition mutation",
@@ -28057,7 +28062,7 @@ impl WorldSession {
     /// callers that must not expose a loot payout before it is durable.
     ///
     /// Unlike [`Self::save_player_gold`], this helper fails closed when there is
-    /// no selected player or character database. Focused tests must opt into an
+    /// no selected player or lifecycle port. Focused tests must opt into an
     /// explicit persistence result through the test seam below.
     pub(crate) async fn persist_player_gold_checked_like_cpp(
         &self,
@@ -28073,16 +28078,23 @@ impl WorldSession {
         let guid = self
             .player_guid()
             .ok_or(LootMoneyPersistenceErrorLikeCpp::MissingPlayer)?;
-        let char_db = self
-            .char_db()
+        let port = self
+            .player_lifecycle_port_like_cpp()
             .map(Arc::clone)
             .ok_or(LootMoneyPersistenceErrorLikeCpp::MissingCharacterDatabase)?;
-        let stmt = Self::build_character_gold_save_statement_like_cpp(money, guid.counter() as u64);
-        char_db
-            .execute(&stmt)
+        match port
+            .persist_money_write_like_cpp(wow_persistence::PlayerMoneyWriteRequestLikeCpp {
+                player_guid: guid.counter() as u64,
+                money,
+            })
             .await
-            .map(|_| ())
-            .map_err(LootMoneyPersistenceErrorLikeCpp::Database)
+        {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => Ok(()),
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                Err(LootMoneyPersistenceErrorLikeCpp::Persistence(reason))
+            }
+        }
     }
 
     /// Start the complete durable half of one shared money claim in a detached
@@ -28465,16 +28477,6 @@ impl WorldSession {
         gate: Arc<tokio::sync::Notify>,
     ) {
         self.loot_item_store_test_commit_gate_like_cpp = Some(gate);
-    }
-
-    fn build_character_gold_save_statement_like_cpp(
-        money: u64,
-        guid_counter: u64,
-    ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_CHAR_MONEY);
-        stmt.set_u64(0, money);
-        stmt.set_u64(1, guid_counter);
-        stmt
     }
 
     pub(crate) fn current_game_time_secs_like_cpp() -> u64 {

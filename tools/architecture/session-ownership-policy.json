@@ -21716,17 +21716,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "build_character_gold_save_statement_like_cpp",
-          "visibility": "private",
-          "signature": "fn build_character_gold_save_statement_like_cpp (money : u64 , guid_counter : u64 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "buyback_items_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn buyback_items_like_cpp (& self) -> & HashMap < u8 , InventoryItem >",
@@ -23022,7 +23011,7 @@
           "kind": "method",
           "name": "commit_exclusive_trainer_money_only_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "async fn commit_exclusive_trainer_money_only_like_cpp (& mut self , money_persistence : ExclusivePlayerMoneyPersistenceLikeCpp , character_db : Option < & CharacterDatabase > , money_before : u64 , money_after : u64 ,) -> Option < ExclusivePlayerMoneyPersistenceLikeCpp >",
+          "signature": "async fn commit_exclusive_trainer_money_only_like_cpp (& mut self , money_persistence : ExclusivePlayerMoneyPersistenceLikeCpp , money_before : u64 , money_after : u64 ,) -> Option < ExclusivePlayerMoneyPersistenceLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
