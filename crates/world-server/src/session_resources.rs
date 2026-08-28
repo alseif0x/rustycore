@@ -50,6 +50,9 @@ pub(super) struct SessionResources {
     /// Characters-database capability for atomic multi-recipient loot money.
     pub(super) group_loot_money_persistence_port:
         Option<Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>>,
+    /// Characters-database capability for legacy `CMSG_BUG_REPORT` writes.
+    pub(super) support_bug_report_persistence_port:
+        Option<Arc<dyn wow_persistence::SupportBugReportPersistencePortLikeCpp>>,
     pub(super) world_db: Option<Arc<wow_database::WorldDatabase>>,
     /// Process-wide C++ `ObjectMgr::_trainers` /
     /// `_creatureDefaultTrainers` snapshot.

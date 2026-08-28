@@ -28,7 +28,6 @@ mod trade;
 mod travel;
 
 use wow_constants::{ClientOpcodes, ItemExtendedCostFlags};
-use wow_database::{CharStatements, PreparedStatement};
 use wow_handler::{PacketProcessing, SessionStatus};
 
 use crate::session::registry::PacketHandlerEntry;
@@ -39,7 +38,7 @@ use wow_packet::packets::item::{
     ItemPurchaseContents, ItemPurchaseRefundCurrency, ItemPurchaseRefundItem,
 };
 use wow_packet::packets::misc::{
-    BugReport, CalendarAddEvent, CalendarCommandResult, CalendarCommunityInvite, CalendarComplain,
+    CalendarAddEvent, CalendarCommandResult, CalendarCommunityInvite, CalendarComplain,
     CalendarCopyEvent, CalendarEventSignUp, CalendarGetEvent, CalendarInvite,
     CalendarModeratorStatusQuery, CalendarRemoveEvent, CalendarRemoveInvite, CalendarRsvp,
     CalendarSendCalendar, CalendarSendNumPending, CalendarStatus, CalendarUpdateEvent,
@@ -135,15 +134,6 @@ pub(crate) fn item_purchase_contents_from_extended_cost(
     }
 
     contents
-}
-
-pub fn bug_report_insert_statement_like_cpp(report: &BugReport) -> PreparedStatement {
-    let mut stmt = PreparedStatement::for_statement(CharStatements::INS_BUG_REPORT);
-    // C++ parses `Type` but binds Text and DiagInfo to the `(type, content)`
-    // SQL columns in that order.
-    stmt.set_string(0, report.text.clone());
-    stmt.set_string(1, report.diag_info.clone());
-    stmt
 }
 
 const SILVER_LIKE_CPP: u64 = 100;

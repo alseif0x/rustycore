@@ -3,15 +3,40 @@
 
 //! support capability handler tests.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::{CharStatements, SqlParam};
-
 use super::*;
-use wow_database::StatementDef;
 use wow_packet::packets::misc::{ComplaintResult, GmTicketSystemStatus};
+
+struct RecordingSupportBugReportPortLikeCpp {
+    requests: Mutex<Vec<wow_persistence::SupportBugReportWriteRequestLikeCpp>>,
+    outcome: wow_persistence::PersistenceOutcomeLikeCpp,
+}
+
+impl RecordingSupportBugReportPortLikeCpp {
+    fn new(outcome: wow_persistence::PersistenceOutcomeLikeCpp) -> Arc<Self> {
+        Arc::new(Self {
+            requests: Mutex::new(Vec::new()),
+            outcome,
+        })
+    }
+
+    fn requests(&self) -> Vec<wow_persistence::SupportBugReportWriteRequestLikeCpp> {
+        self.requests.lock().unwrap().clone()
+    }
+}
+
+impl wow_persistence::SupportBugReportPersistencePortLikeCpp
+    for RecordingSupportBugReportPortLikeCpp
+{
+    fn persist_bug_report_like_cpp<'a>(
+        &'a self,
+        request: wow_persistence::SupportBugReportWriteRequestLikeCpp,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<'a, wow_persistence::PersistenceOutcomeLikeCpp>
+    {
+        self.requests.lock().unwrap().push(request);
+        let outcome = self.outcome.clone();
+        Box::pin(async move { outcome })
+    }
+}
 
 #[tokio::test]
 async fn gm_ticket_get_case_status_sends_empty_case_status_like_cpp_todo_handler() {
@@ -229,23 +254,51 @@ fn bug_report_support_config_flag_is_session_wired_like_cpp() {
     assert!(!session.represented_bug_system_status_like_cpp());
 }
 
-#[test]
-fn bug_report_statement_binds_text_then_diag_info_like_cpp() {
-    let report = BugReport {
-        report_type: 1,
-        text: "client bug".to_string(),
-        diag_info: "diag blob".to_string(),
-    };
-
-    let stmt = bug_report_insert_statement_like_cpp(&report);
-    assert_eq!(stmt.sql(), CharStatements::INS_BUG_REPORT.sql());
-    assert_eq!(
-        stmt.params(),
-        &[
-            SqlParam::String("client bug".to_string()),
-            SqlParam::String("diag blob".to_string())
-        ]
+#[tokio::test]
+async fn bug_report_reaches_the_typed_support_port_like_cpp() {
+    let (mut session, send_rx) = make_session();
+    session.set_represented_support_bugs_enabled_like_cpp(true);
+    let port = RecordingSupportBugReportPortLikeCpp::new(
+        wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows: 0 },
     );
+    session.set_support_bug_report_persistence_port_like_cpp(port.clone());
+
+    session
+        .handle_bug_report(bug_report_packet(true, "diag blob", "client bug"))
+        .await;
+
+    assert_eq!(
+        port.requests(),
+        vec![wow_persistence::SupportBugReportWriteRequestLikeCpp {
+            text: "client bug".to_owned(),
+            diagnostic_info: "diag blob".to_owned(),
+        }]
+    );
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn bug_report_missing_or_failed_port_remains_wire_silent_like_cpp() {
+    let (mut missing, missing_rx) = make_session();
+    missing.set_represented_support_bugs_enabled_like_cpp(true);
+    missing
+        .handle_bug_report(bug_report_packet(true, "diag", "missing"))
+        .await;
+    assert!(missing_rx.try_recv().is_err());
+
+    let (mut failed, failed_rx) = make_session();
+    failed.set_represented_support_bugs_enabled_like_cpp(true);
+    let port = RecordingSupportBugReportPortLikeCpp::new(
+        wow_persistence::PersistenceOutcomeLikeCpp::Failed {
+            reason: "forced bug-report failure".to_owned(),
+        },
+    );
+    failed.set_support_bug_report_persistence_port_like_cpp(port.clone());
+    failed
+        .handle_bug_report(bug_report_packet(true, "diag", "failed"))
+        .await;
+    assert_eq!(port.requests().len(), 1);
+    assert!(failed_rx.try_recv().is_err());
 }
 
 #[test]

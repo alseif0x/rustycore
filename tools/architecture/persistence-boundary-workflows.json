@@ -9940,6 +9940,81 @@
     },
     {
       "package": "wow-database",
+      "module": "crate::support_bug_report_adapter",
+      "source": "crates/wow-database/src/support_bug_report_adapter.rs",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free support bug-report persistence (#458)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "enclosing": "fn bug_report_insert_statement_like_cpp",
+      "connection_affinity": "Pure construction of one Characters-database statement; it opens no connection or transaction.",
+      "current_order": "Builds CHAR_INS_BUG_REPORT and binds report text before diagnostic information exactly like C++.",
+      "failure_and_unknown_commit": "No I/O occurs while constructing the statement."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::support_bug_report_adapter",
+      "source": "crates/wow-database/src/support_bug_report_adapter.rs",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free support bug-report persistence (#458)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "enclosing": "impl MariaDbSupportBugReportPersistenceAdapterLikeCpp::new",
+      "connection_affinity": "Composition supplies one process-wide Characters adapter before sessions are accepted.",
+      "current_order": "Construction stores the handle only and performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::support_bug_report_adapter",
+      "source": "crates/wow-database/src/support_bug_report_adapter.rs",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free support bug-report persistence (#458)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "enclosing": "impl wow_persistence::SupportBugReportPersistencePortLikeCpp for MariaDbSupportBugReportPersistenceAdapterLikeCpp::persist_bug_report_like_cpp",
+      "connection_affinity": "Executes one non-transactional prepared write through the configured Characters adapter.",
+      "current_order": "Executes CHAR_INS_BUG_REPORT with text then diagnostic information and returns before the wire-silent handler completes.",
+      "failure_and_unknown_commit": "Successful execution maps to Applied and a driver error to Failed; there is no explicit COMMIT phase and no Unknown classification."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::support_bug_report_adapter",
+      "source": "crates/wow-database/src/support_bug_report_adapter.rs",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free support bug-report persistence (#458)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "enclosing": "module",
+      "connection_affinity": "The module is bound to one configured Characters adapter and opens no cross-database workflow.",
+      "current_order": "The adapter preserves the C++ statement identity and bind order without moving packet or support-policy decisions.",
+      "failure_and_unknown_commit": "No SQLx or database error crosses the typed support port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::support_bug_report_adapter",
+      "source": "crates/wow-database/src/support_bug_report_adapter.rs",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free support bug-report persistence (#458)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "enclosing": "struct MariaDbSupportBugReportPersistenceAdapterLikeCpp",
+      "connection_affinity": "The adapter stores exactly one Characters-database handle.",
+      "current_order": "Construction stores the handle only; the typed method owns statement execution.",
+      "failure_and_unknown_commit": "No I/O occurs while storing the adapter."
+    },
+    {
+      "package": "wow-database",
       "module": "crate::transaction",
       "source": "crates/wow-database/src/transaction.rs",
       "enclosing": "enum SqlTransactionCommitError::CommitOutcomeUnknown",
@@ -13488,41 +13563,6 @@
     },
     {
       "package": "wow-world",
-      "module": "crate::handlers::misc",
-      "source": "crates/wow-world/src/handlers/misc/mod.rs",
-      "enclosing": "fn bug_report_insert_statement_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "misc compatibility persistence helper boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::misc",
-      "source": "crates/wow-world/src/handlers/misc/mod.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "characters",
-        "world"
-      ],
-      "boundary": "misc compatibility persistence helper boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for characters, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
       "module": "crate::handlers::misc::gameobject",
       "source": "crates/wow-world/src/handlers/misc/gameobject.rs",
       "enclosing": "impl crate :: session :: WorldSession::handle_game_obj_use",
@@ -13676,23 +13716,6 @@
       "connection_affinity": "This is a shared dependency/type surface for characters, world; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::misc::support",
-      "source": "crates/wow-world/src/handlers/misc/support.rs",
-      "enclosing": "impl crate :: session :: WorldSession::handle_bug_report",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "support report persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
     {
       "package": "wow-world",

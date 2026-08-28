@@ -50,6 +50,7 @@ pub mod session_account_state_adapter;
 pub mod social_adapter;
 pub mod statements;
 pub mod stored_item_money_adapter;
+pub mod support_bug_report_adapter;
 pub mod transaction;
 pub mod updater;
 pub mod void_storage_adapter;
