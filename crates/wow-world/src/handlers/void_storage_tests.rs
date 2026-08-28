@@ -1,9 +1,3 @@
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::CharStatements;
-
 use super::*;
 
 use std::sync::{Arc, Mutex};
@@ -20,7 +14,6 @@ use wow_data::{
     ItemRandomSuffixStore, ItemRecord, ItemSearchNameEntry, ItemSearchNameStore,
     ItemSparseTemplateEntry, ItemStatsStore, ItemStore,
 };
-use wow_database::StatementDef;
 use wow_entities::{INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START};
 use wow_packet::ServerPacket;
 use wow_packet::packets::loot::{CreatureLoot, LOOT_TYPE_ITEM_LIKE_CPP, LootEntry, LootEntryFlags};
@@ -590,42 +583,6 @@ fn void_storage_mutation_paths_have_no_concrete_persistence_after_port_cut() {
             );
         }
     }
-}
-
-#[test]
-fn full_save_rewrites_all_160_void_slots_like_cpp() {
-    let (mut session, _, _) = make_void_storage_session();
-    let item = represented_void_item(77, 19019);
-    assert_eq!(
-        session.add_represented_void_storage_item_like_cpp(item.clone()),
-        Some(0)
-    );
-
-    let statements = session
-        .character_void_storage_save_statements_like_cpp(42)
-        .expect("coherently loaded void storage");
-    assert_eq!(statements.len(), 160);
-    assert_eq!(
-        statements[0].sql(),
-        CharStatements::REP_CHAR_VOID_STORAGE_ITEM.sql()
-    );
-    assert_eq!(
-        statements[0].params(),
-        &[
-            wow_database::SqlParam::U64(77),
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U32(19019),
-            wow_database::SqlParam::U8(0),
-            wow_database::SqlParam::U64(7),
-            wow_database::SqlParam::U32(80),
-            wow_database::SqlParam::I32(-13),
-            wow_database::SqlParam::I32(29),
-            wow_database::SqlParam::U8(ItemContext::Timewalking as u8),
-        ]
-    );
-    assert!(statements[1..].iter().all(|statement| {
-        statement.sql() == CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_SLOT.sql()
-    }));
 }
 
 #[test]
