@@ -15,8 +15,6 @@ use wow_packet::packets::misc::{
     SupportTicketSubmitBug, SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion,
 };
 
-use super::bug_report_insert_statement_like_cpp;
-
 inventory::submit! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GmTicketGetCaseStatus,
@@ -296,16 +294,23 @@ impl crate::session::WorldSession {
             return;
         }
 
-        let Some(char_db) = self.char_db().map(std::sync::Arc::clone) else {
+        let Some(port) = self.support_bug_report_persistence_port_like_cpp() else {
             return;
         };
-        let stmt = bug_report_insert_statement_like_cpp(&report);
-        if let Err(error) = char_db.execute(&stmt).await {
-            warn!(
-                account = self.account_id,
-                error = ?error,
-                "failed to persist represented CMSG_BUG_REPORT"
-            );
+        let request = wow_persistence::SupportBugReportWriteRequestLikeCpp {
+            text: report.text,
+            diagnostic_info: report.diag_info,
+        };
+        match port.persist_bug_report_like_cpp(request).await {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                warn!(
+                    account = self.account_id,
+                    error = %reason,
+                    "failed to persist represented CMSG_BUG_REPORT"
+                );
+            }
         }
     }
 

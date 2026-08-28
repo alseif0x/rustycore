@@ -18793,6 +18793,156 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::support_bug_report_adapter:crates/wow-database/src/support_bug_report_adapter.rs::fn bug_report_insert_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/support_bug_report_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::support_bug_report_adapter"
+      ],
+      "enclosings": [
+        "fn bug_report_insert_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free support bug-report persistence (#458) currently owns the complete wow-database workflow fn bug_report_insert_statement_like_cpp in crates/wow-database/src/support_bug_report_adapter.rs.",
+      "connection_affinity": "Pure construction of one Characters-database statement; it opens no connection or transaction.",
+      "current_order": "Builds CHAR_INS_BUG_REPORT and binds report text before diagnostic information exactly like C++.",
+      "failure_and_unknown_commit": "No I/O occurs while constructing the statement.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::support_bug_report_adapter:crates/wow-database/src/support_bug_report_adapter.rs::impl MariaDbSupportBugReportPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/support_bug_report_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::support_bug_report_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbSupportBugReportPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free support bug-report persistence (#458) currently owns the complete wow-database workflow impl MariaDbSupportBugReportPersistenceAdapterLikeCpp::new in crates/wow-database/src/support_bug_report_adapter.rs.",
+      "connection_affinity": "Composition supplies one process-wide Characters adapter before sessions are accepted.",
+      "current_order": "Construction stores the handle only and performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::support_bug_report_adapter:crates/wow-database/src/support_bug_report_adapter.rs::impl wow_persistence::SupportBugReportPersistencePortLikeCpp for MariaDbSupportBugReportPersistenceAdapterLikeCpp::persist_bug_report_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/support_bug_report_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::support_bug_report_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SupportBugReportPersistencePortLikeCpp for MariaDbSupportBugReportPersistenceAdapterLikeCpp::persist_bug_report_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free support bug-report persistence (#458) currently owns the complete wow-database workflow impl wow_persistence::SupportBugReportPersistencePortLikeCpp for MariaDbSupportBugReportPersistenceAdapterLikeCpp::persist_bug_report_like_cpp in crates/wow-database/src/support_bug_report_adapter.rs.",
+      "connection_affinity": "Executes one non-transactional prepared write through the configured Characters adapter.",
+      "current_order": "Executes CHAR_INS_BUG_REPORT with text then diagnostic information and returns before the wire-silent handler completes.",
+      "failure_and_unknown_commit": "Successful execution maps to Applied and a driver error to Failed; there is no explicit COMMIT phase and no Unknown classification.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::support_bug_report_adapter:crates/wow-database/src/support_bug_report_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/support_bug_report_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::support_bug_report_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free support bug-report persistence (#458) currently owns the complete wow-database workflow module in crates/wow-database/src/support_bug_report_adapter.rs.",
+      "connection_affinity": "The module is bound to one configured Characters adapter and opens no cross-database workflow.",
+      "current_order": "The adapter preserves the C++ statement identity and bind order without moving packet or support-policy decisions.",
+      "failure_and_unknown_commit": "No SQLx or database error crosses the typed support port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::support_bug_report_adapter:crates/wow-database/src/support_bug_report_adapter.rs::struct MariaDbSupportBugReportPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/support_bug_report_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::support_bug_report_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbSupportBugReportPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free support bug-report persistence (#458) currently owns the complete wow-database workflow struct MariaDbSupportBugReportPersistenceAdapterLikeCpp in crates/wow-database/src/support_bug_report_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one Characters-database handle.",
+      "current_order": "Construction stores the handle only; the typed method owns statement execution.",
+      "failure_and_unknown_commit": "No I/O occurs while storing the adapter.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::transaction:crates/wow-database/src/transaction.rs::enum SqlTransactionCommitError::CommitOutcomeUnknown",
       "source_class": "production",
       "packages": [
@@ -25476,71 +25626,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc/mod.rs::fn bug_report_insert_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/misc/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::misc"
-      ],
-      "enclosings": [
-        "fn bug_report_insert_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "misc compatibility persistence helper boundary currently owns the complete wow-world workflow fn bug_report_insert_statement_like_cpp in crates/wow-world/src/handlers/misc/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::misc:crates/wow-world/src/handlers/misc/mod.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/misc/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::misc"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters",
-        "world"
-      ],
-      "capability_owner": "misc compatibility persistence helper boundary currently owns the complete wow-world workflow module in crates/wow-world/src/handlers/misc/mod.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-world:crate::handlers::misc::gameobject:crates/wow-world/src/handlers/misc/gameobject.rs::impl crate :: session :: WorldSession::handle_game_obj_use",
       "source_class": "production",
       "packages": [
@@ -25825,38 +25910,6 @@
       "connection_affinity": "This is a shared dependency/type surface for characters, world; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::misc::support:crates/wow-world/src/handlers/misc/support.rs::impl crate :: session :: WorldSession::handle_bug_report",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/misc/support.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::misc::support"
-      ],
-      "enclosings": [
-        "impl crate :: session :: WorldSession::handle_bug_report"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "support report persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::handle_bug_report in crates/wow-world/src/handlers/misc/support.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153
       ],
@@ -28799,6 +28852,7 @@
         "crates/wow-database/src/statements/mod.rs",
         "crates/wow-database/src/statements/world.rs",
         "crates/wow-database/src/stored_item_money_adapter.rs",
+        "crates/wow-database/src/support_bug_report_adapter.rs",
         "crates/wow-database/src/transaction.rs",
         "crates/wow-database/src/updater.rs",
         "crates/wow-database/src/void_storage_adapter.rs"
@@ -28861,7 +28915,6 @@
         "crates/wow-world/src/handlers/loot/mod.rs",
         "crates/wow-world/src/handlers/misc/mod.rs",
         "crates/wow-world/src/handlers/misc/tests/lfg.rs",
-        "crates/wow-world/src/handlers/misc/tests/support.rs",
         "crates/wow-world/src/handlers/movement.rs",
         "crates/wow-world/src/handlers/quest/mod.rs",
         "crates/wow-world/src/handlers/spell.rs",
