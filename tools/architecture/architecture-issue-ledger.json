@@ -92,6 +92,7 @@
     462,
     464,
     466,
+    468,
     189,
     192,
     193,
@@ -1514,7 +1515,7 @@
     },
     {
       "number": 466,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.42] Move uncaged battle-pet item-state reads behind the Player lifecycle port",
       "kind": "slice",
       "parents": [
@@ -1523,6 +1524,19 @@
       ],
       "depends_on": [
         464
+      ]
+    },
+    {
+      "number": 468,
+      "state": "open",
+      "title": "[ARCH.DB.43] Move represented Group persistence intents behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        466
       ]
     }
   ]

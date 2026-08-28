@@ -6,8 +6,11 @@
 use tracing::{debug, info, warn};
 use wow_constants::{ClientOpcodes, UnitStandStateType};
 use wow_core::{GameTime, ObjectGuid};
-use wow_database::SqlTransaction;
 use wow_handler::{PacketProcessing, SessionStatus};
+use wow_persistence::{
+    RepresentedGroupPersistenceModeLikeCpp, RepresentedGroupPersistenceOutcomeLikeCpp,
+    RepresentedGroupPersistenceRequestLikeCpp,
+};
 
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
@@ -402,24 +405,30 @@ impl crate::session::WorldSession {
             .await;
         }
 
-        let statements = self.represented_set_difficulty_id_like_cpp(difficulty_id);
-        if statements.is_empty() {
+        let commands = self.represented_set_difficulty_id_like_cpp(difficulty_id);
+        if commands.is_empty() {
             return;
         }
 
-        if let Some(char_db) = self.char_db() {
-            let mut tx = SqlTransaction::new();
-            for statement in statements {
-                tx.append(statement);
-            }
-            if let Err(error) = char_db.commit_transaction(tx).await {
-                warn!(
-                    account = self.account_id,
-                    player_guid = ?self.player_guid(),
-                    %error,
-                    "failed to persist represented group difficulty change"
-                );
-            }
+        let Some(port) = self.represented_group_persistence_port_like_cpp() else {
+            return;
+        };
+        let outcome = port
+            .persist_group_commands_like_cpp(RepresentedGroupPersistenceRequestLikeCpp {
+                commands,
+                mode: RepresentedGroupPersistenceModeLikeCpp::Atomic,
+            })
+            .await;
+        if !matches!(
+            outcome,
+            RepresentedGroupPersistenceOutcomeLikeCpp::Applied { .. }
+        ) {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                ?outcome,
+                "failed to persist represented group difficulty change"
+            );
         }
     }
 
