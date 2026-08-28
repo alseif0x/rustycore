@@ -59299,8 +59299,7 @@ fn vendor_currency_purchase_plan_does_not_publish_before_commit_like_cpp() {
         4
     ));
 
-    let mut tx = SqlTransaction::new();
-    session.append_planned_player_currency_save_statements_like_cpp(&mut tx, 42, &mut planned);
+    let request = session.plan_player_currency_save_like_cpp(42, &mut planned);
 
     assert_eq!(gain.quantity, 3);
     assert_eq!(planned.get(&395).map(|currency| currency.quantity), Some(3));
@@ -59313,7 +59312,7 @@ fn vendor_currency_purchase_plan_does_not_publish_before_commit_like_cpp() {
         planned.get(&396).map(|currency| currency.state),
         Some(PlayerCurrencyState::Unchanged)
     );
-    assert_eq!(tx.len(), 2);
+    assert_eq!(request.rows.len(), 2);
     assert_eq!(
         session.player_currencies_like_cpp(),
         &runtime_before,
@@ -59350,8 +59349,8 @@ fn vendor_currency_purchase_publishes_only_committed_plan_like_cpp() {
         396,
         4
     ));
-    let mut tx = SqlTransaction::new();
-    session.append_planned_player_currency_save_statements_like_cpp(&mut tx, 42, &mut planned);
+    let request = session.plan_player_currency_save_like_cpp(42, &mut planned);
+    assert_eq!(request.rows.len(), 2);
 
     // This synchronous publication is the post-COMMIT half used by
     // `handle_buy_item`; no fallible/async operation separates it from the
@@ -59475,9 +59474,10 @@ fn player_currency_remove_and_save_state_match_cpp() {
     );
     assert!(!session.remove_currency(999, 1));
 
-    let mut tx = SqlTransaction::new();
-    session.append_player_currency_save_statements(&mut tx, 1);
-    assert_eq!(tx.len(), 2);
+    let mut persisted_currencies = session.player_currencies_like_cpp().clone();
+    let request = session.plan_player_currency_save_like_cpp(1, &mut persisted_currencies);
+    session.set_player_currencies_like_cpp(persisted_currencies);
+    assert_eq!(request.rows.len(), 2);
     assert_eq!(
         session
             .player_currencies

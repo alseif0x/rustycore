@@ -18963,32 +18963,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "append_planned_player_currency_save_statements_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn append_planned_player_currency_save_statements_like_cpp (& self , tx : & mut SqlTransaction , character_guid : u64 , currencies : & mut HashMap < u32 , PlayerCurrency > ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "append_player_currency_save_statements",
-          "visibility": "pub (crate)",
-          "signature": "fn append_player_currency_save_statements (& mut self , tx : & mut SqlTransaction , character_guid : u64 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "apply_add_extra_attacks_effect_like_cpp",
           "visibility": "private",
           "signature": "fn apply_add_extra_attacks_effect_like_cpp (& mut self , damage : i32 , target_guid : ObjectGuid ,) -> bool",
@@ -28666,6 +28640,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "persist_standalone_player_currency_save_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn persist_standalone_player_currency_save_like_cpp (& mut self , character_guid : u64 , pre_save_snapshot : HashMap < u32 , PlayerCurrency > ,) -> Result < () , wow_persistence :: PersistenceOutcomeLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "pet_aura_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn pet_aura_like_cpp (& self , spell_id : u32 , effect_index : u8 ,) -> Option < & PetAuraLikeCpp >",
@@ -28773,6 +28760,19 @@
           "name": "plan_inventory_swap_preflight_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn plan_inventory_swap_preflight_like_cpp (& self , src : u16 , dst : u16 ,) -> Option < SwapItemPreflightPlan >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "plan_player_currency_save_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn plan_player_currency_save_like_cpp (& self , character_guid : u64 , currencies : & mut HashMap < u32 , PlayerCurrency > ,) -> wow_persistence :: PlayerCurrencySaveRequestLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [

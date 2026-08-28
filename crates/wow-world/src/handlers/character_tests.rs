@@ -205,6 +205,17 @@ impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
         })
     }
 
+    fn persist_currency_save_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerCurrencySaveRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async {
+            PersistenceOutcomeLikeCpp::Failed {
+                reason: "collection-load-only fixture".to_owned(),
+            }
+        })
+    }
+
     fn persist_talent_reset_like_cpp<'a>(
         &'a self,
         _request: wow_persistence::PlayerTalentResetPersistenceRequestLikeCpp,
@@ -449,6 +460,13 @@ impl PlayerLifecyclePortLikeCpp for HomebindPortFixtureLikeCpp {
         _request: wow_persistence::PlayerMoneyWriteRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
         Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 1 } })
+    }
+
+    fn persist_currency_save_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerCurrencySaveRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
     }
 
     fn persist_talent_reset_like_cpp<'a>(

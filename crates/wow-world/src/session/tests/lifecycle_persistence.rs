@@ -15,13 +15,13 @@ use wow_persistence::{
     AccountCollectionSaveLikeCpp, AccountMaskBlockLikeCpp, LogicalDatabaseLikeCpp,
     PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerBuybackClearRequestLikeCpp,
     PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
-    PlayerHomebindPersistenceRequestLikeCpp, PlayerLifecyclePortLikeCpp,
-    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
-    PlayerLoginItemRepairRequestLikeCpp, PlayerLoginPetTalentResetOutcomeLikeCpp,
-    PlayerMoneyTransactionOutcomeLikeCpp, PlayerMoneyTransactionRequestLikeCpp,
-    PlayerMoneyWriteRequestLikeCpp, PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
-    PlayerRealmCharacterCountRefreshRequestLikeCpp, PlayerTalentResetPersistenceRequestLikeCpp,
-    PlayerXpPersistenceRequestLikeCpp,
+    PlayerCurrencySaveRequestLikeCpp, PlayerHomebindPersistenceRequestLikeCpp,
+    PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
+    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginItemRepairRequestLikeCpp,
+    PlayerLoginPetTalentResetOutcomeLikeCpp, PlayerMoneyTransactionOutcomeLikeCpp,
+    PlayerMoneyTransactionRequestLikeCpp, PlayerMoneyWriteRequestLikeCpp, PlayerOfflineMarkLikeCpp,
+    PlayerOnlineMarkRequestLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
+    PlayerTalentResetPersistenceRequestLikeCpp, PlayerXpPersistenceRequestLikeCpp,
 };
 
 struct RecordingPortLikeCpp {
@@ -32,6 +32,7 @@ struct RecordingPortLikeCpp {
     buyback_clears: Mutex<Vec<PlayerBuybackClearRequestLikeCpp>>,
     money_transactions: Mutex<Vec<PlayerMoneyTransactionRequestLikeCpp>>,
     money_writes: Mutex<Vec<PlayerMoneyWriteRequestLikeCpp>>,
+    currency_saves: Mutex<Vec<PlayerCurrencySaveRequestLikeCpp>>,
     talent_resets: Mutex<Vec<PlayerTalentResetPersistenceRequestLikeCpp>>,
     xp_saves: Mutex<Vec<PlayerXpPersistenceRequestLikeCpp>>,
     realm_character_count_refreshes: Mutex<Vec<PlayerRealmCharacterCountRefreshRequestLikeCpp>>,
@@ -48,6 +49,7 @@ impl RecordingPortLikeCpp {
             buyback_clears: Mutex::new(Vec::new()),
             money_transactions: Mutex::new(Vec::new()),
             money_writes: Mutex::new(Vec::new()),
+            currency_saves: Mutex::new(Vec::new()),
             talent_resets: Mutex::new(Vec::new()),
             xp_saves: Mutex::new(Vec::new()),
             realm_character_count_refreshes: Mutex::new(Vec::new()),
@@ -71,6 +73,9 @@ impl RecordingPortLikeCpp {
     }
     fn money_writes(&self) -> Vec<PlayerMoneyWriteRequestLikeCpp> {
         self.money_writes.lock().unwrap().clone()
+    }
+    fn currency_saves(&self) -> Vec<PlayerCurrencySaveRequestLikeCpp> {
+        self.currency_saves.lock().unwrap().clone()
     }
     fn talent_resets(&self) -> Vec<PlayerTalentResetPersistenceRequestLikeCpp> {
         self.talent_resets.lock().unwrap().clone()
@@ -139,6 +144,15 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         request: PlayerMoneyWriteRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
         self.money_writes.lock().unwrap().push(request);
+        let outcome = self.outcome.clone();
+        Box::pin(async move { outcome })
+    }
+
+    fn persist_currency_save_like_cpp<'a>(
+        &'a self,
+        request: PlayerCurrencySaveRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        self.currency_saves.lock().unwrap().push(request);
         let outcome = self.outcome.clone();
         Box::pin(async move { outcome })
     }
@@ -371,6 +385,105 @@ async fn checked_money_write_uses_the_nontransactional_lifecycle_port_contract()
             money: 777,
         }]
     );
+}
+
+#[tokio::test]
+async fn quest_currency_save_reaches_the_sqlx_free_port_before_publication_like_cpp() {
+    let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7400_0201)));
+    session.player_race = 1;
+    session.set_currency_types_store(Arc::new(CurrencyTypesStore::from_entries([
+        currency_entry(395),
+    ])));
+
+    let snapshot = session.player_currencies_like_cpp().clone();
+    assert!(
+        session
+            .add_currency_quest_reward_like_cpp(395, 7, CurrencyGainSourceLikeCpp::QuestReward,)
+            .is_ok()
+    );
+    assert!(
+        session
+            .persist_standalone_player_currency_save_like_cpp(0x7400_0201, snapshot)
+            .await
+            .is_ok()
+    );
+    assert_eq!(session.player_currency_quantity(395), 7);
+    let requests = port.currency_saves();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].player_guid, 0x7400_0201);
+    assert_eq!(requests[0].rows.len(), 1);
+    assert_eq!(
+        requests[0].rows[0].kind,
+        wow_persistence::PlayerCurrencySaveKindLikeCpp::New
+    );
+    assert_eq!(requests[0].rows[0].currency_id, 395);
+    assert_eq!(requests[0].rows[0].quantity, 7);
+    assert_eq!(
+        session
+            .player_currencies_like_cpp()
+            .get(&395)
+            .map(|currency| currency.state),
+        Some(PlayerCurrencyState::Unchanged)
+    );
+}
+
+#[tokio::test]
+async fn missing_currency_persistence_port_keeps_the_existing_unsaved_state_like_cpp() {
+    let (mut session, _, _) = make_session();
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7400_0203)));
+    session.player_race = 1;
+    session.set_currency_types_store(Arc::new(CurrencyTypesStore::from_entries([
+        currency_entry(395),
+    ])));
+
+    let snapshot = session.player_currencies_like_cpp().clone();
+    assert!(
+        session
+            .add_currency_quest_reward_like_cpp(395, 7, CurrencyGainSourceLikeCpp::QuestReward,)
+            .is_ok()
+    );
+    assert!(
+        session
+            .persist_standalone_player_currency_save_like_cpp(0x7400_0203, snapshot)
+            .await
+            .is_ok()
+    );
+    assert_eq!(session.player_currency_quantity(395), 7);
+    assert_eq!(
+        session
+            .player_currencies_like_cpp()
+            .get(&395)
+            .map(|currency| currency.state),
+        Some(PlayerCurrencyState::New)
+    );
+}
+
+#[tokio::test]
+async fn unknown_quest_currency_commit_restores_the_pre_save_snapshot_like_cpp() {
+    let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Unknown {
+        reason: "lost COMMIT reply".to_owned(),
+    });
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7400_0202)));
+    session.player_race = 1;
+    session.set_currency_types_store(Arc::new(CurrencyTypesStore::from_entries([
+        currency_entry(395),
+    ])));
+
+    let snapshot = session.player_currencies_like_cpp().clone();
+    assert!(
+        session
+            .add_currency_quest_reward_like_cpp(395, 7, CurrencyGainSourceLikeCpp::QuestReward,)
+            .is_ok()
+    );
+    assert!(
+        session
+            .persist_standalone_player_currency_save_like_cpp(0x7400_0202, snapshot)
+            .await
+            .is_err()
+    );
+    assert_eq!(session.player_currency_quantity(395), 0);
+    assert_eq!(port.currency_saves().len(), 1);
 }
 
 #[tokio::test]

@@ -98,6 +98,17 @@ impl PlayerLifecyclePortLikeCpp for AuxiliaryLoadPortLikeCpp {
         })
     }
 
+    fn persist_currency_save_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerCurrencySaveRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async {
+            PersistenceOutcomeLikeCpp::Failed {
+                reason: "auxiliary-load-only fixture".to_owned(),
+            }
+        })
+    }
+
     fn persist_talent_reset_like_cpp<'a>(
         &'a self,
         _request: wow_persistence::PlayerTalentResetPersistenceRequestLikeCpp,

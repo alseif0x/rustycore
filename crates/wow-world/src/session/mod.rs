@@ -17443,15 +17443,20 @@ impl WorldSession {
         true
     }
 
-    /// C++ `Player::_SaveCurrency` for changed/new currency rows.
-    pub(crate) fn append_planned_player_currency_save_statements_like_cpp(
+    /// C++ `Player::_SaveCurrency` plan for changed/new currency rows.
+    /// Gameplay owns filtering and state transitions; the persistence adapter
+    /// owns statement identity, bind order, and transaction execution.
+    pub(crate) fn plan_player_currency_save_like_cpp(
         &self,
-        tx: &mut SqlTransaction,
         character_guid: u64,
         currencies: &mut HashMap<u32, PlayerCurrency>,
-    ) {
+    ) -> wow_persistence::PlayerCurrencySaveRequestLikeCpp {
+        let mut rows = Vec::new();
         let Some(store) = self.currency_types_store.as_ref() else {
-            return;
+            return wow_persistence::PlayerCurrencySaveRequestLikeCpp {
+                player_guid: character_guid,
+                rows,
+            };
         };
         for (&currency_id, currency) in currencies.iter_mut() {
             if !store.has_record(currency_id) {
@@ -17463,50 +17468,61 @@ impl WorldSession {
 
             match currency.state {
                 PlayerCurrencyState::New => {
-                    let mut stmt =
-                        PreparedStatement::for_statement(CharStatements::REP_PLAYER_CURRENCY);
-                    stmt.set_u64(0, character_guid);
-                    stmt.set_u16(1, currency_db_id);
-                    stmt.set_u32(2, currency.quantity);
-                    stmt.set_u32(3, currency.weekly_quantity);
-                    stmt.set_u32(4, currency.tracked_quantity);
-                    stmt.set_u32(5, currency.increased_cap_quantity);
-                    stmt.set_u32(6, currency.earned_quantity);
-                    stmt.set_u8(7, currency.flags);
-                    tx.append(stmt);
+                    rows.push(wow_persistence::PlayerCurrencySaveRowLikeCpp {
+                        kind: wow_persistence::PlayerCurrencySaveKindLikeCpp::New,
+                        currency_id: currency_db_id,
+                        quantity: currency.quantity,
+                        weekly_quantity: currency.weekly_quantity,
+                        tracked_quantity: currency.tracked_quantity,
+                        increased_cap_quantity: currency.increased_cap_quantity,
+                        earned_quantity: currency.earned_quantity,
+                        flags: currency.flags,
+                    });
                     currency.state = PlayerCurrencyState::Unchanged;
                 }
                 PlayerCurrencyState::Changed => {
-                    let mut stmt =
-                        PreparedStatement::for_statement(CharStatements::UPD_PLAYER_CURRENCY);
-                    stmt.set_u32(0, currency.quantity);
-                    stmt.set_u32(1, currency.weekly_quantity);
-                    stmt.set_u32(2, currency.tracked_quantity);
-                    stmt.set_u32(3, currency.increased_cap_quantity);
-                    stmt.set_u32(4, currency.earned_quantity);
-                    stmt.set_u8(5, currency.flags);
-                    stmt.set_u64(6, character_guid);
-                    stmt.set_u16(7, currency_db_id);
-                    tx.append(stmt);
+                    rows.push(wow_persistence::PlayerCurrencySaveRowLikeCpp {
+                        kind: wow_persistence::PlayerCurrencySaveKindLikeCpp::Changed,
+                        currency_id: currency_db_id,
+                        quantity: currency.quantity,
+                        weekly_quantity: currency.weekly_quantity,
+                        tracked_quantity: currency.tracked_quantity,
+                        increased_cap_quantity: currency.increased_cap_quantity,
+                        earned_quantity: currency.earned_quantity,
+                        flags: currency.flags,
+                    });
                     currency.state = PlayerCurrencyState::Unchanged;
                 }
                 PlayerCurrencyState::Unchanged | PlayerCurrencyState::Removed => {}
             }
         }
+        wow_persistence::PlayerCurrencySaveRequestLikeCpp {
+            player_guid: character_guid,
+            rows,
+        }
     }
 
-    pub(crate) fn append_player_currency_save_statements(
+    pub(crate) async fn persist_standalone_player_currency_save_like_cpp(
         &mut self,
-        tx: &mut SqlTransaction,
         character_guid: u64,
-    ) {
+        pre_save_snapshot: HashMap<u32, PlayerCurrency>,
+    ) -> Result<(), wow_persistence::PersistenceOutcomeLikeCpp> {
+        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
+            return Ok(());
+        };
         let mut currencies = self.player_currencies_like_cpp().clone();
-        self.append_planned_player_currency_save_statements_like_cpp(
-            tx,
-            character_guid,
-            &mut currencies,
-        );
+        let request = self.plan_player_currency_save_like_cpp(character_guid, &mut currencies);
         self.set_player_currencies_like_cpp(currencies);
+        let outcome = port.persist_currency_save_like_cpp(request).await;
+        if matches!(
+            outcome,
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. }
+        ) {
+            Ok(())
+        } else {
+            self.set_player_currencies_like_cpp(pre_save_snapshot);
+            Err(outcome)
+        }
     }
 
     /// Set the item appearance store for this session.

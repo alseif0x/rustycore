@@ -81,6 +81,7 @@
     440,
     442,
     444,
+    446,
     189,
     192,
     193,
@@ -1360,7 +1361,7 @@
     },
     {
       "number": 444,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.31] Move direct player-money and durability writes behind the lifecycle port",
       "kind": "slice",
       "parents": [
@@ -1369,6 +1370,19 @@
       ],
       "depends_on": [
         442
+      ]
+    },
+    {
+      "number": 446,
+      "state": "open",
+      "title": "[ARCH.DB.32] Move standalone player-currency saves behind the lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        444
       ]
     }
   ]

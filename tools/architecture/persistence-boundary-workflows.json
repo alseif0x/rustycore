@@ -10612,6 +10612,51 @@
       "package": "wow-database",
       "module": "crate::player_lifecycle_adapter",
       "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_currency_save_statements_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free Player currency persistence (#446)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure Characters-database statement construction; standalone and mixed callers append the typed plan to their existing transaction boundary.",
+      "current_order": "Builds each typed row in gameplay iteration order, mapping NEW to REPLACE and CHANGED to UPDATE with the exact C++ bind widths and order.",
+      "failure_and_unknown_commit": "No I/O occurs here; the standalone lifecycle operation classifies definite rollback and unknown COMMIT, while mixed transaction owners retain their existing classification."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn append_player_currency_save_request_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "transitional MariaDB rendering bridge for mixed Player currency transactions (#446)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Appends only to the explicit Characters transaction supplied by the owning mixed inventory/vendor/quest workflow; it acquires no connection itself.",
+      "current_order": "Appends every rendered currency statement at the same position formerly occupied by the Session builder, preserving the wider transaction order.",
+      "failure_and_unknown_commit": "No I/O or classification occurs here; each mixed workflow retains its existing rollback and unknown-COMMIT policy until its whole transaction moves behind a capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::persist_currency_save_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for standalone SQLx-free Player currency persistence (#446)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every typed currency row executes on one connection from the configured Characters pool and shares one explicit transaction.",
+      "current_order": "Renders the complete request, executes each row in request order, then COMMITs before returning Applied and before gameplay publishes SetCurrency.",
+      "failure_and_unknown_commit": "DefinitelyRolledBack maps to Failed and CommitOutcomeUnknown maps to Unknown; both suppress publication and restore the pre-save runtime snapshot."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
       "enclosing": "fn player_money_transaction_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -12991,23 +13036,6 @@
       "package": "wow-world",
       "module": "crate::handlers::quest::rewards",
       "source": "crates/wow-world/src/handlers/quest/rewards.rs",
-      "enclosing": "impl WorldSession::grant_quest_reward_currency_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-world residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::quest::rewards",
-      "source": "crates/wow-world/src/handlers/quest/rewards.rs",
       "enclosing": "impl WorldSession::remove_quest_required_items_and_currencies_like_cpp",
       "logical_databases": [
         "characters"
@@ -13692,42 +13720,6 @@
       "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session/mod.rs",
-      "enclosing": "impl WorldSession::append_planned_player_currency_save_statements_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Player lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session/mod.rs",
-      "enclosing": "impl WorldSession::append_player_currency_save_statements",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Player lifecycle persistence capability",
-      "target_issues": [
-        153,
-        169
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
     },
     {
       "package": "wow-world",

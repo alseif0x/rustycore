@@ -609,10 +609,13 @@ impl WorldSession {
                 player_guid,
                 &item_turnin_changes,
             );
-            self.append_planned_player_currency_save_statements_like_cpp(
-                &mut tx,
+            let currency_save = self.plan_player_currency_save_like_cpp(
                 player_guid.counter() as u64,
                 &mut planned_currencies,
+            );
+            wow_database::player_lifecycle_adapter::append_player_currency_save_request_like_cpp(
+                &mut tx,
+                &currency_save,
             );
 
             // C++ mutates currency plus extended-cost turn-ins in one
@@ -1043,10 +1046,13 @@ impl WorldSession {
                 return;
             }
         }
-        self.append_planned_player_currency_save_statements_like_cpp(
-            &mut tx,
+        let currency_save = self.plan_player_currency_save_like_cpp(
             player_guid.counter() as u64,
             &mut planned_currencies,
+        );
+        wow_database::player_lifecycle_adapter::append_player_currency_save_request_like_cpp(
+            &mut tx,
+            &currency_save,
         );
 
         let Some(money_persistence) = self
@@ -2287,7 +2293,16 @@ impl WorldSession {
                 }
             }
         }
-        self.append_player_currency_save_statements(&mut tx, player_guid.counter() as u64);
+        let mut persisted_currencies = self.player_currencies_like_cpp().clone();
+        let currency_save = self.plan_player_currency_save_like_cpp(
+            player_guid.counter() as u64,
+            &mut persisted_currencies,
+        );
+        self.set_player_currencies_like_cpp(persisted_currencies);
+        wow_database::player_lifecycle_adapter::append_player_currency_save_request_like_cpp(
+            &mut tx,
+            &currency_save,
+        );
 
         let Some(money_persistence) = self
             .commit_exclusive_player_money_transaction_like_cpp(
