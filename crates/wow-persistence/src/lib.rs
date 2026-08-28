@@ -169,6 +169,45 @@ pub trait SupportBugReportPersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 }
 
+/// SQLx-free request for the represented on-demand `CHAR_SEL_MAIL` read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NextMailTimeLoadRequestLikeCpp {
+    pub player_guid: u64,
+}
+
+impl NextMailTimeLoadRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
+/// The five persisted columns consumed by Rust's represented
+/// `CMSG_QUERY_NEXT_MAIL_TIME` projection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NextMailTimeLoadRowLikeCpp {
+    pub message_type: u8,
+    pub sender: u64,
+    pub deliver_time: i64,
+    pub checked: u8,
+    pub stationery: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NextMailTimeLoadOutcomeLikeCpp {
+    Loaded(Vec<NextMailTimeLoadRowLikeCpp>),
+    Failed { reason: String },
+}
+
+/// Dedicated SQLx-free capability for the transitional on-demand mail read.
+/// C++ reads the canonical in-memory Player mail owner instead; #153 owns
+/// retiring this represented query once that owner exists in Rust.
+pub trait NextMailTimePersistencePortLikeCpp: Send + Sync {
+    fn load_next_mail_time_rows_like_cpp<'a>(
+        &'a self,
+        request: NextMailTimeLoadRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, NextMailTimeLoadOutcomeLikeCpp>;
+}
+
 /// Commit classification for a transaction protected by the Session-owned
 /// player-money exclusion fence.
 ///
@@ -2900,6 +2939,14 @@ mod tests {
                 diagnostic_info: "diag".to_owned(),
             }
             .logical_database(),
+            LogicalDatabaseLikeCpp::Characters
+        );
+    }
+
+    #[test]
+    fn next_mail_time_load_names_the_character_database_like_cpp() {
+        assert_eq!(
+            NextMailTimeLoadRequestLikeCpp { player_guid: 17 }.logical_database(),
             LogicalDatabaseLikeCpp::Characters
         );
     }

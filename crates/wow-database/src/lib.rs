@@ -38,6 +38,7 @@ pub mod error;
 pub mod group_loot_money_adapter;
 pub mod loader;
 pub mod map_corpse_adapter;
+pub mod next_mail_time_adapter;
 pub mod packet_spoof_ban_adapter;
 pub mod params;
 pub mod persistence_trace;

@@ -6,7 +6,7 @@
 use tracing::{debug, info, warn};
 use wow_constants::{ClientOpcodes, UnitStandStateType};
 use wow_core::{GameTime, ObjectGuid};
-use wow_database::{CharStatements, SqlTransaction};
+use wow_database::SqlTransaction;
 use wow_handler::{PacketProcessing, SessionStatus};
 
 use crate::session::registry::PacketHandlerEntry;
@@ -237,7 +237,7 @@ impl crate::session::WorldSession {
         const MAIL_CHECK_MASK_READ_LIKE_CPP: u8 = 0x01;
         const MAIL_NORMAL_LIKE_CPP: u8 = 0;
 
-        let Some(char_db) = self.char_db().cloned() else {
+        let Some(port) = self.next_mail_time_persistence_port_like_cpp() else {
             self.send_packet_realm(&MailQueryNextTimeResult::no_mail());
             return;
         };
@@ -249,14 +249,16 @@ impl crate::session::WorldSession {
 
         let player_guid = player_object_guid.counter() as u64;
         let now = GameTime::now().as_secs() as i64;
-        let mut stmt = char_db.prepare(CharStatements::SEL_MAIL);
-        stmt.set_u64(0, player_guid);
-
-        let mut result = match char_db.query(&stmt).await {
-            Ok(result) => result,
-            Err(error) => {
+        let rows = match port
+            .load_next_mail_time_rows_like_cpp(wow_persistence::NextMailTimeLoadRequestLikeCpp {
+                player_guid,
+            })
+            .await
+        {
+            wow_persistence::NextMailTimeLoadOutcomeLikeCpp::Loaded(rows) => rows,
+            wow_persistence::NextMailTimeLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
-                    ?error,
+                    error = %reason,
                     player_guid, "Failed to query mail for CMSG_QUERY_NEXT_MAIL_TIME"
                 );
                 self.send_packet_realm(&MailQueryNextTimeResult::no_mail());
@@ -267,43 +269,31 @@ impl crate::session::WorldSession {
         let mut packet = MailQueryNextTimeResult::no_mail();
         let mut sent_senders = std::collections::BTreeSet::new();
 
-        if !result.is_empty() {
-            loop {
-                let checked = result.try_read::<u8>(10).unwrap_or(0);
-                let deliver_time = result.try_read::<i64>(7).unwrap_or(0);
-                let sender = result.try_read::<u64>(2).unwrap_or(0);
+        for row in rows {
+            if (row.checked & MAIL_CHECK_MASK_READ_LIKE_CPP) == 0
+                && now >= row.deliver_time
+                && sent_senders.insert(row.sender)
+            {
+                let sender_guid = if row.message_type == MAIL_NORMAL_LIKE_CPP {
+                    ObjectGuid::create_player(self.realm_id(), row.sender as i64)
+                } else {
+                    ObjectGuid::EMPTY
+                };
 
-                if (checked & MAIL_CHECK_MASK_READ_LIKE_CPP) == 0
-                    && now >= deliver_time
-                    && sent_senders.insert(sender)
-                {
-                    let message_type = result.try_read::<u8>(1).unwrap_or(0);
-                    let stationery = result.try_read::<i32>(11).unwrap_or(0);
-                    let sender_guid = if message_type == MAIL_NORMAL_LIKE_CPP {
-                        ObjectGuid::create_player(self.realm_id(), sender as i64)
+                packet.next_mail_time = 0.0;
+                packet.next.push(MailNextTimeEntry {
+                    sender_guid,
+                    time_left: (row.deliver_time - now) as f32,
+                    alt_sender_id: if row.message_type == MAIL_NORMAL_LIKE_CPP {
+                        0
                     } else {
-                        ObjectGuid::EMPTY
-                    };
+                        row.sender as i32
+                    },
+                    alt_sender_type: row.message_type as i8,
+                    stationery_id: row.stationery,
+                });
 
-                    packet.next_mail_time = 0.0;
-                    packet.next.push(MailNextTimeEntry {
-                        sender_guid,
-                        time_left: (deliver_time - now) as f32,
-                        alt_sender_id: if message_type == MAIL_NORMAL_LIKE_CPP {
-                            0
-                        } else {
-                            sender as i32
-                        },
-                        alt_sender_type: message_type as i8,
-                        stationery_id: stationery,
-                    });
-
-                    if sent_senders.len() > 2 {
-                        break;
-                    }
-                }
-
-                if !result.next_row() {
+                if sent_senders.len() > 2 {
                     break;
                 }
             }
