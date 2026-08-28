@@ -82,14 +82,13 @@ use super::{
     run_legacy_creature_runtime_tick_and_deliver_once_like_cpp,
     run_world_session_shutdown_finalize_step_like_cpp, set_realm_offline_sql_like_cpp,
     set_realm_online_sql_like_cpp, spawn_legacy_creature_runtime_update_loop_like_cpp,
-    spawn_store_loader, stop_world_network_like_cpp, target_icon_raw_from_db_bytes_like_cpp,
-    update_sessions_shutdown_flush_once_like_cpp, updates_auto_setup_enabled_like_cpp,
-    updates_database_mask_like_cpp, updates_enabled_for_database_like_cpp, world_config_bool,
-    world_config_f32, world_config_u8, world_config_u16, world_config_u32,
-    world_db_core_version_update_sql_like_cpp, world_db_version_matches_required_like_cpp,
-    world_db_version_mismatch_message_like_cpp, world_update_loop_step_like_cpp,
-    worldserver_cli_help_like_cpp, worldserver_full_version_like_cpp,
-    worldserver_revision_like_cpp,
+    spawn_store_loader, stop_world_network_like_cpp, update_sessions_shutdown_flush_once_like_cpp,
+    updates_auto_setup_enabled_like_cpp, updates_database_mask_like_cpp,
+    updates_enabled_for_database_like_cpp, world_config_bool, world_config_f32, world_config_u8,
+    world_config_u16, world_config_u32, world_db_core_version_update_sql_like_cpp,
+    world_db_version_matches_required_like_cpp, world_db_version_mismatch_message_like_cpp,
+    world_update_loop_step_like_cpp, worldserver_cli_help_like_cpp,
+    worldserver_full_version_like_cpp, worldserver_revision_like_cpp,
 };
 use std::collections::{BTreeMap, HashSet};
 use std::env;
@@ -239,21 +238,6 @@ fn item_guid_allocator_cleans_every_dangling_reference_before_publication() {
     for statement in sql {
         assert!(statement.contains(">= ?"));
     }
-}
-
-#[test]
-fn target_icon_raw_from_db_bytes_preserves_cpp_binary_guid_shape() {
-    assert_eq!(target_icon_raw_from_db_bytes_like_cpp(&[]), [0u8; 16]);
-
-    let short = target_icon_raw_from_db_bytes_like_cpp(&[1, 2, 3]);
-    assert_eq!(&short[..3], &[1, 2, 3]);
-    assert_eq!(&short[3..], &[0u8; 13]);
-
-    let exact = target_icon_raw_from_db_bytes_like_cpp(&[9u8; 16]);
-    assert_eq!(exact, [9u8; 16]);
-
-    let long = target_icon_raw_from_db_bytes_like_cpp(&(0u8..20).collect::<Vec<_>>());
-    assert_eq!(long, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
 }
 
 fn player_registration_fixture_like_cpp(

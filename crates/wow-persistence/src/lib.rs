@@ -2545,6 +2545,70 @@ pub trait RepresentedGroupPersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<'_, RepresentedGroupPersistenceOutcomeLikeCpp>;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepresentedGroupStartupCharacterLikeCpp {
+    pub guid: u64,
+    pub name: String,
+    pub race: u8,
+    pub class: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepresentedGroupStartupGroupRowLikeCpp {
+    pub leader_guid_low: u64,
+    pub loot_method: u8,
+    pub looter_guid_low: u64,
+    pub loot_threshold: u8,
+    pub target_icons: [[u8; 16]; 8],
+    pub group_flags: u16,
+    pub dungeon_difficulty_id: u32,
+    pub raid_difficulty_id: u32,
+    pub legacy_raid_difficulty_id: u32,
+    pub master_looter_guid_low: u64,
+    pub db_store_id: u32,
+    pub lfg_dungeon_id: Option<u32>,
+    pub lfg_state: Option<u8>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RepresentedGroupStartupMemberRowLikeCpp {
+    pub db_store_id: u32,
+    pub member_guid_low: u64,
+    pub member_flags: u8,
+    pub subgroup: u8,
+    pub roles: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RepresentedGroupStartupLoadStageLikeCpp {
+    DeleteMembersWithoutCharacter,
+    DeleteGroupsWithoutLeader,
+    DeleteGroupsWithFewerThanTwoMembers,
+    DeleteMembersWithoutGroup,
+    CharacterCache,
+    Groups,
+    Members,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RepresentedGroupStartupLoadOutcomeLikeCpp {
+    Loaded {
+        characters: Vec<RepresentedGroupStartupCharacterLikeCpp>,
+        groups: Vec<RepresentedGroupStartupGroupRowLikeCpp>,
+        members: Vec<RepresentedGroupStartupMemberRowLikeCpp>,
+    },
+    Failed {
+        stage: RepresentedGroupStartupLoadStageLikeCpp,
+        reason: String,
+    },
+}
+
+pub trait RepresentedGroupStartupLoadPortLikeCpp: Send + Sync {
+    fn load_represented_groups_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<'_, RepresentedGroupStartupLoadOutcomeLikeCpp>;
+}
+
 /// One recipient in an atomic group corpse-loot payout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GroupLootMoneyPayoutLikeCpp {

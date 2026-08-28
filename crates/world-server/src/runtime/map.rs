@@ -247,28 +247,56 @@ pub(crate) struct GameEventQuestCompleteDbBridgeSummaryLikeCpp {
 }
 
 pub(crate) async fn load_groups_from_character_database_like_cpp(
-    char_db: &CharacterDatabase,
+    persistence: &dyn wow_persistence::RepresentedGroupStartupLoadPortLikeCpp,
     group_registry: &GroupRegistry,
     difficulty_store: &wow_data::DifficultyStore,
 ) -> Result<GroupLoadSummaryLikeCpp> {
-    // C++ GroupMgr::LoadGroups runs these DirectExecute cleanup statements
-    // before selecting groups and members.
-    for statement in [
-        CharStatements::DEL_GROUP_MEMBERS_WITHOUT_CHARACTER,
-        CharStatements::DEL_GROUPS_WITHOUT_LEADER,
-        CharStatements::DEL_GROUPS_WITH_FEWER_THAN_TWO_MEMBERS,
-        CharStatements::DEL_GROUP_MEMBERS_WITHOUT_GROUP,
-    ] {
-        let stmt = char_db.prepare(statement);
-        char_db
-            .execute(&stmt)
-            .await
-            .with_context(|| format!("Failed to execute group startup cleanup: {statement:?}"))?;
-    }
-
-    let character_cache = load_group_member_character_cache_like_cpp(char_db).await?;
-    let group_rows = load_group_db_rows_like_cpp(char_db).await?;
-    let member_rows = load_group_member_db_rows_like_cpp(char_db).await?;
+    let (characters, groups, members) = match persistence.load_represented_groups_like_cpp().await {
+        wow_persistence::RepresentedGroupStartupLoadOutcomeLikeCpp::Loaded {
+            characters,
+            groups,
+            members,
+        } => (characters, groups, members),
+        wow_persistence::RepresentedGroupStartupLoadOutcomeLikeCpp::Failed { stage, reason } => {
+            anyhow::bail!("represented Group startup persistence failed at {stage:?}: {reason}")
+        }
+    };
+    let character_cache = characters
+        .into_iter()
+        .filter(|character| character.guid != 0)
+        .map(|character| {
+            (
+                character.guid,
+                GroupMemberCharacterLikeCpp {
+                    name: character.name,
+                    race: character.race,
+                    class: character.class,
+                },
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let group_rows = groups.into_iter().map(|row| GroupDbRowLikeCpp {
+        leader_guid_low: row.leader_guid_low,
+        loot_method: row.loot_method,
+        looter_guid_low: row.looter_guid_low,
+        loot_threshold: row.loot_threshold,
+        target_icons: row.target_icons,
+        group_flags: row.group_flags,
+        dungeon_difficulty_id: row.dungeon_difficulty_id,
+        raid_difficulty_id: row.raid_difficulty_id,
+        legacy_raid_difficulty_id: row.legacy_raid_difficulty_id,
+        master_looter_guid_low: row.master_looter_guid_low,
+        db_store_id: row.db_store_id,
+        lfg_dungeon_id: row.lfg_dungeon_id,
+        lfg_state: row.lfg_state,
+    });
+    let member_rows = members.into_iter().map(|row| GroupMemberDbRowLikeCpp {
+        db_store_id: row.db_store_id,
+        member_guid_low: row.member_guid_low,
+        member_flags: row.member_flags,
+        subgroup: row.subgroup,
+        roles: row.roles,
+    });
 
     Ok(load_groups_from_db_rows_like_cpp(
         group_registry,
@@ -277,121 +305,6 @@ pub(crate) async fn load_groups_from_character_database_like_cpp(
         &character_cache,
         &GroupDifficultyStorePortLikeCpp(difficulty_store),
     ))
-}
-
-pub(crate) async fn load_group_member_character_cache_like_cpp(
-    char_db: &CharacterDatabase,
-) -> Result<BTreeMap<u64, GroupMemberCharacterLikeCpp>> {
-    let stmt = char_db.prepare(CharStatements::SEL_GROUP_MEMBER_CHARACTER_CACHE);
-    let mut result = char_db
-        .query(&stmt)
-        .await
-        .context("Failed to select group member character cache rows")?;
-    let mut cache = BTreeMap::new();
-    if result.is_empty() {
-        return Ok(cache);
-    }
-
-    loop {
-        let guid: u64 = result.try_read(0).unwrap_or(0);
-        if guid != 0 {
-            cache.insert(
-                guid,
-                GroupMemberCharacterLikeCpp {
-                    name: result.read_string(1),
-                    race: result.try_read(2).unwrap_or(0),
-                    class: result.try_read(3).unwrap_or(0),
-                },
-            );
-        }
-
-        if !result.next_row() {
-            break;
-        }
-    }
-
-    Ok(cache)
-}
-
-pub(crate) async fn load_group_db_rows_like_cpp(
-    char_db: &CharacterDatabase,
-) -> Result<Vec<GroupDbRowLikeCpp>> {
-    let stmt = char_db.prepare(CharStatements::SEL_GROUPS);
-    let mut result = char_db
-        .query(&stmt)
-        .await
-        .context("Failed to select C++ GroupMgr::LoadGroups group rows")?;
-    let mut rows = Vec::new();
-    if result.is_empty() {
-        return Ok(rows);
-    }
-
-    loop {
-        let mut target_icons = [[0u8; 16]; wow_social::group::TARGET_ICONS_COUNT_LIKE_CPP];
-        for (idx, icon) in target_icons.iter_mut().enumerate() {
-            let bytes: Vec<u8> = result.try_read(4 + idx).unwrap_or_default();
-            *icon = target_icon_raw_from_db_bytes_like_cpp(&bytes);
-        }
-
-        rows.push(GroupDbRowLikeCpp {
-            leader_guid_low: result.try_read(0).unwrap_or(0),
-            loot_method: result.try_read(1).unwrap_or(0),
-            looter_guid_low: result.try_read(2).unwrap_or(0),
-            loot_threshold: result.try_read(3).unwrap_or(0),
-            target_icons,
-            group_flags: result.try_read(12).unwrap_or(0),
-            dungeon_difficulty_id: result.try_read::<u8>(13).unwrap_or(0).into(),
-            raid_difficulty_id: result.try_read::<u8>(14).unwrap_or(0).into(),
-            legacy_raid_difficulty_id: result.try_read::<u8>(15).unwrap_or(0).into(),
-            master_looter_guid_low: result.try_read(16).unwrap_or(0),
-            db_store_id: result.try_read(17).unwrap_or(0),
-            lfg_dungeon_id: (!result.is_null(18)).then(|| result.try_read(18).unwrap_or(0)),
-            lfg_state: (!result.is_null(19)).then(|| result.try_read(19).unwrap_or(0)),
-        });
-
-        if !result.next_row() {
-            break;
-        }
-    }
-
-    Ok(rows)
-}
-
-pub(crate) async fn load_group_member_db_rows_like_cpp(
-    char_db: &CharacterDatabase,
-) -> Result<Vec<GroupMemberDbRowLikeCpp>> {
-    let stmt = char_db.prepare(CharStatements::SEL_GROUP_MEMBERS);
-    let mut result = char_db
-        .query(&stmt)
-        .await
-        .context("Failed to select C++ GroupMgr::LoadGroups member rows")?;
-    let mut rows = Vec::new();
-    if result.is_empty() {
-        return Ok(rows);
-    }
-
-    loop {
-        rows.push(GroupMemberDbRowLikeCpp {
-            db_store_id: result.try_read(0).unwrap_or(0),
-            member_guid_low: result.try_read(1).unwrap_or(0),
-            member_flags: result.try_read(2).unwrap_or(0),
-            subgroup: result.try_read(3).unwrap_or(0),
-            roles: result.try_read(4).unwrap_or(0),
-        });
-
-        if !result.next_row() {
-            break;
-        }
-    }
-
-    Ok(rows)
-}
-
-pub(crate) fn target_icon_raw_from_db_bytes_like_cpp(bytes: &[u8]) -> [u8; 16] {
-    let mut raw = [0u8; 16];
-    let copy_len = bytes.len().min(raw.len());
-    raw[..copy_len].copy_from_slice(&bytes[..copy_len]);
-    raw
 }
 
 #[allow(dead_code)]
@@ -2203,4 +2116,62 @@ pub(crate) fn spawn_canonical_map_update_loop(
             }
         }
     })
+}
+
+#[cfg(test)]
+mod represented_group_startup_tests {
+    use super::*;
+    use wow_persistence::{
+        PersistenceFutureLikeCpp, RepresentedGroupStartupLoadOutcomeLikeCpp,
+        RepresentedGroupStartupLoadPortLikeCpp, RepresentedGroupStartupLoadStageLikeCpp,
+    };
+
+    struct FixedGroupStartupPortLikeCpp(RepresentedGroupStartupLoadOutcomeLikeCpp);
+
+    impl RepresentedGroupStartupLoadPortLikeCpp for FixedGroupStartupPortLikeCpp {
+        fn load_represented_groups_like_cpp(
+            &self,
+        ) -> PersistenceFutureLikeCpp<'_, RepresentedGroupStartupLoadOutcomeLikeCpp> {
+            let outcome = self.0.clone();
+            Box::pin(async move { outcome })
+        }
+    }
+
+    #[tokio::test]
+    async fn typed_empty_group_startup_rows_materialize_an_empty_registry() {
+        let port =
+            FixedGroupStartupPortLikeCpp(RepresentedGroupStartupLoadOutcomeLikeCpp::Loaded {
+                characters: Vec::new(),
+                groups: Vec::new(),
+                members: Vec::new(),
+            });
+        let registry = GroupRegistry::new();
+        let summary = load_groups_from_character_database_like_cpp(
+            &port,
+            &registry,
+            &wow_data::DifficultyStore::from_ids([]),
+        )
+        .await
+        .unwrap();
+        assert_eq!(summary, GroupLoadSummaryLikeCpp::default());
+    }
+
+    #[tokio::test]
+    async fn typed_group_startup_failure_never_materializes_partial_state() {
+        let port =
+            FixedGroupStartupPortLikeCpp(RepresentedGroupStartupLoadOutcomeLikeCpp::Failed {
+                stage: RepresentedGroupStartupLoadStageLikeCpp::Groups,
+                reason: "query failed".to_owned(),
+            });
+        let registry = GroupRegistry::new();
+        let error = load_groups_from_character_database_like_cpp(
+            &port,
+            &registry,
+            &wow_data::DifficultyStore::from_ids([]),
+        )
+        .await
+        .unwrap_err();
+        assert!(error.to_string().contains("Groups: query failed"));
+        assert!(registry.snapshots().is_empty());
+    }
 }
