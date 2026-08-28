@@ -6,7 +6,6 @@
 use tracing::{debug, warn};
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
-use wow_database::WorldStatements;
 use wow_entities::{
     GAMEOBJECT_TYPE_BARBER_CHAIR, GAMEOBJECT_TYPE_BUTTON, GAMEOBJECT_TYPE_CAMERA,
     GAMEOBJECT_TYPE_CAPTURE_POINT, GAMEOBJECT_TYPE_CHAIR, GAMEOBJECT_TYPE_DOOR,
@@ -15,7 +14,7 @@ use wow_entities::{
     GAMEOBJECT_TYPE_ITEM_FORGE, GAMEOBJECT_TYPE_MEETINGSTONE, GAMEOBJECT_TYPE_NEW_FLAG,
     GAMEOBJECT_TYPE_NEW_FLAG_DROP, GAMEOBJECT_TYPE_QUESTGIVER, GAMEOBJECT_TYPE_RITUAL,
     GAMEOBJECT_TYPE_SPELL_FOCUS, GAMEOBJECT_TYPE_SPELLCASTER, GAMEOBJECT_TYPE_TRAP,
-    GAMEOBJECT_TYPE_UI_LINK, GameObjectTemplateData, MAX_GAMEOBJECT_DATA,
+    GAMEOBJECT_TYPE_UI_LINK, GameObjectTemplateData,
 };
 use wow_handler::{PacketProcessing, SessionStatus};
 
@@ -102,42 +101,37 @@ impl crate::session::WorldSession {
             }
         };
 
-        let Some(world_db) = self.world_db().cloned() else {
+        let Some(port) = self.gameobject_use_template_persistence_port_like_cpp() else {
             return;
         };
-        let mut stmt = world_db.prepare(WorldStatements::SEL_GAMEOBJECT_TEMPLATE_BY_ENTRY);
-        stmt.set_u32(0, gameobject_access.entry);
-        let result = match world_db.query(&stmt).await {
-            Ok(result) => result,
-            Err(e) => {
+        let row = match port
+            .load_gameobject_use_template_like_cpp(
+                wow_persistence::GameObjectUseTemplateLoadRequestLikeCpp {
+                    entry: gameobject_access.entry,
+                },
+            )
+            .await
+        {
+            wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp::Found(row) => row,
+            wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp::Missing => return,
+            wow_persistence::GameObjectUseTemplateLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     entry = gameobject_access.entry,
-                    "GameObjUse: failed to query gameobject template: {e}"
+                    error = %reason,
+                    "GameObjUse: failed to query gameobject template"
                 );
                 return;
             }
         };
-        if result.is_empty() {
-            return;
-        }
 
-        let go_type = result.try_read::<u32>(1).unwrap_or(0);
-        let mut data = [0_u32; MAX_GAMEOBJECT_DATA];
-        for (index, value) in data.iter_mut().enumerate() {
-            *value = result
-                .try_read::<i32>(8 + index)
-                .and_then(|raw| u32::try_from(raw).ok())
-                .unwrap_or(0);
-        }
-
-        let template = GameObjectTemplateData::new(go_type, data);
+        let go_type = row.go_type;
+        let template = GameObjectTemplateData::new(go_type, row.data);
         self.record_represented_gameobject_template_quest_source_like_cpp(
             gameobject_guid,
             &template,
         );
-        let icon_name: String = result.read_string(4);
         let icon_allows_interaction =
-            represented_gameobject_icon_allows_interaction_like_cpp(&icon_name);
+            represented_gameobject_icon_allows_interaction_like_cpp(&row.icon_name);
         self.record_represented_gameobject_icon_interaction_like_cpp(
             gameobject_guid,
             icon_allows_interaction,
@@ -286,7 +280,7 @@ impl crate::session::WorldSession {
             }
             GAMEOBJECT_TYPE_CHAIR => {
                 if let Some(source) = template.chair_use_source_like_cpp() {
-                    let gameobject_size = result.try_read::<f32>(7).unwrap_or(1.0).max(0.0);
+                    let gameobject_size = row.size.max(0.0);
                     self.use_represented_gameobject_chair_like_cpp(
                         gameobject_guid,
                         player_guid,
@@ -383,7 +377,7 @@ impl crate::session::WorldSession {
             }
             GAMEOBJECT_TYPE_MEETINGSTONE => {
                 if let Some(mut source) = template.meeting_stone_use_source_like_cpp() {
-                    source.content_tuning_id = result.try_read::<u32>(43).unwrap_or(0);
+                    source.content_tuning_id = row.content_tuning_id;
                     self.use_represented_gameobject_meeting_stone_like_cpp(
                         gameobject_guid,
                         player_guid,

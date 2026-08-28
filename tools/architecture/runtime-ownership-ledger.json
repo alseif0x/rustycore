@@ -1059,8 +1059,8 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.session_resources.fields"
       },
       "audited_summary": {
-        "field_count": 256,
-        "option_field_count": 198,
+        "field_count": 257,
+        "option_field_count": 199,
         "count_kind": "baseline observation; AST is authoritative"
       },
       "coverage_rule": {
@@ -1068,7 +1068,7 @@
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_field_count": 256,
+        "expected_field_count": 257,
         "validation": "Compare sorted AST field names with the sorted concatenation of every entry.field_names; reject gaps, duplicates, stale names, entry count drift, or total count drift."
       },
       "entries": [
@@ -1102,8 +1102,9 @@
         },
         {
           "id": "session_resources_runtime_handles",
-          "expected_field_count": 13,
+          "expected_field_count": 14,
           "field_names": [
+            "gameobject_use_template_persistence_port",
             "group_loot_money_persistence_port",
             "instance_lock_mgr",
             "map_corpse_persistence_port",
@@ -1384,7 +1385,7 @@
           "retirement_condition": "Every remaining field has an exact capability bundle/consumer owner or is removed from Session construction."
         }
       ],
-      "expected_field_count": 256
+      "expected_field_count": 257
     },
     "session_command": {
       "coverage_source": {
@@ -1661,14 +1662,14 @@
         "command": "python3 tools/architecture/check_architecture.py hotspots --limit 20",
         "measurement": "two independent views: every real Rust file is reported physically, while each checked-in row is a logical owner ceiling including its reviewed private descendants; production/test/total remain independent non-growth ceilings",
         "physical_review_signals": "review a productive file around 2,000 lines; above 4,000 lines require a split plan or explicit cohesive exception; these are review signals, not daily blocking limits",
-        "baseline_commit": "e3779a3c88e75245ca8cae7e2f2f00aebe1b871d"
+        "baseline_commit": "efac7fe827cb0a36e846ca775a7731f17c7ff247"
       },
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 72570,
+          "production_lines": 72587,
           "test_lines": 96885,
-          "total_lines": 169455,
+          "total_lines": 169472,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153
@@ -1711,9 +1712,9 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 25415,
+          "production_lines": 25431,
           "test_lines": 21667,
-          "total_lines": 47082,
+          "total_lines": 47098,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153
