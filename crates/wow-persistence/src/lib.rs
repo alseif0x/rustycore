@@ -2432,6 +2432,119 @@ pub trait StoredItemMoneyPersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<'_, StoredItemMoneyReconciliationLikeCpp>;
 }
 
+/// One database-neutral durability command emitted by the represented C++
+/// `Group` aggregate. GUIDs are low counters because the Characters schema
+/// stores those columns independently from the runtime `ObjectGuid` encoding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RepresentedGroupPersistenceCommandLikeCpp {
+    InsertGroup {
+        db_store_id: u32,
+        leader_guid: u64,
+        loot_method: u8,
+        looter_guid: u64,
+        loot_threshold: u8,
+        group_flags: u16,
+        dungeon_difficulty_id: u32,
+        raid_difficulty_id: u32,
+        legacy_raid_difficulty_id: u32,
+        master_looter_guid: u64,
+    },
+    InsertMember {
+        db_store_id: u32,
+        member_guid: u64,
+        member_flags: u8,
+        subgroup: u8,
+        roles: u8,
+    },
+    DeleteGroup {
+        db_store_id: u32,
+    },
+    DeleteAllMembers {
+        db_store_id: u32,
+    },
+    DeleteLfgData {
+        db_store_id: u32,
+    },
+    DeleteMember {
+        member_guid: u64,
+    },
+    UpdateLeader {
+        db_store_id: u32,
+        leader_guid: u64,
+    },
+    UpdateGroupType {
+        db_store_id: u32,
+        group_flags: u16,
+    },
+    UpdateMemberSubgroup {
+        member_guid: u64,
+        subgroup: u8,
+    },
+    UpdateMemberFlags {
+        member_guid: u64,
+        flags: u8,
+    },
+    UpdateDifficulty {
+        db_store_id: u32,
+        kind: RepresentedGroupDifficultyKindLikeCpp,
+        difficulty_id: u32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RepresentedGroupDifficultyKindLikeCpp {
+    Dungeon,
+    Raid,
+    LegacyRaid,
+}
+
+/// The general Group path mirrors C++ `CharacterDatabase.Execute` one command
+/// at a time. The represented difficulty path already uses one explicit Rust
+/// transaction; retaining that distinction keeps this extraction behavior-
+/// preserving even though its current atomic batch contains one command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RepresentedGroupPersistenceModeLikeCpp {
+    Sequential,
+    Atomic,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepresentedGroupPersistenceRequestLikeCpp {
+    pub commands: Vec<RepresentedGroupPersistenceCommandLikeCpp>,
+    pub mode: RepresentedGroupPersistenceModeLikeCpp,
+}
+
+impl RepresentedGroupPersistenceRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RepresentedGroupPersistenceOutcomeLikeCpp {
+    Applied {
+        command_count: usize,
+    },
+    FailedAfterPrefix {
+        applied: usize,
+        reason: String,
+    },
+    DefinitelyRolledBack {
+        reason: String,
+    },
+    CommitOutcomeUnknown {
+        command_count: usize,
+        reason: String,
+    },
+}
+
+pub trait RepresentedGroupPersistencePortLikeCpp: Send + Sync {
+    fn persist_group_commands_like_cpp(
+        &self,
+        request: RepresentedGroupPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'_, RepresentedGroupPersistenceOutcomeLikeCpp>;
+}
+
 /// One recipient in an atomic group corpse-loot payout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GroupLootMoneyPayoutLikeCpp {
@@ -3095,6 +3208,29 @@ mod tests {
             }),
             PlayerUncageItemStateLoadOutcomeLikeCpp::Failed {
                 reason: "read failed".to_owned(),
+            }
+        );
+    }
+
+    #[test]
+    fn represented_group_request_names_characters_and_failure_keeps_applied_prefix() {
+        let request = RepresentedGroupPersistenceRequestLikeCpp {
+            commands: vec![RepresentedGroupPersistenceCommandLikeCpp::DeleteMember {
+                member_guid: 17,
+            }],
+            mode: RepresentedGroupPersistenceModeLikeCpp::Sequential,
+        };
+        assert_eq!(
+            request.logical_database(),
+            LogicalDatabaseLikeCpp::Characters
+        );
+        assert_ne!(
+            RepresentedGroupPersistenceOutcomeLikeCpp::FailedAfterPrefix {
+                applied: 1,
+                reason: "second command failed".to_owned(),
+            },
+            RepresentedGroupPersistenceOutcomeLikeCpp::DefinitelyRolledBack {
+                reason: "transaction failed".to_owned(),
             }
         );
     }

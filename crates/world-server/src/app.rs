@@ -4407,6 +4407,13 @@ async fn run_inner(
             Arc::clone(&char_db),
         ),
     );
+    let represented_group_persistence_port: Arc<
+        dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp,
+    > = Arc::new(
+        wow_database::represented_group_persistence_adapter::MariaDbRepresentedGroupPersistenceAdapterLikeCpp::new(
+            Arc::clone(&char_db),
+        ),
+    );
     let support_bug_report_persistence_port: Arc<
         dyn wow_persistence::SupportBugReportPersistencePortLikeCpp,
     > = Arc::new(
@@ -4442,6 +4449,7 @@ async fn run_inner(
         quest_poi_persistence_port: Some(Arc::clone(&quest_poi_persistence_port)),
         stored_item_money_persistence_port: Some(Arc::clone(&stored_item_money_persistence_port)),
         group_loot_money_persistence_port: Some(Arc::clone(&group_loot_money_persistence_port)),
+        represented_group_persistence_port: Some(Arc::clone(&represented_group_persistence_port)),
         support_bug_report_persistence_port: Some(Arc::clone(&support_bug_report_persistence_port)),
         next_mail_time_persistence_port: Some(Arc::clone(&next_mail_time_persistence_port)),
         gameobject_use_template_persistence_port: Some(Arc::clone(

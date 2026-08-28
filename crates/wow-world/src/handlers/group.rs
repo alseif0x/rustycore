@@ -15,9 +15,13 @@ use std::time::Duration;
 use tracing::{info, warn};
 use wow_constants::ClientOpcodes;
 use wow_core::{ObjectGuid, guid::HighGuid};
-use wow_database::{CharStatements, PreparedStatement, StatementDef};
 use wow_handler::{PacketProcessing, SessionStatus};
-use wow_persistence::{SocialPartyInviteLookupOutcomeLikeCpp, SocialPersistencePortLikeCpp};
+use wow_persistence::{
+    RepresentedGroupDifficultyKindLikeCpp, RepresentedGroupPersistenceCommandLikeCpp,
+    RepresentedGroupPersistenceModeLikeCpp, RepresentedGroupPersistenceOutcomeLikeCpp,
+    RepresentedGroupPersistenceRequestLikeCpp, SocialPartyInviteLookupOutcomeLikeCpp,
+    SocialPersistencePortLikeCpp,
+};
 
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::misc::{RandomRoll, RandomRollClient};
@@ -933,89 +937,13 @@ async fn queue_visible_gameobjects_or_spellclicks_refresh_like_cpp(
     }
 }
 
-fn group_type_update_statement_like_cpp(group_flags: u16, db_store_id: u32) -> PreparedStatement {
-    let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_GROUP_TYPE);
-    stmt.set_u16(0, group_flags);
-    stmt.set_u32(1, db_store_id);
-    stmt
-}
-
-fn group_member_insert_statement_like_cpp(
-    db_store_id: u32,
-    member_guid: ObjectGuid,
-    member_flags: u8,
-    subgroup: u8,
-    roles: u8,
-) -> PreparedStatement {
-    let mut stmt = PreparedStatement::for_statement(CharStatements::INS_GROUP_MEMBER);
-    stmt.set_u32(0, db_store_id);
-    stmt.set_u64(1, member_guid.counter() as u64);
-    stmt.set_u8(2, member_flags);
-    stmt.set_u8(3, subgroup);
-    stmt.set_u8(4, roles);
-    stmt
-}
-
-fn group_member_subgroup_update_statement_like_cpp(
-    member_guid: ObjectGuid,
-    subgroup: u8,
-) -> PreparedStatement {
-    let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_GROUP_MEMBER_SUBGROUP);
-    stmt.set_u8(0, subgroup);
-    stmt.set_u64(1, member_guid.counter() as u64);
-    stmt
-}
-
-fn group_member_flag_update_statement_like_cpp(
-    member_guid: ObjectGuid,
-    member_flags: u8,
-) -> PreparedStatement {
-    let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_GROUP_MEMBER_FLAG);
-    stmt.set_u8(0, member_flags);
-    stmt.set_u64(1, member_guid.counter() as u64);
-    stmt
-}
-
-fn group_member_delete_statement_like_cpp(member_guid: ObjectGuid) -> PreparedStatement {
-    let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_GROUP_MEMBER);
-    stmt.set_u64(0, member_guid.counter() as u64);
-    stmt
-}
-
-fn group_leader_update_statement_like_cpp(
-    new_leader_guid: ObjectGuid,
-    db_store_id: u32,
-) -> PreparedStatement {
-    let mut stmt = PreparedStatement::for_statement(CharStatements::UPD_GROUP_LEADER);
-    stmt.set_u64(0, new_leader_guid.counter() as u64);
-    stmt.set_u32(1, db_store_id);
-    stmt
-}
-
-fn group_delete_statement_like_cpp(db_store_id: u32) -> PreparedStatement {
-    let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_GROUP);
-    stmt.set_u32(0, db_store_id);
-    stmt
-}
-
-fn group_member_delete_all_statement_like_cpp(db_store_id: u32) -> PreparedStatement {
-    let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_GROUP_MEMBER_ALL);
-    stmt.set_u32(0, db_store_id);
-    stmt
-}
-
-fn group_lfg_data_delete_statement_like_cpp(db_store_id: u32) -> PreparedStatement {
-    let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_LFG_DATA);
-    stmt.set_u32(0, db_store_id);
-    stmt
-}
-
-/// Application adapter for the database-neutral durability commands emitted
-/// by `GroupRegistry`. The vector order is the transaction order selected by
-/// the aggregate; no registry guard survives into database execution.
-pub(crate) fn group_persistence_statement_like_cpp(
+/// Application mapping from the database-neutral commands emitted by
+/// `GroupRegistry` to the SQLx-free persistence vocabulary. The vector order
+/// remains the order selected by the aggregate and no registry guard survives
+/// into adapter execution.
+pub(crate) fn group_persistence_command_like_cpp(
     intent: GroupPersistenceIntentLikeCpp,
-) -> PreparedStatement {
+) -> RepresentedGroupPersistenceCommandLikeCpp {
     match intent {
         GroupPersistenceIntentLikeCpp::InsertGroup {
             db_store_id,
@@ -1028,87 +956,91 @@ pub(crate) fn group_persistence_statement_like_cpp(
             raid_difficulty_id,
             legacy_raid_difficulty_id,
             master_looter_guid,
-        } => {
-            let mut stmt = PreparedStatement::for_statement(CharStatements::INS_GROUP);
-            stmt.set_u32(0, db_store_id);
-            stmt.set_u64(1, leader_guid.counter() as u64);
-            stmt.set_u8(2, loot_method);
-            stmt.set_u64(3, looter_guid.counter() as u64);
-            stmt.set_u8(4, loot_threshold);
-            for index in 0..8 {
-                stmt.set_bytes(
-                    5 + index,
-                    wow_social::group::EMPTY_TARGET_ICON_RAW_LIKE_CPP.to_vec(),
-                );
-            }
-            stmt.set_u16(13, group_flags);
-            stmt.set_u32(14, dungeon_difficulty_id);
-            stmt.set_u32(15, raid_difficulty_id);
-            stmt.set_u32(16, legacy_raid_difficulty_id);
-            stmt.set_u64(17, master_looter_guid.counter() as u64);
-            stmt
-        }
+        } => RepresentedGroupPersistenceCommandLikeCpp::InsertGroup {
+            db_store_id,
+            leader_guid: leader_guid.counter() as u64,
+            loot_method,
+            looter_guid: looter_guid.counter() as u64,
+            loot_threshold,
+            group_flags,
+            dungeon_difficulty_id,
+            raid_difficulty_id,
+            legacy_raid_difficulty_id,
+            master_looter_guid: master_looter_guid.counter() as u64,
+        },
         GroupPersistenceIntentLikeCpp::InsertMember {
             db_store_id,
             member_guid,
             member_flags,
             subgroup,
             roles,
-        } => group_member_insert_statement_like_cpp(
+        } => RepresentedGroupPersistenceCommandLikeCpp::InsertMember {
             db_store_id,
-            member_guid,
+            member_guid: member_guid.counter() as u64,
             member_flags,
             subgroup,
             roles,
-        ),
+        },
         GroupPersistenceIntentLikeCpp::DeleteGroup { db_store_id } => {
-            group_delete_statement_like_cpp(db_store_id)
+            RepresentedGroupPersistenceCommandLikeCpp::DeleteGroup { db_store_id }
         }
         GroupPersistenceIntentLikeCpp::DeleteAllMembers { db_store_id } => {
-            group_member_delete_all_statement_like_cpp(db_store_id)
+            RepresentedGroupPersistenceCommandLikeCpp::DeleteAllMembers { db_store_id }
         }
         GroupPersistenceIntentLikeCpp::DeleteLfgData { db_store_id } => {
-            group_lfg_data_delete_statement_like_cpp(db_store_id)
+            RepresentedGroupPersistenceCommandLikeCpp::DeleteLfgData { db_store_id }
         }
         GroupPersistenceIntentLikeCpp::DeleteMember { member_guid } => {
-            group_member_delete_statement_like_cpp(member_guid)
+            RepresentedGroupPersistenceCommandLikeCpp::DeleteMember {
+                member_guid: member_guid.counter() as u64,
+            }
         }
         GroupPersistenceIntentLikeCpp::UpdateLeader {
             db_store_id,
             leader_guid,
-        } => group_leader_update_statement_like_cpp(leader_guid, db_store_id),
+        } => RepresentedGroupPersistenceCommandLikeCpp::UpdateLeader {
+            db_store_id,
+            leader_guid: leader_guid.counter() as u64,
+        },
         GroupPersistenceIntentLikeCpp::UpdateGroupType {
             db_store_id,
             group_flags,
-        } => group_type_update_statement_like_cpp(group_flags, db_store_id),
+        } => RepresentedGroupPersistenceCommandLikeCpp::UpdateGroupType {
+            db_store_id,
+            group_flags,
+        },
         GroupPersistenceIntentLikeCpp::UpdateMemberSubgroup {
             member_guid,
             subgroup,
-        } => group_member_subgroup_update_statement_like_cpp(member_guid, subgroup),
+        } => RepresentedGroupPersistenceCommandLikeCpp::UpdateMemberSubgroup {
+            member_guid: member_guid.counter() as u64,
+            subgroup,
+        },
         GroupPersistenceIntentLikeCpp::UpdateMemberFlags { member_guid, flags } => {
-            group_member_flag_update_statement_like_cpp(member_guid, flags)
+            RepresentedGroupPersistenceCommandLikeCpp::UpdateMemberFlags {
+                member_guid: member_guid.counter() as u64,
+                flags,
+            }
         }
         GroupPersistenceIntentLikeCpp::UpdateDifficulty {
             db_store_id,
             kind,
             difficulty_id,
-        } => {
-            let statement = match kind {
+        } => RepresentedGroupPersistenceCommandLikeCpp::UpdateDifficulty {
+            db_store_id,
+            kind: match kind {
                 wow_social::group::GroupDifficultyKindLikeCpp::Dungeon => {
-                    CharStatements::UPD_GROUP_DIFFICULTY
+                    RepresentedGroupDifficultyKindLikeCpp::Dungeon
                 }
                 wow_social::group::GroupDifficultyKindLikeCpp::Raid => {
-                    CharStatements::UPD_GROUP_RAID_DIFFICULTY
+                    RepresentedGroupDifficultyKindLikeCpp::Raid
                 }
                 wow_social::group::GroupDifficultyKindLikeCpp::LegacyRaid => {
-                    CharStatements::UPD_GROUP_LEGACY_RAID_DIFFICULTY
+                    RepresentedGroupDifficultyKindLikeCpp::LegacyRaid
                 }
-            };
-            let mut stmt = PreparedStatement::new(statement.sql());
-            stmt.set_u32(0, difficulty_id);
-            stmt.set_u32(1, db_store_id);
-            stmt
-        }
+            },
+            difficulty_id,
+        },
     }
 }
 
@@ -1120,19 +1052,26 @@ impl WorldSession {
         group_guid: u64,
         intents: Vec<GroupPersistenceIntentLikeCpp>,
     ) {
-        let Some(char_db) = self.char_db().map(std::sync::Arc::clone) else {
+        let Some(port) = self.represented_group_persistence_port_like_cpp() else {
             return;
         };
-        for intent in intents {
-            let stmt = group_persistence_statement_like_cpp(intent);
-            if let Err(error) = char_db.execute(&stmt).await {
-                warn!(
-                    group_guid,
-                    %error,
-                    "failed to persist represented group transition"
-                );
-                break;
-            }
+        let request = RepresentedGroupPersistenceRequestLikeCpp {
+            commands: intents
+                .into_iter()
+                .map(group_persistence_command_like_cpp)
+                .collect(),
+            mode: RepresentedGroupPersistenceModeLikeCpp::Sequential,
+        };
+        let outcome = port.persist_group_commands_like_cpp(request).await;
+        if !matches!(
+            outcome,
+            RepresentedGroupPersistenceOutcomeLikeCpp::Applied { .. }
+        ) {
+            warn!(
+                group_guid,
+                ?outcome,
+                "failed to persist represented group transition"
+            );
         }
     }
 
@@ -1553,19 +1492,8 @@ impl WorldSession {
         }
 
         if !persistence.is_empty() {
-            if let Some(char_db) = self.char_db().map(std::sync::Arc::clone) {
-                for intent in persistence {
-                    let stmt = group_persistence_statement_like_cpp(intent);
-                    if let Err(error) = char_db.execute(&stmt).await {
-                        warn!(
-                            group_guid = group_guid,
-                            %error,
-                            "failed to persist represented group transition"
-                        );
-                        break;
-                    }
-                }
-            }
+            self.persist_group_intents_like_cpp(group_guid, persistence)
+                .await;
         }
 
         // 4. Send PartyUpdate + PartyMemberFullState to all members.

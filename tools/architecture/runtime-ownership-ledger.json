@@ -1059,8 +1059,8 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.session_resources.fields"
       },
       "audited_summary": {
-        "field_count": 257,
-        "option_field_count": 199,
+        "field_count": 258,
+        "option_field_count": 200,
         "count_kind": "baseline observation; AST is authoritative"
       },
       "coverage_rule": {
@@ -1068,7 +1068,7 @@
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_field_count": 257,
+        "expected_field_count": 258,
         "validation": "Compare sorted AST field names with the sorted concatenation of every entry.field_names; reject gaps, duplicates, stale names, entry count drift, or total count drift."
       },
       "entries": [
@@ -1102,7 +1102,7 @@
         },
         {
           "id": "session_resources_runtime_handles",
-          "expected_field_count": 14,
+          "expected_field_count": 15,
           "field_names": [
             "gameobject_use_template_persistence_port",
             "group_loot_money_persistence_port",
@@ -1113,6 +1113,7 @@
             "packet_spoof_ban_persistence_port",
             "player_lifecycle_port",
             "quest_poi_persistence_port",
+            "represented_group_persistence_port",
             "session_account_state_port",
             "social_persistence_port",
             "stored_item_money_persistence_port",
@@ -1385,7 +1386,7 @@
           "retirement_condition": "Every remaining field has an exact capability bundle/consumer owner or is removed from Session construction."
         }
       ],
-      "expected_field_count": 257
+      "expected_field_count": 258
     },
     "session_command": {
       "coverage_source": {
@@ -1662,14 +1663,14 @@
         "command": "python3 tools/architecture/check_architecture.py hotspots --limit 20",
         "measurement": "two independent views: every real Rust file is reported physically, while each checked-in row is a logical owner ceiling including its reviewed private descendants; production/test/total remain independent non-growth ceilings",
         "physical_review_signals": "review a productive file around 2,000 lines; above 4,000 lines require a split plan or explicit cohesive exception; these are review signals, not daily blocking limits",
-        "baseline_commit": "f6bb17a781560b6b2be57c52bdc5cc47d6aefa06"
+        "baseline_commit": "3c7c0f8114a6f5f6cf571f1f146f8e8adbe766ee"
       },
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 72589,
+          "production_lines": 72603,
           "test_lines": 97011,
-          "total_lines": 169600,
+          "total_lines": 169614,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153
@@ -1712,9 +1713,9 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 25431,
+          "production_lines": 25445,
           "test_lines": 21667,
-          "total_lines": 47098,
+          "total_lines": 47112,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153

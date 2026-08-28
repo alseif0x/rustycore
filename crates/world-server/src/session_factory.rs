@@ -309,6 +309,9 @@ pub(super) async fn create_session(
     if let Some(ref port) = resources.group_loot_money_persistence_port {
         session.set_group_loot_money_persistence_port_like_cpp(Arc::clone(port));
     }
+    if let Some(ref port) = resources.represented_group_persistence_port {
+        session.set_represented_group_persistence_port_like_cpp(Arc::clone(port));
+    }
     if let Some(ref port) = resources.support_bug_report_persistence_port {
         session.set_support_bug_report_persistence_port_like_cpp(Arc::clone(port));
     }
