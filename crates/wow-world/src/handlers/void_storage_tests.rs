@@ -2,12 +2,11 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::{CharStatements, CharacterDatabase, SqlParam};
+use wow_database::CharStatements;
 
 use super::*;
 
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 use crate::session::{PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP, SessionPlayerController, SessionState};
 use wow_constants::{
@@ -31,6 +30,7 @@ struct RecordingVoidStoragePersistencePortLikeCpp {
     outcome: wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp,
     unlocks: Mutex<Vec<wow_persistence::VoidStorageUnlockWriteRequestLikeCpp>>,
     swaps: Mutex<Vec<wow_persistence::VoidStorageSwapWriteRequestLikeCpp>>,
+    transfers: Mutex<Vec<wow_persistence::VoidStorageTransferWriteRequestLikeCpp>>,
 }
 
 impl RecordingVoidStoragePersistencePortLikeCpp {
@@ -39,6 +39,7 @@ impl RecordingVoidStoragePersistencePortLikeCpp {
             outcome,
             unlocks: Mutex::new(Vec::new()),
             swaps: Mutex::new(Vec::new()),
+            transfers: Mutex::new(Vec::new()),
         }
     }
 }
@@ -66,6 +67,18 @@ impl wow_persistence::VoidStoragePersistencePortLikeCpp
         wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp,
     > {
         self.swaps.lock().unwrap().push(request);
+        let outcome = self.outcome.clone();
+        Box::pin(async move { outcome })
+    }
+
+    fn persist_void_storage_transfer_like_cpp<'a>(
+        &'a self,
+        request: wow_persistence::VoidStorageTransferWriteRequestLikeCpp,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        'a,
+        wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp,
+    > {
+        self.transfers.lock().unwrap().push(request);
         let outcome = self.outcome.clone();
         Box::pin(async move { outcome })
     }
@@ -235,6 +248,51 @@ fn install_void_test_item_template_with_stack_and_flags(
             inventory_type: InventoryType::NonEquip as i8,
         },
     )])));
+}
+
+async fn run_one_void_deposit_with_outcome_like_cpp(
+    outcome: wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp,
+) -> (
+    WorldSession,
+    flume::Receiver<Vec<u8>>,
+    Arc<RecordingVoidStoragePersistencePortLikeCpp>,
+    ObjectGuid,
+) {
+    let (mut session, send_rx, canonical) = make_void_storage_session();
+    let vault_keeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1918, 43);
+    insert_vault_keeper(&canonical, vault_keeper, 1918);
+    install_void_test_item_template(&mut session, 19019);
+    session.set_player_gold_like_cpp(500_000);
+    let item_guid = ObjectGuid::create_item(1, 501);
+    let item = session.make_inventory_item_object(
+        item_guid,
+        19019,
+        ObjectGuid::create_player(1, 42),
+        1,
+        0,
+        ItemContext::None,
+        35,
+    );
+    session.insert_inventory_item_object(item);
+    session.insert_inventory_item_like_cpp(
+        35,
+        InventoryItem {
+            guid: item_guid,
+            entry_id: 19019,
+            db_guid: 501,
+            inventory_type: Some(InventoryType::NonEquip as u8),
+        },
+    );
+    let port = Arc::new(RecordingVoidStoragePersistencePortLikeCpp::new(outcome));
+    session.set_void_storage_persistence_port_like_cpp(port.clone());
+
+    let mut packet = WorldPacket::new_empty();
+    packet.write_packed_guid(&vault_keeper);
+    packet.write_uint32(1);
+    packet.write_uint32(0);
+    packet.write_packed_guid(&item_guid);
+    session.handle_void_storage_transfer(packet).await;
+    (session, send_rx, port, item_guid)
 }
 
 fn install_void_test_bag_and_child_templates(
@@ -505,12 +563,16 @@ async fn unlock_submits_one_semantic_write_before_runtime_publication_like_cpp()
 }
 
 #[test]
-fn unlock_and_swap_paths_have_no_concrete_persistence_after_port_cut() {
+fn void_storage_mutation_paths_have_no_concrete_persistence_after_port_cut() {
     let source = include_str!("void_storage.rs");
     for (start, end) in [
         (
             "pub async fn handle_void_storage_unlock",
             "pub async fn handle_void_storage_query",
+        ),
+        (
+            "pub async fn handle_void_storage_transfer",
+            "pub async fn handle_void_storage_swap_item",
         ),
         (
             "pub async fn handle_void_storage_swap_item",
@@ -1047,49 +1109,6 @@ fn withdrawal_restores_and_persists_effective_random_property_enchantments_like_
         EffectiveVoidStorageRandomPropertiesLikeCpp::default()
     );
 
-    let enchantments =
-        WorldSession::void_storage_enchantments_db_string_like_cpp(&suffix.enchantment_ids);
-    let item = represented_void_item(77, 19019);
-    let statement = WorldSession::build_void_storage_withdrawal_item_insert_statement_like_cpp(
-        501,
-        42,
-        &item,
-        1,
-        83,
-        900,
-        suffix.id,
-        suffix.seed,
-        (ItemFieldFlags::NEW_ITEM | ItemFieldFlags::SOULBOUND).bits(),
-        &enchantments,
-    );
-    assert_eq!(
-        statement.sql(),
-        CharStatements::INS_ITEM_INSTANCE_CLONE.sql()
-    );
-    assert!(statement.sql().contains("charges, enchantments, flags"));
-    assert_eq!(
-        statement.params(),
-        &[
-            wow_database::SqlParam::U64(501),
-            wow_database::SqlParam::U32(19019),
-            wow_database::SqlParam::U64(42),
-            wow_database::SqlParam::U64(7),
-            wow_database::SqlParam::U64(0),
-            wow_database::SqlParam::U32(1),
-            wow_database::SqlParam::U32(0),
-            wow_database::SqlParam::String(String::new()),
-            wow_database::SqlParam::String(enchantments),
-            wow_database::SqlParam::U32(
-                (ItemFieldFlags::NEW_ITEM | ItemFieldFlags::SOULBOUND).bits()
-            ),
-            wow_database::SqlParam::U32(83),
-            wow_database::SqlParam::U32(900),
-            wow_database::SqlParam::I32(-13),
-            wow_database::SqlParam::I32(29),
-            wow_database::SqlParam::U8(ItemContext::Timewalking as u8),
-        ]
-    );
-
     let mut runtime_item = wow_entities::Item::default();
     runtime_item.set_enchantment(EnchantmentSlot::EnhancementPermanent, 999, 60_000, 2);
     WorldSession::apply_effective_void_storage_random_properties_like_cpp(
@@ -1229,12 +1248,7 @@ async fn withdrawal_store_plan_merges_before_empty_slots_with_atomic_overlays_li
     merged_item.set_creator(ObjectGuid::create_player(1, 7));
     merged_item.set_binding(true);
     let enchantments = WorldSession::void_storage_enchantments_db_string_like_cpp(&[0; 13]);
-    let lazy_pool = sqlx::mysql::MySqlPoolOptions::new()
-        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
-        .expect("syntactically valid lazy CharacterDB pool");
-    let char_db = wow_database::CharacterDatabase::from_pool(lazy_pool);
-    let statement = session.build_void_storage_merged_item_update_statement_like_cpp(
-        &char_db,
+    let write = session.void_storage_merged_item_write_like_cpp(
         &InventoryItem {
             guid: existing_guid,
             entry_id: 19019,
@@ -1244,13 +1258,9 @@ async fn withdrawal_store_plan_merges_before_empty_slots_with_atomic_overlays_li
         &merged_item,
         &enchantments,
     );
-    assert_eq!(statement.sql(), CharStatements::UPD_ITEM_INSTANCE.sql());
-    assert_eq!(statement.params()[4], wow_database::SqlParam::U32(20));
-    assert_eq!(
-        statement.params()[8],
-        wow_database::SqlParam::String(enchantments)
-    );
-    assert_eq!(statement.params()[19], wow_database::SqlParam::U64(501));
+    assert_eq!(write.count, 20);
+    assert_eq!(write.enchantments, enchantments);
+    assert_eq!(write.item_db_guid, 501);
 
     session.update_inventory_item_object_like_cpp(existing_guid, |item| item.set_count(20));
     let (_, destinations, _) = session
@@ -1437,39 +1447,12 @@ async fn nonempty_bag_deposit_plan_destroys_children_before_parent_atomically() 
         vec![child_guid, bag_guid]
     );
 
-    let lazy_pool = sqlx::mysql::MySqlPoolOptions::new()
-        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
-        .expect("syntactically valid lazy CharacterDB pool");
-    let char_db = wow_database::CharacterDatabase::from_pool(lazy_pool);
-    let statements = destroyed
-        .iter()
-        .flat_map(|item| {
-            WorldSession::void_storage_destroy_item_statements_like_cpp(
-                &char_db,
-                42,
-                item.inventory_item.db_guid,
-            )
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(statements.len(), 18);
     assert_eq!(
-        statements
+        destroyed
             .iter()
-            .filter(|statement| {
-                statement.sql() == CharStatements::DEL_CHAR_INVENTORY_ITEM.sql()
-            })
-            .map(|statement| statement.params().to_vec())
+            .map(|item| item.inventory_item.db_guid)
             .collect::<Vec<_>>(),
-        vec![
-            vec![
-                wow_database::SqlParam::U64(42),
-                wow_database::SqlParam::U64(502),
-            ],
-            vec![
-                wow_database::SqlParam::U64(42),
-                wow_database::SqlParam::U64(501),
-            ],
-        ]
+        vec![502, 501]
     );
 
     let (destroyed_guids, changed_quest_ids) =
@@ -1613,14 +1596,12 @@ async fn deposit_definite_rollback_keeps_money_inventory_and_void_state_unchange
         },
     );
 
-    let failing_pool = sqlx::mysql::MySqlPoolOptions::new()
-        .max_connections(1)
-        .acquire_timeout(Duration::from_millis(100))
-        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
-        .expect("syntactically valid lazy CharacterDB pool");
-    session.set_char_db(Arc::new(wow_database::CharacterDatabase::from_pool(
-        failing_pool,
-    )));
+    let port = Arc::new(RecordingVoidStoragePersistencePortLikeCpp::new(
+        wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::DefinitelyRolledBack {
+            reason: "write failed".to_string(),
+        },
+    ));
+    session.set_void_storage_persistence_port_like_cpp(port.clone());
 
     let mut packet = WorldPacket::new_empty();
     packet.write_packed_guid(&vault_keeper);
@@ -1651,6 +1632,94 @@ async fn deposit_definite_rollback_keeps_money_inventory_and_void_state_unchange
             .begin_like_cpp()
             .is_ok(),
         "definite rollback must reopen payout/save admission"
+    );
+    let requests = port.transfers.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].money_before, 500_000);
+    assert_eq!(requests[0].money_after, 400_000);
+    assert_eq!(requests[0].deposits.len(), 1);
+    assert_eq!(requests[0].deposits[0].destroyed_items[0].item_db_guid, 501);
+}
+
+#[tokio::test]
+async fn deposit_commits_typed_plan_before_runtime_publication_like_cpp() {
+    let (session, send_rx, port, item_guid) = run_one_void_deposit_with_outcome_like_cpp(
+        wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::Committed,
+    )
+    .await;
+
+    assert_eq!(session.player_gold_like_cpp(), 400_000);
+    assert!(
+        session
+            .get_inventory_item_by_guid_like_cpp(item_guid)
+            .is_none()
+    );
+    assert_eq!(
+        session
+            .represented_void_storage_item_at_like_cpp(0)
+            .map(|item| item.item_entry),
+        Some(19019)
+    );
+    assert_eq!(port.transfers.lock().unwrap().len(), 1);
+    assert_eq!(
+        send_rx
+            .try_iter()
+            .filter_map(|bytes| WorldPacket::from_bytes(&bytes).server_opcode())
+            .filter(|opcode| {
+                matches!(
+                    opcode,
+                    ServerOpcodes::VoidStorageTransferChanges | ServerOpcodes::VoidTransferResult
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            ServerOpcodes::VoidStorageTransferChanges,
+            ServerOpcodes::VoidTransferResult,
+        ]
+    );
+}
+
+#[tokio::test]
+async fn deposit_unknown_commit_reconciles_from_durable_money_like_cpp() {
+    let (session, _, _, item_guid) = run_one_void_deposit_with_outcome_like_cpp(
+        wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::CommitOutcomeUnknown {
+            reason: "commit reply lost".to_string(),
+            observed_money: Some(400_000),
+        },
+    )
+    .await;
+
+    assert_eq!(session.player_gold_like_cpp(), 400_000);
+    assert!(
+        session
+            .get_inventory_item_by_guid_like_cpp(item_guid)
+            .is_none()
+    );
+    assert_ne!(session.state(), SessionState::Disconnecting);
+}
+
+#[tokio::test]
+async fn deposit_indeterminate_commit_quarantines_without_runtime_publication_like_cpp() {
+    let (session, _, _, item_guid) = run_one_void_deposit_with_outcome_like_cpp(
+        wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::CommitOutcomeUnknown {
+            reason: "commit reply lost".to_string(),
+            observed_money: None,
+        },
+    )
+    .await;
+
+    assert_eq!(session.player_gold_like_cpp(), 500_000);
+    assert!(
+        session
+            .get_inventory_item_by_guid_like_cpp(item_guid)
+            .is_some()
+    );
+    assert_eq!(session.represented_void_storage_free_slots_like_cpp(), 160);
+    assert_eq!(session.state(), SessionState::Disconnecting);
+    assert!(
+        session
+            .durable_loot_money_persistence_tracker_like_cpp()
+            .is_indeterminate_like_cpp()
     );
 }
 
@@ -1719,14 +1788,12 @@ async fn deposit_definite_rollback_retains_active_item_loot_view_atomically() {
     );
     session.set_active_loot_guid(item_guid);
 
-    let failing_pool = sqlx::mysql::MySqlPoolOptions::new()
-        .max_connections(1)
-        .acquire_timeout(Duration::from_millis(100))
-        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
-        .expect("syntactically valid lazy CharacterDB pool");
-    session.set_char_db(Arc::new(wow_database::CharacterDatabase::from_pool(
-        failing_pool,
-    )));
+    let port = Arc::new(RecordingVoidStoragePersistencePortLikeCpp::new(
+        wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::DefinitelyRolledBack {
+            reason: "write failed".to_string(),
+        },
+    ));
+    session.set_void_storage_persistence_port_like_cpp(port);
 
     let mut packet = WorldPacket::new_empty();
     packet.write_packed_guid(&vault_keeper);
@@ -1830,14 +1897,10 @@ async fn mixed_transfer_validation_failure_publishes_no_partial_deposit() {
         session.add_represented_void_storage_item_like_cpp(unstoreable_void_item.clone()),
         Some(0)
     );
-    let lazy_pool = sqlx::mysql::MySqlPoolOptions::new()
-        .max_connections(1)
-        .acquire_timeout(Duration::from_millis(100))
-        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
-        .expect("syntactically valid lazy CharacterDB pool");
-    session.set_char_db(Arc::new(wow_database::CharacterDatabase::from_pool(
-        lazy_pool,
-    )));
+    let port = Arc::new(RecordingVoidStoragePersistencePortLikeCpp::new(
+        wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::Committed,
+    ));
+    session.set_void_storage_persistence_port_like_cpp(port.clone());
 
     let mut packet = WorldPacket::new_empty();
     packet.write_packed_guid(&vault_keeper);
@@ -1865,4 +1928,5 @@ async fn mixed_transfer_validation_failure_publishes_no_partial_deposit() {
             .collect::<Vec<_>>(),
         vec![ServerOpcodes::VoidTransferResult]
     );
+    assert!(port.transfers.lock().unwrap().is_empty());
 }

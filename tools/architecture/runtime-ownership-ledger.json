@@ -1716,14 +1716,14 @@
         },
         {
           "path": "crates/wow-world/src/handlers/quest/mod.rs",
-          "production_lines": 8451,
+          "production_lines": 8491,
           "test_lines": 10290,
-          "total_lines": 18741,
+          "total_lines": 18781,
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "Quest handler is a thin adapter over canonical Player/quest/persistence capabilities with exact outcome and packet order. #252's reputation cut adds a canonical party-member fixture here (+95 test lines): the quest-share harness now installs the receiver's canonical Player, because the gate reads standings off that owner instead of a mirrored copy."
+          "retirement_condition": "Quest handler is a thin adapter over canonical Player/quest/persistence capabilities with exact outcome and packet order. #252's reputation cut adds a canonical party-member fixture here (+95 test lines): the quest-share harness now installs the receiver's canonical Player, because the gate reads standings off that owner instead of a mirrored copy. #438 adds 40 production lines in the quest persistence submodule to project changed quest statuses into SQLx-free objective snapshots for the atomic void-storage transfer; statement identity, transactions and dialect ownership move to wow-database."
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",
