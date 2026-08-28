@@ -18,7 +18,8 @@ use wow_persistence::{
     PlayerHomebindPersistenceRequestLikeCpp, PlayerLifecyclePortLikeCpp,
     PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
     PlayerLoginItemRepairRequestLikeCpp, PlayerLoginPetTalentResetOutcomeLikeCpp,
-    PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
+    PlayerMoneyTransactionOutcomeLikeCpp, PlayerMoneyTransactionRequestLikeCpp,
+    PlayerMoneyWriteRequestLikeCpp, PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
     PlayerRealmCharacterCountRefreshRequestLikeCpp, PlayerTalentResetPersistenceRequestLikeCpp,
     PlayerXpPersistenceRequestLikeCpp,
 };
@@ -29,6 +30,8 @@ struct RecordingPortLikeCpp {
     collections: Mutex<Vec<AccountCollectionSaveLikeCpp>>,
     character_saves: Mutex<Vec<PlayerCharacterSaveRequestLikeCpp>>,
     buyback_clears: Mutex<Vec<PlayerBuybackClearRequestLikeCpp>>,
+    money_transactions: Mutex<Vec<PlayerMoneyTransactionRequestLikeCpp>>,
+    money_writes: Mutex<Vec<PlayerMoneyWriteRequestLikeCpp>>,
     talent_resets: Mutex<Vec<PlayerTalentResetPersistenceRequestLikeCpp>>,
     xp_saves: Mutex<Vec<PlayerXpPersistenceRequestLikeCpp>>,
     realm_character_count_refreshes: Mutex<Vec<PlayerRealmCharacterCountRefreshRequestLikeCpp>>,
@@ -43,6 +46,8 @@ impl RecordingPortLikeCpp {
             collections: Mutex::new(Vec::new()),
             character_saves: Mutex::new(Vec::new()),
             buyback_clears: Mutex::new(Vec::new()),
+            money_transactions: Mutex::new(Vec::new()),
+            money_writes: Mutex::new(Vec::new()),
             talent_resets: Mutex::new(Vec::new()),
             xp_saves: Mutex::new(Vec::new()),
             realm_character_count_refreshes: Mutex::new(Vec::new()),
@@ -60,6 +65,12 @@ impl RecordingPortLikeCpp {
     }
     fn buyback_clears(&self) -> Vec<PlayerBuybackClearRequestLikeCpp> {
         self.buyback_clears.lock().unwrap().clone()
+    }
+    fn money_transactions(&self) -> Vec<PlayerMoneyTransactionRequestLikeCpp> {
+        self.money_transactions.lock().unwrap().clone()
+    }
+    fn money_writes(&self) -> Vec<PlayerMoneyWriteRequestLikeCpp> {
+        self.money_writes.lock().unwrap().clone()
     }
     fn talent_resets(&self) -> Vec<PlayerTalentResetPersistenceRequestLikeCpp> {
         self.talent_resets.lock().unwrap().clone()
@@ -97,6 +108,37 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         request: PlayerBuybackClearRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
         self.buyback_clears.lock().unwrap().push(request);
+        let outcome = self.outcome.clone();
+        Box::pin(async move { outcome })
+    }
+
+    fn persist_money_transaction_like_cpp<'a>(
+        &'a self,
+        request: PlayerMoneyTransactionRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerMoneyTransactionOutcomeLikeCpp> {
+        self.money_transactions.lock().unwrap().push(request);
+        let outcome = match self.outcome.clone() {
+            PersistenceOutcomeLikeCpp::Applied { .. } => {
+                PlayerMoneyTransactionOutcomeLikeCpp::Committed
+            }
+            PersistenceOutcomeLikeCpp::Failed { reason } => {
+                PlayerMoneyTransactionOutcomeLikeCpp::DefinitelyRolledBack { reason }
+            }
+            PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                PlayerMoneyTransactionOutcomeLikeCpp::CommitOutcomeUnknown {
+                    reason,
+                    observed_money: None,
+                }
+            }
+        };
+        Box::pin(async move { outcome })
+    }
+
+    fn persist_money_write_like_cpp<'a>(
+        &'a self,
+        request: PlayerMoneyWriteRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        self.money_writes.lock().unwrap().push(request);
         let outcome = self.outcome.clone();
         Box::pin(async move { outcome })
     }
@@ -268,6 +310,67 @@ fn talent_reset_session_with_port(
     session.mark_represented_talents_loaded_like_cpp();
     session.set_represented_talent_reset_state_like_cpp(0, 0);
     (session, port)
+}
+
+#[tokio::test]
+async fn exclusive_money_mutation_reaches_the_sqlx_free_lifecycle_port_before_publication() {
+    let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7400_0101)));
+    session.set_player_gold_like_cpp(100);
+
+    assert_eq!(
+        session
+            .mutate_and_persist_player_gold_exclusive_like_cpp(|money| money + 25)
+            .await,
+        Some((100, 125))
+    );
+    assert_eq!(session.player_gold_like_cpp(), 125);
+    assert_eq!(
+        port.money_transactions(),
+        vec![PlayerMoneyTransactionRequestLikeCpp {
+            player_guid: 0x7400_0101,
+            money_after: 125,
+            durability_repairs: Vec::new(),
+        }]
+    );
+}
+
+#[tokio::test]
+async fn rolled_back_money_mutation_does_not_publish_runtime_state() {
+    let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Failed {
+        reason: "forced rollback".to_owned(),
+    });
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7400_0102)));
+    session.set_player_gold_like_cpp(100);
+
+    assert_eq!(
+        session
+            .mutate_and_persist_player_gold_exclusive_like_cpp(|money| money + 25)
+            .await,
+        None
+    );
+    assert_eq!(session.player_gold_like_cpp(), 100);
+    assert_eq!(port.money_transactions().len(), 1);
+}
+
+#[tokio::test]
+async fn checked_money_write_uses_the_nontransactional_lifecycle_port_contract() {
+    let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7400_0103)));
+
+    assert!(
+        session
+            .persist_player_gold_checked_like_cpp(777)
+            .await
+            .is_ok()
+    );
+    assert_eq!(
+        port.money_writes(),
+        vec![PlayerMoneyWriteRequestLikeCpp {
+            player_guid: 0x7400_0103,
+            money: 777,
+        }]
+    );
 }
 
 #[tokio::test]

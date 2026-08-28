@@ -183,6 +183,28 @@ impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
         })
     }
 
+    fn persist_money_transaction_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerMoneyTransactionRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp> {
+        Box::pin(async {
+            wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::DefinitelyRolledBack {
+                reason: "collection-load-only fixture".to_owned(),
+            }
+        })
+    }
+
+    fn persist_money_write_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerMoneyWriteRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async {
+            PersistenceOutcomeLikeCpp::Failed {
+                reason: "collection-load-only fixture".to_owned(),
+            }
+        })
+    }
+
     fn persist_talent_reset_like_cpp<'a>(
         &'a self,
         _request: wow_persistence::PlayerTalentResetPersistenceRequestLikeCpp,
@@ -413,6 +435,20 @@ impl PlayerLifecyclePortLikeCpp for HomebindPortFixtureLikeCpp {
         _request: wow_persistence::PlayerBuybackClearRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
         Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 0 } })
+    }
+
+    fn persist_money_transaction_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerMoneyTransactionRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp> {
+        Box::pin(async { wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::Committed })
+    }
+
+    fn persist_money_write_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerMoneyWriteRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async { PersistenceOutcomeLikeCpp::Applied { rows: 1 } })
     }
 
     fn persist_talent_reset_like_cpp<'a>(

@@ -37,8 +37,9 @@ use wow_persistence::{
     PlayerLoginAuxiliaryLoadedLikeCpp, PlayerLoginItemRepairActionLikeCpp,
     PlayerLoginItemRepairRequestLikeCpp, PlayerLoginPetTalentResetOutcomeLikeCpp,
     PlayerLoginTransportLoadOutcomeLikeCpp, PlayerLoginTransportLoadRequestLikeCpp,
-    PlayerLoginTransportLoadRowLikeCpp, PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
-    PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
+    PlayerLoginTransportLoadRowLikeCpp, PlayerMoneyTransactionOutcomeLikeCpp,
+    PlayerMoneyTransactionRequestLikeCpp, PlayerMoneyWriteRequestLikeCpp, PlayerOfflineMarkLikeCpp,
+    PlayerOnlineMarkRequestLikeCpp, PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
     PlayerPetDeclinedNamesLoadRowLikeCpp, PlayerPetSpellChargeLoadRowLikeCpp,
     PlayerPetSpellCooldownLoadRowLikeCpp, PlayerPetSpellLoadRowLikeCpp,
     PlayerPetStableLoadRowLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
@@ -55,6 +56,34 @@ use crate::params::PreparedStatement;
 use crate::statements::{CharStatements, LoginStatements, StatementDef, WorldStatements};
 use crate::transaction::SqlTransaction;
 use crate::{CharacterDatabase, LoginDatabase, SqlTransactionCommitError, WorldDatabase};
+
+fn player_money_write_statement_like_cpp(
+    request: &PlayerMoneyWriteRequestLikeCpp,
+) -> PreparedStatement {
+    let mut statement = PreparedStatement::for_statement(CharStatements::UPD_CHAR_MONEY);
+    statement.set_u64(0, request.money);
+    statement.set_u64(1, request.player_guid);
+    statement
+}
+
+fn player_money_transaction_statements_like_cpp(
+    request: &PlayerMoneyTransactionRequestLikeCpp,
+) -> Vec<PreparedStatement> {
+    let mut statements = vec![player_money_write_statement_like_cpp(
+        &PlayerMoneyWriteRequestLikeCpp {
+            player_guid: request.player_guid,
+            money: request.money_after,
+        },
+    )];
+    for repair in &request.durability_repairs {
+        let mut durability =
+            PreparedStatement::for_statement(CharStatements::UPD_ITEM_INSTANCE_DURABILITY);
+        durability.set_u32(0, repair.durability);
+        durability.set_u64(1, repair.item_db_guid);
+        statements.push(durability);
+    }
+    statements
+}
 
 fn player_login_item_repair_statements_like_cpp(
     request: &PlayerLoginItemRepairRequestLikeCpp,
@@ -1902,6 +1931,40 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
         })
     }
 
+    fn persist_money_transaction_like_cpp<'a>(
+        &'a self,
+        request: PlayerMoneyTransactionRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerMoneyTransactionOutcomeLikeCpp> {
+        Box::pin(async move {
+            let mut transaction = SqlTransaction::new();
+            for statement in player_money_transaction_statements_like_cpp(&request) {
+                transaction.append(statement);
+            }
+
+            crate::player_money_transaction_adapter::commit_player_money_transaction_and_observe_like_cpp(
+                self.character_db.as_ref(),
+                transaction,
+                Some(request.player_guid),
+            )
+            .await
+        })
+    }
+
+    fn persist_money_write_like_cpp<'a>(
+        &'a self,
+        request: PlayerMoneyWriteRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async move {
+            let statement = player_money_write_statement_like_cpp(&request);
+            match self.character_db.execute(&statement).await {
+                Ok(rows) => PersistenceOutcomeLikeCpp::Applied { rows },
+                Err(error) => PersistenceOutcomeLikeCpp::Failed {
+                    reason: error.to_string(),
+                },
+            }
+        })
+    }
+
     fn persist_talent_reset_like_cpp<'a>(
         &'a self,
         request: PlayerTalentResetPersistenceRequestLikeCpp,
@@ -3147,6 +3210,66 @@ mod tests {
     use super::*;
     use crate::SqlParam;
     use wow_persistence::*;
+
+    #[test]
+    fn money_and_durability_transaction_preserves_statement_and_bind_order_like_cpp() {
+        let request = PlayerMoneyTransactionRequestLikeCpp {
+            player_guid: 42,
+            money_after: 900,
+            durability_repairs: vec![
+                PlayerDurabilityRepairSaveLikeCpp {
+                    item_db_guid: 71,
+                    durability: 80,
+                },
+                PlayerDurabilityRepairSaveLikeCpp {
+                    item_db_guid: 72,
+                    durability: 120,
+                },
+            ],
+        };
+
+        let statements = player_money_transaction_statements_like_cpp(&request);
+        assert_eq!(statements.len(), 3);
+        assert_eq!(statements[0].sql(), CharStatements::UPD_CHAR_MONEY.sql());
+        assert_eq!(
+            statements[0].params(),
+            vec![SqlParam::U64(900), SqlParam::U64(42)]
+        );
+        for (statement, item_db_guid, durability) in
+            [(&statements[1], 71, 80), (&statements[2], 72, 120)]
+        {
+            assert_eq!(
+                statement.sql(),
+                CharStatements::UPD_ITEM_INSTANCE_DURABILITY.sql()
+            );
+            assert_eq!(
+                statement.params(),
+                vec![SqlParam::U32(durability), SqlParam::U64(item_db_guid)]
+            );
+        }
+        assert_eq!(
+            request.logical_database(),
+            LogicalDatabaseLikeCpp::Characters
+        );
+    }
+
+    #[test]
+    fn checked_money_write_preserves_nontransactional_statement_shape_like_cpp() {
+        let request = PlayerMoneyWriteRequestLikeCpp {
+            player_guid: 99,
+            money: 1234,
+        };
+        let statement = player_money_write_statement_like_cpp(&request);
+        assert_eq!(statement.sql(), CharStatements::UPD_CHAR_MONEY.sql());
+        assert_eq!(
+            statement.params(),
+            vec![SqlParam::U64(1234), SqlParam::U64(99)]
+        );
+        assert_eq!(
+            request.logical_database(),
+            LogicalDatabaseLikeCpp::Characters
+        );
+    }
 
     #[test]
     fn homebind_requests_map_to_cpp_statements_binds_and_live_narrowing() {

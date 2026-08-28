@@ -799,7 +799,6 @@ impl WorldSession {
             | PreparedTrainerAcquisitionLikeCpp::NoChange => {
                 self.commit_exclusive_trainer_money_only_like_cpp(
                     money_persistence,
-                    character_db.as_deref(),
                     old_money,
                     new_money,
                 )

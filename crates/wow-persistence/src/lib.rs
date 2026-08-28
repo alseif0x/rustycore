@@ -165,6 +165,48 @@ pub enum PlayerMoneyTransactionOutcomeLikeCpp {
     },
 }
 
+/// One durable item-durability replacement included in a player-money
+/// transaction. Gameplay selects the item and target durability; the adapter
+/// owns statement identity and bind order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerDurabilityRepairSaveLikeCpp {
+    pub item_db_guid: u64,
+    pub durability: u32,
+}
+
+/// The SQLx-free durable half of one absolute player-money mutation.
+///
+/// When repairs are present, MariaDB writes money first and every durability
+/// row afterward in the same Characters transaction. Session retains the
+/// exclusion fence, unknown-COMMIT reconciliation, and runtime publication.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerMoneyTransactionRequestLikeCpp {
+    pub player_guid: u64,
+    pub money_after: u64,
+    pub durability_repairs: Vec<PlayerDurabilityRepairSaveLikeCpp>,
+}
+
+impl PlayerMoneyTransactionRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
+/// One non-transactional absolute money write. This preserves the existing
+/// checked loot-money path, whose caller requires a definite execution result
+/// before publishing the payout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerMoneyWriteRequestLikeCpp {
+    pub player_guid: u64,
+    pub money: u64,
+}
+
+impl PlayerMoneyWriteRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
 /// SQLx-free persisted shape of one `character_void_storage` row.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VoidStorageItemWriteLikeCpp {
@@ -1879,6 +1921,21 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
     fn clear_buyback_like_cpp<'a>(
         &'a self,
         request: PlayerBuybackClearRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
+
+    /// Persist absolute money and optional item-durability replacements in
+    /// one ordered Characters transaction, then observe the durable money row
+    /// if the COMMIT reply is lost.
+    fn persist_money_transaction_like_cpp<'a>(
+        &'a self,
+        request: PlayerMoneyTransactionRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerMoneyTransactionOutcomeLikeCpp>;
+
+    /// Execute one non-transactional absolute money write for the existing
+    /// checked loot payout boundary.
+    fn persist_money_write_like_cpp<'a>(
+        &'a self,
+        request: PlayerMoneyWriteRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
 
     /// Persist one represented talent reset as an ordered Characters
