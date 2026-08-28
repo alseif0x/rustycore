@@ -22,7 +22,8 @@ use wow_persistence::{
     PlayerMoneyTransactionOutcomeLikeCpp, PlayerMoneyTransactionRequestLikeCpp,
     PlayerMoneyWriteRequestLikeCpp, PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
     PlayerRealmCharacterCountRefreshRequestLikeCpp, PlayerTalentResetPersistenceRequestLikeCpp,
-    PlayerXpPersistenceRequestLikeCpp,
+    PlayerUncageItemStateLikeCpp, PlayerUncageItemStateLoadOutcomeLikeCpp,
+    PlayerUncageItemStateRequestLikeCpp, PlayerXpPersistenceRequestLikeCpp,
 };
 
 struct RecordingPortLikeCpp {
@@ -38,6 +39,8 @@ struct RecordingPortLikeCpp {
     talent_resets: Mutex<Vec<PlayerTalentResetPersistenceRequestLikeCpp>>,
     xp_saves: Mutex<Vec<PlayerXpPersistenceRequestLikeCpp>>,
     realm_character_count_refreshes: Mutex<Vec<PlayerRealmCharacterCountRefreshRequestLikeCpp>>,
+    uncage_item_state_requests: Mutex<Vec<PlayerUncageItemStateRequestLikeCpp>>,
+    uncage_item_state_outcome: Mutex<PlayerUncageItemStateLoadOutcomeLikeCpp>,
     outcome: PersistenceOutcomeLikeCpp,
 }
 
@@ -56,6 +59,12 @@ impl RecordingPortLikeCpp {
             talent_resets: Mutex::new(Vec::new()),
             xp_saves: Mutex::new(Vec::new()),
             realm_character_count_refreshes: Mutex::new(Vec::new()),
+            uncage_item_state_requests: Mutex::new(Vec::new()),
+            uncage_item_state_outcome: Mutex::new(
+                PlayerUncageItemStateLoadOutcomeLikeCpp::Failed {
+                    reason: "no uncage-item-state fixture".to_owned(),
+                },
+            ),
             outcome,
         })
     }
@@ -93,6 +102,12 @@ impl RecordingPortLikeCpp {
         &self,
     ) -> Vec<PlayerRealmCharacterCountRefreshRequestLikeCpp> {
         self.realm_character_count_refreshes.lock().unwrap().clone()
+    }
+    fn set_uncage_item_state_outcome(&self, outcome: PlayerUncageItemStateLoadOutcomeLikeCpp) {
+        *self.uncage_item_state_outcome.lock().unwrap() = outcome;
+    }
+    fn uncage_item_state_requests(&self) -> Vec<PlayerUncageItemStateRequestLikeCpp> {
+        self.uncage_item_state_requests.lock().unwrap().clone()
     }
 }
 
@@ -163,6 +178,18 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
                 }
             }
         };
+        Box::pin(async move { outcome })
+    }
+
+    fn load_uncage_item_state_like_cpp<'a>(
+        &'a self,
+        request: PlayerUncageItemStateRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerUncageItemStateLoadOutcomeLikeCpp> {
+        self.uncage_item_state_requests
+            .lock()
+            .unwrap()
+            .push(request);
+        let outcome = self.uncage_item_state_outcome.lock().unwrap().clone();
         Box::pin(async move { outcome })
     }
 
@@ -360,6 +387,61 @@ fn talent_reset_session_with_port(
     session.mark_represented_talents_loaded_like_cpp();
     session.set_represented_talent_reset_state_like_cpp(0, 0);
     (session, port)
+}
+
+#[tokio::test]
+async fn uncage_item_state_read_routes_typed_ids_and_preserves_failure_distinction() {
+    let (session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 0 });
+    port.set_uncage_item_state_outcome(PlayerUncageItemStateLoadOutcomeLikeCpp::Loaded(
+        PlayerUncageItemStateLikeCpp {
+            owner_guid: Some(42),
+            inventory_linked: true,
+        },
+    ));
+
+    assert_eq!(
+        session.uncage_item_state_like_cpp(42, 71).await,
+        PlayerUncageItemStateLoadOutcomeLikeCpp::Loaded(PlayerUncageItemStateLikeCpp {
+            owner_guid: Some(42),
+            inventory_linked: true,
+        })
+    );
+    assert_eq!(
+        port.uncage_item_state_requests(),
+        vec![PlayerUncageItemStateRequestLikeCpp {
+            player_guid: 42,
+            item_guid: 71,
+        }]
+    );
+
+    let (session_without_port, _, _) = make_session();
+    assert!(matches!(
+        session_without_port
+            .uncage_item_state_like_cpp(42, 71)
+            .await,
+        PlayerUncageItemStateLoadOutcomeLikeCpp::Failed { .. }
+    ));
+}
+
+#[test]
+fn uncage_item_state_seam_no_longer_names_statement_or_driver_errors() {
+    let session_source = include_str!("../mod.rs");
+    let item_source = include_str!("../../handlers/character/items.rs");
+    let (_, helper_and_tail) = session_source
+        .split_once("pub(crate) async fn uncage_item_state_like_cpp")
+        .expect("uncage state helper starts");
+    let (helper, _) = helper_and_tail
+        .split_once("async fn destroy_uncaged_battle_pet_item_durable_like_cpp")
+        .expect("uncage state helper ends before durable destruction");
+
+    assert!(helper.contains("load_uncage_item_state_like_cpp"));
+    for concrete in ["CharStatements", "DatabaseError", "SEL_UNCAGE_ITEM_STATE"] {
+        assert!(
+            !helper.contains(concrete),
+            "Session uncage seam still names concrete persistence vocabulary {concrete}"
+        );
+    }
+    assert!(!item_source.contains("SEL_UNCAGE_ITEM_STATE"));
 }
 
 #[tokio::test]
