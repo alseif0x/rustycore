@@ -17407,6 +17407,36 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::social_adapter:crates/wow-database/src/social_adapter.rs::fn execute_social_count_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/social_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::social_adapter"
+      ],
+      "enclosings": [
+        "fn execute_social_count_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free party-invite social reads (#448) currently owns the complete wow-database workflow fn execute_social_count_like_cpp in crates/wow-database/src/social_adapter.rs.",
+      "connection_affinity": "Each lookup uses the one configured Characters adapter and no transaction.",
+      "current_order": "The caller invokes ignore first and invokes friend only after the C++ low-level gate; this helper executes exactly one requested count query.",
+      "failure_and_unknown_commit": "Driver failure remains a typed read failure; successful row decode preserves the prior tolerant zero fallback, and no COMMIT occurs.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::social_adapter:crates/wow-database/src/social_adapter.rs::fn execute_social_operation_like_cpp",
       "source_class": "production",
       "packages": [
@@ -17582,6 +17612,66 @@
       "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
       "current_order": "Candidate lookup remains before the Session self/faction gates; only accepted candidates reach tolerant presence then count reads, preserving the C++ short-circuits.",
       "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::social_adapter:crates/wow-database/src/social_adapter.rs::impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::party_invite_target_has_friend_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/social_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::social_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::party_invite_target_has_friend_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free party-invite social reads (#448) currently owns the complete wow-database workflow impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::party_invite_target_has_friend_like_cpp in crates/wow-database/src/social_adapter.rs.",
+      "connection_affinity": "The represented friend lookup uses the one configured Characters adapter and no transaction.",
+      "current_order": "Session requests this only after ignore resolves false and the inviter is below the configured party level requirement.",
+      "failure_and_unknown_commit": "Returns Resolved or Failed; Session preserves the existing failed-read false result and warning, and no COMMIT occurs.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::social_adapter:crates/wow-database/src/social_adapter.rs::impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::party_invite_target_ignores_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/social_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::social_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::party_invite_target_ignores_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free party-invite social reads (#448) currently owns the complete wow-database workflow impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::party_invite_target_ignores_like_cpp in crates/wow-database/src/social_adapter.rs.",
+      "connection_affinity": "The represented character/account ignore lookup uses the one configured Characters adapter and no transaction.",
+      "current_order": "This is the first social read in C++ party-invite admission; a positive result short-circuits the later friend lookup.",
+      "failure_and_unknown_commit": "Returns Resolved or Failed; Session preserves the existing failed-read false result and warning, and no COMMIT occurs.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -24100,102 +24190,6 @@
       ],
       "capability_owner": "group persistence/publication capability currently owns the complete wow-world workflow fn send_party_uninvite_result_like_cpp in crates/wow-world/src/handlers/group.rs.",
       "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::group:crates/wow-world/src/handlers/group.rs::fn target_social_has_inviter_friend_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/group.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::group"
-      ],
-      "enclosings": [
-        "fn target_social_has_inviter_friend_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "group persistence/publication capability currently owns the complete wow-world workflow fn target_social_has_inviter_friend_like_cpp in crates/wow-world/src/handlers/group.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::group:crates/wow-world/src/handlers/group.rs::fn target_social_ignores_inviter_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/group.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::group"
-      ],
-      "enclosings": [
-        "fn target_social_ignores_inviter_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "group persistence/publication capability currently owns the complete wow-world workflow fn target_social_ignores_inviter_like_cpp in crates/wow-world/src/handlers/group.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::group:crates/wow-world/src/handlers/group.rs::impl WorldSession::handle_party_invite",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/group.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::group"
-      ],
-      "enclosings": [
-        "impl WorldSession::handle_party_invite"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "group persistence/publication capability currently owns the complete wow-world workflow impl WorldSession::handle_party_invite in crates/wow-world/src/handlers/group.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
