@@ -87,6 +87,17 @@ impl PlayerLifecyclePortLikeCpp for AuxiliaryLoadPortLikeCpp {
         })
     }
 
+    fn persist_bank_slot_purchase_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerBankSlotPurchaseRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp> {
+        Box::pin(async {
+            wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::DefinitelyRolledBack {
+                reason: "auxiliary-load-only fixture".to_owned(),
+            }
+        })
+    }
+
     fn persist_durability_repair_like_cpp<'a>(
         &'a self,
         _repair: wow_persistence::PlayerDurabilityRepairSaveLikeCpp,

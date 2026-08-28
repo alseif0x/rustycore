@@ -1979,21 +1979,6 @@ fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {
     }
 }
 
-const UPD_CHARACTER_MONEY_AND_BANK_SLOTS_LIKE_CPP: &str =
-    "UPDATE characters SET money = ?, bankSlots = ? WHERE guid = ?";
-
-fn bank_slot_purchase_update_statement_like_cpp(
-    player_guid: ObjectGuid,
-    new_money: u64,
-    new_bank_slot_count: u8,
-) -> PreparedStatement {
-    let mut statement = PreparedStatement::new(UPD_CHARACTER_MONEY_AND_BANK_SLOTS_LIKE_CPP);
-    statement.set_u64(0, new_money);
-    statement.set_u8(1, new_bank_slot_count);
-    statement.set_u64(2, player_guid.counter() as u64);
-    statement
-}
-
 fn active_known_spell_for_send_like_cpp(spell_id: u32, active: u8, disabled: u8) -> Option<i32> {
     if spell_id > 0 && active != 0 && disabled == 0 {
         i32::try_from(spell_id).ok()

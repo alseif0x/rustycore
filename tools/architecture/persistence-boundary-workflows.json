@@ -8021,6 +8021,21 @@
       "package": "wow-database",
       "module": "crate::player_lifecycle_adapter",
       "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_bank_slot_purchase_statement_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free bank-slot purchase persistence (#464)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure construction of one Characters-database statement; the lifecycle adapter appends it to one checked transaction.",
+      "current_order": "Binds absolute money, bank-slot count and player GUID in the same order as the pre-cut statement.",
+      "failure_and_unknown_commit": "No I/O occurs here; the lifecycle adapter owns the expected-row check, transaction outcome and durable-money observation."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
       "enclosing": "fn player_money_transaction_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -8261,6 +8276,21 @@
       "connection_affinity": "One non-transactional statement executes through the configured Characters adapter at the caller's existing best-effort login point.",
       "current_order": "Execute UPD_CHAR_ONLINE once and return before the caller dispatches its module login hook; no account-online write is invented by this refactor.",
       "failure_and_unknown_commit": "Success maps to Applied and driver error to Failed; the caller intentionally preserves the existing best-effort ignored outcome and there is no COMMIT phase."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::persist_bank_slot_purchase_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free bank-slot purchase persistence (#464)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The checked combined update executes on one connection from the configured Characters pool and one transaction.",
+      "current_order": "Append the combined absolute-money/bank-slot statement, require exactly one affected row, COMMIT, then return before Session publishes either runtime field.",
+      "failure_and_unknown_commit": "Returns Committed or DefinitelyRolledBack directly; after CommitOutcomeUnknown it reads the same player's durable money and leaves reconciliation/quarantine to Session."
     },
     {
       "package": "wow-database",
@@ -12374,23 +12404,6 @@
       "package": "wow-world",
       "module": "crate::handlers::character",
       "source": "crates/wow-world/src/handlers/character/mod.rs",
-      "enclosing": "fn bank_slot_purchase_update_statement_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-world runtime boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character",
-      "source": "crates/wow-world/src/handlers/character/mod.rs",
       "enclosing": "fn bind_create_character_difficulties_like_cpp",
       "logical_databases": [
         "characters"
@@ -12507,42 +12520,6 @@
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::bank",
-      "source": "crates/wow-world/src/handlers/character/bank.rs",
-      "enclosing": "impl WorldSession::handle_buy_bank_slot",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "character service persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::bank",
-      "source": "crates/wow-world/src/handlers/character/bank.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "characters",
-        "login",
-        "world"
-      ],
-      "boundary": "shared character service dependency surface",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for characters, login, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
     },
     {
       "package": "wow-world",
