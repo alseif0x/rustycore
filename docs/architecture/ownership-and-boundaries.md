@@ -148,7 +148,7 @@ last-writer-wins policy.
 | Player lifecycle persistence capability | `wow_persistence`: offline marks, typed core-character/account-collection/admission/auxiliary-login/initial-world-state/transport-login load requests and outcomes (including spell cooldown/charge, raw trait config/entry rows, pet stable/active-pet rows, group id, equipment/transmog sets, CUF profiles, currencies, Player progression, character aura, and inventory rows), ordered login-item repair actions, semantic homebind, logout-buyback, talent-reset, represented XP/rest and realm-character-count writes, account-collection saves, the semantic `PlayerCharacterSaveRequestLikeCpp` snapshot and the three-way `PersistenceOutcomeLikeCpp`, behind `PlayerLifecyclePortLikeCpp`. The crate has **no dependencies at all** — no pool, row, transaction, statement or SQL string | `wow_database::player_lifecycle_adapter` is the only implementation and the only place that maps the semantic requests/snapshot to MariaDB statements/parameters, owns the pools and classifies driver errors | private `wow_world::session::lifecycle::persistence` holds the port; Session callers retain gameplay validation and never name a statement or construct a transaction | composed in `world-server` before any session is accepted, so a build that cannot persist lifecycle state fails at startup rather than dropping writes | #200 earned the crate with offline marks; #287 moved the five account-collection writes; #286 moved the represented Character save as one ordered transaction; #384 retired its unreachable Session statement builders; #386 moves the five collection reads and preserves the two independent item-appearance failure branches; #390 moves customization, completed-achievement and instance-time reads while preserving row/default/clear rules; #394 moves delete/insert/update homebind writes while retaining the live FIFO; #396 moves the independent spell-cooldown and spell-charge reads while `wow-world` retains DB2 filtering, expiry and aggregation; #398 moves trait entries/configs in their existing order while preserving missing columns as unknown and retaining DB2/gameplay validation in `wow-world`; #400 moves logout buyback cleanup while retaining each inventory/item delete pair, the single transaction and publication only after `Applied`; #402 moves the Characters-count then Login-replace realm refresh while preserving independent connections and failure short-circuit; #404 moves World templates followed by Characters overrides while retaining their independent failure branches and leaving DB2 validation/publication in `wow-world`; #406 moves both transport-login reads while leaving route, phase, clock and publication decisions in `wow-world`, and preserves an absent/unresolved owner as `None`; #408 moves the absolute-money/reset-metadata/delete-all/retained-talent transaction and exact unknown-COMMIT money reconciliation while Session retains its exclusive money fence and post-commit gameplay publication; #410 moves Rust's represented immediate XP/rest transaction without claiming that timing as C++ parity; #414 moves the core `CHAR_SEL_CHARACTER` read/row decode while leaving every Player validation/default and every later login query in `wow-world`; #416 moves the battleground-location, homebind-location and guild-membership reads while preserving their distinct optional, fatal and unknown-authority branches in `wow-world`; #418 moves the pet-stable plus six active-pet reads while retaining active-pet gating, gameplay defaults, publication order and the separate talent-reset writes in `wow-world`; #420 moves the group db-store-id lookup while retaining registry resolution and sequence reset in `wow-world`; #422 moves equipment sets, transmog outfits, CUF profiles and currencies while leaving canonical validation/publication in `wow-world`; #424 moves spell/favorite, skill, talent, glyph, action-button and reputation rows while keeping every catalog validation, side effect, completion marker and publication in `wow-world`; #426 moves the two character-aura row families while retaining correlation, authority gating, gameplay application and item-mod ordering in `wow-world`; #428 moves top-level inventory, bag-content and void-storage rows while retaining item interpretation, repair decisions and installation ordering in `wow-world`; #430 moves the two existing login item-repair transactions while retaining those gameplay decisions and transaction order in `wow-world`. Executable SQL order remains frozen in the adapter contract from #187/#286/#386/#390/#394/#396/#398/#400/#402/#404/#406/#408/#410/#414/#416/#418/#420/#422/#424/#426/#428/#430. |
 | Session account-state persistence capability | `wow_persistence::SessionAccountStatePortLikeCpp` owns semantic global/character account-data scope, typed account-data rows, tutorial values and classified outcomes without a database dependency | `wow_database::session_account_state_adapter` alone maps those requests to `SEL/REP_ACCOUNT_DATA`, `SEL/REP_PLAYER_ACCOUNT_DATA` and `SEL_TUTORIALS` | `WorldSession` retains the C++ mask/type validation, cache reset, tutorial coherence flags and publication-after-success rule | composed once in `world-server` and installed into every authenticated session; the missing-port write fallback deliberately preserves the pre-cut in-memory behavior | #388 moves the three account-data/tutorial workflows out of concrete persistence while leaving session-owned authority in place. #169 owns the remaining persistence cuts and #153 the terminal Session audit. |
 | PacketSpoof admission persistence capability | `wow_persistence::PacketSpoofBanPersistencePortLikeCpp` owns the semantic account/IP targets, IP-account lookup outcome, write request and classified result without a database dependency | `wow_database::packet_spoof_ban_adapter` alone maps the capability to Login statements, row decoding and the account-ban transaction | Session admission retains packet counters, ban policy/target selection, query-failure warning, exact pending-plan retry and generation-aware kick fanout | composed once in `world-server`; IP lookup finishes before the independent IP insert, while account clear-active plus insert share one Login transaction | #434 removes `LoginDatabase`, `LoginStatements` and `SqlTransaction` from `session::admission` while preserving the current C++-anchored order and failure branches. |
-| Void-storage persistence capability | `wow_persistence::VoidStoragePersistencePortLikeCpp` owns semantic unlock, swap and complete mixed-transfer requests plus the three-way money-transaction result without a database dependency | `wow_database::void_storage_adapter` alone maps those requests to Character statements, transactions and the post-unknown-COMMIT money read | Session retains NPC/player/slot and gameplay validation, the payout-admission and money-mutation fence, reconciliation/quarantine, runtime publication and packets | composed once in `world-server`; unlock preserves money -> flags -> delete-all order, swap preserves replace-destination -> replace/delete-source order, and transfer preserves money -> deposit destruction/void rows -> withdrawal item/inventory/void rows -> quest rows in one transaction | #436 moves unlock and swap; #438 moves the complete mixed transfer transaction as one semantic plan rather than exposing isolated statement helpers. |
+| Void-storage persistence capability | `wow_persistence::VoidStoragePersistencePortLikeCpp` owns semantic unlock, swap and complete mixed-transfer requests plus the three-way money-transaction result without a database dependency | `wow_database::void_storage_adapter` alone maps those requests to Character statements, transactions and the post-unknown-COMMIT money read | Session retains NPC/player/slot and gameplay validation, the payout-admission and money-mutation fence, reconciliation/quarantine, runtime publication and packets | composed once in `world-server`; unlock preserves money -> flags -> delete-all order, swap preserves replace-destination -> replace/delete-source order, and transfer preserves money -> deposit destruction/void rows -> withdrawal item/inventory/void rows -> quest rows in one transaction | #436 moves unlock and swap; #438 moves the complete mixed transfer transaction as one semantic plan rather than exposing isolated statement helpers; #442 removes the superseded Session full-save statement builders once no production caller remains. |
 | Player social persistence capability | `wow_persistence::SocialPersistencePortLikeCpp` owns typed contact rows, add-candidate state, relationship kinds and classified mutation outcomes without a database dependency | `wow_database::social_adapter` alone owns the Characters queries, SQLx row decoding, MariaDB upserts, flag clearing and cleanup order | Session retains name normalization, self/faction/list-limit admission, online-status projection, packet construction and logging | composed once in `world-server`; candidate lookup precedes the two tolerant state/count reads, and removal clears the selected flag before deleting an empty row | #440 removes concrete CharacterDB/SQLx/raw-SQL access from every represented social handler without claiming the still-missing C++ account-level ignore authority. |
 | Canonical map-corpse persistence capability | `wow_persistence::MapCorpsePersistencePortLikeCpp` owns the SQLx-free `(map, instance)` request, raw persisted corpse/phase/customization rows and independent base/auxiliary outcomes | `wow_database::map_corpse_adapter` alone maps that request to `SEL_CORPSES`, `SEL_CORPSE_PHASES` and `SEL_CORPSE_CUSTOMIZATIONS`, preserving exact bind width, order and query failure classification | the transitional `wow-world` application adapter retains corpse validation, item-cache parsing, faction resolution, map-local GUID allocation and publication into canonical `wow_map::Map` | composed once in `world-server`; the map lock is checked before I/O and reacquired only after the complete typed result returns | #392 removes concrete Character-database access from `Map::LoadCorpseData` hydration without folding map state into the Player lifecycle port. #153 owns relocating the transitional Session caller; the canonical corpse owner and clock do not change in this cut. |
 | Session login/logout lifecycle | private `wow_world::session::lifecycle`: `login` (the single-live-session character claim), `logout` (timed logout finalize and the disconnect save), `cleanup` (registry/visibility/map/accessor teardown) | the owning Session task on its exit paths | the Session driver's logout timer, the disconnect path in the composition root, and the login handlers | claim held from before the login sequence commits until any exit path; cleanup tears down publication before ownership, and the disconnect save keeps the represented player alive until it has run — C++ `LogoutPlayer(true)` saves while `_player` still exists | #184 extracted the exact current behaviour, concrete DB calls included, behind one private seam. #200 replaces that persistence seam once #187 freezes the focused Player contract. |
@@ -722,37 +722,38 @@ display is checked against the JSON ledger:
 66. #436 — void-storage unlock/swap through a SQLx-free capability;
 67. #438 — complete mixed void-storage transfer through the SQLx-free capability;
 68. #440 — social-list reads and mutations through a SQLx-free capability;
-69. #189 — durable loot persistence coordination;
-70. #192 — runtime/fanout directory consumers;
-71. #193 — combat/loot directory consumers;
-72. #194 — quest/spell/movement directory consumers;
-73. #197 — atomic group invite/create transitions;
-74. #198 — atomic group membership/leadership transitions;
-75. #199 — Group persistence/publication closure;
-76. #195 — social/group session addressing;
-77. #196 — PlayerRegistry storage closure;
-78. #138 — opaque session-directory relocation;
-79. #191 — mailbox protocol relocation;
-80. #137 — encapsulated Group owner move;
-81. #190 — durable creature-runtime rail relocation;
-82. #140 — Session mailbox pump;
-83. #252 — retire the temporary PlayerBroadcastInfo gameplay mirror;
-84. #182 — logical realm/instance routing;
-85. #183 — Session-only phase driver;
-86. #184 — login/logout lifecycle modules;
-87. #224 — character/loot/quest physical modules;
-88. #225 — Map/MapManager physical modules;
-89. #226 — Player/Unit physical modules;
-90. #227 — packet/spell-data physical modules;
-91. #228 — trusted linked external module API;
-92. #229 — deterministic external Cargo composition;
-93. #230 — agent-neutral module CLI and skeleton;
-94. #231 — typed module configuration/fixtures;
-95. #270 — retire the four PlayerBroadcastInfo transport endpoints;
-96. #359 — single dispatch mechanism for every opcode;
-97. #297 — promote the Session kernel to `wow-session`;
-98. #378 — move the remaining five session modules into `wow-session`;
-99. #153 — terminal architecture audit.
+69. #442 — retire obsolete Session void-storage statement builders;
+70. #189 — durable loot persistence coordination;
+71. #192 — runtime/fanout directory consumers;
+72. #193 — combat/loot directory consumers;
+73. #194 — quest/spell/movement directory consumers;
+74. #197 — atomic group invite/create transitions;
+75. #198 — atomic group membership/leadership transitions;
+76. #199 — Group persistence/publication closure;
+77. #195 — social/group session addressing;
+78. #196 — PlayerRegistry storage closure;
+79. #138 — opaque session-directory relocation;
+80. #191 — mailbox protocol relocation;
+81. #137 — encapsulated Group owner move;
+82. #190 — durable creature-runtime rail relocation;
+83. #140 — Session mailbox pump;
+84. #252 — retire the temporary PlayerBroadcastInfo gameplay mirror;
+85. #182 — logical realm/instance routing;
+86. #183 — Session-only phase driver;
+87. #184 — login/logout lifecycle modules;
+88. #224 — character/loot/quest physical modules;
+89. #225 — Map/MapManager physical modules;
+90. #226 — Player/Unit physical modules;
+91. #227 — packet/spell-data physical modules;
+92. #228 — trusted linked external module API;
+93. #229 — deterministic external Cargo composition;
+94. #230 — agent-neutral module CLI and skeleton;
+95. #231 — typed module configuration/fixtures;
+96. #270 — retire the four PlayerBroadcastInfo transport endpoints;
+97. #359 — single dispatch mechanism for every opcode;
+98. #297 — promote the Session kernel to `wow-session`;
+99. #378 — move the remaining five session modules into `wow-session`;
+100. #153 — terminal architecture audit.
 
 A slice may start once its declared prerequisites are merged and its branch is current. Independent
 physical work remains parallel to semantic authority cuts. Mechanical moves use focused compile and

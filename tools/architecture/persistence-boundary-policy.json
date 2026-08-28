@@ -26997,72 +26997,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::impl WorldSession::build_void_storage_delete_slot_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session"
-      ],
-      "enclosings": [
-        "impl WorldSession::build_void_storage_delete_slot_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "Player lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::build_void_storage_delete_slot_statement_like_cpp in crates/wow-world/src/session/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153,
-        169
-      ],
-      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::impl WorldSession::build_void_storage_replace_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session"
-      ],
-      "enclosings": [
-        "impl WorldSession::build_void_storage_replace_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "Player lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::build_void_storage_replace_statement_like_cpp in crates/wow-world/src/session/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153,
-        169
-      ],
-      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::impl WorldSession::char_db",
       "source_class": "production",
       "packages": [
@@ -27092,39 +27026,6 @@
         153
       ],
       "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::impl WorldSession::character_void_storage_save_statements_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session"
-      ],
-      "enclosings": [
-        "impl WorldSession::character_void_storage_save_statements_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "Player lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::character_void_storage_save_statements_like_cpp in crates/wow-world/src/session/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153,
-        169
-      ],
-      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {

@@ -30499,65 +30499,6 @@ impl WorldSession {
     /// preserve its active bit if it was disabled, activate it otherwise, and
     /// clear disabled. Favorites are deliberately untouched because learning
     /// preserves them and the incomplete runtime cannot reconstruct them.
-    pub(crate) fn build_void_storage_replace_statement_like_cpp(
-        player_guid_counter: u64,
-        slot: u8,
-        item: &RepresentedVoidStorageItemLikeCpp,
-    ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::for_statement(CharStatements::REP_CHAR_VOID_STORAGE_ITEM);
-        stmt.set_u64(0, item.item_id);
-        stmt.set_u64(1, player_guid_counter);
-        stmt.set_u32(2, item.item_entry);
-        stmt.set_u8(3, slot);
-        stmt.set_u64(4, item.creator_guid.counter() as u64);
-        stmt.set_u32(5, item.fixed_scaling_level);
-        stmt.set_i32(6, item.random_properties_id);
-        stmt.set_i32(7, item.random_properties_seed);
-        stmt.set_u8(8, item.context);
-        stmt
-    }
-
-    pub(crate) fn build_void_storage_delete_slot_statement_like_cpp(
-        player_guid_counter: u64,
-        slot: u8,
-    ) -> PreparedStatement {
-        let mut stmt =
-            PreparedStatement::for_statement(CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_SLOT);
-        stmt.set_u8(0, slot);
-        stmt.set_u64(1, player_guid_counter);
-        stmt
-    }
-
-    pub(crate) fn character_void_storage_save_statements_like_cpp(
-        &self,
-        player_guid_counter: u64,
-    ) -> Option<Vec<PreparedStatement>> {
-        if !self.represented_void_storage_loaded_like_cpp {
-            return None;
-        }
-
-        Some(
-            self.represented_void_storage_items_like_cpp
-                .iter()
-                .enumerate()
-                .map(|(slot, item)| {
-                    let slot = u8::try_from(slot).expect("void-storage slot fits u8");
-                    match item {
-                        Some(item) => Self::build_void_storage_replace_statement_like_cpp(
-                            player_guid_counter,
-                            slot,
-                            item,
-                        ),
-                        None => Self::build_void_storage_delete_slot_statement_like_cpp(
-                            player_guid_counter,
-                            slot,
-                        ),
-                    }
-                })
-                .collect(),
-        )
-    }
-
     fn mark_equipment_sets_saved_like_cpp(&mut self) {
         self.represented_equipment_sets_like_cpp
             .retain(|_, equipment_set| {

@@ -21727,32 +21727,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "build_void_storage_delete_slot_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_void_storage_delete_slot_statement_like_cpp (player_guid_counter : u64 , slot : u8 ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_void_storage_replace_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_void_storage_replace_statement_like_cpp (player_guid_counter : u64 , slot : u8 , item : & RepresentedVoidStorageItemLikeCpp ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "buyback_items_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn buyback_items_like_cpp (& self) -> & HashMap < u8 , InventoryItem >",
@@ -22438,19 +22412,6 @@
           "name": "char_db",
           "visibility": "pub",
           "signature": "fn char_db (& self) -> Option < & Arc < CharacterDatabase > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "character_void_storage_save_statements_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn character_void_storage_save_statements_like_cpp (& self , player_guid_counter : u64 ,) -> Option < Vec < PreparedStatement > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
