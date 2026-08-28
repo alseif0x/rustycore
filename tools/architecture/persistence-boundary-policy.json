@@ -19078,6 +19078,36 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::void_storage_adapter:crates/wow-database/src/void_storage_adapter.rs::fn append_void_storage_quest_status_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/void_storage_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::void_storage_adapter"
+      ],
+      "enclosings": [
+        "fn append_void_storage_quest_status_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free mixed void-storage transfer (#438) currently owns the complete wow-database workflow fn append_void_storage_quest_status_statements_like_cpp in crates/wow-database/src/void_storage_adapter.rs.",
+      "connection_affinity": "Quest status and objective statements append to the same Characters transaction as money and inventory.",
+      "current_order": "Save active or rewarded status, delete stale objective rows, then replace each selected nonzero objective counter.",
+      "failure_and_unknown_commit": "No I/O occurs here; rollback or unknown COMMIT covers the complete mixed transfer.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::void_storage_adapter:crates/wow-database/src/void_storage_adapter.rs::fn void_storage_delete_all_statement_like_cpp",
       "source_class": "production",
       "packages": [
@@ -19138,6 +19168,96 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::void_storage_adapter:crates/wow-database/src/void_storage_adapter.rs::fn void_storage_destroy_item_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/void_storage_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::void_storage_adapter"
+      ],
+      "enclosings": [
+        "fn void_storage_destroy_item_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free mixed void-storage transfer (#438) currently owns the complete wow-database workflow fn void_storage_destroy_item_statements_like_cpp in crates/wow-database/src/void_storage_adapter.rs.",
+      "connection_affinity": "Pure construction of the nine Characters statements that destroy one inventory item and its auxiliary rows.",
+      "current_order": "Delete character_inventory, then refund, trade, gems, transmog, gift, container-items and container-money rows, then item_instance.",
+      "failure_and_unknown_commit": "No I/O occurs here; the complete transfer commit is classified once.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::void_storage_adapter:crates/wow-database/src/void_storage_adapter.rs::fn void_storage_merged_inventory_item_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/void_storage_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::void_storage_adapter"
+      ],
+      "enclosings": [
+        "fn void_storage_merged_inventory_item_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free mixed void-storage transfer (#438) currently owns the complete wow-database workflow fn void_storage_merged_inventory_item_statement_like_cpp in crates/wow-database/src/void_storage_adapter.rs.",
+      "connection_affinity": "Pure construction of the full existing item_instance update in the transfer Characters transaction.",
+      "current_order": "Bind every mutable item field in CHAR_UPD_ITEM_INSTANCE order and the destination database GUID last.",
+      "failure_and_unknown_commit": "No I/O occurs here; the complete transfer commit is classified once.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::void_storage_adapter:crates/wow-database/src/void_storage_adapter.rs::fn void_storage_new_inventory_item_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/void_storage_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::void_storage_adapter"
+      ],
+      "enclosings": [
+        "fn void_storage_new_inventory_item_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free mixed void-storage transfer (#438) currently owns the complete wow-database workflow fn void_storage_new_inventory_item_statements_like_cpp in crates/wow-database/src/void_storage_adapter.rs.",
+      "connection_affinity": "Pure construction of one item_instance clone and its character_inventory link for the same Characters transaction.",
+      "current_order": "Insert the cloned item instance before linking its container and slot, matching StoreNewItem persistence order.",
+      "failure_and_unknown_commit": "No I/O occurs here; the complete transfer commit is classified once.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::void_storage_adapter:crates/wow-database/src/void_storage_adapter.rs::fn void_storage_replace_statement_like_cpp",
       "source_class": "production",
       "packages": [
@@ -19193,6 +19313,36 @@
       "connection_affinity": "Both slot mutations are appended to one Characters transaction.",
       "current_order": "Replace the destination with the source first, then replace or delete the old source slot.",
       "failure_and_unknown_commit": "No I/O occurs here; the combined commit outcome is classified once.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::void_storage_adapter:crates/wow-database/src/void_storage_adapter.rs::fn void_storage_transfer_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/void_storage_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::void_storage_adapter"
+      ],
+      "enclosings": [
+        "fn void_storage_transfer_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free mixed void-storage transfer (#438) currently owns the complete wow-database workflow fn void_storage_transfer_statements_like_cpp in crates/wow-database/src/void_storage_adapter.rs.",
+      "connection_affinity": "Every money, item, inventory, void-slot and quest statement is appended to one Characters transaction.",
+      "current_order": "Money first; deposits in request order; withdrawals in request order with each void delete after its item write; quest statuses last.",
+      "failure_and_unknown_commit": "The whole ordered vector is committed once, so definite rollback publishes nothing and unknown COMMIT is reconciled by the money marker.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -19318,6 +19468,36 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::void_storage_adapter:crates/wow-database/src/void_storage_adapter.rs::impl wow_persistence::VoidStoragePersistencePortLikeCpp for MariaDbVoidStoragePersistenceAdapterLikeCpp::persist_void_storage_transfer_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/void_storage_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::void_storage_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::VoidStoragePersistencePortLikeCpp for MariaDbVoidStoragePersistenceAdapterLikeCpp::persist_void_storage_transfer_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free mixed void-storage transfer (#438) currently owns the complete wow-database workflow impl wow_persistence::VoidStoragePersistencePortLikeCpp for MariaDbVoidStoragePersistenceAdapterLikeCpp::persist_void_storage_transfer_like_cpp in crates/wow-database/src/void_storage_adapter.rs.",
+      "connection_affinity": "The typed request expands and commits once through the configured Characters adapter and player-money observation seam.",
+      "current_order": "Expand the complete mixed transfer plan, commit once, and observe durable money only after an unknown COMMIT reply.",
+      "failure_and_unknown_commit": "Returns Committed, DefinitelyRolledBack or CommitOutcomeUnknown; Session alone reconciles, quarantines and publishes runtime state.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::void_storage_adapter:crates/wow-database/src/void_storage_adapter.rs::impl wow_persistence::VoidStoragePersistencePortLikeCpp for MariaDbVoidStoragePersistenceAdapterLikeCpp::persist_void_storage_unlock_like_cpp",
       "source_class": "production",
       "packages": [
@@ -19369,9 +19549,9 @@
       "logical_databases": [
         "characters"
       ],
-      "capability_owner": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436) currently owns the complete wow-database workflow module in crates/wow-database/src/void_storage_adapter.rs.",
-      "connection_affinity": "The module owns the one concrete Characters adapter used by both bounded transactions.",
-      "current_order": "Semantic unlock and swap calls expand to their frozen statement order before one commit.",
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free void-storage mutations (#436/#438) currently owns the complete wow-database workflow module in crates/wow-database/src/void_storage_adapter.rs.",
+      "connection_affinity": "The module owns the one concrete Characters adapter used by all three bounded transactions.",
+      "current_order": "Semantic unlock, swap and transfer calls expand to their frozen statement order before one commit.",
       "failure_and_unknown_commit": "Concrete commit classification and observation stay adapter-owned while Session retains reconciliation and quarantine.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
@@ -25968,134 +26148,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::void_storage:crates/wow-world/src/handlers/void_storage.rs::impl WorldSession::build_void_storage_merged_item_update_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/void_storage.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::void_storage"
-      ],
-      "enclosings": [
-        "impl WorldSession::build_void_storage_merged_item_update_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl WorldSession::build_void_storage_merged_item_update_statement_like_cpp in crates/wow-world/src/handlers/void_storage.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::void_storage:crates/wow-world/src/handlers/void_storage.rs::impl WorldSession::handle_void_storage_transfer",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/void_storage.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::void_storage"
-      ],
-      "enclosings": [
-        "impl WorldSession::handle_void_storage_transfer"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl WorldSession::handle_void_storage_transfer in crates/wow-world/src/handlers/void_storage.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::void_storage:crates/wow-world/src/handlers/void_storage.rs::impl WorldSession::void_storage_destroy_item_statements_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/void_storage.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::void_storage"
-      ],
-      "enclosings": [
-        "impl WorldSession::void_storage_destroy_item_statements_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl WorldSession::void_storage_destroy_item_statements_like_cpp in crates/wow-world/src/handlers/void_storage.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::void_storage:crates/wow-world/src/handlers/void_storage.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/void_storage.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::void_storage"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow module in crates/wow-world/src/handlers/void_storage.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-world:crate::map_manager:crates/wow-world/src/map_manager/mod.rs::fn execute_respawn_delete_like_cpp",
       "source_class": "production",
       "packages": [
@@ -26892,39 +26944,6 @@
         "characters"
       ],
       "capability_owner": "Player lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::build_void_storage_replace_statement_like_cpp in crates/wow-world/src/session/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153,
-        169
-      ],
-      "retirement_condition": "The annotated issues [153, 169] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::impl WorldSession::build_void_storage_withdrawal_item_insert_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session"
-      ],
-      "enclosings": [
-        "impl WorldSession::build_void_storage_withdrawal_item_insert_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "Player lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::build_void_storage_withdrawal_item_insert_statement_like_cpp in crates/wow-world/src/session/mod.rs.",
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",

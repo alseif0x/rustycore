@@ -16154,6 +16154,20 @@
           ]
         },
         {
+          "module": "crate::handlers::quest::persistence",
+          "trait_path": null,
+          "kind": "method",
+          "name": "void_storage_quest_status_writes_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn void_storage_quest_status_writes_like_cpp (& self , statuses : & [PlayerQuestStatus] ,) -> Vec < wow_persistence :: VoidStorageQuestStatusWriteLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
           "module": "crate::handlers::quest::rewards",
           "trait_path": null,
           "kind": "method",
@@ -17834,19 +17848,6 @@
           "module": "crate::handlers::void_storage",
           "trait_path": null,
           "kind": "method",
-          "name": "build_void_storage_merged_item_update_statement_like_cpp",
-          "visibility": "private",
-          "signature": "fn build_void_storage_merged_item_update_statement_like_cpp (& self , char_db : & wow_database :: CharacterDatabase , inventory_item : & InventoryItem , item : & wow_entities :: Item , enchantments : & str ,) -> wow_database :: PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage",
-          "trait_path": null,
-          "kind": "method",
           "name": "clear_item_publication_changes_like_cpp",
           "visibility": "private",
           "signature": "fn clear_item_publication_changes_like_cpp (item : & mut wow_entities :: Item)",
@@ -18007,19 +18008,6 @@
           "module": "crate::handlers::void_storage",
           "trait_path": null,
           "kind": "method",
-          "name": "void_storage_destroy_item_statements_like_cpp",
-          "visibility": "private",
-          "signature": "fn void_storage_destroy_item_statements_like_cpp (char_db : & wow_database :: CharacterDatabase , player_guid_counter : u64 , item_db_guid : u64 ,) -> Vec < wow_database :: PreparedStatement >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::void_storage",
-          "trait_path": null,
-          "kind": "method",
           "name": "void_storage_enchantments_db_string_like_cpp",
           "visibility": "private",
           "signature": "fn void_storage_enchantments_db_string_like_cpp (enchantment_ids : & [i32 ; wow_entities :: MAX_ENCHANTMENT_SLOT] ,) -> String",
@@ -18036,6 +18024,19 @@
           "name": "void_storage_item_write_like_cpp",
           "visibility": "private",
           "signature": "fn void_storage_item_write_like_cpp (item : & RepresentedVoidStorageItemLikeCpp ,) -> wow_persistence :: VoidStorageItemWriteLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage",
+          "trait_path": null,
+          "kind": "method",
+          "name": "void_storage_merged_item_write_like_cpp",
+          "visibility": "private",
+          "signature": "fn void_storage_merged_item_write_like_cpp (& self , inventory_item : & InventoryItem , item : & wow_entities :: Item , enchantments : & str ,) -> wow_persistence :: VoidStorageMergedInventoryItemWriteLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -21742,19 +21743,6 @@
           "name": "build_void_storage_replace_statement_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn build_void_storage_replace_statement_like_cpp (player_guid_counter : u64 , slot : u8 , item : & RepresentedVoidStorageItemLikeCpp ,) -> PreparedStatement",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "build_void_storage_withdrawal_item_insert_statement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn build_void_storage_withdrawal_item_insert_statement_like_cpp (db_guid : u64 , player_guid_counter : u64 , item : & RepresentedVoidStorageItemLikeCpp , count : u32 , max_durability : u32 , total_played_time : u32 , random_properties_id : i32 , random_properties_seed : i32 , item_flags : u32 , enchantments : & str ,) -> PreparedStatement",
           "cfg": [],
           "source_class": "production",
           "guards": [

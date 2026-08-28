@@ -333,6 +333,46 @@ impl WorldSession {
             .collect()
     }
 
+    pub(crate) fn void_storage_quest_status_writes_like_cpp(
+        &self,
+        statuses: &[PlayerQuestStatus],
+    ) -> Vec<wow_persistence::VoidStorageQuestStatusWriteLikeCpp> {
+        statuses
+            .iter()
+            .map(|status| {
+                let objectives = self
+                    .quest_store
+                    .as_ref()
+                    .and_then(|store| store.get(status.quest_id))
+                    .into_iter()
+                    .flat_map(|quest| quest.objectives.iter())
+                    .filter_map(|objective| {
+                        let storage_index = u8::try_from(objective.storage_index).ok()?;
+                        let count = status
+                            .objective_counts
+                            .get(usize::from(storage_index))
+                            .copied()
+                            .unwrap_or(0);
+                        (count != 0).then_some(
+                            wow_persistence::VoidStorageQuestObjectiveWriteLikeCpp {
+                                storage_index,
+                                count,
+                            },
+                        )
+                    })
+                    .collect();
+                wow_persistence::VoidStorageQuestStatusWriteLikeCpp {
+                    quest_id: status.quest_id,
+                    status: status.status,
+                    explored: status.explored,
+                    accept_time_secs: status.accept_time_secs,
+                    end_time_secs: status.end_time_secs,
+                    objectives,
+                }
+            })
+            .collect()
+    }
+
     pub(crate) fn plan_item_transfer_quest_persistence_like_cpp(
         &self,
         removed_entries_in_order: &[u32],

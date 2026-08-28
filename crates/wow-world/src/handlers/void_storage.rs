@@ -10,12 +10,10 @@
 //! `src/server/game/Entities/Player/Player.cpp::{_Load,_Save}VoidStorage`.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 
 use num_traits::FromPrimitive;
 use wow_constants::unit::NPCFlags1;
 use wow_constants::{ClientOpcodes, EnchantmentSlot, ItemContext, ItemFieldFlags, ItemModifier};
-use wow_database::{CharStatements, SqlTransaction};
 use wow_entities::INVENTORY_SLOT_BAG_0;
 use wow_handler::{PacketProcessing, SessionStatus};
 
@@ -317,13 +315,12 @@ impl WorldSession {
         fields.join(" ")
     }
 
-    fn build_void_storage_merged_item_update_statement_like_cpp(
+    fn void_storage_merged_item_write_like_cpp(
         &self,
-        char_db: &wow_database::CharacterDatabase,
         inventory_item: &InventoryItem,
         item: &wow_entities::Item,
         enchantments: &str,
-    ) -> wow_database::PreparedStatement {
+    ) -> wow_persistence::VoidStorageMergedInventoryItemWriteLikeCpp {
         let data = item.data();
         let mut charges = String::new();
         for charge in data
@@ -335,28 +332,28 @@ impl WorldSession {
             charges.push(' ');
         }
 
-        let mut statement = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE);
-        statement.set_u32(0, item.object().entry());
-        statement.set_u64(1, data.owner.counter() as u64);
-        statement.set_u64(2, data.creator.counter() as u64);
-        statement.set_u64(3, data.gift_creator.counter() as u64);
-        statement.set_u32(4, item.count());
-        statement.set_u32(5, data.expiration);
-        statement.set_string(6, charges);
-        statement.set_u32(7, data.dynamic_flags);
-        statement.set_string(8, enchantments);
-        statement.set_u32(9, data.durability);
-        statement.set_u32(10, data.create_played_time);
-        statement.set_string(11, item.text());
-        statement.set_u32(12, item.get_modifier(ItemModifier::BattlePetSpeciesId));
-        statement.set_u32(13, item.get_modifier(ItemModifier::BattlePetBreedData));
-        statement.set_u32(14, item.get_modifier(ItemModifier::BattlePetLevel));
-        statement.set_u32(15, item.get_modifier(ItemModifier::BattlePetDisplayId));
-        statement.set_i32(16, data.random_properties_id);
-        statement.set_i32(17, data.property_seed);
-        statement.set_i32(18, data.context);
-        statement.set_u64(19, inventory_item.db_guid);
-        statement
+        wow_persistence::VoidStorageMergedInventoryItemWriteLikeCpp {
+            item_db_guid: inventory_item.db_guid,
+            item_entry: item.object().entry(),
+            owner_guid: data.owner.counter() as u64,
+            creator_guid: data.creator.counter() as u64,
+            gift_creator_guid: data.gift_creator.counter() as u64,
+            count: item.count(),
+            expiration: data.expiration,
+            charges,
+            dynamic_flags: data.dynamic_flags,
+            enchantments: enchantments.to_owned(),
+            durability: data.durability,
+            create_played_time: data.create_played_time,
+            text: item.text().to_owned(),
+            battle_pet_species_id: item.get_modifier(ItemModifier::BattlePetSpeciesId),
+            battle_pet_breed_data: item.get_modifier(ItemModifier::BattlePetBreedData),
+            battle_pet_level: item.get_modifier(ItemModifier::BattlePetLevel),
+            battle_pet_display_id: item.get_modifier(ItemModifier::BattlePetDisplayId),
+            random_properties_id: data.random_properties_id,
+            property_seed: data.property_seed,
+            context: data.context,
+        }
     }
 
     fn apply_effective_void_storage_random_properties_like_cpp(
@@ -406,35 +403,6 @@ impl WorldSession {
             cleared_mainhand_enchantments,
         });
         destroyed_items
-    }
-
-    fn void_storage_destroy_item_statements_like_cpp(
-        char_db: &wow_database::CharacterDatabase,
-        player_guid_counter: u64,
-        item_db_guid: u64,
-    ) -> Vec<wow_database::PreparedStatement> {
-        let mut statements = Vec::with_capacity(9);
-        let mut delete_inventory = char_db.prepare(CharStatements::DEL_CHAR_INVENTORY_ITEM);
-        delete_inventory.set_u64(0, player_guid_counter);
-        delete_inventory.set_u64(1, item_db_guid);
-        statements.push(delete_inventory);
-        for cleanup_kind in [
-            CharStatements::DEL_ITEM_REFUND_INSTANCE,
-            CharStatements::DEL_ITEM_BOP_TRADE,
-            CharStatements::DEL_ITEM_INSTANCE_GEMS,
-            CharStatements::DEL_ITEM_INSTANCE_TRANSMOG,
-            CharStatements::DEL_GIFT,
-            CharStatements::DEL_ITEMCONTAINER_ITEMS,
-            CharStatements::DEL_ITEMCONTAINER_MONEY,
-        ] {
-            let mut cleanup = char_db.prepare(cleanup_kind);
-            cleanup.set_u64(0, item_db_guid);
-            statements.push(cleanup);
-        }
-        let mut delete_item = char_db.prepare(CharStatements::DEL_ITEM_INSTANCE);
-        delete_item.set_u64(0, item_db_guid);
-        statements.push(delete_item);
-        statements
     }
 
     fn void_storage_withdrawal_container_db_guid_like_cpp(
@@ -754,7 +722,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let Some(port) = self.void_storage_persistence_port_like_cpp() else {
             return;
         };
 
@@ -1216,34 +1184,31 @@ impl WorldSession {
         let actual_cost =
             (planned_deposits.len() as u64).saturating_mul(VOID_STORAGE_STORE_ITEM_COST_LIKE_CPP);
         let new_money = old_money.saturating_sub(actual_cost);
-        let mut tx = SqlTransaction::new();
-        let mut update_money = char_db.prepare(CharStatements::UPD_CHAR_MONEY);
-        update_money.set_u64(0, new_money);
-        update_money.set_u64(1, player_guid.counter() as u64);
-        tx.append(update_money);
-
-        for deposit in &planned_deposits {
-            for destroyed in &deposit.destroyed_items {
-                for statement in Self::void_storage_destroy_item_statements_like_cpp(
-                    char_db.as_ref(),
-                    player_guid.counter() as u64,
-                    destroyed.inventory_item.db_guid,
-                ) {
-                    tx.append(statement);
-                }
-            }
-            tx.append(Self::build_void_storage_replace_statement_like_cpp(
-                player_guid.counter() as u64,
-                deposit.void_slot,
-                &deposit.void_item,
-            ));
-        }
+        let deposits = planned_deposits
+            .iter()
+            .map(|deposit| wow_persistence::VoidStorageDepositWriteLikeCpp {
+                destroyed_items: deposit
+                    .destroyed_items
+                    .iter()
+                    .map(
+                        |destroyed| wow_persistence::VoidStorageDestroyedItemWriteLikeCpp {
+                            item_db_guid: destroyed.inventory_item.db_guid,
+                        },
+                    )
+                    .collect(),
+                void_slot: deposit.void_slot,
+                void_item: Self::void_storage_item_write_like_cpp(&deposit.void_item),
+            })
+            .collect();
 
         let (total_played_time, _) = self.current_played_time_values_like_cpp();
         let mut planned_container_db_guids = HashMap::<u8, u64>::new();
+        let mut withdrawals = Vec::with_capacity(planned_withdrawals.len());
         for withdrawal in &planned_withdrawals {
-            match &withdrawal.destination {
-                PlannedVoidWithdrawalDestinationLikeCpp::QuestBoundNoItem => {}
+            let inventory_write = match &withdrawal.destination {
+                PlannedVoidWithdrawalDestinationLikeCpp::QuestBoundNoItem => {
+                    wow_persistence::VoidStorageWithdrawalInventoryWriteLikeCpp::None
+                }
                 PlannedVoidWithdrawalDestinationLikeCpp::New {
                     bag,
                     slot,
@@ -1253,20 +1218,6 @@ impl WorldSession {
                     enchantments,
                     ..
                 } => {
-                    tx.append(
-                        Self::build_void_storage_withdrawal_item_insert_statement_like_cpp(
-                            *db_guid,
-                            player_guid.counter() as u64,
-                            &item_state,
-                            item_object.count(),
-                            item_object.data().max_durability,
-                            total_played_time,
-                            item_object.data().random_properties_id,
-                            item_object.data().property_seed,
-                            item_object.item_flags_bits(),
-                            &enchantments,
-                        ),
-                    );
                     let Some(container_db_guid) = self
                         .void_storage_withdrawal_container_db_guid_like_cpp(
                             *bag,
@@ -1278,13 +1229,6 @@ impl WorldSession {
                         );
                         return;
                     };
-                    let mut insert_inventory =
-                        char_db.prepare(CharStatements::REP_CHAR_INVENTORY_ITEM);
-                    insert_inventory.set_u64(0, player_guid.counter() as u64);
-                    insert_inventory.set_u64(1, container_db_guid);
-                    insert_inventory.set_u8(2, *slot);
-                    insert_inventory.set_u64(3, *db_guid);
-                    tx.append(insert_inventory);
                     if *bag == INVENTORY_SLOT_BAG_0
                         && self
                             .item_storage_template(item_object.object().entry())
@@ -1296,39 +1240,59 @@ impl WorldSession {
                         // its sequential `StoreNewItem` reaches the child.
                         planned_container_db_guids.insert(*slot, *db_guid);
                     }
+                    wow_persistence::VoidStorageWithdrawalInventoryWriteLikeCpp::New(
+                        wow_persistence::VoidStorageNewInventoryItemWriteLikeCpp {
+                            item_db_guid: *db_guid,
+                            item_entry: item_state.item_entry,
+                            creator_guid: item_state.creator_guid.counter() as u64,
+                            count: item_object.count(),
+                            enchantments: enchantments.clone(),
+                            item_flags: item_object.item_flags_bits(),
+                            max_durability: item_object.data().max_durability,
+                            total_played_time,
+                            random_properties_id: item_object.data().random_properties_id,
+                            random_properties_seed: item_object.data().property_seed,
+                            context: item_state.context,
+                            container_db_guid,
+                            inventory_slot: *slot,
+                        },
+                    )
                 }
                 PlannedVoidWithdrawalDestinationLikeCpp::MergeExisting {
                     inventory_item,
                     item_object,
                     enchantments,
                     ..
-                } => tx.append(
-                    self.build_void_storage_merged_item_update_statement_like_cpp(
-                        char_db.as_ref(),
+                } => wow_persistence::VoidStorageWithdrawalInventoryWriteLikeCpp::MergeExisting(
+                    self.void_storage_merged_item_write_like_cpp(
                         inventory_item,
                         item_object,
                         enchantments,
                     ),
                 ),
-                PlannedVoidWithdrawalDestinationLikeCpp::MergedIntoPlanned { .. } => {}
-            }
-            tx.append(Self::build_void_storage_delete_slot_statement_like_cpp(
-                player_guid.counter() as u64,
-                withdrawal.old_void_slot,
-            ));
+                PlannedVoidWithdrawalDestinationLikeCpp::MergedIntoPlanned { .. } => {
+                    wow_persistence::VoidStorageWithdrawalInventoryWriteLikeCpp::None
+                }
+            };
+            withdrawals.push(wow_persistence::VoidStorageWithdrawalWriteLikeCpp {
+                old_void_slot: withdrawal.old_void_slot,
+                inventory_write,
+            });
         }
-        self.append_planned_quest_statuses_to_transaction_like_cpp(
-            &mut tx,
-            char_db.as_ref(),
-            player_guid.counter() as u64,
-            &planned_quest_statuses,
-        );
+
+        let request = wow_persistence::VoidStorageTransferWriteRequestLikeCpp {
+            player_guid: player_guid.counter() as u64,
+            money_before: old_money,
+            money_after: new_money,
+            deposits,
+            withdrawals,
+            quest_statuses: self.void_storage_quest_status_writes_like_cpp(&planned_quest_statuses),
+        };
 
         let Some(money_persistence) = self
-            .commit_exclusive_player_money_transaction_like_cpp(
+            .await_exclusive_player_money_transaction_outcome_like_cpp(
                 money_persistence,
-                char_db.as_ref(),
-                tx,
+                port.persist_void_storage_transfer_like_cpp(request),
                 old_money,
                 new_money,
                 "void-storage transfer",

@@ -77,6 +77,7 @@
     432,
     434,
     436,
+    438,
     189,
     192,
     193,
@@ -1304,7 +1305,7 @@
     },
     {
       "number": 436,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.27] Move void-storage unlock and swap behind a SQLx-free capability",
       "kind": "slice",
       "parents": [
@@ -1313,6 +1314,19 @@
       ],
       "depends_on": [
         434
+      ]
+    },
+    {
+      "number": 438,
+      "state": "open",
+      "title": "[ARCH.DB.28] Move void-storage transfer behind the SQLx-free capability",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        436
       ]
     }
   ]
