@@ -79,6 +79,7 @@
     436,
     438,
     440,
+    442,
     189,
     192,
     193,
@@ -1332,7 +1333,7 @@
     },
     {
       "number": 440,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.29] Move social-list persistence behind a SQLx-free capability",
       "kind": "slice",
       "parents": [
@@ -1341,6 +1342,19 @@
       ],
       "depends_on": [
         438
+      ]
+    },
+    {
+      "number": 442,
+      "state": "open",
+      "title": "[ARCH.DB.30] Retire obsolete Session void-storage statement builders",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        440
       ]
     }
   ]
