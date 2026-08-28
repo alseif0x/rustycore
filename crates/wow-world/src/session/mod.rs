@@ -21156,17 +21156,26 @@ impl WorldSession {
             self.drain_represented_quest_objective_progress_like_cpp()
                 .await;
             return repaired;
-        } else if let Some(char_db) = self.char_db.as_ref() {
-            let mut stmt = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_DURABILITY);
-            stmt.set_u32(0, max_durability);
-            stmt.set_u64(1, item_db_guid);
-            if let Err(e) = char_db.execute(&stmt).await {
-                warn!(
-                    item_guid = item_guid.counter(),
-                    error = %e,
-                    "failed to persist represented item durability repair"
-                );
-                return false;
+        } else if let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) {
+            match port
+                .persist_durability_repair_like_cpp(
+                    wow_persistence::PlayerDurabilityRepairSaveLikeCpp {
+                        item_db_guid,
+                        durability: max_durability,
+                    },
+                )
+                .await
+            {
+                wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+                wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+                | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                    warn!(
+                        item_guid = item_guid.counter(),
+                        error = %reason,
+                        "failed to persist represented item durability repair"
+                    );
+                    return false;
+                }
             }
         }
 
