@@ -17,6 +17,7 @@ use wow_constants::ClientOpcodes;
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_database::{CharStatements, PreparedStatement, StatementDef};
 use wow_handler::{PacketProcessing, SessionStatus};
+use wow_persistence::{SocialPartyInviteLookupOutcomeLikeCpp, SocialPersistencePortLikeCpp};
 
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::misc::{RandomRoll, RandomRollClient};
@@ -41,8 +42,6 @@ use wow_social::group::{
 
 use crate::session::{WorldSession, player_team_for_race_cpp};
 
-const SOCIAL_FLAG_FRIEND_LIKE_CPP: u32 = 0x01;
-const SOCIAL_FLAG_IGNORED_LIKE_CPP: u32 = 0x02;
 const PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP: Duration = Duration::from_millis(250);
 
 // ── canonical group lookup ────────────────────────────────────────────────────
@@ -620,66 +619,28 @@ fn current_player_party_invite_map_instance_like_cpp(
         .unwrap_or_else(|| (session.player_map_id_like_cpp(), 0))
 }
 
-#[cfg(test)]
-fn party_invite_social_ignore_match_like_cpp(
-    social_friend_counter: i64,
-    social_friend_account_id: u32,
-    social_flags: u32,
-    inviter_guid: ObjectGuid,
-    inviter_account_id: u32,
-) -> bool {
-    (social_flags & SOCIAL_FLAG_IGNORED_LIKE_CPP) != 0
-        && (social_friend_counter == inviter_guid.counter()
-            || social_friend_account_id == inviter_account_id)
-}
-
-#[cfg(test)]
-fn party_invite_social_friend_match_like_cpp(
-    social_friend_counter: i64,
-    social_flags: u32,
-    inviter_guid: ObjectGuid,
-) -> bool {
-    (social_flags & SOCIAL_FLAG_FRIEND_LIKE_CPP) != 0
-        && social_friend_counter == inviter_guid.counter()
-}
-
 async fn target_social_ignores_inviter_like_cpp(
-    char_db: Option<std::sync::Arc<wow_database::CharacterDatabase>>,
+    port: Option<std::sync::Arc<dyn SocialPersistencePortLikeCpp>>,
     target_guid: ObjectGuid,
     inviter_guid: ObjectGuid,
     inviter_account_id: u32,
 ) -> bool {
-    let Some(char_db) = char_db else {
+    let Some(port) = port else {
         return false;
     };
 
-    // C++ `PlayerSocial::HasIgnore` checks both the invited character's
-    // ignored GUIDs and the ignored account set. Rust does not yet persist
-    // `accountGuid`, so the account branch is represented through the ignored
-    // character's `characters.account`.
-    let row = sqlx::query(
-        "SELECT COUNT(*) \
-         FROM character_social cs \
-         LEFT JOIN characters c ON c.guid = cs.friend \
-         WHERE cs.guid = ? \
-           AND (cs.flags & ?) <> 0 \
-           AND (cs.friend = ? OR c.account = ?)",
-    )
-    .bind(target_guid.counter())
-    .bind(SOCIAL_FLAG_IGNORED_LIKE_CPP)
-    .bind(inviter_guid.counter())
-    .bind(inviter_account_id)
-    .fetch_one(char_db.pool())
-    .await;
-
-    match row {
-        Ok(row) => {
-            use sqlx::Row;
-            row.try_get::<i64, _>(0).unwrap_or(0) > 0
-        }
-        Err(e) => {
+    match port
+        .party_invite_target_ignores_like_cpp(
+            target_guid.counter(),
+            inviter_guid.counter(),
+            inviter_account_id,
+        )
+        .await
+    {
+        SocialPartyInviteLookupOutcomeLikeCpp::Resolved(ignores) => ignores,
+        SocialPartyInviteLookupOutcomeLikeCpp::Failed { reason } => {
             warn!(
-                error = %e,
+                error = %reason,
                 target = ?target_guid,
                 inviter = ?inviter_guid,
                 "PartyInvite social ignore lookup failed"
@@ -690,33 +651,22 @@ async fn target_social_ignores_inviter_like_cpp(
 }
 
 async fn target_social_has_inviter_friend_like_cpp(
-    char_db: Option<std::sync::Arc<wow_database::CharacterDatabase>>,
+    port: Option<std::sync::Arc<dyn SocialPersistencePortLikeCpp>>,
     target_guid: ObjectGuid,
     inviter_guid: ObjectGuid,
 ) -> bool {
-    let Some(char_db) = char_db else {
+    let Some(port) = port else {
         return false;
     };
 
-    let row = sqlx::query(
-        "SELECT COUNT(*) \
-         FROM character_social \
-         WHERE guid = ? AND friend = ? AND (flags & ?) <> 0",
-    )
-    .bind(target_guid.counter())
-    .bind(inviter_guid.counter())
-    .bind(SOCIAL_FLAG_FRIEND_LIKE_CPP)
-    .fetch_one(char_db.pool())
-    .await;
-
-    match row {
-        Ok(row) => {
-            use sqlx::Row;
-            row.try_get::<i64, _>(0).unwrap_or(0) > 0
-        }
-        Err(e) => {
+    match port
+        .party_invite_target_has_friend_like_cpp(target_guid.counter(), inviter_guid.counter())
+        .await
+    {
+        SocialPartyInviteLookupOutcomeLikeCpp::Resolved(has_friend) => has_friend,
+        SocialPartyInviteLookupOutcomeLikeCpp::Failed { reason } => {
             warn!(
-                error = %e,
+                error = %reason,
                 target = ?target_guid,
                 inviter = ?inviter_guid,
                 "PartyInvite social friend lookup failed"
@@ -1326,9 +1276,9 @@ impl WorldSession {
             return;
         }
 
-        let char_db = self.char_db().map(std::sync::Arc::clone);
+        let social_port = self.social_persistence_port_like_cpp();
         if target_social_ignores_inviter_like_cpp(
-            char_db.clone(),
+            social_port.clone(),
             real_target_guid,
             my_guid,
             self.account_id,
@@ -1340,7 +1290,8 @@ impl WorldSession {
         }
 
         if u32::from(self.player_level_like_cpp()) < self.party_level_req_like_cpp()
-            && !target_social_has_inviter_friend_like_cpp(char_db, real_target_guid, my_guid).await
+            && !target_social_has_inviter_friend_like_cpp(social_port, real_target_guid, my_guid)
+                .await
         {
             send_result!(party_result::INVITE_RESTRICTED);
             return;

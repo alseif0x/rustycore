@@ -6,8 +6,8 @@ use sqlx::Row;
 use wow_persistence::{
     PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, SocialAddCandidateLikeCpp,
     SocialAddCandidateLoadOutcomeLikeCpp, SocialContactListLoadOutcomeLikeCpp,
-    SocialContactLoadRowLikeCpp, SocialPersistencePortLikeCpp, SocialRelationshipKindLikeCpp,
-    SocialRelationshipStateLikeCpp,
+    SocialContactLoadRowLikeCpp, SocialPartyInviteLookupOutcomeLikeCpp,
+    SocialPersistencePortLikeCpp, SocialRelationshipKindLikeCpp, SocialRelationshipStateLikeCpp,
 };
 
 use crate::CharacterDatabase;
@@ -18,11 +18,23 @@ const LOAD_CONTACTS_SQL: &str = "SELECT CAST(cs.friend AS SIGNED), cs.flags, cs.
      WHERE cs.guid = ? AND (cs.flags & ?) <> 0";
 const LOAD_FRIEND_SQL: &str = "SELECT CAST(guid AS SIGNED), account, race, class, level, zone FROM characters WHERE name = ? LIMIT 1";
 const LOAD_IGNORE_SQL: &str = "SELECT CAST(guid AS SIGNED) FROM characters WHERE name = ? LIMIT 1";
+const SOCIAL_FLAG_FRIEND_LIKE_CPP: u32 = 0x01;
+const SOCIAL_FLAG_IGNORED_LIKE_CPP: u32 = 0x02;
+const PARTY_INVITE_IGNORE_SQL: &str = "SELECT COUNT(*) \
+     FROM character_social cs \
+     LEFT JOIN characters c ON c.guid = cs.friend \
+     WHERE cs.guid = ? \
+       AND (cs.flags & ?) <> 0 \
+       AND (cs.friend = ? OR c.account = ?)";
+const PARTY_INVITE_FRIEND_SQL: &str = "SELECT COUNT(*) \
+     FROM character_social \
+     WHERE guid = ? AND friend = ? AND (flags & ?) <> 0";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum SocialSqlBindLikeCpp {
     I64(i64),
     U8(u8),
+    U32(u32),
     Text(String),
 }
 
@@ -89,6 +101,36 @@ fn remove_relationship_operations_like_cpp(
     ]
 }
 
+fn party_invite_ignore_operation_like_cpp(
+    target_guid: i64,
+    inviter_guid: i64,
+    inviter_account_id: u32,
+) -> SocialSqlOperationLikeCpp {
+    SocialSqlOperationLikeCpp {
+        sql: PARTY_INVITE_IGNORE_SQL,
+        binds: vec![
+            SocialSqlBindLikeCpp::I64(target_guid),
+            SocialSqlBindLikeCpp::U32(SOCIAL_FLAG_IGNORED_LIKE_CPP),
+            SocialSqlBindLikeCpp::I64(inviter_guid),
+            SocialSqlBindLikeCpp::U32(inviter_account_id),
+        ],
+    }
+}
+
+fn party_invite_friend_operation_like_cpp(
+    target_guid: i64,
+    inviter_guid: i64,
+) -> SocialSqlOperationLikeCpp {
+    SocialSqlOperationLikeCpp {
+        sql: PARTY_INVITE_FRIEND_SQL,
+        binds: vec![
+            SocialSqlBindLikeCpp::I64(target_guid),
+            SocialSqlBindLikeCpp::I64(inviter_guid),
+            SocialSqlBindLikeCpp::U32(SOCIAL_FLAG_FRIEND_LIKE_CPP),
+        ],
+    }
+}
+
 async fn execute_social_operation_like_cpp(
     character_db: &CharacterDatabase,
     operation: SocialSqlOperationLikeCpp,
@@ -98,6 +140,7 @@ async fn execute_social_operation_like_cpp(
         query = match bind {
             SocialSqlBindLikeCpp::I64(value) => query.bind(value),
             SocialSqlBindLikeCpp::U8(value) => query.bind(value),
+            SocialSqlBindLikeCpp::U32(value) => query.bind(value),
             SocialSqlBindLikeCpp::Text(value) => query.bind(value),
         };
     }
@@ -106,6 +149,26 @@ async fn execute_social_operation_like_cpp(
         .await
         .map(|result| result.rows_affected())
         .map_err(|error| error.to_string())
+}
+
+async fn execute_social_count_like_cpp(
+    character_db: &CharacterDatabase,
+    operation: SocialSqlOperationLikeCpp,
+) -> Result<bool, String> {
+    let mut query = sqlx::query(operation.sql);
+    for bind in operation.binds {
+        query = match bind {
+            SocialSqlBindLikeCpp::I64(value) => query.bind(value),
+            SocialSqlBindLikeCpp::U8(value) => query.bind(value),
+            SocialSqlBindLikeCpp::U32(value) => query.bind(value),
+            SocialSqlBindLikeCpp::Text(value) => query.bind(value),
+        };
+    }
+    let row = query
+        .fetch_one(character_db.pool())
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(row.try_get::<i64, _>(0).unwrap_or(0) > 0)
 }
 
 pub struct MariaDbSocialPersistenceAdapterLikeCpp {
@@ -256,6 +319,47 @@ impl SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp {
         })
     }
 
+    fn party_invite_target_ignores_like_cpp<'a>(
+        &'a self,
+        target_guid: i64,
+        inviter_guid: i64,
+        inviter_account_id: u32,
+    ) -> PersistenceFutureLikeCpp<'a, SocialPartyInviteLookupOutcomeLikeCpp> {
+        Box::pin(async move {
+            match execute_social_count_like_cpp(
+                &self.character_db,
+                party_invite_ignore_operation_like_cpp(
+                    target_guid,
+                    inviter_guid,
+                    inviter_account_id,
+                ),
+            )
+            .await
+            {
+                Ok(matches) => SocialPartyInviteLookupOutcomeLikeCpp::Resolved(matches),
+                Err(reason) => SocialPartyInviteLookupOutcomeLikeCpp::Failed { reason },
+            }
+        })
+    }
+
+    fn party_invite_target_has_friend_like_cpp<'a>(
+        &'a self,
+        target_guid: i64,
+        inviter_guid: i64,
+    ) -> PersistenceFutureLikeCpp<'a, SocialPartyInviteLookupOutcomeLikeCpp> {
+        Box::pin(async move {
+            match execute_social_count_like_cpp(
+                &self.character_db,
+                party_invite_friend_operation_like_cpp(target_guid, inviter_guid),
+            )
+            .await
+            {
+                Ok(matches) => SocialPartyInviteLookupOutcomeLikeCpp::Resolved(matches),
+                Err(reason) => SocialPartyInviteLookupOutcomeLikeCpp::Failed { reason },
+            }
+        })
+    }
+
     fn add_relationship_like_cpp<'a>(
         &'a self,
         player_guid: i64,
@@ -335,6 +439,37 @@ mod tests {
         assert!(LOAD_CONTACTS_SQL.contains("(cs.flags & ?) <> 0"));
         assert!(LOAD_FRIEND_SQL.contains("account, race, class, level, zone"));
         assert_eq!(LOAD_IGNORE_SQL.matches('?').count(), 1);
+    }
+
+    #[test]
+    fn party_invite_ignore_query_keeps_character_then_account_semantics_and_exact_binds() {
+        let operation = party_invite_ignore_operation_like_cpp(77, 42, 9);
+        assert!(operation.sql.contains("LEFT JOIN characters"));
+        assert!(operation.sql.contains("cs.friend = ? OR c.account = ?"));
+        assert_eq!(operation.sql.matches('?').count(), 4);
+        assert_eq!(
+            operation.binds,
+            vec![
+                SocialSqlBindLikeCpp::I64(77),
+                SocialSqlBindLikeCpp::U32(2),
+                SocialSqlBindLikeCpp::I64(42),
+                SocialSqlBindLikeCpp::U32(9),
+            ]
+        );
+    }
+
+    #[test]
+    fn party_invite_friend_query_keeps_target_inviter_flag_bind_order() {
+        let operation = party_invite_friend_operation_like_cpp(77, 42);
+        assert_eq!(operation.sql.matches('?').count(), 3);
+        assert_eq!(
+            operation.binds,
+            vec![
+                SocialSqlBindLikeCpp::I64(77),
+                SocialSqlBindLikeCpp::I64(42),
+                SocialSqlBindLikeCpp::U32(1),
+            ]
+        );
     }
 
     #[test]

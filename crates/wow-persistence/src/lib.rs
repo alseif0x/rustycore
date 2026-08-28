@@ -465,6 +465,15 @@ pub struct SocialRelationshipStateLikeCpp {
     pub relationship_count: i64,
 }
 
+/// Classified result of one C++ party-invite social membership check.
+/// A read has no ambiguous-COMMIT state, but driver failure must remain
+/// distinct so the gameplay caller can preserve its current fail-open path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SocialPartyInviteLookupOutcomeLikeCpp {
+    Resolved(bool),
+    Failed { reason: String },
+}
+
 /// SQLx-free Characters-database capability for the represented social-list
 /// reads and writes. Packet construction and gameplay admission stay outside.
 pub trait SocialPersistencePortLikeCpp: Send + Sync {
@@ -486,6 +495,23 @@ pub trait SocialPersistencePortLikeCpp: Send + Sync {
         target_guid: i64,
         kind: SocialRelationshipKindLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, SocialRelationshipStateLikeCpp>;
+
+    /// Represent C++ `invitedPlayer->GetSocial()->HasIgnore(...)` while the
+    /// canonical in-memory social map is not yet available cross-session.
+    fn party_invite_target_ignores_like_cpp<'a>(
+        &'a self,
+        target_guid: i64,
+        inviter_guid: i64,
+        inviter_account_id: u32,
+    ) -> PersistenceFutureLikeCpp<'a, SocialPartyInviteLookupOutcomeLikeCpp>;
+
+    /// Represent C++ `invitedPlayer->GetSocial()->HasFriend(...)`. The caller
+    /// invokes this only after the ignore gate and low-level check.
+    fn party_invite_target_has_friend_like_cpp<'a>(
+        &'a self,
+        target_guid: i64,
+        inviter_guid: i64,
+    ) -> PersistenceFutureLikeCpp<'a, SocialPartyInviteLookupOutcomeLikeCpp>;
 
     fn add_relationship_like_cpp<'a>(
         &'a self,

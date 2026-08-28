@@ -82,6 +82,7 @@
     442,
     444,
     446,
+    448,
     189,
     192,
     193,
@@ -1374,7 +1375,7 @@
     },
     {
       "number": 446,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.32] Move standalone player-currency saves behind the lifecycle port",
       "kind": "slice",
       "parents": [
@@ -1383,6 +1384,19 @@
       ],
       "depends_on": [
         444
+      ]
+    },
+    {
+      "number": 448,
+      "state": "open",
+      "title": "[ARCH.DB.33] Move party-invite social reads behind the social port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        446
       ]
     }
   ]
