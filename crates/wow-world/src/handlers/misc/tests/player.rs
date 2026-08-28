@@ -5,6 +5,35 @@
 
 use super::*;
 use wow_constants::UnitStandStateType;
+use wow_core::GameTime;
+
+struct RecordingNextMailTimePortLikeCpp {
+    requests: Mutex<Vec<wow_persistence::NextMailTimeLoadRequestLikeCpp>>,
+    outcome: wow_persistence::NextMailTimeLoadOutcomeLikeCpp,
+}
+
+impl RecordingNextMailTimePortLikeCpp {
+    fn new(outcome: wow_persistence::NextMailTimeLoadOutcomeLikeCpp) -> Arc<Self> {
+        Arc::new(Self {
+            requests: Mutex::new(Vec::new()),
+            outcome,
+        })
+    }
+}
+
+impl wow_persistence::NextMailTimePersistencePortLikeCpp for RecordingNextMailTimePortLikeCpp {
+    fn load_next_mail_time_rows_like_cpp<'a>(
+        &'a self,
+        request: wow_persistence::NextMailTimeLoadRequestLikeCpp,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        'a,
+        wow_persistence::NextMailTimeLoadOutcomeLikeCpp,
+    > {
+        self.requests.lock().unwrap().push(request);
+        let outcome = self.outcome.clone();
+        Box::pin(async move { outcome })
+    }
+}
 
 #[test]
 fn item_purchase_contents_skip_season_earned_currency_like_cpp() {
@@ -618,6 +647,108 @@ async fn query_next_mail_time_routes_result_to_realm_like_cpp() {
         u16::from_le_bytes([bytes[0], bytes[1]]),
         ServerOpcodes::MailQueryNextTimeResult as u16
     );
+}
+
+#[tokio::test]
+async fn query_next_mail_time_filters_and_caps_typed_rows_like_cpp() {
+    let (mut session, instance_rx, realm_rx) = make_session_with_realm_send();
+    let player_guid = ObjectGuid::create_player(1, 77);
+    session.set_player_guid(Some(player_guid));
+    let now = GameTime::now().as_secs() as i64;
+    let port = RecordingNextMailTimePortLikeCpp::new(
+        wow_persistence::NextMailTimeLoadOutcomeLikeCpp::Loaded(vec![
+            wow_persistence::NextMailTimeLoadRowLikeCpp {
+                message_type: 0,
+                sender: 1,
+                deliver_time: now - 10,
+                checked: 1,
+                stationery: 41,
+            },
+            wow_persistence::NextMailTimeLoadRowLikeCpp {
+                message_type: 0,
+                sender: 2,
+                deliver_time: now + 3_600,
+                checked: 0,
+                stationery: 42,
+            },
+            wow_persistence::NextMailTimeLoadRowLikeCpp {
+                message_type: 0,
+                sender: 3,
+                deliver_time: now - 9,
+                checked: 0,
+                stationery: 43,
+            },
+            wow_persistence::NextMailTimeLoadRowLikeCpp {
+                message_type: 1,
+                sender: 3,
+                deliver_time: now - 8,
+                checked: 0,
+                stationery: 44,
+            },
+            wow_persistence::NextMailTimeLoadRowLikeCpp {
+                message_type: 1,
+                sender: 4,
+                deliver_time: now - 7,
+                checked: 0,
+                stationery: 45,
+            },
+            wow_persistence::NextMailTimeLoadRowLikeCpp {
+                message_type: 1,
+                sender: 5,
+                deliver_time: now - 6,
+                checked: 0,
+                stationery: 46,
+            },
+            wow_persistence::NextMailTimeLoadRowLikeCpp {
+                message_type: 1,
+                sender: 6,
+                deliver_time: now - 5,
+                checked: 0,
+                stationery: 47,
+            },
+        ]),
+    );
+    session.set_next_mail_time_persistence_port_like_cpp(port.clone());
+
+    session.handle_query_next_mail_time().await;
+
+    assert_eq!(
+        *port.requests.lock().unwrap(),
+        vec![wow_persistence::NextMailTimeLoadRequestLikeCpp { player_guid: 77 }]
+    );
+    assert!(instance_rx.try_recv().is_err());
+    let bytes = realm_rx.try_recv().expect("mail query next time result");
+    let mut packet = WorldPacket::from_bytes(&bytes);
+    assert_eq!(
+        packet.read_uint16().unwrap(),
+        ServerOpcodes::MailQueryNextTimeResult as u16
+    );
+    assert_eq!(packet.read_float().unwrap(), 0.0);
+    assert_eq!(packet.read_int32().unwrap(), 3);
+}
+
+#[tokio::test]
+async fn query_next_mail_time_failure_is_realm_only_no_mail_like_cpp() {
+    let (mut session, instance_rx, realm_rx) = make_session_with_realm_send();
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 78)));
+    let port = RecordingNextMailTimePortLikeCpp::new(
+        wow_persistence::NextMailTimeLoadOutcomeLikeCpp::Failed {
+            reason: "forced mail read failure".to_owned(),
+        },
+    );
+    session.set_next_mail_time_persistence_port_like_cpp(port);
+
+    session.handle_query_next_mail_time().await;
+
+    assert!(instance_rx.try_recv().is_err());
+    let bytes = realm_rx.try_recv().expect("mail query next time result");
+    let mut packet = WorldPacket::from_bytes(&bytes);
+    assert_eq!(
+        packet.read_uint16().unwrap(),
+        ServerOpcodes::MailQueryNextTimeResult as u16
+    );
+    assert_eq!(packet.read_float().unwrap(), -86_400.0);
+    assert_eq!(packet.read_int32().unwrap(), 0);
 }
 
 #[tokio::test]
