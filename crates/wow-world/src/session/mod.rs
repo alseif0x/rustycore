@@ -5336,6 +5336,7 @@ struct SessionPersistencePortsLikeCpp {
     void_storage: Option<Arc<dyn wow_persistence::VoidStoragePersistencePortLikeCpp>>,
     social: Option<Arc<dyn wow_persistence::SocialPersistencePortLikeCpp>>,
     map_corpse: Option<Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>,
+    quest_poi: Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>>,
 }
 
 pub struct WorldSession {
@@ -16453,6 +16454,19 @@ impl WorldSession {
         &self,
     ) -> Option<&Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>> {
         self.persistence_ports_like_cpp.map_corpse.as_ref()
+    }
+
+    pub fn set_quest_poi_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.quest_poi = Some(port);
+    }
+
+    pub(crate) fn quest_poi_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.quest_poi.clone()
     }
 
     /// Attach this session to the one canonical journal owner for its

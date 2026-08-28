@@ -19,17 +19,21 @@ impl WorldSession {
             return Arc::clone(store);
         }
 
-        let Some(world_db) = self.world_db().map(Arc::clone) else {
-            warn!("QuestPOIQuery: world DB unavailable; sending empty C++ response");
+        let Some(port) = self.quest_poi_persistence_port_like_cpp() else {
+            warn!(
+                "QuestPOIQuery: quest POI persistence port unavailable; sending empty C++ response"
+            );
             let store = Arc::new(HashMap::new());
             self.quest_poi_store_like_cpp = Some(Arc::clone(&store));
             return store;
         };
 
-        let store = match load_quest_poi_store_like_cpp(world_db.as_ref()).await {
-            Ok(store) => Arc::new(store),
-            Err(err) => {
-                warn!("QuestPOIQuery: failed to load quest POI store like C++: {err}");
+        let store = match port.load_quest_poi_rows_like_cpp().await {
+            wow_persistence::QuestPoiLoadOutcomeLikeCpp::Loaded { points, blobs } => {
+                Arc::new(build_quest_poi_store_like_cpp(points, blobs))
+            }
+            wow_persistence::QuestPoiLoadOutcomeLikeCpp::Failed { stage, reason } => {
+                warn!(?stage, error = %reason, "QuestPOIQuery: failed to load quest POI store like C++");
                 Arc::new(HashMap::new())
             }
         };

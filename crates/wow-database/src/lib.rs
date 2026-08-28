@@ -43,6 +43,7 @@ pub mod persistence_trace;
 pub mod player_lifecycle_adapter;
 pub mod player_money_transaction_adapter;
 pub mod query_holder;
+pub mod quest_poi_adapter;
 pub mod result;
 pub mod session_account_state_adapter;
 pub mod social_adapter;

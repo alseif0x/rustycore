@@ -47,6 +47,10 @@ use wow_entities::{ITEM_LIMIT_CATEGORY_MODE_HAVE, Player, PlayerReputationRecord
 use wow_packet::WorldPacket;
 use wow_packet::packets::item::InventoryChangeFailure;
 use wow_packet::packets::quest::QuestGiverQuestFailed;
+use wow_persistence::{
+    PersistenceFutureLikeCpp, QuestPoiBlobLoadRowLikeCpp, QuestPoiLoadOutcomeLikeCpp,
+    QuestPoiLoadStageLikeCpp, QuestPoiPersistencePortLikeCpp, QuestPoiPointLoadRowLikeCpp,
+};
 use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
 
 /// The quest opcode registrations.
@@ -788,6 +792,99 @@ async fn quest_poi_query_filters_to_active_quest_slots_like_cpp() {
     assert_eq!(packet.read_int32().unwrap(), 1);
     assert_eq!(packet.read_int32().unwrap(), 77);
     assert_eq!(packet.read_int32().unwrap(), 1);
+}
+
+struct QuestPoiPortFixtureLikeCpp(QuestPoiLoadOutcomeLikeCpp);
+
+impl QuestPoiPersistencePortLikeCpp for QuestPoiPortFixtureLikeCpp {
+    fn load_quest_poi_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<'_, QuestPoiLoadOutcomeLikeCpp> {
+        let outcome = self.0.clone();
+        Box::pin(async move { outcome })
+    }
+}
+
+fn quest_poi_blob_row_like_cpp(quest_id: i32, idx1: i32) -> QuestPoiBlobLoadRowLikeCpp {
+    QuestPoiBlobLoadRowLikeCpp {
+        quest_id,
+        blob_index: 1,
+        idx1,
+        objective_index: -1,
+        quest_objective_id: 2,
+        quest_object_id: 3,
+        map_id: 571,
+        ui_map_id: 486,
+        priority: 4,
+        flags: 5,
+        world_effect_id: 6,
+        player_condition_id: 7,
+        navigation_player_condition_id: 8,
+        spawn_tracking_id: 9,
+        always_allow_merging_blobs: false,
+    }
+}
+
+#[test]
+fn quest_poi_typed_rows_join_points_and_skip_unknown_groups_like_cpp() {
+    let store = build_quest_poi_store_like_cpp(
+        vec![QuestPoiPointLoadRowLikeCpp {
+            quest_id: 77,
+            idx1: 3,
+            x: 10,
+            y: 11,
+            z: 12,
+        }],
+        vec![
+            quest_poi_blob_row_like_cpp(77, 3),
+            quest_poi_blob_row_like_cpp(88, 9),
+        ],
+    );
+
+    assert_eq!(store.len(), 1);
+    assert_eq!(store[&77].blobs[0].points[0].x, 10);
+    assert!(!store.contains_key(&88));
+}
+
+#[tokio::test]
+async fn quest_poi_cache_consumes_typed_port_rows_and_caches_the_result() {
+    let (mut session, _) = make_session();
+    session.set_quest_poi_persistence_port_like_cpp(Arc::new(QuestPoiPortFixtureLikeCpp(
+        QuestPoiLoadOutcomeLikeCpp::Loaded {
+            points: vec![QuestPoiPointLoadRowLikeCpp {
+                quest_id: 77,
+                idx1: 3,
+                x: 10,
+                y: 11,
+                z: 12,
+            }],
+            blobs: vec![quest_poi_blob_row_like_cpp(77, 3)],
+        },
+    )));
+
+    let first = session.quest_poi_store_like_cpp().await;
+    let second = session.quest_poi_store_like_cpp().await;
+    assert_eq!(first[&77].blobs.len(), 1);
+    assert!(Arc::ptr_eq(&first, &second));
+}
+
+#[tokio::test]
+async fn missing_or_failed_quest_poi_port_caches_the_existing_empty_result() {
+    let (mut missing, _) = make_session();
+    let missing_first = missing.quest_poi_store_like_cpp().await;
+    let missing_second = missing.quest_poi_store_like_cpp().await;
+    assert!(missing_first.is_empty());
+    assert!(Arc::ptr_eq(&missing_first, &missing_second));
+
+    let (mut failed, _) = make_session();
+    failed.set_quest_poi_persistence_port_like_cpp(Arc::new(QuestPoiPortFixtureLikeCpp(
+        QuestPoiLoadOutcomeLikeCpp::Failed {
+            stage: QuestPoiLoadStageLikeCpp::Points,
+            reason: "world DB unavailable".to_owned(),
+        },
+    )));
+    let failed_store = failed.quest_poi_store_like_cpp().await;
+    assert!(failed_store.is_empty());
 }
 
 fn creature_guid(entry: u32, counter: i64) -> ObjectGuid {

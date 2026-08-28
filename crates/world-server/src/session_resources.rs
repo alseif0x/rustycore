@@ -41,6 +41,9 @@ pub(super) struct SessionResources {
     /// Characters-database adapter for canonical `Map::LoadCorpseData`.
     pub(super) map_corpse_persistence_port:
         Option<Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>,
+    /// World-database capability for the represented quest POI cache.
+    pub(super) quest_poi_persistence_port:
+        Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>>,
     pub(super) world_db: Option<Arc<wow_database::WorldDatabase>>,
     /// Process-wide C++ `ObjectMgr::_trainers` /
     /// `_creatureDefaultTrainers` snapshot.

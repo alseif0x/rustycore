@@ -300,6 +300,9 @@ pub(super) async fn create_session(
     if let Some(ref port) = resources.map_corpse_persistence_port {
         session.set_map_corpse_persistence_port_like_cpp(Arc::clone(port));
     }
+    if let Some(ref port) = resources.quest_poi_persistence_port {
+        session.set_quest_poi_persistence_port_like_cpp(Arc::clone(port));
+    }
     session.set_remote_address_like_cpp(account.client_address.map(|addr| addr.to_string()));
     session.set_battlenet_account_id(account.battlenet_account_id);
     session.set_recruiter_id_like_cpp(account.recruiter);

@@ -22,7 +22,6 @@ use crate::session::mailbox::SessionCommand;
 use crate::session::mailbox::{
     SendRepeatableTurnInRequestItemsLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
 };
-use sqlx::Row;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -44,8 +43,7 @@ use wow_data::{
     reputation::reputation_rank_from_standing_like_cpp as reputation_rank_from_standing_data_like_cpp,
 };
 use wow_database::{
-    CharStatements, CharacterDatabase, PreparedStatement, SqlTransaction, WorldDatabase,
-    WorldStatements,
+    CharStatements, CharacterDatabase, PreparedStatement, SqlTransaction, WorldStatements,
 };
 use wow_entities::{
     ItemPosCount, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemInstancePlan,
@@ -392,79 +390,59 @@ fn represented_quest_completion_npc_response_like_cpp(
         .collect()
 }
 
-async fn load_quest_poi_store_like_cpp(
-    world_db: &WorldDatabase,
-) -> Result<HashMap<i32, QuestPoiData>, sqlx::Error> {
-    let point_rows = sqlx::query(
-        "SELECT QuestID, Idx1, X, Y, Z \
-         FROM quest_poi_points \
-         ORDER BY QuestID DESC, Idx1, Idx2",
-    )
-    .fetch_all(world_db.pool())
-    .await?;
-
+fn build_quest_poi_store_like_cpp(
+    point_rows: Vec<wow_persistence::QuestPoiPointLoadRowLikeCpp>,
+    poi_rows: Vec<wow_persistence::QuestPoiBlobLoadRowLikeCpp>,
+) -> HashMap<i32, QuestPoiData> {
     let mut all_points: HashMap<(i32, i32), Vec<QuestPoiBlobPoint>> = HashMap::new();
     for row in point_rows {
-        let quest_id: i32 = row.try_get(0)?;
-        let idx1: i32 = row.try_get(1)?;
-        let x: i32 = row.try_get(2)?;
-        let y: i32 = row.try_get(3)?;
-        let z: i32 = row.try_get(4)?;
         all_points
-            .entry((quest_id, idx1))
+            .entry((row.quest_id, row.idx1))
             .or_default()
-            .push(QuestPoiBlobPoint { x, y, z });
+            .push(QuestPoiBlobPoint {
+                x: row.x,
+                y: row.y,
+                z: row.z,
+            });
     }
-
-    let poi_rows = sqlx::query(
-        "SELECT QuestID, BlobIndex, Idx1, ObjectiveIndex, QuestObjectiveID, QuestObjectID, \
-             MapID, UiMapID, Priority, Flags, WorldEffectID, PlayerConditionID, \
-             NavigationPlayerConditionID, SpawnTrackingID, AlwaysAllowMergingBlobs \
-         FROM quest_poi \
-         ORDER BY QuestID, Idx1",
-    )
-    .fetch_all(world_db.pool())
-    .await?;
 
     let mut store: HashMap<i32, QuestPoiData> = HashMap::new();
     for row in poi_rows {
-        let quest_id: i32 = row.try_get(0)?;
-        let blob_index: i32 = row.try_get(1)?;
-        let idx1: i32 = row.try_get(2)?;
-        let Some(points) = all_points.get(&(quest_id, idx1)).cloned() else {
+        let Some(points) = all_points.get(&(row.quest_id, row.idx1)).cloned() else {
             debug!(
-                quest_id,
-                blob_index, "quest_poi references unknown quest points like C++; skipping blob"
+                quest_id = row.quest_id,
+                blob_index = row.blob_index,
+                "quest_poi references unknown quest points like C++; skipping blob"
             );
             continue;
         };
 
         store
-            .entry(quest_id)
+            .entry(row.quest_id)
             .or_insert_with(|| QuestPoiData {
-                quest_id,
+                quest_id: row.quest_id,
                 blobs: Vec::new(),
             })
             .blobs
             .push(QuestPoiBlobData {
-                blob_index,
-                objective_index: row.try_get(3)?,
-                quest_objective_id: row.try_get(4)?,
-                quest_object_id: row.try_get(5)?,
-                map_id: row.try_get(6)?,
-                ui_map_id: row.try_get(7)?,
-                priority: row.try_get(8)?,
-                flags: row.try_get(9)?,
-                world_effect_id: row.try_get(10)?,
-                player_condition_id: row.try_get(11)?,
-                navigation_player_condition_id: row.try_get(12)?,
-                spawn_tracking_id: row.try_get(13)?,
+                blob_index: row.blob_index,
+                objective_index: row.objective_index,
+                quest_objective_id: row.quest_objective_id,
+                quest_object_id: row.quest_object_id,
+                map_id: row.map_id,
+                ui_map_id: row.ui_map_id,
+                priority: row.priority,
+                flags: row.flags,
+                world_effect_id: row.world_effect_id,
+                player_condition_id: row.player_condition_id,
+                navigation_player_condition_id: row.navigation_player_condition_id,
+                spawn_tracking_id: row.spawn_tracking_id,
                 points,
-                always_allow_merging_blobs: row.try_get::<u8, _>(14)? != 0,
+                always_allow_merging_blobs: row.always_allow_merging_blobs,
             });
     }
 
-    Ok(store)
+    store
 }
 
 // ── Handler registrations ────────────────────────────────────────────────────
