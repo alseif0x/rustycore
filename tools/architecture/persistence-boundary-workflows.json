@@ -8036,6 +8036,21 @@
       "package": "wow-database",
       "module": "crate::player_lifecycle_adapter",
       "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_uncage_item_state_statement_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free uncaged battle-pet item-state reads (#466)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure construction of one Characters-database statement; it opens no connection or transaction.",
+      "current_order": "Builds SEL_UNCAGE_ITEM_STATE and binds item GUID, player GUID, item GUID in the same order as the pre-cut Session helper.",
+      "failure_and_unknown_commit": "No I/O occurs here; the lifecycle adapter classifies the later read without a COMMIT phase."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
       "enclosing": "fn player_money_transaction_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -8291,6 +8306,21 @@
       "connection_affinity": "The checked combined update executes on one connection from the configured Characters pool and one transaction.",
       "current_order": "Append the combined absolute-money/bank-slot statement, require exactly one affected row, COMMIT, then return before Session publishes either runtime field.",
       "failure_and_unknown_commit": "Returns Committed or DefinitelyRolledBack directly; after CommitOutcomeUnknown it reads the same player's durable money and leaves reconciliation/quarantine to Session."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::load_uncage_item_state_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free uncaged battle-pet item-state reads (#466)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Executes one non-transactional prepared read through the configured Characters adapter.",
+      "current_order": "Executes SEL_UNCAGE_ITEM_STATE once and projects the optional durable owner plus inventory-link existence before either Session precondition or postcondition decision.",
+      "failure_and_unknown_commit": "A successful read maps to Loaded even when the item is absent; a driver error maps to Failed and can never become the idempotent absent-item state. This read has no COMMIT phase."
     },
     {
       "package": "wow-database",
@@ -14658,23 +14688,6 @@
       "package": "wow-world",
       "module": "crate::session",
       "source": "crates/wow-world/src/session/mod.rs",
-      "enclosing": "impl WorldSession::destroy_uncaged_battle_pet_item_durable_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Session residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session/mod.rs",
       "enclosing": "impl WorldSession::install_battle_pet_purchase_store_from_char_db_like_cpp",
       "logical_databases": [
         "characters"
@@ -14787,23 +14800,6 @@
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session/mod.rs",
-      "enclosing": "impl WorldSession::uncage_item_state_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Session residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },

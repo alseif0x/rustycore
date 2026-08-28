@@ -335,6 +335,36 @@ impl PlayerBankSlotPurchaseRequestLikeCpp {
     }
 }
 
+/// SQLx-free recovery read for the Characters-database half of one uncaged
+/// battle-pet item. Rust uses this after the independent Login-database pet
+/// commit so item destruction can be retried without deleting another
+/// character's item.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerUncageItemStateRequestLikeCpp {
+    pub player_guid: u64,
+    pub item_guid: u64,
+}
+
+impl PlayerUncageItemStateRequestLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerUncageItemStateLikeCpp {
+    pub owner_guid: Option<u64>,
+    pub inventory_linked: bool,
+}
+
+/// A failed read stays distinct from a durably absent item. Callers must not
+/// turn adapter failure into the idempotent `(None, false)` postcondition.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlayerUncageItemStateLoadOutcomeLikeCpp {
+    Loaded(PlayerUncageItemStateLikeCpp),
+    Failed { reason: String },
+}
+
 /// C++ `PlayerCurrencyState` rows that `_SaveCurrency` writes durably.
 /// Unchanged/removed rows never cross the persistence boundary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2127,6 +2157,14 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
         request: PlayerBankSlotPurchaseRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PlayerMoneyTransactionOutcomeLikeCpp>;
 
+    /// Inspect the durable owner and inventory link used by the recoverable
+    /// uncage deletion. The concrete adapter owns statement identity, binds
+    /// and row decoding; Session owns the pre/postcondition decisions.
+    fn load_uncage_item_state_like_cpp<'a>(
+        &'a self,
+        request: PlayerUncageItemStateRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PlayerUncageItemStateLoadOutcomeLikeCpp>;
+
     /// Execute one standalone non-transactional item-durability replacement.
     /// The caller retains item selection, runtime mutation and publication.
     fn persist_durability_repair_like_cpp<'a>(
@@ -3037,6 +3075,27 @@ mod tests {
             }
             .logical_database(),
             LogicalDatabaseLikeCpp::Characters
+        );
+    }
+
+    #[test]
+    fn uncage_item_state_read_names_characters_and_keeps_absence_distinct_from_failure() {
+        let request = PlayerUncageItemStateRequestLikeCpp {
+            player_guid: 17,
+            item_guid: 91,
+        };
+        assert_eq!(
+            request.logical_database(),
+            LogicalDatabaseLikeCpp::Characters
+        );
+        assert_ne!(
+            PlayerUncageItemStateLoadOutcomeLikeCpp::Loaded(PlayerUncageItemStateLikeCpp {
+                owner_guid: None,
+                inventory_linked: false,
+            }),
+            PlayerUncageItemStateLoadOutcomeLikeCpp::Failed {
+                reason: "read failed".to_owned(),
+            }
         );
     }
 }

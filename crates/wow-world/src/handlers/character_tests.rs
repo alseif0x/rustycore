@@ -242,6 +242,18 @@ impl PlayerLifecyclePortLikeCpp for CollectionLoadPortLikeCpp {
         Box::pin(async move { outcome })
     }
 
+    fn load_uncage_item_state_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerUncageItemStateRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp>
+    {
+        Box::pin(async {
+            wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp::Failed {
+                reason: "collection-load-only fixture".to_owned(),
+            }
+        })
+    }
+
     fn persist_durability_repair_like_cpp<'a>(
         &'a self,
         _repair: wow_persistence::PlayerDurabilityRepairSaveLikeCpp,
@@ -519,6 +531,18 @@ impl PlayerLifecyclePortLikeCpp for HomebindPortFixtureLikeCpp {
         _request: wow_persistence::PlayerBankSlotPurchaseRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp> {
         Box::pin(async { wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::Committed })
+    }
+
+    fn load_uncage_item_state_like_cpp<'a>(
+        &'a self,
+        _request: wow_persistence::PlayerUncageItemStateRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp>
+    {
+        Box::pin(async {
+            wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp::Failed {
+                reason: "homebind-only fixture".to_owned(),
+            }
+        })
     }
 
     fn persist_durability_repair_like_cpp<'a>(

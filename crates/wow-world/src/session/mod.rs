@@ -163,10 +163,10 @@ use wow_data::{
     spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
 };
 #[cfg(test)]
-use wow_database::StatementDef;
+use wow_database::{CharStatements, StatementDef};
 use wow_database::{
-    CharStatements, CharacterDatabase, DatabaseError, LoginDatabase, PreparedStatement,
-    SqlTransaction, SqlTransactionCommitError, WorldDatabase, retry_deadlocked_operation_like_cpp,
+    CharacterDatabase, LoginDatabase, PreparedStatement, SqlTransaction, SqlTransactionCommitError,
+    WorldDatabase, retry_deadlocked_operation_like_cpp,
 };
 use wow_entities::{
     AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentDurationAction,
@@ -46136,19 +46136,20 @@ impl WorldSession {
     }
 
     pub(crate) async fn uncage_item_state_like_cpp(
-        char_db: &CharacterDatabase,
+        &self,
         player_db_guid: u64,
         item_db_guid: u64,
-    ) -> Result<(Option<u64>, bool), DatabaseError> {
-        let mut statement = char_db.prepare(CharStatements::SEL_UNCAGE_ITEM_STATE);
-        statement.set_u64(0, item_db_guid);
-        statement.set_u64(1, player_db_guid);
-        statement.set_u64(2, item_db_guid);
-        let result = char_db.query(&statement).await?;
-        Ok((
-            result.try_read::<Option<u64>>(0).flatten(),
-            result.try_read::<u64>(1).unwrap_or_default() != 0,
-        ))
+    ) -> wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp {
+        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
+            return wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp::Failed {
+                reason: "Player lifecycle persistence port is unavailable".to_owned(),
+            };
+        };
+        port.load_uncage_item_state_like_cpp(wow_persistence::PlayerUncageItemStateRequestLikeCpp {
+            player_guid: player_db_guid,
+            item_guid: item_db_guid,
+        })
+        .await
     }
 
     /// Finish C++ `Player::DestroyItem` after the Login DB pet/receipt commit.
@@ -46163,20 +46164,21 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
-            return false;
-        };
         let player_db_guid = player_guid.counter() as u64;
         let item_db_guid = source_item_guid.counter() as u64;
 
-        let state = Self::uncage_item_state_like_cpp(&char_db, player_db_guid, item_db_guid).await;
-        let (owner_guid, inventory_linked) = match state {
-            Ok(state) => state,
-            Err(error) => {
+        let (owner_guid, inventory_linked) = match self
+            .uncage_item_state_like_cpp(player_db_guid, item_db_guid)
+            .await
+        {
+            wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp::Loaded(state) => {
+                (state.owner_guid, state.inventory_linked)
+            }
+            wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
                     item_guid = item_db_guid,
-                    %error,
+                    %reason,
                     "Failed to inspect the uncaged battle-pet item"
                 );
                 return false;
