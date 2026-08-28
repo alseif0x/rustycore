@@ -17197,6 +17197,306 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::social_adapter:crates/wow-database/src/social_adapter.rs::fn execute_social_operation_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/social_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::social_adapter"
+      ],
+      "enclosings": [
+        "fn execute_social_operation_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440) currently owns the complete wow-database workflow fn execute_social_operation_like_cpp in crates/wow-database/src/social_adapter.rs.",
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::social_adapter:crates/wow-database/src/social_adapter.rs::impl MariaDbSocialPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/social_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::social_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbSocialPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440) currently owns the complete wow-database workflow impl MariaDbSocialPersistenceAdapterLikeCpp::new in crates/wow-database/src/social_adapter.rs.",
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::social_adapter:crates/wow-database/src/social_adapter.rs::impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::add_relationship_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/social_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::social_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::add_relationship_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440) currently owns the complete wow-database workflow impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::add_relationship_like_cpp in crates/wow-database/src/social_adapter.rs.",
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::social_adapter:crates/wow-database/src/social_adapter.rs::impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::load_add_candidate_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/social_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::social_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::load_add_candidate_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440) currently owns the complete wow-database workflow impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::load_add_candidate_like_cpp in crates/wow-database/src/social_adapter.rs.",
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::social_adapter:crates/wow-database/src/social_adapter.rs::impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::load_contacts_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/social_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::social_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::load_contacts_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440) currently owns the complete wow-database workflow impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::load_contacts_like_cpp in crates/wow-database/src/social_adapter.rs.",
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::social_adapter:crates/wow-database/src/social_adapter.rs::impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::load_relationship_state_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/social_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::social_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::load_relationship_state_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440) currently owns the complete wow-database workflow impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::load_relationship_state_like_cpp in crates/wow-database/src/social_adapter.rs.",
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before the Session self/faction gates; only accepted candidates reach tolerant presence then count reads, preserving the C++ short-circuits.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::social_adapter:crates/wow-database/src/social_adapter.rs::impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::remove_relationship_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/social_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::social_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::remove_relationship_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440) currently owns the complete wow-database workflow impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::remove_relationship_like_cpp in crates/wow-database/src/social_adapter.rs.",
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::social_adapter:crates/wow-database/src/social_adapter.rs::impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::set_contact_note_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/social_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::social_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::set_contact_note_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440) currently owns the complete wow-database workflow impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::set_contact_note_like_cpp in crates/wow-database/src/social_adapter.rs.",
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::social_adapter:crates/wow-database/src/social_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/social_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::social_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440) currently owns the complete wow-database workflow module in crates/wow-database/src/social_adapter.rs.",
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::social_adapter:crates/wow-database/src/social_adapter.rs::struct MariaDbSocialPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/social_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::social_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbSocialPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440) currently owns the complete wow-database workflow struct MariaDbSocialPersistenceAdapterLikeCpp in crates/wow-database/src/social_adapter.rs.",
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::statements:crates/wow-database/src/statements/mod.rs::module",
       "source_class": "production",
       "packages": [
@@ -25496,198 +25796,6 @@
       "connection_affinity": "This is a shared dependency/type surface for characters, world; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::social:crates/wow-world/src/handlers/social.rs::impl WorldSession::handle_add_friend",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/social.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::social"
-      ],
-      "enclosings": [
-        "impl WorldSession::handle_add_friend"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl WorldSession::handle_add_friend in crates/wow-world/src/handlers/social.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::social:crates/wow-world/src/handlers/social.rs::impl WorldSession::handle_add_ignore",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/social.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::social"
-      ],
-      "enclosings": [
-        "impl WorldSession::handle_add_ignore"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl WorldSession::handle_add_ignore in crates/wow-world/src/handlers/social.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::social:crates/wow-world/src/handlers/social.rs::impl WorldSession::handle_del_friend",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/social.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::social"
-      ],
-      "enclosings": [
-        "impl WorldSession::handle_del_friend"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl WorldSession::handle_del_friend in crates/wow-world/src/handlers/social.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::social:crates/wow-world/src/handlers/social.rs::impl WorldSession::handle_del_ignore",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/social.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::social"
-      ],
-      "enclosings": [
-        "impl WorldSession::handle_del_ignore"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl WorldSession::handle_del_ignore in crates/wow-world/src/handlers/social.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::social:crates/wow-world/src/handlers/social.rs::impl WorldSession::handle_set_contact_notes",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/social.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::social"
-      ],
-      "enclosings": [
-        "impl WorldSession::handle_set_contact_notes"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl WorldSession::handle_set_contact_notes in crates/wow-world/src/handlers/social.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::social:crates/wow-world/src/handlers/social.rs::impl WorldSession::send_contact_list_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/social.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::social"
-      ],
-      "enclosings": [
-        "impl WorldSession::send_contact_list_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl WorldSession::send_contact_list_like_cpp in crates/wow-world/src/handlers/social.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153
       ],

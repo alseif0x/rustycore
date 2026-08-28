@@ -4376,6 +4376,11 @@ async fn run_inner(
                 Arc::clone(&char_db),
             ),
         );
+    let social_persistence_port: Arc<dyn wow_persistence::SocialPersistencePortLikeCpp> = Arc::new(
+        wow_database::social_adapter::MariaDbSocialPersistenceAdapterLikeCpp::new(Arc::clone(
+            &char_db,
+        )),
+    );
     let map_corpse_persistence_port: Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp> =
         Arc::new(
             wow_database::map_corpse_adapter::MariaDbMapCorpsePersistenceAdapterLikeCpp::new(
@@ -4391,6 +4396,7 @@ async fn run_inner(
         session_account_state_port: Some(Arc::clone(&session_account_state_port)),
         packet_spoof_ban_persistence_port: Some(Arc::clone(&packet_spoof_ban_persistence_port)),
         void_storage_persistence_port: Some(Arc::clone(&void_storage_persistence_port)),
+        social_persistence_port: Some(Arc::clone(&social_persistence_port)),
         map_corpse_persistence_port: Some(Arc::clone(&map_corpse_persistence_port)),
         world_db: Some(Arc::clone(&world_db)),
         trainer_store: Some(Arc::clone(&trainer_data_store)),

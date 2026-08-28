@@ -339,6 +339,100 @@ pub trait VoidStoragePersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<'a, PlayerMoneyTransactionOutcomeLikeCpp>;
 }
 
+/// Which bit in one `character_social` row the gameplay owner is addressing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SocialRelationshipKindLikeCpp {
+    Friend,
+    Ignored,
+}
+
+/// SQLx-free projection of one contact-list row. Online visibility remains a
+/// runtime concern, so this carries only durable character/social metadata.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SocialContactLoadRowLikeCpp {
+    pub friend_guid: i64,
+    pub type_flags: u32,
+    pub note: String,
+    pub class_id: u32,
+    pub level: u32,
+    pub zone_id: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SocialContactListLoadOutcomeLikeCpp {
+    Loaded(Vec<SocialContactLoadRowLikeCpp>),
+    Failed { reason: String },
+}
+
+/// Candidate metadata needed before Session can apply the C++ self/faction
+/// gates. Durable list state is deliberately loaded only after those gates.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SocialAddCandidateLikeCpp {
+    pub guid: i64,
+    pub race: u8,
+    pub class_id: u32,
+    pub level: i32,
+    pub zone_id: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SocialAddCandidateLoadOutcomeLikeCpp {
+    Found(SocialAddCandidateLikeCpp),
+    NotFound,
+    Failed { reason: String },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SocialRelationshipStateLikeCpp {
+    pub already_present: bool,
+    pub relationship_count: i64,
+}
+
+/// SQLx-free Characters-database capability for the represented social-list
+/// reads and writes. Packet construction and gameplay admission stay outside.
+pub trait SocialPersistencePortLikeCpp: Send + Sync {
+    fn load_contacts_like_cpp<'a>(
+        &'a self,
+        player_guid: i64,
+        flags: u32,
+    ) -> PersistenceFutureLikeCpp<'a, SocialContactListLoadOutcomeLikeCpp>;
+
+    fn load_add_candidate_like_cpp<'a>(
+        &'a self,
+        normalized_name: String,
+        kind: SocialRelationshipKindLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, SocialAddCandidateLoadOutcomeLikeCpp>;
+
+    fn load_relationship_state_like_cpp<'a>(
+        &'a self,
+        player_guid: i64,
+        target_guid: i64,
+        kind: SocialRelationshipKindLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, SocialRelationshipStateLikeCpp>;
+
+    fn add_relationship_like_cpp<'a>(
+        &'a self,
+        player_guid: i64,
+        target_guid: i64,
+        kind: SocialRelationshipKindLikeCpp,
+        note: String,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
+
+    fn remove_relationship_like_cpp<'a>(
+        &'a self,
+        player_guid: i64,
+        target_guid: i64,
+        kind: SocialRelationshipKindLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
+
+    fn set_contact_note_like_cpp<'a>(
+        &'a self,
+        player_guid: i64,
+        target_guid: i64,
+        note: String,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
+}
+
 /// Which Characters-database account-data table a session operation addresses.
 /// The identity is semantic; statement selection remains adapter-owned.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

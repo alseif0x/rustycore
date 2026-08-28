@@ -13050,108 +13050,6 @@
     },
     {
       "package": "wow-world",
-      "module": "crate::handlers::social",
-      "source": "crates/wow-world/src/handlers/social.rs",
-      "enclosing": "impl WorldSession::handle_add_friend",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-world residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::social",
-      "source": "crates/wow-world/src/handlers/social.rs",
-      "enclosing": "impl WorldSession::handle_add_ignore",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-world residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::social",
-      "source": "crates/wow-world/src/handlers/social.rs",
-      "enclosing": "impl WorldSession::handle_del_friend",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-world residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::social",
-      "source": "crates/wow-world/src/handlers/social.rs",
-      "enclosing": "impl WorldSession::handle_del_ignore",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-world residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::social",
-      "source": "crates/wow-world/src/handlers/social.rs",
-      "enclosing": "impl WorldSession::handle_set_contact_notes",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-world residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::social",
-      "source": "crates/wow-world/src/handlers/social.rs",
-      "enclosing": "impl WorldSession::send_contact_list_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-world residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
       "module": "crate::handlers::spell",
       "source": "crates/wow-world/src/handlers/spell.rs",
       "enclosing": "impl WorldSession::destroy_stale_wrapped_gift_like_cpp",
@@ -14771,7 +14669,9 @@
       "module": "crate::packet_spoof_ban_adapter",
       "source": "crates/wow-database/src/packet_spoof_ban_adapter.rs",
       "enclosing": "module",
-      "logical_databases": ["login"],
+      "logical_databases": [
+        "login"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free PacketSpoof admission bans (#434)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14784,7 +14684,9 @@
       "module": "crate::packet_spoof_ban_adapter",
       "source": "crates/wow-database/src/packet_spoof_ban_adapter.rs",
       "enclosing": "struct MariaDbPacketSpoofBanPersistenceAdapterLikeCpp",
-      "logical_databases": ["login"],
+      "logical_databases": [
+        "login"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free PacketSpoof admission bans (#434)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14797,7 +14699,9 @@
       "module": "crate::packet_spoof_ban_adapter",
       "source": "crates/wow-database/src/packet_spoof_ban_adapter.rs",
       "enclosing": "impl MariaDbPacketSpoofBanPersistenceAdapterLikeCpp::new",
-      "logical_databases": ["login"],
+      "logical_databases": [
+        "login"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free PacketSpoof admission bans (#434)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14810,7 +14714,9 @@
       "module": "crate::packet_spoof_ban_adapter",
       "source": "crates/wow-database/src/packet_spoof_ban_adapter.rs",
       "enclosing": "fn accounts_by_ip_statement_like_cpp",
-      "logical_databases": ["login"],
+      "logical_databases": [
+        "login"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free PacketSpoof admission bans (#434)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14823,7 +14729,9 @@
       "module": "crate::packet_spoof_ban_adapter",
       "source": "crates/wow-database/src/packet_spoof_ban_adapter.rs",
       "enclosing": "fn account_ban_statements_like_cpp",
-      "logical_databases": ["login"],
+      "logical_databases": [
+        "login"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free PacketSpoof admission bans (#434)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14836,7 +14744,9 @@
       "module": "crate::packet_spoof_ban_adapter",
       "source": "crates/wow-database/src/packet_spoof_ban_adapter.rs",
       "enclosing": "fn ip_ban_statement_like_cpp",
-      "logical_databases": ["login"],
+      "logical_databases": [
+        "login"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free PacketSpoof admission bans (#434)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14849,7 +14759,9 @@
       "module": "crate::packet_spoof_ban_adapter",
       "source": "crates/wow-database/src/packet_spoof_ban_adapter.rs",
       "enclosing": "impl wow_persistence::PacketSpoofBanPersistencePortLikeCpp for MariaDbPacketSpoofBanPersistenceAdapterLikeCpp::load_accounts_by_ip_like_cpp",
-      "logical_databases": ["login"],
+      "logical_databases": [
+        "login"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free PacketSpoof admission bans (#434)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14862,7 +14774,9 @@
       "module": "crate::packet_spoof_ban_adapter",
       "source": "crates/wow-database/src/packet_spoof_ban_adapter.rs",
       "enclosing": "impl wow_persistence::PacketSpoofBanPersistencePortLikeCpp for MariaDbPacketSpoofBanPersistenceAdapterLikeCpp::persist_packet_spoof_ban_like_cpp",
-      "logical_databases": ["login"],
+      "logical_databases": [
+        "login"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free PacketSpoof admission bans (#434)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14875,7 +14789,9 @@
       "module": "crate::player_money_transaction_adapter",
       "source": "crates/wow-database/src/player_money_transaction_adapter.rs",
       "enclosing": "module",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database compatibility adapter for money-marked CharacterDB transactions (#436)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14888,7 +14804,9 @@
       "module": "crate::player_money_transaction_adapter",
       "source": "crates/wow-database/src/player_money_transaction_adapter.rs",
       "enclosing": "fn commit_player_money_transaction_and_observe_like_cpp",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database compatibility adapter for money-marked CharacterDB transactions (#436)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14901,7 +14819,9 @@
       "module": "crate::void_storage_adapter",
       "source": "crates/wow-database/src/void_storage_adapter.rs",
       "enclosing": "module",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free void-storage mutations (#436/#438)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14914,7 +14834,9 @@
       "module": "crate::void_storage_adapter",
       "source": "crates/wow-database/src/void_storage_adapter.rs",
       "enclosing": "struct MariaDbVoidStoragePersistenceAdapterLikeCpp",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14927,7 +14849,9 @@
       "module": "crate::void_storage_adapter",
       "source": "crates/wow-database/src/void_storage_adapter.rs",
       "enclosing": "impl MariaDbVoidStoragePersistenceAdapterLikeCpp::new",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14940,7 +14864,9 @@
       "module": "crate::void_storage_adapter",
       "source": "crates/wow-database/src/void_storage_adapter.rs",
       "enclosing": "fn void_storage_replace_statement_like_cpp",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14953,7 +14879,9 @@
       "module": "crate::void_storage_adapter",
       "source": "crates/wow-database/src/void_storage_adapter.rs",
       "enclosing": "fn void_storage_delete_slot_statement_like_cpp",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14966,7 +14894,9 @@
       "module": "crate::void_storage_adapter",
       "source": "crates/wow-database/src/void_storage_adapter.rs",
       "enclosing": "fn void_storage_delete_all_statement_like_cpp",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14979,7 +14909,9 @@
       "module": "crate::void_storage_adapter",
       "source": "crates/wow-database/src/void_storage_adapter.rs",
       "enclosing": "fn void_storage_unlock_statements_like_cpp",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14992,7 +14924,9 @@
       "module": "crate::void_storage_adapter",
       "source": "crates/wow-database/src/void_storage_adapter.rs",
       "enclosing": "fn void_storage_swap_statements_like_cpp",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
       "target_issues": [],
       "stable_boundary": true,
@@ -15005,7 +14939,9 @@
       "module": "crate::void_storage_adapter",
       "source": "crates/wow-database/src/void_storage_adapter.rs",
       "enclosing": "impl MariaDbVoidStoragePersistenceAdapterLikeCpp::commit_and_observe_money_like_cpp",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
       "target_issues": [],
       "stable_boundary": true,
@@ -15018,7 +14954,9 @@
       "module": "crate::void_storage_adapter",
       "source": "crates/wow-database/src/void_storage_adapter.rs",
       "enclosing": "impl wow_persistence::VoidStoragePersistencePortLikeCpp for MariaDbVoidStoragePersistenceAdapterLikeCpp::persist_void_storage_unlock_like_cpp",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
       "target_issues": [],
       "stable_boundary": true,
@@ -15031,7 +14969,9 @@
       "module": "crate::void_storage_adapter",
       "source": "crates/wow-database/src/void_storage_adapter.rs",
       "enclosing": "impl wow_persistence::VoidStoragePersistencePortLikeCpp for MariaDbVoidStoragePersistenceAdapterLikeCpp::persist_void_storage_swap_like_cpp",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database MariaDB adapter for SQLx-free void-storage unlock and swap (#436)",
       "target_issues": [],
       "stable_boundary": true,
@@ -15044,7 +14984,9 @@
       "module": "crate::void_storage_adapter",
       "source": "crates/wow-database/src/void_storage_adapter.rs",
       "enclosing": "fn void_storage_destroy_item_statements_like_cpp",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free mixed void-storage transfer (#438)",
       "target_issues": [],
       "stable_boundary": true,
@@ -15057,7 +14999,9 @@
       "module": "crate::void_storage_adapter",
       "source": "crates/wow-database/src/void_storage_adapter.rs",
       "enclosing": "fn void_storage_new_inventory_item_statements_like_cpp",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free mixed void-storage transfer (#438)",
       "target_issues": [],
       "stable_boundary": true,
@@ -15070,7 +15014,9 @@
       "module": "crate::void_storage_adapter",
       "source": "crates/wow-database/src/void_storage_adapter.rs",
       "enclosing": "fn void_storage_merged_inventory_item_statement_like_cpp",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free mixed void-storage transfer (#438)",
       "target_issues": [],
       "stable_boundary": true,
@@ -15083,7 +15029,9 @@
       "module": "crate::void_storage_adapter",
       "source": "crates/wow-database/src/void_storage_adapter.rs",
       "enclosing": "fn append_void_storage_quest_status_statements_like_cpp",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free mixed void-storage transfer (#438)",
       "target_issues": [],
       "stable_boundary": true,
@@ -15096,7 +15044,9 @@
       "module": "crate::void_storage_adapter",
       "source": "crates/wow-database/src/void_storage_adapter.rs",
       "enclosing": "fn void_storage_transfer_statements_like_cpp",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free mixed void-storage transfer (#438)",
       "target_issues": [],
       "stable_boundary": true,
@@ -15109,13 +15059,165 @@
       "module": "crate::void_storage_adapter",
       "source": "crates/wow-database/src/void_storage_adapter.rs",
       "enclosing": "impl wow_persistence::VoidStoragePersistencePortLikeCpp for MariaDbVoidStoragePersistenceAdapterLikeCpp::persist_void_storage_transfer_like_cpp",
-      "logical_databases": ["characters"],
+      "logical_databases": [
+        "characters"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free mixed void-storage transfer (#438)",
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The typed request expands and commits once through the configured Characters adapter and player-money observation seam.",
       "current_order": "Expand the complete mixed transfer plan, commit once, and observe durable money only after an unknown COMMIT reply.",
       "failure_and_unknown_commit": "Returns Committed, DefinitelyRolledBack or CommitOutcomeUnknown; Session alone reconciles, quarantines and publishes runtime state."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::social_adapter",
+      "source": "crates/wow-database/src/social_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::social_adapter",
+      "source": "crates/wow-database/src/social_adapter.rs",
+      "enclosing": "struct MariaDbSocialPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::social_adapter",
+      "source": "crates/wow-database/src/social_adapter.rs",
+      "enclosing": "impl MariaDbSocialPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::social_adapter",
+      "source": "crates/wow-database/src/social_adapter.rs",
+      "enclosing": "fn execute_social_operation_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::social_adapter",
+      "source": "crates/wow-database/src/social_adapter.rs",
+      "enclosing": "impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::load_contacts_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::social_adapter",
+      "source": "crates/wow-database/src/social_adapter.rs",
+      "enclosing": "impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::load_add_candidate_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::social_adapter",
+      "source": "crates/wow-database/src/social_adapter.rs",
+      "enclosing": "impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::load_relationship_state_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before the Session self/faction gates; only accepted candidates reach tolerant presence then count reads, preserving the C++ short-circuits.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::social_adapter",
+      "source": "crates/wow-database/src/social_adapter.rs",
+      "enclosing": "impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::add_relationship_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::social_adapter",
+      "source": "crates/wow-database/src/social_adapter.rs",
+      "enclosing": "impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::remove_relationship_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::social_adapter",
+      "source": "crates/wow-database/src/social_adapter.rs",
+      "enclosing": "impl wow_persistence::SocialPersistencePortLikeCpp for MariaDbSocialPersistenceAdapterLikeCpp::set_contact_note_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free Player social capability (#440)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
+      "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
+      "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee."
     }
   ]
 }

@@ -1059,7 +1059,7 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.session_resources.fields"
       },
       "audited_summary": {
-        "field_count": 250,
+        "field_count": 251,
         "option_field_count": 193,
         "count_kind": "baseline observation; AST is authoritative"
       },
@@ -1068,7 +1068,7 @@
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_field_count": 250,
+        "expected_field_count": 251,
         "validation": "Compare sorted AST field names with the sorted concatenation of every entry.field_names; reject gaps, duplicates, stale names, entry count drift, or total count drift."
       },
       "entries": [
@@ -1102,7 +1102,7 @@
         },
         {
           "id": "session_resources_runtime_handles",
-          "expected_field_count": 7,
+          "expected_field_count": 8,
           "field_names": [
             "instance_lock_mgr",
             "map_corpse_persistence_port",
@@ -1110,6 +1110,7 @@
             "packet_spoof_ban_persistence_port",
             "player_lifecycle_port",
             "session_account_state_port",
+            "social_persistence_port",
             "void_storage_persistence_port"
           ],
           "owner": "world-server composition stores handles; legacy and canonical runtime owners remain distinct and audited by #188.",
@@ -1378,7 +1379,7 @@
           "retirement_condition": "Every remaining field has an exact capability bundle/consumer owner or is removed from Session construction."
         }
       ],
-      "expected_field_count": 250
+      "expected_field_count": 251
     },
     "session_command": {
       "coverage_source": {
@@ -1705,9 +1706,9 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 25334,
+          "production_lines": 25346,
           "test_lines": 21667,
-          "total_lines": 47001,
+          "total_lines": 47013,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153

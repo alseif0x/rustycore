@@ -5329,6 +5329,7 @@ struct SessionPersistencePortsLikeCpp {
     session_account_state: Option<Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>>,
     packet_spoof_ban: Option<Arc<dyn wow_persistence::PacketSpoofBanPersistencePortLikeCpp>>,
     void_storage: Option<Arc<dyn wow_persistence::VoidStoragePersistencePortLikeCpp>>,
+    social: Option<Arc<dyn wow_persistence::SocialPersistencePortLikeCpp>>,
     map_corpse: Option<Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>,
 }
 
@@ -16421,6 +16422,19 @@ impl WorldSession {
         &self,
     ) -> Option<Arc<dyn wow_persistence::VoidStoragePersistencePortLikeCpp>> {
         self.persistence_ports_like_cpp.void_storage.clone()
+    }
+
+    pub fn set_social_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::SocialPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.social = Some(port);
+    }
+
+    pub(crate) fn social_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::SocialPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.social.clone()
     }
 
     pub fn set_map_corpse_persistence_port_like_cpp(
