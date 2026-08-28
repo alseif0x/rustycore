@@ -56,6 +56,9 @@ pub(super) struct SessionResources {
     /// Characters-database capability for the transitional next-mail read.
     pub(super) next_mail_time_persistence_port:
         Option<Arc<dyn wow_persistence::NextMailTimePersistencePortLikeCpp>>,
+    /// World-database capability for the transitional gameobject-use template read.
+    pub(super) gameobject_use_template_persistence_port:
+        Option<Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>>,
     pub(super) world_db: Option<Arc<wow_database::WorldDatabase>>,
     /// Process-wide C++ `ObjectMgr::_trainers` /
     /// `_creatureDefaultTrainers` snapshot.

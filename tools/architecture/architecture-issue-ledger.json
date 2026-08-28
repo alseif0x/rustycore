@@ -89,6 +89,7 @@
     456,
     458,
     460,
+    462,
     189,
     192,
     193,
@@ -1472,7 +1473,7 @@
     },
     {
       "number": 460,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.39] Move next-mail query behind a typed mail-read port",
       "kind": "slice",
       "parents": [
@@ -1481,6 +1482,19 @@
       ],
       "depends_on": [
         458
+      ]
+    },
+    {
+      "number": 462,
+      "state": "open",
+      "title": "[ARCH.DB.40] Move gameobject-use template query behind a typed world-read port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        460
       ]
     }
   ]
