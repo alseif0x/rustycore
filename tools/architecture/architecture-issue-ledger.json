@@ -86,6 +86,7 @@
     450,
     452,
     454,
+    456,
     189,
     192,
     193,
@@ -1430,7 +1431,7 @@
     },
     {
       "number": 454,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.36] Move group loot-money SQLx behind a typed port",
       "kind": "slice",
       "parents": [
@@ -1439,6 +1440,19 @@
       ],
       "depends_on": [
         452
+      ]
+    },
+    {
+      "number": 456,
+      "state": "open",
+      "title": "[ARCH.DB.37] Move standalone item-durability repair write behind lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        454
       ]
     }
   ]

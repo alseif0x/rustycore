@@ -15,13 +15,14 @@ use wow_persistence::{
     AccountCollectionSaveLikeCpp, AccountMaskBlockLikeCpp, LogicalDatabaseLikeCpp,
     PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerBuybackClearRequestLikeCpp,
     PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
-    PlayerCurrencySaveRequestLikeCpp, PlayerHomebindPersistenceRequestLikeCpp,
-    PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
-    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginItemRepairRequestLikeCpp,
-    PlayerLoginPetTalentResetOutcomeLikeCpp, PlayerMoneyTransactionOutcomeLikeCpp,
-    PlayerMoneyTransactionRequestLikeCpp, PlayerMoneyWriteRequestLikeCpp, PlayerOfflineMarkLikeCpp,
-    PlayerOnlineMarkRequestLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
-    PlayerTalentResetPersistenceRequestLikeCpp, PlayerXpPersistenceRequestLikeCpp,
+    PlayerCurrencySaveRequestLikeCpp, PlayerDurabilityRepairSaveLikeCpp,
+    PlayerHomebindPersistenceRequestLikeCpp, PlayerLifecyclePortLikeCpp,
+    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
+    PlayerLoginItemRepairRequestLikeCpp, PlayerLoginPetTalentResetOutcomeLikeCpp,
+    PlayerMoneyTransactionOutcomeLikeCpp, PlayerMoneyTransactionRequestLikeCpp,
+    PlayerMoneyWriteRequestLikeCpp, PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
+    PlayerRealmCharacterCountRefreshRequestLikeCpp, PlayerTalentResetPersistenceRequestLikeCpp,
+    PlayerXpPersistenceRequestLikeCpp,
 };
 
 struct RecordingPortLikeCpp {
@@ -31,6 +32,7 @@ struct RecordingPortLikeCpp {
     character_saves: Mutex<Vec<PlayerCharacterSaveRequestLikeCpp>>,
     buyback_clears: Mutex<Vec<PlayerBuybackClearRequestLikeCpp>>,
     money_transactions: Mutex<Vec<PlayerMoneyTransactionRequestLikeCpp>>,
+    durability_repairs: Mutex<Vec<PlayerDurabilityRepairSaveLikeCpp>>,
     money_writes: Mutex<Vec<PlayerMoneyWriteRequestLikeCpp>>,
     currency_saves: Mutex<Vec<PlayerCurrencySaveRequestLikeCpp>>,
     talent_resets: Mutex<Vec<PlayerTalentResetPersistenceRequestLikeCpp>>,
@@ -48,6 +50,7 @@ impl RecordingPortLikeCpp {
             character_saves: Mutex::new(Vec::new()),
             buyback_clears: Mutex::new(Vec::new()),
             money_transactions: Mutex::new(Vec::new()),
+            durability_repairs: Mutex::new(Vec::new()),
             money_writes: Mutex::new(Vec::new()),
             currency_saves: Mutex::new(Vec::new()),
             talent_resets: Mutex::new(Vec::new()),
@@ -70,6 +73,9 @@ impl RecordingPortLikeCpp {
     }
     fn money_transactions(&self) -> Vec<PlayerMoneyTransactionRequestLikeCpp> {
         self.money_transactions.lock().unwrap().clone()
+    }
+    fn durability_repairs(&self) -> Vec<PlayerDurabilityRepairSaveLikeCpp> {
+        self.durability_repairs.lock().unwrap().clone()
     }
     fn money_writes(&self) -> Vec<PlayerMoneyWriteRequestLikeCpp> {
         self.money_writes.lock().unwrap().clone()
@@ -136,6 +142,15 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
                 }
             }
         };
+        Box::pin(async move { outcome })
+    }
+
+    fn persist_durability_repair_like_cpp<'a>(
+        &'a self,
+        repair: PlayerDurabilityRepairSaveLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        self.durability_repairs.lock().unwrap().push(repair);
+        let outcome = self.outcome.clone();
         Box::pin(async move { outcome })
     }
 
@@ -365,6 +380,79 @@ async fn rolled_back_money_mutation_does_not_publish_runtime_state() {
     );
     assert_eq!(session.player_gold_like_cpp(), 100);
     assert_eq!(port.money_transactions().len(), 1);
+}
+
+#[tokio::test]
+async fn standalone_durability_repair_persists_before_runtime_publication_like_cpp() {
+    let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 0 });
+    let player_guid = ObjectGuid::create_player(1, 0x7400_0104);
+    let item_guid = ObjectGuid::create_item(1, 0x7400_0105);
+    session.set_player_guid(Some(player_guid));
+    session.insert_inventory_item_like_cpp(
+        INVENTORY_SLOT_ITEM_START,
+        InventoryItem {
+            guid: item_guid,
+            entry_id: 700,
+            db_guid: item_guid.counter() as u64,
+            inventory_type: None,
+        },
+    );
+    let mut item = session.make_inventory_item_object(
+        item_guid,
+        700,
+        player_guid,
+        1,
+        0,
+        ItemContext::None,
+        INVENTORY_SLOT_ITEM_START,
+    );
+    item.set_max_durability(50);
+    item.set_durability(10);
+    session.insert_inventory_item_object(item);
+
+    assert!(
+        session
+            .repair_inventory_item_durability_like_cpp(item_guid, false, 0.0, 1.0)
+            .await
+    );
+    assert_eq!(
+        port.durability_repairs(),
+        vec![PlayerDurabilityRepairSaveLikeCpp {
+            item_db_guid: item_guid.counter() as u64,
+            durability: 50,
+        }]
+    );
+    assert_eq!(
+        session.inventory_item_objects_like_cpp()[&item_guid]
+            .data()
+            .durability,
+        50,
+        "an applied write publishes the repaired runtime durability even when SQL reports zero changed rows"
+    );
+
+    session
+        .inventory_item_objects
+        .get_mut(&item_guid)
+        .unwrap()
+        .set_durability(10);
+    let failed_port = RecordingPortLikeCpp::new(PersistenceOutcomeLikeCpp::Failed {
+        reason: "forced durability write failure".to_owned(),
+    });
+    session.set_player_lifecycle_port_like_cpp(failed_port.clone());
+
+    assert!(
+        !session
+            .repair_inventory_item_durability_like_cpp(item_guid, false, 0.0, 1.0)
+            .await
+    );
+    assert_eq!(failed_port.durability_repairs().len(), 1);
+    assert_eq!(
+        session.inventory_item_objects_like_cpp()[&item_guid]
+            .data()
+            .durability,
+        10,
+        "a failed durable write cannot publish the repair only in memory"
+    );
 }
 
 #[tokio::test]

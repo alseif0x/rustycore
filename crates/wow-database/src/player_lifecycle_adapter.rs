@@ -24,23 +24,23 @@ use wow_persistence::{
     PlayerCharacterBaseLoadRowLikeCpp, PlayerCharacterSaveRequestLikeCpp,
     PlayerCharacterSaveResultLikeCpp, PlayerCufProfileLoadRowLikeCpp, PlayerCufProfileSaveLikeCpp,
     PlayerCurrencyLoadRowLikeCpp, PlayerCurrencySaveKindLikeCpp, PlayerCurrencySaveRequestLikeCpp,
-    PlayerCustomizationLoadRowLikeCpp, PlayerEquipmentInventoryLoadRowLikeCpp,
-    PlayerEquipmentSetLoadRowLikeCpp, PlayerEquipmentSetSaveLikeCpp,
-    PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp, PlayerGlyphLoadRowLikeCpp,
-    PlayerGuildMembershipLoadRowLikeCpp, PlayerHomebindLocationLoadRowLikeCpp,
-    PlayerHomebindPersistenceRequestLikeCpp, PlayerInitialWorldStateRowsLikeCpp,
-    PlayerInitialWorldStateTemplateRowLikeCpp, PlayerInitialWorldStateValueRowLikeCpp,
-    PlayerInitialWorldStatesLoadOutcomeLikeCpp, PlayerInstanceTimeRestrictionLoadRowLikeCpp,
-    PlayerInventoryItemLoadRowLikeCpp, PlayerLifecyclePortLikeCpp,
-    PlayerLoginAdmissionLoadOutcomeLikeCpp, PlayerLoginAdmissionLoadRequestLikeCpp,
-    PlayerLoginAdmissionLoadedLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
-    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginAuxiliaryLoadedLikeCpp,
-    PlayerLoginItemRepairActionLikeCpp, PlayerLoginItemRepairRequestLikeCpp,
-    PlayerLoginPetTalentResetOutcomeLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
-    PlayerLoginTransportLoadRequestLikeCpp, PlayerLoginTransportLoadRowLikeCpp,
-    PlayerMoneyTransactionOutcomeLikeCpp, PlayerMoneyTransactionRequestLikeCpp,
-    PlayerMoneyWriteRequestLikeCpp, PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
-    PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
+    PlayerCustomizationLoadRowLikeCpp, PlayerDurabilityRepairSaveLikeCpp,
+    PlayerEquipmentInventoryLoadRowLikeCpp, PlayerEquipmentSetLoadRowLikeCpp,
+    PlayerEquipmentSetSaveLikeCpp, PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp,
+    PlayerGlyphLoadRowLikeCpp, PlayerGuildMembershipLoadRowLikeCpp,
+    PlayerHomebindLocationLoadRowLikeCpp, PlayerHomebindPersistenceRequestLikeCpp,
+    PlayerInitialWorldStateRowsLikeCpp, PlayerInitialWorldStateTemplateRowLikeCpp,
+    PlayerInitialWorldStateValueRowLikeCpp, PlayerInitialWorldStatesLoadOutcomeLikeCpp,
+    PlayerInstanceTimeRestrictionLoadRowLikeCpp, PlayerInventoryItemLoadRowLikeCpp,
+    PlayerLifecyclePortLikeCpp, PlayerLoginAdmissionLoadOutcomeLikeCpp,
+    PlayerLoginAdmissionLoadRequestLikeCpp, PlayerLoginAdmissionLoadedLikeCpp,
+    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
+    PlayerLoginAuxiliaryLoadedLikeCpp, PlayerLoginItemRepairActionLikeCpp,
+    PlayerLoginItemRepairRequestLikeCpp, PlayerLoginPetTalentResetOutcomeLikeCpp,
+    PlayerLoginTransportLoadOutcomeLikeCpp, PlayerLoginTransportLoadRequestLikeCpp,
+    PlayerLoginTransportLoadRowLikeCpp, PlayerMoneyTransactionOutcomeLikeCpp,
+    PlayerMoneyTransactionRequestLikeCpp, PlayerMoneyWriteRequestLikeCpp, PlayerOfflineMarkLikeCpp,
+    PlayerOnlineMarkRequestLikeCpp, PlayerPetAuraEffectLoadRowLikeCpp, PlayerPetAuraLoadRowLikeCpp,
     PlayerPetDeclinedNamesLoadRowLikeCpp, PlayerPetSpellChargeLoadRowLikeCpp,
     PlayerPetSpellCooldownLoadRowLikeCpp, PlayerPetSpellLoadRowLikeCpp,
     PlayerPetStableLoadRowLikeCpp, PlayerRealmCharacterCountRefreshRequestLikeCpp,
@@ -67,6 +67,16 @@ fn player_money_write_statement_like_cpp(
     statement
 }
 
+fn player_durability_repair_statement_like_cpp(
+    repair: &PlayerDurabilityRepairSaveLikeCpp,
+) -> PreparedStatement {
+    let mut statement =
+        PreparedStatement::for_statement(CharStatements::UPD_ITEM_INSTANCE_DURABILITY);
+    statement.set_u32(0, repair.durability);
+    statement.set_u64(1, repair.item_db_guid);
+    statement
+}
+
 fn player_money_transaction_statements_like_cpp(
     request: &PlayerMoneyTransactionRequestLikeCpp,
 ) -> Vec<PreparedStatement> {
@@ -77,11 +87,7 @@ fn player_money_transaction_statements_like_cpp(
         },
     )];
     for repair in &request.durability_repairs {
-        let mut durability =
-            PreparedStatement::for_statement(CharStatements::UPD_ITEM_INSTANCE_DURABILITY);
-        durability.set_u32(0, repair.durability);
-        durability.set_u64(1, repair.item_db_guid);
-        statements.push(durability);
+        statements.push(player_durability_repair_statement_like_cpp(repair));
     }
     statements
 }
@@ -2000,6 +2006,21 @@ impl PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp {
         })
     }
 
+    fn persist_durability_repair_like_cpp<'a>(
+        &'a self,
+        repair: PlayerDurabilityRepairSaveLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp> {
+        Box::pin(async move {
+            let statement = player_durability_repair_statement_like_cpp(&repair);
+            match self.character_db.execute(&statement).await {
+                Ok(rows) => PersistenceOutcomeLikeCpp::Applied { rows },
+                Err(error) => PersistenceOutcomeLikeCpp::Failed {
+                    reason: error.to_string(),
+                },
+            }
+        })
+    }
+
     fn persist_money_write_like_cpp<'a>(
         &'a self,
         request: PlayerMoneyWriteRequestLikeCpp,
@@ -3327,6 +3348,23 @@ mod tests {
         assert_eq!(
             request.logical_database(),
             LogicalDatabaseLikeCpp::Characters
+        );
+    }
+
+    #[test]
+    fn standalone_durability_repair_preserves_statement_and_bind_order_like_cpp() {
+        let repair = PlayerDurabilityRepairSaveLikeCpp {
+            item_db_guid: 71,
+            durability: 80,
+        };
+        let statement = player_durability_repair_statement_like_cpp(&repair);
+        assert_eq!(
+            statement.sql(),
+            CharStatements::UPD_ITEM_INSTANCE_DURABILITY.sql()
+        );
+        assert_eq!(
+            statement.params(),
+            vec![SqlParam::U32(80), SqlParam::U64(71)]
         );
     }
 
