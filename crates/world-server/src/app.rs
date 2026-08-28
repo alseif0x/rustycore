@@ -4400,6 +4400,13 @@ async fn run_inner(
             Arc::clone(&char_db),
         ),
     );
+    let group_loot_money_persistence_port: Arc<
+        dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp,
+    > = Arc::new(
+        wow_database::group_loot_money_adapter::MariaDbGroupLootMoneyPersistenceAdapterLikeCpp::new(
+            Arc::clone(&char_db),
+        ),
+    );
 
     // Build session resources
     let session_resources = Arc::new(SessionResources {
@@ -4413,6 +4420,7 @@ async fn run_inner(
         map_corpse_persistence_port: Some(Arc::clone(&map_corpse_persistence_port)),
         quest_poi_persistence_port: Some(Arc::clone(&quest_poi_persistence_port)),
         stored_item_money_persistence_port: Some(Arc::clone(&stored_item_money_persistence_port)),
+        group_loot_money_persistence_port: Some(Arc::clone(&group_loot_money_persistence_port)),
         world_db: Some(Arc::clone(&world_db)),
         trainer_store: Some(Arc::clone(&trainer_data_store)),
         guid_generator: Some(Arc::clone(&guid_generator)),

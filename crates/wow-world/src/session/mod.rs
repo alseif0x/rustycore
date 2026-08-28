@@ -26,7 +26,6 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use parking_lot::RwLock;
 use rand::{Rng, RngCore, SeedableRng, rngs::StdRng, seq::SliceRandom};
-use sqlx::Row;
 use tracing::{debug, info, trace, warn};
 
 use crate::battle_pet_account::{
@@ -163,10 +162,11 @@ use wow_data::{
     },
     spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
 };
+#[cfg(test)]
+use wow_database::StatementDef;
 use wow_database::{
     CharStatements, CharacterDatabase, DatabaseError, LoginDatabase, PreparedStatement,
-    SqlTransaction, SqlTransactionCommitError, StatementDef, WorldDatabase,
-    is_database_deadlock_like_cpp, retry_deadlocked_operation_like_cpp,
+    SqlTransaction, SqlTransactionCommitError, WorldDatabase, retry_deadlocked_operation_like_cpp,
 };
 use wow_entities::{
     AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentDurationAction,
@@ -293,16 +293,7 @@ pub(crate) enum LootMoneyPersistenceErrorLikeCpp {
     WorkerTerminated,
     Claim(wow_loot::LootClaimCommitError),
     Persistence(String),
-    Database(DatabaseError),
-    CommitOutcomeUnknown(DatabaseError),
     CommitOutcomeUnknownPersistence(String),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct DurableLootMoneyDbOutcomeLikeCpp {
-    before: u64,
-    after: u64,
-    applied_delta: u64,
 }
 
 /// Owned exclusion held while an absolute character-money mutation derives
@@ -710,10 +701,6 @@ impl std::fmt::Display for LootMoneyPersistenceErrorLikeCpp {
             Self::Persistence(reason) => {
                 write!(formatter, "loot-money persistence failure: {reason}")
             }
-            Self::Database(error) => write!(formatter, "loot-money database failure: {error}"),
-            Self::CommitOutcomeUnknown(error) => {
-                write!(formatter, "loot-money COMMIT outcome is unknown: {error}")
-            }
             Self::CommitOutcomeUnknownPersistence(reason) => {
                 write!(formatter, "loot-money COMMIT outcome is unknown: {reason}")
             }
@@ -724,7 +711,6 @@ impl std::fmt::Display for LootMoneyPersistenceErrorLikeCpp {
 impl std::error::Error for LootMoneyPersistenceErrorLikeCpp {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Database(error) | Self::CommitOutcomeUnknown(error) => Some(error),
             Self::MissingPlayer
             | Self::MissingCharacterDatabase
             | Self::WorkerTerminated
@@ -745,155 +731,6 @@ pub(crate) fn loot_money_durable_outcome_like_cpp(
         .checked_add(requested_delta)
         .filter(|new_money| *new_money <= MAX_MONEY_AMOUNT)
         .map_or((current_money, 0), |new_money| (new_money, requested_delta))
-}
-
-#[derive(Debug)]
-enum GroupLootMoneyAttemptErrorLikeCpp {
-    DefinitelyRolledBack(LootMoneyPersistenceErrorLikeCpp),
-    CommitOutcomeUnknown {
-        error: DatabaseError,
-        outcomes: HashMap<ObjectGuid, DurableLootMoneyDbOutcomeLikeCpp>,
-    },
-}
-
-fn group_loot_money_attempt_is_deadlock_like_cpp(
-    error: &GroupLootMoneyAttemptErrorLikeCpp,
-) -> bool {
-    matches!(
-        error,
-        GroupLootMoneyAttemptErrorLikeCpp::DefinitelyRolledBack(
-            LootMoneyPersistenceErrorLikeCpp::Database(error)
-        ) if is_database_deadlock_like_cpp(error)
-    )
-}
-
-async fn attempt_group_loot_money_transaction_like_cpp(
-    char_db: &CharacterDatabase,
-    payouts: &[(ObjectGuid, u64)],
-) -> Result<HashMap<ObjectGuid, DurableLootMoneyDbOutcomeLikeCpp>, GroupLootMoneyAttemptErrorLikeCpp>
-{
-    let definitely = |error| {
-        GroupLootMoneyAttemptErrorLikeCpp::DefinitelyRolledBack(
-            LootMoneyPersistenceErrorLikeCpp::Database(DatabaseError::from(error)),
-        )
-    };
-    // This workflow needs `SELECT ... FOR UPDATE` inside the transaction, so it
-    // cannot be an `SqlTransaction` and the ambient hook never sees it. Without
-    // these explicit records its entire durable operation is invisible while a
-    // trace of the flow still looks complete.
-    let mut transaction = match char_db.pool().begin().await {
-        Ok(transaction) => transaction,
-        Err(error) => {
-            // No connection, so nothing was attempted. Recorded rather than
-            // returning silently: an empty trace makes a definite
-            // non-execution indistinguishable from the workflow never being
-            // reached, and only one of those is safe to retry.
-            wow_database::persistence_trace::record_batch_not_started(
-                wow_database::persistence_trace::LogicalDatabase::Character,
-            );
-            return Err(definitely(error));
-        }
-    };
-    // Guarded for its whole lifetime: every early return through `?` drops the
-    // transaction, SQLx rolls it back, and the guard records that end — including
-    // for returns added later, which a per-site hook would miss.
-    let mut trace = wow_database::persistence_trace::ExplicitTransactionTrace::open(
-        wow_database::persistence_trace::LogicalDatabase::Character,
-    );
-    let mut outcomes = HashMap::with_capacity(payouts.len());
-    for (recipient, amount) in payouts {
-        trace.statement(|| {
-            (
-                CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.trace_identity(),
-                vec![wow_database::persistence_trace::TracedParam::Uint {
-                    value: recipient.counter() as u64,
-                    width_bits: 64,
-                }],
-            )
-        });
-        let row = sqlx::query(CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.sql())
-            .bind(recipient.counter() as u64)
-            .fetch_optional(&mut *transaction)
-            .await
-            .map_err(definitely)?
-            .ok_or_else(|| {
-                GroupLootMoneyAttemptErrorLikeCpp::DefinitelyRolledBack(
-                    LootMoneyPersistenceErrorLikeCpp::MissingPlayer,
-                )
-            })?;
-        let current_money = row.try_get::<u64, _>("money").map_err(definitely)?;
-        let (new_money, applied_delta) =
-            loot_money_durable_outcome_like_cpp(current_money, *amount);
-        if applied_delta != 0 {
-            trace.statement_expecting(
-                || {
-                    (
-                        CharStatements::UPD_CHAR_MONEY.trace_identity(),
-                        vec![
-                            wow_database::persistence_trace::TracedParam::Uint {
-                                value: new_money,
-                                width_bits: 64,
-                            },
-                            wow_database::persistence_trace::TracedParam::Uint {
-                                value: recipient.counter() as u64,
-                                width_bits: 64,
-                            },
-                        ],
-                    )
-                },
-                1,
-            );
-            let update_result = sqlx::query("UPDATE characters SET money = ? WHERE guid = ?")
-                .bind(new_money)
-                .bind(recipient.counter() as u64)
-                .execute(&mut *transaction)
-                .await
-                .map_err(definitely)?;
-            if update_result.rows_affected() != 1 {
-                return Err(GroupLootMoneyAttemptErrorLikeCpp::DefinitelyRolledBack(
-                    LootMoneyPersistenceErrorLikeCpp::Database(DatabaseError::Transaction(
-                        format!(
-                            "loot-money update for character {} affected {} rows; expected exactly 1",
-                            recipient.counter(),
-                            update_result.rows_affected()
-                        ),
-                    )),
-                ));
-            }
-        }
-        outcomes.insert(
-            *recipient,
-            DurableLootMoneyDbOutcomeLikeCpp {
-                before: current_money,
-                after: new_money,
-                applied_delta,
-            },
-        );
-    }
-    // Announced before the await: a cancellation in this window means COMMIT
-    // was issued and its answer never came, which is not a rollback.
-    trace.committing();
-    match transaction.commit().await {
-        Ok(()) => {
-            trace.committed(wow_database::persistence_trace::CommitOutcome::Committed);
-            Ok(outcomes)
-        }
-        Err(error) => {
-            let error = DatabaseError::from(error);
-            trace.committed(if is_database_deadlock_like_cpp(&error) {
-                wow_database::persistence_trace::CommitOutcome::RolledBack
-            } else {
-                wow_database::persistence_trace::CommitOutcome::Unknown
-            });
-            if is_database_deadlock_like_cpp(&error) {
-                Err(GroupLootMoneyAttemptErrorLikeCpp::DefinitelyRolledBack(
-                    LootMoneyPersistenceErrorLikeCpp::Database(error),
-                ))
-            } else {
-                Err(GroupLootMoneyAttemptErrorLikeCpp::CommitOutcomeUnknown { error, outcomes })
-            }
-        }
-    }
 }
 
 /// Live seam for C++ `ScriptMgr::OnAreaTrigger`.
@@ -5343,6 +5180,7 @@ struct SessionPersistencePortsLikeCpp {
     map_corpse: Option<Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>,
     quest_poi: Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>>,
     stored_item_money: Option<Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>>,
+    group_loot_money: Option<Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>>,
 }
 
 pub struct WorldSession {
@@ -16486,6 +16324,19 @@ impl WorldSession {
         &self,
     ) -> Option<Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>> {
         self.persistence_ports_like_cpp.stored_item_money.clone()
+    }
+
+    pub fn set_group_loot_money_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.group_loot_money = Some(port);
+    }
+
+    pub(crate) fn group_loot_money_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.group_loot_money.clone()
     }
 
     /// Attach this session to the one canonical journal owner for its
@@ -28229,12 +28080,11 @@ impl WorldSession {
             return Err(LootMoneyPersistenceErrorLikeCpp::MissingPlayer);
         }
 
-        let char_db = if test_result.is_some() {
+        let persistence_port = if test_result.is_some() {
             None
         } else {
             Some(
-                self.char_db()
-                    .map(Arc::clone)
+                self.group_loot_money_persistence_port_like_cpp()
                     .ok_or(LootMoneyPersistenceErrorLikeCpp::MissingCharacterDatabase)?,
             )
         };
@@ -28271,8 +28121,9 @@ impl WorldSession {
                     .iter()
                     .map(|(recipient, amount)| {
                         (
-                            *recipient,
-                            DurableLootMoneyDbOutcomeLikeCpp {
+                            recipient.counter() as u64,
+                            wow_persistence::GroupLootMoneyPersistenceOutcomeLikeCpp {
+                                recipient_guid: recipient.counter() as u64,
                                 before: 0,
                                 after: *amount,
                                 applied_delta: *amount,
@@ -28281,62 +28132,75 @@ impl WorldSession {
                     })
                     .collect::<HashMap<_, _>>()
             } else {
-                let char_db =
-                    char_db.expect("production loot-money worker must own a character database");
+                let persistence_port = persistence_port
+                    .expect("production loot-money worker must own a persistence port");
+                let request = wow_persistence::GroupLootMoneyPersistenceRequestLikeCpp {
+                    payouts: payouts
+                        .iter()
+                        .map(
+                            |(recipient, amount)| wow_persistence::GroupLootMoneyPayoutLikeCpp {
+                                recipient_guid: recipient.counter() as u64,
+                                requested_delta: *amount,
+                            },
+                        )
+                        .collect(),
+                    max_money: MAX_MONEY_AMOUNT,
+                };
                 let attempt = retry_deadlocked_operation_like_cpp(
-                    || attempt_group_loot_money_transaction_like_cpp(char_db.as_ref(), &payouts),
-                    group_loot_money_attempt_is_deadlock_like_cpp,
+                    || async {
+                        match persistence_port
+                            .attempt_group_loot_money_like_cpp(request.clone())
+                            .await
+                        {
+                            wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::Applied(
+                                outcomes,
+                            ) => Ok(outcomes),
+                            other => Err(other),
+                        }
+                    },
+                    |error| {
+                        matches!(
+                            error,
+                            wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
+                                retryable_deadlock: true,
+                                ..
+                            }
+                        )
+                    },
                 )
                 .await;
                 let durable_outcomes = match attempt {
-                    Ok(outcomes) => outcomes,
-                    Err(GroupLootMoneyAttemptErrorLikeCpp::DefinitelyRolledBack(error)) => {
-                        return Err(error);
-                    }
-                    Err(GroupLootMoneyAttemptErrorLikeCpp::CommitOutcomeUnknown {
-                        error: commit_error,
-                        outcomes: durable_outcomes,
+                    Ok(outcomes) => outcomes
+                        .into_iter()
+                        .map(|outcome| (outcome.recipient_guid, outcome))
+                        .collect::<HashMap<_, _>>(),
+                    Err(wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
+                        kind,
+                        reason,
+                        ..
                     }) => {
-                        // A transport failure at COMMIT is ambiguous. While every
-                        // recipient fence remains registered, compare only rows
-                        // whose value changed. A cap-only no-op has no durable
-                        // mutation to distinguish: either COMMIT outcome permits
-                        // the same safe authority consumption with zero delta.
-                        let changed = durable_outcomes
-                            .iter()
-                            .filter(|(_, outcome)| outcome.before != outcome.after)
-                            .collect::<Vec<_>>();
-                        let cap_only_noop = changed.is_empty();
-                        let mut all_before = !cap_only_noop;
-                        let mut all_after = !cap_only_noop;
-                        let mut reconciliation_failed = false;
-                        for (recipient, outcome) in changed {
-                            match sqlx::query_scalar::<_, u64>(
-                                "SELECT money FROM characters WHERE guid = ?",
-                            )
-                            .bind(recipient.counter() as u64)
-                            .fetch_optional(char_db.pool())
-                            .await
-                            {
-                                Ok(Some(current)) => {
-                                    all_before &= current == outcome.before;
-                                    all_after &= current == outcome.after;
-                                }
-                                Ok(None) | Err(_) => {
-                                    reconciliation_failed = true;
-                                    break;
-                                }
+                        return Err(match kind {
+                            wow_persistence::GroupLootMoneyRollbackKindLikeCpp::MissingPlayer { .. } => {
+                                LootMoneyPersistenceErrorLikeCpp::MissingPlayer
                             }
-                        }
-
-                        if all_before && !all_after && !reconciliation_failed {
-                            return Err(LootMoneyPersistenceErrorLikeCpp::Database(
-                                DatabaseError::Transaction(
-                                    "loot-money COMMIT was reconciled as rolled back".to_string(),
-                                ),
+                            wow_persistence::GroupLootMoneyRollbackKindLikeCpp::Database => {
+                                LootMoneyPersistenceErrorLikeCpp::Persistence(reason)
+                            }
+                        });
+                    }
+                    Err(wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::CommitOutcomeUnknown {
+                        reason,
+                        outcomes: durable_outcomes,
+                    }) => match persistence_port
+                        .reconcile_group_loot_money_like_cpp(durable_outcomes.clone())
+                        .await
+                    {
+                        wow_persistence::GroupLootMoneyReconciliationLikeCpp::RolledBack => {
+                            return Err(LootMoneyPersistenceErrorLikeCpp::Persistence(
+                                "loot-money COMMIT was reconciled as rolled back".to_owned(),
                             ));
                         }
-                        if !cap_only_noop && (!all_after || all_before || reconciliation_failed) {
+                        wow_persistence::GroupLootMoneyReconciliationLikeCpp::Indeterminate { .. } => {
                             for guard in money_persistence_guards.values_mut() {
                                 guard.mark_indeterminate_like_cpp();
                             }
@@ -28348,11 +28212,19 @@ impl WorldSession {
                                 });
                                 delivery.clone().queue_reliably_like_cpp(kick);
                             }
-                            return Err(LootMoneyPersistenceErrorLikeCpp::CommitOutcomeUnknown(
-                                commit_error,
-                            ));
+                            return Err(
+                                LootMoneyPersistenceErrorLikeCpp::CommitOutcomeUnknownPersistence(
+                                    reason,
+                                ),
+                            );
                         }
-                        durable_outcomes
+                        wow_persistence::GroupLootMoneyReconciliationLikeCpp::CommittedOrCapOnlyNoop => durable_outcomes
+                            .into_iter()
+                            .map(|outcome| (outcome.recipient_guid, outcome))
+                            .collect::<HashMap<_, _>>(),
+                    },
+                    Err(wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::Applied(_)) => {
+                        unreachable!("applied group loot-money outcome is returned through Ok")
                     }
                 };
                 durable_outcomes
@@ -28361,7 +28233,7 @@ impl WorldSession {
             for (_, command) in &mut deliveries {
                 if let SessionCommand::ApplyLootMoneyLikeCpp(command) = command {
                     let outcome = durable_outcomes
-                        .get(&command.recipient)
+                        .get(&(command.recipient.counter() as u64))
                         .copied()
                         .expect("every admitted payout retains its locked DB outcome");
                     command

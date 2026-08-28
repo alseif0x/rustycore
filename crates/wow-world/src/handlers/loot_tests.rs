@@ -110,8 +110,11 @@ use wow_packet::packets::update::{
 };
 use wow_packet::{ServerPacket, WorldPacket};
 use wow_persistence::{
-    PersistenceFutureLikeCpp, StoredItemMoneyPersistenceAttemptLikeCpp,
-    StoredItemMoneyPersistencePortLikeCpp, StoredItemMoneyPersistenceRequestLikeCpp,
+    GroupLootMoneyPersistenceAttemptLikeCpp, GroupLootMoneyPersistenceOutcomeLikeCpp,
+    GroupLootMoneyPersistencePortLikeCpp, GroupLootMoneyPersistenceRequestLikeCpp,
+    GroupLootMoneyReconciliationLikeCpp, PersistenceFutureLikeCpp,
+    StoredItemMoneyPersistenceAttemptLikeCpp, StoredItemMoneyPersistencePortLikeCpp,
+    StoredItemMoneyPersistenceRequestLikeCpp,
 };
 use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
 
@@ -412,6 +415,42 @@ fn stored_item_money_zero_without_db_source_is_success_but_positive_is_consumed(
 
 struct StoredItemMoneyPortFixtureLikeCpp {
     attempt: StoredItemMoneyPersistenceAttemptLikeCpp,
+}
+
+struct GroupLootMoneyPortFixtureLikeCpp {
+    calls: Arc<AtomicUsize>,
+}
+
+impl GroupLootMoneyPersistencePortLikeCpp for GroupLootMoneyPortFixtureLikeCpp {
+    fn attempt_group_loot_money_like_cpp(
+        &self,
+        request: GroupLootMoneyPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'_, GroupLootMoneyPersistenceAttemptLikeCpp> {
+        self.calls.fetch_add(1, Ordering::AcqRel);
+        Box::pin(std::future::ready(
+            GroupLootMoneyPersistenceAttemptLikeCpp::Applied(
+                request
+                    .payouts
+                    .into_iter()
+                    .map(|payout| GroupLootMoneyPersistenceOutcomeLikeCpp {
+                        recipient_guid: payout.recipient_guid,
+                        before: 0,
+                        after: payout.requested_delta,
+                        applied_delta: payout.requested_delta,
+                    })
+                    .collect(),
+            ),
+        ))
+    }
+
+    fn reconcile_group_loot_money_like_cpp(
+        &self,
+        _outcomes: Vec<GroupLootMoneyPersistenceOutcomeLikeCpp>,
+    ) -> PersistenceFutureLikeCpp<'_, GroupLootMoneyReconciliationLikeCpp> {
+        Box::pin(std::future::ready(
+            GroupLootMoneyReconciliationLikeCpp::CommittedOrCapOnlyNoop,
+        ))
+    }
 }
 
 impl StoredItemMoneyPersistencePortLikeCpp for StoredItemMoneyPortFixtureLikeCpp {
@@ -3079,6 +3118,63 @@ async fn failed_remote_group_money_transaction_credits_nobody_and_retries_like_c
     second.process_represented_session_commands_like_cpp().await;
     assert_eq!(first.player_gold_like_cpp(), 4);
     assert_eq!(second.player_gold_like_cpp(), 4);
+    assert_eq!(
+        authority
+            .snapshot_for_player_like_cpp(first_guid)
+            .unwrap()
+            .loot
+            .coins,
+        0
+    );
+}
+
+#[tokio::test]
+async fn group_loot_money_worker_requires_and_uses_the_typed_persistence_port_like_cpp() {
+    let (mut first, _first_rx, mut second, _second_rx, owner, first_guid, second_guid) =
+        two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
+            9, false,
+        ));
+    install_group_loot_group(&mut first, first_guid, second_guid);
+    let registry = Arc::new(PlayerRegistry::default());
+    let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
+    let mut second_info = broadcast_info(second_guid, registry_send_tx);
+    second_info.command_tx = second.session_command_tx();
+    registry.register_or_replace(second_guid, second_info, Default::default());
+    first.set_player_registry(registry);
+    first.clear_loot_money_persistence_test_result_like_cpp();
+    let authority = first
+        .represented_owned_loot_authority_like_cpp(owner)
+        .unwrap();
+
+    first.handle_loot_money(loot_money_packet()).await;
+    second.process_represented_session_commands_like_cpp().await;
+    assert_eq!(
+        (first.player_gold_like_cpp(), second.player_gold_like_cpp()),
+        (0, 0)
+    );
+    assert_eq!(
+        authority
+            .snapshot_for_player_like_cpp(first_guid)
+            .unwrap()
+            .loot
+            .coins,
+        9,
+        "production-shaped group payout fails closed without its typed port"
+    );
+
+    let calls = Arc::new(AtomicUsize::new(0));
+    first.set_group_loot_money_persistence_port_like_cpp(Arc::new(
+        GroupLootMoneyPortFixtureLikeCpp {
+            calls: Arc::clone(&calls),
+        },
+    ));
+    first.handle_loot_money(loot_money_packet()).await;
+    second.process_represented_session_commands_like_cpp().await;
+    assert_eq!(
+        (first.player_gold_like_cpp(), second.player_gold_like_cpp()),
+        (4, 4)
+    );
+    assert_eq!(calls.load(Ordering::Acquire), 1);
     assert_eq!(
         authority
             .snapshot_for_player_like_cpp(first_guid)
