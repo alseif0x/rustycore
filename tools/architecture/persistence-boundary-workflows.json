@@ -7886,6 +7886,21 @@
       "package": "wow-database",
       "module": "crate::player_lifecycle_adapter",
       "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "fn player_durability_repair_statement_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for standalone SQLx-free item-durability persistence (#456)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure construction of one Characters-database statement; it opens no connection and is shared by standalone and player-money transaction callers.",
+      "current_order": "Builds UPD_ITEM_INSTANCE_DURABILITY with durability first and the item database GUID second, preserving the pre-cut bind widths and order.",
+      "failure_and_unknown_commit": "No I/O occurs here; the standalone lifecycle operation classifies its later single-statement execution while the money transaction retains its existing outcome classification."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
       "enclosing": "fn player_homebind_persistence_statement_like_cpp",
       "logical_databases": [
         "characters"
@@ -8261,6 +8276,21 @@
       "connection_affinity": "Every typed currency row executes on one connection from the configured Characters pool and shares one explicit transaction.",
       "current_order": "Renders the complete request, executes each row in request order, then COMMITs before returning Applied and before gameplay publishes SetCurrency.",
       "failure_and_unknown_commit": "DefinitelyRolledBack maps to Failed and CommitOutcomeUnknown maps to Unknown; both suppress publication and restore the pre-save runtime snapshot."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_lifecycle_adapter",
+      "source": "crates/wow-database/src/player_lifecycle_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerLifecyclePortLikeCpp for MariaDbPlayerLifecycleAdapterLikeCpp::persist_durability_repair_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for standalone SQLx-free item-durability persistence (#456)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Executes one non-transactional prepared write through the configured Characters adapter; no wider connection or transaction affinity is inferred.",
+      "current_order": "Executes the durability replacement and returns its classified outcome before Session mutates or publishes the live item.",
+      "failure_and_unknown_commit": "Successful execution maps to Applied and a driver error to Failed; this single non-transactional statement has no explicit COMMIT phase and therefore claims no Unknown outcome."
     },
     {
       "package": "wow-database",
@@ -14576,23 +14606,6 @@
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session/mod.rs",
-      "enclosing": "impl WorldSession::repair_inventory_item_durability_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Session residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
     },
     {
       "package": "wow-world",

@@ -165,13 +165,19 @@ pub enum PlayerMoneyTransactionOutcomeLikeCpp {
     },
 }
 
-/// One durable item-durability replacement included in a player-money
-/// transaction. Gameplay selects the item and target durability; the adapter
-/// owns statement identity and bind order.
+/// One durable item-durability replacement, either standalone or included in
+/// a player-money transaction. Gameplay selects the item and target
+/// durability; the adapter owns statement identity and bind order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlayerDurabilityRepairSaveLikeCpp {
     pub item_db_guid: u64,
     pub durability: u32,
+}
+
+impl PlayerDurabilityRepairSaveLikeCpp {
+    pub fn logical_database(&self) -> LogicalDatabaseLikeCpp {
+        LogicalDatabaseLikeCpp::Characters
+    }
 }
 
 /// The SQLx-free durable half of one absolute player-money mutation.
@@ -1992,6 +1998,13 @@ pub trait PlayerLifecyclePortLikeCpp: Send + Sync {
         request: PlayerMoneyTransactionRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, PlayerMoneyTransactionOutcomeLikeCpp>;
 
+    /// Execute one standalone non-transactional item-durability replacement.
+    /// The caller retains item selection, runtime mutation and publication.
+    fn persist_durability_repair_like_cpp<'a>(
+        &'a self,
+        repair: PlayerDurabilityRepairSaveLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PersistenceOutcomeLikeCpp>;
+
     /// Execute one non-transactional absolute money write for the existing
     /// checked loot payout boundary.
     fn persist_money_write_like_cpp<'a>(
@@ -2842,6 +2855,18 @@ mod tests {
         assert_eq!(
             classify_group_loot_money_reconciliation_like_cpp(&outcomes, &[]),
             GroupLootMoneyReconciliationLikeCpp::CommittedOrCapOnlyNoop
+        );
+    }
+
+    #[test]
+    fn standalone_durability_repair_names_the_character_database_like_cpp() {
+        assert_eq!(
+            PlayerDurabilityRepairSaveLikeCpp {
+                item_db_guid: 7,
+                durability: 80,
+            }
+            .logical_database(),
+            LogicalDatabaseLikeCpp::Characters
         );
     }
 }
