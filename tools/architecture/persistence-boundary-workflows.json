@@ -6582,6 +6582,66 @@
     },
     {
       "package": "wow-database",
+      "module": "crate::quest_poi_adapter",
+      "source": "crates/wow-database/src/quest_poi_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free quest POI reads (#450)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The module is bound to the one configured World adapter and opens no cross-database workflow.",
+      "current_order": "The typed load operation preserves the represented points query before the blob query.",
+      "failure_and_unknown_commit": "Read and decode failures are stage-classified; no COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_poi_adapter",
+      "source": "crates/wow-database/src/quest_poi_adapter.rs",
+      "enclosing": "struct MariaDbQuestPoiPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free quest POI reads (#450)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter stores exactly one World-database handle.",
+      "current_order": "Construction stores the handle only; the load method owns read order.",
+      "failure_and_unknown_commit": "No I/O or transaction occurs while storing the adapter."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_poi_adapter",
+      "source": "crates/wow-database/src/quest_poi_adapter.rs",
+      "enclosing": "impl MariaDbQuestPoiPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free quest POI reads (#450)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Composition supplies one process-wide World adapter before sessions are accepted.",
+      "current_order": "Construction performs no query; the caller later requests the typed load.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_poi_adapter",
+      "source": "crates/wow-database/src/quest_poi_adapter.rs",
+      "enclosing": "impl wow_persistence::QuestPoiPersistencePortLikeCpp for MariaDbQuestPoiPersistenceAdapterLikeCpp::load_quest_poi_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free quest POI reads (#450)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Both reads use the one configured World adapter and no transaction.",
+      "current_order": "Preserves the represented points query before the blob query; any point query or decode failure short-circuits the blob read.",
+      "failure_and_unknown_commit": "Returns a stage-classified read failure; no COMMIT occurs and Session preserves its cached empty response on failure."
+    },
+    {
+      "package": "wow-database",
       "module": "crate::database",
       "source": "crates/wow-database/src/database.rs",
       "enclosing": "fn connect_pool_like_cpp",
@@ -12778,23 +12838,6 @@
       "package": "wow-world",
       "module": "crate::handlers::quest",
       "source": "crates/wow-world/src/handlers/quest/mod.rs",
-      "enclosing": "fn load_quest_poi_store_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-world runtime boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::quest",
-      "source": "crates/wow-world/src/handlers/quest/mod.rs",
       "enclosing": "module",
       "logical_databases": [
         "characters",
@@ -12892,23 +12935,6 @@
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::quest::persistence",
-      "source": "crates/wow-world/src/handlers/quest/persistence.rs",
-      "enclosing": "impl WorldSession::quest_poi_store_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-world residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
