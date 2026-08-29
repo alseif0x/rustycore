@@ -3327,175 +3327,173 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
     {
-      "package": "wow-data",
-      "module": "crate::mount",
-      "source": "crates/wow-data/src/mount.rs",
-      "enclosing": "impl MountCapabilityStore::load_hotfix_rows",
+      "package": "wow-database",
+      "module": "crate::mount_catalog_adapter",
+      "source": "crates/wow-database/src/mount_catalog_adapter.rs",
+      "enclosing": "fn classify_rows_like_cpp",
+      "logical_databases": [
+        "hotfix",
+        "world"
+      ],
+      "boundary": "MariaDB adapter for SQLx-free mount startup loading (#501)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Hotfix and World remain independent startup connections; each query uses only its named adapter and no cross-database transaction is implied.",
+      "current_order": "This workflow classifies a concrete failure after either independent query family; world-server preserves Mount overlay -> definitions -> capability -> type-x-capability -> display.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row, pool or driver error crosses the port and no partial catalog is published."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::mount_catalog_adapter",
+      "source": "crates/wow-database/src/mount_catalog_adapter.rs",
+      "enclosing": "fn query_hotfix_rows_like_cpp",
       "logical_databases": [
         "hotfix"
       ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+      "boundary": "MariaDB adapter for SQLx-free mount startup loading (#501)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Hotfix and World remain independent startup connections; each query uses only its named adapter and no cross-database transaction is implied.",
+      "current_order": "This workflow executes and fully decodes one Hotfix statement; world-server preserves Mount overlay -> definitions -> capability -> type-x-capability -> display.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row, pool or driver error crosses the port and no partial catalog is published."
     },
     {
-      "package": "wow-data",
-      "module": "crate::mount",
-      "source": "crates/wow-data/src/mount.rs",
-      "enclosing": "impl MountCapabilityStore::load_with_hotfixes",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::mount",
-      "source": "crates/wow-data/src/mount.rs",
-      "enclosing": "impl MountDefinitionStoreLikeCpp::load_like_cpp",
+      "package": "wow-database",
+      "module": "crate::mount_catalog_adapter",
+      "source": "crates/wow-database/src/mount_catalog_adapter.rs",
+      "enclosing": "fn query_world_rows_like_cpp",
       "logical_databases": [
         "world"
       ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+      "boundary": "MariaDB adapter for SQLx-free mount startup loading (#501)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Hotfix and World remain independent startup connections; each query uses only its named adapter and no cross-database transaction is implied.",
+      "current_order": "This workflow executes and fully decodes the World mount-definitions statement; world-server preserves Mount overlay -> definitions -> capability -> type-x-capability -> display.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row, pool or driver error crosses the port and no partial catalog is published."
     },
     {
-      "package": "wow-data",
-      "module": "crate::mount",
-      "source": "crates/wow-data/src/mount.rs",
-      "enclosing": "impl MountStore::load_hotfix_rows",
+      "package": "wow-database",
+      "module": "crate::mount_catalog_adapter",
+      "source": "crates/wow-database/src/mount_catalog_adapter.rs",
+      "enclosing": "impl MariaDbMountCatalogPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "hotfix",
+        "world"
+      ],
+      "boundary": "MariaDB adapter for SQLx-free mount startup loading (#501)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Hotfix and World remain independent startup connections; each query uses only its named adapter and no cross-database transaction is implied.",
+      "current_order": "This workflow stores the two independent startup database handles without I/O; world-server preserves Mount overlay -> definitions -> capability -> type-x-capability -> display.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row, pool or driver error crosses the port and no partial catalog is published."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::mount_catalog_adapter",
+      "source": "crates/wow-database/src/mount_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::MountCatalogPersistencePortLikeCpp for MariaDbMountCatalogPersistenceAdapterLikeCpp::load_mount_capability_hotfix_rows_like_cpp",
       "logical_databases": [
         "hotfix"
       ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+      "boundary": "MariaDB adapter for SQLx-free mount startup loading (#501)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Hotfix and World remain independent startup connections; each query uses only its named adapter and no cross-database transaction is implied.",
+      "current_order": "This workflow loads MountCapability at the existing startup position; world-server preserves Mount overlay -> definitions -> capability -> type-x-capability -> display.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row, pool or driver error crosses the port and no partial catalog is published."
     },
     {
-      "package": "wow-data",
-      "module": "crate::mount",
-      "source": "crates/wow-data/src/mount.rs",
-      "enclosing": "impl MountStore::load_with_hotfixes",
+      "package": "wow-database",
+      "module": "crate::mount_catalog_adapter",
+      "source": "crates/wow-database/src/mount_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::MountCatalogPersistencePortLikeCpp for MariaDbMountCatalogPersistenceAdapterLikeCpp::load_mount_definition_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for SQLx-free mount startup loading (#501)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Hotfix and World remain independent startup connections; each query uses only its named adapter and no cross-database transaction is implied.",
+      "current_order": "This workflow loads mount_definitions immediately after the effective Mount store; world-server preserves Mount overlay -> definitions -> capability -> type-x-capability -> display.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row, pool or driver error crosses the port and no partial catalog is published."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::mount_catalog_adapter",
+      "source": "crates/wow-database/src/mount_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::MountCatalogPersistencePortLikeCpp for MariaDbMountCatalogPersistenceAdapterLikeCpp::load_mount_hotfix_rows_like_cpp",
       "logical_databases": [
         "hotfix"
       ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+      "boundary": "MariaDB adapter for SQLx-free mount startup loading (#501)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Hotfix and World remain independent startup connections; each query uses only its named adapter and no cross-database transaction is implied.",
+      "current_order": "This workflow loads the Mount overlay before definition validation; world-server preserves Mount overlay -> definitions -> capability -> type-x-capability -> display.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row, pool or driver error crosses the port and no partial catalog is published."
     },
     {
-      "package": "wow-data",
-      "module": "crate::mount",
-      "source": "crates/wow-data/src/mount.rs",
-      "enclosing": "impl MountTypeXCapabilityStore::load_hotfix_rows",
+      "package": "wow-database",
+      "module": "crate::mount_catalog_adapter",
+      "source": "crates/wow-database/src/mount_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::MountCatalogPersistencePortLikeCpp for MariaDbMountCatalogPersistenceAdapterLikeCpp::load_mount_type_x_capability_hotfix_rows_like_cpp",
       "logical_databases": [
         "hotfix"
       ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+      "boundary": "MariaDB adapter for SQLx-free mount startup loading (#501)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Hotfix and World remain independent startup connections; each query uses only its named adapter and no cross-database transaction is implied.",
+      "current_order": "This workflow loads MountTypeXCapability after MountCapability; world-server preserves Mount overlay -> definitions -> capability -> type-x-capability -> display.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row, pool or driver error crosses the port and no partial catalog is published."
     },
     {
-      "package": "wow-data",
-      "module": "crate::mount",
-      "source": "crates/wow-data/src/mount.rs",
-      "enclosing": "impl MountTypeXCapabilityStore::load_with_hotfixes",
+      "package": "wow-database",
+      "module": "crate::mount_catalog_adapter",
+      "source": "crates/wow-database/src/mount_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::MountCatalogPersistencePortLikeCpp for MariaDbMountCatalogPersistenceAdapterLikeCpp::load_mount_x_display_hotfix_rows_like_cpp",
       "logical_databases": [
         "hotfix"
       ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+      "boundary": "MariaDB adapter for SQLx-free mount startup loading (#501)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Hotfix and World remain independent startup connections; each query uses only its named adapter and no cross-database transaction is implied.",
+      "current_order": "This workflow loads MountXDisplay last in this startup family; world-server preserves Mount overlay -> definitions -> capability -> type-x-capability -> display.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row, pool or driver error crosses the port and no partial catalog is published."
     },
     {
-      "package": "wow-data",
-      "module": "crate::mount",
-      "source": "crates/wow-data/src/mount.rs",
-      "enclosing": "impl MountXDisplayStore::load_hotfix_rows",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::mount",
-      "source": "crates/wow-data/src/mount.rs",
-      "enclosing": "impl MountXDisplayStore::load_with_hotfixes",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::mount",
-      "source": "crates/wow-data/src/mount.rs",
+      "package": "wow-database",
+      "module": "crate::mount_catalog_adapter",
+      "source": "crates/wow-database/src/mount_catalog_adapter.rs",
       "enclosing": "module",
       "logical_databases": [
         "hotfix",
         "world"
       ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
+      "boundary": "MariaDB adapter for SQLx-free mount startup loading (#501)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Hotfix and World remain independent startup connections; each query uses only its named adapter and no cross-database transaction is implied.",
+      "current_order": "This workflow contains the complete concrete mount startup adapter; world-server preserves Mount overlay -> definitions -> capability -> type-x-capability -> display.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row, pool or driver error crosses the port and no partial catalog is published."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::mount_catalog_adapter",
+      "source": "crates/wow-database/src/mount_catalog_adapter.rs",
+      "enclosing": "struct MariaDbMountCatalogPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "hotfix",
+        "world"
       ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for hotfix, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+      "boundary": "MariaDB adapter for SQLx-free mount startup loading (#501)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Hotfix and World remain independent startup connections; each query uses only its named adapter and no cross-database transaction is implied.",
+      "current_order": "This workflow owns only the independent Hotfix and World handles; world-server preserves Mount overlay -> definitions -> capability -> type-x-capability -> display.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row, pool or driver error crosses the port and no partial catalog is published."
     },
     {
       "package": "wow-data",

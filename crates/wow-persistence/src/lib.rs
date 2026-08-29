@@ -22,6 +22,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 mod instance_lock;
+mod mount_catalog;
 mod player_choice;
 
 pub use instance_lock::{
@@ -29,6 +30,11 @@ pub use instance_lock::{
     InstanceLockPersistenceMutationLikeCpp, InstanceLockPersistenceOutcomeLikeCpp,
     InstanceLockPersistencePlanLikeCpp, InstanceLockPersistencePortLikeCpp,
     SharedInstanceLockPersistenceRowLikeCpp,
+};
+pub use mount_catalog::{
+    MountCapabilityHotfixRowLikeCpp, MountCatalogLoadOutcomeLikeCpp,
+    MountCatalogPersistencePortLikeCpp, MountDefinitionRowLikeCpp, MountHotfixRowLikeCpp,
+    MountTypeXCapabilityHotfixRowLikeCpp, MountXDisplayHotfixRowLikeCpp,
 };
 pub use player_choice::{
     PlayerChoiceCatalogCoreRowsLikeCpp, PlayerChoiceCatalogLoadOutcomeLikeCpp,

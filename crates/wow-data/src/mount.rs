@@ -10,7 +10,6 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::info;
-use wow_database::{HotfixDatabase, HotfixStatements, WorldDatabase, WorldStatements};
 
 use crate::wdc4::Wdc4Reader;
 
@@ -181,48 +180,21 @@ impl MountStore {
         Ok(store)
     }
 
-    pub async fn load_with_hotfixes(
-        data_dir: &str,
-        locale: &str,
-        hotfix_db: &HotfixDatabase,
-    ) -> Result<Self> {
-        let mut store = Self::load(data_dir, locale)?;
-        let hotfix_rows = store.load_hotfix_rows(hotfix_db).await?;
-        if hotfix_rows != 0 {
-            info!("Loaded {hotfix_rows} Mount hotfix rows");
-        }
-        Ok(store)
-    }
-
-    async fn load_hotfix_rows(&mut self, db: &HotfixDatabase) -> Result<usize> {
-        let stmt = db.prepare(HotfixStatements::SEL_MOUNT);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(0);
-        }
-
-        let mut count = 0usize;
-        loop {
-            let entry = MountEntry {
-                id: result.read(3),
-                mount_type_id: result.read(4),
-                flags: result.read(5),
-                source_type_enum: result.read(6),
-                source_spell_id: result.read(7),
-                player_condition_id: result.read(8),
-                mount_fly_ride_height: result.read(9),
-                ui_model_scene_id: result.read(10),
-            };
+    /// Apply the effective Hotfix rows after the base DB2 file has loaded.
+    /// C++ `DB2Storage::LoadFromDB` replaces rows by record ID before
+    /// `DB2Manager` rebuilds `_mountsBySpellId`.
+    pub fn apply_hotfix_entries_like_cpp(
+        &mut self,
+        entries: impl IntoIterator<Item = MountEntry>,
+    ) -> usize {
+        let mut count = 0;
+        for entry in entries {
             self.by_id.insert(entry.id, entry);
             count += 1;
-
-            if !result.next_row() {
-                break;
-            }
         }
 
         self.rebuild_source_spell_index();
-        Ok(count)
+        count
     }
 
     pub fn get_by_id(&self, id: u32) -> Option<&MountEntry> {
@@ -251,20 +223,14 @@ impl MountDefinitionStoreLikeCpp {
         }
     }
 
-    /// Load `mount_definitions` with the same DB2 validation as
+    /// Build `mount_definitions` with the same DB2 validation as
     /// C++ `CollectionMgr::LoadMountDefinitions`.
-    pub async fn load_like_cpp(db: &WorldDatabase, mount_store: &MountStore) -> Result<Self> {
-        let stmt = db.prepare(WorldStatements::SEL_MOUNT_DEFINITIONS);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(Self::from_entries([]));
-        }
-
+    pub fn from_rows_like_cpp(
+        rows: impl IntoIterator<Item = (u32, u32)>,
+        mount_store: &MountStore,
+    ) -> Self {
         let mut entries = Vec::new();
-        loop {
-            let spell_id: u32 = result.read(0);
-            let other_faction_spell_id: u32 = result.read(1);
-
+        for (spell_id, other_faction_spell_id) in rows {
             if mount_store
                 .get_by_source_spell_id_like_cpp(spell_id)
                 .is_some()
@@ -275,13 +241,9 @@ impl MountDefinitionStoreLikeCpp {
             {
                 entries.push((spell_id, other_faction_spell_id));
             }
-
-            if !result.next_row() {
-                break;
-            }
         }
 
-        Ok(Self::from_entries(entries))
+        Self::from_entries(entries)
     }
 
     pub fn other_faction_spell_id_like_cpp(&self, spell_id: u32) -> Option<u32> {
@@ -341,47 +303,17 @@ impl MountCapabilityStore {
         Ok(store)
     }
 
-    pub async fn load_with_hotfixes(
-        data_dir: &str,
-        locale: &str,
-        hotfix_db: &HotfixDatabase,
-    ) -> Result<Self> {
-        let mut store = Self::load(data_dir, locale)?;
-        let hotfix_rows = store.load_hotfix_rows(hotfix_db).await?;
-        if hotfix_rows != 0 {
-            info!("Loaded {hotfix_rows} MountCapability hotfix rows");
-        }
-        Ok(store)
-    }
-
-    async fn load_hotfix_rows(&mut self, db: &HotfixDatabase) -> Result<usize> {
-        let stmt = db.prepare(HotfixStatements::SEL_MOUNT_CAPABILITY);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(0);
-        }
-
-        let mut count = 0usize;
-        loop {
-            let entry = MountCapabilityEntry {
-                id: result.read(0),
-                flags: result.read(1),
-                req_riding_skill: result.read(2),
-                req_area_id: result.read(3),
-                req_spell_aura_id: result.read(4),
-                req_spell_known_id: result.read(5),
-                mod_spell_aura_id: result.read(6),
-                req_map_id: result.read(7),
-            };
+    /// Apply effective Hotfix rows by ID after the base DB2 load.
+    pub fn apply_hotfix_entries_like_cpp(
+        &mut self,
+        entries: impl IntoIterator<Item = MountCapabilityEntry>,
+    ) -> usize {
+        let mut count = 0;
+        for entry in entries {
             self.by_id.insert(entry.id, entry);
             count += 1;
-
-            if !result.next_row() {
-                break;
-            }
         }
-
-        Ok(count)
+        count
     }
 
     pub fn get(&self, id: u32) -> Option<&MountCapabilityEntry> {
@@ -602,44 +534,19 @@ impl MountTypeXCapabilityStore {
         Ok(store)
     }
 
-    pub async fn load_with_hotfixes(
-        data_dir: &str,
-        locale: &str,
-        hotfix_db: &HotfixDatabase,
-    ) -> Result<Self> {
-        let mut store = Self::load(data_dir, locale)?;
-        let hotfix_rows = store.load_hotfix_rows(hotfix_db).await?;
-        if hotfix_rows != 0 {
-            info!("Loaded {hotfix_rows} MountTypeXCapability hotfix rows");
-        }
-        Ok(store)
-    }
-
-    async fn load_hotfix_rows(&mut self, db: &HotfixDatabase) -> Result<usize> {
-        let stmt = db.prepare(HotfixStatements::SEL_MOUNT_TYPE_X_CAPABILITY);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(0);
-        }
-
-        let mut count = 0usize;
-        loop {
-            let entry = MountTypeXCapabilityEntry {
-                id: result.read(0),
-                mount_type_id: result.read(1),
-                mount_capability_id: result.read(2),
-                order_index: result.read(3),
-            };
+    /// Apply effective Hotfix rows by ID and rebuild the C++ ordered index.
+    pub fn apply_hotfix_entries_like_cpp(
+        &mut self,
+        entries: impl IntoIterator<Item = MountTypeXCapabilityEntry>,
+    ) -> usize {
+        let mut count = 0;
+        for entry in entries {
             self.by_id.insert(entry.id, entry);
             count += 1;
-
-            if !result.next_row() {
-                break;
-            }
         }
 
         self.rebuild_mount_type_index();
-        Ok(count)
+        count
     }
 
     pub fn get(&self, id: u32) -> Option<&MountTypeXCapabilityEntry> {
@@ -722,44 +629,19 @@ impl MountXDisplayStore {
         Ok(store)
     }
 
-    pub async fn load_with_hotfixes(
-        data_dir: &str,
-        locale: &str,
-        hotfix_db: &HotfixDatabase,
-    ) -> Result<Self> {
-        let mut store = Self::load(data_dir, locale)?;
-        let hotfix_rows = store.load_hotfix_rows(hotfix_db).await?;
-        if hotfix_rows != 0 {
-            info!("Loaded {hotfix_rows} MountXDisplay hotfix rows");
-        }
-        Ok(store)
-    }
-
-    async fn load_hotfix_rows(&mut self, db: &HotfixDatabase) -> Result<usize> {
-        let stmt = db.prepare(HotfixStatements::SEL_MOUNT_X_DISPLAY);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(0);
-        }
-
-        let mut count = 0usize;
-        loop {
-            let entry = MountXDisplayEntry {
-                id: result.read(0),
-                creature_display_info_id: result.read(1),
-                player_condition_id: result.read(2),
-                mount_id: result.read(3),
-            };
+    /// Apply effective Hotfix rows by ID and rebuild the relationship index.
+    pub fn apply_hotfix_entries_like_cpp(
+        &mut self,
+        entries: impl IntoIterator<Item = MountXDisplayEntry>,
+    ) -> usize {
+        let mut count = 0;
+        for entry in entries {
             self.by_id.insert(entry.id, entry);
             count += 1;
-
-            if !result.next_row() {
-                break;
-            }
         }
 
         self.rebuild_mount_index();
-        Ok(count)
+        count
     }
 
     pub fn get(&self, id: u32) -> Option<&MountXDisplayEntry> {
@@ -872,6 +754,95 @@ mod tests {
         assert_eq!(displays.len(), 2);
         assert_eq!(displays[0].creature_display_info_id, 1000);
         assert!(store.displays_for_mount_like_cpp(99).is_none());
+    }
+
+    #[test]
+    fn hotfix_overlays_replace_rows_and_rebuild_derived_mount_indices_like_cpp() {
+        let mut capabilities = MountCapabilityStore::from_entries([MountCapabilityEntry {
+            id: 1,
+            flags: 1,
+            req_riding_skill: 75,
+            req_area_id: 0,
+            req_spell_aura_id: 0,
+            req_spell_known_id: 0,
+            mod_spell_aura_id: 10,
+            req_map_id: -1,
+        }]);
+        assert_eq!(
+            capabilities.apply_hotfix_entries_like_cpp([MountCapabilityEntry {
+                id: 1,
+                flags: 2,
+                req_riding_skill: 150,
+                req_area_id: 3,
+                req_spell_aura_id: 4,
+                req_spell_known_id: 5,
+                mod_spell_aura_id: 6,
+                req_map_id: 7,
+            }]),
+            1
+        );
+        assert_eq!(capabilities.len(), 1);
+        assert_eq!(capabilities.get(1).unwrap().req_riding_skill, 150);
+
+        let mut type_capabilities =
+            MountTypeXCapabilityStore::from_entries([MountTypeXCapabilityEntry {
+                id: 1,
+                mount_type_id: 7,
+                mount_capability_id: 70,
+                order_index: 1,
+            }]);
+        assert_eq!(
+            type_capabilities.apply_hotfix_entries_like_cpp([MountTypeXCapabilityEntry {
+                id: 1,
+                mount_type_id: 8,
+                mount_capability_id: 80,
+                order_index: 2,
+            }]),
+            1
+        );
+        assert!(
+            type_capabilities
+                .capabilities_for_mount_type_like_cpp(7)
+                .is_none()
+        );
+        assert_eq!(
+            type_capabilities.capabilities_for_mount_type_like_cpp(8),
+            Some(
+                [MountTypeXCapabilityEntry {
+                    id: 1,
+                    mount_type_id: 8,
+                    mount_capability_id: 80,
+                    order_index: 2,
+                }]
+                .as_slice()
+            )
+        );
+
+        let mut displays = MountXDisplayStore::from_entries([MountXDisplayEntry {
+            id: 1,
+            creature_display_info_id: 100,
+            player_condition_id: 0,
+            mount_id: 7,
+        }]);
+        assert_eq!(
+            displays.apply_hotfix_entries_like_cpp([MountXDisplayEntry {
+                id: 1,
+                creature_display_info_id: 200,
+                player_condition_id: 9,
+                mount_id: 8,
+            }]),
+            1
+        );
+        assert!(displays.displays_for_mount_like_cpp(7).is_none());
+        assert_eq!(
+            displays
+                .displays_for_mount_like_cpp(8)
+                .unwrap()
+                .first()
+                .unwrap()
+                .creature_display_info_id,
+            200
+        );
     }
 
     #[test]
