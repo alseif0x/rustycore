@@ -336,15 +336,14 @@ impl WorldSession {
         self.pause_interacted_creature_movement_like_cpp(guid);
 
         if (access.npc_flags & NPCFlags1::GOSSIP.bits()) != 0
-            && let Some(world_db) = self.world_db().map(Arc::clone)
             && let Some(msg) = self
-                .build_gossip_menu(&world_db, access.entry, access.npc_flags, guid)
+                .build_gossip_menu(access.entry, access.npc_flags, guid)
                 .await
         {
             debug!(
                 account = self.account_id,
                 creature_entry = access.entry,
-                "QuestGiverHello sent DB-backed prepared gossip menu like C++"
+                "QuestGiverHello sent catalog-backed prepared gossip menu like C++"
             );
             self.send_packet(&msg);
             return;
