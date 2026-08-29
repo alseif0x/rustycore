@@ -95,6 +95,61 @@ pub trait RespawnPersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<'a, RespawnPersistenceMutationOutcomeLikeCpp>;
 }
 
+/// Raw `game_event_condition_save` row. Validation against the canonical
+/// event/condition stores remains with the game-event owner.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GameEventConditionSavePersistenceRowLikeCpp {
+    pub event_id: u8,
+    pub condition_id: u32,
+    pub done: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum GameEventPersistenceMutationLikeCpp {
+    ReplaceConditionSave {
+        event_id: u8,
+        condition_id: u32,
+        done: f32,
+    },
+    SaveWorldEventState {
+        event_id: u8,
+        state: u8,
+        next_start: i64,
+    },
+    DeleteWorldEventState {
+        event_id: u8,
+        delete_condition_saves: bool,
+        delete_world_event_state: bool,
+    },
+    ResetSeasonalQuests {
+        event_id: u16,
+        event_start_time: i64,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum GameEventConditionSaveLoadOutcomeLikeCpp {
+    Loaded(Vec<GameEventConditionSavePersistenceRowLikeCpp>),
+    Failed { reason: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GameEventPersistenceMutationOutcomeLikeCpp {
+    Applied,
+    Failed { reason: String },
+}
+
+pub trait GameEventPersistencePortLikeCpp: Send + Sync {
+    fn load_condition_saves_like_cpp<'a>(
+        &'a self,
+    ) -> PersistenceFutureLikeCpp<'a, GameEventConditionSaveLoadOutcomeLikeCpp>;
+
+    fn execute_mutation_like_cpp<'a>(
+        &'a self,
+        mutation: GameEventPersistenceMutationLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, GameEventPersistenceMutationOutcomeLikeCpp>;
+}
+
 /// Largest battle-pet counter accepted by C++-shaped ObjectGuid allocation.
 pub const BATTLE_PET_GUID_COUNTER_LIMIT_LIKE_CPP: u64 = 0xFF_FFFF_FFFE;
 

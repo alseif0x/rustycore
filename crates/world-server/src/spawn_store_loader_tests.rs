@@ -10,6 +10,33 @@
 
 use super::*;
 
+struct FakeGameEventConditionSavePersistenceLikeCpp {
+    outcome: wow_persistence::GameEventConditionSaveLoadOutcomeLikeCpp,
+}
+
+impl wow_persistence::GameEventPersistencePortLikeCpp
+    for FakeGameEventConditionSavePersistenceLikeCpp
+{
+    fn load_condition_saves_like_cpp<'a>(
+        &'a self,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        'a,
+        wow_persistence::GameEventConditionSaveLoadOutcomeLikeCpp,
+    > {
+        Box::pin(async { self.outcome.clone() })
+    }
+
+    fn execute_mutation_like_cpp<'a>(
+        &'a self,
+        _mutation: wow_persistence::GameEventPersistenceMutationLikeCpp,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        'a,
+        wow_persistence::GameEventPersistenceMutationOutcomeLikeCpp,
+    > {
+        Box::pin(async { wow_persistence::GameEventPersistenceMutationOutcomeLikeCpp::Applied })
+    }
+}
+
 fn map_store(ids: &[u32]) -> wow_data::MapStore {
     wow_data::MapStore::from_entries(ids.iter().copied().map(|id| wow_data::MapEntry {
         id,
@@ -913,6 +940,83 @@ fn game_event_condition_save_applies_only_existing_event_condition_like_cpp() {
     assert_eq!(report.skipped_out_of_range_event, 1);
 }
 
+#[tokio::test]
+async fn game_event_condition_save_loader_uses_typed_rows_and_preserves_validation_like_cpp() {
+    let mut events = game_event_store([event_with_condition(
+        event(1, GameEventStateLikeCpp::WorldConditions, 0, 0, 0, 5),
+        10,
+        condition(7.0, 0.0),
+    )]);
+    let persistence = FakeGameEventConditionSavePersistenceLikeCpp {
+        outcome: wow_persistence::GameEventConditionSaveLoadOutcomeLikeCpp::Loaded(vec![
+            wow_persistence::GameEventConditionSavePersistenceRowLikeCpp {
+                event_id: 1,
+                condition_id: 10,
+                done: 4.0,
+            },
+            wow_persistence::GameEventConditionSavePersistenceRowLikeCpp {
+                event_id: 1,
+                condition_id: 99,
+                done: 6.0,
+            },
+        ]),
+    };
+    let mut report = CanonicalSpawnStoreLoadReport::default();
+
+    load_game_event_condition_saves_like_cpp(&persistence, &mut events, &mut report)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        events
+            .event_like_cpp(1)
+            .unwrap()
+            .conditions
+            .get(&10)
+            .unwrap()
+            .done,
+        4.0
+    );
+    assert_eq!(report.game_event_condition_saves.rows, 2);
+    assert_eq!(report.game_event_condition_saves.loaded, 1);
+    assert_eq!(
+        report.game_event_condition_saves.skipped_missing_condition,
+        1
+    );
+}
+
+#[tokio::test]
+async fn game_event_condition_save_loader_propagates_typed_failure_without_mutation_like_cpp() {
+    let mut events = game_event_store([event_with_condition(
+        event(1, GameEventStateLikeCpp::WorldConditions, 0, 0, 0, 5),
+        10,
+        condition(7.0, 2.0),
+    )]);
+    let persistence = FakeGameEventConditionSavePersistenceLikeCpp {
+        outcome: wow_persistence::GameEventConditionSaveLoadOutcomeLikeCpp::Failed {
+            reason: "fixture load failure".to_string(),
+        },
+    };
+    let mut report = CanonicalSpawnStoreLoadReport::default();
+
+    let error = load_game_event_condition_saves_like_cpp(&persistence, &mut events, &mut report)
+        .await
+        .unwrap_err();
+
+    assert!(error.to_string().contains("fixture load failure"));
+    assert_eq!(
+        events
+            .event_like_cpp(1)
+            .unwrap()
+            .conditions
+            .get(&10)
+            .unwrap()
+            .done,
+        2.0
+    );
+    assert_eq!(report.game_event_condition_saves.rows, 0);
+}
+
 #[test]
 fn game_event_world_state_update_evidence_orders_conditions_done_then_max_like_cpp() {
     let event = event_with_condition(
@@ -1186,18 +1290,7 @@ fn game_event_condition_progress_saturates_saves_then_completes_like_cpp() {
                 done_before: 1.0,
                 done_after: 3.0,
                 req_num: 3.0,
-                del_statement: GameEventConditionSaveStatementEvidenceLikeCpp {
-                    statement: CharStatements::DEL_GAME_EVENT_CONDITION_SAVE,
-                    event_id: 1,
-                    condition_id: 10,
-                    done: None,
-                },
-                ins_statement: GameEventConditionSaveStatementEvidenceLikeCpp {
-                    statement: CharStatements::INS_GAME_EVENT_CONDITION_SAVE,
-                    event_id: 1,
-                    condition_id: 10,
-                    done: Some(3.0),
-                },
+                persistence_event_id: 1,
                 completed_event: true,
                 check_outcome: GameEventConditionCheckOutcomeLikeCpp::Completed(
                     GameEventConditionCheckSummaryLikeCpp {
@@ -1505,18 +1598,7 @@ fn game_event_quest_complete_increments_clamps_and_emits_condition_save_evidence
                     done_before: 1.0,
                     done_after: 3.0,
                     req_num: 3.0,
-                    del_statement: GameEventConditionSaveStatementEvidenceLikeCpp {
-                        statement: CharStatements::DEL_GAME_EVENT_CONDITION_SAVE,
-                        event_id: 1,
-                        condition_id: 10,
-                        done: None,
-                    },
-                    ins_statement: GameEventConditionSaveStatementEvidenceLikeCpp {
-                        statement: CharStatements::INS_GAME_EVENT_CONDITION_SAVE,
-                        event_id: 1,
-                        condition_id: 10,
-                        done: Some(3.0),
-                    },
+                    persistence_event_id: 1,
                     completed_event: false,
                     check_outcome: GameEventConditionCheckOutcomeLikeCpp::NotCompleted {
                         event_id: 257,

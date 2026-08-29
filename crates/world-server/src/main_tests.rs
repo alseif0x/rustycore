@@ -18,9 +18,7 @@ use super::{
     CanonicalGameEventSchedulerLikeCpp, CanonicalRespawnConditionSchedulerLikeCpp,
     ERROR_EXIT_CODE_LIKE_CPP, FreezeDetectorLikeCpp, FreezeDetectorPollOutcomeLikeCpp,
     GameEventLiveUpdateActionLikeCpp, GameEventLiveUpdateSideEffectSummaryLikeCpp,
-    GameEventQuestCompleteConditionSaveDbStatementKindLikeCpp,
     GameEventWorldEventStateDbOperationKindLikeCpp, GameEventWorldEventStateDbOperationLikeCpp,
-    GameEventWorldEventStateDbStatementKindLikeCpp,
     ITEM_GUID_DANGLING_REFERENCE_CLEANUP_STATEMENTS_LIKE_CPP,
     LoadedGridCreatureRespawnCachesLikeCpp, PersistedRespawnLoadReportLikeCpp,
     PersistedRespawnTimesLikeCpp, REQUIRED_TDB_CACHE_ID_LIKE_CPP, REQUIRED_TDB_VERSION_LIKE_CPP,
@@ -46,7 +44,7 @@ use super::{
     deliver_creature_attack_start_commands_like_cpp,
     deliver_creature_melee_damage_commands_like_cpp,
     deliver_refresh_visible_world_creatures_like_cpp, deliver_runtime_plan_like_cpp,
-    execute_respawn_db_attempt_like_cpp,
+    execute_game_event_world_event_state_db_bridge_like_cpp, execute_respawn_db_attempt_like_cpp,
     fanout_game_event_announcement_to_player_sessions_like_cpp,
     fanout_realm_update_world_state_to_player_sessions_like_cpp,
     fanout_reset_event_seasonal_quests_to_player_sessions_after_db_delete_like_cpp,
@@ -101,8 +99,8 @@ use wow_constants::{ConditionSourceType, ConditionType, ServerOpcodes};
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
 use wow_data::{Condition, ConditionEntriesByTypeStore};
 use wow_database::{
-    CharStatements, DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP, DATABASE_LOGIN_LIKE_CPP,
-    DATABASE_MASK_ALL_LIKE_CPP, DATABASE_WORLD_LIKE_CPP, SqlParam, StatementDef,
+    DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP, DATABASE_LOGIN_LIKE_CPP,
+    DATABASE_MASK_ALL_LIKE_CPP, DATABASE_WORLD_LIKE_CPP, StatementDef,
 };
 use wow_entities::{Creature, GameObject, MapObjectRecord, Player};
 use wow_instances::ResetSchedule;
@@ -116,10 +114,47 @@ use wow_packet::{
     packets::chat::{ChatMsg, ChatPkt},
 };
 use wow_persistence::{
+    GameEventConditionSaveLoadOutcomeLikeCpp, GameEventPersistenceMutationLikeCpp,
+    GameEventPersistenceMutationOutcomeLikeCpp, GameEventPersistencePortLikeCpp,
     RespawnPersistenceKeyLikeCpp, RespawnPersistenceLoadOutcomeLikeCpp,
     RespawnPersistenceMutationLikeCpp, RespawnPersistenceMutationOutcomeLikeCpp,
     RespawnPersistencePortLikeCpp, RespawnPersistenceRowLikeCpp,
 };
+
+#[derive(Default)]
+struct FakeGameEventPersistencePortLikeCpp {
+    fail_mutations: std::sync::atomic::AtomicBool,
+    mutations: Mutex<Vec<GameEventPersistenceMutationLikeCpp>>,
+}
+
+impl GameEventPersistencePortLikeCpp for FakeGameEventPersistencePortLikeCpp {
+    fn load_condition_saves_like_cpp<'a>(
+        &'a self,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<'a, GameEventConditionSaveLoadOutcomeLikeCpp>
+    {
+        Box::pin(async { GameEventConditionSaveLoadOutcomeLikeCpp::Loaded(Vec::new()) })
+    }
+
+    fn execute_mutation_like_cpp<'a>(
+        &'a self,
+        mutation: GameEventPersistenceMutationLikeCpp,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<'a, GameEventPersistenceMutationOutcomeLikeCpp>
+    {
+        Box::pin(async move {
+            self.mutations.lock().unwrap().push(mutation);
+            if self
+                .fail_mutations
+                .load(std::sync::atomic::Ordering::Acquire)
+            {
+                GameEventPersistenceMutationOutcomeLikeCpp::Failed {
+                    reason: "fixture failure".to_string(),
+                }
+            } else {
+                GameEventPersistenceMutationOutcomeLikeCpp::Applied
+            }
+        })
+    }
+}
 use wow_world::session::directory::{
     PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp, PlayerRegistry,
     PlayerSessionRegistrationLikeCpp,
@@ -926,47 +961,6 @@ impl RespawnPersistencePortLikeCpp for FakeRespawnPersistencePortLikeCpp {
     }
 }
 
-fn assert_game_event_condition_save_delete_params_like_cpp(
-    statement: &wow_database::PreparedStatement,
-    event_id: u8,
-    condition_id: u32,
-) {
-    let [
-        SqlParam::U8(actual_event_id),
-        SqlParam::U32(actual_condition_id),
-    ] = statement.params()
-    else {
-        panic!(
-            "expected DEL_GAME_EVENT_CONDITION_SAVE params [U8, U32], got {:?}",
-            statement.params()
-        );
-    };
-    assert_eq!(*actual_event_id, event_id);
-    assert_eq!(*actual_condition_id, condition_id);
-}
-
-fn assert_game_event_condition_save_insert_params_like_cpp(
-    statement: &wow_database::PreparedStatement,
-    event_id: u8,
-    condition_id: u32,
-    done: f32,
-) {
-    let [
-        SqlParam::U8(actual_event_id),
-        SqlParam::U32(actual_condition_id),
-        SqlParam::F32(actual_done),
-    ] = statement.params()
-    else {
-        panic!(
-            "expected INS_GAME_EVENT_CONDITION_SAVE params [U8, U32, F32], got {:?}",
-            statement.params()
-        );
-    };
-    assert_eq!(*actual_event_id, event_id);
-    assert_eq!(*actual_condition_id, condition_id);
-    assert_eq!(*actual_done, done);
-}
-
 fn game_event_quest_complete_progressed_outcome_like_cpp(
     save_world_event_state_requested: bool,
     force_game_event_update_requested: bool,
@@ -979,18 +973,7 @@ fn game_event_quest_complete_progressed_outcome_like_cpp(
                 done_before: 2.5,
                 done_after: 5.25,
                 req_num: 10.0,
-                del_statement: spawn_store_loader::GameEventConditionSaveStatementEvidenceLikeCpp {
-                    statement: CharStatements::DEL_GAME_EVENT_CONDITION_SAVE,
-                    event_id: 7,
-                    condition_id: 44,
-                    done: None,
-                },
-                ins_statement: spawn_store_loader::GameEventConditionSaveStatementEvidenceLikeCpp {
-                    statement: CharStatements::INS_GAME_EVENT_CONDITION_SAVE,
-                    event_id: 7,
-                    condition_id: 44,
-                    done: Some(5.25),
-                },
+                persistence_event_id: 7,
                 completed_event: save_world_event_state_requested,
                 check_outcome: spawn_store_loader::GameEventConditionCheckOutcomeLikeCpp::Completed(
                     spawn_store_loader::GameEventConditionCheckSummaryLikeCpp {
@@ -5085,38 +5068,18 @@ fn assert_game_event_save_operation_like_cpp(
         operation.kind,
         GameEventWorldEventStateDbOperationKindLikeCpp::Save
     );
-    assert_eq!(operation.statements.len(), 2);
     assert_eq!(
-        operation.statements[0].kind,
-        GameEventWorldEventStateDbStatementKindLikeCpp::DelGameEventSave
+        operation.mutation,
+        wow_persistence::GameEventPersistenceMutationLikeCpp::SaveWorldEventState {
+            event_id,
+            state,
+            next_start,
+        }
     );
-    assert_eq!(
-        operation.statements[0].statement.sql(),
-        "DELETE FROM game_event_save WHERE eventEntry = ?"
-    );
-    assert!(matches!(
-        operation.statements[0].statement.params(),
-        [wow_database::SqlParam::U8(id)] if id == &event_id
-    ));
-    assert_eq!(
-        operation.statements[1].kind,
-        GameEventWorldEventStateDbStatementKindLikeCpp::InsGameEventSave
-    );
-    assert_eq!(
-        operation.statements[1].statement.sql(),
-        "INSERT INTO game_event_save (eventEntry, state, next_start) VALUES (?, ?, ?)"
-    );
-    assert!(matches!(
-        operation.statements[1].statement.params(),
-        [wow_database::SqlParam::U8(id), wow_database::SqlParam::U8(actual_state), wow_database::SqlParam::I64(actual_next_start)]
-            if id == &event_id
-                && actual_state == &state
-                && actual_next_start == &next_start
-    ));
 }
 
 #[test]
-fn game_event_db_bridge_materializes_save_delete_insert_with_cpp_sql_and_zero_next_start() {
+fn game_event_db_bridge_materializes_semantic_save_with_zero_next_start_like_cpp() {
     let metadata = game_event_world_state_metadata_like_cpp(
         1,
         &[spawn_store_loader::GameEventDataLikeCpp {
@@ -5146,6 +5109,44 @@ fn game_event_db_bridge_materializes_save_delete_insert_with_cpp_sql_and_zero_ne
     assert_eq!(summary.saves_queued, 1);
     assert_eq!(summary.operations.len(), 1);
     assert_game_event_save_operation_like_cpp(&summary.operations[0], 1, 2, 0);
+}
+
+#[tokio::test]
+async fn game_event_db_bridge_classifies_typed_port_failure_and_success_like_cpp() {
+    let metadata = game_event_world_state_metadata_like_cpp(
+        1,
+        &[spawn_store_loader::GameEventDataLikeCpp {
+            event_id: 1,
+            state_raw: 2,
+            next_start: 0,
+            ..spawn_store_loader::GameEventDataLikeCpp::default()
+        }],
+    );
+    let mut outcome = empty_game_event_update_outcome_for_db_bridge_like_cpp();
+    outcome.world_conditions_save_requested =
+        vec![spawn_store_loader::GameEventWorldStateSaveEvidenceLikeCpp {
+            event_id: 1,
+            state_after_raw: 2,
+            next_start_after: 0,
+        }];
+    let port = FakeGameEventPersistencePortLikeCpp::default();
+    port.fail_mutations
+        .store(true, std::sync::atomic::Ordering::Release);
+    let mut failed =
+        materialize_game_event_world_event_state_db_bridge_like_cpp(&outcome, &metadata);
+    execute_game_event_world_event_state_db_bridge_like_cpp(&port, &mut failed).await;
+    assert_eq!(failed.saves_executed, 0);
+    assert_eq!(failed.saves_failed, 1);
+    assert!(failed.operations.is_empty());
+
+    port.fail_mutations
+        .store(false, std::sync::atomic::Ordering::Release);
+    let mut applied =
+        materialize_game_event_world_event_state_db_bridge_like_cpp(&outcome, &metadata);
+    execute_game_event_world_event_state_db_bridge_like_cpp(&port, &mut applied).await;
+    assert_eq!(applied.saves_executed, 1);
+    assert_eq!(applied.saves_failed, 0);
+    assert_eq!(port.mutations.lock().unwrap().len(), 2);
 }
 
 #[test]
@@ -5222,22 +5223,15 @@ fn game_event_db_bridge_materializes_stop_delete_condition_saves_before_event_sa
         operation.kind,
         GameEventWorldEventStateDbOperationKindLikeCpp::Delete
     );
-    assert_eq!(operation.statements.len(), 2);
+    assert!(operation.delete_condition_saves);
+    assert!(operation.delete_world_event_state);
     assert_eq!(
-        operation.statements[0].kind,
-        GameEventWorldEventStateDbStatementKindLikeCpp::DelAllGameEventConditionSave
-    );
-    assert_eq!(
-        operation.statements[0].statement.sql(),
-        "DELETE FROM game_event_condition_save WHERE eventEntry = ?"
-    );
-    assert_eq!(
-        operation.statements[1].kind,
-        GameEventWorldEventStateDbStatementKindLikeCpp::DelGameEventSave
-    );
-    assert_eq!(
-        operation.statements[1].statement.sql(),
-        "DELETE FROM game_event_save WHERE eventEntry = ?"
+        operation.mutation,
+        wow_persistence::GameEventPersistenceMutationLikeCpp::DeleteWorldEventState {
+            event_id: 1,
+            delete_condition_saves: true,
+            delete_world_event_state: true,
+        }
     );
 }
 
@@ -5335,33 +5329,13 @@ fn game_event_quest_complete_db_bridge_materializes_condition_save_then_world_ev
     let operation = &summary.operations[0];
     assert_eq!(operation.event_id, 7);
     assert_eq!(operation.condition_id, 44);
-    assert_eq!(operation.statements.len(), 2);
     assert_eq!(
-        operation.statements[0].kind,
-        GameEventQuestCompleteConditionSaveDbStatementKindLikeCpp::DelGameEventConditionSave
-    );
-    assert_eq!(
-        operation.statements[0].statement.sql(),
-        "DELETE FROM game_event_condition_save WHERE eventEntry = ? AND condition_id = ?"
-    );
-    assert_game_event_condition_save_delete_params_like_cpp(
-        &operation.statements[0].statement,
-        7,
-        44,
-    );
-    assert_eq!(
-        operation.statements[1].kind,
-        GameEventQuestCompleteConditionSaveDbStatementKindLikeCpp::InsGameEventConditionSave
-    );
-    assert_eq!(
-        operation.statements[1].statement.sql(),
-        "INSERT INTO game_event_condition_save (eventEntry, condition_id, done) VALUES (?, ?, ?)"
-    );
-    assert_game_event_condition_save_insert_params_like_cpp(
-        &operation.statements[1].statement,
-        7,
-        44,
-        5.25,
+        operation.mutation,
+        wow_persistence::GameEventPersistenceMutationLikeCpp::ReplaceConditionSave {
+            event_id: 7,
+            condition_id: 44,
+            done: 5.25,
+        }
     );
 
     assert_eq!(summary.world_event_state_summary.saves_queued, 1);
@@ -6891,22 +6865,12 @@ fn game_event_seasonal_consume_records_evidence_without_player_or_db_mutation_li
         panic!("expected exactly one seasonal quest DB delete")
     };
     assert_eq!(
-        db_delete.statement.sql(),
-        CharStatements::DEL_RESET_CHARACTER_QUESTSTATUS_SEASONAL_BY_EVENT.sql()
+        db_delete.mutation,
+        wow_persistence::GameEventPersistenceMutationLikeCpp::ResetSeasonalQuests {
+            event_id: 7,
+            event_start_time: 100,
+        }
     );
-    assert_eq!(
-        db_delete.statement.sql(),
-        "DELETE FROM character_queststatus_seasonal WHERE event = ? AND completedTime < ?"
-    );
-    let [
-        SqlParam::U16(actual_event_id),
-        SqlParam::I64(actual_event_start_time),
-    ] = db_delete.statement.params()
-    else {
-        panic!("expected seasonal quest DB delete params [U16(event_id), I64(event_start_time)]")
-    };
-    assert_eq!(*actual_event_id, 7);
-    assert_eq!(*actual_event_start_time, 100);
 }
 
 #[test]
@@ -6970,15 +6934,13 @@ fn game_event_seasonal_db_delete_preserves_zero_event_start_time_like_cpp() {
     let [db_delete] = summary.reset_event_seasonal_quest_db_deletes.as_slice() else {
         panic!("expected exactly one seasonal quest DB delete")
     };
-    let [
-        SqlParam::U16(actual_event_id),
-        SqlParam::I64(actual_event_start_time),
-    ] = db_delete.statement.params()
-    else {
-        panic!("expected seasonal quest DB delete params [U16(event_id), I64(event_start_time)]")
-    };
-    assert_eq!(*actual_event_id, 8);
-    assert_eq!(*actual_event_start_time, 0);
+    assert_eq!(
+        db_delete.mutation,
+        wow_persistence::GameEventPersistenceMutationLikeCpp::ResetSeasonalQuests {
+            event_id: 8,
+            event_start_time: 0,
+        }
+    );
 }
 
 #[test]

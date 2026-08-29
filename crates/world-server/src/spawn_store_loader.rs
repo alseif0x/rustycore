@@ -1051,14 +1051,6 @@ pub struct GameEventConditionCheckSummaryLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct GameEventConditionSaveStatementEvidenceLikeCpp {
-    pub statement: CharStatements,
-    pub event_id: u8,
-    pub condition_id: u32,
-    pub done: Option<f32>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GameEventQuestConditionRecordLikeCpp {
     pub quest_id: u32,
     pub event_id: u16,
@@ -1104,8 +1096,7 @@ pub struct GameEventConditionProgressSummaryLikeCpp {
     pub done_before: f32,
     pub done_after: f32,
     pub req_num: f32,
-    pub del_statement: GameEventConditionSaveStatementEvidenceLikeCpp,
-    pub ins_statement: GameEventConditionSaveStatementEvidenceLikeCpp,
+    pub persistence_event_id: u8,
     pub completed_event: bool,
     pub check_outcome: GameEventConditionCheckOutcomeLikeCpp,
     pub save_world_event_state_requested: bool,
@@ -2402,18 +2393,7 @@ impl CanonicalSpawnMetadataLikeCpp {
                 done_before,
                 done_after,
                 req_num: condition.req_num,
-                del_statement: GameEventConditionSaveStatementEvidenceLikeCpp {
-                    statement: CharStatements::DEL_GAME_EVENT_CONDITION_SAVE,
-                    event_id: event_id_param,
-                    condition_id,
-                    done: None,
-                },
-                ins_statement: GameEventConditionSaveStatementEvidenceLikeCpp {
-                    statement: CharStatements::INS_GAME_EVENT_CONDITION_SAVE,
-                    event_id: event_id_param,
-                    condition_id,
-                    done: Some(done_after),
-                },
+                persistence_event_id: event_id_param,
                 completed_event,
                 check_outcome,
                 save_world_event_state_requested: completed_event,
@@ -3570,7 +3550,7 @@ async fn load_waypoint_paths_like_cpp(
 
 pub async fn load_canonical_spawn_store_like_cpp(
     db: &WorldDatabase,
-    character_db: &CharacterDatabase,
+    game_event_persistence: &dyn wow_persistence::GameEventPersistencePortLikeCpp,
     map_store: &wow_data::MapStore,
     map_difficulty_store: &wow_data::MapDifficultyStore,
     spawn_group_store: &wow_data::SpawnGroupTemplateStore,
@@ -3642,7 +3622,8 @@ pub async fn load_canonical_spawn_store_like_cpp(
     // C++ `GameEventMgr::LoadFromDB` loads `game_event_condition` into
     // `mGameEvent[event].conditions`, then overlays character DB saved `done` values.
     load_game_event_conditions_like_cpp(db, &mut game_events, &mut report).await?;
-    load_game_event_condition_saves_like_cpp(character_db, &mut game_events, &mut report).await?;
+    load_game_event_condition_saves_like_cpp(game_event_persistence, &mut game_events, &mut report)
+        .await?;
     // C++ `GameEventMgr::LoadFromDB` loads `game_event_quest_condition` into
     // `mQuestToEventConditions` with quest-key last-row-wins semantics for later
     // `HandleQuestComplete`; this is metadata/evidence only and does not wire quests live.
@@ -4036,35 +4017,26 @@ fn apply_game_event_condition_row_like_cpp(
 }
 
 async fn load_game_event_condition_saves_like_cpp(
-    db: &CharacterDatabase,
+    persistence: &dyn wow_persistence::GameEventPersistencePortLikeCpp,
     game_events: &mut GameEventDataStoreLikeCpp,
     report: &mut CanonicalSpawnStoreLoadReport,
 ) -> Result<()> {
-    let stmt = db.prepare(CharStatements::SEL_GAME_EVENT_CONDITION_SAVES);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(());
-    }
-
-    loop {
-        let event_id =
-            read_unsigned_db_u8_like_cpp(&result, 0, "game_event_condition_save.eventEntry")?;
+    let rows = match persistence.load_condition_saves_like_cpp().await {
+        wow_persistence::GameEventConditionSaveLoadOutcomeLikeCpp::Loaded(rows) => rows,
+        wow_persistence::GameEventConditionSaveLoadOutcomeLikeCpp::Failed { reason } => {
+            anyhow::bail!("game-event condition-save persistence load failed: {reason}")
+        }
+    };
+    for row in rows {
         apply_game_event_condition_save_row_like_cpp(
             GameEventConditionSaveRowLikeCpp {
-                event_id: u16::from(event_id),
-                condition_id: read_unsigned_db_u32_like_cpp(
-                    &result,
-                    1,
-                    "game_event_condition_save.condition_id",
-                )?,
-                done: result.read(2),
+                event_id: u16::from(row.event_id),
+                condition_id: row.condition_id,
+                done: row.done,
             },
             game_events,
             &mut report.game_event_condition_saves,
         );
-        if !result.next_row() {
-            break;
-        }
     }
 
     Ok(())
