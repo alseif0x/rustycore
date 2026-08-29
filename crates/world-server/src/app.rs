@@ -4384,6 +4384,13 @@ async fn run_inner(
             &world_db,
         )),
     );
+    let item_template_addon_catalog_persistence_port: Arc<
+        dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp,
+    > = Arc::new(
+        wow_database::MariaDbItemTemplateAddonCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
+            &world_db,
+        )),
+    );
     let page_text_catalog_persistence_port: Arc<
         dyn wow_persistence::PageTextCatalogPersistencePortLikeCpp,
     > = Arc::new(
@@ -4484,6 +4491,9 @@ async fn run_inner(
         character_enumeration_persistence_port: Some(character_enumeration_persistence_port),
         creature_query_catalog_persistence_port: Some(creature_query_catalog_persistence_port),
         gameobject_query_catalog_persistence_port: Some(gameobject_query_catalog_persistence_port),
+        item_template_addon_catalog_persistence_port: Some(
+            item_template_addon_catalog_persistence_port,
+        ),
         page_text_catalog_persistence_port: Some(page_text_catalog_persistence_port),
         player_name_query_persistence_port: Some(player_name_query_persistence_port),
         session_account_state_port: Some(Arc::clone(&session_account_state_port)),

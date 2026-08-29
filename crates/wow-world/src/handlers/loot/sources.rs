@@ -2712,23 +2712,31 @@ impl WorldSession {
         &self,
         item_id: u32,
     ) -> ItemTemplateAddonLootMetadataLikeCpp {
-        let Some(world_db) = self.world_db() else {
+        let Some(port) = self.item_template_addon_catalog_persistence_port_like_cpp() else {
             return ItemTemplateAddonLootMetadataLikeCpp::default();
         };
 
-        let mut stmt = world_db.prepare(WorldStatements::SEL_ITEM_TEMPLATE_ADDON_LOOT_METADATA);
-        stmt.set_u32(0, item_id);
-
-        match world_db.query(&stmt).await {
-            Ok(result) if !result.is_empty() => ItemTemplateAddonLootMetadataLikeCpp {
-                flags_cu: result.try_read::<u32>(0).unwrap_or(0),
-                quest_log_item_id: result.try_read::<i32>(1).unwrap_or(0),
-            },
-            Ok(_) => ItemTemplateAddonLootMetadataLikeCpp::default(),
-            Err(err) => {
+        match port
+            .load_item_template_addon_loot_metadata_like_cpp(
+                wow_persistence::ItemTemplateAddonCatalogRequestLikeCpp {
+                    item_entry: item_id,
+                },
+            )
+            .await
+        {
+            wow_persistence::ItemTemplateAddonLootMetadataOutcomeLikeCpp::Found(row) => {
+                ItemTemplateAddonLootMetadataLikeCpp {
+                    flags_cu: row.flags_cu,
+                    quest_log_item_id: row.quest_log_item_id,
+                }
+            }
+            wow_persistence::ItemTemplateAddonLootMetadataOutcomeLikeCpp::Missing => {
+                ItemTemplateAddonLootMetadataLikeCpp::default()
+            }
+            wow_persistence::ItemTemplateAddonLootMetadataOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     item_id,
-                    error = %err,
+                    error = %reason,
                     "failed to load item_template_addon loot metadata for creature loot"
                 );
                 ItemTemplateAddonLootMetadataLikeCpp::default()

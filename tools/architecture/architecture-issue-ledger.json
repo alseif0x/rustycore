@@ -102,6 +102,7 @@
     482,
     484,
     487,
+    489,
     189,
     192,
     193,
@@ -1654,7 +1655,7 @@
   },
   {
     "number": 487,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.52] Move player-name query reads behind a typed port",
     "kind": "slice",
     "parents": [
@@ -1663,6 +1664,19 @@
     ],
     "depends_on": [
       484
+    ]
+  },
+  {
+    "number": 489,
+    "state": "open",
+    "title": "[ARCH.DB.53] Move item-template-addon reads behind a typed port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      487
     ]
   }
   ]
