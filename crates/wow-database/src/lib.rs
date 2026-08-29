@@ -48,6 +48,7 @@ pub mod instance_lock_persistence_adapter;
 pub mod item_template_addon_catalog_adapter;
 pub mod loader;
 pub mod map_corpse_adapter;
+pub mod mount_catalog_adapter;
 pub mod next_mail_time_adapter;
 pub mod packet_spoof_ban_adapter;
 pub mod page_text_catalog_adapter;
@@ -93,6 +94,7 @@ pub use loader::{
     DATABASE_MASK_ALL_LIKE_CPP, DATABASE_NONE_LIKE_CPP, DATABASE_WORLD_LIKE_CPP,
     DatabaseLoaderLikeCpp,
 };
+pub use mount_catalog_adapter::MariaDbMountCatalogPersistenceAdapterLikeCpp;
 pub use page_text_catalog_adapter::MariaDbPageTextCatalogPersistenceAdapterLikeCpp;
 pub use params::{PreparedStatement, SqlParam};
 pub use player_choice_catalog_adapter::MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp;
