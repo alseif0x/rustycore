@@ -296,6 +296,9 @@ pub(super) async fn create_session(
     if let Some(ref port) = resources.page_text_catalog_persistence_port {
         session.set_page_text_catalog_persistence_port_like_cpp(Arc::clone(port));
     }
+    if let Some(ref port) = resources.player_name_query_persistence_port {
+        session.set_player_name_query_persistence_port_like_cpp(Arc::clone(port));
+    }
     if let Some(ref port) = resources.session_account_state_port {
         session.set_session_account_state_port_like_cpp(Arc::clone(port));
     }

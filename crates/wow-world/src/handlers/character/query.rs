@@ -5,12 +5,6 @@
 
 //! Character and name queries, inspection responses.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::CharStatements;
-
 use super::*;
 
 impl WorldSession {
@@ -386,8 +380,8 @@ impl WorldSession {
     /// The client sends this after receiving UpdateObject for a player whose
     /// name isn't cached. Without a response, the player's nameplate is blank.
     pub async fn handle_query_player_names(&mut self, query: QueryPlayerNames) {
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.player_name_query_persistence_port_like_cpp() {
+            Some(port) => port,
             None => {
                 // Send failure response for all queried players
                 let players = query
@@ -407,14 +401,22 @@ impl WorldSession {
         let mut results = Vec::new();
 
         for guid in &query.players {
-            let counter = guid.counter();
-
-            let mut stmt = char_db.prepare(CharStatements::SEL_CHARACTER);
-            stmt.set_u64(0, counter as u64);
-
-            let db_result = match char_db.query(&stmt).await {
-                Ok(r) => r,
-                Err(_) => {
+            let row = match port
+                .load_player_name_like_cpp(wow_persistence::PlayerNameQueryRequestLikeCpp {
+                    player_guid_counter: guid.counter() as u64,
+                })
+                .await
+            {
+                wow_persistence::PlayerNameQueryOutcomeLikeCpp::Found(row) => row,
+                wow_persistence::PlayerNameQueryOutcomeLikeCpp::Missing => {
+                    results.push(NameCacheLookupResult {
+                        player: *guid,
+                        result: 1,
+                        data: None,
+                    });
+                    continue;
+                }
+                wow_persistence::PlayerNameQueryOutcomeLikeCpp::Failed { .. } => {
                     results.push(NameCacheLookupResult {
                         player: *guid,
                         result: 1,
@@ -423,21 +425,6 @@ impl WorldSession {
                     continue;
                 }
             };
-
-            if db_result.is_empty() {
-                results.push(NameCacheLookupResult {
-                    player: *guid,
-                    result: 1,
-                    data: None,
-                });
-                continue;
-            }
-
-            let name: String = db_result.read_string(2);
-            let race: u8 = db_result.read(3);
-            let class: u8 = db_result.read(4);
-            let sex: u8 = db_result.read(5);
-            let level: u8 = db_result.read(6);
 
             // Build account GUIDs (simplified — just use account_id)
             let account_id_val = self.account_id as i64;
@@ -453,11 +440,11 @@ impl WorldSession {
                 player: *guid,
                 result: 0, // Success
                 data: Some(PlayerGuidLookupData {
-                    name,
-                    race,
-                    sex,
-                    class,
-                    level,
+                    name: row.name,
+                    race: row.race,
+                    sex: row.sex,
+                    class: row.class,
+                    level: row.level,
                     guid_actual: *guid,
                     account_id: account_guid,
                     bnet_account_id: bnet_guid,

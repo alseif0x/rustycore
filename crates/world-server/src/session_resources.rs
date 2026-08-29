@@ -32,6 +32,8 @@ pub(super) struct SessionResources {
         Option<Arc<dyn wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp>>,
     pub(super) page_text_catalog_persistence_port:
         Option<Arc<dyn wow_persistence::PageTextCatalogPersistencePortLikeCpp>>,
+    pub(super) player_name_query_persistence_port:
+        Option<Arc<dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp>>,
     /// Characters capability for session-owned account data and tutorials.
     pub(super) session_account_state_port:
         Option<Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>>,

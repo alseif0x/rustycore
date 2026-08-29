@@ -101,6 +101,7 @@
     480,
     482,
     484,
+    487,
     189,
     192,
     193,
@@ -1640,7 +1641,7 @@
   },
   {
     "number": 484,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.51] Move page-text catalog reads behind a typed port",
     "kind": "slice",
     "parents": [
@@ -1649,6 +1650,19 @@
     ],
     "depends_on": [
       482
+    ]
+  },
+  {
+    "number": 487,
+    "state": "open",
+    "title": "[ARCH.DB.52] Move player-name query reads behind a typed port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      484
     ]
   }
   ]

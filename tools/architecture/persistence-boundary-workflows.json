@@ -13057,42 +13057,6 @@
     },
     {
       "package": "wow-world",
-      "module": "crate::handlers::character::query",
-      "source": "crates/wow-world/src/handlers/character/query.rs",
-      "enclosing": "impl WorldSession::handle_query_player_names",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "character service persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::query",
-      "source": "crates/wow-world/src/handlers/character/query.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "characters",
-        "login",
-        "world"
-      ],
-      "boundary": "shared character service dependency surface",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for characters, login, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
       "module": "crate::handlers::character::session_state",
       "source": "crates/wow-world/src/handlers/character/session_state.rs",
       "enclosing": "impl WorldSession::materialize_creature_spawn_row_like_cpp",
@@ -15171,6 +15135,71 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The adapter stores exactly one World database handle.",
+      "current_order": "The handle surface implies no runtime order beyond the port method.",
+      "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_name_query_adapter",
+      "source": "crates/wow-database/src/player_name_query_adapter.rs",
+      "enclosing": "fn statement_like_cpp",
+      "logical_databases": ["characters"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free player-name reads (#487)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure construction of one Character-database prepared statement; it opens no connection or transaction.",
+      "current_order": "Build CHAR_SEL_CHARACTER and bind the requested GUID counter exactly once.",
+      "failure_and_unknown_commit": "No I/O occurs while constructing a statement."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_name_query_adapter",
+      "source": "crates/wow-database/src/player_name_query_adapter.rs",
+      "enclosing": "impl MariaDbPlayerNameQueryPersistenceAdapterLikeCpp::new",
+      "logical_databases": ["characters"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free player-name reads (#487)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Composition supplies exactly one Character database handle before sessions are accepted.",
+      "current_order": "Construction stores the handle only and performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_name_query_adapter",
+      "source": "crates/wow-database/src/player_name_query_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerNameQueryPersistencePortLikeCpp for MariaDbPlayerNameQueryPersistenceAdapterLikeCpp::load_player_name_like_cpp",
+      "logical_databases": ["characters"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free player-name reads (#487)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every lookup uses the adapter's single Character database handle; no cross-database boundary is implied.",
+      "current_order": "Execute one CHAR_SEL_CHARACTER read and decode name, race, class, sex and level in existing column order.",
+      "failure_and_unknown_commit": "Missing rows remain Missing; database errors become Failed without exposing the driver error. Reads have no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_name_query_adapter",
+      "source": "crates/wow-database/src/player_name_query_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": ["characters"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free player-name reads (#487)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The module owns only the transitional Character query adapter.",
+      "current_order": "SQL identity, GUID bind and row projection stay private; request ordering and packet construction remain in wow-world.",
+      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_name_query_adapter",
+      "source": "crates/wow-database/src/player_name_query_adapter.rs",
+      "enclosing": "struct MariaDbPlayerNameQueryPersistenceAdapterLikeCpp",
+      "logical_databases": ["characters"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free player-name reads (#487)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter stores exactly one Character database handle.",
       "current_order": "The handle surface implies no runtime order beyond the port method.",
       "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome."
     }

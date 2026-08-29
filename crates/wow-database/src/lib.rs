@@ -51,6 +51,7 @@ pub mod params;
 pub mod persistence_trace;
 pub mod player_lifecycle_adapter;
 pub mod player_money_transaction_adapter;
+pub mod player_name_query_adapter;
 pub mod player_spell_acquisition_adapter;
 pub mod query_holder;
 pub mod quest_poi_adapter;
@@ -84,6 +85,7 @@ pub use loader::{
 };
 pub use page_text_catalog_adapter::MariaDbPageTextCatalogPersistenceAdapterLikeCpp;
 pub use params::{PreparedStatement, SqlParam};
+pub use player_name_query_adapter::MariaDbPlayerNameQueryPersistenceAdapterLikeCpp;
 pub use query_holder::{SqlQueryHolder, SqlQueryHolderResult};
 pub use result::{
     DatabaseFieldTypeLikeCpp, SqlFields, SqlResult, database_field_type_like_cpp,
