@@ -162,6 +162,7 @@ last-writer-wins policy.
 | Next-mail-time persistence capability | `wow_persistence::NextMailTimePersistencePortLikeCpp` owns the SQLx-free player-guid request, five-column represented mail row and loaded/failed outcome | `wow_database::next_mail_time_adapter` alone owns `CHAR_SEL_MAIL`, its u64 bind, Character database handle and tolerant row decoding | the player handler retains identity, clock comparison, read/delivery filters, sender dedupe, three-entry cap, packet construction, logging and Realm routing | composed once in `world-server`; this preserves Rust's existing on-demand query without claiming C++ ownership parity | #460 removes the concrete mail read from `WorldSession`. C++ reads `_player->GetMails()` and `unReadMails`; #153/the mail vertical must retire this transitional query when Rust has that canonical in-memory owner. |
 | Gameobject-use template persistence capability | `wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp` owns the SQLx-free entry request and typed type/icon/size/Data0..34/content-tuning projection | `wow_database::gameobject_use_template_adapter` alone owns `SEL_GAMEOBJECT_TEMPLATE_BY_ENTRY`, its u32 bind, World database handle and tolerant row decoding | the gameobject handler retains object/visibility admission, template interpretation, conditions, distance/mover/cooldown rules and type-specific gameplay dispatch | composed once in `world-server`; missing port, row or query result remains an explicit no-op without fabricating a template | #462 removes the concrete per-use World query from `WorldSession`. C++ loads `ObjectMgr::_gameObjectTemplateStore` at startup and `GameObject::Use` reads `GetGOInfo()`; #153/the gameobject vertical must replace this transitional read with that canonical store. |
 | Canonical map-corpse persistence capability | `wow_persistence::MapCorpsePersistencePortLikeCpp` owns the SQLx-free `(map, instance)` request, raw persisted corpse/phase/customization rows and independent base/auxiliary outcomes | `wow_database::map_corpse_adapter` alone maps that request to `SEL_CORPSES`, `SEL_CORPSE_PHASES` and `SEL_CORPSE_CUSTOMIZATIONS`, preserving exact bind width, order and query failure classification | the transitional `wow-world` application adapter retains corpse validation, item-cache parsing, faction resolution, map-local GUID allocation and publication into canonical `wow_map::Map` | composed once in `world-server`; the map lock is checked before I/O and reacquired only after the complete typed result returns | #392 removes concrete Character-database access from `Map::LoadCorpseData` hydration without folding map state into the Player lifecycle port. #153 owns relocating the transitional Session caller; the canonical corpse owner and clock do not change in this cut. |
+| Respawn persistence capability | `wow_persistence::RespawnPersistencePortLikeCpp` owns SQLx-free respawn rows, stable `(spawn type, spawn id, instance)` keys, save/delete mutations and classified load/mutation outcomes | `wow_database::respawn_persistence_adapter` alone owns `SEL_RESPAWNS`, `SEL_ALL_RESPAWNS`, `REP_RESPAWN`, `DEL_RESPAWN`, row decoding and bind order | legacy/canonical map runtimes retain eligibility, latest-per-key coalescing, retry cadence and lifecycle ordering; they emit typed mutations without inspecting SQL | composed once in `world-server`; startup loading and the shared writer use the same port, I/O stays outside map locks, and shutdown still drains pending mutations | #493 removes respawn SQL identity, statement parameters and concrete Character-database execution from map/session/runtime orchestration without changing gameplay authority, clock ownership, save-before-delete order or retry behavior. The exhaustive inventory falls to 21,346 exact rows (10,974 production and 10,372 fixtures), with multiplicity 23,674 (12,557 production and 11,117 fixtures); 29 obsolete workflow groups become 10 stable adapter groups. |
 | Session login/logout lifecycle | private `wow_world::session::lifecycle`: `login` (the single-live-session character claim), `logout` (timed logout finalize and the disconnect save), `cleanup` (registry/visibility/map/accessor teardown) | the owning Session task on its exit paths | the Session driver's logout timer, the disconnect path in the composition root, and the login handlers | claim held from before the login sequence commits until any exit path; cleanup tears down publication before ownership, and the disconnect save keeps the represented player alive until it has run — C++ `LogoutPlayer(true)` saves while `_player` still exists | #184 extracted the exact current behaviour, concrete DB calls included, behind one private seam. #200 replaces that persistence seam once #187 freezes the focused Player contract. |
 | Session phase driver | private `wow_world::session::driver`: the ordered pass (`update` ingestion + Session timers, `process_pending` async phases), the shared ingestion budget in `driver::budget`, and the frozen phase trace in `driver::phases` | the one Session task; there is no second scheduler | the composition root that spawns the Session task calls the pass and owns cadence, cancellation and the idle sleep | one pass per loop iteration; ingestion is bounded by a single shared budget so a busy realm channel cannot starve the instance channel, and exit is decided inside the pass (disconnected channel, idle deadline, logout timer) | #183 extracted the driver from `session/mod.rs`. It is deliberately not the world/Map/gameplay tick owner — those clocks are unchanged and traced in `runtime-clock-phase-trace.md` (#188). #28 and #153 own semantic convergence. |
 | Logical realm/instance connection | `wow_session::SessionConnection` since #297: the attach/switch/restore state machine, realm-vs-primary send selection and the two cross-socket ordering fences, in a crate that cannot reach gameplay, a map or a database. `wow_world::session::connection` is now a delegation shim that performs the session steps the kernel reports back | the owning Session task, which is the only writer of the logical primary | `send_packet_realm`/`send_raw_packet_realm` callers, the Session driver polling the instance link, and logout restore | connection lifetime; after `SMSG_CONNECT_TO` the instance channel becomes primary and the realm channel is parked, never closed — the client drops the session if either socket dies | #182 extracted the transition implementation out of `session/mod.rs` and #297 moved it into the `wow-session` crate, taking the eleven channel, fence and ConnectTo fields with it; `WorldSession` now holds one opaque `connection` handle. `account_id` and `player_loading` deliberately stayed behind — identity and login-loading state are not transport. #378 classified the five remaining module families and proved that each is still an application/gameplay adapter with a named authority or port blocker; #153 owns replacing the concrete `wow-network` types with ports. |
@@ -758,21 +759,22 @@ display is checked against the JSON ledger:
 91. #487 — player-name reads through a typed Character persistence port;
 92. #489 — item-template-addon reads through a typed World persistence port;
 93. #491 — gossip catalog reads through a typed World persistence port;
-93. #189 — durable loot persistence coordination;
-94. #192 — runtime/fanout directory consumers;
-95. #193 — combat/loot directory consumers;
-96. #194 — quest/spell/movement directory consumers;
-97. #197 — atomic group invite/create transitions;
-98. #198 — atomic group membership/leadership transitions;
-99. #199 — Group persistence/publication closure;
-100. #195 — social/group session addressing;
-101. #196 — PlayerRegistry storage closure;
-102. #138 — opaque session-directory relocation;
-103. #191 — mailbox protocol relocation;
-104. #137 — encapsulated Group owner move;
-105. #190 — durable creature-runtime rail relocation;
-106. #140 — Session mailbox pump;
-107. #252 — retire the temporary PlayerBroadcastInfo gameplay mirror;
+94. #493 — respawn loads and mutations through a typed Character persistence port;
+95. #189 — durable loot persistence coordination;
+96. #192 — runtime/fanout directory consumers;
+97. #193 — combat/loot directory consumers;
+98. #194 — quest/spell/movement directory consumers;
+99. #197 — atomic group invite/create transitions;
+100. #198 — atomic group membership/leadership transitions;
+101. #199 — Group persistence/publication closure;
+102. #195 — social/group session addressing;
+103. #196 — PlayerRegistry storage closure;
+104. #138 — opaque session-directory relocation;
+105. #191 — mailbox protocol relocation;
+106. #137 — encapsulated Group owner move;
+107. #190 — durable creature-runtime rail relocation;
+108. #140 — Session mailbox pump;
+109. #252 — retire the temporary PlayerBroadcastInfo gameplay mirror;
 108. #182 — logical realm/instance routing;
 109. #183 — Session-only phase driver;
 110. #184 — login/logout lifecycle modules;

@@ -1501,8 +1501,8 @@ pub(crate) fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
             registry,
         );
     if let Some(respawn_db_writer_tx) = respawn_db_writer_tx {
-        for statement in lifecycle.respawn_db_statements.drain(..) {
-            if respawn_db_writer_tx.send(statement).is_err() {
+        for mutation in lifecycle.respawn_db_mutations.drain(..) {
+            if respawn_db_writer_tx.send(mutation).is_err() {
                 tracing::error!(
                     "Shared respawn DB writer stopped before legacy respawn statement submission"
                 );

@@ -36,8 +36,8 @@ use wow_database::{
     CharStatements, CharacterDatabase, DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP,
     DATABASE_LOGIN_LIKE_CPP, DATABASE_MASK_ALL_LIKE_CPP, DATABASE_WORLD_LIKE_CPP, HotfixDatabase,
     ItemGuidAllocatorAdvisoryLockLikeCpp, LoginBattlePetPersistenceLikeCpp, LoginDatabase,
-    LoginStatements, PreparedStatement, SqlParam, SqlResult, SqlTransaction, StatementDef,
-    WorldDatabase, WorldStatements, escape_string_like_cpp, warn_about_sync_queries_scope_like_cpp,
+    LoginStatements, SqlResult, SqlTransaction, StatementDef, WorldDatabase, WorldStatements,
+    escape_string_like_cpp, warn_about_sync_queries_scope_like_cpp,
 };
 use wow_instances::{InstanceLockMgr, MapDb2Entries, ResetSchedule};
 use wow_loot::{
@@ -52,6 +52,11 @@ use wow_network::{SocketTimeoutsLikeCpp, WorldListenerPolicyLikeCpp};
 use wow_packet::{
     ServerPacket,
     packets::chat::{ChatMsg, ChatPkt},
+};
+use wow_persistence::{
+    RespawnPersistenceKeyLikeCpp, RespawnPersistenceLoadOutcomeLikeCpp,
+    RespawnPersistenceMutationLikeCpp, RespawnPersistenceMutationOutcomeLikeCpp,
+    RespawnPersistencePortLikeCpp, RespawnPersistenceRowLikeCpp,
 };
 use wow_social::group::{
     GroupDbRowLikeCpp, GroupLoadSummaryLikeCpp, GroupMemberCharacterLikeCpp,
@@ -176,36 +181,9 @@ const CREATURE_TYPE_FLAG_BOSS_MOB_LIKE_CPP: u32 = 0x0001_0000;
 const HARDCODED_DEVELOPMENT_REALM_CATEGORY_ID_LIKE_CPP: u32 = 1;
 const CFG_CATEGORIES_CHARSET_RUSSIAN_LIKE_CPP: u8 = 0x04;
 
-type RespawnDbStatementKeyLikeCpp = (u16, u64, u16, u32);
+type RespawnDbMutationKeyLikeCpp = RespawnPersistenceKeyLikeCpp;
 type SharedRespawnDbMutationOrderLikeCpp = Arc<Mutex<()>>;
 type SharedRespawnDbProducerStopLikeCpp = Arc<AtomicBool>;
-
-fn respawn_statement_key_like_cpp(
-    statement: &PreparedStatement,
-) -> Option<RespawnDbStatementKeyLikeCpp> {
-    let params = statement.params();
-    let (map_index, instance_index) = if statement.sql() == CharStatements::REP_RESPAWN.sql() {
-        (3, 4)
-    } else if statement.sql() == CharStatements::DEL_RESPAWN.sql() {
-        (2, 3)
-    } else {
-        return None;
-    };
-    match (
-        params.first(),
-        params.get(1),
-        params.get(map_index),
-        params.get(instance_index),
-    ) {
-        (
-            Some(SqlParam::U16(object_type)),
-            Some(SqlParam::U64(spawn_id)),
-            Some(SqlParam::U16(map_id)),
-            Some(SqlParam::U32(instance_id)),
-        ) => Some((*object_type, *spawn_id, *map_id, *instance_id)),
-        _ => None,
-    }
-}
 
 /// Keeps the latest respawn DB operation per spawn for the shared DB writer.
 ///
@@ -215,39 +193,39 @@ fn respawn_statement_key_like_cpp(
 /// legacy producers, avoiding both map-tick stalls and cross-runtime REP/DEL
 /// reordering. Retry cadence is independent per spawn key.
 #[derive(Debug)]
-struct PendingRespawnDbStatementLikeCpp {
-    statement: PreparedStatement,
+struct PendingRespawnDbMutationLikeCpp {
+    mutation: RespawnPersistenceMutationLikeCpp,
     consecutive_failures: u32,
     retry_not_before: Instant,
 }
 
 #[derive(Debug, Default)]
 struct RespawnDbRetryQueueLikeCpp {
-    pending: BTreeMap<RespawnDbStatementKeyLikeCpp, PendingRespawnDbStatementLikeCpp>,
+    pending: BTreeMap<RespawnDbMutationKeyLikeCpp, PendingRespawnDbMutationLikeCpp>,
 }
 
 #[derive(Debug)]
 struct RespawnDbAttemptLikeCpp {
-    key: RespawnDbStatementKeyLikeCpp,
-    pending: PendingRespawnDbStatementLikeCpp,
+    key: RespawnDbMutationKeyLikeCpp,
+    pending: PendingRespawnDbMutationLikeCpp,
 }
 
 impl RespawnDbRetryQueueLikeCpp {
     fn enqueue_latest(
         &mut self,
-        statement: PreparedStatement,
+        mutation: RespawnPersistenceMutationLikeCpp,
         now: Instant,
-    ) -> Option<RespawnDbStatementKeyLikeCpp> {
-        let key = respawn_statement_key_like_cpp(&statement)?;
+    ) -> RespawnDbMutationKeyLikeCpp {
+        let key = mutation.key();
         self.pending.insert(
             key,
-            PendingRespawnDbStatementLikeCpp {
-                statement,
+            PendingRespawnDbMutationLikeCpp {
+                mutation,
                 consecutive_failures: 0,
                 retry_not_before: now,
             },
         );
-        Some(key)
+        key
     }
 
     fn next_deadline(&self) -> Option<Instant> {
@@ -330,7 +308,6 @@ impl RespawnDbMailboxLikeCpp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RespawnDbSubmitErrorLikeCpp {
     Closed,
-    UnrecognizedStatement,
 }
 
 #[derive(Debug, Clone)]
@@ -347,7 +324,7 @@ impl RespawnDbWriterSenderLikeCpp {
 
     fn send(
         &self,
-        statement: PreparedStatement,
+        mutation: RespawnPersistenceMutationLikeCpp,
     ) -> std::result::Result<(), RespawnDbSubmitErrorLikeCpp> {
         let mut state = self
             .mailbox
@@ -357,13 +334,7 @@ impl RespawnDbWriterSenderLikeCpp {
         if state.closed {
             return Err(RespawnDbSubmitErrorLikeCpp::Closed);
         }
-        if state
-            .queue
-            .enqueue_latest(statement, Instant::now())
-            .is_none()
-        {
-            return Err(RespawnDbSubmitErrorLikeCpp::UnrecognizedStatement);
-        }
+        state.queue.enqueue_latest(mutation, Instant::now());
         drop(state);
         self.mailbox.notify.notify_one();
         Ok(())
@@ -404,11 +375,13 @@ fn respawn_db_retry_delay(consecutive_failed_flushes: u32) -> Duration {
 async fn execute_respawn_db_attempt_like_cpp(
     attempt: RespawnDbAttemptLikeCpp,
     mailbox: &RespawnDbMailboxLikeCpp,
-    character_db: &CharacterDatabase,
+    respawn_persistence: &dyn RespawnPersistencePortLikeCpp,
 ) {
-    if let Err(error) = character_db.execute(&attempt.pending.statement).await {
+    if let RespawnPersistenceMutationOutcomeLikeCpp::Failed { reason } = respawn_persistence
+        .execute_mutation_like_cpp(attempt.pending.mutation)
+        .await
+    {
         let key = attempt.key;
-        let sql = attempt.pending.statement.sql().to_string();
         let (retry_delay, failed_attempts) = mailbox
             .state
             .lock()
@@ -416,12 +389,11 @@ async fn execute_respawn_db_attempt_like_cpp(
             .queue
             .retry_failed(attempt, Instant::now());
         warn!(
-            error = %error,
-            sql = %sql,
-            object_type = key.0,
-            spawn_id = key.1,
-            map_id = key.2,
-            instance_id = key.3,
+            error = %reason,
+            object_type = key.object_type_raw,
+            spawn_id = key.spawn_id,
+            map_id = key.map_id,
+            instance_id = key.instance_id,
             retry_in_ms = retry_delay.as_millis(),
             failed_attempts,
             "Failed to persist respawn operation like C++; shared DB-writer retry deferred"
@@ -430,7 +402,7 @@ async fn execute_respawn_db_attempt_like_cpp(
 }
 
 fn spawn_respawn_db_writer_like_cpp(
-    character_db: Arc<CharacterDatabase>,
+    respawn_persistence: Arc<dyn RespawnPersistencePortLikeCpp>,
 ) -> (RespawnDbWriterSenderLikeCpp, tokio::task::JoinHandle<()>) {
     let sender = RespawnDbWriterSenderLikeCpp::new_like_cpp();
     let mailbox = Arc::clone(&sender.mailbox);
@@ -470,7 +442,7 @@ fn spawn_respawn_db_writer_like_cpp(
                     execute_respawn_db_attempt_like_cpp(
                         attempt,
                         mailbox.as_ref(),
-                        character_db.as_ref(),
+                        respawn_persistence.as_ref(),
                     )
                     .await;
                 }
@@ -1846,56 +1818,27 @@ struct PersistedRespawnLoadReportLikeCpp {
     missing_spawn_metadata: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct PersistedRespawnRowLikeCpp {
-    object_type_raw: u16,
-    spawn_id: u64,
-    respawn_time: i64,
-    map_id: u32,
-    instance_id: u32,
-}
-
 async fn load_persisted_respawn_times_like_cpp(
-    character_db: &CharacterDatabase,
+    respawn_persistence: &dyn RespawnPersistencePortLikeCpp,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
 ) -> Result<(
     PersistedRespawnTimesLikeCpp,
     PersistedRespawnLoadReportLikeCpp,
 )> {
-    let mut result = character_db
-        .query(&character_db.prepare(CharStatements::SEL_ALL_RESPAWNS))
-        .await?;
+    let rows = match respawn_persistence.load_all_like_cpp().await {
+        RespawnPersistenceLoadOutcomeLikeCpp::Loaded(rows) => rows,
+        RespawnPersistenceLoadOutcomeLikeCpp::Failed { reason } => {
+            bail!("failed to load persisted respawn times: {reason}")
+        }
+    };
     let mut snapshot = PersistedRespawnTimesLikeCpp::default();
     let mut report = PersistedRespawnLoadReportLikeCpp::default();
 
-    if result.is_empty() {
-        return Ok((snapshot, report));
-    }
-
-    loop {
-        let row = PersistedRespawnRowLikeCpp {
-            object_type_raw: result
-                .try_read::<u16>(0)
-                .or_else(|| result.try_read::<u8>(0).map(u16::from))
-                .unwrap_or(u16::MAX),
-            spawn_id: result
-                .try_read::<u64>(1)
-                .or_else(|| result.try_read::<i64>(1).map(|value| value as u64))
-                .unwrap_or(0),
-            respawn_time: result.try_read::<i64>(2).unwrap_or(0),
-            map_id: result
-                .try_read::<u32>(3)
-                .or_else(|| result.try_read::<u16>(3).map(u32::from))
-                .unwrap_or(0),
-            instance_id: result.try_read::<u32>(4).unwrap_or(0),
-        };
+    for row in rows {
         if let Some((key, info)) =
             persisted_respawn_info_from_row_like_cpp(row, canonical_spawn_metadata, &mut report)
         {
             snapshot.push(key, info);
-        }
-        if !result.next_row() {
-            break;
         }
     }
 
@@ -1903,7 +1846,7 @@ async fn load_persisted_respawn_times_like_cpp(
 }
 
 fn persisted_respawn_info_from_row_like_cpp(
-    row: PersistedRespawnRowLikeCpp,
+    row: RespawnPersistenceRowLikeCpp,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     report: &mut PersistedRespawnLoadReportLikeCpp,
 ) -> Option<(wow_map::MapKey, wow_map::RespawnInfoLikeCpp)> {

@@ -58,6 +58,7 @@ pub mod player_spell_acquisition_adapter;
 pub mod query_holder;
 pub mod quest_poi_adapter;
 pub mod represented_group_persistence_adapter;
+pub mod respawn_persistence_adapter;
 pub mod result;
 pub mod session_account_state_adapter;
 pub mod social_adapter;
@@ -91,6 +92,7 @@ pub use page_text_catalog_adapter::MariaDbPageTextCatalogPersistenceAdapterLikeC
 pub use params::{PreparedStatement, SqlParam};
 pub use player_name_query_adapter::MariaDbPlayerNameQueryPersistenceAdapterLikeCpp;
 pub use query_holder::{SqlQueryHolder, SqlQueryHolderResult};
+pub use respawn_persistence_adapter::MariaDbRespawnPersistenceAdapterLikeCpp;
 pub use result::{
     DatabaseFieldTypeLikeCpp, SqlFields, SqlResult, database_field_type_like_cpp,
     rust_type_compatible_with_database_field_like_cpp,

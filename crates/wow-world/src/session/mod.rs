@@ -162,10 +162,8 @@ use wow_data::{
     },
     spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
 };
-#[cfg(test)]
-use wow_database::{CharStatements, StatementDef};
 use wow_database::{
-    CharacterDatabase, LoginDatabase, PreparedStatement, SqlTransaction, WorldDatabase,
+    CharacterDatabase, LoginDatabase, SqlTransaction, WorldDatabase,
     retry_deadlocked_operation_like_cpp,
 };
 use wow_entities::{
@@ -3848,7 +3846,7 @@ pub struct LegacyCreatureLifecycleTickOutcomeLikeCpp {
     pub creatures_seen: usize,
     pub corpses_despawned: usize,
     pub respawns_processed: usize,
-    pub respawn_db_statements: Vec<PreparedStatement>,
+    pub respawn_db_mutations: Vec<wow_persistence::RespawnPersistenceMutationLikeCpp>,
     pub canonical_removes: usize,
     pub canonical_inserts: usize,
     pub canonical_respawn_adds: usize,
@@ -54992,7 +54990,7 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                             conversion_now,
                             conversion_now_secs,
                         ) {
-                            outcome.respawn_db_statements.push(stmt);
+                            outcome.respawn_db_mutations.push(stmt);
                         }
                         if let Some(creature) =
                             manager.find_creature_mut(map_id, instance_id, *guid)
@@ -55070,7 +55068,7 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                         conversion_now,
                         conversion_now_secs,
                     ) {
-                        outcome.respawn_db_statements.push(stmt);
+                        outcome.respawn_db_mutations.push(stmt);
                     }
                 }
                 manager.push_respawn(map_id, instance_id, pending);
@@ -55108,7 +55106,7 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                             wow_map::SpawnObjectType::Creature,
                             respawn.spawn_id,
                         ) {
-                            outcome.respawn_db_statements.push(stmt);
+                            outcome.respawn_db_mutations.push(stmt);
                         }
                         canonical_respawn_removes.push((
                             u32::from(map_id),
@@ -55143,7 +55141,7 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                             wow_map::SpawnObjectType::Creature,
                             respawn.spawn_id,
                         ) {
-                            outcome.respawn_db_statements.push(stmt);
+                            outcome.respawn_db_mutations.push(stmt);
                         }
                         canonical_respawn_removes.push((
                             u32::from(map_id),
