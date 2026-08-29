@@ -389,6 +389,18 @@ impl PlayerMoneyCommitCancellationFenceLikeCpp {
     }
 }
 
+impl wow_persistence::BattlePetPurchaseCommitFenceLikeCpp
+    for PlayerMoneyCommitCancellationFenceLikeCpp
+{
+    fn arm_like_cpp(&mut self) {
+        PlayerMoneyCommitCancellationFenceLikeCpp::arm_like_cpp(self);
+    }
+
+    fn disarm_like_cpp(&mut self) {
+        PlayerMoneyCommitCancellationFenceLikeCpp::disarm_like_cpp(self);
+    }
+}
+
 impl Drop for PlayerMoneyCommitCancellationFenceLikeCpp {
     fn drop(&mut self) {
         if self.armed {
@@ -6389,7 +6401,7 @@ pub struct WorldSession {
         Option<Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>>,
     /// Character DB seam of the recoverable battle-pet purchase saga (#161).
     battle_pet_purchase_store_like_cpp:
-        Option<Arc<dyn crate::battle_pet_purchase::BattlePetPurchaseStoreLikeCpp>>,
+        Option<Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>>,
     /// Deterministic purchase selection override for saga tests (#161).
     #[cfg(test)]
     battle_pet_purchase_selection_override_like_cpp:
@@ -16459,30 +16471,18 @@ impl WorldSession {
         self.battle_pet_selection_store_like_cpp.as_ref()
     }
 
-    /// Build the production Character DB seam of the recoverable purchase
-    /// saga (#161) from this session's own character database handle. Keeps
-    /// the saga store type private to `wow-world`.
-    pub fn install_battle_pet_purchase_store_from_char_db_like_cpp(&mut self) {
-        self.battle_pet_purchase_store_like_cpp = self.char_db.as_ref().map(|char_db| {
-            Arc::new(
-                crate::battle_pet_purchase::CharacterBattlePetPurchaseStoreLikeCpp::new(
-                    Arc::clone(char_db),
-                ),
-            ) as Arc<dyn crate::battle_pet_purchase::BattlePetPurchaseStoreLikeCpp>
-        });
-    }
-
-    #[cfg(test)]
-    pub(crate) fn set_battle_pet_purchase_store_like_cpp(
+    /// Install the SQLx-free Character durability port for the recoverable
+    /// #161 purchase saga. The composition root owns the MariaDB adapter.
+    pub fn set_battle_pet_purchase_persistence_port_like_cpp(
         &mut self,
-        store: Arc<dyn crate::battle_pet_purchase::BattlePetPurchaseStoreLikeCpp>,
+        store: Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>,
     ) {
         self.battle_pet_purchase_store_like_cpp = Some(store);
     }
 
     pub(crate) fn battle_pet_purchase_store_like_cpp(
         &self,
-    ) -> Option<Arc<dyn crate::battle_pet_purchase::BattlePetPurchaseStoreLikeCpp>> {
+    ) -> Option<Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>> {
         self.battle_pet_purchase_store_like_cpp
             .as_ref()
             .map(Arc::clone)

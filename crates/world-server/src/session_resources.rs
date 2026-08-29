@@ -62,6 +62,9 @@ pub(super) struct SessionResources {
         Option<Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>>,
     pub(super) player_spell_acquisition_persistence_port:
         Option<Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>>,
+    /// Characters-database durability for the recoverable battle-pet purchase saga.
+    pub(super) battle_pet_purchase_persistence_port:
+        Option<Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>>,
     pub(super) world_db: Option<Arc<wow_database::WorldDatabase>>,
     /// Process-wide C++ trainer/default-trainer snapshot.
     pub(super) trainer_store: Option<Arc<wow_data::TrainerStoreLikeCpp>>,

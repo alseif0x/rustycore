@@ -34,6 +34,7 @@
 //! - Statement enums: [`LoginStatements`], [`WorldStatements`], [`CharStatements`], [`HotfixStatements`]
 
 pub mod battle_pet_account_adapter;
+pub mod battle_pet_purchase_adapter;
 pub mod database;
 pub mod error;
 pub mod gameobject_use_template_adapter;
@@ -62,6 +63,7 @@ pub mod void_storage_adapter;
 
 // Re-export primary types at crate root for convenience.
 pub use battle_pet_account_adapter::LoginBattlePetPersistenceLikeCpp;
+pub use battle_pet_purchase_adapter::CharacterBattlePetPurchasePersistenceAdapterLikeCpp;
 pub use database::{
     Database, build_connection_string, build_connection_string_with_ssl_like_cpp,
     escape_string_like_cpp, warn_about_sync_queries_enabled_like_cpp,
