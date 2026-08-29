@@ -9702,295 +9702,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-data:crate::vehicle:crates/wow-data/src/vehicle.rs::impl VehicleAccessoryStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/vehicle.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::vehicle"
-      ],
-      "enclosings": [
-        "impl VehicleAccessoryStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl VehicleAccessoryStoreLikeCpp::load_like_cpp in crates/wow-data/src/vehicle.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::vehicle:crates/wow-data/src/vehicle.rs::impl VehicleAccessoryStoreLikeCpp::load_spawn_accessories_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/vehicle.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::vehicle"
-      ],
-      "enclosings": [
-        "impl VehicleAccessoryStoreLikeCpp::load_spawn_accessories_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl VehicleAccessoryStoreLikeCpp::load_spawn_accessories_like_cpp in crates/wow-data/src/vehicle.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::vehicle:crates/wow-data/src/vehicle.rs::impl VehicleAccessoryStoreLikeCpp::load_template_accessories_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/vehicle.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::vehicle"
-      ],
-      "enclosings": [
-        "impl VehicleAccessoryStoreLikeCpp::load_template_accessories_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl VehicleAccessoryStoreLikeCpp::load_template_accessories_like_cpp in crates/wow-data/src/vehicle.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::vehicle:crates/wow-data/src/vehicle.rs::impl VehicleSeatStore::load_hotfix_rows",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/vehicle.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::vehicle"
-      ],
-      "enclosings": [
-        "impl VehicleSeatStore::load_hotfix_rows"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl VehicleSeatStore::load_hotfix_rows in crates/wow-data/src/vehicle.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::vehicle:crates/wow-data/src/vehicle.rs::impl VehicleSeatStore::load_with_hotfixes",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/vehicle.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::vehicle"
-      ],
-      "enclosings": [
-        "impl VehicleSeatStore::load_with_hotfixes"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl VehicleSeatStore::load_with_hotfixes in crates/wow-data/src/vehicle.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::vehicle:crates/wow-data/src/vehicle.rs::impl VehicleStore::load_hotfix_rows",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/vehicle.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::vehicle"
-      ],
-      "enclosings": [
-        "impl VehicleStore::load_hotfix_rows"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl VehicleStore::load_hotfix_rows in crates/wow-data/src/vehicle.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::vehicle:crates/wow-data/src/vehicle.rs::impl VehicleStore::load_with_hotfixes",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/vehicle.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::vehicle"
-      ],
-      "enclosings": [
-        "impl VehicleStore::load_with_hotfixes"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl VehicleStore::load_with_hotfixes in crates/wow-data/src/vehicle.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::vehicle:crates/wow-data/src/vehicle.rs::impl VehicleTemplateStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/vehicle.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::vehicle"
-      ],
-      "enclosings": [
-        "impl VehicleTemplateStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl VehicleTemplateStoreLikeCpp::load_like_cpp in crates/wow-data/src/vehicle.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::vehicle:crates/wow-data/src/vehicle.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/vehicle.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::vehicle"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix",
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow module in crates/wow-data/src/vehicle.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for hotfix, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-data:crate::vendor:crates/wow-data/src/vendor.rs::impl NpcVendorStoreLikeCpp::load_like_cpp",
       "source_class": "production",
       "packages": [
@@ -24024,6 +23735,427 @@
       "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::vehicle_catalog_adapter:crates/wow-database/src/vehicle_catalog_adapter.rs::fn classify_hotfix_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/vehicle_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::vehicle_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn classify_hotfix_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapters for SQLx-free vehicle startup loading (#507) currently owns the complete wow-database workflow fn classify_hotfix_rows_like_cpp in crates/wow-database/src/vehicle_catalog_adapter.rs.",
+      "connection_affinity": "Hotfix and World remain independent startup connections; this workflow uses only its named adapter and implies no transaction or cross-database atomicity.",
+      "current_order": "world-server preserves Vehicle DB2 -> Vehicle overlay -> VehicleSeat DB2 -> VehicleSeat overlay -> vehicle_template -> template accessories -> spawn accessories; each query fully decodes its row family before returning.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; no concrete row, pool or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::vehicle_catalog_adapter:crates/wow-database/src/vehicle_catalog_adapter.rs::fn classify_world_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/vehicle_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::vehicle_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn classify_world_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapters for SQLx-free vehicle startup loading (#507) currently owns the complete wow-database workflow fn classify_world_rows_like_cpp in crates/wow-database/src/vehicle_catalog_adapter.rs.",
+      "connection_affinity": "Hotfix and World remain independent startup connections; this workflow uses only its named adapter and implies no transaction or cross-database atomicity.",
+      "current_order": "world-server preserves Vehicle DB2 -> Vehicle overlay -> VehicleSeat DB2 -> VehicleSeat overlay -> vehicle_template -> template accessories -> spawn accessories; each query fully decodes its row family before returning.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; no concrete row, pool or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::vehicle_catalog_adapter:crates/wow-database/src/vehicle_catalog_adapter.rs::fn query_hotfix_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/vehicle_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::vehicle_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn query_hotfix_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapters for SQLx-free vehicle startup loading (#507) currently owns the complete wow-database workflow fn query_hotfix_rows_like_cpp in crates/wow-database/src/vehicle_catalog_adapter.rs.",
+      "connection_affinity": "Hotfix and World remain independent startup connections; this workflow uses only its named adapter and implies no transaction or cross-database atomicity.",
+      "current_order": "world-server preserves Vehicle DB2 -> Vehicle overlay -> VehicleSeat DB2 -> VehicleSeat overlay -> vehicle_template -> template accessories -> spawn accessories; each query fully decodes its row family before returning.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; no concrete row, pool or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::vehicle_catalog_adapter:crates/wow-database/src/vehicle_catalog_adapter.rs::fn query_world_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/vehicle_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::vehicle_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn query_world_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapters for SQLx-free vehicle startup loading (#507) currently owns the complete wow-database workflow fn query_world_rows_like_cpp in crates/wow-database/src/vehicle_catalog_adapter.rs.",
+      "connection_affinity": "Hotfix and World remain independent startup connections; this workflow uses only its named adapter and implies no transaction or cross-database atomicity.",
+      "current_order": "world-server preserves Vehicle DB2 -> Vehicle overlay -> VehicleSeat DB2 -> VehicleSeat overlay -> vehicle_template -> template accessories -> spawn accessories; each query fully decodes its row family before returning.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; no concrete row, pool or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::vehicle_catalog_adapter:crates/wow-database/src/vehicle_catalog_adapter.rs::impl MariaDbVehicleHotfixPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/vehicle_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::vehicle_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbVehicleHotfixPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapters for SQLx-free vehicle startup loading (#507) currently owns the complete wow-database workflow impl MariaDbVehicleHotfixPersistenceAdapterLikeCpp::new in crates/wow-database/src/vehicle_catalog_adapter.rs.",
+      "connection_affinity": "Hotfix and World remain independent startup connections; this workflow uses only its named adapter and implies no transaction or cross-database atomicity.",
+      "current_order": "world-server preserves Vehicle DB2 -> Vehicle overlay -> VehicleSeat DB2 -> VehicleSeat overlay -> vehicle_template -> template accessories -> spawn accessories; each query fully decodes its row family before returning.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; no concrete row, pool or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::vehicle_catalog_adapter:crates/wow-database/src/vehicle_catalog_adapter.rs::impl MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/vehicle_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::vehicle_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapters for SQLx-free vehicle startup loading (#507) currently owns the complete wow-database workflow impl MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp::new in crates/wow-database/src/vehicle_catalog_adapter.rs.",
+      "connection_affinity": "Hotfix and World remain independent startup connections; this workflow uses only its named adapter and implies no transaction or cross-database atomicity.",
+      "current_order": "world-server preserves Vehicle DB2 -> Vehicle overlay -> VehicleSeat DB2 -> VehicleSeat overlay -> vehicle_template -> template accessories -> spawn accessories; each query fully decodes its row family before returning.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; no concrete row, pool or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::vehicle_catalog_adapter:crates/wow-database/src/vehicle_catalog_adapter.rs::impl wow_persistence::VehicleHotfixPersistencePortLikeCpp for MariaDbVehicleHotfixPersistenceAdapterLikeCpp::load_vehicle_hotfix_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/vehicle_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::vehicle_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::VehicleHotfixPersistencePortLikeCpp for MariaDbVehicleHotfixPersistenceAdapterLikeCpp::load_vehicle_hotfix_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapters for SQLx-free vehicle startup loading (#507) currently owns the complete wow-database workflow impl wow_persistence::VehicleHotfixPersistencePortLikeCpp for MariaDbVehicleHotfixPersistenceAdapterLikeCpp::load_vehicle_hotfix_rows_like_cpp in crates/wow-database/src/vehicle_catalog_adapter.rs.",
+      "connection_affinity": "Hotfix and World remain independent startup connections; this workflow uses only its named adapter and implies no transaction or cross-database atomicity.",
+      "current_order": "world-server preserves Vehicle DB2 -> Vehicle overlay -> VehicleSeat DB2 -> VehicleSeat overlay -> vehicle_template -> template accessories -> spawn accessories; each query fully decodes its row family before returning.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; no concrete row, pool or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::vehicle_catalog_adapter:crates/wow-database/src/vehicle_catalog_adapter.rs::impl wow_persistence::VehicleHotfixPersistencePortLikeCpp for MariaDbVehicleHotfixPersistenceAdapterLikeCpp::load_vehicle_seat_hotfix_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/vehicle_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::vehicle_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::VehicleHotfixPersistencePortLikeCpp for MariaDbVehicleHotfixPersistenceAdapterLikeCpp::load_vehicle_seat_hotfix_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapters for SQLx-free vehicle startup loading (#507) currently owns the complete wow-database workflow impl wow_persistence::VehicleHotfixPersistencePortLikeCpp for MariaDbVehicleHotfixPersistenceAdapterLikeCpp::load_vehicle_seat_hotfix_rows_like_cpp in crates/wow-database/src/vehicle_catalog_adapter.rs.",
+      "connection_affinity": "Hotfix and World remain independent startup connections; this workflow uses only its named adapter and implies no transaction or cross-database atomicity.",
+      "current_order": "world-server preserves Vehicle DB2 -> Vehicle overlay -> VehicleSeat DB2 -> VehicleSeat overlay -> vehicle_template -> template accessories -> spawn accessories; each query fully decodes its row family before returning.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; no concrete row, pool or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::vehicle_catalog_adapter:crates/wow-database/src/vehicle_catalog_adapter.rs::impl wow_persistence::VehicleWorldCatalogPersistencePortLikeCpp for MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp::load_vehicle_spawn_accessory_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/vehicle_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::vehicle_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::VehicleWorldCatalogPersistencePortLikeCpp for MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp::load_vehicle_spawn_accessory_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapters for SQLx-free vehicle startup loading (#507) currently owns the complete wow-database workflow impl wow_persistence::VehicleWorldCatalogPersistencePortLikeCpp for MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp::load_vehicle_spawn_accessory_rows_like_cpp in crates/wow-database/src/vehicle_catalog_adapter.rs.",
+      "connection_affinity": "Hotfix and World remain independent startup connections; this workflow uses only its named adapter and implies no transaction or cross-database atomicity.",
+      "current_order": "world-server preserves Vehicle DB2 -> Vehicle overlay -> VehicleSeat DB2 -> VehicleSeat overlay -> vehicle_template -> template accessories -> spawn accessories; each query fully decodes its row family before returning.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; no concrete row, pool or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::vehicle_catalog_adapter:crates/wow-database/src/vehicle_catalog_adapter.rs::impl wow_persistence::VehicleWorldCatalogPersistencePortLikeCpp for MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp::load_vehicle_template_accessory_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/vehicle_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::vehicle_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::VehicleWorldCatalogPersistencePortLikeCpp for MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp::load_vehicle_template_accessory_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapters for SQLx-free vehicle startup loading (#507) currently owns the complete wow-database workflow impl wow_persistence::VehicleWorldCatalogPersistencePortLikeCpp for MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp::load_vehicle_template_accessory_rows_like_cpp in crates/wow-database/src/vehicle_catalog_adapter.rs.",
+      "connection_affinity": "Hotfix and World remain independent startup connections; this workflow uses only its named adapter and implies no transaction or cross-database atomicity.",
+      "current_order": "world-server preserves Vehicle DB2 -> Vehicle overlay -> VehicleSeat DB2 -> VehicleSeat overlay -> vehicle_template -> template accessories -> spawn accessories; each query fully decodes its row family before returning.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; no concrete row, pool or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::vehicle_catalog_adapter:crates/wow-database/src/vehicle_catalog_adapter.rs::impl wow_persistence::VehicleWorldCatalogPersistencePortLikeCpp for MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp::load_vehicle_template_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/vehicle_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::vehicle_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::VehicleWorldCatalogPersistencePortLikeCpp for MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp::load_vehicle_template_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapters for SQLx-free vehicle startup loading (#507) currently owns the complete wow-database workflow impl wow_persistence::VehicleWorldCatalogPersistencePortLikeCpp for MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp::load_vehicle_template_rows_like_cpp in crates/wow-database/src/vehicle_catalog_adapter.rs.",
+      "connection_affinity": "Hotfix and World remain independent startup connections; this workflow uses only its named adapter and implies no transaction or cross-database atomicity.",
+      "current_order": "world-server preserves Vehicle DB2 -> Vehicle overlay -> VehicleSeat DB2 -> VehicleSeat overlay -> vehicle_template -> template accessories -> spawn accessories; each query fully decodes its row family before returning.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; no concrete row, pool or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::vehicle_catalog_adapter:crates/wow-database/src/vehicle_catalog_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/vehicle_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::vehicle_catalog_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix",
+        "world"
+      ],
+      "capability_owner": "MariaDB adapters for SQLx-free vehicle startup loading (#507) currently owns the complete wow-database workflow module in crates/wow-database/src/vehicle_catalog_adapter.rs.",
+      "connection_affinity": "Hotfix and World remain independent startup connections; this workflow uses only its named adapter and implies no transaction or cross-database atomicity.",
+      "current_order": "world-server preserves Vehicle DB2 -> Vehicle overlay -> VehicleSeat DB2 -> VehicleSeat overlay -> vehicle_template -> template accessories -> spawn accessories; each query fully decodes its row family before returning.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; no concrete row, pool or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::vehicle_catalog_adapter:crates/wow-database/src/vehicle_catalog_adapter.rs::struct MariaDbVehicleHotfixPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/vehicle_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::vehicle_catalog_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbVehicleHotfixPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapters for SQLx-free vehicle startup loading (#507) currently owns the complete wow-database workflow struct MariaDbVehicleHotfixPersistenceAdapterLikeCpp in crates/wow-database/src/vehicle_catalog_adapter.rs.",
+      "connection_affinity": "Hotfix and World remain independent startup connections; this workflow uses only its named adapter and implies no transaction or cross-database atomicity.",
+      "current_order": "world-server preserves Vehicle DB2 -> Vehicle overlay -> VehicleSeat DB2 -> VehicleSeat overlay -> vehicle_template -> template accessories -> spawn accessories; each query fully decodes its row family before returning.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; no concrete row, pool or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::vehicle_catalog_adapter:crates/wow-database/src/vehicle_catalog_adapter.rs::struct MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/vehicle_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::vehicle_catalog_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapters for SQLx-free vehicle startup loading (#507) currently owns the complete wow-database workflow struct MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp in crates/wow-database/src/vehicle_catalog_adapter.rs.",
+      "connection_affinity": "Hotfix and World remain independent startup connections; this workflow uses only its named adapter and implies no transaction or cross-database atomicity.",
+      "current_order": "world-server preserves Vehicle DB2 -> Vehicle overlay -> VehicleSeat DB2 -> VehicleSeat overlay -> vehicle_template -> template accessories -> spawn accessories; each query fully decodes its row family before returning.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; no concrete row, pool or driver error crosses the port.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
