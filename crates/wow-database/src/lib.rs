@@ -41,6 +41,7 @@ pub mod database;
 pub mod error;
 pub mod gameobject_query_catalog_adapter;
 pub mod gameobject_use_template_adapter;
+pub mod gossip_catalog_adapter;
 pub mod group_loot_money_adapter;
 pub mod item_template_addon_catalog_adapter;
 pub mod loader;
@@ -79,6 +80,7 @@ pub use database::{
 };
 pub use error::DatabaseError;
 pub use gameobject_query_catalog_adapter::MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp;
+pub use gossip_catalog_adapter::MariaDbGossipCatalogPersistenceAdapterLikeCpp;
 pub use item_template_addon_catalog_adapter::MariaDbItemTemplateAddonCatalogPersistenceAdapterLikeCpp;
 pub use loader::{
     DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP, DATABASE_LOGIN_LIKE_CPP,

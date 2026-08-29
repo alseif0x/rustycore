@@ -757,6 +757,7 @@ display is checked against the JSON ledger:
 90. #484 — page-text catalog reads through a typed World persistence port;
 91. #487 — player-name reads through a typed Character persistence port;
 92. #489 — item-template-addon reads through a typed World persistence port;
+93. #491 — gossip catalog reads through a typed World persistence port;
 93. #189 — durable loot persistence coordination;
 94. #192 — runtime/fanout directory consumers;
 95. #193 — combat/loot directory consumers;

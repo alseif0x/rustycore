@@ -5,11 +5,11 @@
 
 //! Gossip menus and NPC interaction text.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::{WorldDatabase, WorldStatements};
+use wow_persistence::{
+    GossipBroadcastTextLocaleRequestLikeCpp, GossipCatalogReadOutcomeLikeCpp,
+    GossipCreatureMenuRequestLikeCpp, GossipMenuCatalogRequestLikeCpp,
+    GossipNpcTextCatalogRequestLikeCpp,
+};
 
 use super::*;
 
@@ -60,20 +60,18 @@ impl WorldSession {
         self.gossip_options.clear();
 
         if let Some(access) = gossip_access.as_ref() {
-            if let Some(world_db) = self.world_db().map(Arc::clone) {
-                if let Some(msg) = self
-                    .build_gossip_menu(&world_db, access.entry, access.npc_flags, hello.unit)
-                    .await
-                {
-                    info!(
-                        "Sending GossipMessage with {} options and {} quests for entry {}",
-                        msg.gossip_options.len(),
-                        msg.gossip_text.len(),
-                        access.entry
-                    );
-                    self.send_packet(&msg);
-                    return;
-                }
+            if let Some(msg) = self
+                .build_gossip_menu(access.entry, access.npc_flags, hello.unit)
+                .await
+            {
+                info!(
+                    "Sending GossipMessage with {} options and {} quests for entry {}",
+                    msg.gossip_options.len(),
+                    msg.gossip_text.len(),
+                    access.entry
+                );
+                self.send_packet(&msg);
+                return;
             }
         }
 
@@ -236,7 +234,6 @@ impl WorldSession {
     /// Returns None if no gossip menu exists.
     pub(crate) async fn build_gossip_menu(
         &mut self,
-        world_db: &Arc<WorldDatabase>,
         entry: u32,
         npc_flags: u32,
         npc_guid: wow_core::ObjectGuid,
@@ -244,37 +241,41 @@ impl WorldSession {
         use crate::session::GossipOptionInfo;
         use wow_packet::packets::gossip::ClientGossipOption;
 
+        let catalog = self.gossip_catalog_persistence_port_like_cpp()?;
+
         // 1. Get MenuID from creature_template_gossip
-        let mut stmt = world_db.prepare(WorldStatements::SEL_CREATURE_GOSSIP_MENU);
-        stmt.set_u32(0, entry);
-        let menu_result: wow_database::SqlResult =
-            tokio::time::timeout(std::time::Duration::from_secs(2), world_db.query(&stmt))
-                .await
-                .ok()?
-                .ok()?;
-        if menu_result.is_empty() {
-            return None;
-        }
-        let menu_id: u32 = menu_result.try_read(0)?;
+        let menu_id = match tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            catalog.load_creature_gossip_menu_id_like_cpp(GossipCreatureMenuRequestLikeCpp {
+                creature_entry: entry,
+            }),
+        )
+        .await
+        {
+            Ok(GossipCatalogReadOutcomeLikeCpp::Found(menu_id)) => menu_id,
+            _ => return None,
+        };
 
         let condition_store = self.condition_store().cloned();
 
         // 2. Get TextID from gossip_menu, then resolve BroadcastTextID from npc_text.
         // C++ Player::GetGossipTextId iterates every gossip_menu row and keeps the last row whose
         // attached GossipMenu conditions meet for (player, source).
-        let mut stmt = world_db.prepare(WorldStatements::SEL_GOSSIP_MENU_TEXTS);
-        stmt.set_u32(0, menu_id);
-        let mut text_result: wow_database::SqlResult =
-            tokio::time::timeout(std::time::Duration::from_secs(2), world_db.query(&stmt))
-                .await
-                .ok()?
-                .ok()?;
-        let npc_text_id: u32 = if text_result.is_empty() {
+        let text_ids = match tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            catalog.load_gossip_menu_text_ids_like_cpp(GossipMenuCatalogRequestLikeCpp { menu_id }),
+        )
+        .await
+        {
+            Ok(GossipCatalogReadOutcomeLikeCpp::Found(text_ids)) => text_ids,
+            Ok(GossipCatalogReadOutcomeLikeCpp::Missing) => Vec::new(),
+            _ => return None,
+        };
+        let npc_text_id: u32 = if text_ids.is_empty() {
             1
         } else {
             let mut selected = 1;
-            loop {
-                let text_id = text_result.try_read::<u32>(0).unwrap_or(1);
+            for text_id in text_ids {
                 let meets = condition_store.as_ref().is_none_or(|store| {
                     self.gossip_menu_text_conditions_meet_like_cpp(
                         store.as_ref(),
@@ -286,9 +287,6 @@ impl WorldSession {
                 if meets {
                     selected = text_id;
                 }
-                if !text_result.next_row() {
-                    break;
-                }
             }
             selected
         };
@@ -296,15 +294,18 @@ impl WorldSession {
         // Resolve BroadcastTextID from npc_text; C++ `GossipMessage::Write`
         // carries optional TextID and BroadcastTextID separately
         // (`Server/Packets/NPCPackets.cpp:106-130`).
-        let broadcast_text_id: Option<i32> = {
-            let mut stmt = world_db.prepare(WorldStatements::SEL_NPC_TEXT);
-            stmt.set_u32(0, npc_text_id);
-            match tokio::time::timeout(std::time::Duration::from_secs(2), world_db.query(&stmt))
-                .await
-            {
-                Ok(Ok(r)) if !r.is_empty() => r.try_read::<u32>(0).map(|v| v as i32),
-                _ => None,
+        let broadcast_text_id = match tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            catalog.load_npc_text_broadcast_id_like_cpp(GossipNpcTextCatalogRequestLikeCpp {
+                npc_text_id,
+            }),
+        )
+        .await
+        {
+            Ok(GossipCatalogReadOutcomeLikeCpp::Found(broadcast_text_id)) => {
+                Some(broadcast_text_id)
             }
+            _ => None,
         };
         info!(
             "Gossip menu_id={} npc_text_id={} broadcast_text_id={:?}",
@@ -312,63 +313,16 @@ impl WorldSession {
         );
 
         // 3. Get options from gossip_menu_option
-        let mut stmt = world_db.prepare(WorldStatements::SEL_GOSSIP_MENU_OPTIONS);
-        stmt.set_u32(0, menu_id);
-        let mut opt_result: wow_database::SqlResult =
-            match tokio::time::timeout(std::time::Duration::from_secs(2), world_db.query(&stmt))
-                .await
-            {
-                Ok(Ok(r)) => r,
-                _ => return None,
-            };
-
-        // Collect raw option rows first, then resolve localized text.
-        struct RawOption {
-            menu_id: u32,
-            gossip_option_id: i32,
-            option_id: u32,
-            option_npc: u8,
-            option_text: String,
-            option_broadcast_text_id: u32,
-            language: u32,
-            flags: i32,
-            action_menu_id: u32,
-            action_poi_id: u32,
-            gossip_npc_option_id: Option<i32>,
-            box_coded: bool,
-            box_money: u32,
-            box_text: String,
-            box_broadcast_text_id: u32,
-            spell_id: Option<i32>,
-            override_icon_id: Option<i32>,
-        }
-        let mut raw_options = Vec::new();
-        if !opt_result.is_empty() {
-            loop {
-                raw_options.push(RawOption {
-                    menu_id: opt_result.try_read(0).unwrap_or(menu_id),
-                    gossip_option_id: opt_result.try_read(1).unwrap_or(0),
-                    option_id: opt_result.try_read(2).unwrap_or(0),
-                    option_npc: opt_result.try_read(3).unwrap_or(0),
-                    option_text: opt_result.read_string(4),
-                    option_broadcast_text_id: opt_result.try_read::<u32>(5).unwrap_or(0),
-                    language: opt_result.try_read::<u32>(6).unwrap_or(0),
-                    flags: opt_result.try_read::<i32>(7).unwrap_or(0),
-                    action_menu_id: opt_result.try_read(8).unwrap_or(0),
-                    action_poi_id: opt_result.try_read(9).unwrap_or(0),
-                    gossip_npc_option_id: opt_result.try_read(10),
-                    box_coded: opt_result.try_read::<u8>(11).unwrap_or(0) != 0,
-                    box_money: opt_result.try_read(12).unwrap_or(0),
-                    box_text: opt_result.read_string(13),
-                    box_broadcast_text_id: opt_result.try_read::<u32>(14).unwrap_or(0),
-                    spell_id: opt_result.try_read(15),
-                    override_icon_id: opt_result.try_read(16),
-                });
-                if !opt_result.next_row() {
-                    break;
-                }
-            }
-        }
+        let raw_options = match tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            catalog.load_gossip_menu_options_like_cpp(GossipMenuCatalogRequestLikeCpp { menu_id }),
+        )
+        .await
+        {
+            Ok(GossipCatalogReadOutcomeLikeCpp::Found(options)) => options,
+            Ok(GossipCatalogReadOutcomeLikeCpp::Missing) => Vec::new(),
+            _ => return None,
+        };
 
         // Resolve localized text for each option via OptionBroadcastTextID.
         let locale = self.locale.clone();
@@ -395,18 +349,19 @@ impl WorldSession {
             let mut text = opt.option_text.clone();
 
             if opt.option_broadcast_text_id != 0 && locale != "enUS" {
-                let mut stmt = world_db.prepare(WorldStatements::SEL_BROADCAST_TEXT_LOCALE);
-                stmt.set_u32(0, opt.option_broadcast_text_id);
-                stmt.set_string(1, &locale);
-                if let Ok(Ok(r)) =
-                    tokio::time::timeout(std::time::Duration::from_secs(2), world_db.query(&stmt))
-                        .await
+                if let Ok(GossipCatalogReadOutcomeLikeCpp::Found(localized)) = tokio::time::timeout(
+                    std::time::Duration::from_secs(2),
+                    catalog.load_broadcast_text_locale_like_cpp(
+                        GossipBroadcastTextLocaleRequestLikeCpp {
+                            broadcast_text_id: opt.option_broadcast_text_id,
+                            locale: locale.clone(),
+                        },
+                    ),
+                )
+                .await
                 {
-                    if !r.is_empty() {
-                        let localized: String = r.read_string(0);
-                        if !localized.is_empty() {
-                            text = localized;
-                        }
+                    if !localized.is_empty() {
+                        text = localized;
                     }
                 }
             }

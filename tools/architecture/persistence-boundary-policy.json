@@ -15181,6 +15181,306 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::gossip_catalog_adapter:crates/wow-database/src/gossip_catalog_adapter.rs::fn broadcast_text_locale_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/gossip_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::gossip_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn broadcast_text_locale_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491) currently owns the complete wow-database workflow fn broadcast_text_locale_statement_like_cpp in crates/wow-database/src/gossip_catalog_adapter.rs.",
+      "connection_affinity": "Pure construction of one World-database locale statement; it opens no connection or transaction.",
+      "current_order": "Build WORLD_SEL_BROADCAST_TEXT_LOCALE and bind broadcast-text id followed by locale exactly once.",
+      "failure_and_unknown_commit": "No I/O occurs while constructing a statement.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::gossip_catalog_adapter:crates/wow-database/src/gossip_catalog_adapter.rs::fn u32_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/gossip_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::gossip_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn u32_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491) currently owns the complete wow-database workflow fn u32_statement_like_cpp in crates/wow-database/src/gossip_catalog_adapter.rs.",
+      "connection_affinity": "Pure construction of one World-database statement with one unsigned bind; it opens no connection or transaction.",
+      "current_order": "Preserve the supplied stable statement identity and bind its unsigned key at parameter zero.",
+      "failure_and_unknown_commit": "No I/O occurs while constructing a statement.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::gossip_catalog_adapter:crates/wow-database/src/gossip_catalog_adapter.rs::impl MariaDbGossipCatalogPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/gossip_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::gossip_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbGossipCatalogPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491) currently owns the complete wow-database workflow impl MariaDbGossipCatalogPersistenceAdapterLikeCpp::new in crates/wow-database/src/gossip_catalog_adapter.rs.",
+      "connection_affinity": "Composition supplies exactly one World database handle before sessions are accepted.",
+      "current_order": "Construction stores the handle only and performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::gossip_catalog_adapter:crates/wow-database/src/gossip_catalog_adapter.rs::impl wow_persistence::GossipCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_broadcast_text_locale_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/gossip_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::gossip_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::GossipCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_broadcast_text_locale_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491) currently owns the complete wow-database workflow impl wow_persistence::GossipCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_broadcast_text_locale_like_cpp in crates/wow-database/src/gossip_catalog_adapter.rs.",
+      "connection_affinity": "The read uses the adapter's single World database handle; no cross-database boundary is implied.",
+      "current_order": "Execute one locale read after gameplay condition filtering and project Text_lang without changing empty-text semantics.",
+      "failure_and_unknown_commit": "Missing rows remain Missing, database errors become Failed, and reads have no COMMIT outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::gossip_catalog_adapter:crates/wow-database/src/gossip_catalog_adapter.rs::impl wow_persistence::GossipCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_creature_gossip_menu_id_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/gossip_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::gossip_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::GossipCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_creature_gossip_menu_id_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491) currently owns the complete wow-database workflow impl wow_persistence::GossipCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_creature_gossip_menu_id_like_cpp in crates/wow-database/src/gossip_catalog_adapter.rs.",
+      "connection_affinity": "The read uses the adapter's single World database handle; no cross-database boundary is implied.",
+      "current_order": "Execute the creature-to-menu read first and project the first MenuID before any dependent gossip read.",
+      "failure_and_unknown_commit": "Empty or malformed rows remain Missing, database errors become Failed, and reads have no COMMIT outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::gossip_catalog_adapter:crates/wow-database/src/gossip_catalog_adapter.rs::impl wow_persistence::GossipCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_gossip_menu_options_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/gossip_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::gossip_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::GossipCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_gossip_menu_options_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491) currently owns the complete wow-database workflow impl wow_persistence::GossipCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_gossip_menu_options_like_cpp in crates/wow-database/src/gossip_catalog_adapter.rs.",
+      "connection_affinity": "The read uses the adapter's single World database handle; no cross-database boundary is implied.",
+      "current_order": "Execute one ordered menu-option read and decode all seventeen projected fields in statement order before gameplay filtering.",
+      "failure_and_unknown_commit": "Empty rows remain Missing, per-column decode keeps the prior zero/empty/optional fallbacks, database errors become Failed, and reads have no COMMIT outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::gossip_catalog_adapter:crates/wow-database/src/gossip_catalog_adapter.rs::impl wow_persistence::GossipCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_gossip_menu_text_ids_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/gossip_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::gossip_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::GossipCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_gossip_menu_text_ids_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491) currently owns the complete wow-database workflow impl wow_persistence::GossipCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_gossip_menu_text_ids_like_cpp in crates/wow-database/src/gossip_catalog_adapter.rs.",
+      "connection_affinity": "The read uses the adapter's single World database handle; no cross-database boundary is implied.",
+      "current_order": "Execute one menu-text read and preserve database row order so gameplay keeps the last condition-matching TextID.",
+      "failure_and_unknown_commit": "Empty rows remain Missing, malformed TextID retains fallback one, database errors become Failed, and reads have no COMMIT outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::gossip_catalog_adapter:crates/wow-database/src/gossip_catalog_adapter.rs::impl wow_persistence::GossipCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_npc_text_broadcast_id_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/gossip_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::gossip_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::GossipCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_npc_text_broadcast_id_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491) currently owns the complete wow-database workflow impl wow_persistence::GossipCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_npc_text_broadcast_id_like_cpp in crates/wow-database/src/gossip_catalog_adapter.rs.",
+      "connection_affinity": "The read uses the adapter's single World database handle; no cross-database boundary is implied.",
+      "current_order": "Execute the optional npc_text read after text selection and project BroadcastTextID0.",
+      "failure_and_unknown_commit": "Empty or malformed rows remain Missing, database errors become Failed, and gameplay retains its optional fallback. Reads have no COMMIT outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::gossip_catalog_adapter:crates/wow-database/src/gossip_catalog_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/gossip_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::gossip_catalog_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491) currently owns the complete wow-database workflow module in crates/wow-database/src/gossip_catalog_adapter.rs.",
+      "connection_affinity": "The module owns only the transitional World gossip adapter.",
+      "current_order": "SQL identities, binds and row projection stay private; condition filtering, deadlines, locale fallback and packet assembly remain in wow-world.",
+      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::gossip_catalog_adapter:crates/wow-database/src/gossip_catalog_adapter.rs::struct MariaDbGossipCatalogPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/gossip_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::gossip_catalog_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbGossipCatalogPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491) currently owns the complete wow-database workflow struct MariaDbGossipCatalogPersistenceAdapterLikeCpp in crates/wow-database/src/gossip_catalog_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one World database handle.",
+      "current_order": "The handle surface implies no runtime order beyond the five typed port methods.",
+      "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::group_loot_money_adapter:crates/wow-database/src/group_loot_money_adapter.rs::const GROUP_LOOT_MONEY_ATTEMPT_ORDER_LIKE_CPP",
       "source_class": "production",
       "packages": [
@@ -25062,104 +25362,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::character::gossip:crates/wow-world/src/handlers/character/gossip.rs::impl WorldSession::build_gossip_menu",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/character/gossip.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::character::gossip"
-      ],
-      "enclosings": [
-        "impl WorldSession::build_gossip_menu"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "character service persistence boundary currently owns the complete wow-world workflow impl WorldSession::build_gossip_menu in crates/wow-world/src/handlers/character/gossip.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::character::gossip:crates/wow-world/src/handlers/character/gossip.rs::impl WorldSession::handle_gossip_hello",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/character/gossip.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::character::gossip"
-      ],
-      "enclosings": [
-        "impl WorldSession::handle_gossip_hello"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "character service persistence boundary currently owns the complete wow-world workflow impl WorldSession::handle_gossip_hello in crates/wow-world/src/handlers/character/gossip.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::character::gossip:crates/wow-world/src/handlers/character/gossip.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/character/gossip.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::character::gossip"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters",
-        "login",
-        "world"
-      ],
-      "capability_owner": "shared character service dependency surface currently owns the complete wow-world workflow module in crates/wow-world/src/handlers/character/gossip.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters, login, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-world:crate::handlers::character::items:crates/wow-world/src/handlers/character/items.rs::impl WorldSession::append_item_turnin_statements",
       "source_class": "production",
       "packages": [
@@ -26777,38 +26979,6 @@
       ],
       "capability_owner": "wow-world runtime boundary currently owns the complete wow-world workflow module in crates/wow-world/src/handlers/quest/mod.rs.",
       "connection_affinity": "The workflow acquires or uses the characters/world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::quest::handlers:crates/wow-world/src/handlers/quest/handlers.rs::impl WorldSession::handle_quest_giver_hello",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/quest/handlers.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::quest::handlers"
-      ],
-      "enclosings": [
-        "impl WorldSession::handle_quest_giver_hello"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl WorldSession::handle_quest_giver_hello in crates/wow-world/src/handlers/quest/handlers.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
@@ -29007,6 +29177,7 @@
         "crates/wow-database/src/database.rs",
         "crates/wow-database/src/gameobject_query_catalog_adapter.rs",
         "crates/wow-database/src/gameobject_use_template_adapter.rs",
+        "crates/wow-database/src/gossip_catalog_adapter.rs",
         "crates/wow-database/src/group_loot_money_adapter.rs",
         "crates/wow-database/src/item_template_addon_catalog_adapter.rs",
         "crates/wow-database/src/map_corpse_adapter.rs",
