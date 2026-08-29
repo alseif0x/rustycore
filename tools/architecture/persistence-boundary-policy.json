@@ -18404,6 +18404,156 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::player_name_query_adapter:crates/wow-database/src/player_name_query_adapter.rs::fn statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_name_query_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_name_query_adapter"
+      ],
+      "enclosings": [
+        "fn statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free player-name reads (#487) currently owns the complete wow-database workflow fn statement_like_cpp in crates/wow-database/src/player_name_query_adapter.rs.",
+      "connection_affinity": "Pure construction of one Character-database prepared statement; it opens no connection or transaction.",
+      "current_order": "Build CHAR_SEL_CHARACTER and bind the requested GUID counter exactly once.",
+      "failure_and_unknown_commit": "No I/O occurs while constructing a statement.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_name_query_adapter:crates/wow-database/src/player_name_query_adapter.rs::impl MariaDbPlayerNameQueryPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_name_query_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_name_query_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbPlayerNameQueryPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free player-name reads (#487) currently owns the complete wow-database workflow impl MariaDbPlayerNameQueryPersistenceAdapterLikeCpp::new in crates/wow-database/src/player_name_query_adapter.rs.",
+      "connection_affinity": "Composition supplies exactly one Character database handle before sessions are accepted.",
+      "current_order": "Construction stores the handle only and performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_name_query_adapter:crates/wow-database/src/player_name_query_adapter.rs::impl wow_persistence::PlayerNameQueryPersistencePortLikeCpp for MariaDbPlayerNameQueryPersistenceAdapterLikeCpp::load_player_name_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_name_query_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_name_query_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::PlayerNameQueryPersistencePortLikeCpp for MariaDbPlayerNameQueryPersistenceAdapterLikeCpp::load_player_name_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free player-name reads (#487) currently owns the complete wow-database workflow impl wow_persistence::PlayerNameQueryPersistencePortLikeCpp for MariaDbPlayerNameQueryPersistenceAdapterLikeCpp::load_player_name_like_cpp in crates/wow-database/src/player_name_query_adapter.rs.",
+      "connection_affinity": "Every lookup uses the adapter's single Character database handle; no cross-database boundary is implied.",
+      "current_order": "Execute one CHAR_SEL_CHARACTER read and decode name, race, class, sex and level in existing column order.",
+      "failure_and_unknown_commit": "Missing rows remain Missing; database errors become Failed without exposing the driver error. Reads have no COMMIT outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_name_query_adapter:crates/wow-database/src/player_name_query_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_name_query_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_name_query_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free player-name reads (#487) currently owns the complete wow-database workflow module in crates/wow-database/src/player_name_query_adapter.rs.",
+      "connection_affinity": "The module owns only the transitional Character query adapter.",
+      "current_order": "SQL identity, GUID bind and row projection stay private; request ordering and packet construction remain in wow-world.",
+      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_name_query_adapter:crates/wow-database/src/player_name_query_adapter.rs::struct MariaDbPlayerNameQueryPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_name_query_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_name_query_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbPlayerNameQueryPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free player-name reads (#487) currently owns the complete wow-database workflow struct MariaDbPlayerNameQueryPersistenceAdapterLikeCpp in crates/wow-database/src/player_name_query_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one Character database handle.",
+      "current_order": "The handle surface implies no runtime order beyond the port method.",
+      "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::player_spell_acquisition_adapter:crates/wow-database/src/player_spell_acquisition_adapter.rs::fn commit_error_like_cpp",
       "source_class": "production",
       "packages": [
@@ -25285,72 +25435,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::character::query:crates/wow-world/src/handlers/character/query.rs::impl WorldSession::handle_query_player_names",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/character/query.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::character::query"
-      ],
-      "enclosings": [
-        "impl WorldSession::handle_query_player_names"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "character service persistence boundary currently owns the complete wow-world workflow impl WorldSession::handle_query_player_names in crates/wow-world/src/handlers/character/query.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::character::query:crates/wow-world/src/handlers/character/query.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/character/query.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::character::query"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters",
-        "login",
-        "world"
-      ],
-      "capability_owner": "shared character service dependency surface currently owns the complete wow-world workflow module in crates/wow-world/src/handlers/character/query.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters, login, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-world:crate::handlers::character::session_state:crates/wow-world/src/handlers/character/session_state.rs::impl WorldSession::materialize_creature_spawn_row_like_cpp",
       "source_class": "production",
       "packages": [
@@ -28882,6 +28966,7 @@
         "crates/wow-database/src/params.rs",
         "crates/wow-database/src/persistence_trace.rs",
         "crates/wow-database/src/player_lifecycle_adapter.rs",
+        "crates/wow-database/src/player_name_query_adapter.rs",
         "crates/wow-database/src/player_spell_acquisition_adapter.rs",
         "crates/wow-database/src/query_holder.rs",
         "crates/wow-database/src/represented_group_persistence_adapter.rs",
