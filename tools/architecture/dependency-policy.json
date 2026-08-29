@@ -137,12 +137,6 @@
       "reason": "Instance state still reads concrete static-data stores."
     },
     {
-      "from": "wow-instances",
-      "to": "wow-database",
-      "tracking_issue": 153,
-      "reason": "Instance-lock state still loads and appends concrete characters statements. #187 freezes its ordering; #153 must materialize the typed capability child that removes this edge. Closed since this was written: #187 \u2014 the residue is owned by #153."
-    },
-    {
       "from": "wow-packet",
       "to": "wow-loot",
       "tracking_issue": 133,

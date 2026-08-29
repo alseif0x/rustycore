@@ -4073,13 +4073,29 @@ async fn run_inner(
         &data_dir,
     )));
     let shared_map: SharedMapManager = Arc::new(std::sync::RwLock::new(legacy_map_manager));
+    let instance_lock_persistence_port: Arc<
+        dyn wow_persistence::InstanceLockPersistencePortLikeCpp,
+    > = Arc::new(
+        wow_database::MariaDbInstanceLockPersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
+    );
+    let (shared_instance_lock_rows, character_instance_lock_rows) =
+        match instance_lock_persistence_port.load_all_like_cpp().await {
+            wow_persistence::InstanceLockPersistenceLoadOutcomeLikeCpp::Loaded {
+                shared_rows,
+                character_rows,
+            } => (shared_rows, character_rows),
+            wow_persistence::InstanceLockPersistenceLoadOutcomeLikeCpp::Failed { reason } => {
+                bail!("Failed to load instance locks from character database: {reason}")
+            }
+        };
     let mut loaded_instance_lock_mgr = InstanceLockMgr::default();
-    let instance_lock_load_issues = loaded_instance_lock_mgr
-        .load_from_database_like_cpp(&char_db, |map_id, difficulty_id| {
+    let instance_lock_load_issues = loaded_instance_lock_mgr.load_from_rows_like_cpp(
+        shared_instance_lock_rows,
+        character_instance_lock_rows,
+        |map_id, difficulty_id| {
             map_db2_entries_from_stores(&map_store, &map_difficulty_store, map_id, difficulty_id)
-        })
-        .await
-        .context("Failed to load instance locks from character database")?;
+        },
+    );
     for issue in &instance_lock_load_issues {
         warn!("Instance lock load issue: {issue:?}");
     }
@@ -4528,6 +4544,7 @@ async fn run_inner(
         )),
         player_spell_acquisition_persistence_port: Some(spell_acquisition_port),
         battle_pet_purchase_persistence_port: Some(battle_pet_purchase_persistence_port),
+        instance_lock_persistence_port: Some(instance_lock_persistence_port),
         world_db: Some(Arc::clone(&world_db)),
         trainer_store: Some(Arc::clone(&trainer_data_store)),
         guid_generator: Some(Arc::clone(&guid_generator)),

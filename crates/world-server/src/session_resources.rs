@@ -76,6 +76,8 @@ pub(super) struct SessionResources {
         Option<Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>>,
     pub(super) player_spell_acquisition_persistence_port:
         Option<Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>>,
+    pub(super) instance_lock_persistence_port:
+        Option<Arc<dyn wow_persistence::InstanceLockPersistencePortLikeCpp>>,
     /// Characters-database durability for the recoverable battle-pet purchase saga.
     pub(super) battle_pet_purchase_persistence_port:
         Option<Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>>,

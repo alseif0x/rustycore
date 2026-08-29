@@ -5209,6 +5209,7 @@ struct SessionPersistencePortsLikeCpp {
     player_name_query: Option<Arc<dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp>>,
     player_spell_acquisition:
         Option<Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>>,
+    instance_lock: Option<Arc<dyn wow_persistence::InstanceLockPersistencePortLikeCpp>>,
 }
 
 pub struct WorldSession {
@@ -16525,6 +16526,19 @@ impl WorldSession {
         &self,
     ) -> Option<Arc<dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp>> {
         self.persistence_ports_like_cpp.player_name_query.clone()
+    }
+
+    pub fn set_instance_lock_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::InstanceLockPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.instance_lock = Some(port);
+    }
+
+    pub(crate) fn instance_lock_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::InstanceLockPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.instance_lock.clone()
     }
 
     /// Attach this session to the one canonical journal owner for its

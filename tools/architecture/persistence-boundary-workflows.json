@@ -7013,7 +7013,7 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Pure classification of a finished sqlx error; it issues nothing and imposes no order. Separates a failure to acquire a connection \u2014 which never reached the server, so the statement definitely did not run \u2014 from a failure after the statement was sent, whose outcome is ambiguous and must not be recorded as a revert.",
+      "current_order": "Pure classification of a finished sqlx error; it issues nothing and imposes no order. Separates a failure to acquire a connection — which never reached the server, so the statement definitely did not run — from a failure after the statement was sent, whose outcome is ambiguous and must not be recorded as a revert.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path."
     },
     {
@@ -11635,295 +11635,6 @@
       "failure_and_unknown_commit": "No I/O occurs while storing the adapter."
     },
     {
-      "package": "wow-instances",
-      "module": "crate",
-      "source": "crates/wow-instances/src/lib.rs",
-      "enclosing": "impl InstanceLockMgr::cleanup_unreferenced_shared_instance_lock_data_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance-lock persistence capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-instances",
-      "module": "crate",
-      "source": "crates/wow-instances/src/lib.rs",
-      "enclosing": "impl InstanceLockMgr::delete_account_instance_lock_times_statement",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance-lock persistence capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-instances",
-      "module": "crate",
-      "source": "crates/wow-instances/src/lib.rs",
-      "enclosing": "impl InstanceLockMgr::delete_all_respawns_statement",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance-lock persistence capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-instances",
-      "module": "crate",
-      "source": "crates/wow-instances/src/lib.rs",
-      "enclosing": "impl InstanceLockMgr::delete_character_instance_lock_statement",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance-lock persistence capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-instances",
-      "module": "crate",
-      "source": "crates/wow-instances/src/lib.rs",
-      "enclosing": "impl InstanceLockMgr::delete_character_instance_locks_by_guid_statement",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance-lock persistence capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-instances",
-      "module": "crate",
-      "source": "crates/wow-instances/src/lib.rs",
-      "enclosing": "impl InstanceLockMgr::delete_instance_statement",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance-lock persistence capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-instances",
-      "module": "crate",
-      "source": "crates/wow-instances/src/lib.rs",
-      "enclosing": "impl InstanceLockMgr::force_expire_character_instance_lock_statement",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance-lock persistence capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-instances",
-      "module": "crate",
-      "source": "crates/wow-instances/src/lib.rs",
-      "enclosing": "impl InstanceLockMgr::insert_account_instance_lock_time_statement",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance-lock persistence capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-instances",
-      "module": "crate",
-      "source": "crates/wow-instances/src/lib.rs",
-      "enclosing": "impl InstanceLockMgr::insert_character_instance_lock_statement",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance-lock persistence capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-instances",
-      "module": "crate",
-      "source": "crates/wow-instances/src/lib.rs",
-      "enclosing": "impl InstanceLockMgr::insert_instance_statement",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance-lock persistence capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-instances",
-      "module": "crate",
-      "source": "crates/wow-instances/src/lib.rs",
-      "enclosing": "impl InstanceLockMgr::load_from_database_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance-lock persistence capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-instances",
-      "module": "crate",
-      "source": "crates/wow-instances/src/lib.rs",
-      "enclosing": "impl InstanceLockMgr::reset_instance_locks_for_player_tx_at",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance-lock persistence capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-instances",
-      "module": "crate",
-      "source": "crates/wow-instances/src/lib.rs",
-      "enclosing": "impl InstanceLockMgr::update_character_instance_lock_extension_statement",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance-lock persistence capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-instances",
-      "module": "crate",
-      "source": "crates/wow-instances/src/lib.rs",
-      "enclosing": "impl InstanceLockMgr::update_instance_lock_extension_for_player_tx_at",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance-lock persistence capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-instances",
-      "module": "crate",
-      "source": "crates/wow-instances/src/lib.rs",
-      "enclosing": "impl InstanceLockMgr::update_instance_lock_for_player_tx_at",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance-lock persistence capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-instances",
-      "module": "crate",
-      "source": "crates/wow-instances/src/lib.rs",
-      "enclosing": "impl InstanceLockMgr::update_shared_instance_lock_tx",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance-lock persistence capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-instances",
-      "module": "crate",
-      "source": "crates/wow-instances/src/lib.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance-lock persistence capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
       "package": "wow-world",
       "module": "crate::canonical_player_sync",
       "source": "crates/wow-world/src/canonical_player_sync.rs",
@@ -12969,75 +12680,6 @@
       "connection_affinity": "This is a shared dependency/type surface for characters, world; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::misc::instance",
-      "source": "crates/wow-world/src/handlers/misc/instance.rs",
-      "enclosing": "impl crate :: session :: WorldSession::confirm_pending_bind_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance lock persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::misc::instance",
-      "source": "crates/wow-world/src/handlers/misc/instance.rs",
-      "enclosing": "impl crate :: session :: WorldSession::handle_set_saved_instance_extend",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance lock persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::misc::instance",
-      "source": "crates/wow-world/src/handlers/misc/instance.rs",
-      "enclosing": "impl crate :: session :: WorldSession::reset_represented_instances_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "instance lock persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::misc::instance",
-      "source": "crates/wow-world/src/handlers/misc/instance.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "characters",
-        "world"
-      ],
-      "boundary": "misc compatibility persistence helper boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for characters, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
     },
     {
       "package": "wow-world",
@@ -14824,6 +14466,126 @@
       "connection_affinity": "The adapter stores exactly one Character database handle.",
       "current_order": "Preserve C++ statement identity, delete-before-insert order and exact parameter order; gameplay validation remains above the adapter.",
       "failure_and_unknown_commit": "No SQLx row, prepared statement, transaction or database error crosses the typed port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::instance_lock_persistence_adapter",
+      "source": "crates/wow-database/src/instance_lock_persistence_adapter.rs",
+      "enclosing": "fn decode_character_rows_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free instance-lock persistence (#497)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Row decoding stays private to the Character database adapter and implies no wider transaction.",
+      "current_order": "Decode ordered character-lock rows with the existing tolerant signed/unsigned fallbacks; gameplay validation remains in wow-instances.",
+      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::instance_lock_persistence_adapter",
+      "source": "crates/wow-database/src/instance_lock_persistence_adapter.rs",
+      "enclosing": "fn decode_shared_rows_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free instance-lock persistence (#497)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Row decoding stays private to the Character database adapter and implies no wider transaction.",
+      "current_order": "Decode shared instance rows in cursor order before character locks, preserving malformed-column defaults.",
+      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::instance_lock_persistence_adapter",
+      "source": "crates/wow-database/src/instance_lock_persistence_adapter.rs",
+      "enclosing": "fn statement_for_mutation_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free instance-lock persistence (#497)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Statement rendering is private to the Character database adapter.",
+      "current_order": "Map each semantic mutation to its exact C++ statement identity and bind order; plan order is preserved by the commit method.",
+      "failure_and_unknown_commit": "Rendering performs no I/O and exposes no concrete statement through the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::instance_lock_persistence_adapter",
+      "source": "crates/wow-database/src/instance_lock_persistence_adapter.rs",
+      "enclosing": "impl MariaDbInstanceLockPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free instance-lock persistence (#497)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter stores exactly one Character database handle.",
+      "current_order": "Composition constructs one adapter before startup loading and shares that same port with sessions.",
+      "failure_and_unknown_commit": "Construction performs no I/O."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::instance_lock_persistence_adapter",
+      "source": "crates/wow-database/src/instance_lock_persistence_adapter.rs",
+      "enclosing": "impl wow_persistence::InstanceLockPersistencePortLikeCpp for MariaDbInstanceLockPersistenceAdapterLikeCpp::commit_plan_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free instance-lock persistence (#497)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every non-empty semantic plan commits once on the Character database.",
+      "current_order": "Render and append mutations in plan order, preserving delete-before-insert pairs and atomic reset batches.",
+      "failure_and_unknown_commit": "Commit errors become Failed and cross only as text; callers preserve the pre-existing no-publication failure path."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::instance_lock_persistence_adapter",
+      "source": "crates/wow-database/src/instance_lock_persistence_adapter.rs",
+      "enclosing": "impl wow_persistence::InstanceLockPersistencePortLikeCpp for MariaDbInstanceLockPersistenceAdapterLikeCpp::load_all_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free instance-lock persistence (#497)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Both startup queries use the same Character database adapter and no transaction.",
+      "current_order": "Query and decode shared instance rows first, then ordered character-lock rows, matching the represented C++ startup contract.",
+      "failure_and_unknown_commit": "Either query failure returns Failed without exposing partial typed rows."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::instance_lock_persistence_adapter",
+      "source": "crates/wow-database/src/instance_lock_persistence_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free instance-lock persistence (#497)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "All concrete instance-lock persistence stays in the Character database adapter module.",
+      "current_order": "Preserve the C++ row, statement and transaction ordering contracts.",
+      "failure_and_unknown_commit": "No SQLx type or concrete database handle crosses the typed port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::instance_lock_persistence_adapter",
+      "source": "crates/wow-database/src/instance_lock_persistence_adapter.rs",
+      "enclosing": "struct MariaDbInstanceLockPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free instance-lock persistence (#497)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns one concrete Character database handle.",
+      "current_order": "The composition root owns construction; domain and Session code receive only the trait object.",
+      "failure_and_unknown_commit": "The concrete handle never crosses the adapter boundary."
     }
   ]
 }

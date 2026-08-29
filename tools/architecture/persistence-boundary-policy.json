@@ -14905,6 +14905,246 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::instance_lock_persistence_adapter:crates/wow-database/src/instance_lock_persistence_adapter.rs::fn decode_character_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/instance_lock_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::instance_lock_persistence_adapter"
+      ],
+      "enclosings": [
+        "fn decode_character_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free instance-lock persistence (#497) currently owns the complete wow-database workflow fn decode_character_rows_like_cpp in crates/wow-database/src/instance_lock_persistence_adapter.rs.",
+      "connection_affinity": "Row decoding stays private to the Character database adapter and implies no wider transaction.",
+      "current_order": "Decode ordered character-lock rows with the existing tolerant signed/unsigned fallbacks; gameplay validation remains in wow-instances.",
+      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::instance_lock_persistence_adapter:crates/wow-database/src/instance_lock_persistence_adapter.rs::fn decode_shared_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/instance_lock_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::instance_lock_persistence_adapter"
+      ],
+      "enclosings": [
+        "fn decode_shared_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free instance-lock persistence (#497) currently owns the complete wow-database workflow fn decode_shared_rows_like_cpp in crates/wow-database/src/instance_lock_persistence_adapter.rs.",
+      "connection_affinity": "Row decoding stays private to the Character database adapter and implies no wider transaction.",
+      "current_order": "Decode shared instance rows in cursor order before character locks, preserving malformed-column defaults.",
+      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::instance_lock_persistence_adapter:crates/wow-database/src/instance_lock_persistence_adapter.rs::fn statement_for_mutation_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/instance_lock_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::instance_lock_persistence_adapter"
+      ],
+      "enclosings": [
+        "fn statement_for_mutation_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free instance-lock persistence (#497) currently owns the complete wow-database workflow fn statement_for_mutation_like_cpp in crates/wow-database/src/instance_lock_persistence_adapter.rs.",
+      "connection_affinity": "Statement rendering is private to the Character database adapter.",
+      "current_order": "Map each semantic mutation to its exact C++ statement identity and bind order; plan order is preserved by the commit method.",
+      "failure_and_unknown_commit": "Rendering performs no I/O and exposes no concrete statement through the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::instance_lock_persistence_adapter:crates/wow-database/src/instance_lock_persistence_adapter.rs::impl MariaDbInstanceLockPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/instance_lock_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::instance_lock_persistence_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbInstanceLockPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free instance-lock persistence (#497) currently owns the complete wow-database workflow impl MariaDbInstanceLockPersistenceAdapterLikeCpp::new in crates/wow-database/src/instance_lock_persistence_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one Character database handle.",
+      "current_order": "Composition constructs one adapter before startup loading and shares that same port with sessions.",
+      "failure_and_unknown_commit": "Construction performs no I/O.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::instance_lock_persistence_adapter:crates/wow-database/src/instance_lock_persistence_adapter.rs::impl wow_persistence::InstanceLockPersistencePortLikeCpp for MariaDbInstanceLockPersistenceAdapterLikeCpp::commit_plan_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/instance_lock_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::instance_lock_persistence_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::InstanceLockPersistencePortLikeCpp for MariaDbInstanceLockPersistenceAdapterLikeCpp::commit_plan_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free instance-lock persistence (#497) currently owns the complete wow-database workflow impl wow_persistence::InstanceLockPersistencePortLikeCpp for MariaDbInstanceLockPersistenceAdapterLikeCpp::commit_plan_like_cpp in crates/wow-database/src/instance_lock_persistence_adapter.rs.",
+      "connection_affinity": "Every non-empty semantic plan commits once on the Character database.",
+      "current_order": "Render and append mutations in plan order, preserving delete-before-insert pairs and atomic reset batches.",
+      "failure_and_unknown_commit": "Commit errors become Failed and cross only as text; callers preserve the pre-existing no-publication failure path.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::instance_lock_persistence_adapter:crates/wow-database/src/instance_lock_persistence_adapter.rs::impl wow_persistence::InstanceLockPersistencePortLikeCpp for MariaDbInstanceLockPersistenceAdapterLikeCpp::load_all_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/instance_lock_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::instance_lock_persistence_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::InstanceLockPersistencePortLikeCpp for MariaDbInstanceLockPersistenceAdapterLikeCpp::load_all_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free instance-lock persistence (#497) currently owns the complete wow-database workflow impl wow_persistence::InstanceLockPersistencePortLikeCpp for MariaDbInstanceLockPersistenceAdapterLikeCpp::load_all_like_cpp in crates/wow-database/src/instance_lock_persistence_adapter.rs.",
+      "connection_affinity": "Both startup queries use the same Character database adapter and no transaction.",
+      "current_order": "Query and decode shared instance rows first, then ordered character-lock rows, matching the represented C++ startup contract.",
+      "failure_and_unknown_commit": "Either query failure returns Failed without exposing partial typed rows.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::instance_lock_persistence_adapter:crates/wow-database/src/instance_lock_persistence_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/instance_lock_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::instance_lock_persistence_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free instance-lock persistence (#497) currently owns the complete wow-database workflow module in crates/wow-database/src/instance_lock_persistence_adapter.rs.",
+      "connection_affinity": "All concrete instance-lock persistence stays in the Character database adapter module.",
+      "current_order": "Preserve the C++ row, statement and transaction ordering contracts.",
+      "failure_and_unknown_commit": "No SQLx type or concrete database handle crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::instance_lock_persistence_adapter:crates/wow-database/src/instance_lock_persistence_adapter.rs::struct MariaDbInstanceLockPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/instance_lock_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::instance_lock_persistence_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbInstanceLockPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free instance-lock persistence (#497) currently owns the complete wow-database workflow struct MariaDbInstanceLockPersistenceAdapterLikeCpp in crates/wow-database/src/instance_lock_persistence_adapter.rs.",
+      "connection_affinity": "The adapter owns one concrete Character database handle.",
+      "current_order": "The composition root owns construction; domain and Session code receive only the trait object.",
+      "failure_and_unknown_commit": "The concrete handle never crosses the adapter boundary.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::item_template_addon_catalog_adapter:crates/wow-database/src/item_template_addon_catalog_adapter.rs::fn loot_metadata_statement_like_cpp",
       "source_class": "production",
       "packages": [
@@ -23864,550 +24104,6 @@
       "stable_boundary": true
     },
     {
-      "id": "workflow:wow-instances:crate:crates/wow-instances/src/lib.rs::impl InstanceLockMgr::cleanup_unreferenced_shared_instance_lock_data_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-instances"
-      ],
-      "sources": [
-        "crates/wow-instances/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl InstanceLockMgr::cleanup_unreferenced_shared_instance_lock_data_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance-lock persistence capability currently owns the complete wow-instances workflow impl InstanceLockMgr::cleanup_unreferenced_shared_instance_lock_data_like_cpp in crates/wow-instances/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-instances:crate:crates/wow-instances/src/lib.rs::impl InstanceLockMgr::delete_account_instance_lock_times_statement",
-      "source_class": "production",
-      "packages": [
-        "wow-instances"
-      ],
-      "sources": [
-        "crates/wow-instances/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl InstanceLockMgr::delete_account_instance_lock_times_statement"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance-lock persistence capability currently owns the complete wow-instances workflow impl InstanceLockMgr::delete_account_instance_lock_times_statement in crates/wow-instances/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-instances:crate:crates/wow-instances/src/lib.rs::impl InstanceLockMgr::delete_all_respawns_statement",
-      "source_class": "production",
-      "packages": [
-        "wow-instances"
-      ],
-      "sources": [
-        "crates/wow-instances/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl InstanceLockMgr::delete_all_respawns_statement"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance-lock persistence capability currently owns the complete wow-instances workflow impl InstanceLockMgr::delete_all_respawns_statement in crates/wow-instances/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-instances:crate:crates/wow-instances/src/lib.rs::impl InstanceLockMgr::delete_character_instance_lock_statement",
-      "source_class": "production",
-      "packages": [
-        "wow-instances"
-      ],
-      "sources": [
-        "crates/wow-instances/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl InstanceLockMgr::delete_character_instance_lock_statement"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance-lock persistence capability currently owns the complete wow-instances workflow impl InstanceLockMgr::delete_character_instance_lock_statement in crates/wow-instances/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-instances:crate:crates/wow-instances/src/lib.rs::impl InstanceLockMgr::delete_character_instance_locks_by_guid_statement",
-      "source_class": "production",
-      "packages": [
-        "wow-instances"
-      ],
-      "sources": [
-        "crates/wow-instances/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl InstanceLockMgr::delete_character_instance_locks_by_guid_statement"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance-lock persistence capability currently owns the complete wow-instances workflow impl InstanceLockMgr::delete_character_instance_locks_by_guid_statement in crates/wow-instances/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-instances:crate:crates/wow-instances/src/lib.rs::impl InstanceLockMgr::delete_instance_statement",
-      "source_class": "production",
-      "packages": [
-        "wow-instances"
-      ],
-      "sources": [
-        "crates/wow-instances/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl InstanceLockMgr::delete_instance_statement"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance-lock persistence capability currently owns the complete wow-instances workflow impl InstanceLockMgr::delete_instance_statement in crates/wow-instances/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-instances:crate:crates/wow-instances/src/lib.rs::impl InstanceLockMgr::force_expire_character_instance_lock_statement",
-      "source_class": "production",
-      "packages": [
-        "wow-instances"
-      ],
-      "sources": [
-        "crates/wow-instances/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl InstanceLockMgr::force_expire_character_instance_lock_statement"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance-lock persistence capability currently owns the complete wow-instances workflow impl InstanceLockMgr::force_expire_character_instance_lock_statement in crates/wow-instances/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-instances:crate:crates/wow-instances/src/lib.rs::impl InstanceLockMgr::insert_account_instance_lock_time_statement",
-      "source_class": "production",
-      "packages": [
-        "wow-instances"
-      ],
-      "sources": [
-        "crates/wow-instances/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl InstanceLockMgr::insert_account_instance_lock_time_statement"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance-lock persistence capability currently owns the complete wow-instances workflow impl InstanceLockMgr::insert_account_instance_lock_time_statement in crates/wow-instances/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-instances:crate:crates/wow-instances/src/lib.rs::impl InstanceLockMgr::insert_character_instance_lock_statement",
-      "source_class": "production",
-      "packages": [
-        "wow-instances"
-      ],
-      "sources": [
-        "crates/wow-instances/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl InstanceLockMgr::insert_character_instance_lock_statement"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance-lock persistence capability currently owns the complete wow-instances workflow impl InstanceLockMgr::insert_character_instance_lock_statement in crates/wow-instances/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-instances:crate:crates/wow-instances/src/lib.rs::impl InstanceLockMgr::insert_instance_statement",
-      "source_class": "production",
-      "packages": [
-        "wow-instances"
-      ],
-      "sources": [
-        "crates/wow-instances/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl InstanceLockMgr::insert_instance_statement"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance-lock persistence capability currently owns the complete wow-instances workflow impl InstanceLockMgr::insert_instance_statement in crates/wow-instances/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-instances:crate:crates/wow-instances/src/lib.rs::impl InstanceLockMgr::load_from_database_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-instances"
-      ],
-      "sources": [
-        "crates/wow-instances/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl InstanceLockMgr::load_from_database_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance-lock persistence capability currently owns the complete wow-instances workflow impl InstanceLockMgr::load_from_database_like_cpp in crates/wow-instances/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-instances:crate:crates/wow-instances/src/lib.rs::impl InstanceLockMgr::reset_instance_locks_for_player_tx_at",
-      "source_class": "production",
-      "packages": [
-        "wow-instances"
-      ],
-      "sources": [
-        "crates/wow-instances/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl InstanceLockMgr::reset_instance_locks_for_player_tx_at"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance-lock persistence capability currently owns the complete wow-instances workflow impl InstanceLockMgr::reset_instance_locks_for_player_tx_at in crates/wow-instances/src/lib.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-instances:crate:crates/wow-instances/src/lib.rs::impl InstanceLockMgr::update_character_instance_lock_extension_statement",
-      "source_class": "production",
-      "packages": [
-        "wow-instances"
-      ],
-      "sources": [
-        "crates/wow-instances/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl InstanceLockMgr::update_character_instance_lock_extension_statement"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance-lock persistence capability currently owns the complete wow-instances workflow impl InstanceLockMgr::update_character_instance_lock_extension_statement in crates/wow-instances/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-instances:crate:crates/wow-instances/src/lib.rs::impl InstanceLockMgr::update_instance_lock_extension_for_player_tx_at",
-      "source_class": "production",
-      "packages": [
-        "wow-instances"
-      ],
-      "sources": [
-        "crates/wow-instances/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl InstanceLockMgr::update_instance_lock_extension_for_player_tx_at"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance-lock persistence capability currently owns the complete wow-instances workflow impl InstanceLockMgr::update_instance_lock_extension_for_player_tx_at in crates/wow-instances/src/lib.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-instances:crate:crates/wow-instances/src/lib.rs::impl InstanceLockMgr::update_instance_lock_for_player_tx_at",
-      "source_class": "production",
-      "packages": [
-        "wow-instances"
-      ],
-      "sources": [
-        "crates/wow-instances/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl InstanceLockMgr::update_instance_lock_for_player_tx_at"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance-lock persistence capability currently owns the complete wow-instances workflow impl InstanceLockMgr::update_instance_lock_for_player_tx_at in crates/wow-instances/src/lib.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-instances:crate:crates/wow-instances/src/lib.rs::impl InstanceLockMgr::update_shared_instance_lock_tx",
-      "source_class": "production",
-      "packages": [
-        "wow-instances"
-      ],
-      "sources": [
-        "crates/wow-instances/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl InstanceLockMgr::update_shared_instance_lock_tx"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance-lock persistence capability currently owns the complete wow-instances workflow impl InstanceLockMgr::update_shared_instance_lock_tx in crates/wow-instances/src/lib.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-instances:crate:crates/wow-instances/src/lib.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-instances"
-      ],
-      "sources": [
-        "crates/wow-instances/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance-lock persistence capability currently owns the complete wow-instances workflow module in crates/wow-instances/src/lib.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-world:crate::canonical_player_sync:crates/wow-world/src/canonical_player_sync.rs::fn hydrate_player_presentation_like_cpp",
       "source_class": "production",
       "packages": [
@@ -26340,135 +26036,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::misc::instance:crates/wow-world/src/handlers/misc/instance.rs::impl crate :: session :: WorldSession::confirm_pending_bind_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/misc/instance.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::misc::instance"
-      ],
-      "enclosings": [
-        "impl crate :: session :: WorldSession::confirm_pending_bind_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance lock persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::confirm_pending_bind_like_cpp in crates/wow-world/src/handlers/misc/instance.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::misc::instance:crates/wow-world/src/handlers/misc/instance.rs::impl crate :: session :: WorldSession::handle_set_saved_instance_extend",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/misc/instance.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::misc::instance"
-      ],
-      "enclosings": [
-        "impl crate :: session :: WorldSession::handle_set_saved_instance_extend"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance lock persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::handle_set_saved_instance_extend in crates/wow-world/src/handlers/misc/instance.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::misc::instance:crates/wow-world/src/handlers/misc/instance.rs::impl crate :: session :: WorldSession::reset_represented_instances_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/misc/instance.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::misc::instance"
-      ],
-      "enclosings": [
-        "impl crate :: session :: WorldSession::reset_represented_instances_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "instance lock persistence boundary currently owns the complete wow-world workflow impl crate :: session :: WorldSession::reset_represented_instances_like_cpp in crates/wow-world/src/handlers/misc/instance.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::handlers::misc::instance:crates/wow-world/src/handlers/misc/instance.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/misc/instance.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::misc::instance"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters",
-        "world"
-      ],
-      "capability_owner": "misc compatibility persistence helper boundary currently owns the complete wow-world workflow module in crates/wow-world/src/handlers/misc/instance.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-world:crate::handlers::quest:crates/wow-world/src/handlers/quest/mod.rs::module",
       "source_class": "production",
       "packages": [
@@ -28277,6 +27844,7 @@
         "crates/wow-database/src/gameobject_use_template_adapter.rs",
         "crates/wow-database/src/gossip_catalog_adapter.rs",
         "crates/wow-database/src/group_loot_money_adapter.rs",
+        "crates/wow-database/src/instance_lock_persistence_adapter.rs",
         "crates/wow-database/src/item_template_addon_catalog_adapter.rs",
         "crates/wow-database/src/map_corpse_adapter.rs",
         "crates/wow-database/src/next_mail_time_adapter.rs",
@@ -28311,32 +27879,6 @@
         "test-fixture"
       ],
       "capability_owner": "wow-database test fixtures own their exact persistence syntax.",
-      "connection_affinity": "Fixture-only syntax preserves the production contract it exercises; it owns no production pool.",
-      "current_order": "Fixture source order remains pinned by the exact syntax snapshot.",
-      "failure_and_unknown_commit": "Fixture assertions preserve the error/outcome behavior under test.",
-      "target_issues": [],
-      "retirement_condition": "Remove the fixture group when the exact snapshot contains no test-only persistence row for this package.",
-      "stable_boundary": false
-    },
-    {
-      "id": "test-fixtures:wow-instances",
-      "source_class": "test_fixture",
-      "packages": [
-        "wow-instances"
-      ],
-      "sources": [
-        "crates/wow-instances/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [],
-      "enclosings": [],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "test-fixture"
-      ],
-      "capability_owner": "wow-instances test fixtures own their exact persistence syntax.",
       "connection_affinity": "Fixture-only syntax preserves the production contract it exercises; it owns no production pool.",
       "current_order": "Fixture source order remains pinned by the exact syntax snapshot.",
       "failure_and_unknown_commit": "Fixture assertions preserve the error/outcome behavior under test.",
