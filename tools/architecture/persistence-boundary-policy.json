@@ -6818,102 +6818,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-data:crate::player_choice:crates/wow-data/src/player_choice.rs::impl PlayerChoiceStoreLikeCpp::load_core_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/player_choice.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_choice"
-      ],
-      "enclosings": [
-        "impl PlayerChoiceStoreLikeCpp::load_core_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl PlayerChoiceStoreLikeCpp::load_core_like_cpp in crates/wow-data/src/player_choice.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::player_choice:crates/wow-data/src/player_choice.rs::impl PlayerChoiceStoreLikeCpp::load_locales_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/player_choice.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_choice"
-      ],
-      "enclosings": [
-        "impl PlayerChoiceStoreLikeCpp::load_locales_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl PlayerChoiceStoreLikeCpp::load_locales_like_cpp in crates/wow-data/src/player_choice.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::player_choice:crates/wow-data/src/player_choice.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/player_choice.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_choice"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow module in crates/wow-data/src/player_choice.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-data:crate::player_create:crates/wow-data/src/player_create.rs::impl PlayerCreateInfoCastSpellStoreLikeCpp::load_like_cpp",
       "source_class": "production",
       "packages": [
@@ -16733,6 +16637,246 @@
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
       "current_order": "Defines the order contract rather than executing one: logical database, connection affinity, commit outcome and the ordered event list that freezes a plan's observable behaviour before persistence ports are extracted.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_choice_catalog_adapter:crates/wow-database/src/player_choice_catalog_adapter.rs::const CORE_STATEMENTS_LIKE_CPP",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_choice_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_choice_catalog_adapter"
+      ],
+      "enclosings": [
+        "const CORE_STATEMENTS_LIKE_CPP"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free PlayerChoice startup loading (#499) currently owns the complete wow-database workflow const CORE_STATEMENTS_LIKE_CPP in crates/wow-database/src/player_choice_catalog_adapter.rs.",
+      "connection_affinity": "The constant names World statement identities only and owns no connection.",
+      "current_order": "The array fixes the eight represented C++ core queries in execution order.",
+      "failure_and_unknown_commit": "No I/O occurs while defining statement identity.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_choice_catalog_adapter:crates/wow-database/src/player_choice_catalog_adapter.rs::const LOCALE_STATEMENTS_LIKE_CPP",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_choice_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_choice_catalog_adapter"
+      ],
+      "enclosings": [
+        "const LOCALE_STATEMENTS_LIKE_CPP"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free PlayerChoice startup loading (#499) currently owns the complete wow-database workflow const LOCALE_STATEMENTS_LIKE_CPP in crates/wow-database/src/player_choice_catalog_adapter.rs.",
+      "connection_affinity": "The constant names World statement identities only and owns no connection.",
+      "current_order": "The array fixes choice locales before response locales.",
+      "failure_and_unknown_commit": "No I/O occurs while defining statement identity.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_choice_catalog_adapter:crates/wow-database/src/player_choice_catalog_adapter.rs::fn query_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_choice_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_choice_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn query_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free PlayerChoice startup loading (#499) currently owns the complete wow-database workflow fn query_rows_like_cpp in crates/wow-database/src/player_choice_catalog_adapter.rs.",
+      "connection_affinity": "Each query uses the same World database adapter without inventing a transaction.",
+      "current_order": "The core and locale port methods call this helper sequentially in the exact represented C++ statement order.",
+      "failure_and_unknown_commit": "The first query error stops the load and crosses the typed port only as a failure reason.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_choice_catalog_adapter:crates/wow-database/src/player_choice_catalog_adapter.rs::impl MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_choice_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_choice_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free PlayerChoice startup loading (#499) currently owns the complete wow-database workflow impl MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp::new in crates/wow-database/src/player_choice_catalog_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one World database handle.",
+      "current_order": "Composition constructs the adapter before the core and locale startup loads.",
+      "failure_and_unknown_commit": "Construction performs no I/O.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_choice_catalog_adapter:crates/wow-database/src/player_choice_catalog_adapter.rs::impl wow_persistence::PlayerChoiceCatalogPersistencePortLikeCpp for MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp::load_core_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_choice_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_choice_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::PlayerChoiceCatalogPersistencePortLikeCpp for MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp::load_core_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free PlayerChoice startup loading (#499) currently owns the complete wow-database workflow impl wow_persistence::PlayerChoiceCatalogPersistencePortLikeCpp for MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp::load_core_rows_like_cpp in crates/wow-database/src/player_choice_catalog_adapter.rs.",
+      "connection_affinity": "All eight core queries use one World database adapter and no transaction.",
+      "current_order": "Choices, responses, rewards, reward items, currencies, factions, item choices and Maw powers load sequentially.",
+      "failure_and_unknown_commit": "The first query error returns Failed and exposes no partial row bundle.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_choice_catalog_adapter:crates/wow-database/src/player_choice_catalog_adapter.rs::impl wow_persistence::PlayerChoiceCatalogPersistencePortLikeCpp for MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp::load_locale_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_choice_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_choice_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::PlayerChoiceCatalogPersistencePortLikeCpp for MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp::load_locale_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free PlayerChoice startup loading (#499) currently owns the complete wow-database workflow impl wow_persistence::PlayerChoiceCatalogPersistencePortLikeCpp for MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp::load_locale_rows_like_cpp in crates/wow-database/src/player_choice_catalog_adapter.rs.",
+      "connection_affinity": "Both locale queries use the same World database adapter and no transaction.",
+      "current_order": "Choice locales load before response locales after the complete core catalog.",
+      "failure_and_unknown_commit": "The first query error returns Failed and exposes no partial locale bundle.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_choice_catalog_adapter:crates/wow-database/src/player_choice_catalog_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_choice_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_choice_catalog_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free PlayerChoice startup loading (#499) currently owns the complete wow-database workflow module in crates/wow-database/src/player_choice_catalog_adapter.rs.",
+      "connection_affinity": "All concrete PlayerChoice loading stays inside one World database adapter module.",
+      "current_order": "The two statement arrays freeze the represented C++ core and locale query order.",
+      "failure_and_unknown_commit": "No SQLx result or concrete database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_choice_catalog_adapter:crates/wow-database/src/player_choice_catalog_adapter.rs::struct MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_choice_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_choice_catalog_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free PlayerChoice startup loading (#499) currently owns the complete wow-database workflow struct MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp in crates/wow-database/src/player_choice_catalog_adapter.rs.",
+      "connection_affinity": "The adapter owns one concrete World database handle.",
+      "current_order": "The composition root owns construction; wow-data receives only the typed capability.",
+      "failure_and_unknown_commit": "The concrete handle never crosses the adapter boundary.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -27852,6 +27996,7 @@
         "crates/wow-database/src/page_text_catalog_adapter.rs",
         "crates/wow-database/src/params.rs",
         "crates/wow-database/src/persistence_trace.rs",
+        "crates/wow-database/src/player_choice_catalog_adapter.rs",
         "crates/wow-database/src/player_lifecycle_adapter.rs",
         "crates/wow-database/src/player_name_query_adapter.rs",
         "crates/wow-database/src/player_spell_acquisition_adapter.rs",

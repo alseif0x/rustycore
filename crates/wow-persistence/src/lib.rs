@@ -22,12 +22,21 @@ use std::future::Future;
 use std::pin::Pin;
 
 mod instance_lock;
+mod player_choice;
 
 pub use instance_lock::{
     CharacterInstanceLockPersistenceRowLikeCpp, InstanceLockPersistenceLoadOutcomeLikeCpp,
     InstanceLockPersistenceMutationLikeCpp, InstanceLockPersistenceOutcomeLikeCpp,
     InstanceLockPersistencePlanLikeCpp, InstanceLockPersistencePortLikeCpp,
     SharedInstanceLockPersistenceRowLikeCpp,
+};
+pub use player_choice::{
+    PlayerChoiceCatalogCoreRowsLikeCpp, PlayerChoiceCatalogLoadOutcomeLikeCpp,
+    PlayerChoiceCatalogLocaleRowsLikeCpp, PlayerChoiceCatalogPersistencePortLikeCpp,
+    PlayerChoiceLocaleRowLikeCpp, PlayerChoiceResponseLocaleRowLikeCpp,
+    PlayerChoiceResponseMawPowerRowLikeCpp, PlayerChoiceResponseRewardCurrencyRowLikeCpp,
+    PlayerChoiceResponseRewardFactionRowLikeCpp, PlayerChoiceResponseRewardItemRowLikeCpp,
+    PlayerChoiceResponseRewardRowLikeCpp, PlayerChoiceResponseRowLikeCpp, PlayerChoiceRowLikeCpp,
 };
 
 /// A future returned by a port method.

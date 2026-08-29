@@ -84,6 +84,7 @@ use wow_world::{
 mod area_trigger_loaded_grid;
 mod creature_loaded_grid;
 mod gameobject_loaded_grid;
+mod player_choice_catalog;
 mod session_resources;
 mod spawn_store_loader;
 mod spell_acquisition_loader;
