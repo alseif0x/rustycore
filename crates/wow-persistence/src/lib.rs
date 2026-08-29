@@ -765,6 +765,49 @@ pub trait GameObjectQueryCatalogPersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<'a, GameObjectQueryCatalogOutcomeLikeCpp>;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PageTextCatalogRequestLikeCpp {
+    pub page_text_id: u32,
+    pub locale: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PageTextCatalogRowLikeCpp {
+    pub id: u32,
+    pub next_page_id: u32,
+    pub player_condition_id: i32,
+    pub flags: u8,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PageTextCatalogDiagnosticLikeCpp {
+    PageReadFailed {
+        page_text_id: u32,
+        reason: String,
+    },
+    LocaleReadFailed {
+        page_text_id: u32,
+        locale: String,
+        reason: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PageTextCatalogOutcomeLikeCpp {
+    pub pages: Vec<PageTextCatalogRowLikeCpp>,
+    pub diagnostics: Vec<PageTextCatalogDiagnosticLikeCpp>,
+}
+
+/// Transitional on-demand World catalog read. C++ walks the same page chain
+/// from ObjectMgr; #153 owns convergence onto that startup-loaded owner.
+pub trait PageTextCatalogPersistencePortLikeCpp: Send + Sync {
+    fn load_page_text_catalog_like_cpp<'a>(
+        &'a self,
+        request: PageTextCatalogRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PageTextCatalogOutcomeLikeCpp>;
+}
+
 /// Commit classification for a transaction protected by the Session-owned
 /// player-money exclusion fence.
 ///

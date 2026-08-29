@@ -15931,6 +15931,156 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::page_text_catalog_adapter:crates/wow-database/src/page_text_catalog_adapter.rs::fn statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/page_text_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::page_text_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free page-text catalog reads (#484) currently owns the complete wow-database workflow fn statement_like_cpp in crates/wow-database/src/page_text_catalog_adapter.rs.",
+      "connection_affinity": "Pure construction of one World-database prepared statement; it opens no connection or transaction.",
+      "current_order": "Build the selected page or locale statement and bind the page-text identifier exactly once.",
+      "failure_and_unknown_commit": "No I/O occurs while constructing a statement.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::page_text_catalog_adapter:crates/wow-database/src/page_text_catalog_adapter.rs::impl MariaDbPageTextCatalogPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/page_text_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::page_text_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbPageTextCatalogPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free page-text catalog reads (#484) currently owns the complete wow-database workflow impl MariaDbPageTextCatalogPersistenceAdapterLikeCpp::new in crates/wow-database/src/page_text_catalog_adapter.rs.",
+      "connection_affinity": "Composition supplies exactly one World database handle before sessions are accepted.",
+      "current_order": "Construction stores the handle only and performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::page_text_catalog_adapter:crates/wow-database/src/page_text_catalog_adapter.rs::impl wow_persistence::PageTextCatalogPersistencePortLikeCpp for MariaDbPageTextCatalogPersistenceAdapterLikeCpp::load_page_text_catalog_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/page_text_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::page_text_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::PageTextCatalogPersistencePortLikeCpp for MariaDbPageTextCatalogPersistenceAdapterLikeCpp::load_page_text_catalog_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free page-text catalog reads (#484) currently owns the complete wow-database workflow impl wow_persistence::PageTextCatalogPersistencePortLikeCpp for MariaDbPageTextCatalogPersistenceAdapterLikeCpp::load_page_text_catalog_like_cpp in crates/wow-database/src/page_text_catalog_adapter.rs.",
+      "connection_affinity": "Every page and locale read uses the adapter's single World database handle; no cross-database boundary is implied.",
+      "current_order": "For each page, read the base row and then the optional locale before following NextPageID; preserve missing-row, cycle and 100-page termination.",
+      "failure_and_unknown_commit": "A base-read failure terminates with the pages already loaded; a locale failure records a non-fatal diagnostic and keeps the base text. Reads have no COMMIT outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::page_text_catalog_adapter:crates/wow-database/src/page_text_catalog_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/page_text_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::page_text_catalog_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free page-text catalog reads (#484) currently owns the complete wow-database workflow module in crates/wow-database/src/page_text_catalog_adapter.rs.",
+      "connection_affinity": "The module owns only the transitional World catalog adapter.",
+      "current_order": "SQL identity, binds, chain iteration and row projection stay private; diagnostics and packet construction remain in wow-world.",
+      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::page_text_catalog_adapter:crates/wow-database/src/page_text_catalog_adapter.rs::struct MariaDbPageTextCatalogPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/page_text_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::page_text_catalog_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbPageTextCatalogPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free page-text catalog reads (#484) currently owns the complete wow-database workflow struct MariaDbPageTextCatalogPersistenceAdapterLikeCpp in crates/wow-database/src/page_text_catalog_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one World database handle.",
+      "current_order": "The handle surface implies no runtime order beyond the port method.",
+      "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::params:crates/wow-database/src/params.rs::impl PreparedStatement",
       "source_class": "production",
       "packages": [
@@ -25135,38 +25285,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::handlers::character::query:crates/wow-world/src/handlers/character/query.rs::impl WorldSession::handle_query_page_text",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/handlers/character/query.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::handlers::character::query"
-      ],
-      "enclosings": [
-        "impl WorldSession::handle_query_page_text"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "character service persistence boundary currently owns the complete wow-world workflow impl WorldSession::handle_query_page_text in crates/wow-world/src/handlers/character/query.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-world:crate::handlers::character::query:crates/wow-world/src/handlers/character/query.rs::impl WorldSession::handle_query_player_names",
       "source_class": "production",
       "packages": [
@@ -28760,6 +28878,7 @@
         "crates/wow-database/src/map_corpse_adapter.rs",
         "crates/wow-database/src/next_mail_time_adapter.rs",
         "crates/wow-database/src/packet_spoof_ban_adapter.rs",
+        "crates/wow-database/src/page_text_catalog_adapter.rs",
         "crates/wow-database/src/params.rs",
         "crates/wow-database/src/persistence_trace.rs",
         "crates/wow-database/src/player_lifecycle_adapter.rs",

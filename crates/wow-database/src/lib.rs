@@ -46,6 +46,7 @@ pub mod loader;
 pub mod map_corpse_adapter;
 pub mod next_mail_time_adapter;
 pub mod packet_spoof_ban_adapter;
+pub mod page_text_catalog_adapter;
 pub mod params;
 pub mod persistence_trace;
 pub mod player_lifecycle_adapter;
@@ -81,6 +82,7 @@ pub use loader::{
     DATABASE_MASK_ALL_LIKE_CPP, DATABASE_NONE_LIKE_CPP, DATABASE_WORLD_LIKE_CPP,
     DatabaseLoaderLikeCpp,
 };
+pub use page_text_catalog_adapter::MariaDbPageTextCatalogPersistenceAdapterLikeCpp;
 pub use params::{PreparedStatement, SqlParam};
 pub use query_holder::{SqlQueryHolder, SqlQueryHolderResult};
 pub use result::{
