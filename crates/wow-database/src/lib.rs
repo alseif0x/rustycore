@@ -39,6 +39,7 @@ pub mod character_enumeration_adapter;
 pub mod creature_query_catalog_adapter;
 pub mod database;
 pub mod error;
+pub mod gameobject_query_catalog_adapter;
 pub mod gameobject_use_template_adapter;
 pub mod group_loot_money_adapter;
 pub mod loader;
@@ -74,6 +75,7 @@ pub use database::{
     warn_about_sync_queries_scope_like_cpp,
 };
 pub use error::DatabaseError;
+pub use gameobject_query_catalog_adapter::MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp;
 pub use loader::{
     DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP, DATABASE_LOGIN_LIKE_CPP,
     DATABASE_MASK_ALL_LIKE_CPP, DATABASE_NONE_LIKE_CPP, DATABASE_WORLD_LIKE_CPP,

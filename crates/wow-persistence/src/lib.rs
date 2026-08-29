@@ -723,6 +723,48 @@ pub trait CreatureQueryCatalogPersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<'a, CreatureQueryCatalogOutcomeLikeCpp>;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameObjectQueryCatalogRequestLikeCpp {
+    pub entry: u32,
+    pub locale: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GameObjectQueryCatalogRowLikeCpp {
+    pub go_type: i32,
+    pub display_id: i32,
+    pub name: String,
+    pub icon_name: String,
+    pub cast_bar_caption: String,
+    pub unk_string: String,
+    pub size: f32,
+    pub data: [i32; GAMEOBJECT_USE_TEMPLATE_DATA_COUNT_LIKE_CPP],
+    pub content_tuning_id: i32,
+    pub quest_items: Vec<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum GameObjectQueryCatalogOutcomeLikeCpp {
+    Found {
+        row: GameObjectQueryCatalogRowLikeCpp,
+        locale_error: Option<String>,
+        quest_items_error: Option<String>,
+    },
+    Missing,
+    Failed {
+        reason: String,
+    },
+}
+
+/// Transitional on-demand World catalog read. C++ serves the same projection
+/// from ObjectMgr; #153 owns convergence onto the startup-loaded owner.
+pub trait GameObjectQueryCatalogPersistencePortLikeCpp: Send + Sync {
+    fn load_gameobject_query_catalog_like_cpp<'a>(
+        &'a self,
+        request: GameObjectQueryCatalogRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, GameObjectQueryCatalogOutcomeLikeCpp>;
+}
+
 /// Commit classification for a transaction protected by the Session-owned
 /// player-money exclusion fence.
 ///

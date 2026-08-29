@@ -28,6 +28,8 @@ pub(super) struct SessionResources {
         Option<Arc<dyn wow_persistence::CharacterEnumerationPersistencePortLikeCpp>>,
     pub(super) creature_query_catalog_persistence_port:
         Option<Arc<dyn wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp>>,
+    pub(super) gameobject_query_catalog_persistence_port:
+        Option<Arc<dyn wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp>>,
     /// Characters capability for session-owned account data and tutorials.
     pub(super) session_account_state_port:
         Option<Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>>,
