@@ -296,6 +296,9 @@ pub(super) async fn create_session(
     if let Some(ref port) = resources.item_template_addon_catalog_persistence_port {
         session.set_item_template_addon_catalog_persistence_port_like_cpp(Arc::clone(port));
     }
+    if let Some(ref port) = resources.gossip_catalog_persistence_port {
+        session.set_gossip_catalog_persistence_port_like_cpp(Arc::clone(port));
+    }
     if let Some(ref port) = resources.page_text_catalog_persistence_port {
         session.set_page_text_catalog_persistence_port_like_cpp(Arc::clone(port));
     }

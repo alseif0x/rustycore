@@ -5202,6 +5202,7 @@ struct SessionPersistencePortsLikeCpp {
         Option<Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>>,
     item_template_addon_catalog:
         Option<Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>>,
+    gossip_catalog: Option<Arc<dyn wow_persistence::GossipCatalogPersistencePortLikeCpp>>,
     creature_query_catalog:
         Option<Arc<dyn wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp>>,
     gameobject_query_catalog:
@@ -16457,6 +16458,19 @@ impl WorldSession {
         self.persistence_ports_like_cpp
             .item_template_addon_catalog
             .clone()
+    }
+
+    pub fn set_gossip_catalog_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::GossipCatalogPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.gossip_catalog = Some(port);
+    }
+
+    pub(crate) fn gossip_catalog_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::GossipCatalogPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.gossip_catalog.clone()
     }
 
     pub fn set_creature_query_catalog_persistence_port_like_cpp(

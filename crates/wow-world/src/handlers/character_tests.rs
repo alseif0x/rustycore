@@ -54,7 +54,10 @@ use wow_persistence::{
     CreatureQueryCatalogRowLikeCpp, CreatureQueryDisplayRowLikeCpp,
     GameObjectQueryCatalogOutcomeLikeCpp, GameObjectQueryCatalogPersistencePortLikeCpp,
     GameObjectQueryCatalogRequestLikeCpp, GameObjectQueryCatalogRowLikeCpp,
-    MapCorpseAuxiliaryLoadOutcomeLikeCpp,
+    GossipBroadcastTextLocaleRequestLikeCpp, GossipCatalogPersistencePortLikeCpp,
+    GossipCatalogReadOutcomeLikeCpp, GossipCreatureMenuRequestLikeCpp,
+    GossipMenuCatalogRequestLikeCpp, GossipMenuOptionCatalogRowLikeCpp,
+    GossipNpcTextCatalogRequestLikeCpp, MapCorpseAuxiliaryLoadOutcomeLikeCpp,
     MapCorpseLoadOutcomeLikeCpp as PersistedMapCorpseLoadOutcomeLikeCpp,
     MapCorpseLoadRequestLikeCpp, MapCorpseLoadRowLikeCpp, MapCorpsePersistencePortLikeCpp,
     PageTextCatalogDiagnosticLikeCpp, PageTextCatalogOutcomeLikeCpp,
@@ -170,6 +173,146 @@ impl PageTextCatalogPersistencePortLikeCpp for PageTextCatalogPortFixtureLikeCpp
             .unwrap()
             .pop_front()
             .expect("one page-text outcome per request");
+        Box::pin(async move { outcome })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum GossipCatalogRequestTraceLikeCpp {
+    CreatureMenu(GossipCreatureMenuRequestLikeCpp),
+    MenuTexts(GossipMenuCatalogRequestLikeCpp),
+    NpcText(GossipNpcTextCatalogRequestLikeCpp),
+    MenuOptions(GossipMenuCatalogRequestLikeCpp),
+    BroadcastLocale(GossipBroadcastTextLocaleRequestLikeCpp),
+}
+
+struct GossipCatalogPortFixtureLikeCpp {
+    requests: std::sync::Mutex<Vec<GossipCatalogRequestTraceLikeCpp>>,
+    creature_menu:
+        std::sync::Mutex<std::collections::VecDeque<GossipCatalogReadOutcomeLikeCpp<u32>>>,
+    menu_texts:
+        std::sync::Mutex<std::collections::VecDeque<GossipCatalogReadOutcomeLikeCpp<Vec<u32>>>>,
+    npc_text: std::sync::Mutex<std::collections::VecDeque<GossipCatalogReadOutcomeLikeCpp<i32>>>,
+    menu_options: std::sync::Mutex<
+        std::collections::VecDeque<
+            GossipCatalogReadOutcomeLikeCpp<Vec<GossipMenuOptionCatalogRowLikeCpp>>,
+        >,
+    >,
+    broadcast_locale:
+        std::sync::Mutex<std::collections::VecDeque<GossipCatalogReadOutcomeLikeCpp<String>>>,
+}
+
+impl GossipCatalogPortFixtureLikeCpp {
+    fn new(
+        creature_menu: impl IntoIterator<Item = GossipCatalogReadOutcomeLikeCpp<u32>>,
+        menu_texts: impl IntoIterator<Item = GossipCatalogReadOutcomeLikeCpp<Vec<u32>>>,
+        npc_text: impl IntoIterator<Item = GossipCatalogReadOutcomeLikeCpp<i32>>,
+        menu_options: impl IntoIterator<
+            Item = GossipCatalogReadOutcomeLikeCpp<Vec<GossipMenuOptionCatalogRowLikeCpp>>,
+        >,
+        broadcast_locale: impl IntoIterator<Item = GossipCatalogReadOutcomeLikeCpp<String>>,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            requests: std::sync::Mutex::new(Vec::new()),
+            creature_menu: std::sync::Mutex::new(creature_menu.into_iter().collect()),
+            menu_texts: std::sync::Mutex::new(menu_texts.into_iter().collect()),
+            npc_text: std::sync::Mutex::new(npc_text.into_iter().collect()),
+            menu_options: std::sync::Mutex::new(menu_options.into_iter().collect()),
+            broadcast_locale: std::sync::Mutex::new(broadcast_locale.into_iter().collect()),
+        })
+    }
+
+    fn requests(&self) -> Vec<GossipCatalogRequestTraceLikeCpp> {
+        self.requests.lock().unwrap().clone()
+    }
+}
+
+impl GossipCatalogPersistencePortLikeCpp for GossipCatalogPortFixtureLikeCpp {
+    fn load_creature_gossip_menu_id_like_cpp<'a>(
+        &'a self,
+        request: GossipCreatureMenuRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, GossipCatalogReadOutcomeLikeCpp<u32>> {
+        self.requests
+            .lock()
+            .unwrap()
+            .push(GossipCatalogRequestTraceLikeCpp::CreatureMenu(request));
+        let outcome = self
+            .creature_menu
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("one creature-menu outcome per request");
+        Box::pin(async move { outcome })
+    }
+
+    fn load_gossip_menu_text_ids_like_cpp<'a>(
+        &'a self,
+        request: GossipMenuCatalogRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, GossipCatalogReadOutcomeLikeCpp<Vec<u32>>> {
+        self.requests
+            .lock()
+            .unwrap()
+            .push(GossipCatalogRequestTraceLikeCpp::MenuTexts(request));
+        let outcome = self
+            .menu_texts
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("one menu-text outcome per request");
+        Box::pin(async move { outcome })
+    }
+
+    fn load_npc_text_broadcast_id_like_cpp<'a>(
+        &'a self,
+        request: GossipNpcTextCatalogRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, GossipCatalogReadOutcomeLikeCpp<i32>> {
+        self.requests
+            .lock()
+            .unwrap()
+            .push(GossipCatalogRequestTraceLikeCpp::NpcText(request));
+        let outcome = self
+            .npc_text
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("one npc-text outcome per request");
+        Box::pin(async move { outcome })
+    }
+
+    fn load_gossip_menu_options_like_cpp<'a>(
+        &'a self,
+        request: GossipMenuCatalogRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<
+        'a,
+        GossipCatalogReadOutcomeLikeCpp<Vec<GossipMenuOptionCatalogRowLikeCpp>>,
+    > {
+        self.requests
+            .lock()
+            .unwrap()
+            .push(GossipCatalogRequestTraceLikeCpp::MenuOptions(request));
+        let outcome = self
+            .menu_options
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("one menu-options outcome per request");
+        Box::pin(async move { outcome })
+    }
+
+    fn load_broadcast_text_locale_like_cpp<'a>(
+        &'a self,
+        request: GossipBroadcastTextLocaleRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, GossipCatalogReadOutcomeLikeCpp<String>> {
+        self.requests
+            .lock()
+            .unwrap()
+            .push(GossipCatalogRequestTraceLikeCpp::BroadcastLocale(request));
+        let outcome = self
+            .broadcast_locale
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("one broadcast-locale outcome per request");
         Box::pin(async move { outcome })
     }
 }
@@ -9239,6 +9382,155 @@ fn gossip_message_counts(bytes: &[u8], expected_guid: ObjectGuid) -> (i32, i32) 
     let option_count = pkt.read_int32().unwrap();
     let quest_count = pkt.read_int32().unwrap();
     (option_count, quest_count)
+}
+
+fn gossip_catalog_option_like_cpp(
+    menu_id: u32,
+    option_id: u32,
+    broadcast_text_id: u32,
+) -> GossipMenuOptionCatalogRowLikeCpp {
+    GossipMenuOptionCatalogRowLikeCpp {
+        menu_id,
+        gossip_option_id: 77,
+        option_id,
+        option_npc: 1,
+        option_text: "Original option".to_owned(),
+        option_broadcast_text_id: broadcast_text_id,
+        language: 0,
+        flags: 3,
+        action_menu_id: 88,
+        action_poi_id: 0,
+        gossip_npc_option_id: None,
+        box_coded: false,
+        box_money: 25,
+        box_text: "Confirm".to_owned(),
+        box_broadcast_text_id: 0,
+        spell_id: Some(99),
+        override_icon_id: Some(4),
+    }
+}
+
+#[tokio::test]
+async fn gossip_catalog_port_preserves_read_order_and_localized_projection_like_cpp() {
+    let (mut session, _) = make_quest_status_session();
+    session.locale = "esES".to_owned();
+    let menu_id = 700;
+    let npc_guid = creature_guid(9001, 701);
+    let port = GossipCatalogPortFixtureLikeCpp::new(
+        [GossipCatalogReadOutcomeLikeCpp::Found(menu_id)],
+        [GossipCatalogReadOutcomeLikeCpp::Found(vec![10, 20])],
+        [GossipCatalogReadOutcomeLikeCpp::Found(900)],
+        [GossipCatalogReadOutcomeLikeCpp::Found(vec![
+            gossip_catalog_option_like_cpp(menu_id, 2, 901),
+        ])],
+        [GossipCatalogReadOutcomeLikeCpp::Found(
+            "Opción localizada".to_owned(),
+        )],
+    );
+    session.set_gossip_catalog_persistence_port_like_cpp(port.clone());
+
+    let message = session
+        .build_gossip_menu(9001, 0, npc_guid)
+        .await
+        .expect("typed catalog produces gossip message");
+
+    assert_eq!(message.gossip_id, menu_id as i32);
+    assert_eq!(message.broadcast_text_id, Some(900));
+    assert_eq!(message.gossip_options.len(), 1);
+    assert_eq!(message.gossip_options[0].text, "Opción localizada");
+    assert_eq!(message.gossip_options[0].gossip_option_id, 77);
+    assert_eq!(session.gossip_options.len(), 1);
+    assert_eq!(
+        port.requests(),
+        vec![
+            GossipCatalogRequestTraceLikeCpp::CreatureMenu(GossipCreatureMenuRequestLikeCpp {
+                creature_entry: 9001,
+            }),
+            GossipCatalogRequestTraceLikeCpp::MenuTexts(GossipMenuCatalogRequestLikeCpp {
+                menu_id,
+            }),
+            GossipCatalogRequestTraceLikeCpp::NpcText(GossipNpcTextCatalogRequestLikeCpp {
+                npc_text_id: 20,
+            }),
+            GossipCatalogRequestTraceLikeCpp::MenuOptions(GossipMenuCatalogRequestLikeCpp {
+                menu_id,
+            }),
+            GossipCatalogRequestTraceLikeCpp::BroadcastLocale(
+                GossipBroadcastTextLocaleRequestLikeCpp {
+                    broadcast_text_id: 901,
+                    locale: "esES".to_owned(),
+                },
+            ),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn gossip_catalog_required_read_failure_stops_before_locale_like_cpp() {
+    let (mut session, _) = make_quest_status_session();
+    session.locale = "esES".to_owned();
+    let port = GossipCatalogPortFixtureLikeCpp::new(
+        [GossipCatalogReadOutcomeLikeCpp::Found(701)],
+        [GossipCatalogReadOutcomeLikeCpp::Found(vec![21])],
+        [GossipCatalogReadOutcomeLikeCpp::Missing],
+        [GossipCatalogReadOutcomeLikeCpp::Failed {
+            reason: "options unavailable".to_owned(),
+        }],
+        [],
+    );
+    session.set_gossip_catalog_persistence_port_like_cpp(port.clone());
+
+    assert!(
+        session
+            .build_gossip_menu(9002, 0, creature_guid(9002, 702))
+            .await
+            .is_none()
+    );
+    assert_eq!(
+        port.requests(),
+        vec![
+            GossipCatalogRequestTraceLikeCpp::CreatureMenu(GossipCreatureMenuRequestLikeCpp {
+                creature_entry: 9002,
+            }),
+            GossipCatalogRequestTraceLikeCpp::MenuTexts(GossipMenuCatalogRequestLikeCpp {
+                menu_id: 701,
+            }),
+            GossipCatalogRequestTraceLikeCpp::NpcText(GossipNpcTextCatalogRequestLikeCpp {
+                npc_text_id: 21,
+            }),
+            GossipCatalogRequestTraceLikeCpp::MenuOptions(GossipMenuCatalogRequestLikeCpp {
+                menu_id: 701,
+            }),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn gossip_catalog_optional_reads_fail_to_existing_fallbacks_like_cpp() {
+    let (mut session, _) = make_quest_status_session();
+    session.locale = "esES".to_owned();
+    let menu_id = 702;
+    let port = GossipCatalogPortFixtureLikeCpp::new(
+        [GossipCatalogReadOutcomeLikeCpp::Found(menu_id)],
+        [GossipCatalogReadOutcomeLikeCpp::Missing],
+        [GossipCatalogReadOutcomeLikeCpp::Failed {
+            reason: "npc text unavailable".to_owned(),
+        }],
+        [GossipCatalogReadOutcomeLikeCpp::Found(vec![
+            gossip_catalog_option_like_cpp(menu_id, 3, 902),
+        ])],
+        [GossipCatalogReadOutcomeLikeCpp::Failed {
+            reason: "locale unavailable".to_owned(),
+        }],
+    );
+    session.set_gossip_catalog_persistence_port_like_cpp(port);
+
+    let message = session
+        .build_gossip_menu(9003, 0, creature_guid(9003, 703))
+        .await
+        .expect("optional catalog failures retain the menu");
+    assert_eq!(message.broadcast_text_id, None);
+    assert_eq!(message.gossip_options[0].text, "Original option");
 }
 
 fn recv_status_multiple(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<(ObjectGuid, u64)> {
