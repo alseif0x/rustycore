@@ -2001,454 +2001,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:world-server:crate::runtime::game_events:crates/world-server/src/runtime/game_events.rs::fn execute_game_event_seasonal_quest_db_deletes_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/game_events.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::game_events"
-      ],
-      "enclosings": [
-        "fn execute_game_event_seasonal_quest_db_deletes_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server game-event runtime boundary currently owns the complete world-server workflow fn execute_game_event_seasonal_quest_db_deletes_like_cpp in crates/world-server/src/runtime/game_events.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::game_events:crates/world-server/src/runtime/game_events.rs::fn game_event_seasonal_quest_db_delete_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/game_events.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::game_events"
-      ],
-      "enclosings": [
-        "fn game_event_seasonal_quest_db_delete_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server game-event runtime boundary currently owns the complete world-server workflow fn game_event_seasonal_quest_db_delete_like_cpp in crates/world-server/src/runtime/game_events.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::game_events:crates/world-server/src/runtime/game_events.rs::fn run_game_event_quest_complete_processor_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/game_events.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::game_events"
-      ],
-      "enclosings": [
-        "fn run_game_event_quest_complete_processor_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server game-event runtime boundary currently owns the complete world-server workflow fn run_game_event_quest_complete_processor_like_cpp in crates/world-server/src/runtime/game_events.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::game_events:crates/world-server/src/runtime/game_events.rs::module",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/game_events.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::game_events"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server game-event runtime boundary currently owns the complete world-server workflow module in crates/world-server/src/runtime/game_events.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::game_events:crates/world-server/src/runtime/game_events.rs::struct GameEventSeasonalQuestDbDeleteLikeCpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/game_events.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::game_events"
-      ],
-      "enclosings": [
-        "struct GameEventSeasonalQuestDbDeleteLikeCpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server game-event runtime boundary currently owns the complete world-server workflow struct GameEventSeasonalQuestDbDeleteLikeCpp in crates/world-server/src/runtime/game_events.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::fn execute_game_event_quest_complete_condition_save_db_bridge_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/map.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::map"
-      ],
-      "enclosings": [
-        "fn execute_game_event_quest_complete_condition_save_db_bridge_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow fn execute_game_event_quest_complete_condition_save_db_bridge_like_cpp in crates/world-server/src/runtime/map.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::fn execute_game_event_world_event_state_db_bridge_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/map.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::map"
-      ],
-      "enclosings": [
-        "fn execute_game_event_world_event_state_db_bridge_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow fn execute_game_event_world_event_state_db_bridge_like_cpp in crates/world-server/src/runtime/map.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::fn game_event_world_event_state_db_delete_operation_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/map.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::map"
-      ],
-      "enclosings": [
-        "fn game_event_world_event_state_db_delete_operation_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow fn game_event_world_event_state_db_delete_operation_like_cpp in crates/world-server/src/runtime/map.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::fn game_event_world_event_state_db_save_operation_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/map.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::map"
-      ],
-      "enclosings": [
-        "fn game_event_world_event_state_db_save_operation_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow fn game_event_world_event_state_db_save_operation_like_cpp in crates/world-server/src/runtime/map.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::fn materialize_game_event_quest_complete_db_bridge_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/map.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::map"
-      ],
-      "enclosings": [
-        "fn materialize_game_event_quest_complete_db_bridge_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow fn materialize_game_event_quest_complete_db_bridge_like_cpp in crates/world-server/src/runtime/map.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::fn spawn_canonical_map_update_loop",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/map.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::map"
-      ],
-      "enclosings": [
-        "fn spawn_canonical_map_update_loop"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow fn spawn_canonical_map_update_loop in crates/world-server/src/runtime/map.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::module",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/map.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::map"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow module in crates/world-server/src/runtime/map.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::struct GameEventQuestCompleteConditionSaveDbStatementLikeCpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/map.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::map"
-      ],
-      "enclosings": [
-        "struct GameEventQuestCompleteConditionSaveDbStatementLikeCpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow struct GameEventQuestCompleteConditionSaveDbStatementLikeCpp in crates/world-server/src/runtime/map.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::struct GameEventWorldEventStateDbStatementLikeCpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/map.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::map"
-      ],
-      "enclosings": [
-        "struct GameEventWorldEventStateDbStatementLikeCpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow struct GameEventWorldEventStateDbStatementLikeCpp in crates/world-server/src/runtime/map.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:world-server:crate::session_resources:crates/world-server/src/session_resources.rs::struct SessionResources",
       "source_class": "production",
       "packages": [
@@ -2636,38 +2188,6 @@
       ],
       "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_creature_spawns_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
       "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_game_event_condition_saves_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_game_event_condition_saves_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_game_event_condition_saves_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
@@ -3547,38 +3067,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::impl CanonicalSpawnMetadataLikeCpp::represented_update_game_event_condition_progress_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "impl CanonicalSpawnMetadataLikeCpp::represented_update_game_event_condition_progress_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow impl CanonicalSpawnMetadataLikeCpp::represented_update_game_event_condition_progress_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::module",
       "source_class": "production",
       "packages": [
@@ -3603,38 +3091,6 @@
       ],
       "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow module in crates/world-server/src/spawn_store_loader.rs.",
       "connection_affinity": "This is a shared dependency/type surface for characters, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::struct GameEventConditionSaveStatementEvidenceLikeCpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "struct GameEventConditionSaveStatementEvidenceLikeCpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow struct GameEventConditionSaveStatementEvidenceLikeCpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
@@ -14364,6 +13820,276 @@
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_persistence_adapter:crates/wow-database/src/game_event_persistence_adapter.rs::fn condition_saves_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_persistence_adapter"
+      ],
+      "enclosings": [
+        "fn condition_saves_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented game-event persistence (#495) currently owns the complete wow-database workflow fn condition_saves_statement_like_cpp in crates/wow-database/src/game_event_persistence_adapter.rs.",
+      "connection_affinity": "Statement construction and row projection stay private to the Character database adapter and imply no wider transaction.",
+      "current_order": "Preserve C++ statement identity, delete-before-insert order and exact parameter order; gameplay validation remains above the adapter.",
+      "failure_and_unknown_commit": "No SQLx row, prepared statement, transaction or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_persistence_adapter:crates/wow-database/src/game_event_persistence_adapter.rs::fn decode_condition_save_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_persistence_adapter"
+      ],
+      "enclosings": [
+        "fn decode_condition_save_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented game-event persistence (#495) currently owns the complete wow-database workflow fn decode_condition_save_rows_like_cpp in crates/wow-database/src/game_event_persistence_adapter.rs.",
+      "connection_affinity": "Statement construction and row projection stay private to the Character database adapter and imply no wider transaction.",
+      "current_order": "Preserve C++ statement identity, delete-before-insert order and exact parameter order; gameplay validation remains above the adapter.",
+      "failure_and_unknown_commit": "No SQLx row, prepared statement, transaction or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_persistence_adapter:crates/wow-database/src/game_event_persistence_adapter.rs::fn mutation_statements_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_persistence_adapter"
+      ],
+      "enclosings": [
+        "fn mutation_statements_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented game-event persistence (#495) currently owns the complete wow-database workflow fn mutation_statements_like_cpp in crates/wow-database/src/game_event_persistence_adapter.rs.",
+      "connection_affinity": "Statement construction and row projection stay private to the Character database adapter and imply no wider transaction.",
+      "current_order": "Preserve C++ statement identity, delete-before-insert order and exact parameter order; gameplay validation remains above the adapter.",
+      "failure_and_unknown_commit": "No SQLx row, prepared statement, transaction or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_persistence_adapter:crates/wow-database/src/game_event_persistence_adapter.rs::fn read_unsigned_u32_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_persistence_adapter"
+      ],
+      "enclosings": [
+        "fn read_unsigned_u32_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented game-event persistence (#495) currently owns the complete wow-database workflow fn read_unsigned_u32_like_cpp in crates/wow-database/src/game_event_persistence_adapter.rs.",
+      "connection_affinity": "Statement construction and row projection stay private to the Character database adapter and imply no wider transaction.",
+      "current_order": "Preserve C++ statement identity, delete-before-insert order and exact parameter order; gameplay validation remains above the adapter.",
+      "failure_and_unknown_commit": "No SQLx row, prepared statement, transaction or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_persistence_adapter:crates/wow-database/src/game_event_persistence_adapter.rs::impl MariaDbGameEventPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_persistence_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbGameEventPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented game-event persistence (#495) currently owns the complete wow-database workflow impl MariaDbGameEventPersistenceAdapterLikeCpp::new in crates/wow-database/src/game_event_persistence_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one Character database handle.",
+      "current_order": "Preserve C++ statement identity, delete-before-insert order and exact parameter order; gameplay validation remains above the adapter.",
+      "failure_and_unknown_commit": "No SQLx row, prepared statement, transaction or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_persistence_adapter:crates/wow-database/src/game_event_persistence_adapter.rs::impl wow_persistence::GameEventPersistencePortLikeCpp for MariaDbGameEventPersistenceAdapterLikeCpp::execute_mutation_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_persistence_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::GameEventPersistencePortLikeCpp for MariaDbGameEventPersistenceAdapterLikeCpp::execute_mutation_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented game-event persistence (#495) currently owns the complete wow-database workflow impl wow_persistence::GameEventPersistencePortLikeCpp for MariaDbGameEventPersistenceAdapterLikeCpp::execute_mutation_like_cpp in crates/wow-database/src/game_event_persistence_adapter.rs.",
+      "connection_affinity": "Each typed condition/state replacement uses one Character transaction; the seasonal reset remains one standalone Character execution.",
+      "current_order": "Render the semantic mutation to the exact C++ statement order and binds, execute or commit once, then classify the result before caller-owned fanout.",
+      "failure_and_unknown_commit": "Execution and transaction errors become Failed; this cut preserves the prior generic treatment of an unknown COMMIT outcome and adds no stronger durability claim.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_persistence_adapter:crates/wow-database/src/game_event_persistence_adapter.rs::impl wow_persistence::GameEventPersistencePortLikeCpp for MariaDbGameEventPersistenceAdapterLikeCpp::load_condition_saves_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_persistence_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::GameEventPersistencePortLikeCpp for MariaDbGameEventPersistenceAdapterLikeCpp::load_condition_saves_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented game-event persistence (#495) currently owns the complete wow-database workflow impl wow_persistence::GameEventPersistencePortLikeCpp for MariaDbGameEventPersistenceAdapterLikeCpp::load_condition_saves_like_cpp in crates/wow-database/src/game_event_persistence_adapter.rs.",
+      "connection_affinity": "The typed condition-save load uses exactly one Character query and no transaction.",
+      "current_order": "Query once, decode all condition-save rows in cursor order, and return either the complete typed set or Failed.",
+      "failure_and_unknown_commit": "Query or non-null decode errors become Failed with no partial typed rows; empty results remain Loaded(empty).",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_persistence_adapter:crates/wow-database/src/game_event_persistence_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_persistence_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented game-event persistence (#495) currently owns the complete wow-database workflow module in crates/wow-database/src/game_event_persistence_adapter.rs.",
+      "connection_affinity": "Statement construction and row projection stay private to the Character database adapter and imply no wider transaction.",
+      "current_order": "Preserve C++ statement identity, delete-before-insert order and exact parameter order; gameplay validation remains above the adapter.",
+      "failure_and_unknown_commit": "No SQLx row, prepared statement, transaction or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_persistence_adapter:crates/wow-database/src/game_event_persistence_adapter.rs::struct MariaDbGameEventPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_persistence_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbGameEventPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free represented game-event persistence (#495) currently owns the complete wow-database workflow struct MariaDbGameEventPersistenceAdapterLikeCpp in crates/wow-database/src/game_event_persistence_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one Character database handle.",
+      "current_order": "Preserve C++ statement identity, delete-before-insert order and exact parameter order; gameplay validation remains above the adapter.",
+      "failure_and_unknown_commit": "No SQLx row, prepared statement, transaction or database error crosses the typed port.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -28516,8 +28242,7 @@
         "world-server"
       ],
       "sources": [
-        "crates/world-server/src/lib.rs",
-        "crates/world-server/src/spawn_store_loader.rs"
+        "crates/world-server/src/lib.rs"
       ],
       "source_prefixes": [],
       "modules": [],
@@ -28547,6 +28272,7 @@
         "crates/wow-database/src/character_enumeration_adapter.rs",
         "crates/wow-database/src/creature_query_catalog_adapter.rs",
         "crates/wow-database/src/database.rs",
+        "crates/wow-database/src/game_event_persistence_adapter.rs",
         "crates/wow-database/src/gameobject_query_catalog_adapter.rs",
         "crates/wow-database/src/gameobject_use_template_adapter.rs",
         "crates/wow-database/src/gossip_catalog_adapter.rs",

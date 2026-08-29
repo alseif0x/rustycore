@@ -39,6 +39,7 @@ pub mod character_enumeration_adapter;
 pub mod creature_query_catalog_adapter;
 pub mod database;
 pub mod error;
+pub mod game_event_persistence_adapter;
 pub mod gameobject_query_catalog_adapter;
 pub mod gameobject_use_template_adapter;
 pub mod gossip_catalog_adapter;
@@ -80,6 +81,7 @@ pub use database::{
     warn_about_sync_queries_scope_like_cpp,
 };
 pub use error::DatabaseError;
+pub use game_event_persistence_adapter::MariaDbGameEventPersistenceAdapterLikeCpp;
 pub use gameobject_query_catalog_adapter::MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp;
 pub use gossip_catalog_adapter::MariaDbGossipCatalogPersistenceAdapterLikeCpp;
 pub use item_template_addon_catalog_adapter::MariaDbItemTemplateAddonCatalogPersistenceAdapterLikeCpp;

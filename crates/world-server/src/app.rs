@@ -1727,10 +1727,14 @@ async fn run_inner(
         creature_equipment_store.len()
     );
 
+    let game_event_persistence: Arc<dyn wow_persistence::GameEventPersistencePortLikeCpp> =
+        Arc::new(
+            wow_database::MariaDbGameEventPersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
+        );
     let (canonical_spawn_metadata, canonical_spawn_report) =
         spawn_store_loader::load_canonical_spawn_store_like_cpp(
             world_db.as_ref(),
-            &char_db,
+            game_event_persistence.as_ref(),
             &map_store,
             &map_difficulty_store,
             &spawn_group_store,
@@ -4155,7 +4159,7 @@ async fn run_inner(
             (outcome, active_event_ids, db_bridge_summary)
         };
         execute_game_event_world_event_state_db_bridge_like_cpp(
-            char_db.as_ref(),
+            game_event_persistence.as_ref(),
             &mut db_bridge_summary,
         )
         .await;
@@ -4185,7 +4189,7 @@ async fn run_inner(
             )
         };
         execute_game_event_seasonal_quest_db_deletes_like_cpp(
-            char_db.as_ref(),
+            game_event_persistence.as_ref(),
             &mut side_effect_summary,
         )
         .await;
@@ -4339,7 +4343,7 @@ async fn run_inner(
         tokio::spawn(run_game_event_quest_complete_processor_like_cpp(
             game_event_quest_complete_rx,
             Arc::clone(&canonical_spawn_metadata),
-            Arc::clone(&char_db),
+            Arc::clone(&game_event_persistence),
         ));
 
     let world_listener_policy = WorldListenerPolicyLikeCpp {
@@ -5139,7 +5143,7 @@ async fn run_inner(
         Arc::clone(&canonical_spawn_metadata),
         Arc::clone(&condition_store),
         Arc::clone(&map_store),
-        Arc::clone(&char_db),
+        Arc::clone(&game_event_persistence),
         respawn_db_writer_tx.clone(),
         Arc::clone(&respawn_db_mutation_order),
         Arc::clone(&respawn_db_producer_stop),
