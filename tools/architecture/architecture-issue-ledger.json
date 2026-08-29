@@ -104,6 +104,7 @@
     487,
     489,
     491,
+    493,
     189,
     192,
     193,
@@ -1682,7 +1683,7 @@
   },
   {
     "number": 491,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.54] Move gossip catalog reads behind a typed port",
     "kind": "slice",
     "parents": [
@@ -1691,6 +1692,19 @@
     ],
     "depends_on": [
       489
+    ]
+  },
+  {
+    "number": 493,
+    "state": "open",
+    "title": "[ARCH.DB.55] Move respawn persistence behind a typed port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      491
     ]
   }
 ]

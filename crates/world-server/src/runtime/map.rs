@@ -70,7 +70,7 @@ pub(crate) struct RespawnDbDeleteLikeCpp {
     pub(crate) spawn_id: wow_map::SpawnId,
     pub(crate) map_id: u16,
     pub(crate) instance_id: u32,
-    pub(crate) statement: PreparedStatement,
+    pub(crate) mutation: RespawnPersistenceMutationLikeCpp,
 }
 
 #[derive(Debug, Clone)]
@@ -88,7 +88,7 @@ pub(crate) struct RespawnDbSaveLikeCpp {
     pub(crate) respawn_time: i64,
     pub(crate) map_id: u16,
     pub(crate) instance_id: u32,
-    pub(crate) statement: PreparedStatement,
+    pub(crate) mutation: RespawnPersistenceMutationLikeCpp,
 }
 
 #[derive(Debug, Clone)]
@@ -118,17 +118,20 @@ pub(crate) fn queue_respawn_db_delete_like_cpp(
         return RespawnDbDeleteQueueOutcomeLikeCpp::SkippedInvalidMapId;
     };
 
-    let mut statement = PreparedStatement::for_statement(CharStatements::DEL_RESPAWN);
-    statement.set_u16(0, u16::from(object_type as u8));
-    statement.set_u64(1, spawn_id);
-    statement.set_u16(2, map_id);
-    statement.set_u32(3, instance_id);
+    let mutation = RespawnPersistenceMutationLikeCpp::Delete {
+        key: RespawnPersistenceKeyLikeCpp {
+            object_type_raw: u16::from(object_type as u8),
+            spawn_id,
+            map_id,
+            instance_id,
+        },
+    };
     RespawnDbDeleteQueueOutcomeLikeCpp::Queued(RespawnDbDeleteLikeCpp {
         object_type,
         spawn_id,
         map_id,
         instance_id,
-        statement,
+        mutation,
     })
 }
 
@@ -150,19 +153,22 @@ pub(crate) fn queue_respawn_db_save_like_cpp(
         return RespawnDbSaveQueueOutcomeLikeCpp::SkippedInvalidMapId;
     };
 
-    let mut statement = PreparedStatement::for_statement(CharStatements::REP_RESPAWN);
-    statement.set_u16(0, u16::from(info.object_type as u8));
-    statement.set_u64(1, info.spawn_id);
-    statement.set_i64(2, info.respawn_time);
-    statement.set_u16(3, map_id);
-    statement.set_u32(4, instance_id);
+    let mutation = RespawnPersistenceMutationLikeCpp::Save {
+        key: RespawnPersistenceKeyLikeCpp {
+            object_type_raw: u16::from(info.object_type as u8),
+            spawn_id: info.spawn_id,
+            map_id,
+            instance_id,
+        },
+        respawn_time: info.respawn_time,
+    };
     RespawnDbSaveQueueOutcomeLikeCpp::Queued(RespawnDbSaveLikeCpp {
         object_type: info.object_type,
         spawn_id: info.spawn_id,
         respawn_time: info.respawn_time,
         map_id,
         instance_id,
-        statement,
+        mutation,
     })
 }
 
@@ -1781,7 +1787,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
                         }
                     }
                     for save in summary.respawn_db_saves.drain(..) {
-                        if respawn_db_writer_tx.send(save.statement).is_err() {
+                        if respawn_db_writer_tx.send(save.mutation).is_err() {
                             summary.respawn_db_save_failed += 1;
                             tracing::error!(
                                 "Shared respawn DB writer stopped before canonical REP_RESPAWN submission"
@@ -1791,7 +1797,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     // A timer can be created and consumed in one canonical
                     // update. Submit deletes last so the final state wins.
                     for delete in summary.respawn_db_deletes.drain(..) {
-                        if respawn_db_writer_tx.send(delete.statement).is_err() {
+                        if respawn_db_writer_tx.send(delete.mutation).is_err() {
                             summary.respawn_db_delete_failed += 1;
                             tracing::error!(
                                 "Shared respawn DB writer stopped before canonical DEL_RESPAWN submission"

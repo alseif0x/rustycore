@@ -64184,7 +64184,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp (legacy_map_manager : & SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , map_store : & wow_data :: MapStore , mmap_config : & MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < & WorldMMapPathfinderWorkerLikeCpp > , aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , diff_ms : u32 , now : std :: time :: Instant , registry : & wow_world :: session :: directory :: PlayerRegistry , respawn_db_mutation_order : Option < & SharedRespawnDbMutationOrderLikeCpp > , respawn_db_writer_tx : Option < & RespawnDbWriterSenderLikeCpp > , group_registry : Option < & Arc < wow_social :: group :: GroupRegistry > > , player_melee_phase_state : & SharedPlayerMeleePhaseStateLikeCpp ,) -> LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp|body=fnv1a64x2:78743d0cb71b8c2288eb41ea3e2eefa5:len=1903|evidence=fnv1a64x2:212c310529e798b0c8eaf9190c425f83:len=1598",
+          "fingerprint": "signature=fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp (legacy_map_manager : & SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , map_store : & wow_data :: MapStore , mmap_config : & MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < & WorldMMapPathfinderWorkerLikeCpp > , aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , diff_ms : u32 , now : std :: time :: Instant , registry : & wow_world :: session :: directory :: PlayerRegistry , respawn_db_mutation_order : Option < & SharedRespawnDbMutationOrderLikeCpp > , respawn_db_writer_tx : Option < & RespawnDbWriterSenderLikeCpp > , group_registry : Option < & Arc < wow_social :: group :: GroupRegistry > > , player_melee_phase_state : & SharedPlayerMeleePhaseStateLikeCpp ,) -> LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp|body=fnv1a64x2:0f1053f0b1cbe7c0f3655cc7a9d17033:len=1900|evidence=fnv1a64x2:212c310529e798b0c8eaf9190c425f83:len=1598",
           "cfg": [],
           "multiplicity": 1
         },
@@ -65304,7 +65304,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=fn spawn_canonical_map_update_loop (map_manager : SharedCanonicalMapManager , legacy_map_manager : SharedMapManager , tick_interval_ms : u32 , respawn_condition_interval_ms : u32 , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , condition_store : Arc < wow_data :: ConditionEntriesByTypeStore > , map_store : Arc < wow_data :: MapStore > , character_db : Arc < CharacterDatabase > , respawn_db_writer_tx : RespawnDbWriterSenderLikeCpp , respawn_db_mutation_order : SharedRespawnDbMutationOrderLikeCpp , respawn_db_producer_stop : SharedRespawnDbProducerStopLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , area_trigger_template_store : Arc < wow_data :: AreaTriggerTemplateStore > , mut game_event_scheduler : CanonicalGameEventSchedulerLikeCpp , player_registry : Arc < PlayerRegistry > , battlemaster_list_store : Arc < wow_data :: BattlemasterListStore > , world_state_mgr : SharedWorldStateMgrLikeCpp ,) -> tokio :: task :: JoinHandle < () >|body=fnv1a64x2:a1e908eb2ee3e2c2decacdf4e46f2261:len=19239|evidence=fnv1a64x2:c37b0b36becd8dbf167ef9e941316818:len=1023",
+          "fingerprint": "signature=fn spawn_canonical_map_update_loop (map_manager : SharedCanonicalMapManager , legacy_map_manager : SharedMapManager , tick_interval_ms : u32 , respawn_condition_interval_ms : u32 , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , condition_store : Arc < wow_data :: ConditionEntriesByTypeStore > , map_store : Arc < wow_data :: MapStore > , character_db : Arc < CharacterDatabase > , respawn_db_writer_tx : RespawnDbWriterSenderLikeCpp , respawn_db_mutation_order : SharedRespawnDbMutationOrderLikeCpp , respawn_db_producer_stop : SharedRespawnDbProducerStopLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , area_trigger_template_store : Arc < wow_data :: AreaTriggerTemplateStore > , mut game_event_scheduler : CanonicalGameEventSchedulerLikeCpp , player_registry : Arc < PlayerRegistry > , battlemaster_list_store : Arc < wow_data :: BattlemasterListStore > , world_state_mgr : SharedWorldStateMgrLikeCpp ,) -> tokio :: task :: JoinHandle < () >|body=fnv1a64x2:dc24e35ab12bf41c4abc44724437219f:len=19237|evidence=fnv1a64x2:c37b0b36becd8dbf167ef9e941316818:len=1023",
           "cfg": [],
           "multiplicity": 1
         },
@@ -67420,7 +67420,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=async fn legacy_respawn_producer_stop_runs_final_lifecycle_flush_like_cpp ()|body=fnv1a64x2:f3cb02e6aed210468c99c57452c1131d:len=2309|evidence=fnv1a64x2:875a45c4321809a7230c52e997d852ac:len=2169",
+          "fingerprint": "signature=async fn legacy_respawn_producer_stop_runs_final_lifecycle_flush_like_cpp ()|body=fnv1a64x2:292a23adebfd9a017a473811180e92c0:len=2316|evidence=fnv1a64x2:875a45c4321809a7230c52e997d852ac:len=2169",
           "cfg": [
             "cfg (test)"
           ],
@@ -68779,7 +68779,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn persisted_restart_timer_respawns_once_through_canonical_owner_and_mirrors_legacy_like_cpp ()|body=fnv1a64x2:33b2b08c9428cc9841825dc91b2197d3:len=4176|evidence=fnv1a64x2:db04af365729c165b01b880364f86b60:len=2202",
+          "fingerprint": "signature=fn persisted_restart_timer_respawns_once_through_canonical_owner_and_mirrors_legacy_like_cpp ()|body=fnv1a64x2:5ddb15db8a1f636e157384efda05480d:len=4175|evidence=fnv1a64x2:db04af365729c165b01b880364f86b60:len=2202",
           "cfg": [
             "cfg (test)"
           ],
@@ -71747,7 +71747,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=fn run_legacy_creature_lifecycle_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , map_store : & wow_data :: MapStore , now : Instant ,) -> LegacyCreatureLifecycleTickOutcomeLikeCpp|body=fnv1a64x2:3efcf6c6f0de5d10d98d790357b0344b:len=8717|evidence=fnv1a64x2:e7f462f6f2ec80466efd73c2df6f70e1:len=9469",
+          "fingerprint": "signature=fn run_legacy_creature_lifecycle_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , map_store : & wow_data :: MapStore , now : Instant ,) -> LegacyCreatureLifecycleTickOutcomeLikeCpp|body=fnv1a64x2:bd52ec1578ccad2efa8a29b2b8d71e21:len=8713|evidence=fnv1a64x2:e7f462f6f2ec80466efd73c2df6f70e1:len=9469",
           "cfg": [],
           "multiplicity": 1
         },

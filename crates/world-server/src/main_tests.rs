@@ -23,8 +23,8 @@ use super::{
     GameEventWorldEventStateDbStatementKindLikeCpp,
     ITEM_GUID_DANGLING_REFERENCE_CLEANUP_STATEMENTS_LIKE_CPP,
     LoadedGridCreatureRespawnCachesLikeCpp, PersistedRespawnLoadReportLikeCpp,
-    PersistedRespawnRowLikeCpp, PersistedRespawnTimesLikeCpp, REQUIRED_TDB_CACHE_ID_LIKE_CPP,
-    REQUIRED_TDB_VERSION_LIKE_CPP, RESTART_EXIT_CODE_LIKE_CPP, RespawnDbDeleteQueueOutcomeLikeCpp,
+    PersistedRespawnTimesLikeCpp, REQUIRED_TDB_CACHE_ID_LIKE_CPP, REQUIRED_TDB_VERSION_LIKE_CPP,
+    RESTART_EXIT_CODE_LIKE_CPP, RespawnDbDeleteQueueOutcomeLikeCpp, RespawnDbMailboxLikeCpp,
     RespawnDbRetryQueueLikeCpp, RespawnDbSaveQueueOutcomeLikeCpp, RespawnDbSubmitErrorLikeCpp,
     RespawnDbWriterSenderLikeCpp, SHUTDOWN_EXIT_CODE_LIKE_CPP, WorldDbVersionLikeCpp,
     WorldRuntimeStateLikeCpp, WorldServerCliLikeCpp, WorldUpdateLoopStepOutcomeLikeCpp,
@@ -46,6 +46,7 @@ use super::{
     deliver_creature_attack_start_commands_like_cpp,
     deliver_creature_melee_damage_commands_like_cpp,
     deliver_refresh_visible_world_creatures_like_cpp, deliver_runtime_plan_like_cpp,
+    execute_respawn_db_attempt_like_cpp,
     fanout_game_event_announcement_to_player_sessions_like_cpp,
     fanout_realm_update_world_state_to_player_sessions_like_cpp,
     fanout_reset_event_seasonal_quests_to_player_sessions_after_db_delete_like_cpp,
@@ -113,6 +114,11 @@ use wow_map::{
 use wow_packet::{
     ServerPacket,
     packets::chat::{ChatMsg, ChatPkt},
+};
+use wow_persistence::{
+    RespawnPersistenceKeyLikeCpp, RespawnPersistenceLoadOutcomeLikeCpp,
+    RespawnPersistenceMutationLikeCpp, RespawnPersistenceMutationOutcomeLikeCpp,
+    RespawnPersistencePortLikeCpp, RespawnPersistenceRowLikeCpp,
 };
 use wow_world::session::directory::{
     PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp, PlayerRegistry,
@@ -832,56 +838,92 @@ async fn stop_world_network_aborts_realm_and_instance_listeners_like_cpp() {
 }
 
 fn assert_del_respawn_params_like_cpp(
-    statement: &wow_database::PreparedStatement,
+    mutation: &RespawnPersistenceMutationLikeCpp,
     object_type: u16,
     spawn_id: u64,
     map_id: u16,
     instance_id: u32,
 ) {
-    let [
-        SqlParam::U16(actual_object_type),
-        SqlParam::U64(actual_spawn_id),
-        SqlParam::U16(actual_map_id),
-        SqlParam::U32(actual_instance_id),
-    ] = statement.params()
-    else {
-        panic!(
-            "expected DEL_RESPAWN params [U16, U64, U16, U32], got {:?}",
-            statement.params()
-        );
+    let RespawnPersistenceMutationLikeCpp::Delete { key } = mutation else {
+        panic!("expected typed DEL_RESPAWN mutation, got {mutation:?}");
     };
-    assert_eq!(*actual_object_type, object_type);
-    assert_eq!(*actual_spawn_id, spawn_id);
-    assert_eq!(*actual_map_id, map_id);
-    assert_eq!(*actual_instance_id, instance_id);
+    assert_eq!(key.object_type_raw, object_type);
+    assert_eq!(key.spawn_id, spawn_id);
+    assert_eq!(key.map_id, map_id);
+    assert_eq!(key.instance_id, instance_id);
 }
 
 fn assert_rep_respawn_params_like_cpp(
-    statement: &wow_database::PreparedStatement,
+    mutation: &RespawnPersistenceMutationLikeCpp,
     object_type: u16,
     spawn_id: u64,
     respawn_time: i64,
     map_id: u16,
     instance_id: u32,
 ) {
-    let [
-        SqlParam::U16(actual_object_type),
-        SqlParam::U64(actual_spawn_id),
-        SqlParam::I64(actual_respawn_time),
-        SqlParam::U16(actual_map_id),
-        SqlParam::U32(actual_instance_id),
-    ] = statement.params()
+    let RespawnPersistenceMutationLikeCpp::Save {
+        key,
+        respawn_time: actual_respawn_time,
+    } = mutation
     else {
-        panic!(
-            "expected REP_RESPAWN params [U16, U64, I64, U16, U32], got {:?}",
-            statement.params()
-        );
+        panic!("expected typed REP_RESPAWN mutation, got {mutation:?}");
     };
-    assert_eq!(*actual_object_type, object_type);
-    assert_eq!(*actual_spawn_id, spawn_id);
+    assert_eq!(key.object_type_raw, object_type);
+    assert_eq!(key.spawn_id, spawn_id);
     assert_eq!(*actual_respawn_time, respawn_time);
-    assert_eq!(*actual_map_id, map_id);
-    assert_eq!(*actual_instance_id, instance_id);
+    assert_eq!(key.map_id, map_id);
+    assert_eq!(key.instance_id, instance_id);
+}
+
+fn respawn_persistence_key_fixture_like_cpp(spawn_id: u64) -> RespawnPersistenceKeyLikeCpp {
+    RespawnPersistenceKeyLikeCpp {
+        object_type_raw: 0,
+        spawn_id,
+        map_id: 571,
+        instance_id: 0,
+    }
+}
+
+#[derive(Default)]
+struct FakeRespawnPersistencePortLikeCpp {
+    fail_mutations: std::sync::atomic::AtomicBool,
+    mutations: Mutex<Vec<RespawnPersistenceMutationLikeCpp>>,
+}
+
+impl RespawnPersistencePortLikeCpp for FakeRespawnPersistencePortLikeCpp {
+    fn load_for_map_like_cpp<'a>(
+        &'a self,
+        _map_id: u16,
+        _instance_id: u32,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<'a, RespawnPersistenceLoadOutcomeLikeCpp> {
+        Box::pin(async { RespawnPersistenceLoadOutcomeLikeCpp::Loaded(Vec::new()) })
+    }
+
+    fn load_all_like_cpp<'a>(
+        &'a self,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<'a, RespawnPersistenceLoadOutcomeLikeCpp> {
+        Box::pin(async { RespawnPersistenceLoadOutcomeLikeCpp::Loaded(Vec::new()) })
+    }
+
+    fn execute_mutation_like_cpp<'a>(
+        &'a self,
+        mutation: RespawnPersistenceMutationLikeCpp,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<'a, RespawnPersistenceMutationOutcomeLikeCpp>
+    {
+        Box::pin(async move {
+            self.mutations.lock().unwrap().push(mutation);
+            if self
+                .fail_mutations
+                .load(std::sync::atomic::Ordering::Acquire)
+            {
+                RespawnPersistenceMutationOutcomeLikeCpp::Failed {
+                    reason: "fixture failure".to_string(),
+                }
+            } else {
+                RespawnPersistenceMutationOutcomeLikeCpp::Applied { affected_rows: 1 }
+            }
+        })
+    }
 }
 
 fn assert_game_event_condition_save_delete_params_like_cpp(
@@ -4677,7 +4719,7 @@ fn persisted_respawn_loader_rejects_invalid_areatrigger_and_missing_metadata_row
 
     assert!(
         persisted_respawn_info_from_row_like_cpp(
-            PersistedRespawnRowLikeCpp {
+            RespawnPersistenceRowLikeCpp {
                 object_type_raw: 99,
                 spawn_id: 1,
                 respawn_time: 10,
@@ -4691,7 +4733,7 @@ fn persisted_respawn_loader_rejects_invalid_areatrigger_and_missing_metadata_row
     );
     assert!(
         persisted_respawn_info_from_row_like_cpp(
-            PersistedRespawnRowLikeCpp {
+            RespawnPersistenceRowLikeCpp {
                 object_type_raw: 256,
                 spawn_id: 1,
                 respawn_time: 10,
@@ -4705,7 +4747,7 @@ fn persisted_respawn_loader_rejects_invalid_areatrigger_and_missing_metadata_row
     );
     assert!(
         persisted_respawn_info_from_row_like_cpp(
-            PersistedRespawnRowLikeCpp {
+            RespawnPersistenceRowLikeCpp {
                 object_type_raw: SpawnObjectType::AreaTrigger as u16,
                 spawn_id: 1,
                 respawn_time: 10,
@@ -4719,7 +4761,7 @@ fn persisted_respawn_loader_rejects_invalid_areatrigger_and_missing_metadata_row
     );
     assert!(
         persisted_respawn_info_from_row_like_cpp(
-            PersistedRespawnRowLikeCpp {
+            RespawnPersistenceRowLikeCpp {
                 object_type_raw: SpawnObjectType::Creature as u16,
                 spawn_id: 404,
                 respawn_time: 10,
@@ -7468,7 +7510,7 @@ fn spawn_group_condition_update_tick_applies_set_inactive_only_when_scheduler_fi
 }
 
 #[test]
-fn respawn_db_delete_statement_like_cpp_uses_char_del_respawn_params_without_truncation() {
+fn respawn_db_delete_mutation_like_cpp_preserves_char_del_respawn_values_without_truncation() {
     let outcome = queue_respawn_db_delete_like_cpp(
         wow_map::ManagedMapKind::World,
         false,
@@ -7485,8 +7527,7 @@ fn respawn_db_delete_statement_like_cpp_uses_char_del_respawn_params_without_tru
     assert_eq!(delete.spawn_id, 1);
     assert_eq!(delete.map_id, 571);
     assert_eq!(delete.instance_id, 0);
-    assert_eq!(delete.statement.sql(), CharStatements::DEL_RESPAWN.sql());
-    assert_del_respawn_params_like_cpp(&delete.statement, 0, 1, 571, 0);
+    assert_del_respawn_params_like_cpp(&delete.mutation, 0, 1, 571, 0);
 }
 
 #[test]
@@ -7534,7 +7575,7 @@ fn respawn_db_delete_statement_like_cpp_skips_non_world_and_invalid_map_id() {
 }
 
 #[test]
-fn respawn_db_save_statement_like_cpp_uses_char_rep_respawn_params_without_truncation() {
+fn respawn_db_save_mutation_like_cpp_preserves_char_rep_respawn_values_without_truncation() {
     let info = RespawnInfoLikeCpp {
         object_type: SpawnObjectType::GameObject,
         spawn_id: u64::from(u32::MAX) + 17,
@@ -7558,9 +7599,8 @@ fn respawn_db_save_statement_like_cpp_uses_char_rep_respawn_params_without_trunc
     assert_eq!(save.respawn_time, info.respawn_time);
     assert_eq!(save.map_id, 571);
     assert_eq!(save.instance_id, u32::MAX);
-    assert_eq!(save.statement.sql(), CharStatements::REP_RESPAWN.sql());
     assert_rep_respawn_params_like_cpp(
-        &save.statement,
+        &save.mutation,
         1,
         info.spawn_id,
         info.respawn_time,
@@ -7618,10 +7658,10 @@ fn respawn_db_save_statement_like_cpp_skips_non_world_and_invalid_map_id() {
     ));
 }
 
-fn respawn_db_save_statement_fixture_like_cpp(
+fn respawn_db_save_mutation_fixture_like_cpp(
     spawn_id: u64,
     respawn_time: i64,
-) -> wow_database::PreparedStatement {
+) -> RespawnPersistenceMutationLikeCpp {
     let RespawnDbSaveQueueOutcomeLikeCpp::Queued(save) = queue_respawn_db_save_like_cpp(
         wow_map::ManagedMapKind::World,
         false,
@@ -7637,10 +7677,10 @@ fn respawn_db_save_statement_fixture_like_cpp(
     ) else {
         panic!("world-map fixture must queue REP_RESPAWN");
     };
-    save.statement
+    save.mutation
 }
 
-fn respawn_db_delete_statement_fixture_like_cpp(spawn_id: u64) -> wow_database::PreparedStatement {
+fn respawn_db_delete_mutation_fixture_like_cpp(spawn_id: u64) -> RespawnPersistenceMutationLikeCpp {
     let RespawnDbDeleteQueueOutcomeLikeCpp::Queued(delete) = queue_respawn_db_delete_like_cpp(
         wow_map::ManagedMapKind::World,
         false,
@@ -7651,7 +7691,7 @@ fn respawn_db_delete_statement_fixture_like_cpp(spawn_id: u64) -> wow_database::
     ) else {
         panic!("world-map fixture must queue DEL_RESPAWN");
     };
-    delete.statement
+    delete.mutation
 }
 
 #[test]
@@ -7660,7 +7700,7 @@ fn respawn_db_mailbox_coalesces_before_writer_poll_like_cpp() {
 
     for respawn_time in 0_i64..100_000 {
         sender
-            .send(respawn_db_save_statement_fixture_like_cpp(18, respawn_time))
+            .send(respawn_db_save_mutation_fixture_like_cpp(18, respawn_time))
             .expect("recognized respawn statement accepted");
     }
 
@@ -7671,7 +7711,7 @@ fn respawn_db_mailbox_coalesces_before_writer_poll_like_cpp() {
         .expect("respawn DB mailbox lock");
     assert_eq!(state.queue.pending_len(), 1);
     assert_rep_respawn_params_like_cpp(
-        &state.queue.pending[&(0, 18, 571, 0)].statement,
+        &state.queue.pending[&respawn_persistence_key_fixture_like_cpp(18)].mutation,
         0,
         18,
         99_999,
@@ -7684,10 +7724,10 @@ fn respawn_db_mailbox_coalesces_before_writer_poll_like_cpp() {
 fn respawn_db_mailbox_keeps_latest_rep_del_order_and_rejects_after_close_like_cpp() {
     let sender = RespawnDbWriterSenderLikeCpp::new_like_cpp();
     sender
-        .send(respawn_db_save_statement_fixture_like_cpp(19, 100))
+        .send(respawn_db_save_mutation_fixture_like_cpp(19, 100))
         .expect("initial REP_RESPAWN accepted");
     sender
-        .send(respawn_db_delete_statement_fixture_like_cpp(19))
+        .send(respawn_db_delete_mutation_fixture_like_cpp(19))
         .expect("newer DEL_RESPAWN accepted");
 
     {
@@ -7697,15 +7737,15 @@ fn respawn_db_mailbox_keeps_latest_rep_del_order_and_rejects_after_close_like_cp
             .lock()
             .expect("respawn DB mailbox lock");
         assert_eq!(state.queue.pending_len(), 1);
-        assert_eq!(
-            state.queue.pending[&(0, 19, 571, 0)].statement.sql(),
-            CharStatements::DEL_RESPAWN.sql()
-        );
+        assert!(matches!(
+            state.queue.pending[&respawn_persistence_key_fixture_like_cpp(19)].mutation,
+            RespawnPersistenceMutationLikeCpp::Delete { .. }
+        ));
     }
 
     sender.close_like_cpp();
     assert_eq!(
-        sender.send(respawn_db_save_statement_fixture_like_cpp(19, 200)),
+        sender.send(respawn_db_save_mutation_fixture_like_cpp(19, 200)),
         Err(RespawnDbSubmitErrorLikeCpp::Closed)
     );
     let mut state = sender
@@ -7720,9 +7760,10 @@ fn respawn_db_mailbox_keeps_latest_rep_del_order_and_rejects_after_close_like_cp
             .take_due(Instant::now())
             .expect("close makes retained state immediately due")
             .pending
-            .statement
-            .sql(),
-        CharStatements::DEL_RESPAWN.sql()
+            .mutation,
+        RespawnPersistenceMutationLikeCpp::Delete {
+            key: respawn_persistence_key_fixture_like_cpp(19)
+        }
     );
 }
 
@@ -7732,7 +7773,7 @@ async fn respawn_db_mailbox_idle_writer_wakeup_is_not_lost_like_cpp() {
     let notified = sender.mailbox.notify.notified();
 
     sender
-        .send(respawn_db_save_statement_fixture_like_cpp(20, 100))
+        .send(respawn_db_save_mutation_fixture_like_cpp(20, 100))
         .expect("recognized respawn statement accepted");
 
     tokio::time::timeout(Duration::from_secs(1), notified)
@@ -7753,7 +7794,7 @@ fn respawn_db_retry_backoff_is_exponential_and_capped() {
 
     let start = std::time::Instant::now();
     let mut queue = RespawnDbRetryQueueLikeCpp::default();
-    queue.enqueue_latest(respawn_db_save_statement_fixture_like_cpp(11, 100), start);
+    queue.enqueue_latest(respawn_db_save_mutation_fixture_like_cpp(11, 100), start);
     let attempted = queue.take_due(start).expect("first attempt due");
     assert_eq!(
         queue.retry_failed(attempted, start),
@@ -7767,7 +7808,7 @@ fn respawn_db_retry_backoff_is_exponential_and_capped() {
 fn respawn_db_retry_queue_does_not_retry_each_map_tick() {
     let start = std::time::Instant::now();
     let mut queue = RespawnDbRetryQueueLikeCpp::default();
-    queue.enqueue_latest(respawn_db_save_statement_fixture_like_cpp(12, 100), start);
+    queue.enqueue_latest(respawn_db_save_mutation_fixture_like_cpp(12, 100), start);
     let failed = queue.take_due(start).expect("first attempt due");
     queue.retry_failed(failed, start);
 
@@ -7785,19 +7826,16 @@ fn respawn_db_retry_queue_does_not_retry_each_map_tick() {
 fn respawn_db_retry_queue_does_not_delay_fresh_unrelated_key() {
     let start = std::time::Instant::now();
     let mut queue = RespawnDbRetryQueueLikeCpp::default();
-    queue.enqueue_latest(respawn_db_save_statement_fixture_like_cpp(13, 100), start);
+    queue.enqueue_latest(respawn_db_save_mutation_fixture_like_cpp(13, 100), start);
     let failed = queue.take_due(start).expect("first attempt due");
     queue.retry_failed(failed, start);
 
     let fresh_at = start + Duration::from_millis(10);
-    queue.enqueue_latest(
-        respawn_db_save_statement_fixture_like_cpp(14, 200),
-        fresh_at,
-    );
+    queue.enqueue_latest(respawn_db_save_mutation_fixture_like_cpp(14, 200), fresh_at);
     let fresh = queue
         .take_due(fresh_at)
         .expect("unrelated fresh key remains immediately eligible");
-    assert_eq!(fresh.key.1, 14);
+    assert_eq!(fresh.key.spawn_id, 14);
     assert!(queue.take_due(fresh_at).is_none());
     assert!(queue.take_due(start + Duration::from_secs(1)).is_some());
 }
@@ -7806,35 +7844,35 @@ fn respawn_db_retry_queue_does_not_delay_fresh_unrelated_key() {
 fn respawn_db_retry_queue_coalesces_latest_and_makes_new_state_immediate() {
     let start = std::time::Instant::now();
     let mut queue = RespawnDbRetryQueueLikeCpp::default();
-    queue.enqueue_latest(respawn_db_save_statement_fixture_like_cpp(15, 100), start);
+    queue.enqueue_latest(respawn_db_save_mutation_fixture_like_cpp(15, 100), start);
     let failed = queue.take_due(start).expect("first attempt due");
     queue.retry_failed(failed, start);
 
     let replacement_at = start + Duration::from_millis(10);
     queue.enqueue_latest(
-        respawn_db_delete_statement_fixture_like_cpp(15),
+        respawn_db_delete_mutation_fixture_like_cpp(15),
         replacement_at,
     );
     assert_eq!(queue.pending_len(), 1);
     let replacement = queue
         .take_due(replacement_at)
         .expect("newer same-key state must not wait behind stale backoff");
-    assert_eq!(
-        replacement.pending.statement.sql(),
-        CharStatements::DEL_RESPAWN.sql()
-    );
+    assert!(matches!(
+        replacement.pending.mutation,
+        RespawnPersistenceMutationLikeCpp::Delete { .. }
+    ));
 
     queue.enqueue_latest(
-        respawn_db_save_statement_fixture_like_cpp(15, 300),
+        respawn_db_save_mutation_fixture_like_cpp(15, 300),
         replacement_at,
     );
     queue.enqueue_latest(
-        respawn_db_save_statement_fixture_like_cpp(16, 400),
+        respawn_db_save_mutation_fixture_like_cpp(16, 400),
         replacement_at,
     );
     assert_eq!(queue.pending_len(), 2);
     assert_rep_respawn_params_like_cpp(
-        &queue.pending[&(0, 15, 571, 0)].statement,
+        &queue.pending[&respawn_persistence_key_fixture_like_cpp(15)].mutation,
         0,
         15,
         300,
@@ -7842,7 +7880,7 @@ fn respawn_db_retry_queue_coalesces_latest_and_makes_new_state_immediate() {
         0,
     );
     assert_rep_respawn_params_like_cpp(
-        &queue.pending[&(0, 16, 571, 0)].statement,
+        &queue.pending[&respawn_persistence_key_fixture_like_cpp(16)].mutation,
         0,
         16,
         400,
@@ -7855,7 +7893,7 @@ fn respawn_db_retry_queue_coalesces_latest_and_makes_new_state_immediate() {
 fn respawn_db_retry_queue_shutdown_makes_existing_backoff_immediately_due() {
     let start = std::time::Instant::now();
     let mut queue = RespawnDbRetryQueueLikeCpp::default();
-    queue.enqueue_latest(respawn_db_save_statement_fixture_like_cpp(17, 100), start);
+    queue.enqueue_latest(respawn_db_save_mutation_fixture_like_cpp(17, 100), start);
     let failed = queue.take_due(start).expect("first attempt due");
     queue.retry_failed(failed, start);
 
@@ -7867,8 +7905,49 @@ fn respawn_db_retry_queue_shutdown_makes_existing_backoff_immediately_due() {
             .take_due(shutdown_at)
             .expect("shutdown drain must bypass stale retry deadline")
             .key
-            .1,
+            .spawn_id,
         17
+    );
+}
+
+#[tokio::test]
+async fn respawn_db_writer_retries_failed_typed_mutation_then_applies_once_like_cpp() {
+    let port = FakeRespawnPersistencePortLikeCpp::default();
+    port.fail_mutations
+        .store(true, std::sync::atomic::Ordering::Release);
+    let mailbox = RespawnDbMailboxLikeCpp::default();
+    let mutation = respawn_db_save_mutation_fixture_like_cpp(21, 500);
+    {
+        let mut state = mailbox.state.lock().unwrap();
+        state.queue.enqueue_latest(mutation, Instant::now());
+    }
+
+    let first = mailbox
+        .state
+        .lock()
+        .unwrap()
+        .queue
+        .take_due(Instant::now())
+        .expect("fresh typed mutation is due");
+    execute_respawn_db_attempt_like_cpp(first, &mailbox, &port).await;
+    assert_eq!(mailbox.state.lock().unwrap().queue.pending_len(), 1);
+
+    port.fail_mutations
+        .store(false, std::sync::atomic::Ordering::Release);
+    let second = {
+        let mut state = mailbox.state.lock().unwrap();
+        state.queue.make_all_due(Instant::now());
+        state
+            .queue
+            .take_due(Instant::now())
+            .expect("failed mutation remains retryable")
+    };
+    execute_respawn_db_attempt_like_cpp(second, &mailbox, &port).await;
+
+    assert_eq!(mailbox.state.lock().unwrap().queue.pending_len(), 0);
+    assert_eq!(
+        port.mutations.lock().unwrap().as_slice(),
+        [mutation, mutation]
     );
 }
 
@@ -7911,8 +7990,7 @@ fn spawn_group_condition_update_tick_process_respawns_delete_only_removes_inacti
     assert_eq!(delete.spawn_id, 1);
     assert_eq!(delete.map_id, 571);
     assert_eq!(delete.instance_id, 0);
-    assert_eq!(delete.statement.sql(), CharStatements::DEL_RESPAWN.sql());
-    assert_del_respawn_params_like_cpp(&delete.statement, 0, 1, 571, 0);
+    assert_del_respawn_params_like_cpp(&delete.mutation, 0, 1, 571, 0);
     assert_eq!(
         manager
             .find_map(571, 0)
@@ -7983,8 +8061,7 @@ fn respawn_db_save_tick_queues_linked_future_reschedule_like_cpp() {
     assert_eq!(save.respawn_time, expected_respawn_time);
     assert_eq!(save.map_id, 571);
     assert_eq!(save.instance_id, 0);
-    assert_eq!(save.statement.sql(), CharStatements::REP_RESPAWN.sql());
-    assert_rep_respawn_params_like_cpp(&save.statement, 0, 1, expected_respawn_time, 571, 0);
+    assert_rep_respawn_params_like_cpp(&save.mutation, 0, 1, expected_respawn_time, 571, 0);
     let map = manager.find_map(571, 0).expect("world map");
     assert_eq!(
         map.map()
@@ -8055,7 +8132,7 @@ fn canonical_gameobject_timer_replace_queues_respawn_save_before_condition_tick_
     assert_eq!(save.spawn_id, spawn_id);
     assert!(save.respawn_time > 0);
     assert_ne!(save.respawn_time, i64::MAX);
-    assert_rep_respawn_params_like_cpp(&save.statement, 1, spawn_id, save.respawn_time, 571, 0);
+    assert_rep_respawn_params_like_cpp(&save.mutation, 1, spawn_id, save.respawn_time, 571, 0);
     assert_eq!(
         manager
             .find_map(571, 0)
@@ -8107,7 +8184,7 @@ fn canonical_gameobject_compatibility_mode_queues_db_only_respawn_save_like_cpp(
     let save = &summary.respawn_db_saves[0];
     assert_eq!(save.object_type, SpawnObjectType::GameObject);
     assert_eq!(save.spawn_id, spawn_id);
-    assert_rep_respawn_params_like_cpp(&save.statement, 1, spawn_id, save.respawn_time, 571, 0);
+    assert_rep_respawn_params_like_cpp(&save.mutation, 1, spawn_id, save.respawn_time, 571, 0);
     assert_eq!(
         manager
             .find_map(571, 0)
@@ -8223,7 +8300,7 @@ fn spawn_group_condition_update_tick_pool_timer_uses_canonical_pool_mgr_and_queu
     assert_eq!(delete.spawn_id, 1);
     assert_eq!(delete.map_id, 571);
     assert_eq!(delete.instance_id, 0);
-    assert_del_respawn_params_like_cpp(&delete.statement, 0, 1, 571, 0);
+    assert_del_respawn_params_like_cpp(&delete.mutation, 0, 1, 571, 0);
     let map = manager.find_map(571, 0).expect("world map");
     assert!(
         map.map()
@@ -8280,7 +8357,7 @@ fn spawn_group_condition_update_tick_process_respawns_unloaded_grid_queues_delet
     assert_eq!(delete.spawn_id, 1);
     assert_eq!(delete.map_id, 571);
     assert_eq!(delete.instance_id, 0);
-    assert_del_respawn_params_like_cpp(&delete.statement, 0, 1, 571, 0);
+    assert_del_respawn_params_like_cpp(&delete.mutation, 0, 1, 571, 0);
     assert_eq!(
         manager
             .find_map(571, 0)
@@ -8391,7 +8468,7 @@ fn persisted_restart_timer_respawns_once_through_canonical_owner_and_mirrors_leg
     assert_eq!(summary.respawn_db_delete_queued, 1);
     assert_eq!(summary.respawn_db_deletes.len(), 1);
     assert_del_respawn_params_like_cpp(
-        &summary.respawn_db_deletes[0].statement,
+        &summary.respawn_db_deletes[0].mutation,
         0,
         spawn_id,
         571,
@@ -8548,7 +8625,7 @@ fn persisted_gameobject_restart_timer_respawns_once_and_queues_delete_like_cpp()
     assert_eq!(summary.respawn_executed_loaded_grid_respawns, 1);
     assert_eq!(summary.respawn_db_delete_queued, 1);
     assert_del_respawn_params_like_cpp(
-        &summary.respawn_db_deletes[0].statement,
+        &summary.respawn_db_deletes[0].mutation,
         1,
         spawn_id,
         571,
@@ -12717,12 +12794,15 @@ async fn legacy_respawn_producer_stop_runs_final_lifecycle_flush_like_cpp() {
         .lock()
         .expect("respawn DB mailbox lock");
     assert_eq!(mailbox.queue.pending_len(), 1);
-    let statement = mailbox
+    let mutation = mailbox
         .queue
         .take_due(Instant::now())
         .expect("final lifecycle tick must persist the pending death")
         .pending
-        .statement;
-    assert_eq!(statement.sql(), CharStatements::REP_RESPAWN.sql());
+        .mutation;
+    assert!(matches!(
+        mutation,
+        RespawnPersistenceMutationLikeCpp::Save { .. }
+    ));
     assert_eq!(mailbox.queue.pending_len(), 0);
 }

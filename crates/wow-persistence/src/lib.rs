@@ -24,6 +24,77 @@ use std::pin::Pin;
 /// A future returned by a port method.
 pub type PersistenceFutureLikeCpp<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+/// Raw Character DB respawn row. Object and map identifiers deliberately stay
+/// database-shaped here so the adapter can report malformed values without
+/// depending on either map runtime's enums.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RespawnPersistenceRowLikeCpp {
+    pub object_type_raw: u16,
+    pub spawn_id: u64,
+    pub respawn_time: i64,
+    pub map_id: u32,
+    pub instance_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RespawnPersistenceKeyLikeCpp {
+    pub object_type_raw: u16,
+    pub spawn_id: u64,
+    pub map_id: u16,
+    pub instance_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RespawnPersistenceMutationLikeCpp {
+    Save {
+        key: RespawnPersistenceKeyLikeCpp,
+        respawn_time: i64,
+    },
+    Delete {
+        key: RespawnPersistenceKeyLikeCpp,
+    },
+}
+
+impl RespawnPersistenceMutationLikeCpp {
+    pub const fn key(self) -> RespawnPersistenceKeyLikeCpp {
+        match self {
+            Self::Save { key, .. } | Self::Delete { key } => key,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RespawnPersistenceLoadOutcomeLikeCpp {
+    Loaded(Vec<RespawnPersistenceRowLikeCpp>),
+    Failed { reason: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RespawnPersistenceMutationOutcomeLikeCpp {
+    Applied { affected_rows: u64 },
+    Failed { reason: String },
+}
+
+/// SQLx-free capability for C++ `Map` respawn durability. The map owners build
+/// typed mutations; the MariaDB adapter alone selects statements, binds values,
+/// decodes rows and executes them.
+pub trait RespawnPersistencePortLikeCpp: Send + Sync {
+    fn load_for_map_like_cpp<'a>(
+        &'a self,
+        map_id: u16,
+        instance_id: u32,
+    ) -> PersistenceFutureLikeCpp<'a, RespawnPersistenceLoadOutcomeLikeCpp>;
+
+    fn load_all_like_cpp<'a>(
+        &'a self,
+    ) -> PersistenceFutureLikeCpp<'a, RespawnPersistenceLoadOutcomeLikeCpp>;
+
+    fn execute_mutation_like_cpp<'a>(
+        &'a self,
+        mutation: RespawnPersistenceMutationLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, RespawnPersistenceMutationOutcomeLikeCpp>;
+}
+
 /// Largest battle-pet counter accepted by C++-shaped ObjectGuid allocation.
 pub const BATTLE_PET_GUID_COUNTER_LIMIT_LIKE_CPP: u64 = 0xFF_FFFF_FFFE;
 

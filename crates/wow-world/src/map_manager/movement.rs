@@ -5,12 +5,6 @@
 
 //! Creature movement: splines, pathfinding and relocation.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::PreparedStatement;
-
 use super::*;
 
 impl WorldCreature {
@@ -2308,10 +2302,10 @@ impl MapManager {
         instance_id: u32,
         object_type: SpawnObjectType,
         spawn_id: u64,
-    ) -> Option<PreparedStatement> {
+    ) -> Option<RespawnPersistenceMutationLikeCpp> {
         let map = self.get_map_mut(map_id, instance_id)?;
         map.remove_persisted_respawn_time_like_cpp(object_type, spawn_id)?;
-        Some(respawn_delete_statement_like_cpp(
+        Some(respawn_delete_mutation_like_cpp(
             object_type,
             spawn_id,
             map_id,

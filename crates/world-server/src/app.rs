@@ -1838,10 +1838,16 @@ async fn run_inner(
         script_name_interner.len_like_cpp(),
         script_name_interner.all_db_script_names_like_cpp().len()
     );
+    let respawn_persistence: Arc<dyn RespawnPersistencePortLikeCpp> = Arc::new(
+        wow_database::MariaDbRespawnPersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
+    );
     let (persisted_respawn_times, persisted_respawn_report) =
-        load_persisted_respawn_times_like_cpp(&char_db, &canonical_spawn_metadata)
-            .await
-            .context("Failed to load persisted respawn times from character database")?;
+        load_persisted_respawn_times_like_cpp(
+            respawn_persistence.as_ref(),
+            &canonical_spawn_metadata,
+        )
+        .await
+        .context("Failed to load persisted respawn times from character database")?;
     let persisted_respawn_times = Arc::new(persisted_respawn_times);
     info!(
         "Loaded persisted C++ respawn timers: rows={} loaded={} maps={} timers={} invalid-type={} unsupported-areatrigger={} missing-spawn-metadata={}",
@@ -5124,7 +5130,7 @@ async fn run_inner(
     let respawn_db_mutation_order = Arc::new(Mutex::new(()));
     let respawn_db_producer_stop = Arc::new(AtomicBool::new(false));
     let (respawn_db_writer_tx, mut respawn_db_writer_handle) =
-        spawn_respawn_db_writer_like_cpp(Arc::clone(&char_db));
+        spawn_respawn_db_writer_like_cpp(Arc::clone(&respawn_persistence));
     let mut map_update_handle = spawn_canonical_map_update_loop(
         Arc::clone(&canonical_map_manager),
         Arc::clone(&shared_map),

@@ -5634,22 +5634,22 @@ fn pending_respawn_save_load_roundtrip_uses_cpp_respawn_table_statement() {
     pending.spawn_id = u64::from(u32::MAX) + 17;
     pending.map_id = 571;
 
-    let stmt = manager
+    let mutation = manager
         .save_pending_respawn_time_like_cpp(571, 0, &pending, now, now_secs)
         .expect("future creature respawn should queue CHAR_REP_RESPAWN");
 
-    assert_eq!(stmt.sql(), CharStatements::REP_RESPAWN.sql());
-    assert!(matches!(stmt.params()[0], wow_database::SqlParam::U16(0)));
-    assert!(matches!(
-        stmt.params()[1],
-        wow_database::SqlParam::U64(value) if value == pending.spawn_id
-    ));
-    assert!(matches!(
-        stmt.params()[2],
-        wow_database::SqlParam::I64(value) if value == now_secs + 45
-    ));
-    assert!(matches!(stmt.params()[3], wow_database::SqlParam::U16(571)));
-    assert!(matches!(stmt.params()[4], wow_database::SqlParam::U32(0)));
+    assert_eq!(
+        mutation,
+        RespawnPersistenceMutationLikeCpp::Save {
+            key: RespawnPersistenceKeyLikeCpp {
+                object_type_raw: 0,
+                spawn_id: pending.spawn_id,
+                map_id: 571,
+                instance_id: 0,
+            },
+            respawn_time: now_secs + 45,
+        }
+    );
 
     assert_eq!(
         manager.persisted_respawn_time_like_cpp(
@@ -5898,17 +5898,17 @@ fn persisted_respawn_restart_load_expired_ready_future_queued_and_gameobject_tim
     let delete = manager
         .remove_persisted_respawn_time_like_cpp(571, 0, SpawnObjectType::Creature, 10)
         .expect("processed C++ respawn should queue CHAR_DEL_RESPAWN");
-    assert_eq!(delete.sql(), CharStatements::DEL_RESPAWN.sql());
-    assert!(matches!(delete.params()[0], wow_database::SqlParam::U16(0)));
-    assert!(matches!(
-        delete.params()[1],
-        wow_database::SqlParam::U64(10)
-    ));
-    assert!(matches!(
-        delete.params()[2],
-        wow_database::SqlParam::U16(571)
-    ));
-    assert!(matches!(delete.params()[3], wow_database::SqlParam::U32(0)));
+    assert_eq!(
+        delete,
+        RespawnPersistenceMutationLikeCpp::Delete {
+            key: RespawnPersistenceKeyLikeCpp {
+                object_type_raw: 0,
+                spawn_id: 10,
+                map_id: 571,
+                instance_id: 0,
+            },
+        }
+    );
     assert_eq!(
         manager.persisted_respawn_time_like_cpp(571, 0, SpawnObjectType::Creature, 10),
         None

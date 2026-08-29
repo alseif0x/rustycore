@@ -1319,38 +1319,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:world-server:crate:crates/world-server/src/lib.rs::fn execute_respawn_db_attempt_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "fn execute_respawn_db_attempt_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn execute_respawn_db_attempt_like_cpp in crates/world-server/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:world-server:crate:crates/world-server/src/lib.rs::fn item_guid_reference_cleanup_transaction_like_cpp",
       "source_class": "production",
       "packages": [
@@ -1577,38 +1545,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:world-server:crate:crates/world-server/src/lib.rs::fn load_persisted_respawn_times_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "fn load_persisted_respawn_times_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_persisted_respawn_times_like_cpp in crates/world-server/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:world-server:crate:crates/world-server/src/lib.rs::fn load_world_db_version_like_cpp",
       "source_class": "production",
       "packages": [
@@ -1696,38 +1632,6 @@
       ],
       "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn realm_list_snapshot_from_result_like_cpp in crates/world-server/src/lib.rs.",
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate:crates/world-server/src/lib.rs::fn respawn_statement_key_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "fn respawn_statement_key_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn respawn_statement_key_like_cpp in crates/world-server/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
@@ -1867,38 +1771,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:world-server:crate:crates/world-server/src/lib.rs::fn spawn_respawn_db_writer_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "fn spawn_respawn_db_writer_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn spawn_respawn_db_writer_like_cpp in crates/world-server/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:world-server:crate:crates/world-server/src/lib.rs::fn update_realm_list_once_like_cpp",
       "source_class": "production",
       "packages": [
@@ -1986,102 +1858,6 @@
       ],
       "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn verify_world_db_version_like_cpp in crates/world-server/src/lib.rs.",
       "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate:crates/world-server/src/lib.rs::impl RespawnDbRetryQueueLikeCpp::enqueue_latest",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl RespawnDbRetryQueueLikeCpp::enqueue_latest"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow impl RespawnDbRetryQueueLikeCpp::enqueue_latest in crates/world-server/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate:crates/world-server/src/lib.rs::impl RespawnDbRetryQueueLikeCpp::retry_failed",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl RespawnDbRetryQueueLikeCpp::retry_failed"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow impl RespawnDbRetryQueueLikeCpp::retry_failed in crates/world-server/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate:crates/world-server/src/lib.rs::impl RespawnDbWriterSenderLikeCpp::send",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "impl RespawnDbWriterSenderLikeCpp::send"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow impl RespawnDbWriterSenderLikeCpp::send in crates/world-server/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
@@ -2190,38 +1966,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:world-server:crate:crates/world-server/src/lib.rs::struct PendingRespawnDbStatementLikeCpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "struct PendingRespawnDbStatementLikeCpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow struct PendingRespawnDbStatementLikeCpp in crates/world-server/src/lib.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:world-server:crate::app:crates/world-server/src/app.rs::fn run_inner",
       "source_class": "production",
       "packages": [
@@ -2250,102 +1994,6 @@
       "connection_affinity": "The workflow uses independent characters, hotfix, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::delivery:crates/world-server/src/runtime/delivery.rs::fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/delivery.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::delivery"
-      ],
-      "enclosings": [
-        "fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp in crates/world-server/src/runtime/delivery.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::delivery:crates/world-server/src/runtime/delivery.rs::fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/delivery.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::delivery"
-      ],
-      "enclosings": [
-        "fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp in crates/world-server/src/runtime/delivery.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::delivery:crates/world-server/src/runtime/delivery.rs::fn spawn_legacy_creature_runtime_update_loop_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/delivery.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::delivery"
-      ],
-      "enclosings": [
-        "fn spawn_legacy_creature_runtime_update_loop_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn spawn_legacy_creature_runtime_update_loop_like_cpp in crates/world-server/src/runtime/delivery.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153
       ],
@@ -2503,38 +2151,6 @@
         "characters"
       ],
       "capability_owner": "world-server game-event runtime boundary currently owns the complete world-server workflow struct GameEventSeasonalQuestDbDeleteLikeCpp in crates/world-server/src/runtime/game_events.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::fn canonical_map_update_tick_set_inactive_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/map.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::map"
-      ],
-      "enclosings": [
-        "fn canonical_map_update_tick_set_inactive_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow fn canonical_map_update_tick_set_inactive_like_cpp in crates/world-server/src/runtime/map.rs.",
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -2705,70 +2321,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::fn queue_respawn_db_delete_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/map.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::map"
-      ],
-      "enclosings": [
-        "fn queue_respawn_db_delete_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow fn queue_respawn_db_delete_like_cpp in crates/world-server/src/runtime/map.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::fn queue_respawn_db_save_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/map.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::map"
-      ],
-      "enclosings": [
-        "fn queue_respawn_db_save_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow fn queue_respawn_db_save_like_cpp in crates/world-server/src/runtime/map.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::fn spawn_canonical_map_update_loop",
       "source_class": "production",
       "packages": [
@@ -2887,70 +2439,6 @@
         "characters"
       ],
       "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow struct GameEventWorldEventStateDbStatementLikeCpp in crates/world-server/src/runtime/map.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::struct RespawnDbDeleteLikeCpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/map.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::map"
-      ],
-      "enclosings": [
-        "struct RespawnDbDeleteLikeCpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow struct RespawnDbDeleteLikeCpp in crates/world-server/src/runtime/map.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::runtime::map:crates/world-server/src/runtime/map.rs::struct RespawnDbSaveLikeCpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/runtime/map.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::runtime::map"
-      ],
-      "enclosings": [
-        "struct RespawnDbSaveLikeCpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "world-server canonical map runtime boundary currently owns the complete world-server workflow struct RespawnDbSaveLikeCpp in crates/world-server/src/runtime/map.rs.",
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -20282,6 +19770,306 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::respawn_persistence_adapter:crates/wow-database/src/respawn_persistence_adapter.rs::fn decode_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/respawn_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::respawn_persistence_adapter"
+      ],
+      "enclosings": [
+        "fn decode_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free respawn persistence (#493) currently owns the complete wow-database workflow fn decode_rows_like_cpp in crates/wow-database/src/respawn_persistence_adapter.rs.",
+      "connection_affinity": "Statement construction and row projection stay private to the Character database adapter and imply no wider transaction.",
+      "current_order": "Decode rows in cursor order with the existing malformed-column fallbacks; gameplay validation remains above the adapter.",
+      "failure_and_unknown_commit": "No SQLx row, prepared statement or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::respawn_persistence_adapter:crates/wow-database/src/respawn_persistence_adapter.rs::fn load_all_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/respawn_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::respawn_persistence_adapter"
+      ],
+      "enclosings": [
+        "fn load_all_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free respawn persistence (#493) currently owns the complete wow-database workflow fn load_all_statement_like_cpp in crates/wow-database/src/respawn_persistence_adapter.rs.",
+      "connection_affinity": "Each typed load uses exactly one Character database query and no transaction.",
+      "current_order": "Preserve C++ statement identity and exact parameter order; no database I/O occurs in this surface alone.",
+      "failure_and_unknown_commit": "No SQLx row, prepared statement or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::respawn_persistence_adapter:crates/wow-database/src/respawn_persistence_adapter.rs::fn load_for_map_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/respawn_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::respawn_persistence_adapter"
+      ],
+      "enclosings": [
+        "fn load_for_map_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free respawn persistence (#493) currently owns the complete wow-database workflow fn load_for_map_statement_like_cpp in crates/wow-database/src/respawn_persistence_adapter.rs.",
+      "connection_affinity": "Each typed load uses exactly one Character database query and no transaction.",
+      "current_order": "Preserve C++ statement identity and exact parameter order; no database I/O occurs in this surface alone.",
+      "failure_and_unknown_commit": "No SQLx row, prepared statement or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::respawn_persistence_adapter:crates/wow-database/src/respawn_persistence_adapter.rs::fn mutation_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/respawn_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::respawn_persistence_adapter"
+      ],
+      "enclosings": [
+        "fn mutation_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free respawn persistence (#493) currently owns the complete wow-database workflow fn mutation_statement_like_cpp in crates/wow-database/src/respawn_persistence_adapter.rs.",
+      "connection_affinity": "Statement construction and row projection stay private to the Character database adapter and imply no wider transaction.",
+      "current_order": "Preserve C++ statement identity and exact parameter order; no database I/O occurs in this surface alone.",
+      "failure_and_unknown_commit": "No SQLx row, prepared statement or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::respawn_persistence_adapter:crates/wow-database/src/respawn_persistence_adapter.rs::impl MariaDbRespawnPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/respawn_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::respawn_persistence_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbRespawnPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free respawn persistence (#493) currently owns the complete wow-database workflow impl MariaDbRespawnPersistenceAdapterLikeCpp::new in crates/wow-database/src/respawn_persistence_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one Character database handle.",
+      "current_order": "Preserve C++ statement identity and exact parameter order; no database I/O occurs in this surface alone.",
+      "failure_and_unknown_commit": "No SQLx row, prepared statement or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::respawn_persistence_adapter:crates/wow-database/src/respawn_persistence_adapter.rs::impl wow_persistence::RespawnPersistencePortLikeCpp for MariaDbRespawnPersistenceAdapterLikeCpp::execute_mutation_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/respawn_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::respawn_persistence_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::RespawnPersistencePortLikeCpp for MariaDbRespawnPersistenceAdapterLikeCpp::execute_mutation_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free respawn persistence (#493) currently owns the complete wow-database workflow impl wow_persistence::RespawnPersistencePortLikeCpp for MariaDbRespawnPersistenceAdapterLikeCpp::execute_mutation_like_cpp in crates/wow-database/src/respawn_persistence_adapter.rs.",
+      "connection_affinity": "Each typed mutation uses exactly one standalone Character database execution; retry ownership remains in world-server.",
+      "current_order": "Map the typed Save/Delete mutation to REP/DEL_RESPAWN, execute once, then classify the adapter result; the caller retains latest-per-key ordering and retry cadence.",
+      "failure_and_unknown_commit": "Execution errors become Failed and are retried by the existing bounded world-server mailbox; success reports affected rows and no transaction/unknown-COMMIT claim is added.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::respawn_persistence_adapter:crates/wow-database/src/respawn_persistence_adapter.rs::impl wow_persistence::RespawnPersistencePortLikeCpp for MariaDbRespawnPersistenceAdapterLikeCpp::load_all_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/respawn_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::respawn_persistence_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::RespawnPersistencePortLikeCpp for MariaDbRespawnPersistenceAdapterLikeCpp::load_all_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free respawn persistence (#493) currently owns the complete wow-database workflow impl wow_persistence::RespawnPersistencePortLikeCpp for MariaDbRespawnPersistenceAdapterLikeCpp::load_all_like_cpp in crates/wow-database/src/respawn_persistence_adapter.rs.",
+      "connection_affinity": "Each typed load uses exactly one Character database query and no transaction.",
+      "current_order": "Build the selected C++ statement, query once, decode rows in database order, then return the typed outcome.",
+      "failure_and_unknown_commit": "Query errors become Failed with no partial typed rows; empty results remain Loaded(empty).",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::respawn_persistence_adapter:crates/wow-database/src/respawn_persistence_adapter.rs::impl wow_persistence::RespawnPersistencePortLikeCpp for MariaDbRespawnPersistenceAdapterLikeCpp::load_for_map_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/respawn_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::respawn_persistence_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::RespawnPersistencePortLikeCpp for MariaDbRespawnPersistenceAdapterLikeCpp::load_for_map_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free respawn persistence (#493) currently owns the complete wow-database workflow impl wow_persistence::RespawnPersistencePortLikeCpp for MariaDbRespawnPersistenceAdapterLikeCpp::load_for_map_like_cpp in crates/wow-database/src/respawn_persistence_adapter.rs.",
+      "connection_affinity": "Each typed load uses exactly one Character database query and no transaction.",
+      "current_order": "Build the selected C++ statement, query once, decode rows in database order, then return the typed outcome.",
+      "failure_and_unknown_commit": "Query errors become Failed with no partial typed rows; empty results remain Loaded(empty).",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::respawn_persistence_adapter:crates/wow-database/src/respawn_persistence_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/respawn_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::respawn_persistence_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free respawn persistence (#493) currently owns the complete wow-database workflow module in crates/wow-database/src/respawn_persistence_adapter.rs.",
+      "connection_affinity": "Statement construction and row projection stay private to the Character database adapter and imply no wider transaction.",
+      "current_order": "Preserve C++ statement identity and exact parameter order; no database I/O occurs in this surface alone.",
+      "failure_and_unknown_commit": "No SQLx row, prepared statement or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::respawn_persistence_adapter:crates/wow-database/src/respawn_persistence_adapter.rs::struct MariaDbRespawnPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/respawn_persistence_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::respawn_persistence_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbRespawnPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free respawn persistence (#493) currently owns the complete wow-database workflow struct MariaDbRespawnPersistenceAdapterLikeCpp in crates/wow-database/src/respawn_persistence_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one Character database handle.",
+      "current_order": "Preserve C++ statement identity and exact parameter order; no database I/O occurs in this surface alone.",
+      "failure_and_unknown_commit": "No SQLx row, prepared statement or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::result:crates/wow-database/src/result.rs::impl SqlFields < 'a >",
       "source_class": "production",
       "packages": [
@@ -27764,358 +27552,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::map_manager:crates/wow-world/src/map_manager/mod.rs::fn execute_respawn_delete_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/map_manager/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::map_manager"
-      ],
-      "enclosings": [
-        "fn execute_respawn_delete_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world runtime boundary currently owns the complete wow-world workflow fn execute_respawn_delete_like_cpp in crates/wow-world/src/map_manager/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::map_manager:crates/wow-world/src/map_manager/mod.rs::fn execute_respawn_replace_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/map_manager/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::map_manager"
-      ],
-      "enclosings": [
-        "fn execute_respawn_replace_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world runtime boundary currently owns the complete wow-world workflow fn execute_respawn_replace_like_cpp in crates/wow-world/src/map_manager/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::map_manager:crates/wow-world/src/map_manager/mod.rs::fn load_persisted_respawn_rows_for_map_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/map_manager/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::map_manager"
-      ],
-      "enclosings": [
-        "fn load_persisted_respawn_rows_for_map_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world runtime boundary currently owns the complete wow-world workflow fn load_persisted_respawn_rows_for_map_like_cpp in crates/wow-world/src/map_manager/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::map_manager:crates/wow-world/src/map_manager/mod.rs::fn respawn_delete_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/map_manager/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::map_manager"
-      ],
-      "enclosings": [
-        "fn respawn_delete_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world runtime boundary currently owns the complete wow-world workflow fn respawn_delete_statement_like_cpp in crates/wow-world/src/map_manager/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::map_manager:crates/wow-world/src/map_manager/mod.rs::fn respawn_replace_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/map_manager/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::map_manager"
-      ],
-      "enclosings": [
-        "fn respawn_replace_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world runtime boundary currently owns the complete wow-world workflow fn respawn_replace_statement_like_cpp in crates/wow-world/src/map_manager/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::map_manager:crates/wow-world/src/map_manager/mod.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/map_manager/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::map_manager"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world runtime boundary currently owns the complete wow-world workflow module in crates/wow-world/src/map_manager/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::map_manager::movement:crates/wow-world/src/map_manager/movement.rs::impl MapManager::remove_persisted_respawn_time_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/map_manager/movement.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::map_manager::movement"
-      ],
-      "enclosings": [
-        "impl MapManager::remove_persisted_respawn_time_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl MapManager::remove_persisted_respawn_time_like_cpp in crates/wow-world/src/map_manager/movement.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::map_manager::movement:crates/wow-world/src/map_manager/movement.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/map_manager/movement.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::map_manager::movement"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow module in crates/wow-world/src/map_manager/movement.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::map_manager::respawn:crates/wow-world/src/map_manager/respawn.rs::impl MapInstance::save_pending_respawn_time_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/map_manager/respawn.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::map_manager::respawn"
-      ],
-      "enclosings": [
-        "impl MapInstance::save_pending_respawn_time_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl MapInstance::save_pending_respawn_time_like_cpp in crates/wow-world/src/map_manager/respawn.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::map_manager::respawn:crates/wow-world/src/map_manager/respawn.rs::impl MapManager::save_pending_respawn_time_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/map_manager/respawn.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::map_manager::respawn"
-      ],
-      "enclosings": [
-        "impl MapManager::save_pending_respawn_time_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl MapManager::save_pending_respawn_time_like_cpp in crates/wow-world/src/map_manager/respawn.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::map_manager::respawn:crates/wow-world/src/map_manager/respawn.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/map_manager/respawn.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::map_manager::respawn"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow module in crates/wow-world/src/map_manager/respawn.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-world:crate::reputation::mgr:crates/wow-world/src/reputation/mgr.rs::impl ReputationMgrLikeCpp::pending_save_to_db_statement_plan_like_cpp",
       "source_class": "production",
       "packages": [
@@ -28204,38 +27640,6 @@
       "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow module in crates/wow-world/src/reputation/mgr.rs.",
       "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::fn run_legacy_creature_lifecycle_tick_once_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session"
-      ],
-      "enclosings": [
-        "fn run_legacy_creature_lifecycle_tick_once_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "Session residual persistence boundary currently owns the complete wow-world workflow fn run_legacy_creature_lifecycle_tick_once_like_cpp in crates/wow-world/src/session/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153
@@ -28529,38 +27933,6 @@
       "connection_affinity": "This is a shared dependency/type surface for characters, login, world; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::struct LegacyCreatureLifecycleTickOutcomeLikeCpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session"
-      ],
-      "enclosings": [
-        "struct LegacyCreatureLifecycleTickOutcomeLikeCpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "Session residual persistence boundary currently owns the complete wow-world workflow struct LegacyCreatureLifecycleTickOutcomeLikeCpp in crates/wow-world/src/session/mod.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153
       ],
@@ -29191,6 +28563,7 @@
         "crates/wow-database/src/player_spell_acquisition_adapter.rs",
         "crates/wow-database/src/query_holder.rs",
         "crates/wow-database/src/represented_group_persistence_adapter.rs",
+        "crates/wow-database/src/respawn_persistence_adapter.rs",
         "crates/wow-database/src/session_account_state_adapter.rs",
         "crates/wow-database/src/statements/character.rs",
         "crates/wow-database/src/statements/hotfix.rs",
@@ -29265,7 +28638,6 @@
         "crates/wow-world/src/handlers/talent.rs",
         "crates/wow-world/src/handlers/trainer.rs",
         "crates/wow-world/src/handlers/void_storage.rs",
-        "crates/wow-world/src/map_manager/mod.rs",
         "crates/wow-world/src/player_lifecycle_contract.rs",
         "crates/wow-world/src/reputation/mgr.rs",
         "crates/wow-world/src/session/mod.rs"
