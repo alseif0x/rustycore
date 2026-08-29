@@ -3645,9 +3645,11 @@ async fn run_inner(
             "Failed to load ParagonReputation.db2 — check DataDir and DBC.Locale config",
         )?,
     );
+    let reputation_catalog_persistence =
+        wow_database::MariaDbReputationCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
     let (reputation_reward_rate_store, reputation_reward_rate_report) =
-        wow_data::reputation::ReputationRewardRateStoreLikeCpp::load_like_cpp(
-            &world_db,
+        crate::reputation_catalog::load_reward_rate_store_like_cpp(
+            &reputation_catalog_persistence,
             &progression_faction_store,
         )
         .await
@@ -3659,8 +3661,8 @@ async fn run_inner(
         "Loaded reputation_reward_rate like C++"
     );
     let (creature_onkill_reputation_store, creature_onkill_reputation_report) =
-        wow_data::reputation::CreatureOnKillReputationStoreLikeCpp::load_like_cpp(
-            &world_db,
+        crate::reputation_catalog::load_creature_onkill_store_like_cpp(
+            &reputation_catalog_persistence,
             &creature_template_lifecycle_store,
             &progression_faction_store,
         )
@@ -3673,8 +3675,8 @@ async fn run_inner(
         "Loaded creature_onkill_reputation like C++"
     );
     let (reputation_spillover_template_store, reputation_spillover_template_report) =
-        wow_data::reputation::RepSpilloverTemplateStoreLikeCpp::load_like_cpp(
-            &world_db,
+        crate::reputation_catalog::load_spillover_template_store_like_cpp(
+            &reputation_catalog_persistence,
             &progression_faction_store,
         )
         .await

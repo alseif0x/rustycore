@@ -109,6 +109,7 @@
     497,
     499,
     501,
+    503,
     189,
     192,
     193,
@@ -1752,7 +1753,7 @@
   },
   {
     "number": 501,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.59] Move mount startup catalogs behind typed persistence ports",
     "kind": "slice",
     "parents": [
@@ -1761,6 +1762,19 @@
     ],
     "depends_on": [
       499
+    ]
+  },
+  {
+    "number": 503,
+    "state": "open",
+    "title": "[ARCH.DB.60] Move reputation startup catalogs behind a typed persistence port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      501
     ]
   }
 ]
