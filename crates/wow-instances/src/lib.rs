@@ -12,9 +12,11 @@ use std::{
 
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_data::{DungeonEncounterEntry, DungeonEncounterStore};
-use wow_database::{
-    CharStatements, CharacterDatabase, DatabaseError, PreparedStatement, SqlTransaction,
-    StatementDef,
+use wow_persistence::{InstanceLockPersistenceMutationLikeCpp, InstanceLockPersistencePlanLikeCpp};
+
+pub use wow_persistence::{
+    CharacterInstanceLockPersistenceRowLikeCpp as CharacterInstanceLockRow,
+    SharedInstanceLockPersistenceRowLikeCpp as SharedInstanceLockRow,
 };
 
 const INSTANCE_SCRIPT_HEADER_KEY: &str = "Header";
@@ -273,30 +275,6 @@ pub struct InstanceLockUpdateEvent {
     pub entrance_world_safe_loc_id: Option<u32>,
 }
 
-/// Row shape loaded from C++ `instance` table.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SharedInstanceLockRow {
-    pub instance_id: u32,
-    pub data: String,
-    pub completed_encounters_mask: u32,
-    pub entrance_world_safe_loc_id: u32,
-}
-
-/// Row shape loaded from C++ `character_instance_lock` table.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CharacterInstanceLockRow {
-    pub player_guid_counter: u64,
-    pub map_id: u32,
-    pub lock_id: u32,
-    pub instance_id: u32,
-    pub difficulty_id: u8,
-    pub data: String,
-    pub completed_encounters_mask: u32,
-    pub entrance_world_safe_loc_id: u32,
-    pub expiry_time: InstanceResetTime,
-    pub extended: bool,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstanceLockLoadIssue {
     MissingSharedInstanceData {
@@ -353,71 +331,6 @@ impl InstanceLockMgr {
         map_difficulties.sort_unstable();
         map_difficulties.dedup();
         map_difficulties
-    }
-
-    pub async fn load_from_database_like_cpp(
-        &mut self,
-        character_db: &CharacterDatabase,
-        entries_for: impl FnMut(u32, u8) -> Option<MapDb2Entries>,
-    ) -> Result<Vec<InstanceLockLoadIssue>, DatabaseError> {
-        let mut shared_result = character_db
-            .query(&character_db.prepare(CharStatements::SEL_INSTANCE))
-            .await?;
-        let mut shared_rows = Vec::new();
-        if !shared_result.is_empty() {
-            loop {
-                shared_rows.push(SharedInstanceLockRow {
-                    instance_id: shared_result.try_read::<u32>(0).unwrap_or(0),
-                    data: shared_result.read_string(1),
-                    completed_encounters_mask: shared_result.try_read::<u32>(2).unwrap_or(0),
-                    entrance_world_safe_loc_id: shared_result.try_read::<u32>(3).unwrap_or(0),
-                });
-                if !shared_result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        let mut character_result = character_db
-            .query(&character_db.prepare(CharStatements::SEL_CHARACTER_INSTANCE_LOCK))
-            .await?;
-        let mut character_rows = Vec::new();
-        if !character_result.is_empty() {
-            loop {
-                let guid = character_result
-                    .try_read::<u64>(0)
-                    .or_else(|| {
-                        character_result
-                            .try_read::<i64>(0)
-                            .map(|value| value as u64)
-                    })
-                    .unwrap_or(0);
-                character_rows.push(CharacterInstanceLockRow {
-                    player_guid_counter: guid,
-                    map_id: character_result.try_read::<u32>(1).unwrap_or(0),
-                    lock_id: character_result.try_read::<u32>(2).unwrap_or(0),
-                    instance_id: character_result.try_read::<u32>(3).unwrap_or(0),
-                    difficulty_id: character_result.try_read::<u8>(4).unwrap_or(0),
-                    data: character_result.read_string(5),
-                    completed_encounters_mask: character_result.try_read::<u32>(6).unwrap_or(0),
-                    entrance_world_safe_loc_id: character_result.try_read::<u32>(7).unwrap_or(0),
-                    expiry_time: character_result
-                        .try_read::<u64>(8)
-                        .or_else(|| {
-                            character_result
-                                .try_read::<i64>(8)
-                                .map(|value| value as u64)
-                        })
-                        .unwrap_or(0),
-                    extended: character_result.try_read::<u8>(9).unwrap_or(0) != 0,
-                });
-                if !character_result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(self.load_from_rows_like_cpp(shared_rows, character_rows, entries_for))
     }
 
     pub fn load_from_rows_like_cpp(
@@ -742,12 +655,12 @@ impl InstanceLockMgr {
 
     /// C++ `InstanceLockMgr::UpdateInstanceLockForPlayer(trans, ...)`.
     ///
-    /// Mutates the in-memory lock first, then appends
-    /// `CHAR_DEL_CHARACTER_INSTANCE_LOCK` + `CHAR_INS_CHARACTER_INSTANCE_LOCK`
-    /// to the caller-owned transaction.
-    pub fn update_instance_lock_for_player_tx_at(
+    /// Mutates the in-memory lock first, then appends the semantic equivalent
+    /// of `CHAR_DEL_CHARACTER_INSTANCE_LOCK` +
+    /// `CHAR_INS_CHARACTER_INSTANCE_LOCK` to the caller-owned plan.
+    pub fn update_instance_lock_for_player_with_persistence_at(
         &mut self,
-        tx: &mut SqlTransaction,
+        plan: &mut InstanceLockPersistencePlanLikeCpp,
         player_guid: ObjectGuid,
         entries: &MapDb2Entries,
         update_event: InstanceLockUpdateEvent,
@@ -758,11 +671,11 @@ impl InstanceLockMgr {
             .update_instance_lock_for_player_at(player_guid, entries, update_event, schedule, now)?
             .clone();
 
-        tx.append(Self::delete_character_instance_lock_statement(
+        plan.push(Self::delete_character_instance_lock_mutation(
             player_guid,
             entries,
         ));
-        tx.append(Self::insert_character_instance_lock_statement(
+        plan.push(Self::insert_character_instance_lock_mutation(
             player_guid,
             entries,
             &lock,
@@ -828,15 +741,15 @@ impl InstanceLockMgr {
     ///
     /// Mutates shared lock data first, then appends `CHAR_DEL_INSTANCE` +
     /// `CHAR_INS_INSTANCE` to the caller-owned transaction.
-    pub fn update_shared_instance_lock_tx(
+    pub fn update_shared_instance_lock_with_persistence(
         &mut self,
-        tx: &mut SqlTransaction,
+        plan: &mut InstanceLockPersistencePlanLikeCpp,
         update_event: InstanceLockUpdateEvent,
     ) -> Option<SharedInstanceLockData> {
         let shared_data = self.update_shared_instance_lock(update_event)?;
 
-        tx.append(Self::delete_instance_statement(shared_data.instance_id));
-        tx.append(Self::insert_instance_statement(&shared_data));
+        plan.push(Self::delete_instance_mutation(shared_data.instance_id));
+        plan.push(Self::insert_instance_mutation(&shared_data));
 
         Some(shared_data)
     }
@@ -844,14 +757,14 @@ impl InstanceLockMgr {
     pub fn cleanup_unreferenced_shared_instance_lock_data_like_cpp(
         &mut self,
         instance_id: u32,
-    ) -> Option<PreparedStatement> {
+    ) -> Option<InstanceLockPersistenceMutationLikeCpp> {
         let weak_data = self.instance_lock_data_by_id.get(&instance_id)?;
         if weak_data.upgrade().is_some() {
             return None;
         }
 
         self.instance_lock_data_by_id.remove(&instance_id);
-        Some(Self::delete_instance_statement(instance_id))
+        Some(Self::delete_instance_mutation(instance_id))
     }
 
     pub fn update_instance_lock_extension_for_player_at(
@@ -882,9 +795,9 @@ impl InstanceLockMgr {
     ///
     /// Mutates the active lock extension flag and appends the matching
     /// `CHAR_UPD_CHARACTER_INSTANCE_LOCK_EXTENSION` statement.
-    pub fn update_instance_lock_extension_for_player_tx_at(
+    pub fn update_instance_lock_extension_for_player_with_persistence_at(
         &mut self,
-        tx: &mut SqlTransaction,
+        plan: &mut InstanceLockPersistencePlanLikeCpp,
         player_guid: ObjectGuid,
         entries: &MapDb2Entries,
         extended: bool,
@@ -899,7 +812,7 @@ impl InstanceLockMgr {
             now,
         )?;
 
-        tx.append(Self::update_character_instance_lock_extension_statement(
+        plan.push(Self::update_character_instance_lock_extension_mutation(
             player_guid,
             entries,
             extended,
@@ -951,9 +864,9 @@ impl InstanceLockMgr {
     ///
     /// Mutates resettable locks and appends one
     /// `CHAR_UPD_CHARACTER_INSTANCE_LOCK_FORCE_EXPIRE` per reset lock.
-    pub fn reset_instance_locks_for_player_tx_at(
+    pub fn reset_instance_locks_for_player_with_persistence_at(
         &mut self,
-        tx: &mut SqlTransaction,
+        plan: &mut InstanceLockPersistencePlanLikeCpp,
         player_guid: ObjectGuid,
         map_id: Option<u32>,
         difficulty_id: Option<u8>,
@@ -974,7 +887,7 @@ impl InstanceLockMgr {
             if let Some(entries) = entries_by_key.values().find(|entries| {
                 entries.map_id == lock.map_id && entries.difficulty_id == lock.difficulty_id
             }) {
-                tx.append(Self::force_expire_character_instance_lock_statement(
+                plan.push(Self::force_expire_character_instance_lock_mutation(
                     player_guid,
                     entries,
                     lock.expiry_time,
@@ -1013,116 +926,75 @@ impl InstanceLockMgr {
         instance_ids
     }
 
-    pub fn delete_character_instance_lock_statement(
+    fn delete_character_instance_lock_mutation(
         player_guid: ObjectGuid,
         entries: &MapDb2Entries,
-    ) -> PreparedStatement {
-        let mut stmt =
-            PreparedStatement::for_statement(CharStatements::DEL_CHARACTER_INSTANCE_LOCK);
-        stmt.set_u64(0, player_guid.counter() as u64);
-        stmt.set_u32(1, entries.map_id);
-        stmt.set_u32(2, entries.lock_id);
-        stmt
+    ) -> InstanceLockPersistenceMutationLikeCpp {
+        InstanceLockPersistenceMutationLikeCpp::DeleteCharacterLock {
+            player_guid_counter: player_guid.counter() as u64,
+            map_id: entries.map_id,
+            lock_id: entries.lock_id,
+        }
     }
 
-    pub fn delete_character_instance_locks_by_guid_statement(
-        player_guid: ObjectGuid,
-    ) -> PreparedStatement {
-        let mut stmt =
-            PreparedStatement::for_statement(CharStatements::DEL_CHARACTER_INSTANCE_LOCK_BY_GUID);
-        stmt.set_u64(0, player_guid.counter() as u64);
-        stmt
-    }
-
-    pub fn insert_character_instance_lock_statement(
+    fn insert_character_instance_lock_mutation(
         player_guid: ObjectGuid,
         entries: &MapDb2Entries,
         lock: &InstanceLock,
-    ) -> PreparedStatement {
-        let mut stmt =
-            PreparedStatement::for_statement(CharStatements::INS_CHARACTER_INSTANCE_LOCK);
-        stmt.set_u64(0, player_guid.counter() as u64);
-        stmt.set_u32(1, entries.map_id);
-        stmt.set_u32(2, entries.lock_id);
-        stmt.set_u32(3, lock.instance_id);
-        stmt.set_u8(4, entries.difficulty_id);
-        stmt.set_string(5, &lock.data.data);
-        stmt.set_u32(6, lock.data.completed_encounters_mask);
-        stmt.set_u32(7, lock.data.entrance_world_safe_loc_id);
-        stmt.set_u64(8, lock.expiry_time);
-        stmt.set_u8(9, u8::from(lock.extended));
-        stmt
+    ) -> InstanceLockPersistenceMutationLikeCpp {
+        InstanceLockPersistenceMutationLikeCpp::InsertCharacterLock {
+            player_guid_counter: player_guid.counter() as u64,
+            map_id: entries.map_id,
+            lock_id: entries.lock_id,
+            instance_id: lock.instance_id,
+            difficulty_id: entries.difficulty_id,
+            data: lock.data.data.clone(),
+            completed_encounters_mask: lock.data.completed_encounters_mask,
+            entrance_world_safe_loc_id: lock.data.entrance_world_safe_loc_id,
+            expiry_time: lock.expiry_time,
+            extended: lock.extended,
+        }
     }
 
-    pub fn update_character_instance_lock_extension_statement(
+    fn update_character_instance_lock_extension_mutation(
         player_guid: ObjectGuid,
         entries: &MapDb2Entries,
         extended: bool,
-    ) -> PreparedStatement {
-        let mut stmt =
-            PreparedStatement::for_statement(CharStatements::UPD_CHARACTER_INSTANCE_LOCK_EXTENSION);
-        stmt.set_u8(0, u8::from(extended));
-        stmt.set_u64(1, player_guid.counter() as u64);
-        stmt.set_u32(2, entries.map_id);
-        stmt.set_u32(3, entries.lock_id);
-        stmt
+    ) -> InstanceLockPersistenceMutationLikeCpp {
+        InstanceLockPersistenceMutationLikeCpp::UpdateCharacterLockExtension {
+            extended,
+            player_guid_counter: player_guid.counter() as u64,
+            map_id: entries.map_id,
+            lock_id: entries.lock_id,
+        }
     }
 
-    pub fn force_expire_character_instance_lock_statement(
+    fn force_expire_character_instance_lock_mutation(
         player_guid: ObjectGuid,
         entries: &MapDb2Entries,
         expiry_time: InstanceResetTime,
-    ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::for_statement(
-            CharStatements::UPD_CHARACTER_INSTANCE_LOCK_FORCE_EXPIRE,
-        );
-        stmt.set_u64(0, expiry_time);
-        stmt.set_u64(1, player_guid.counter() as u64);
-        stmt.set_u32(2, entries.map_id);
-        stmt.set_u32(3, entries.lock_id);
-        stmt
+    ) -> InstanceLockPersistenceMutationLikeCpp {
+        InstanceLockPersistenceMutationLikeCpp::ForceExpireCharacterLock {
+            expiry_time,
+            player_guid_counter: player_guid.counter() as u64,
+            map_id: entries.map_id,
+            lock_id: entries.lock_id,
+        }
     }
 
-    pub fn delete_instance_statement(instance_id: u32) -> PreparedStatement {
-        let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_INSTANCE);
-        stmt.set_u32(0, instance_id);
-        stmt
+    fn delete_instance_mutation(instance_id: u32) -> InstanceLockPersistenceMutationLikeCpp {
+        InstanceLockPersistenceMutationLikeCpp::DeleteSharedInstance { instance_id }
     }
 
-    pub fn insert_instance_statement(shared_data: &SharedInstanceLockData) -> PreparedStatement {
-        let mut stmt = PreparedStatement::for_statement(CharStatements::INS_INSTANCE);
-        stmt.set_u32(0, shared_data.instance_id);
-        stmt.set_string(1, &shared_data.data.data);
-        stmt.set_u32(2, shared_data.data.completed_encounters_mask);
-        stmt.set_u32(3, shared_data.data.entrance_world_safe_loc_id);
-        stmt
-    }
-
-    pub fn delete_all_respawns_statement(map_id: u32, instance_id: u32) -> PreparedStatement {
-        let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_ALL_RESPAWNS);
-        stmt.set_u32(0, map_id);
-        stmt.set_u32(1, instance_id);
-        stmt
-    }
-
-    pub fn delete_account_instance_lock_times_statement(account_id: u32) -> PreparedStatement {
-        let mut stmt =
-            PreparedStatement::for_statement(CharStatements::DEL_ACCOUNT_INSTANCE_LOCK_TIMES);
-        stmt.set_u32(0, account_id);
-        stmt
-    }
-
-    pub fn insert_account_instance_lock_time_statement(
-        account_id: u32,
-        instance_id: u32,
-        release_time: InstanceResetTime,
-    ) -> PreparedStatement {
-        let mut stmt =
-            PreparedStatement::for_statement(CharStatements::INS_ACCOUNT_INSTANCE_LOCK_TIMES);
-        stmt.set_u32(0, account_id);
-        stmt.set_u32(1, instance_id);
-        stmt.set_u64(2, release_time);
-        stmt
+    fn insert_instance_mutation(
+        shared_data: &SharedInstanceLockData,
+    ) -> InstanceLockPersistenceMutationLikeCpp {
+        InstanceLockPersistenceMutationLikeCpp::InsertSharedInstance {
+            instance_id: shared_data.instance_id,
+            data: shared_data.data.data.clone(),
+            completed_encounters_mask: shared_data.data.completed_encounters_mask,
+            entrance_world_safe_loc_id: shared_data.data.entrance_world_safe_loc_id,
+        }
     }
 
     fn find_active_instance_lock_inner(
@@ -1818,7 +1690,6 @@ impl InstanceScriptBase {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wow_database::SqlParam;
 
     fn player(counter: i64) -> ObjectGuid {
         ObjectGuid::new(0x10, counter)
@@ -2191,14 +2062,14 @@ mod tests {
     }
 
     #[test]
-    fn update_instance_lock_tx_appends_delete_insert_like_cpp() {
+    fn update_instance_lock_plan_appends_delete_insert_like_cpp() {
         let entries = raid_entries();
         let mut mgr = InstanceLockMgr::default();
-        let mut tx = SqlTransaction::new();
+        let mut plan = InstanceLockPersistencePlanLikeCpp::default();
 
         let lock = mgr
-            .update_instance_lock_for_player_tx_at(
-                &mut tx,
+            .update_instance_lock_for_player_with_persistence_at(
+                &mut plan,
                 player(1),
                 &entries,
                 update_event(9001, Some(1)),
@@ -2207,7 +2078,14 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(tx.len(), 2);
+        assert_eq!(plan.len(), 2);
+        assert!(matches!(
+            plan.mutations.as_slice(),
+            [
+                InstanceLockPersistenceMutationLikeCpp::DeleteCharacterLock { .. },
+                InstanceLockPersistenceMutationLikeCpp::InsertCharacterLock { .. }
+            ]
+        ));
         assert_eq!(lock.instance_id, 9001);
         assert_eq!(lock.data.completed_encounters_mask, 0b110);
     }
@@ -2438,12 +2316,14 @@ mod tests {
         assert!(issues.is_empty());
         assert_eq!(mgr.statistics().instance_count, 1);
 
-        let stmt = mgr
+        let mutation = mgr
             .cleanup_unreferenced_shared_instance_lock_data_like_cpp(9001)
             .unwrap();
 
-        assert_eq!(stmt.sql(), CharStatements::DEL_INSTANCE.sql());
-        assert!(matches!(stmt.params(), [SqlParam::U32(9001)]));
+        assert_eq!(
+            mutation,
+            InstanceLockPersistenceMutationLikeCpp::DeleteSharedInstance { instance_id: 9001 }
+        );
         assert_eq!(mgr.statistics().instance_count, 0);
     }
 
@@ -2482,10 +2362,10 @@ mod tests {
     }
 
     #[test]
-    fn update_shared_instance_lock_tx_appends_delete_insert_like_cpp() {
+    fn update_shared_instance_lock_plan_appends_delete_insert_like_cpp() {
         let entries = raid_entries();
         let mut mgr = InstanceLockMgr::default();
-        let mut tx = SqlTransaction::new();
+        let mut plan = InstanceLockPersistencePlanLikeCpp::default();
 
         mgr.create_instance_lock_for_new_instance_at(
             player(1),
@@ -2496,111 +2376,19 @@ mod tests {
         );
 
         let shared = mgr
-            .update_shared_instance_lock_tx(&mut tx, update_event(9001, Some(2)))
+            .update_shared_instance_lock_with_persistence(&mut plan, update_event(9001, Some(2)))
             .unwrap();
 
-        assert_eq!(tx.len(), 2);
+        assert_eq!(plan.len(), 2);
+        assert!(matches!(
+            plan.mutations.as_slice(),
+            [
+                InstanceLockPersistenceMutationLikeCpp::DeleteSharedInstance { .. },
+                InstanceLockPersistenceMutationLikeCpp::InsertSharedInstance { .. }
+            ]
+        ));
         assert_eq!(shared.instance_id, 9001);
         assert_eq!(shared.data.completed_encounters_mask, 0b100);
-    }
-
-    #[test]
-    fn prepared_statement_builders_bind_cxx_parameters_in_order() {
-        let entries = raid_entries();
-        let guid = player(77);
-        let mut lock = InstanceLock::new(entries.map_id, entries.difficulty_id, 500, 9001);
-        lock.data.data = "player".to_string();
-        lock.data.completed_encounters_mask = 0b11;
-        lock.data.entrance_world_safe_loc_id = 42;
-        lock.extended = true;
-
-        let del = InstanceLockMgr::delete_character_instance_lock_statement(guid, &entries);
-        assert_eq!(del.sql(), CharStatements::DEL_CHARACTER_INSTANCE_LOCK.sql());
-        assert!(matches!(
-            del.params(),
-            [SqlParam::U64(77), SqlParam::U32(631), SqlParam::U32(7)]
-        ));
-
-        let ins = InstanceLockMgr::insert_character_instance_lock_statement(guid, &entries, &lock);
-        assert_eq!(ins.sql(), CharStatements::INS_CHARACTER_INSTANCE_LOCK.sql());
-        assert!(matches!(ins.params()[0], SqlParam::U64(77)));
-        assert!(matches!(ins.params()[3], SqlParam::U32(9001)));
-        assert!(matches!(ins.params()[4], SqlParam::U8(4)));
-        assert!(matches!(&ins.params()[5], SqlParam::String(s) if s == "player"));
-        assert!(matches!(ins.params()[6], SqlParam::U32(0b11)));
-        assert!(matches!(ins.params()[7], SqlParam::U32(42)));
-        assert!(matches!(ins.params()[8], SqlParam::U64(500)));
-        assert!(matches!(ins.params()[9], SqlParam::U8(1)));
-
-        let shared = SharedInstanceLockData {
-            instance_id: 9001,
-            data: InstanceLockData {
-                data: "shared".to_string(),
-                completed_encounters_mask: 0b101,
-                entrance_world_safe_loc_id: 99,
-            },
-        };
-        let ins_instance = InstanceLockMgr::insert_instance_statement(&shared);
-        assert_eq!(ins_instance.sql(), CharStatements::INS_INSTANCE.sql());
-        assert!(matches!(ins_instance.params()[0], SqlParam::U32(9001)));
-        assert!(matches!(&ins_instance.params()[1], SqlParam::String(s) if s == "shared"));
-
-        let del_respawns = InstanceLockMgr::delete_all_respawns_statement(631, 9001);
-        assert_eq!(del_respawns.sql(), CharStatements::DEL_ALL_RESPAWNS.sql());
-        assert!(matches!(
-            del_respawns.params(),
-            [SqlParam::U32(631), SqlParam::U32(9001)]
-        ));
-
-        let extension = InstanceLockMgr::update_character_instance_lock_extension_statement(
-            guid, &entries, true,
-        );
-        assert_eq!(
-            extension.sql(),
-            CharStatements::UPD_CHARACTER_INSTANCE_LOCK_EXTENSION.sql()
-        );
-        assert!(matches!(
-            extension.params(),
-            [
-                SqlParam::U8(1),
-                SqlParam::U64(77),
-                SqlParam::U32(631),
-                SqlParam::U32(7)
-            ]
-        ));
-
-        let force_expire =
-            InstanceLockMgr::force_expire_character_instance_lock_statement(guid, &entries, 1234);
-        assert_eq!(
-            force_expire.sql(),
-            CharStatements::UPD_CHARACTER_INSTANCE_LOCK_FORCE_EXPIRE.sql()
-        );
-        assert!(matches!(
-            force_expire.params(),
-            [
-                SqlParam::U64(1234),
-                SqlParam::U64(77),
-                SqlParam::U32(631),
-                SqlParam::U32(7)
-            ]
-        ));
-
-        let del_times = InstanceLockMgr::delete_account_instance_lock_times_statement(22);
-        assert_eq!(
-            del_times.sql(),
-            CharStatements::DEL_ACCOUNT_INSTANCE_LOCK_TIMES.sql()
-        );
-        assert!(matches!(del_times.params(), [SqlParam::U32(22)]));
-
-        let ins_time = InstanceLockMgr::insert_account_instance_lock_time_statement(22, 9001, 5555);
-        assert_eq!(
-            ins_time.sql(),
-            CharStatements::INS_ACCOUNT_INSTANCE_LOCK_TIMES.sql()
-        );
-        assert!(matches!(
-            ins_time.params(),
-            [SqlParam::U32(22), SqlParam::U32(9001), SqlParam::U64(5555)]
-        ));
     }
 
     #[test]
@@ -2654,10 +2442,10 @@ mod tests {
     }
 
     #[test]
-    fn update_instance_lock_extension_tx_appends_update_like_cpp() {
+    fn update_instance_lock_extension_plan_appends_update_like_cpp() {
         let entries = raid_entries();
         let mut mgr = InstanceLockMgr::default();
-        let mut tx = SqlTransaction::new();
+        let mut plan = InstanceLockPersistencePlanLikeCpp::default();
         let schedule = ResetSchedule::default();
         let now = 10 * 86_400;
 
@@ -2670,8 +2458,8 @@ mod tests {
         );
 
         let (old_expiry, new_expiry) = mgr
-            .update_instance_lock_extension_for_player_tx_at(
-                &mut tx,
+            .update_instance_lock_extension_for_player_with_persistence_at(
+                &mut plan,
                 player(1),
                 &entries,
                 true,
@@ -2680,7 +2468,7 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(tx.len(), 1);
+        assert_eq!(plan.len(), 1);
         assert!(new_expiry > old_expiry);
     }
 
@@ -2741,10 +2529,10 @@ mod tests {
     }
 
     #[test]
-    fn reset_instance_locks_tx_appends_force_expire_like_cpp() {
+    fn reset_instance_locks_plan_appends_force_expire_like_cpp() {
         let entries = raid_entries();
         let mut mgr = InstanceLockMgr::default();
-        let mut tx = SqlTransaction::new();
+        let mut plan = InstanceLockPersistencePlanLikeCpp::default();
         let schedule = ResetSchedule::default();
         let now = 10 * 86_400;
 
@@ -2757,8 +2545,8 @@ mod tests {
         );
         let entries_by_key = HashMap::from([(entries.key(), entries)]);
 
-        let result = mgr.reset_instance_locks_for_player_tx_at(
-            &mut tx,
+        let result = mgr.reset_instance_locks_for_player_with_persistence_at(
+            &mut plan,
             player(1),
             None,
             None,
@@ -2768,7 +2556,7 @@ mod tests {
         );
 
         assert_eq!(result.reset.len(), 1);
-        assert_eq!(tx.len(), 1);
+        assert_eq!(plan.len(), 1);
         assert!(
             mgr.find_active_instance_lock_at(player(1), &entries, now)
                 .is_none()

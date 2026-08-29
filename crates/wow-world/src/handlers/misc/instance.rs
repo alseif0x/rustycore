@@ -6,8 +6,8 @@
 use tracing::{info, warn};
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
-use wow_database::SqlTransaction;
 use wow_handler::{PacketProcessing, SessionStatus};
+use wow_persistence::{InstanceLockPersistenceOutcomeLikeCpp, InstanceLockPersistencePlanLikeCpp};
 
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
@@ -165,7 +165,7 @@ impl crate::session::WorldSession {
             return false;
         };
 
-        let mut tx = SqlTransaction::new();
+        let mut persistence_plan = InstanceLockPersistencePlanLikeCpp::default();
         let reset_result = {
             let mut mgr = match instance_lock_mgr.write() {
                 Ok(mgr) => mgr,
@@ -194,8 +194,8 @@ impl crate::session::WorldSession {
                 })
                 .collect::<std::collections::HashMap<_, _>>();
 
-            mgr.reset_instance_locks_for_player_tx_at(
-                &mut tx,
+            mgr.reset_instance_locks_for_player_with_persistence_at(
+                &mut persistence_plan,
                 reset_owner_guid,
                 None,
                 None,
@@ -208,14 +208,15 @@ impl crate::session::WorldSession {
             )
         };
 
-        if !tx.is_empty() {
-            if let Some(char_db) = self.char_db()
-                && let Err(err) = char_db.commit_transaction(tx).await
+        if !persistence_plan.is_empty() {
+            if let Some(port) = self.instance_lock_persistence_port_like_cpp()
+                && let InstanceLockPersistenceOutcomeLikeCpp::Failed { reason } =
+                    port.commit_plan_like_cpp(persistence_plan).await
             {
                 warn!(
                     account = self.account_id,
                     player_guid = ?reset_owner_guid,
-                    error = ?err,
+                    error = %reason,
                     "failed to commit represented instance lock reset transaction"
                 );
                 return false;
@@ -315,7 +316,7 @@ impl crate::session::WorldSession {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|duration| duration.as_secs())
             .unwrap_or(0);
-        let mut tx = SqlTransaction::new();
+        let mut persistence_plan = InstanceLockPersistencePlanLikeCpp::default();
         let (is_new_lock, new_lock) = {
             let mut mgr = match instance_lock_mgr.write() {
                 Ok(mgr) => mgr,
@@ -331,8 +332,8 @@ impl crate::session::WorldSession {
                 completed_encounter_bit: None,
                 entrance_world_safe_loc_id: None,
             };
-            let Some(new_lock) = mgr.update_instance_lock_for_player_tx_at(
-                &mut tx,
+            let Some(new_lock) = mgr.update_instance_lock_for_player_with_persistence_at(
+                &mut persistence_plan,
                 player_guid,
                 &entries,
                 update_event,
@@ -344,15 +345,16 @@ impl crate::session::WorldSession {
             (is_new_lock, new_lock)
         };
 
-        if !tx.is_empty() {
-            if let Some(char_db) = self.char_db()
-                && let Err(err) = char_db.commit_transaction(tx).await
+        if !persistence_plan.is_empty() {
+            if let Some(port) = self.instance_lock_persistence_port_like_cpp()
+                && let InstanceLockPersistenceOutcomeLikeCpp::Failed { reason } =
+                    port.commit_plan_like_cpp(persistence_plan).await
             {
                 warn!(
                     account = self.account_id,
                     player_guid = ?player_guid,
                     instance_id = pending_bind.instance_id,
-                    error = ?err,
+                    error = %reason,
                     "failed to commit represented pending instance bind transaction"
                 );
                 return false;
@@ -441,14 +443,14 @@ impl crate::session::WorldSession {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|duration| duration.as_secs())
             .unwrap_or(0);
-        let mut tx = SqlTransaction::new();
+        let mut persistence_plan = InstanceLockPersistencePlanLikeCpp::default();
         let Some((old_expiry, new_expiry)) = ({
             let mut mgr = match instance_lock_mgr.write() {
                 Ok(mgr) => mgr,
                 Err(_) => return,
             };
-            mgr.update_instance_lock_extension_for_player_tx_at(
-                &mut tx,
+            mgr.update_instance_lock_extension_for_player_with_persistence_at(
+                &mut persistence_plan,
                 player_guid,
                 &entries,
                 query.extend,
@@ -459,16 +461,17 @@ impl crate::session::WorldSession {
             return;
         };
 
-        if !tx.is_empty()
-            && let Some(char_db) = self.char_db()
-            && let Err(err) = char_db.commit_transaction(tx).await
+        if !persistence_plan.is_empty()
+            && let Some(port) = self.instance_lock_persistence_port_like_cpp()
+            && let InstanceLockPersistenceOutcomeLikeCpp::Failed { reason } =
+                port.commit_plan_like_cpp(persistence_plan).await
         {
             warn!(
                 account = self.account_id,
                 player_guid = ?player_guid,
                 map_id,
                 difficulty_id,
-                error = ?err,
+                error = %reason,
                 "failed to commit represented instance lock extension transaction"
             );
             return;

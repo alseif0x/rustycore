@@ -21,6 +21,15 @@
 use std::future::Future;
 use std::pin::Pin;
 
+mod instance_lock;
+
+pub use instance_lock::{
+    CharacterInstanceLockPersistenceRowLikeCpp, InstanceLockPersistenceLoadOutcomeLikeCpp,
+    InstanceLockPersistenceMutationLikeCpp, InstanceLockPersistenceOutcomeLikeCpp,
+    InstanceLockPersistencePlanLikeCpp, InstanceLockPersistencePortLikeCpp,
+    SharedInstanceLockPersistenceRowLikeCpp,
+};
+
 /// A future returned by a port method.
 pub type PersistenceFutureLikeCpp<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 

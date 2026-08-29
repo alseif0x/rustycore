@@ -347,6 +347,9 @@ pub(super) async fn create_session(
     if let Some(ref port) = resources.battle_pet_purchase_persistence_port {
         session.set_battle_pet_purchase_persistence_port_like_cpp(Arc::clone(port));
     }
+    if let Some(ref port) = resources.instance_lock_persistence_port {
+        session.set_instance_lock_persistence_port_like_cpp(Arc::clone(port));
+    }
     session.set_remote_address_like_cpp(account.client_address.map(|addr| addr.to_string()));
     session.set_battlenet_account_id(account.battlenet_account_id);
     session.set_recruiter_id_like_cpp(account.recruiter);
