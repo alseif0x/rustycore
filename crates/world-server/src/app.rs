@@ -4363,6 +4363,13 @@ async fn run_inner(
             Arc::clone(&world_db),
         ),
     );
+    let character_enumeration_persistence_port: Arc<
+        dyn wow_persistence::CharacterEnumerationPersistencePortLikeCpp,
+    > = Arc::new(
+        wow_database::MariaDbCharacterEnumerationPersistenceAdapterLikeCpp::new(Arc::clone(
+            &char_db,
+        )),
+    );
     let session_account_state_port: Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp> =
         Arc::new(
             wow_database::session_account_state_adapter::MariaDbSessionAccountStateAdapterLikeCpp::new(
@@ -4450,6 +4457,7 @@ async fn run_inner(
         char_db: Some(Arc::clone(&char_db)),
         login_db: Some(Arc::clone(&login_db)),
         player_lifecycle_port: Some(Arc::clone(&player_lifecycle_port)),
+        character_enumeration_persistence_port: Some(character_enumeration_persistence_port),
         session_account_state_port: Some(Arc::clone(&session_account_state_port)),
         packet_spoof_ban_persistence_port: Some(Arc::clone(&packet_spoof_ban_persistence_port)),
         void_storage_persistence_port: Some(Arc::clone(&void_storage_persistence_port)),

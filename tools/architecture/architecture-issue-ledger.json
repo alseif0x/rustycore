@@ -97,6 +97,7 @@
     472,
     474,
     476,
+    478,
     189,
     192,
     193,
@@ -1582,9 +1583,9 @@
         472
       ]
     },
-    {
-      "number": 476,
-      "state": "open",
+  {
+    "number": 476,
+    "state": "closed",
       "title": "[ARCH.DB.47] Move battle-pet purchase saga durability behind a typed port",
       "kind": "slice",
       "parents": [
@@ -1592,8 +1593,21 @@
         169
       ],
       "depends_on": [
-        474
-      ]
-    }
+      474
+    ]
+  },
+  {
+    "number": 478,
+    "state": "open",
+    "title": "[ARCH.DB.48] Move character-enumeration reads behind a typed port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      476
+    ]
+  }
   ]
 }
