@@ -73,6 +73,7 @@ pub mod stored_item_money_adapter;
 pub mod support_bug_report_adapter;
 pub mod transaction;
 pub mod updater;
+pub mod vehicle_catalog_adapter;
 pub mod void_storage_adapter;
 
 // Re-export primary types at crate root for convenience.
@@ -116,6 +117,10 @@ pub use statements::{
 pub use transaction::{
     ItemGuidAllocatorAdvisoryLockLikeCpp, SqlTransaction, SqlTransactionCommitError,
     is_database_deadlock_like_cpp, retry_deadlocked_operation_like_cpp,
+};
+pub use vehicle_catalog_adapter::{
+    MariaDbVehicleHotfixPersistenceAdapterLikeCpp,
+    MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp,
 };
 
 /// Type aliases for each database connection.

@@ -946,25 +946,39 @@ async fn run_inner(
         "Loaded {} gameobject display info rows",
         gameobject_display_info_store.len()
     );
+    let vehicle_hotfix_persistence =
+        wow_database::MariaDbVehicleHotfixPersistenceAdapterLikeCpp::new(Arc::clone(&hotfix_db));
     let vehicle_store = Arc::new(
-        wow_data::VehicleStore::load_with_hotfixes(&data_dir, &locale, &hotfix_db)
-            .await
-            .context("Failed to load Vehicle.db2 / hotfix rows")?,
+        crate::vehicle_catalog::load_vehicle_store_like_cpp(
+            &data_dir,
+            &locale,
+            &vehicle_hotfix_persistence,
+        )
+        .await
+        .context("Failed to load Vehicle.db2 / hotfix rows")?,
     );
     info!("Loaded {} vehicle rows", vehicle_store.len());
     let vehicle_seat_store = Arc::new(
-        wow_data::VehicleSeatStore::load_with_hotfixes(&data_dir, &locale, &hotfix_db)
-            .await
-            .context("Failed to load VehicleSeat.db2 / hotfix rows")?,
+        crate::vehicle_catalog::load_vehicle_seat_store_like_cpp(
+            &data_dir,
+            &locale,
+            &vehicle_hotfix_persistence,
+        )
+        .await
+        .context("Failed to load VehicleSeat.db2 / hotfix rows")?,
     );
     info!("Loaded {} vehicle seat rows", vehicle_seat_store.len());
+    let vehicle_world_persistence =
+        wow_database::MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
+            &world_db,
+        ));
     let vehicle_template_store = Arc::new(
-        wow_data::VehicleTemplateStoreLikeCpp::load_like_cpp(world_db.as_ref())
+        crate::vehicle_catalog::load_vehicle_template_store_like_cpp(&vehicle_world_persistence)
             .await
             .context("Failed to load C++ vehicle_template rows")?,
     );
     let vehicle_accessory_store = Arc::new(
-        wow_data::VehicleAccessoryStoreLikeCpp::load_like_cpp(world_db.as_ref())
+        crate::vehicle_catalog::load_vehicle_accessory_store_like_cpp(&vehicle_world_persistence)
             .await
             .context("Failed to load C++ vehicle accessory rows")?,
     );
