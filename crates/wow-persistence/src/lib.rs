@@ -24,6 +24,175 @@ use std::pin::Pin;
 /// A future returned by a port method.
 pub type PersistenceFutureLikeCpp<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+/// Largest battle-pet counter accepted by C++-shaped ObjectGuid allocation.
+pub const BATTLE_PET_GUID_COUNTER_LIMIT_LIKE_CPP: u64 = 0xFF_FFFF_FFFE;
+
+/// Process-wide Login DB journal lease used by the canonical battle-pet owner.
+pub trait BattlePetProcessLeaseLikeCpp: Send {
+    fn is_valid_like_cpp(&self) -> bool {
+        true
+    }
+
+    fn fence_like_cpp(&self) -> u64 {
+        1
+    }
+}
+
+/// Durable identity of one represented battle-pet add request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BattlePetAddRequestKeyLikeCpp([u8; 16]);
+
+impl BattlePetAddRequestKeyLikeCpp {
+    pub fn from_bytes(bytes: [u8; 16]) -> Self {
+        Self(bytes)
+    }
+
+    pub fn as_bytes(self) -> [u8; 16] {
+        self.0
+    }
+
+    /// Builds the durable uncage identity from a process-lifetime item GUID's
+    /// raw bytes, rejecting the all-zero empty GUID without depending on the
+    /// gameplay GUID type.
+    pub fn from_source_guid_bytes_like_cpp(bytes: [u8; 16]) -> Option<Self> {
+        (bytes != [0; 16]).then_some(Self(bytes))
+    }
+}
+
+/// SQLx- and packet-free durable declined-name projection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BattlePetDeclinedNamesLikeCpp {
+    pub names: [String; 5],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DurableBattlePetRowLikeCpp {
+    pub guid_counter: u64,
+    pub species: u32,
+    pub breed: u16,
+    pub display_id: u32,
+    pub level: u16,
+    pub exp: u16,
+    pub health: u32,
+    pub quality: u8,
+    pub flags: u16,
+    pub name: String,
+    pub name_timestamp: i64,
+    pub owner_guid_counter: Option<u64>,
+    pub declined_names: Option<BattlePetDeclinedNamesLikeCpp>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DurableBattlePetSlotLikeCpp {
+    pub index: u8,
+    pub pet_guid_counter: Option<u64>,
+    pub locked: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoadedBattlePetAccountLikeCpp {
+    pub pets: Vec<DurableBattlePetRowLikeCpp>,
+    pub slots: Vec<DurableBattlePetSlotLikeCpp>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DurableBattlePetAddLikeCpp {
+    pub account_id: u32,
+    pub realm_id: u16,
+    pub request_key: BattlePetAddRequestKeyLikeCpp,
+    pub max_per_scope: u8,
+    pub fence: u64,
+    pub pet: DurableBattlePetRowLikeCpp,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DurableBattlePetAddReceiptLikeCpp {
+    pub account_id: u32,
+    pub requested_pet: DurableBattlePetRowLikeCpp,
+    pub current_pet: Option<DurableBattlePetRowLikeCpp>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PersistBattlePetAddOutcomeLikeCpp {
+    Inserted,
+    Replayed {
+        pet: DurableBattlePetRowLikeCpp,
+        still_present: bool,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BattlePetPersistenceErrorLikeCpp {
+    Database(String),
+    Capacity,
+    GuidCollision,
+    DuplicateRequest,
+    StaleAuthority,
+}
+
+/// SQLx-free durability capability consumed by the account-scoped battle-pet owner.
+pub trait BattlePetAccountPersistencePortLikeCpp: Send + Sync {
+    fn try_acquire_process_lease<'a>(
+        &'a self,
+        account_id: u32,
+    ) -> PersistenceFutureLikeCpp<
+        'a,
+        Result<Option<Box<dyn BattlePetProcessLeaseLikeCpp>>, BattlePetPersistenceErrorLikeCpp>,
+    >;
+
+    fn load_account<'a>(
+        &'a self,
+        account_id: u32,
+        realm_id: u16,
+    ) -> PersistenceFutureLikeCpp<
+        'a,
+        Result<LoadedBattlePetAccountLikeCpp, BattlePetPersistenceErrorLikeCpp>,
+    >;
+
+    fn allocate_guid_counter_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<'_, Result<u64, BattlePetPersistenceErrorLikeCpp>>;
+
+    fn insert_pet_idempotently<'a>(
+        &'a self,
+        request: DurableBattlePetAddLikeCpp,
+    ) -> PersistenceFutureLikeCpp<
+        'a,
+        Result<PersistBattlePetAddOutcomeLikeCpp, BattlePetPersistenceErrorLikeCpp>,
+    >;
+
+    fn lookup_add_request<'a>(
+        &'a self,
+        account_id: u32,
+        request_key: BattlePetAddRequestKeyLikeCpp,
+    ) -> PersistenceFutureLikeCpp<
+        'a,
+        Result<Option<DurableBattlePetAddReceiptLikeCpp>, BattlePetPersistenceErrorLikeCpp>,
+    >;
+
+    fn update_pet<'a>(
+        &'a self,
+        account_id: u32,
+        fence: u64,
+        pet: DurableBattlePetRowLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, Result<(), BattlePetPersistenceErrorLikeCpp>>;
+
+    fn delete_pet<'a>(
+        &'a self,
+        account_id: u32,
+        fence: u64,
+        pet_guid_counter: u64,
+        slots: Vec<DurableBattlePetSlotLikeCpp>,
+    ) -> PersistenceFutureLikeCpp<'a, Result<(), BattlePetPersistenceErrorLikeCpp>>;
+
+    fn replace_slots<'a>(
+        &'a self,
+        account_id: u32,
+        fence: u64,
+        slots: Vec<DurableBattlePetSlotLikeCpp>,
+    ) -> PersistenceFutureLikeCpp<'a, Result<(), BattlePetPersistenceErrorLikeCpp>>;
+}
+
 /// Which offline state the lifecycle is publishing.
 ///
 /// C++ `WorldSession::LogoutPlayer` marks the character offline and every

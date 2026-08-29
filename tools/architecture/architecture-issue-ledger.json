@@ -95,6 +95,7 @@
     468,
     470,
     472,
+    474,
     189,
     192,
     193,
@@ -1556,7 +1557,7 @@
     },
     {
       "number": 472,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.45] Move represented Player spell-acquisition persistence behind a typed port",
       "kind": "slice",
       "parents": [
@@ -1565,6 +1566,19 @@
       ],
       "depends_on": [
         470
+      ]
+    },
+    {
+      "number": 474,
+      "state": "open",
+      "title": "[ARCH.DB.46] Move battle-pet account durability behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        472
       ]
     }
   ]

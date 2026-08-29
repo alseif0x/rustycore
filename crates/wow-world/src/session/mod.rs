@@ -62776,8 +62776,8 @@ impl WorldSession {
             return;
         };
 
-        let Some(request_key) = BattlePetAddRequestKeyLikeCpp::from_source_item_guid_like_cpp(
-            modifiers.source_item_guid,
+        let Some(request_key) = BattlePetAddRequestKeyLikeCpp::from_source_guid_bytes_like_cpp(
+            modifiers.source_item_guid.to_raw_bytes(),
         ) else {
             warn!(
                 account = self.account_id,
