@@ -5,12 +5,6 @@
 
 //! Quest objective progress and completion.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::WorldStatements;
-
 use super::*;
 
 impl WorldSession {
@@ -229,25 +223,27 @@ impl WorldSession {
             return quest_log_item_id;
         }
 
-        let Some(world_db) = self.world_db().map(Arc::clone) else {
+        let Some(port) = self.item_template_addon_catalog_persistence_port_like_cpp() else {
             return 0;
         };
 
-        let mut stmt = world_db.prepare(WorldStatements::SEL_ITEM_TEMPLATE_ADDON_LOOT_METADATA);
-        stmt.set_u32(0, entry_id);
-
-        let quest_log_item_id = match world_db.query(&stmt).await {
-            Ok(result) if !result.is_empty() => result
-                .try_read::<i32>(1)
-                .unwrap_or(0)
-                .try_into()
-                .unwrap_or(0),
-            Ok(_) => 0,
-            Err(error) => {
+        let quest_log_item_id = match port
+            .load_item_template_addon_loot_metadata_like_cpp(
+                wow_persistence::ItemTemplateAddonCatalogRequestLikeCpp {
+                    item_entry: entry_id,
+                },
+            )
+            .await
+        {
+            wow_persistence::ItemTemplateAddonLootMetadataOutcomeLikeCpp::Found(row) => {
+                row.quest_log_item_id.try_into().unwrap_or(0)
+            }
+            wow_persistence::ItemTemplateAddonLootMetadataOutcomeLikeCpp::Missing => 0,
+            wow_persistence::ItemTemplateAddonLootMetadataOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
                     entry_id,
-                    ?error,
+                    error = %reason,
                     "QuestConfirmAccept: failed to load item_template_addon QuestLogItemId"
                 );
                 0

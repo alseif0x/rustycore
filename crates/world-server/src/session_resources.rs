@@ -30,6 +30,8 @@ pub(super) struct SessionResources {
         Option<Arc<dyn wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp>>,
     pub(super) gameobject_query_catalog_persistence_port:
         Option<Arc<dyn wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp>>,
+    pub(super) item_template_addon_catalog_persistence_port:
+        Option<Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>>,
     pub(super) page_text_catalog_persistence_port:
         Option<Arc<dyn wow_persistence::PageTextCatalogPersistencePortLikeCpp>>,
     pub(super) player_name_query_persistence_port:
