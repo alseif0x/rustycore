@@ -57,15 +57,17 @@ use wow_persistence::{
     MapCorpseAuxiliaryLoadOutcomeLikeCpp,
     MapCorpseLoadOutcomeLikeCpp as PersistedMapCorpseLoadOutcomeLikeCpp,
     MapCorpseLoadRequestLikeCpp, MapCorpseLoadRowLikeCpp, MapCorpsePersistencePortLikeCpp,
-    PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerCharacterSaveRequestLikeCpp,
-    PlayerCharacterSaveResultLikeCpp, PlayerHomebindPersistenceRequestLikeCpp,
-    PlayerInitialWorldStateRowsLikeCpp, PlayerInitialWorldStateTemplateRowLikeCpp,
-    PlayerInitialWorldStateValueRowLikeCpp, PlayerInitialWorldStatesLoadOutcomeLikeCpp,
-    PlayerLifecyclePortLikeCpp, PlayerLoginAuxiliaryLoadOutcomeLikeCpp,
-    PlayerLoginAuxiliaryLoadRequestLikeCpp, PlayerLoginItemRepairRequestLikeCpp,
-    PlayerLoginPetTalentResetOutcomeLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
-    PlayerLoginTransportLoadRequestLikeCpp, PlayerOfflineMarkLikeCpp,
-    PlayerOnlineMarkRequestLikeCpp,
+    PageTextCatalogDiagnosticLikeCpp, PageTextCatalogOutcomeLikeCpp,
+    PageTextCatalogPersistencePortLikeCpp, PageTextCatalogRequestLikeCpp,
+    PageTextCatalogRowLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
+    PlayerCharacterSaveRequestLikeCpp, PlayerCharacterSaveResultLikeCpp,
+    PlayerHomebindPersistenceRequestLikeCpp, PlayerInitialWorldStateRowsLikeCpp,
+    PlayerInitialWorldStateTemplateRowLikeCpp, PlayerInitialWorldStateValueRowLikeCpp,
+    PlayerInitialWorldStatesLoadOutcomeLikeCpp, PlayerLifecyclePortLikeCpp,
+    PlayerLoginAuxiliaryLoadOutcomeLikeCpp, PlayerLoginAuxiliaryLoadRequestLikeCpp,
+    PlayerLoginItemRepairRequestLikeCpp, PlayerLoginPetTalentResetOutcomeLikeCpp,
+    PlayerLoginTransportLoadOutcomeLikeCpp, PlayerLoginTransportLoadRequestLikeCpp,
+    PlayerOfflineMarkLikeCpp, PlayerOnlineMarkRequestLikeCpp,
 };
 
 struct CreatureQueryCatalogPortFixtureLikeCpp {
@@ -132,6 +134,40 @@ impl GameObjectQueryCatalogPersistencePortLikeCpp for GameObjectQueryCatalogPort
             .unwrap()
             .pop_front()
             .expect("one gameobject-query outcome per request");
+        Box::pin(async move { outcome })
+    }
+}
+
+struct PageTextCatalogPortFixtureLikeCpp {
+    requests: std::sync::Mutex<Vec<PageTextCatalogRequestLikeCpp>>,
+    outcomes: std::sync::Mutex<std::collections::VecDeque<PageTextCatalogOutcomeLikeCpp>>,
+}
+
+impl PageTextCatalogPortFixtureLikeCpp {
+    fn new(outcomes: impl IntoIterator<Item = PageTextCatalogOutcomeLikeCpp>) -> Arc<Self> {
+        Arc::new(Self {
+            requests: std::sync::Mutex::new(Vec::new()),
+            outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
+        })
+    }
+
+    fn requests(&self) -> Vec<PageTextCatalogRequestLikeCpp> {
+        self.requests.lock().unwrap().clone()
+    }
+}
+
+impl PageTextCatalogPersistencePortLikeCpp for PageTextCatalogPortFixtureLikeCpp {
+    fn load_page_text_catalog_like_cpp<'a>(
+        &'a self,
+        request: PageTextCatalogRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, PageTextCatalogOutcomeLikeCpp> {
+        self.requests.lock().unwrap().push(request);
+        let outcome = self
+            .outcomes
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("one page-text outcome per request");
         Box::pin(async move { outcome })
     }
 }
@@ -10446,7 +10482,7 @@ async fn hotfix_request_sql_hotfix_blob_keeps_valid_cpp_blob_path() {
 }
 
 #[tokio::test]
-async fn query_page_text_without_world_db_sends_cpp_deny_shape() {
+async fn query_page_text_without_catalog_port_sends_cpp_deny_shape() {
     let (mut session, send_rx) = make_session_with_send_capacity(1);
 
     session
@@ -10464,6 +10500,126 @@ async fn query_page_text_without_world_db_sends_cpp_deny_shape() {
     assert_eq!(&bytes[2..6], &123_u32.to_le_bytes());
     assert_eq!(bytes[6], 0x00);
     assert_eq!(bytes.len(), 7);
+}
+
+#[tokio::test]
+async fn query_page_text_uses_typed_catalog_and_preserves_exact_chain_packet_like_cpp() {
+    let pages = vec![
+        PageTextCatalogRowLikeCpp {
+            id: 123,
+            next_page_id: 124,
+            player_condition_id: -7,
+            flags: 3,
+            text: "Primera página".to_owned(),
+        },
+        PageTextCatalogRowLikeCpp {
+            id: 124,
+            next_page_id: 0,
+            player_condition_id: 9,
+            flags: 5,
+            text: "Segunda página".to_owned(),
+        },
+    ];
+    let port = PageTextCatalogPortFixtureLikeCpp::new([PageTextCatalogOutcomeLikeCpp {
+        pages: pages.clone(),
+        diagnostics: vec![PageTextCatalogDiagnosticLikeCpp::LocaleReadFailed {
+            page_text_id: 124,
+            locale: "esES".to_owned(),
+            reason: "locale fallback diagnostic".to_owned(),
+        }],
+    }]);
+    let (mut session, send_rx) = make_session_with_send_capacity(1);
+    session.set_page_text_catalog_persistence_port_like_cpp(port.clone());
+
+    session
+        .handle_query_page_text(QueryPageText {
+            page_text_id: 123,
+            item_guid: ObjectGuid::EMPTY,
+        })
+        .await;
+
+    assert_eq!(
+        port.requests(),
+        vec![PageTextCatalogRequestLikeCpp {
+            page_text_id: 123,
+            locale: "esES".to_owned(),
+        }]
+    );
+    assert_eq!(
+        send_rx.try_recv().unwrap(),
+        QueryPageTextResponse {
+            page_text_id: 123,
+            allow: true,
+            pages: pages
+                .into_iter()
+                .map(|page| PageTextInfo {
+                    id: page.id,
+                    next_page_id: page.next_page_id,
+                    player_condition_id: page.player_condition_id,
+                    flags: page.flags,
+                    text: page.text,
+                })
+                .collect(),
+        }
+        .to_bytes()
+    );
+}
+
+#[tokio::test]
+async fn query_page_text_preserves_partial_chain_and_empty_failure_shapes_like_cpp() {
+    for outcome in [
+        PageTextCatalogOutcomeLikeCpp {
+            pages: vec![PageTextCatalogRowLikeCpp {
+                id: 123,
+                next_page_id: 124,
+                player_condition_id: 0,
+                flags: 0,
+                text: "partial".to_owned(),
+            }],
+            diagnostics: vec![PageTextCatalogDiagnosticLikeCpp::PageReadFailed {
+                page_text_id: 124,
+                reason: "base query failed".to_owned(),
+            }],
+        },
+        PageTextCatalogOutcomeLikeCpp {
+            pages: Vec::new(),
+            diagnostics: vec![PageTextCatalogDiagnosticLikeCpp::PageReadFailed {
+                page_text_id: 123,
+                reason: "base query failed".to_owned(),
+            }],
+        },
+    ] {
+        let expected_pages = outcome.pages.clone();
+        let port = PageTextCatalogPortFixtureLikeCpp::new([outcome]);
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        session.set_page_text_catalog_persistence_port_like_cpp(port);
+
+        session
+            .handle_query_page_text(QueryPageText {
+                page_text_id: 123,
+                item_guid: ObjectGuid::EMPTY,
+            })
+            .await;
+
+        assert_eq!(
+            send_rx.try_recv().unwrap(),
+            QueryPageTextResponse {
+                page_text_id: 123,
+                allow: !expected_pages.is_empty(),
+                pages: expected_pages
+                    .into_iter()
+                    .map(|page| PageTextInfo {
+                        id: page.id,
+                        next_page_id: page.next_page_id,
+                        player_condition_id: page.player_condition_id,
+                        flags: page.flags,
+                        text: page.text,
+                    })
+                    .collect(),
+            }
+            .to_bytes()
+        );
+    }
 }
 
 #[tokio::test]

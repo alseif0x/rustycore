@@ -9,7 +9,7 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::{CharStatements, WorldStatements};
+use wow_database::CharStatements;
 
 use super::*;
 
@@ -274,8 +274,8 @@ impl WorldSession {
     }
 
     pub async fn handle_query_page_text(&mut self, query: QueryPageText) {
-        let world_db = match self.world_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.page_text_catalog_persistence_port_like_cpp() {
+            Some(port) => port,
             None => {
                 self.send_packet(&QueryPageTextResponse {
                     page_text_id: query.page_text_id,
@@ -286,56 +286,36 @@ impl WorldSession {
             }
         };
 
-        let mut pages = Vec::new();
-        let mut page_id = query.page_text_id;
-        let mut visited = HashSet::new();
-
-        while page_id != 0 && visited.insert(page_id) && pages.len() < 100 {
-            let mut stmt = world_db.prepare(WorldStatements::SEL_PAGE_TEXT);
-            stmt.set_u32(0, page_id);
-            let result = match world_db.query(&stmt).await {
-                Ok(result) => result,
-                Err(e) => {
-                    debug!("Failed to query page text {page_id}: {e}");
-                    break;
-                }
-            };
-            if result.is_empty() {
-                break;
+        let outcome = port
+            .load_page_text_catalog_like_cpp(wow_persistence::PageTextCatalogRequestLikeCpp {
+                page_text_id: query.page_text_id,
+                locale: self.locale.clone(),
+            })
+            .await;
+        for diagnostic in outcome.diagnostics {
+            match diagnostic {
+                wow_persistence::PageTextCatalogDiagnosticLikeCpp::PageReadFailed {
+                    page_text_id,
+                    reason,
+                } => debug!("Failed to query page text {page_text_id}: {reason}"),
+                wow_persistence::PageTextCatalogDiagnosticLikeCpp::LocaleReadFailed {
+                    page_text_id,
+                    locale,
+                    reason,
+                } => debug!("Failed to query page text locale {page_text_id} {locale}: {reason}"),
             }
-
-            let id: u32 = result.try_read(0).unwrap_or(page_id);
-            let mut text: String = result.read_string(1);
-            let next_page_id: u32 = result.try_read(2).unwrap_or(0);
-            let player_condition_id: i32 = result.try_read(3).unwrap_or(0);
-            let flags: u8 = result.try_read(4).unwrap_or(0);
-
-            let locale = &self.locale;
-            if !locale.is_empty() && locale != "enUS" {
-                let mut loc_stmt = world_db.prepare(WorldStatements::SEL_PAGE_TEXT_LOCALE);
-                loc_stmt.set_u32(0, id);
-                loc_stmt.set_string(1, locale);
-                match world_db.query(&loc_stmt).await {
-                    Ok(locale_result) if !locale_result.is_empty() => {
-                        let locale_text: String = locale_result.read_string(0);
-                        if !locale_text.is_empty() {
-                            text = locale_text;
-                        }
-                    }
-                    Ok(_) => {}
-                    Err(e) => debug!("Failed to query page text locale {id} {locale}: {e}"),
-                }
-            }
-
-            pages.push(PageTextInfo {
-                id,
-                next_page_id,
-                player_condition_id,
-                flags,
-                text,
-            });
-            page_id = next_page_id;
         }
+        let pages = outcome
+            .pages
+            .into_iter()
+            .map(|page| PageTextInfo {
+                id: page.id,
+                next_page_id: page.next_page_id,
+                player_condition_id: page.player_condition_id,
+                flags: page.flags,
+                text: page.text,
+            })
+            .collect::<Vec<_>>();
 
         self.send_packet(&QueryPageTextResponse {
             page_text_id: query.page_text_id,
