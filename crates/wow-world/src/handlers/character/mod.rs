@@ -1163,19 +1163,6 @@ fn enum_character_pet_data_like_cpp(
         .unwrap_or((0, 0, 0))
 }
 
-fn enum_character_query_statements_like_cpp(
-    declined_names_used: bool,
-) -> (CharStatements, CharStatements) {
-    (
-        CharStatements::DEL_EXPIRED_BANS,
-        if declined_names_used {
-            CharStatements::SEL_ENUM_DECLINED_NAME
-        } else {
-            CharStatements::SEL_ENUM
-        },
-    )
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct MapTransportCreateLikeCpp {
     guid_low: u32,

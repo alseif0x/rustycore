@@ -11,7 +11,8 @@ use wow_persistence::{
     AccountCollectionLoadOutcomeLikeCpp, AccountCollectionLoadRequestLikeCpp,
     AccountCollectionLoadedLikeCpp, AccountCollectionRowsLikeCpp, AccountCollectionSaveLikeCpp,
     AccountHeirloomRowLikeCpp, AccountMaskBlockLikeCpp, AccountMountRowLikeCpp,
-    AccountToyRowLikeCpp, PersistenceOutcomeLikeCpp, PlayerOfflineMarkLikeCpp,
+    AccountToyRowLikeCpp, CharacterEnumerationLoadOutcomeLikeCpp,
+    CharacterEnumerationRequestLikeCpp, PersistenceOutcomeLikeCpp, PlayerOfflineMarkLikeCpp,
 };
 
 use super::*;
@@ -1080,37 +1081,11 @@ inventory::submit! {
 impl WorldSession {
     /// Handle CMSG_ENUM_CHARACTERS — list characters for this account.
     pub async fn handle_enum_characters(&mut self) {
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.character_enumeration_persistence_port_like_cpp() {
+            Some(port) => port,
             None => {
-                warn!("No character database for account {}", self.account_id);
-                self.send_packet(&EnumCharactersResult {
-                    success: false,
-                    characters: vec![],
-                    race_unlock_data: vec![],
-                });
-                return;
-            }
-        };
-
-        let (expire_bans_stmt, enum_stmt) =
-            enum_character_query_statements_like_cpp(self.declined_names_used_like_cpp());
-        let expire_bans_stmt = char_db.prepare(expire_bans_stmt);
-        if let Err(e) = char_db.execute(&expire_bans_stmt).await {
-            warn!(
-                "Failed to expire elapsed character bans before enum for account {}: {e}",
-                self.account_id
-            );
-        }
-
-        let mut stmt = char_db.prepare(enum_stmt);
-        stmt.set_u32(0, self.account_id);
-
-        let result = match char_db.query(&stmt).await {
-            Ok(r) => r,
-            Err(e) => {
                 warn!(
-                    "Failed to query characters for account {}: {e}",
+                    "No character enumeration persistence port for account {}",
                     self.account_id
                 );
                 self.send_packet(&EnumCharactersResult {
@@ -1122,109 +1097,112 @@ impl WorldSession {
             }
         };
 
+        let request = CharacterEnumerationRequestLikeCpp {
+            account_id: self.account_id,
+            declined_names_used: self.declined_names_used_like_cpp(),
+        };
+        let (rows, cleanup_error) = match port.load_character_enumeration_like_cpp(request).await {
+            CharacterEnumerationLoadOutcomeLikeCpp::Loaded {
+                rows,
+                expired_ban_cleanup_error,
+            } => (rows, expired_ban_cleanup_error),
+            CharacterEnumerationLoadOutcomeLikeCpp::Failed {
+                reason,
+                expired_ban_cleanup_error,
+            } => {
+                if let Some(error) = expired_ban_cleanup_error {
+                    warn!(
+                        "Failed to expire elapsed character bans before enum for account {}: {error}",
+                        self.account_id
+                    );
+                }
+                warn!(
+                    "Failed to query characters for account {}: {reason}",
+                    self.account_id
+                );
+                self.send_packet(&EnumCharactersResult {
+                    success: false,
+                    characters: vec![],
+                    race_unlock_data: vec![],
+                });
+                return;
+            }
+        };
+        if let Some(error) = cleanup_error {
+            warn!(
+                "Failed to expire elapsed character bans before enum for account {}: {error}",
+                self.account_id
+            );
+        }
+
         let mut characters = Vec::new();
         let mut legit_guids = Vec::new();
 
-        if !result.is_empty() {
-            let mut result = result;
-            loop {
-                let guid_low: u64 = result.read(0); // bigint(20) unsigned
-                let name: String = result.read_string(1);
-                let race: u8 = result.read(2);
-                let class: u8 = result.read(3);
-                let gender: u8 = result.read(4);
-                let level: u8 = result.read(5);
-                let zone: i32 = result.try_read::<u16>(6).unwrap_or(0) as i32; // smallint unsigned
-                let map: i32 = result.try_read::<u16>(7).unwrap_or(0) as i32; // smallint unsigned
-                let pos_x: f32 = result.try_read(8).unwrap_or(0.0);
-                let pos_y: f32 = result.try_read(9).unwrap_or(0.0);
-                let pos_z: f32 = result.try_read(10).unwrap_or(0.0);
-                let guild_id: u64 = result.try_read(11).unwrap_or(0); // nullable gm.guildid
-                let player_flags: u32 = result.try_read(12).unwrap_or(0);
-                let at_login_flags: u16 = result.try_read(13).unwrap_or(0); // smallint unsigned
-                let pet_entry: u32 = result.try_read(14).unwrap_or(0);
-                let pet_display_id: u32 = result.try_read(15).unwrap_or(0);
-                let pet_level: u32 = result.try_read(16).unwrap_or(0);
-                let equipment_cache: String = result.try_read(17).unwrap_or_default();
-                let banned_guid: u64 = result.try_read(18).unwrap_or(0);
-                let list_slot: u8 = result.try_read(19).unwrap_or(characters.len() as u8);
-                let last_played_time: i64 = result.try_read(20).unwrap_or(0);
-                let active_talent_group: i16 = result.try_read::<u8>(21).unwrap_or(0) as i16;
-                let last_login_build: u32 = result.try_read(22).unwrap_or(54261);
-                let declined_genitive = self
-                    .declined_names_used_like_cpp()
-                    .then(|| result.try_read::<String>(28).unwrap_or_default())
-                    .unwrap_or_default();
+        for row in rows {
+            let realm_id = self.realm_id();
+            let guid = ObjectGuid::create_player(realm_id, row.guid_low as i64);
 
-                let realm_id = self.realm_id();
-                let guid = ObjectGuid::create_player(realm_id, guid_low as i64);
+            let enum_flags = enum_character_flags_like_cpp(
+                row.player_flags,
+                row.at_login_flags,
+                row.banned_guid,
+                (!row.declined_genitive.is_empty()).then_some(row.declined_genitive.as_str()),
+                self.declined_names_used_like_cpp(),
+            );
+            let (pet_display_id, pet_level, pet_family) = enum_character_pet_data_like_cpp(
+                row.player_flags,
+                row.at_login_flags,
+                row.class,
+                row.pet_entry,
+                row.pet_display_id,
+                row.pet_level,
+                self.creature_template_lifecycle_store_like_cpp()
+                    .map(Arc::as_ref),
+            );
 
-                let enum_flags = enum_character_flags_like_cpp(
-                    player_flags,
-                    at_login_flags,
-                    banned_guid,
-                    (!declined_genitive.is_empty()).then_some(declined_genitive.as_str()),
-                    self.declined_names_used_like_cpp(),
-                );
-                let (pet_display_id, pet_level, pet_family) = enum_character_pet_data_like_cpp(
-                    player_flags,
-                    at_login_flags,
-                    class,
-                    pet_entry,
-                    pet_display_id,
-                    pet_level,
-                    self.creature_template_lifecycle_store_like_cpp()
-                        .map(Arc::as_ref),
-                );
-
-                // Only add to legit list if not locked
-                if (enum_flags.flags
-                    & (CHARACTER_FLAG_LOCKED_FOR_TRANSFER_LIKE_CPP
-                        | CHARACTER_FLAG_LOCKED_BY_BILLING_LIKE_CPP))
-                    == 0
-                {
-                    legit_guids.push(guid);
-                }
-
-                let char_info = CharacterInfo {
-                    guid,
-                    guild_club_member_id: 0,
-                    name,
-                    list_position: list_slot,
-                    race_id: race,
-                    class_id: class,
-                    sex_id: gender,
-                    experience_level: level,
-                    zone_id: zone,
-                    map_id: map,
-                    position: Position::new(pos_x, pos_y, pos_z, 0.0),
-                    guild_guid: if guild_id == 0 {
-                        ObjectGuid::EMPTY
-                    } else {
-                        ObjectGuid::create_guild(HighGuid::Guild, realm_id, guild_id as i64)
-                    },
-                    flags: enum_flags.flags,
-                    flags2: enum_flags.flags2,
-                    flags3: 0,
-                    flags4: 0,
-                    first_login: enum_flags.first_login,
-                    pet_display_id,
-                    pet_level,
-                    pet_family,
-                    profession_ids: [0; 2],
-                    equipment: parse_equipment_cache(&equipment_cache),
-                    last_played_time,
-                    spec_id: active_talent_group,
-                    last_login_version: last_login_build as i32,
-                    override_select_screen_file_data_id: 0,
-                };
-
-                characters.push(char_info);
-
-                if !result.next_row() {
-                    break;
-                }
+            // Only add to legit list if not locked
+            if (enum_flags.flags
+                & (CHARACTER_FLAG_LOCKED_FOR_TRANSFER_LIKE_CPP
+                    | CHARACTER_FLAG_LOCKED_BY_BILLING_LIKE_CPP))
+                == 0
+            {
+                legit_guids.push(guid);
             }
+
+            let char_info = CharacterInfo {
+                guid,
+                guild_club_member_id: 0,
+                name: row.name,
+                list_position: row.list_slot,
+                race_id: row.race,
+                class_id: row.class,
+                sex_id: row.gender,
+                experience_level: row.level,
+                zone_id: row.zone,
+                map_id: row.map,
+                position: Position::new(row.position_x, row.position_y, row.position_z, 0.0),
+                guild_guid: if row.guild_id == 0 {
+                    ObjectGuid::EMPTY
+                } else {
+                    ObjectGuid::create_guild(HighGuid::Guild, realm_id, row.guild_id as i64)
+                },
+                flags: enum_flags.flags,
+                flags2: enum_flags.flags2,
+                flags3: 0,
+                flags4: 0,
+                first_login: enum_flags.first_login,
+                pet_display_id,
+                pet_level,
+                pet_family,
+                profession_ids: [0; 2],
+                equipment: parse_equipment_cache(&row.equipment_cache),
+                last_played_time: row.last_played_time,
+                spec_id: row.active_talent_group,
+                last_login_version: row.last_login_build as i32,
+                override_select_screen_file_data_id: 0,
+            };
+
+            characters.push(char_info);
         }
 
         self.set_legit_characters(legit_guids);
