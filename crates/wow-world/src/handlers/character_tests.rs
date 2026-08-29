@@ -38,18 +38,21 @@ use wow_data::{
 };
 use wow_database::StatementDef;
 use wow_entities::{CHILD_EQUIPMENT_SLOT_START, EQUIPMENT_SLOT_MAINHAND};
-use wow_packet::WorldPacket;
 use wow_packet::packets::loot::{
     CreatureLoot, LOOT_TYPE_CORPSE_LIKE_CPP, LootEntry, LootEntryFlags,
 };
 use wow_packet::packets::quest::quest_giver_status;
+use wow_packet::{ServerPacket, WorldPacket};
 use wow_persistence::{
     AccountCollectionLoadOutcomeLikeCpp, AccountCollectionLoadRequestLikeCpp,
     AccountCollectionLoadedLikeCpp, AccountCollectionRowsLikeCpp, AccountCollectionSaveLikeCpp,
     AccountHeirloomLoadRowLikeCpp, AccountMaskBlockLikeCpp, AccountMountLoadRowLikeCpp,
     AccountToyLoadRowLikeCpp, CharacterEnumerationLoadOutcomeLikeCpp,
     CharacterEnumerationPersistencePortLikeCpp, CharacterEnumerationRequestLikeCpp,
-    CharacterEnumerationRowLikeCpp, MapCorpseAuxiliaryLoadOutcomeLikeCpp,
+    CharacterEnumerationRowLikeCpp, CreatureQueryCatalogOutcomeLikeCpp,
+    CreatureQueryCatalogPersistencePortLikeCpp, CreatureQueryCatalogRequestLikeCpp,
+    CreatureQueryCatalogRowLikeCpp, CreatureQueryDisplayRowLikeCpp,
+    MapCorpseAuxiliaryLoadOutcomeLikeCpp,
     MapCorpseLoadOutcomeLikeCpp as PersistedMapCorpseLoadOutcomeLikeCpp,
     MapCorpseLoadRequestLikeCpp, MapCorpseLoadRowLikeCpp, MapCorpsePersistencePortLikeCpp,
     PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerCharacterSaveRequestLikeCpp,
@@ -62,6 +65,40 @@ use wow_persistence::{
     PlayerLoginTransportLoadRequestLikeCpp, PlayerOfflineMarkLikeCpp,
     PlayerOnlineMarkRequestLikeCpp,
 };
+
+struct CreatureQueryCatalogPortFixtureLikeCpp {
+    requests: std::sync::Mutex<Vec<CreatureQueryCatalogRequestLikeCpp>>,
+    outcomes: std::sync::Mutex<std::collections::VecDeque<CreatureQueryCatalogOutcomeLikeCpp>>,
+}
+
+impl CreatureQueryCatalogPortFixtureLikeCpp {
+    fn new(outcomes: impl IntoIterator<Item = CreatureQueryCatalogOutcomeLikeCpp>) -> Arc<Self> {
+        Arc::new(Self {
+            requests: std::sync::Mutex::new(Vec::new()),
+            outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
+        })
+    }
+
+    fn requests(&self) -> Vec<CreatureQueryCatalogRequestLikeCpp> {
+        self.requests.lock().unwrap().clone()
+    }
+}
+
+impl CreatureQueryCatalogPersistencePortLikeCpp for CreatureQueryCatalogPortFixtureLikeCpp {
+    fn load_creature_query_catalog_like_cpp<'a>(
+        &'a self,
+        request: CreatureQueryCatalogRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, CreatureQueryCatalogOutcomeLikeCpp> {
+        self.requests.lock().unwrap().push(request);
+        let outcome = self
+            .outcomes
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("one creature-query outcome per request");
+        Box::pin(async move { outcome })
+    }
+}
 
 struct CharacterEnumerationPortFixtureLikeCpp {
     requests: std::sync::Mutex<Vec<CharacterEnumerationRequestLikeCpp>>,
@@ -11725,6 +11762,128 @@ async fn character_enumeration_query_failure_publishes_failure_and_no_legit_guid
 
     assert!(!session.is_legit_character(&ObjectGuid::create_player(1, 42)));
     assert!(send_rx.try_recv().is_ok());
+}
+
+fn creature_query_catalog_row_like_cpp() -> CreatureQueryCatalogRowLikeCpp {
+    CreatureQueryCatalogRowLikeCpp {
+        name: "Localized creature".to_owned(),
+        subname: "Localized title".to_owned(),
+        title_alt: "Localized alternate".to_owned(),
+        icon_name: "Directions".to_owned(),
+        creature_type: 7,
+        creature_family: 8,
+        classification: 9,
+        kill_credits: [10, 11],
+        civilian: true,
+        racial_leader: false,
+        movement_id: 12,
+        required_expansion: 3,
+        vignette_id: 13,
+        unit_class: 1,
+        widget_set_id: 14,
+        widget_set_unit_condition_id: 15,
+        hp_multi: 1.5,
+        energy_multi: 2.5,
+        creature_difficulty_id: 16,
+        type_flags: [17, 18],
+        displays: vec![CreatureQueryDisplayRowLikeCpp {
+            display_id: 19,
+            scale: 0.75,
+            probability: 0.25,
+        }],
+    }
+}
+
+#[tokio::test]
+async fn creature_query_uses_typed_catalog_and_preserves_packet_projection_like_cpp() {
+    let row = creature_query_catalog_row_like_cpp();
+    let port =
+        CreatureQueryCatalogPortFixtureLikeCpp::new([CreatureQueryCatalogOutcomeLikeCpp::Found {
+            row: row.clone(),
+            locale_error: Some("locale fallback diagnostic".to_owned()),
+        }]);
+    let (mut session, send_rx) = make_session_with_send_capacity(1);
+    session.set_creature_query_catalog_persistence_port_like_cpp(port.clone());
+
+    session
+        .handle_query_creature(QueryCreature { creature_id: 42 })
+        .await;
+
+    assert_eq!(
+        port.requests(),
+        vec![CreatureQueryCatalogRequestLikeCpp {
+            entry: 42,
+            locale: "esES".to_owned(),
+        }]
+    );
+    let mut names: [String; 4] = Default::default();
+    names[0] = row.name;
+    let expected = QueryCreatureResponse {
+        creature_id: 42,
+        allow: true,
+        stats: Some(CreatureStats {
+            title: row.subname,
+            title_alt: row.title_alt,
+            cursor_name: row.icon_name,
+            civilian: row.civilian,
+            leader: row.racial_leader,
+            names,
+            name_alts: Default::default(),
+            flags: row.type_flags,
+            creature_type: row.creature_type,
+            creature_family: row.creature_family,
+            classification: row.classification,
+            proxy_creature_ids: row.kill_credits,
+            display: CreatureDisplayStats {
+                displays: vec![CreatureXDisplay {
+                    creature_display_id: 19,
+                    scale: 0.75,
+                    probability: 0.25,
+                }],
+                total_probability: 0.25,
+            },
+            hp_multi: row.hp_multi,
+            energy_multi: row.energy_multi,
+            quest_items: Vec::new(),
+            creature_movement_info_id: row.movement_id,
+            health_scaling_expansion: 0,
+            required_expansion: row.required_expansion,
+            vignette_id: row.vignette_id,
+            unit_class: row.unit_class,
+            creature_difficulty_id: row.creature_difficulty_id,
+            widget_set_id: row.widget_set_id,
+            widget_set_unit_condition_id: row.widget_set_unit_condition_id,
+        }),
+    };
+    assert_eq!(send_rx.try_recv().unwrap(), expected.to_bytes());
+}
+
+#[tokio::test]
+async fn creature_query_missing_or_failed_catalog_emits_disallowed_response_like_cpp() {
+    for outcome in [
+        CreatureQueryCatalogOutcomeLikeCpp::Missing,
+        CreatureQueryCatalogOutcomeLikeCpp::Failed {
+            reason: "world query failed".to_owned(),
+        },
+    ] {
+        let port = CreatureQueryCatalogPortFixtureLikeCpp::new([outcome]);
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        session.set_creature_query_catalog_persistence_port_like_cpp(port);
+
+        session
+            .handle_query_creature(QueryCreature { creature_id: 43 })
+            .await;
+
+        assert_eq!(
+            send_rx.try_recv().unwrap(),
+            QueryCreatureResponse {
+                creature_id: 43,
+                allow: false,
+                stats: None,
+            }
+            .to_bytes()
+        );
+    }
 }
 
 #[test]
