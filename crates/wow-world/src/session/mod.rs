@@ -5205,6 +5205,7 @@ struct SessionPersistencePortsLikeCpp {
     gameobject_query_catalog:
         Option<Arc<dyn wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp>>,
     page_text_catalog: Option<Arc<dyn wow_persistence::PageTextCatalogPersistencePortLikeCpp>>,
+    player_name_query: Option<Arc<dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp>>,
     player_spell_acquisition:
         Option<Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>>,
 }
@@ -16482,6 +16483,19 @@ impl WorldSession {
         &self,
     ) -> Option<Arc<dyn wow_persistence::PageTextCatalogPersistencePortLikeCpp>> {
         self.persistence_ports_like_cpp.page_text_catalog.clone()
+    }
+
+    pub fn set_player_name_query_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.player_name_query = Some(port);
+    }
+
+    pub(crate) fn player_name_query_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.player_name_query.clone()
     }
 
     /// Attach this session to the one canonical journal owner for its
