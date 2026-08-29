@@ -5202,6 +5202,8 @@ struct SessionPersistencePortsLikeCpp {
         Option<Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>>,
     creature_query_catalog:
         Option<Arc<dyn wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp>>,
+    gameobject_query_catalog:
+        Option<Arc<dyn wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp>>,
     player_spell_acquisition:
         Option<Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>>,
 }
@@ -16450,6 +16452,21 @@ impl WorldSession {
     ) -> Option<Arc<dyn wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp>> {
         self.persistence_ports_like_cpp
             .creature_query_catalog
+            .clone()
+    }
+
+    pub fn set_gameobject_query_catalog_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.gameobject_query_catalog = Some(port);
+    }
+
+    pub(crate) fn gameobject_query_catalog_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .gameobject_query_catalog
             .clone()
     }
 

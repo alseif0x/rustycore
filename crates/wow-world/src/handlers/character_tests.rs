@@ -52,6 +52,8 @@ use wow_persistence::{
     CharacterEnumerationRowLikeCpp, CreatureQueryCatalogOutcomeLikeCpp,
     CreatureQueryCatalogPersistencePortLikeCpp, CreatureQueryCatalogRequestLikeCpp,
     CreatureQueryCatalogRowLikeCpp, CreatureQueryDisplayRowLikeCpp,
+    GameObjectQueryCatalogOutcomeLikeCpp, GameObjectQueryCatalogPersistencePortLikeCpp,
+    GameObjectQueryCatalogRequestLikeCpp, GameObjectQueryCatalogRowLikeCpp,
     MapCorpseAuxiliaryLoadOutcomeLikeCpp,
     MapCorpseLoadOutcomeLikeCpp as PersistedMapCorpseLoadOutcomeLikeCpp,
     MapCorpseLoadRequestLikeCpp, MapCorpseLoadRowLikeCpp, MapCorpsePersistencePortLikeCpp,
@@ -96,6 +98,40 @@ impl CreatureQueryCatalogPersistencePortLikeCpp for CreatureQueryCatalogPortFixt
             .unwrap()
             .pop_front()
             .expect("one creature-query outcome per request");
+        Box::pin(async move { outcome })
+    }
+}
+
+struct GameObjectQueryCatalogPortFixtureLikeCpp {
+    requests: std::sync::Mutex<Vec<GameObjectQueryCatalogRequestLikeCpp>>,
+    outcomes: std::sync::Mutex<std::collections::VecDeque<GameObjectQueryCatalogOutcomeLikeCpp>>,
+}
+
+impl GameObjectQueryCatalogPortFixtureLikeCpp {
+    fn new(outcomes: impl IntoIterator<Item = GameObjectQueryCatalogOutcomeLikeCpp>) -> Arc<Self> {
+        Arc::new(Self {
+            requests: std::sync::Mutex::new(Vec::new()),
+            outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
+        })
+    }
+
+    fn requests(&self) -> Vec<GameObjectQueryCatalogRequestLikeCpp> {
+        self.requests.lock().unwrap().clone()
+    }
+}
+
+impl GameObjectQueryCatalogPersistencePortLikeCpp for GameObjectQueryCatalogPortFixtureLikeCpp {
+    fn load_gameobject_query_catalog_like_cpp<'a>(
+        &'a self,
+        request: GameObjectQueryCatalogRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, GameObjectQueryCatalogOutcomeLikeCpp> {
+        self.requests.lock().unwrap().push(request);
+        let outcome = self
+            .outcomes
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("one gameobject-query outcome per request");
         Box::pin(async move { outcome })
     }
 }
@@ -11878,6 +11914,110 @@ async fn creature_query_missing_or_failed_catalog_emits_disallowed_response_like
             send_rx.try_recv().unwrap(),
             QueryCreatureResponse {
                 creature_id: 43,
+                allow: false,
+                stats: None,
+            }
+            .to_bytes()
+        );
+    }
+}
+
+fn gameobject_query_catalog_row_like_cpp() -> GameObjectQueryCatalogRowLikeCpp {
+    let mut data = [0_i32; wow_persistence::GAMEOBJECT_USE_TEMPLATE_DATA_COUNT_LIKE_CPP];
+    data[0] = 7;
+    data[34] = 41;
+    GameObjectQueryCatalogRowLikeCpp {
+        go_type: 3,
+        display_id: 4,
+        name: "Localized object".to_owned(),
+        icon_name: "Directions".to_owned(),
+        cast_bar_caption: "Opening".to_owned(),
+        unk_string: "Unknown".to_owned(),
+        size: 1.25,
+        data,
+        content_tuning_id: 42,
+        quest_items: vec![43, 44],
+    }
+}
+
+#[tokio::test]
+async fn gameobject_query_uses_typed_catalog_and_preserves_packet_projection_like_cpp() {
+    let row = gameobject_query_catalog_row_like_cpp();
+    let port = GameObjectQueryCatalogPortFixtureLikeCpp::new([
+        GameObjectQueryCatalogOutcomeLikeCpp::Found {
+            row: row.clone(),
+            locale_error: Some("locale fallback diagnostic".to_owned()),
+            quest_items_error: Some("quest item fallback diagnostic".to_owned()),
+        },
+    ]);
+    let guid = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 0, 571, 0, 42, 99);
+    let (mut session, send_rx) = make_session_with_send_capacity(1);
+    session.set_gameobject_query_catalog_persistence_port_like_cpp(port.clone());
+
+    session
+        .handle_query_game_object(QueryGameObject {
+            game_object_id: 42,
+            guid,
+        })
+        .await;
+
+    assert_eq!(
+        port.requests(),
+        vec![GameObjectQueryCatalogRequestLikeCpp {
+            entry: 42,
+            locale: "esES".to_owned(),
+        }]
+    );
+    let mut names: [String; 4] = Default::default();
+    names[0] = row.name;
+    assert_eq!(
+        send_rx.try_recv().unwrap(),
+        QueryGameObjectResponse {
+            game_object_id: 42,
+            guid,
+            allow: true,
+            stats: Some(GameObjectStats {
+                names,
+                icon_name: row.icon_name,
+                cast_bar_caption: row.cast_bar_caption,
+                unk_string: row.unk_string,
+                go_type: row.go_type,
+                display_id: row.display_id,
+                data: row.data,
+                size: row.size,
+                quest_items: row.quest_items,
+                content_tuning_id: row.content_tuning_id,
+            }),
+        }
+        .to_bytes()
+    );
+}
+
+#[tokio::test]
+async fn gameobject_query_missing_or_failed_catalog_preserves_guid_and_disallows_like_cpp() {
+    let guid = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 0, 571, 0, 43, 100);
+    for outcome in [
+        GameObjectQueryCatalogOutcomeLikeCpp::Missing,
+        GameObjectQueryCatalogOutcomeLikeCpp::Failed {
+            reason: "world query failed".to_owned(),
+        },
+    ] {
+        let port = GameObjectQueryCatalogPortFixtureLikeCpp::new([outcome]);
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        session.set_gameobject_query_catalog_persistence_port_like_cpp(port);
+
+        session
+            .handle_query_game_object(QueryGameObject {
+                game_object_id: 43,
+                guid,
+            })
+            .await;
+
+        assert_eq!(
+            send_rx.try_recv().unwrap(),
+            QueryGameObjectResponse {
+                game_object_id: 43,
+                guid,
                 allow: false,
                 stats: None,
             }
