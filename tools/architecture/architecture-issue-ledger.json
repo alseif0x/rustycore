@@ -96,6 +96,7 @@
     470,
     472,
     474,
+    476,
     189,
     192,
     193,
@@ -1570,7 +1571,7 @@
     },
     {
       "number": 474,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.46] Move battle-pet account durability behind a typed port",
       "kind": "slice",
       "parents": [
@@ -1579,6 +1580,19 @@
       ],
       "depends_on": [
         472
+      ]
+    },
+    {
+      "number": 476,
+      "state": "open",
+      "title": "[ARCH.DB.47] Move battle-pet purchase saga durability behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        474
       ]
     }
   ]

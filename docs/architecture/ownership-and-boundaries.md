@@ -157,6 +157,7 @@ last-writer-wins policy.
 | Represented Group startup-load capability | `wow_persistence::RepresentedGroupStartupLoadPortLikeCpp` owns typed character-cache, group and member rows plus an exact seven-stage failure vocabulary | `wow_database::represented_group_persistence_adapter` alone owns the four Character cleanup statements, three queries and tolerant SQL-row decoding | `wow-social::GroupRegistry` remains the aggregate owner; `world-server::runtime::map` maps the typed rows and invokes its existing materializer only after all database awaits finish | composed once before group startup; cleanup order is members-without-character, groups-without-leader, groups-with-fewer-than-two-members, members-without-group, followed by character cache, groups and members | #470 removes represented Group startup queries/results from `world-server` without adding a per-session resource, changing empty/default decoding, or materializing partial state after a database failure. |
 | Represented Player spell-acquisition persistence capability | `wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp` owns the complete SQLx-free source/result authority, deterministic replacement operations, absolute trainer fee, opaque 16-byte attempt token and classified commit/reconciliation outcomes | `wow_database::player_spell_acquisition_adapter` alone owns the Character transaction, money and authority row locks, SQL text, affected-row checks, rollback, deadlock classification and lost-COMMIT proof | `wow-world::spell_acquisition` remains the application planner and validates the prepared Player snapshot before constructing the typed request; Session retains the money exclusion/cancellation fence and installs/publishes runtime state only after the port proves durability | one Character transaction preserves money lock/compare, complete source authority lock/compare, spell/favorite/skill replacement order, guarded money update, token upsert and COMMIT; reconciliation requires exact money, complete result authority and token | #472 removes SQLx and the concrete Character database from the trainer acquisition application path without changing gameplay, packet or publication order. |
 | Battle-pet account persistence capability | `wow_persistence::BattlePetAccountPersistencePortLikeCpp` owns SQLx-free durable pet/slot/receipt rows, the opaque add-request key, process lease and classified mutation outcomes | `wow_database::battle_pet_account_adapter` alone owns the Login database, named-lock broker, GUID sequence transaction, SQL/statement selection, row decoding, fencing and duplicate-key classification | `wow-world::battle_pet_account` retains the account-scoped mutable owner, lease attachment rules, capacity/gameplay validation, durable-to-packet projection and post-durability publication | one adapter instance is composed in `world-server`; named-lock scope/fence, request replay, capacity check, GUID reservation, pet/receipt mutation and slot replacement preserve the #160/#161 ordering and failure rules | #474 removes the complete battle-pet SQLx/LoginDatabase implementation from `wow-world` without moving account/gameplay ownership or changing packet order. |
+| Battle-pet purchase-saga persistence capability | `wow_persistence::BattlePetPurchasePersistencePortLikeCpp` owns the SQLx-free command/status/outcome/error vocabulary and the narrow arm/disarm COMMIT-cancellation fence | `wow_database::battle_pet_purchase_adapter` alone owns Character DB row decoding, guarded money and command statements, T1/T3/T4/T5/T6 transactions, affected-row checks and lost-COMMIT reconciliation | `wow-world::battle_pet_purchase` retains offer admission, request-key generation, retry policy, the exclusive Player-money guard, canonical battle-pet account application, compensation decisions and ordered packet/criteria publication | one adapter is composed in `world-server`; the gameplay money owner supplies the cap and a cancellation fence for each charge/refund attempt, so the adapter acquires neither `wow-entities` nor session ownership | #476 removes the concrete Character DB store and Session-side adapter construction from the #161 saga while preserving exact-once charge/refund, receipt replay, quarantine and publication-marker behavior. |
 | Support bug-report persistence capability | `wow_persistence::SupportBugReportPersistencePortLikeCpp` owns the SQLx-free text/diagnostic request and classified result | `wow_database::support_bug_report_adapter` alone maps the request to `CHAR_INS_BUG_REPORT` and owns the Character database handle | the support handler retains the feature gate, packet decode and wire-silent failure behavior; it cannot name a statement or database | composed once in `world-server`; one non-transactional Character statement binds text before diagnostic information exactly like C++ | #458 removes the legacy bug-report insert from `WorldSession` through a dedicated support capability instead of broadening the Player lifecycle port. The parsed report-type bit remains intentionally unpersisted like C++. |
 | Next-mail-time persistence capability | `wow_persistence::NextMailTimePersistencePortLikeCpp` owns the SQLx-free player-guid request, five-column represented mail row and loaded/failed outcome | `wow_database::next_mail_time_adapter` alone owns `CHAR_SEL_MAIL`, its u64 bind, Character database handle and tolerant row decoding | the player handler retains identity, clock comparison, read/delivery filters, sender dedupe, three-entry cap, packet construction, logging and Realm routing | composed once in `world-server`; this preserves Rust's existing on-demand query without claiming C++ ownership parity | #460 removes the concrete mail read from `WorldSession`. C++ reads `_player->GetMails()` and `unReadMails`; #153/the mail vertical must retire this transitional query when Rust has that canonical in-memory owner. |
 | Gameobject-use template persistence capability | `wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp` owns the SQLx-free entry request and typed type/icon/size/Data0..34/content-tuning projection | `wow_database::gameobject_use_template_adapter` alone owns `SEL_GAMEOBJECT_TEMPLATE_BY_ENTRY`, its u32 bind, World database handle and tolerant row decoding | the gameobject handler retains object/visibility admission, template interpretation, conditions, distance/mover/cooldown rules and type-specific gameplay dispatch | composed once in `world-server`; missing port, row or query result remains an explicit no-op without fabricating a template | #462 removes the concrete per-use World query from `WorldSession`. C++ loads `ObjectMgr::_gameObjectTemplateStore` at startup and `GameObject::Use` reads `GetGOInfo()`; #153/the gameobject vertical must replace this transitional read with that canonical store. |
@@ -749,37 +750,38 @@ display is checked against the JSON ledger:
 83. #470 — represented Group startup cleanup and loads through a typed persistence port;
 84. #472 — represented Player spell-acquisition persistence through a typed port;
 85. #474 — battle-pet account durability through a typed persistence port;
-86. #189 — durable loot persistence coordination;
-87. #192 — runtime/fanout directory consumers;
-88. #193 — combat/loot directory consumers;
-89. #194 — quest/spell/movement directory consumers;
-90. #197 — atomic group invite/create transitions;
-91. #198 — atomic group membership/leadership transitions;
-92. #199 — Group persistence/publication closure;
-93. #195 — social/group session addressing;
-94. #196 — PlayerRegistry storage closure;
-94. #138 — opaque session-directory relocation;
-95. #191 — mailbox protocol relocation;
-96. #137 — encapsulated Group owner move;
-97. #190 — durable creature-runtime rail relocation;
-98. #140 — Session mailbox pump;
-99. #252 — retire the temporary PlayerBroadcastInfo gameplay mirror;
-100. #182 — logical realm/instance routing;
-101. #183 — Session-only phase driver;
-102. #184 — login/logout lifecycle modules;
-103. #224 — character/loot/quest physical modules;
-104. #225 — Map/MapManager physical modules;
-105. #226 — Player/Unit physical modules;
-106. #227 — packet/spell-data physical modules;
-107. #228 — trusted linked external module API;
-108. #229 — deterministic external Cargo composition;
-109. #230 — agent-neutral module CLI and skeleton;
-110. #231 — typed module configuration/fixtures;
-111. #270 — retire the four PlayerBroadcastInfo transport endpoints;
-112. #359 — single dispatch mechanism for every opcode;
-113. #297 — promote the Session kernel to `wow-session`;
-114. #378 — move the remaining five session modules into `wow-session`;
-115. #153 — terminal architecture audit.
+86. #476 — battle-pet trainer-purchase saga durability through a typed port;
+87. #189 — durable loot persistence coordination;
+88. #192 — runtime/fanout directory consumers;
+89. #193 — combat/loot directory consumers;
+90. #194 — quest/spell/movement directory consumers;
+91. #197 — atomic group invite/create transitions;
+92. #198 — atomic group membership/leadership transitions;
+93. #199 — Group persistence/publication closure;
+94. #195 — social/group session addressing;
+95. #196 — PlayerRegistry storage closure;
+96. #138 — opaque session-directory relocation;
+97. #191 — mailbox protocol relocation;
+98. #137 — encapsulated Group owner move;
+99. #190 — durable creature-runtime rail relocation;
+100. #140 — Session mailbox pump;
+101. #252 — retire the temporary PlayerBroadcastInfo gameplay mirror;
+102. #182 — logical realm/instance routing;
+103. #183 — Session-only phase driver;
+104. #184 — login/logout lifecycle modules;
+105. #224 — character/loot/quest physical modules;
+106. #225 — Map/MapManager physical modules;
+107. #226 — Player/Unit physical modules;
+108. #227 — packet/spell-data physical modules;
+109. #228 — trusted linked external module API;
+110. #229 — deterministic external Cargo composition;
+111. #230 — agent-neutral module CLI and skeleton;
+112. #231 — typed module configuration/fixtures;
+113. #270 — retire the four PlayerBroadcastInfo transport endpoints;
+114. #359 — single dispatch mechanism for every opcode;
+115. #297 — promote the Session kernel to `wow-session`;
+116. #378 — move the remaining five session modules into `wow-session`;
+117. #153 — terminal architecture audit.
 
 A slice may start once its declared prerequisites are merged and its branch is current. Independent
 physical work remains parallel to semantic authority cuts. Mechanical moves use focused compile and
