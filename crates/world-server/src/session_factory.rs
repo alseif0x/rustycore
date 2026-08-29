@@ -284,6 +284,9 @@ pub(super) async fn create_session(
     if let Some(ref port) = resources.player_lifecycle_port {
         session.set_player_lifecycle_port_like_cpp(Arc::clone(port));
     }
+    if let Some(ref port) = resources.character_enumeration_persistence_port {
+        session.set_character_enumeration_persistence_port_like_cpp(Arc::clone(port));
+    }
     if let Some(ref port) = resources.session_account_state_port {
         session.set_session_account_state_port_like_cpp(Arc::clone(port));
     }

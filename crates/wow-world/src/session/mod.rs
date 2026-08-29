@@ -5185,6 +5185,8 @@ struct PlayerTransportLoginStateLikeCpp {
 #[derive(Default)]
 struct SessionPersistencePortsLikeCpp {
     player_lifecycle: Option<Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>>,
+    character_enumeration:
+        Option<Arc<dyn wow_persistence::CharacterEnumerationPersistencePortLikeCpp>>,
     session_account_state: Option<Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>>,
     packet_spoof_ban: Option<Arc<dyn wow_persistence::PacketSpoofBanPersistencePortLikeCpp>>,
     void_storage: Option<Arc<dyn wow_persistence::VoidStoragePersistencePortLikeCpp>>,
@@ -16264,6 +16266,21 @@ impl WorldSession {
         &self,
     ) -> Option<&Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>> {
         self.persistence_ports_like_cpp.player_lifecycle.as_ref()
+    }
+
+    pub fn set_character_enumeration_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::CharacterEnumerationPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.character_enumeration = Some(port);
+    }
+
+    pub(crate) fn character_enumeration_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::CharacterEnumerationPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .character_enumeration
+            .clone()
     }
 
     pub fn set_session_account_state_port_like_cpp(

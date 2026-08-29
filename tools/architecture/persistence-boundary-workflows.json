@@ -7147,6 +7147,96 @@
     },
     {
       "package": "wow-database",
+      "module": "crate::character_enumeration_adapter",
+      "source": "crates/wow-database/src/character_enumeration_adapter.rs",
+      "enclosing": "fn character_enumeration_row_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free character enumeration (#478)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Row decoding is bound to the Characters enumeration projection selected by this adapter.",
+      "current_order": "Decode rows in query result order; list-slot fallback remains the zero-based result position.",
+      "failure_and_unknown_commit": "Malformed optional columns retain the existing Rust fallbacks; this read has no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::character_enumeration_adapter",
+      "source": "crates/wow-database/src/character_enumeration_adapter.rs",
+      "enclosing": "fn character_enumeration_select_statement_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free character enumeration (#478)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Statement selection is private to the Characters adapter.",
+      "current_order": "Select the declined-name projection only when the typed request enables it.",
+      "failure_and_unknown_commit": "Pure statement selection has no runtime failure or COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::character_enumeration_adapter",
+      "source": "crates/wow-database/src/character_enumeration_adapter.rs",
+      "enclosing": "impl MariaDbCharacterEnumerationPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free character enumeration (#478)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Composition binds this adapter to exactly one Characters database handle.",
+      "current_order": "Construction performs no query or publication.",
+      "failure_and_unknown_commit": "Construction performs no database operation."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::character_enumeration_adapter",
+      "source": "crates/wow-database/src/character_enumeration_adapter.rs",
+      "enclosing": "impl wow_persistence::CharacterEnumerationPersistencePortLikeCpp for MariaDbCharacterEnumerationPersistenceAdapterLikeCpp::load_character_enumeration_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free character enumeration (#478)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Both operations use the adapter's single Characters database handle.",
+      "current_order": "Execute expired-ban cleanup first as best effort, then the account-bound enumeration query, then decode rows in result order.",
+      "failure_and_unknown_commit": "Cleanup failure is returned as non-fatal evidence; enumeration query failure is terminal for this request. Neither standalone operation claims an unknown COMMIT state."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::character_enumeration_adapter",
+      "source": "crates/wow-database/src/character_enumeration_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free character enumeration (#478)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The module owns only the Characters enumeration adapter and its row projection.",
+      "current_order": "Shared type/module syntax implies no additional runtime order.",
+      "failure_and_unknown_commit": "Shared type/module syntax implies no additional failure guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::character_enumeration_adapter",
+      "source": "crates/wow-database/src/character_enumeration_adapter.rs",
+      "enclosing": "struct MariaDbCharacterEnumerationPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free character enumeration (#478)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter stores exactly one Characters database handle.",
+      "current_order": "The handle surface implies no runtime order beyond the port method.",
+      "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
       "module": "crate::database",
       "source": "crates/wow-database/src/database.rs",
       "enclosing": "fn connect_pool_like_cpp",
@@ -12586,23 +12676,6 @@
       "package": "wow-world",
       "module": "crate::handlers::character",
       "source": "crates/wow-world/src/handlers/character/mod.rs",
-      "enclosing": "fn enum_character_query_statements_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-world runtime boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character",
-      "source": "crates/wow-world/src/handlers/character/mod.rs",
       "enclosing": "fn fully_merged_item_cleanup_statements_like_cpp",
       "logical_databases": [
         "characters"
@@ -12666,23 +12739,6 @@
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the characters/login/world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::character::account",
-      "source": "crates/wow-world/src/handlers/character/account.rs",
-      "enclosing": "impl WorldSession::handle_enum_characters",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "character service persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },

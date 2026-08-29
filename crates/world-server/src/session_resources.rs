@@ -24,6 +24,8 @@ pub(super) struct SessionResources {
     pub(super) login_db: Option<Arc<wow_database::LoginDatabase>>,
     /// Player lifecycle capability (#200); Session never depends on its handles.
     pub(super) player_lifecycle_port: Option<Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>>,
+    pub(super) character_enumeration_persistence_port:
+        Option<Arc<dyn wow_persistence::CharacterEnumerationPersistencePortLikeCpp>>,
     /// Characters capability for session-owned account data and tutorials.
     pub(super) session_account_state_port:
         Option<Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>>,
