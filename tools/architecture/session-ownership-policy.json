@@ -232,7 +232,7 @@
         },
         {
           "name": "battle_pet_purchase_store_like_cpp",
-          "type": "Option < Arc < dyn crate :: battle_pet_purchase :: BattlePetPurchaseStoreLikeCpp > >",
+          "type": "Option < Arc < dyn wow_persistence :: BattlePetPurchasePersistencePortLikeCpp > >",
           "visibility": "private",
           "cfg": [],
           "source_class": "production"
@@ -21136,7 +21136,7 @@
           "kind": "method",
           "name": "battle_pet_purchase_store_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn battle_pet_purchase_store_like_cpp (& self ,) -> Option < Arc < dyn crate :: battle_pet_purchase :: BattlePetPurchaseStoreLikeCpp > >",
+          "signature": "fn battle_pet_purchase_store_like_cpp (& self ,) -> Option < Arc < dyn wow_persistence :: BattlePetPurchasePersistencePortLikeCpp > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -25537,19 +25537,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "install_battle_pet_purchase_store_from_char_db_like_cpp",
-          "visibility": "pub",
-          "signature": "fn install_battle_pet_purchase_store_from_char_db_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -39817,13 +39804,11 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "set_battle_pet_purchase_selection_override_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn set_battle_pet_purchase_selection_override_like_cpp (& mut self , selection : Option < wow_data :: battle_pet_selection :: BattlePetTrainerSelectionLikeCpp > ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
+          "name": "set_battle_pet_purchase_persistence_port_like_cpp",
+          "visibility": "pub",
+          "signature": "fn set_battle_pet_purchase_persistence_port_like_cpp (& mut self , store : Arc < dyn wow_persistence :: BattlePetPurchasePersistencePortLikeCpp > ,)",
+          "cfg": [],
+          "source_class": "production",
           "guards": [
             "setter",
             "visible"
@@ -39833,9 +39818,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "set_battle_pet_purchase_store_like_cpp",
+          "name": "set_battle_pet_purchase_selection_override_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_battle_pet_purchase_store_like_cpp (& mut self , store : Arc < dyn crate :: battle_pet_purchase :: BattlePetPurchaseStoreLikeCpp > ,)",
+          "signature": "fn set_battle_pet_purchase_selection_override_like_cpp (& mut self , selection : Option < wow_data :: battle_pet_selection :: BattlePetTrainerSelectionLikeCpp > ,)",
           "cfg": [
             "cfg (test)"
           ],
@@ -48857,6 +48842,13 @@
           "source_class": "production"
         },
         {
+          "name": "battle_pet_purchase_persistence_port",
+          "type": "Option < Arc < dyn wow_persistence :: BattlePetPurchasePersistencePortLikeCpp > >",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "battle_pet_selection_store",
           "type": "Option < Arc < wow_data :: battle_pet_selection :: BattlePetSelectionStoreLikeCpp > >",
           "visibility": "pub (super)",
@@ -50583,7 +50575,7 @@
         {
           "module": "crate::app",
           "callee": "SessionResources",
-          "argument_count": 259,
+          "argument_count": 260,
           "cfg": [],
           "source_class": "production",
           "count": 1
@@ -50599,7 +50591,7 @@
         "source_class": "production"
       },
       "signature": "async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , object_accessor : wow_world :: SharedObjectAccessor , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)",
-      "body_fingerprint": "fnv1a64x2:f567fb700f045a4749ea7865b503aeea:len=35430",
+      "body_fingerprint": "fnv1a64x2:1f410f615c7bb861145ee50bf3902c9e:len=35521",
       "session_helper_bodies": [
         {
           "module": "crate::session_factory",
@@ -50821,14 +50813,6 @@
       "setter_call_sites": [
         {
           "module": "crate::session_factory",
-          "callee": "session.install_battle_pet_purchase_store_from_char_db_like_cpp",
-          "argument_count": 0,
-          "cfg": [],
-          "source_class": "production",
-          "count": 1
-        },
-        {
-          "module": "crate::session_factory",
           "callee": "session.set_access_requirement_store",
           "argument_count": 1,
           "cfg": [],
@@ -50926,6 +50910,14 @@
         {
           "module": "crate::session_factory",
           "callee": "session.set_battle_pet_breed_state_store",
+          "argument_count": 1,
+          "cfg": [],
+          "source_class": "production",
+          "count": 1
+        },
+        {
+          "module": "crate::session_factory",
+          "callee": "session.set_battle_pet_purchase_persistence_port_like_cpp",
           "argument_count": 1,
           "cfg": [],
           "source_class": "production",
@@ -65074,7 +65066,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , object_accessor : wow_world :: SharedObjectAccessor , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)|body=fnv1a64x2:f567fb700f045a4749ea7865b503aeea:len=35430|evidence=fnv1a64x2:dd605b9d3e8a9dcc82cdedbf620fbe8f:len=741",
+          "fingerprint": "signature=async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , object_accessor : wow_world :: SharedObjectAccessor , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)|body=fnv1a64x2:1f410f615c7bb861145ee50bf3902c9e:len=35521|evidence=fnv1a64x2:dd605b9d3e8a9dcc82cdedbf620fbe8f:len=741",
           "cfg": [],
           "multiplicity": 1
         },
@@ -73442,7 +73434,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:20ac98bbecf41568abd72c02af2bd14b:len=90523|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:af264a6e5a33bc834b26c288dec9936a:len=90520|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

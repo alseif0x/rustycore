@@ -1059,8 +1059,8 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.session_resources.fields"
       },
       "audited_summary": {
-        "field_count": 259,
-        "option_field_count": 201,
+        "field_count": 260,
+        "option_field_count": 202,
         "count_kind": "baseline observation; AST is authoritative"
       },
       "coverage_rule": {
@@ -1068,7 +1068,7 @@
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_field_count": 259,
+        "expected_field_count": 260,
         "validation": "Compare sorted AST field names with the sorted concatenation of every entry.field_names; reject gaps, duplicates, stale names, entry count drift, or total count drift."
       },
       "entries": [
@@ -1102,8 +1102,9 @@
         },
         {
           "id": "session_resources_runtime_handles",
-          "expected_field_count": 16,
+          "expected_field_count": 17,
           "field_names": [
+            "battle_pet_purchase_persistence_port",
             "gameobject_use_template_persistence_port",
             "group_loot_money_persistence_port",
             "instance_lock_mgr",
@@ -1125,7 +1126,7 @@
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "Session receives only the minimal typed runtime ports/PlayerHandle and cannot select or tick duplicate map authorities. #452 adds the narrow stored Item money capability, #454 adds the distinct multi-recipient payout capability, #458 adds the dedicated support bug-report capability, #460 adds the transitional next-mail read capability, and #472 adds the atomic trainer fee plus spell-acquisition capability without exposing a pool, row, transaction or generic query API."
+          "retirement_condition": "Session receives only the minimal typed runtime ports/PlayerHandle and cannot select or tick duplicate map authorities. #452 adds the narrow stored Item money capability, #454 adds the distinct multi-recipient payout capability, #458 adds the dedicated support bug-report capability, #460 adds the transitional next-mail read capability, #472 adds the atomic trainer fee plus spell-acquisition capability, and #476 adds the recoverable battle-pet purchase durability capability without exposing a pool, row, transaction or generic query API."
         },
         {
           "id": "session_resources_catalogs_and_configuration",
@@ -1387,7 +1388,7 @@
           "retirement_condition": "Every remaining field has an exact capability bundle/consumer owner or is removed from Session construction."
         }
       ],
-      "expected_field_count": 259
+      "expected_field_count": 260
     },
     "session_command": {
       "coverage_source": {
@@ -1714,14 +1715,14 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 25360,
+      "production_lines": 25370,
           "test_lines": 21708,
-          "total_lines": 47068,
+      "total_lines": 47078,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "The crate keeps main as a thin entry point and distributes bootstrap/loaders/runtime by cohesive private modules; gameplay algorithms and hidden mutable clocks are absent. #252's aggro-family cut moves the reputation/flag reads into the collector's existing canonical pass, adding 14 production lines here while deleting more from the mirror, plus 59 test lines for the positive and no-owner cases. #388 adds 14 production lines to compose and install the distinct session account-state persistence capability; no gameplay authority moves into the composition root. #392 adds 13 production lines to compose and install the map-corpse persistence capability; gameplay materialization remains in the transitional caller. #394 adds 6 production lines to share the startup-loaded safe-location catalog with Session construction; no gameplay or persistence authority moves into the composition root. #412 replaces four compact concrete-updater constructions with explicit typed populate/update adapter calls, adding 38 production lines while removing every MySqlPool/DbUpdater inventory row from run_inner; its exact source-contract test adds 36 test lines and pins 2 populate plus 4 update calls in Login -> Character -> World -> Hotfix order. #450 adds 13 composition lines for the narrow World quest-POI adapter and Session resource; SQLx ownership remains in wow-database and gameplay assembly remains in wow-world. #452 adds 14 composition lines for the narrow Character stored-item money adapter; the binary chooses the concrete adapter while gameplay receives only the typed port. #454 adds 14 composition lines for the separate multi-recipient group payout adapter; gameplay still receives only the SQLx-free port. #458 adds 14 composition/install lines for the dedicated support bug-report capability; SQL and database ownership remain in wow-database and no gameplay logic enters the composition root."
+      "retirement_condition": "The crate keeps main as a thin entry point and distributes bootstrap/loaders/runtime by cohesive private modules; gameplay algorithms and hidden mutable clocks are absent. #252's aggro-family cut moves the reputation/flag reads into the collector's existing canonical pass, adding 14 production lines here while deleting more from the mirror, plus 59 test lines for the positive and no-owner cases. #388 adds 14 production lines to compose and install the distinct session account-state persistence capability; no gameplay authority moves into the composition root. #392 adds 13 production lines to compose and install the map-corpse persistence capability; gameplay materialization remains in the transitional caller. #394 adds 6 production lines to share the startup-loaded safe-location catalog with Session construction; no gameplay or persistence authority moves into the composition root. #412 replaces four compact concrete-updater constructions with explicit typed populate/update adapter calls, adding 38 production lines while removing every MySqlPool/DbUpdater inventory row from run_inner; its exact source-contract test adds 36 test lines and pins 2 populate plus 4 update calls in Login -> Character -> World -> Hotfix order. #450 adds 13 composition lines for the narrow World quest-POI adapter and Session resource; SQLx ownership remains in wow-database and gameplay assembly remains in wow-world. #452 adds 14 composition lines for the narrow Character stored-item money adapter; the binary chooses the concrete adapter while gameplay receives only the typed port. #454 adds 14 composition lines for the separate multi-recipient group payout adapter; gameplay still receives only the SQLx-free port. #458 adds 14 composition/install lines for the dedicated support bug-report capability; SQL and database ownership remain in wow-database and no gameplay logic enters the composition root. #476 adds 10 composition/install lines for the battle-pet purchase durability port; saga policy, money ownership and publication remain in wow-world."
         },
         {
           "path": "crates/wow-world/src/handlers/quest/mod.rs",

@@ -193,6 +193,251 @@ pub trait BattlePetAccountPersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<'a, Result<(), BattlePetPersistenceErrorLikeCpp>>;
 }
 
+/// Durable states of the recoverable battle-pet trainer-purchase saga.
+///
+/// These numeric values are persisted in `character_battle_pet_purchase` and
+/// therefore belong to the SQLx-free contract rather than to either the
+/// gameplay caller or the MariaDB adapter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BattlePetPurchaseStatusLikeCpp {
+    /// Money charged and command durable; pet not yet confirmed durable.
+    PendingApplication,
+    /// Durable pet receipt confirmed and the success transition committed.
+    Completed,
+    /// Terminal application failure recorded; an exact-once refund is owed.
+    CompensationPending,
+    /// Refund and status flip committed in the same Character transaction.
+    Compensated,
+    /// The character row disappeared, so automatic refund cannot converge.
+    TerminalFailure,
+}
+
+impl BattlePetPurchaseStatusLikeCpp {
+    pub fn as_u8_like_cpp(self) -> u8 {
+        match self {
+            Self::PendingApplication => 0,
+            Self::Completed => 1,
+            Self::CompensationPending => 2,
+            Self::Compensated => 3,
+            Self::TerminalFailure => 4,
+        }
+    }
+
+    pub fn from_u8_like_cpp(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(Self::PendingApplication),
+            1 => Some(Self::Completed),
+            2 => Some(Self::CompensationPending),
+            3 => Some(Self::Compensated),
+            4 => Some(Self::TerminalFailure),
+            _ => None,
+        }
+    }
+
+    pub fn is_terminal_like_cpp(self) -> bool {
+        matches!(
+            self,
+            Self::Completed | Self::Compensated | Self::TerminalFailure
+        )
+    }
+}
+
+/// Stable input and durable projection of one battle-pet trainer purchase.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BattlePetPurchaseCommandLikeCpp {
+    pub request_key: [u8; 16],
+    pub character_guid: u64,
+    pub account_id: u32,
+    pub trainer_id: u32,
+    pub spell_id: u32,
+    pub species: u32,
+    pub breed: u16,
+    pub quality: u8,
+    pub display_id: u32,
+    pub level: u16,
+    pub price: u32,
+    pub money_before: u64,
+    pub money_after: u64,
+    pub status: BattlePetPurchaseStatusLikeCpp,
+    pub published: bool,
+    pub failure_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BattlePetPurchaseStoreErrorLikeCpp {
+    /// The attempted transition definitely did not commit and may be retried.
+    Retryable(String),
+    /// A durable precondition makes this transition permanently invalid.
+    Terminal(String),
+    /// COMMIT attribution or its required reconciliation is unknown.
+    Indeterminate(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BattlePetPurchaseChargeOutcomeLikeCpp {
+    Charged,
+    /// Definitely no charge and no command.
+    RolledBack,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BattlePetPurchaseMarkOutcomeLikeCpp {
+    Applied,
+    AlreadyApplied,
+    /// A concurrent driver completed the purchase; compensation is forbidden.
+    ConflictedCompleted,
+    /// Compensation/terminal failure won while completion was requested.
+    ConflictedCompensated,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BattlePetPurchaseCompensationOutcomeLikeCpp {
+    Compensated {
+        durable_money: u64,
+    },
+    /// Replay of an already committed refund; durable money is authoritative.
+    AlreadyCompensated {
+        durable_money: u64,
+    },
+    ConflictedCompleted,
+    CharacterMissing,
+}
+
+/// Cancellation-sensitive Character COMMIT fence supplied by the gameplay
+/// money owner. The database adapter arms it immediately before awaiting a
+/// COMMIT and disarms it only after the outcome is safe to publish or retry.
+pub trait BattlePetPurchaseCommitFenceLikeCpp: Send {
+    fn arm_like_cpp(&mut self);
+    fn disarm_like_cpp(&mut self);
+}
+
+pub fn reconcile_battle_pet_purchase_charge_like_cpp(
+    row: Option<&BattlePetPurchaseCommandLikeCpp>,
+    expected: &BattlePetPurchaseCommandLikeCpp,
+) -> BattlePetPurchaseChargeOutcomeLikeCpp {
+    match row {
+        Some(row)
+            if row.request_key == expected.request_key
+                && row.character_guid == expected.character_guid
+                && row.account_id == expected.account_id
+                && row.trainer_id == expected.trainer_id
+                && row.spell_id == expected.spell_id
+                && row.species == expected.species
+                && row.breed == expected.breed
+                && row.quality == expected.quality
+                && row.display_id == expected.display_id
+                && row.level == expected.level
+                && row.price == expected.price
+                && row.money_before == expected.money_before
+                && row.money_after == expected.money_after =>
+        {
+            BattlePetPurchaseChargeOutcomeLikeCpp::Charged
+        }
+        _ => BattlePetPurchaseChargeOutcomeLikeCpp::RolledBack,
+    }
+}
+
+pub fn reconcile_battle_pet_purchase_mark_like_cpp(
+    row: Option<&BattlePetPurchaseCommandLikeCpp>,
+    pending_source: BattlePetPurchaseStatusLikeCpp,
+    target: BattlePetPurchaseStatusLikeCpp,
+) -> Result<BattlePetPurchaseMarkOutcomeLikeCpp, BattlePetPurchaseStoreErrorLikeCpp> {
+    let Some(row) = row else {
+        return Err(BattlePetPurchaseStoreErrorLikeCpp::Terminal(
+            "battle-pet purchase command disappeared during a status transition".to_string(),
+        ));
+    };
+    Ok(match row.status {
+        status if status == target => BattlePetPurchaseMarkOutcomeLikeCpp::AlreadyApplied,
+        BattlePetPurchaseStatusLikeCpp::Completed => {
+            BattlePetPurchaseMarkOutcomeLikeCpp::ConflictedCompleted
+        }
+        BattlePetPurchaseStatusLikeCpp::Compensated
+        | BattlePetPurchaseStatusLikeCpp::TerminalFailure => {
+            BattlePetPurchaseMarkOutcomeLikeCpp::ConflictedCompensated
+        }
+        status if status == pending_source => {
+            return Err(BattlePetPurchaseStoreErrorLikeCpp::Retryable(
+                "battle-pet purchase status transition did not commit".to_string(),
+            ));
+        }
+        status => {
+            return Err(BattlePetPurchaseStoreErrorLikeCpp::Terminal(format!(
+                "battle-pet purchase status transition from {status:?} is not owned here"
+            )));
+        }
+    })
+}
+
+/// SQLx-free Character durability seam for the battle-pet purchase saga.
+pub trait BattlePetPurchasePersistencePortLikeCpp: Send + Sync {
+    /// T1: guarded absolute charge plus pending command in one transaction.
+    fn charge_and_insert_command<'a>(
+        &'a self,
+        command: BattlePetPurchaseCommandLikeCpp,
+        cancellation_fence: Box<dyn BattlePetPurchaseCommitFenceLikeCpp>,
+    ) -> PersistenceFutureLikeCpp<
+        'a,
+        Result<BattlePetPurchaseChargeOutcomeLikeCpp, BattlePetPurchaseStoreErrorLikeCpp>,
+    >;
+
+    /// Oldest unconverged commands for bounded login recovery.
+    fn load_pending_commands<'a>(
+        &'a self,
+        character_guid: u64,
+        limit: u32,
+    ) -> PersistenceFutureLikeCpp<
+        'a,
+        Result<Vec<BattlePetPurchaseCommandLikeCpp>, BattlePetPurchaseStoreErrorLikeCpp>,
+    >;
+
+    /// Record that the success packets were queued after durable pet creation.
+    fn mark_published<'a>(
+        &'a self,
+        request_key: [u8; 16],
+    ) -> PersistenceFutureLikeCpp<
+        'a,
+        Result<BattlePetPurchaseMarkOutcomeLikeCpp, BattlePetPurchaseStoreErrorLikeCpp>,
+    >;
+
+    /// T3: pending/compensation-pending to completed.
+    fn mark_completed<'a>(
+        &'a self,
+        request_key: [u8; 16],
+    ) -> PersistenceFutureLikeCpp<
+        'a,
+        Result<BattlePetPurchaseMarkOutcomeLikeCpp, BattlePetPurchaseStoreErrorLikeCpp>,
+    >;
+
+    /// T4: record a terminal application decision before refunding.
+    fn mark_compensation_pending<'a>(
+        &'a self,
+        request_key: [u8; 16],
+        reason: &'static str,
+    ) -> PersistenceFutureLikeCpp<
+        'a,
+        Result<BattlePetPurchaseMarkOutcomeLikeCpp, BattlePetPurchaseStoreErrorLikeCpp>,
+    >;
+
+    /// T5: capped refund plus compensated status in one transaction.
+    fn compensate<'a>(
+        &'a self,
+        request_key: [u8; 16],
+        max_money: u64,
+        cancellation_fence: Box<dyn BattlePetPurchaseCommitFenceLikeCpp>,
+    ) -> PersistenceFutureLikeCpp<
+        'a,
+        Result<BattlePetPurchaseCompensationOutcomeLikeCpp, BattlePetPurchaseStoreErrorLikeCpp>,
+    >;
+
+    /// T6: best-effort terminal marker when the character row is gone.
+    fn mark_terminal_failure<'a>(
+        &'a self,
+        request_key: [u8; 16],
+        reason: &'static str,
+    ) -> PersistenceFutureLikeCpp<'a, Result<(), BattlePetPurchaseStoreErrorLikeCpp>>;
+}
+
 /// Which offline state the lifecycle is publishing.
 ///
 /// C++ `WorldSession::LogoutPlayer` marks the character offline and every
@@ -2984,6 +3229,104 @@ pub trait GroupLootMoneyPersistencePortLikeCpp: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn battle_pet_purchase_command_like_cpp(
+        request_key: [u8; 16],
+    ) -> BattlePetPurchaseCommandLikeCpp {
+        BattlePetPurchaseCommandLikeCpp {
+            request_key,
+            character_guid: 7,
+            account_id: 11,
+            trainer_id: 13,
+            spell_id: 17,
+            species: 19,
+            breed: 23,
+            quality: 2,
+            display_id: 29,
+            level: 1,
+            price: 31,
+            money_before: 100,
+            money_after: 69,
+            status: BattlePetPurchaseStatusLikeCpp::PendingApplication,
+            published: false,
+            failure_reason: None,
+        }
+    }
+
+    #[test]
+    fn battle_pet_purchase_status_codes_and_terminal_set_are_stable_like_cpp() {
+        for (code, status, terminal) in [
+            (0, BattlePetPurchaseStatusLikeCpp::PendingApplication, false),
+            (1, BattlePetPurchaseStatusLikeCpp::Completed, true),
+            (
+                2,
+                BattlePetPurchaseStatusLikeCpp::CompensationPending,
+                false,
+            ),
+            (3, BattlePetPurchaseStatusLikeCpp::Compensated, true),
+            (4, BattlePetPurchaseStatusLikeCpp::TerminalFailure, true),
+        ] {
+            assert_eq!(status.as_u8_like_cpp(), code);
+            assert_eq!(
+                BattlePetPurchaseStatusLikeCpp::from_u8_like_cpp(code),
+                Some(status)
+            );
+            assert_eq!(status.is_terminal_like_cpp(), terminal);
+        }
+        assert_eq!(BattlePetPurchaseStatusLikeCpp::from_u8_like_cpp(5), None);
+    }
+
+    #[test]
+    fn battle_pet_purchase_charge_reconciliation_requires_the_complete_identity() {
+        let expected = battle_pet_purchase_command_like_cpp([1; 16]);
+        assert_eq!(
+            reconcile_battle_pet_purchase_charge_like_cpp(Some(&expected), &expected),
+            BattlePetPurchaseChargeOutcomeLikeCpp::Charged
+        );
+        let mut collision = expected.clone();
+        collision.species += 1;
+        assert_eq!(
+            reconcile_battle_pet_purchase_charge_like_cpp(Some(&collision), &expected),
+            BattlePetPurchaseChargeOutcomeLikeCpp::RolledBack
+        );
+        assert_eq!(
+            reconcile_battle_pet_purchase_charge_like_cpp(None, &expected),
+            BattlePetPurchaseChargeOutcomeLikeCpp::RolledBack
+        );
+    }
+
+    #[test]
+    fn battle_pet_purchase_mark_reconciliation_distinguishes_retry_and_conflict() {
+        let pending = battle_pet_purchase_command_like_cpp([2; 16]);
+        assert!(matches!(
+            reconcile_battle_pet_purchase_mark_like_cpp(
+                Some(&pending),
+                BattlePetPurchaseStatusLikeCpp::PendingApplication,
+                BattlePetPurchaseStatusLikeCpp::Completed,
+            ),
+            Err(BattlePetPurchaseStoreErrorLikeCpp::Retryable(_))
+        ));
+        let mut completed = pending.clone();
+        completed.status = BattlePetPurchaseStatusLikeCpp::Completed;
+        assert_eq!(
+            reconcile_battle_pet_purchase_mark_like_cpp(
+                Some(&completed),
+                BattlePetPurchaseStatusLikeCpp::PendingApplication,
+                BattlePetPurchaseStatusLikeCpp::Completed,
+            ),
+            Ok(BattlePetPurchaseMarkOutcomeLikeCpp::AlreadyApplied)
+        );
+        let mut compensated = pending;
+        compensated.status = BattlePetPurchaseStatusLikeCpp::Compensated;
+        assert_eq!(
+            reconcile_battle_pet_purchase_mark_like_cpp(
+                Some(&compensated),
+                BattlePetPurchaseStatusLikeCpp::PendingApplication,
+                BattlePetPurchaseStatusLikeCpp::Completed,
+            ),
+            Ok(BattlePetPurchaseMarkOutcomeLikeCpp::ConflictedCompensated)
+        );
+    }
 
     #[test]
     fn each_offline_mark_names_its_logical_database_like_cpp() {

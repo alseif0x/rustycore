@@ -4438,6 +4438,13 @@ async fn run_inner(
         ),
     );
     let spell_acquisition_port = spell_acquisition_port(Arc::clone(&char_db));
+    let battle_pet_purchase_persistence_port: Arc<
+        dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp,
+    > = Arc::new(
+        wow_database::CharacterBattlePetPurchasePersistenceAdapterLikeCpp::new(Arc::clone(
+            &char_db,
+        )),
+    );
     // Build session resources
     let session_resources = Arc::new(SessionResources {
         char_db: Some(Arc::clone(&char_db)),
@@ -4458,6 +4465,7 @@ async fn run_inner(
             &gameobject_use_template_persistence_port,
         )),
         player_spell_acquisition_persistence_port: Some(spell_acquisition_port),
+        battle_pet_purchase_persistence_port: Some(battle_pet_purchase_persistence_port),
         world_db: Some(Arc::clone(&world_db)),
         trainer_store: Some(Arc::clone(&trainer_data_store)),
         guid_generator: Some(Arc::clone(&guid_generator)),

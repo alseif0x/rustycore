@@ -323,6 +323,9 @@ pub(super) async fn create_session(
     if let Some(ref port) = resources.player_spell_acquisition_persistence_port {
         session.set_spell_acquisition_port_like_cpp(Arc::clone(port));
     }
+    if let Some(ref port) = resources.battle_pet_purchase_persistence_port {
+        session.set_battle_pet_purchase_persistence_port_like_cpp(Arc::clone(port));
+    }
     session.set_remote_address_like_cpp(account.client_address.map(|addr| addr.to_string()));
     session.set_battlenet_account_id(account.battlenet_account_id);
     session.set_recruiter_id_like_cpp(account.recruiter);
@@ -409,9 +412,6 @@ pub(super) async fn create_session(
     if let Some(ref store) = resources.battle_pet_selection_store {
         session.set_battle_pet_selection_store_like_cpp(Arc::clone(store));
     }
-    // Issue #161: the recoverable purchase saga builds its production
-    // Character DB store from the session's own character database handle.
-    session.install_battle_pet_purchase_store_from_char_db_like_cpp();
     if let Some(ref store) = resources.battle_pet_species_state_store {
         session.set_battle_pet_species_state_store(Arc::clone(store));
     }

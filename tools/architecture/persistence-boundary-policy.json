@@ -13075,6 +13075,426 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::battle_pet_purchase_adapter:crates/wow-database/src/battle_pet_purchase_adapter.rs::impl CharacterBattlePetPurchasePersistenceAdapterLikeCpp::load_character_money_impl",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/battle_pet_purchase_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::battle_pet_purchase_adapter"
+      ],
+      "enclosings": [
+        "impl CharacterBattlePetPurchasePersistenceAdapterLikeCpp::load_character_money_impl"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free battle-pet purchase saga durability (#476) currently owns the complete wow-database workflow impl CharacterBattlePetPurchasePersistenceAdapterLikeCpp::load_character_money_impl in crates/wow-database/src/battle_pet_purchase_adapter.rs.",
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::battle_pet_purchase_adapter:crates/wow-database/src/battle_pet_purchase_adapter.rs::impl CharacterBattlePetPurchasePersistenceAdapterLikeCpp::load_command_impl",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/battle_pet_purchase_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::battle_pet_purchase_adapter"
+      ],
+      "enclosings": [
+        "impl CharacterBattlePetPurchasePersistenceAdapterLikeCpp::load_command_impl"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free battle-pet purchase saga durability (#476) currently owns the complete wow-database workflow impl CharacterBattlePetPurchasePersistenceAdapterLikeCpp::load_command_impl in crates/wow-database/src/battle_pet_purchase_adapter.rs.",
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::battle_pet_purchase_adapter:crates/wow-database/src/battle_pet_purchase_adapter.rs::impl CharacterBattlePetPurchasePersistenceAdapterLikeCpp::mark_statement_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/battle_pet_purchase_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::battle_pet_purchase_adapter"
+      ],
+      "enclosings": [
+        "impl CharacterBattlePetPurchasePersistenceAdapterLikeCpp::mark_statement_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free battle-pet purchase saga durability (#476) currently owns the complete wow-database workflow impl CharacterBattlePetPurchasePersistenceAdapterLikeCpp::mark_statement_like_cpp in crates/wow-database/src/battle_pet_purchase_adapter.rs.",
+      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::battle_pet_purchase_adapter:crates/wow-database/src/battle_pet_purchase_adapter.rs::impl CharacterBattlePetPurchasePersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/battle_pet_purchase_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::battle_pet_purchase_adapter"
+      ],
+      "enclosings": [
+        "impl CharacterBattlePetPurchasePersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free battle-pet purchase saga durability (#476) currently owns the complete wow-database workflow impl CharacterBattlePetPurchasePersistenceAdapterLikeCpp::new in crates/wow-database/src/battle_pet_purchase_adapter.rs.",
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::battle_pet_purchase_adapter:crates/wow-database/src/battle_pet_purchase_adapter.rs::impl CharacterBattlePetPurchasePersistenceAdapterLikeCpp::read_command_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/battle_pet_purchase_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::battle_pet_purchase_adapter"
+      ],
+      "enclosings": [
+        "impl CharacterBattlePetPurchasePersistenceAdapterLikeCpp::read_command_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free battle-pet purchase saga durability (#476) currently owns the complete wow-database workflow impl CharacterBattlePetPurchasePersistenceAdapterLikeCpp::read_command_row_like_cpp in crates/wow-database/src/battle_pet_purchase_adapter.rs.",
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::battle_pet_purchase_adapter:crates/wow-database/src/battle_pet_purchase_adapter.rs::impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::charge_and_insert_command",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/battle_pet_purchase_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::battle_pet_purchase_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::charge_and_insert_command"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free battle-pet purchase saga durability (#476) currently owns the complete wow-database workflow impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::charge_and_insert_command in crates/wow-database/src/battle_pet_purchase_adapter.rs.",
+      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::battle_pet_purchase_adapter:crates/wow-database/src/battle_pet_purchase_adapter.rs::impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::compensate",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/battle_pet_purchase_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::battle_pet_purchase_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::compensate"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free battle-pet purchase saga durability (#476) currently owns the complete wow-database workflow impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::compensate in crates/wow-database/src/battle_pet_purchase_adapter.rs.",
+      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::battle_pet_purchase_adapter:crates/wow-database/src/battle_pet_purchase_adapter.rs::impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::load_pending_commands",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/battle_pet_purchase_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::battle_pet_purchase_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::load_pending_commands"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free battle-pet purchase saga durability (#476) currently owns the complete wow-database workflow impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::load_pending_commands in crates/wow-database/src/battle_pet_purchase_adapter.rs.",
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::battle_pet_purchase_adapter:crates/wow-database/src/battle_pet_purchase_adapter.rs::impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::mark_compensation_pending",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/battle_pet_purchase_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::battle_pet_purchase_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::mark_compensation_pending"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free battle-pet purchase saga durability (#476) currently owns the complete wow-database workflow impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::mark_compensation_pending in crates/wow-database/src/battle_pet_purchase_adapter.rs.",
+      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::battle_pet_purchase_adapter:crates/wow-database/src/battle_pet_purchase_adapter.rs::impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::mark_completed",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/battle_pet_purchase_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::battle_pet_purchase_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::mark_completed"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free battle-pet purchase saga durability (#476) currently owns the complete wow-database workflow impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::mark_completed in crates/wow-database/src/battle_pet_purchase_adapter.rs.",
+      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::battle_pet_purchase_adapter:crates/wow-database/src/battle_pet_purchase_adapter.rs::impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::mark_published",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/battle_pet_purchase_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::battle_pet_purchase_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::mark_published"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free battle-pet purchase saga durability (#476) currently owns the complete wow-database workflow impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::mark_published in crates/wow-database/src/battle_pet_purchase_adapter.rs.",
+      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::battle_pet_purchase_adapter:crates/wow-database/src/battle_pet_purchase_adapter.rs::impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::mark_terminal_failure",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/battle_pet_purchase_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::battle_pet_purchase_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::mark_terminal_failure"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free battle-pet purchase saga durability (#476) currently owns the complete wow-database workflow impl wow_persistence::BattlePetPurchasePersistencePortLikeCpp for CharacterBattlePetPurchasePersistenceAdapterLikeCpp::mark_terminal_failure in crates/wow-database/src/battle_pet_purchase_adapter.rs.",
+      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
+      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::battle_pet_purchase_adapter:crates/wow-database/src/battle_pet_purchase_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/battle_pet_purchase_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::battle_pet_purchase_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free battle-pet purchase saga durability (#476) currently owns the complete wow-database workflow module in crates/wow-database/src/battle_pet_purchase_adapter.rs.",
+      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
+      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
+      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::battle_pet_purchase_adapter:crates/wow-database/src/battle_pet_purchase_adapter.rs::struct CharacterBattlePetPurchasePersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/battle_pet_purchase_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::battle_pet_purchase_adapter"
+      ],
+      "enclosings": [
+        "struct CharacterBattlePetPurchasePersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for SQLx-free battle-pet purchase saga durability (#476) currently owns the complete wow-database workflow struct CharacterBattlePetPurchasePersistenceAdapterLikeCpp in crates/wow-database/src/battle_pet_purchase_adapter.rs.",
+      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
+      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::database:crates/wow-database/src/database.rs::fn connect_pool_like_cpp",
       "source_class": "production",
       "packages": [
@@ -23184,454 +23604,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-world:crate::battle_pet_purchase:crates/wow-world/src/battle_pet_purchase.rs::impl CharacterBattlePetPurchaseStoreLikeCpp::load_character_money_impl",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/battle_pet_purchase.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::battle_pet_purchase"
-      ],
-      "enclosings": [
-        "impl CharacterBattlePetPurchaseStoreLikeCpp::load_character_money_impl"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl CharacterBattlePetPurchaseStoreLikeCpp::load_character_money_impl in crates/wow-world/src/battle_pet_purchase.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::battle_pet_purchase:crates/wow-world/src/battle_pet_purchase.rs::impl CharacterBattlePetPurchaseStoreLikeCpp::load_command_impl",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/battle_pet_purchase.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::battle_pet_purchase"
-      ],
-      "enclosings": [
-        "impl CharacterBattlePetPurchaseStoreLikeCpp::load_command_impl"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl CharacterBattlePetPurchaseStoreLikeCpp::load_command_impl in crates/wow-world/src/battle_pet_purchase.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::battle_pet_purchase:crates/wow-world/src/battle_pet_purchase.rs::impl CharacterBattlePetPurchaseStoreLikeCpp::mark_statement_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/battle_pet_purchase.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::battle_pet_purchase"
-      ],
-      "enclosings": [
-        "impl CharacterBattlePetPurchaseStoreLikeCpp::mark_statement_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl CharacterBattlePetPurchaseStoreLikeCpp::mark_statement_like_cpp in crates/wow-world/src/battle_pet_purchase.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::battle_pet_purchase:crates/wow-world/src/battle_pet_purchase.rs::impl CharacterBattlePetPurchaseStoreLikeCpp::new",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/battle_pet_purchase.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::battle_pet_purchase"
-      ],
-      "enclosings": [
-        "impl CharacterBattlePetPurchaseStoreLikeCpp::new"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl CharacterBattlePetPurchaseStoreLikeCpp::new in crates/wow-world/src/battle_pet_purchase.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::battle_pet_purchase:crates/wow-world/src/battle_pet_purchase.rs::impl CharacterBattlePetPurchaseStoreLikeCpp::read_command_row_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/battle_pet_purchase.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::battle_pet_purchase"
-      ],
-      "enclosings": [
-        "impl CharacterBattlePetPurchaseStoreLikeCpp::read_command_row_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl CharacterBattlePetPurchaseStoreLikeCpp::read_command_row_like_cpp in crates/wow-world/src/battle_pet_purchase.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::battle_pet_purchase:crates/wow-world/src/battle_pet_purchase.rs::impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::charge_and_insert_command",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/battle_pet_purchase.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::battle_pet_purchase"
-      ],
-      "enclosings": [
-        "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::charge_and_insert_command"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::charge_and_insert_command in crates/wow-world/src/battle_pet_purchase.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::battle_pet_purchase:crates/wow-world/src/battle_pet_purchase.rs::impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::compensate",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/battle_pet_purchase.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::battle_pet_purchase"
-      ],
-      "enclosings": [
-        "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::compensate"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::compensate in crates/wow-world/src/battle_pet_purchase.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::battle_pet_purchase:crates/wow-world/src/battle_pet_purchase.rs::impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::load_pending_commands",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/battle_pet_purchase.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::battle_pet_purchase"
-      ],
-      "enclosings": [
-        "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::load_pending_commands"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::load_pending_commands in crates/wow-world/src/battle_pet_purchase.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::battle_pet_purchase:crates/wow-world/src/battle_pet_purchase.rs::impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::mark_compensation_pending",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/battle_pet_purchase.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::battle_pet_purchase"
-      ],
-      "enclosings": [
-        "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::mark_compensation_pending"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::mark_compensation_pending in crates/wow-world/src/battle_pet_purchase.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::battle_pet_purchase:crates/wow-world/src/battle_pet_purchase.rs::impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::mark_completed",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/battle_pet_purchase.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::battle_pet_purchase"
-      ],
-      "enclosings": [
-        "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::mark_completed"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::mark_completed in crates/wow-world/src/battle_pet_purchase.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::battle_pet_purchase:crates/wow-world/src/battle_pet_purchase.rs::impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::mark_published",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/battle_pet_purchase.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::battle_pet_purchase"
-      ],
-      "enclosings": [
-        "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::mark_published"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::mark_published in crates/wow-world/src/battle_pet_purchase.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::battle_pet_purchase:crates/wow-world/src/battle_pet_purchase.rs::impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::mark_terminal_failure",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/battle_pet_purchase.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::battle_pet_purchase"
-      ],
-      "enclosings": [
-        "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::mark_terminal_failure"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::mark_terminal_failure in crates/wow-world/src/battle_pet_purchase.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::battle_pet_purchase:crates/wow-world/src/battle_pet_purchase.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/battle_pet_purchase.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::battle_pet_purchase"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow module in crates/wow-world/src/battle_pet_purchase.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::battle_pet_purchase:crates/wow-world/src/battle_pet_purchase.rs::struct CharacterBattlePetPurchaseStoreLikeCpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/battle_pet_purchase.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::battle_pet_purchase"
-      ],
-      "enclosings": [
-        "struct CharacterBattlePetPurchaseStoreLikeCpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow struct CharacterBattlePetPurchaseStoreLikeCpp in crates/wow-world/src/battle_pet_purchase.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-world:crate::canonical_player_sync:crates/wow-world/src/canonical_player_sync.rs::fn hydrate_player_presentation_like_cpp",
       "source_class": "production",
       "packages": [
@@ -27590,38 +27562,6 @@
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
       "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session/mod.rs::impl WorldSession::install_battle_pet_purchase_store_from_char_db_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session"
-      ],
-      "enclosings": [
-        "impl WorldSession::install_battle_pet_purchase_store_from_char_db_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "Session residual persistence boundary currently owns the complete wow-world workflow impl WorldSession::install_battle_pet_purchase_store_from_char_db_like_cpp in crates/wow-world/src/session/mod.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153
       ],
