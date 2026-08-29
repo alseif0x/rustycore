@@ -6,6 +6,46 @@
 use super::*;
 use wow_constants::UnitStandStateType;
 use wow_packet::packets::misc::SetSavedInstanceExtend;
+use wow_persistence::{
+    InstanceLockPersistenceLoadOutcomeLikeCpp, InstanceLockPersistenceMutationLikeCpp,
+    InstanceLockPersistenceOutcomeLikeCpp, InstanceLockPersistencePlanLikeCpp,
+    InstanceLockPersistencePortLikeCpp, PersistenceFutureLikeCpp,
+};
+
+struct InstanceLockPersistenceFixtureLikeCpp {
+    outcome: InstanceLockPersistenceOutcomeLikeCpp,
+    plans: Mutex<Vec<InstanceLockPersistencePlanLikeCpp>>,
+}
+
+impl InstanceLockPersistenceFixtureLikeCpp {
+    fn new(outcome: InstanceLockPersistenceOutcomeLikeCpp) -> Self {
+        Self {
+            outcome,
+            plans: Mutex::new(Vec::new()),
+        }
+    }
+}
+
+impl InstanceLockPersistencePortLikeCpp for InstanceLockPersistenceFixtureLikeCpp {
+    fn load_all_like_cpp<'a>(
+        &'a self,
+    ) -> PersistenceFutureLikeCpp<'a, InstanceLockPersistenceLoadOutcomeLikeCpp> {
+        Box::pin(async {
+            InstanceLockPersistenceLoadOutcomeLikeCpp::Failed {
+                reason: "not used by handler fixture".to_string(),
+            }
+        })
+    }
+
+    fn commit_plan_like_cpp<'a>(
+        &'a self,
+        plan: InstanceLockPersistencePlanLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, InstanceLockPersistenceOutcomeLikeCpp> {
+        self.plans.lock().unwrap().push(plan);
+        let outcome = self.outcome.clone();
+        Box::pin(async move { outcome })
+    }
+}
 
 #[tokio::test]
 async fn set_difficulty_id_resets_instances_before_solo_dungeon_packet_like_cpp() {
@@ -222,6 +262,10 @@ async fn reset_instances_handler_resets_player_lock_and_sends_cpp_success_packet
     ])));
     let mgr = Arc::new(std::sync::RwLock::new(mgr));
     session.set_instance_lock_mgr(Arc::clone(&mgr));
+    let port = Arc::new(InstanceLockPersistenceFixtureLikeCpp::new(
+        InstanceLockPersistenceOutcomeLikeCpp::Committed,
+    ));
+    session.set_instance_lock_persistence_port_like_cpp(port.clone());
 
     session
         .handle_reset_instances(WorldPacket::from_bytes(&[]))
@@ -239,6 +283,10 @@ async fn reset_instances_handler_resets_player_lock_and_sends_cpp_success_packet
             .find_active_instance_lock_at(player_guid, &entries, now)
             .is_none()
     );
+    assert!(matches!(
+        port.plans.lock().unwrap()[0].mutations.as_slice(),
+        [InstanceLockPersistenceMutationLikeCpp::ForceExpireCharacterLock { .. }]
+    ));
 }
 
 #[tokio::test]
@@ -314,6 +362,10 @@ async fn set_saved_instance_extend_updates_lock_and_sends_calendar_like_cpp() {
     ])));
     let mgr = Arc::new(std::sync::RwLock::new(mgr));
     session.set_instance_lock_mgr(Arc::clone(&mgr));
+    let port = Arc::new(InstanceLockPersistenceFixtureLikeCpp::new(
+        InstanceLockPersistenceOutcomeLikeCpp::Committed,
+    ));
+    session.set_instance_lock_persistence_port_like_cpp(port.clone());
 
     session
         .handle_set_saved_instance_extend(SetSavedInstanceExtend {
@@ -342,6 +394,10 @@ async fn set_saved_instance_extend_updates_lock_and_sends_calendar_like_cpp() {
             .unwrap()
             .extended
     );
+    assert!(matches!(
+        port.plans.lock().unwrap()[0].mutations.as_slice(),
+        [InstanceLockPersistenceMutationLikeCpp::UpdateCharacterLockExtension { .. }]
+    ));
 }
 
 #[tokio::test]
@@ -398,6 +454,10 @@ async fn instance_lock_response_accept_confirms_and_clears_pending_bind_like_cpp
     let player_guid = ObjectGuid::create_player(1, 42);
     let mgr =
         install_pending_bind_instance_context_like_cpp(&mut session, player_guid, 631, 9001, 4, 10);
+    let port = Arc::new(InstanceLockPersistenceFixtureLikeCpp::new(
+        InstanceLockPersistenceOutcomeLikeCpp::Committed,
+    ));
+    session.set_instance_lock_persistence_port_like_cpp(port.clone());
     session.pending_bind = Some(crate::session::RepresentedPendingBind {
         map_id: 631,
         instance_id: 9001,
@@ -444,6 +504,55 @@ async fn instance_lock_response_accept_confirms_and_clears_pending_bind_like_cpp
     assert_eq!(pkt.read_int32().unwrap(), 631);
     assert_eq!(pkt.read_uint32().unwrap(), 4);
     assert!(pkt.read_int32().unwrap() > 0);
+    assert!(matches!(
+        port.plans.lock().unwrap()[0].mutations.as_slice(),
+        [
+            InstanceLockPersistenceMutationLikeCpp::DeleteCharacterLock { .. },
+            InstanceLockPersistenceMutationLikeCpp::InsertCharacterLock { .. }
+        ]
+    ));
+}
+
+#[tokio::test]
+async fn pending_bind_commit_failure_keeps_mutation_but_publishes_nothing_like_cpp() {
+    let (mut session, send_rx) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 42);
+    let mgr =
+        install_pending_bind_instance_context_like_cpp(&mut session, player_guid, 631, 9001, 4, 10);
+    let port = Arc::new(InstanceLockPersistenceFixtureLikeCpp::new(
+        InstanceLockPersistenceOutcomeLikeCpp::Failed {
+            reason: "fixture commit failure".to_string(),
+        },
+    ));
+    session.set_instance_lock_persistence_port_like_cpp(port.clone());
+    session.pending_bind = Some(crate::session::RepresentedPendingBind {
+        map_id: 631,
+        instance_id: 9001,
+        completed_mask: 0xA5,
+        time_until_lock_ms: 60_000,
+    });
+
+    session
+        .handle_instance_lock_response(WorldPacket::from_bytes(&[0x80]))
+        .await;
+
+    assert!(session.pending_bind.is_none());
+    assert!(session.represented_confirmed_pending_binds.is_empty());
+    assert!(send_rx.try_recv().is_err());
+    assert_eq!(port.plans.lock().unwrap().len(), 1);
+
+    let entries = session.create_map_db2_entries_like_cpp(631, 4).unwrap();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    assert!(
+        mgr.read()
+            .unwrap()
+            .find_active_instance_lock_at(player_guid, &entries, now)
+            .is_some(),
+        "the represented path already mutated memory before the failed commit, matching the pre-port ordering"
+    );
 }
 
 #[tokio::test]
