@@ -3712,70 +3712,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-data:crate::area_trigger_template:crates/wow-data/src/area_trigger_template.rs::impl AreaTriggerTemplateStore::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/area_trigger_template.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::area_trigger_template"
-      ],
-      "enclosings": [
-        "impl AreaTriggerTemplateStore::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl AreaTriggerTemplateStore::load_like_cpp in crates/wow-data/src/area_trigger_template.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::area_trigger_template:crates/wow-data/src/area_trigger_template.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/area_trigger_template.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::area_trigger_template"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow module in crates/wow-data/src/area_trigger_template.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-data:crate::battle_pet_selection:crates/wow-data/src/battle_pet_selection.rs::impl BattlePetSelectionStoreLikeCpp::load_like_cpp",
       "source_class": "production",
       "packages": [
@@ -10499,6 +10435,216 @@
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_template_catalog_adapter:crates/wow-database/src/area_trigger_template_catalog_adapter.rs::const STARTUP_STATEMENTS_LIKE_RUST",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_template_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_template_catalog_adapter"
+      ],
+      "enclosings": [
+        "const STARTUP_STATEMENTS_LIKE_RUST"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free AreaTrigger template startup loading (#505) currently owns the complete wow-database workflow const STARTUP_STATEMENTS_LIKE_RUST in crates/wow-database/src/area_trigger_template_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all six queries; each row family is fully decoded before the next query and no transaction is implied.",
+      "current_order": "Preserve represented actions -> polygon vertices -> spline points -> create properties -> orbit -> templates query/failure order and each statement row order.",
+      "failure_and_unknown_commit": "The first query error becomes one typed Failed outcome; no concrete row or driver error crosses the port and the immutable AreaTrigger store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_template_catalog_adapter:crates/wow-database/src/area_trigger_template_catalog_adapter.rs::fn load_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_template_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_template_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn load_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free AreaTrigger template startup loading (#505) currently owns the complete wow-database workflow fn load_rows_like_cpp in crates/wow-database/src/area_trigger_template_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all six queries; each row family is fully decoded before the next query and no transaction is implied.",
+      "current_order": "Preserve represented actions -> polygon vertices -> spline points -> create properties -> orbit -> templates query/failure order and each statement row order.",
+      "failure_and_unknown_commit": "The first query error becomes one typed Failed outcome; no concrete row or driver error crosses the port and the immutable AreaTrigger store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_template_catalog_adapter:crates/wow-database/src/area_trigger_template_catalog_adapter.rs::fn query_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_template_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_template_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn query_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free AreaTrigger template startup loading (#505) currently owns the complete wow-database workflow fn query_rows_like_cpp in crates/wow-database/src/area_trigger_template_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all six queries; each row family is fully decoded before the next query and no transaction is implied.",
+      "current_order": "Preserve represented actions -> polygon vertices -> spline points -> create properties -> orbit -> templates query/failure order and each statement row order.",
+      "failure_and_unknown_commit": "The first query error becomes one typed Failed outcome; no concrete row or driver error crosses the port and the immutable AreaTrigger store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_template_catalog_adapter:crates/wow-database/src/area_trigger_template_catalog_adapter.rs::impl MariaDbAreaTriggerTemplateCatalogPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_template_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_template_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbAreaTriggerTemplateCatalogPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free AreaTrigger template startup loading (#505) currently owns the complete wow-database workflow impl MariaDbAreaTriggerTemplateCatalogPersistenceAdapterLikeCpp::new in crates/wow-database/src/area_trigger_template_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all six queries; each row family is fully decoded before the next query and no transaction is implied.",
+      "current_order": "Preserve represented actions -> polygon vertices -> spline points -> create properties -> orbit -> templates query/failure order and each statement row order.",
+      "failure_and_unknown_commit": "The first query error becomes one typed Failed outcome; no concrete row or driver error crosses the port and the immutable AreaTrigger store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_template_catalog_adapter:crates/wow-database/src/area_trigger_template_catalog_adapter.rs::impl wow_persistence::AreaTriggerTemplateCatalogPersistencePortLikeCpp for MariaDbAreaTriggerTemplateCatalogPersistenceAdapterLikeCpp::load_template_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_template_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_template_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::AreaTriggerTemplateCatalogPersistencePortLikeCpp for MariaDbAreaTriggerTemplateCatalogPersistenceAdapterLikeCpp::load_template_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free AreaTrigger template startup loading (#505) currently owns the complete wow-database workflow impl wow_persistence::AreaTriggerTemplateCatalogPersistencePortLikeCpp for MariaDbAreaTriggerTemplateCatalogPersistenceAdapterLikeCpp::load_template_rows_like_cpp in crates/wow-database/src/area_trigger_template_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all six queries; each row family is fully decoded before the next query and no transaction is implied.",
+      "current_order": "Preserve represented actions -> polygon vertices -> spline points -> create properties -> orbit -> templates query/failure order and each statement row order.",
+      "failure_and_unknown_commit": "The first query error becomes one typed Failed outcome; no concrete row or driver error crosses the port and the immutable AreaTrigger store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_template_catalog_adapter:crates/wow-database/src/area_trigger_template_catalog_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_template_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_template_catalog_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free AreaTrigger template startup loading (#505) currently owns the complete wow-database workflow module in crates/wow-database/src/area_trigger_template_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all six queries; each row family is fully decoded before the next query and no transaction is implied.",
+      "current_order": "Preserve represented actions -> polygon vertices -> spline points -> create properties -> orbit -> templates query/failure order and each statement row order.",
+      "failure_and_unknown_commit": "The first query error becomes one typed Failed outcome; no concrete row or driver error crosses the port and the immutable AreaTrigger store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_template_catalog_adapter:crates/wow-database/src/area_trigger_template_catalog_adapter.rs::struct MariaDbAreaTriggerTemplateCatalogPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_template_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_template_catalog_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbAreaTriggerTemplateCatalogPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free AreaTrigger template startup loading (#505) currently owns the complete wow-database workflow struct MariaDbAreaTriggerTemplateCatalogPersistenceAdapterLikeCpp in crates/wow-database/src/area_trigger_template_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all six queries; each row family is fully decoded before the next query and no transaction is implied.",
+      "current_order": "Preserve represented actions -> polygon vertices -> spline points -> create properties -> orbit -> templates query/failure order and each statement row order.",
+      "failure_and_unknown_commit": "The first query error becomes one typed Failed outcome; no concrete row or driver error crosses the port and the immutable AreaTrigger store is not published.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -28124,6 +28270,7 @@
         "wow-database"
       ],
       "sources": [
+        "crates/wow-database/src/area_trigger_template_catalog_adapter.rs",
         "crates/wow-database/src/battle_pet_account_adapter.rs",
         "crates/wow-database/src/character_enumeration_adapter.rs",
         "crates/wow-database/src/creature_query_catalog_adapter.rs",
