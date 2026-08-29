@@ -22,11 +22,9 @@ use wow_world::{
 pub(super) struct SessionResources {
     pub(super) char_db: Option<Arc<wow_database::CharacterDatabase>>,
     pub(super) login_db: Option<Arc<wow_database::LoginDatabase>>,
-    /// Player lifecycle persistence capability (#200). Built from the two
-    /// adapters above; the Session depends on this, never on the handles.
+    /// Player lifecycle capability (#200); Session never depends on its handles.
     pub(super) player_lifecycle_port: Option<Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>>,
-    /// Characters-database capability for state canonically owned by the
-    /// authenticated session (account data and tutorials).
+    /// Characters capability for session-owned account data and tutorials.
     pub(super) session_account_state_port:
         Option<Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>>,
     /// Login-database capability for PacketSpoof admission bans.
@@ -62,21 +60,19 @@ pub(super) struct SessionResources {
     /// World-database capability for the transitional gameobject-use template read.
     pub(super) gameobject_use_template_persistence_port:
         Option<Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>>,
+    pub(super) player_spell_acquisition_persistence_port:
+        Option<Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>>,
     pub(super) world_db: Option<Arc<wow_database::WorldDatabase>>,
-    /// Process-wide C++ `ObjectMgr::_trainers` /
-    /// `_creatureDefaultTrainers` snapshot.
+    /// Process-wide C++ trainer/default-trainer snapshot.
     pub(super) trainer_store: Option<Arc<wow_data::TrainerStoreLikeCpp>>,
     pub(super) guid_generator: Option<Arc<wow_core::ObjectGuidGenerator>>,
     /// Process-wide C++ `sObjectMgr->GetGenerator<HighGuid::Item>()` mirror.
-    /// Every session must share this allocator so concurrent item creation
-    /// cannot select the same `item_instance.guid`.
+    /// Shared so concurrent item creation cannot reuse `item_instance.guid`.
     pub(super) item_guid_generator: Option<Arc<wow_core::ObjectGuidGenerator>>,
-    /// Process-wide C++ `ObjectMgr::_equipmentSetGuid` mirror shared across
-    /// equipment sets, transmog outfits, and every session.
+    /// Shared C++ `_equipmentSetGuid` mirror for sets, outfits and sessions.
     pub(super) equipment_set_guid_generator:
         Option<Arc<wow_core::EquipmentSetGuidGeneratorLikeCpp>>,
-    /// Process-wide C++ `ObjectMgr::_voidItemId` mirror. This raw ID space is
-    /// independent from `item_instance.guid` and shared by every session.
+    /// Shared C++ `_voidItemId`, independent from `item_instance.guid`.
     pub(super) void_storage_item_id_generator:
         Option<Arc<wow_core::VoidStorageItemIdGeneratorLikeCpp>>,
     pub(super) instance_lock_mgr: Option<Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>>,

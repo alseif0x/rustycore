@@ -1059,8 +1059,8 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.session_resources.fields"
       },
       "audited_summary": {
-        "field_count": 258,
-        "option_field_count": 200,
+        "field_count": 259,
+        "option_field_count": 201,
         "count_kind": "baseline observation; AST is authoritative"
       },
       "coverage_rule": {
@@ -1068,7 +1068,7 @@
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_field_count": 258,
+        "expected_field_count": 259,
         "validation": "Compare sorted AST field names with the sorted concatenation of every entry.field_names; reject gaps, duplicates, stale names, entry count drift, or total count drift."
       },
       "entries": [
@@ -1102,7 +1102,7 @@
         },
         {
           "id": "session_resources_runtime_handles",
-          "expected_field_count": 15,
+          "expected_field_count": 16,
           "field_names": [
             "gameobject_use_template_persistence_port",
             "group_loot_money_persistence_port",
@@ -1112,6 +1112,7 @@
             "next_mail_time_persistence_port",
             "packet_spoof_ban_persistence_port",
             "player_lifecycle_port",
+            "player_spell_acquisition_persistence_port",
             "quest_poi_persistence_port",
             "represented_group_persistence_port",
             "session_account_state_port",
@@ -1124,7 +1125,7 @@
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "Session receives only the minimal typed runtime ports/PlayerHandle and cannot select or tick duplicate map authorities. #452 adds the narrow stored Item money capability, #454 adds the distinct multi-recipient payout capability, #458 adds the dedicated support bug-report capability, and #460 adds the transitional next-mail read capability without exposing a pool, row, transaction or generic query API."
+          "retirement_condition": "Session receives only the minimal typed runtime ports/PlayerHandle and cannot select or tick duplicate map authorities. #452 adds the narrow stored Item money capability, #454 adds the distinct multi-recipient payout capability, #458 adds the dedicated support bug-report capability, #460 adds the transitional next-mail read capability, and #472 adds the atomic trainer fee plus spell-acquisition capability without exposing a pool, row, transaction or generic query API."
         },
         {
           "id": "session_resources_catalogs_and_configuration",
@@ -1386,7 +1387,7 @@
           "retirement_condition": "Every remaining field has an exact capability bundle/consumer owner or is removed from Session construction."
         }
       ],
-      "expected_field_count": 258
+      "expected_field_count": 259
     },
     "session_command": {
       "coverage_source": {
@@ -1663,7 +1664,7 @@
         "command": "python3 tools/architecture/check_architecture.py hotspots --limit 20",
         "measurement": "two independent views: every real Rust file is reported physically, while each checked-in row is a logical owner ceiling including its reviewed private descendants; production/test/total remain independent non-growth ceilings",
         "physical_review_signals": "review a productive file around 2,000 lines; above 4,000 lines require a split plan or explicit cohesive exception; these are review signals, not daily blocking limits",
-        "baseline_commit": "998d59bd5328ef690412f99e54e0253371803598"
+        "baseline_commit": "542cb61b2847964a05bfd53123055ef6c4ad46de"
       },
       "entries": [
         {

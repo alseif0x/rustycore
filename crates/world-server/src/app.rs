@@ -8,6 +8,7 @@
 //! conceal those dependencies.
 
 use super::*;
+use wow_database::player_spell_acquisition_adapter::spell_acquisition_port;
 
 /// Run the world server with explicit process arguments.
 ///
@@ -4436,7 +4437,7 @@ async fn run_inner(
             Arc::clone(&world_db),
         ),
     );
-
+    let spell_acquisition_port = spell_acquisition_port(Arc::clone(&char_db));
     // Build session resources
     let session_resources = Arc::new(SessionResources {
         char_db: Some(Arc::clone(&char_db)),
@@ -4456,6 +4457,7 @@ async fn run_inner(
         gameobject_use_template_persistence_port: Some(Arc::clone(
             &gameobject_use_template_persistence_port,
         )),
+        player_spell_acquisition_persistence_port: Some(spell_acquisition_port),
         world_db: Some(Arc::clone(&world_db)),
         trainer_store: Some(Arc::clone(&trainer_data_store)),
         guid_generator: Some(Arc::clone(&guid_generator)),
