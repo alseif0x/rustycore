@@ -14,33 +14,18 @@ use crate::profession::{
     MAX_PRIMARY_TRADE_SKILLS_CONFIG_LIKE_CPP, PrimaryProfessionCapacityPlanLikeCpp,
     PrimaryProfessionEquipmentSlotLikeCpp,
 };
-use sqlx::MySql;
-use sqlx::Transaction;
-use wow_database::{
-    CharacterDatabase, DatabaseError, SqlTransactionCommitError, is_database_deadlock_like_cpp,
+use wow_persistence::{
+    PlayerSpellAcquisitionAuthorityLikeCpp as DurablePlayerSpellAcquisitionAuthorityLikeCpp,
+    PlayerSpellAcquisitionDurableOperationLikeCpp, PlayerSpellAcquisitionPersistencePortLikeCpp,
+    PlayerSpellAcquisitionPersistenceRequestLikeCpp,
+    PlayerSpellAcquisitionSkillRowLikeCpp as DurablePlayerSkillRowLikeCpp,
+    PlayerSpellAcquisitionSpellRowLikeCpp as DurablePlayerSpellRowLikeCpp,
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct DurablePlayerSpellRowLikeCpp {
-    pub spell_id: i32,
-    pub active: bool,
-    pub disabled: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct DurablePlayerSkillRowLikeCpp {
-    pub skill_id: u16,
-    pub value: u16,
-    pub maximum: u16,
-    pub profession_slot: i8,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct DurablePlayerSpellAcquisitionAuthorityLikeCpp {
-    spells: Vec<DurablePlayerSpellRowLikeCpp>,
-    favorite_spell_ids: Vec<i32>,
-    skills: Vec<DurablePlayerSkillRowLikeCpp>,
-}
+#[cfg(test)]
+use wow_persistence::{
+    PlayerSpellAcquisitionMoneyReconciliationLikeCpp,
+    classify_player_spell_acquisition_money_reconciliation_like_cpp,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PreparedPlayerSpellAcquisitionLikeCpp {
@@ -69,37 +54,8 @@ pub(crate) struct PreparedPlayerSpellAcquisitionLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PlayerSpellAcquisitionDurableOperationLikeCpp {
-    LockCharacter,
-    DeleteSpells,
-    DeleteFavoriteSpells,
-    DeleteSkills,
-    InsertSpell(DurablePlayerSpellRowLikeCpp),
-    InsertFavoriteSpell(i32),
-    InsertSkill(DurablePlayerSkillRowLikeCpp),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PlayerSpellAcquisitionPersistenceFaultPointLikeCpp {
-    BeforeOperation(usize),
-    BeforeCommit,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PlayerSpellAcquisitionPublicationFaultPointLikeCpp {
     BeforeAction(usize),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PlayerSpellAcquisitionReconciliationLikeCpp {
-    Committed,
-    NotCommitted,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PlayerSpellAcquisitionMoneyReconciliationLikeCpp {
-    Committed,
-    Indeterminate,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -108,6 +64,13 @@ pub(crate) enum PreparedPlayerSpellAcquisitionOutcomeLikeCpp {
     ActionsOnly(PreparedPlayerSpellAcquisitionActionsLikeCpp),
     AlreadyApplied,
     NoChange,
+}
+
+pub(crate) enum PlayerSpellAcquisitionPersistenceOutcomeLikeCpp {
+    Applied,
+    ReconciledCommit(String),
+    DefinitelyRolledBack(String),
+    Indeterminate(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1362,171 +1325,6 @@ fn profession_association_like_cpp(
         .unwrap_or(ProfessionAssociationInputLikeCpp::Unassigned)
 }
 
-pub(crate) async fn persist_prepared_player_spell_acquisition_like_cpp(
-    character_db: &CharacterDatabase,
-    guid_counter: u64,
-    prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
-) -> Result<(), SqlTransactionCommitError> {
-    validate_prepared_character_counter_like_cpp(guid_counter, prepared)
-        .map_err(SqlTransactionCommitError::DefinitelyRolledBack)?;
-    persist_prepared_player_spell_acquisition_with_fault_like_cpp(
-        character_db,
-        guid_counter,
-        prepared,
-        |_| Ok(()),
-    )
-    .await
-}
-
-/// Persists one prepared acquisition and its absolute trainer fee in a single
-/// Character DB transaction. The locked money value plus exact locked durable
-/// spell/favorite/skill source are optimistic idempotency guards: a repeated
-/// or cross-session request cannot rewrite a newer authority, including when
-/// a free purchase leaves the balance unchanged.
-pub(crate) async fn persist_prepared_player_spell_acquisition_and_money_like_cpp(
-    character_db: &CharacterDatabase,
-    guid_counter: u64,
-    prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
-    money_before: u64,
-    money_after: u64,
-    operation_token: &[u8; 16],
-) -> Result<(), SqlTransactionCommitError> {
-    validate_prepared_character_counter_like_cpp(guid_counter, prepared)
-        .map_err(SqlTransactionCommitError::DefinitelyRolledBack)?;
-    let mut transaction = character_db
-        .pool()
-        .begin()
-        .await
-        .map_err(DatabaseError::from)
-        .map_err(SqlTransactionCommitError::DefinitelyRolledBack)?;
-
-    let locked_money = match sqlx::query_scalar::<_, u64>(
-        "SELECT money FROM characters WHERE guid = ? FOR UPDATE",
-    )
-    .bind(guid_counter)
-    .fetch_optional(&mut *transaction)
-    .await
-    {
-        Ok(money) => money,
-        Err(error) => {
-            let error = DatabaseError::from(error);
-            rollback_player_spell_acquisition_like_cpp(transaction).await;
-            return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
-        }
-    };
-    if locked_money != Some(money_before) {
-        rollback_player_spell_acquisition_like_cpp(transaction).await;
-        return Err(SqlTransactionCommitError::DefinitelyRolledBack(
-            DatabaseError::Transaction(
-                "trainer acquisition durable money no longer matches the prepared balance"
-                    .to_string(),
-            ),
-        ));
-    }
-
-    let Some(expected_source_authority) =
-        stable_source_durable_authority_like_cpp(&prepared.source_snapshot)
-    else {
-        rollback_player_spell_acquisition_like_cpp(transaction).await;
-        return Err(SqlTransactionCommitError::DefinitelyRolledBack(
-            DatabaseError::Transaction(
-                "trainer acquisition source contains unsaved persistence state".to_string(),
-            ),
-        ));
-    };
-    let observed_source_authority = match read_durable_authority_in_transaction_like_cpp(
-        &mut transaction,
-        guid_counter,
-    )
-    .await
-    {
-        Ok(authority) => authority,
-        Err(error) => {
-            rollback_player_spell_acquisition_like_cpp(transaction).await;
-            return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
-        }
-    };
-    if observed_source_authority != expected_source_authority {
-        rollback_player_spell_acquisition_like_cpp(transaction).await;
-        return Err(SqlTransactionCommitError::DefinitelyRolledBack(
-            DatabaseError::Transaction(
-                "trainer acquisition durable source no longer matches the prepared snapshot"
-                    .to_string(),
-            ),
-        ));
-    }
-
-    for operation in prepared.durable_operations.iter().copied() {
-        if operation == PlayerSpellAcquisitionDurableOperationLikeCpp::LockCharacter {
-            continue;
-        }
-        if let Err(error) = execute_player_spell_acquisition_operation_like_cpp(
-            &mut transaction,
-            guid_counter,
-            operation,
-        )
-        .await
-        {
-            rollback_player_spell_acquisition_like_cpp(transaction).await;
-            return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
-        }
-    }
-
-    if money_before != money_after {
-        let result =
-            match sqlx::query("UPDATE characters SET money = ? WHERE guid = ? AND money = ?")
-                .bind(money_after)
-                .bind(guid_counter)
-                .bind(money_before)
-                .execute(&mut *transaction)
-                .await
-            {
-                Ok(result) => result,
-                Err(error) => {
-                    let error = DatabaseError::from(error);
-                    rollback_player_spell_acquisition_like_cpp(transaction).await;
-                    return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
-                }
-            };
-        if result.rows_affected() != 1 {
-            rollback_player_spell_acquisition_like_cpp(transaction).await;
-            return Err(SqlTransactionCommitError::DefinitelyRolledBack(
-                DatabaseError::Transaction(format!(
-                    "trainer acquisition money update affected {} rows; expected exactly 1",
-                    result.rows_affected()
-                )),
-            ));
-        }
-    }
-
-    // A post-state comparison alone cannot distinguish this COMMIT from a
-    // later identical purchase. Keep the latest opaque attempt token in the
-    // same transaction so an unknown COMMIT is attributable to this exact
-    // operation, including zero-price purchases.
-    if let Err(error) = sqlx::query(
-        "INSERT INTO character_spell_acquisition_operation (guid, operation_token) \
-         VALUES (?, ?) ON DUPLICATE KEY UPDATE operation_token = VALUES(operation_token)",
-    )
-    .bind(guid_counter)
-    .bind(operation_token.as_slice())
-    .execute(&mut *transaction)
-    .await
-    {
-        let error = DatabaseError::from(error);
-        rollback_player_spell_acquisition_like_cpp(transaction).await;
-        return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
-    }
-
-    transaction.commit().await.map_err(|error| {
-        let error = DatabaseError::from(error);
-        if is_database_deadlock_like_cpp(&error) {
-            SqlTransactionCommitError::DefinitelyRolledBack(error)
-        } else {
-            SqlTransactionCommitError::CommitOutcomeUnknown(error)
-        }
-    })
-}
-
 /// Project the exact Character DB rows represented by a clean runtime source.
 /// Temporary spells have no durable row; any other dirty state is ambiguous
 /// until the ordinary C++ save lifecycle consumes it, so trainer persistence
@@ -1588,411 +1386,70 @@ fn stable_source_durable_authority_like_cpp(
     })
 }
 
-async fn read_durable_authority_in_transaction_like_cpp(
-    transaction: &mut Transaction<'_, MySql>,
-    guid_counter: u64,
-) -> Result<DurablePlayerSpellAcquisitionAuthorityLikeCpp, DatabaseError> {
-    let spells = sqlx::query_as::<_, (i32, bool, bool)>(
-        "SELECT spell, active, disabled FROM character_spell WHERE guid = ? ORDER BY spell FOR UPDATE",
-    )
-    .bind(guid_counter)
-    .fetch_all(&mut **transaction)
-    .await
-    .map_err(DatabaseError::from)?
-    .into_iter()
-    .map(
-        |(spell_id, active, disabled)| DurablePlayerSpellRowLikeCpp {
-            spell_id,
-            active,
-            disabled,
-        },
-    )
-    .collect();
-    let favorite_spell_ids = sqlx::query_scalar::<_, i32>(
-        "SELECT spell FROM character_spell_favorite WHERE guid = ? ORDER BY spell FOR UPDATE",
-    )
-    .bind(guid_counter)
-    .fetch_all(&mut **transaction)
-    .await
-    .map_err(DatabaseError::from)?;
-    let skills = sqlx::query_as::<_, (u16, u16, u16, i8)>(
-        "SELECT skill, value, max, professionSlot FROM character_skills WHERE guid = ? ORDER BY skill FOR UPDATE",
-    )
-    .bind(guid_counter)
-    .fetch_all(&mut **transaction)
-    .await
-    .map_err(DatabaseError::from)?
-    .into_iter()
-    .map(
-        |(skill_id, value, maximum, profession_slot)| DurablePlayerSkillRowLikeCpp {
-            skill_id,
-            value,
-            maximum,
-            profession_slot,
-        },
-    )
-    .collect();
-    Ok(DurablePlayerSpellAcquisitionAuthorityLikeCpp {
-        spells,
-        favorite_spell_ids,
-        skills,
-    })
-}
-
-/// Reconciles an ambiguous combined trainer COMMIT. Exact prepared spell,
-/// favorite and skill authority plus the post-purchase money value proves the
-/// transaction committed. No current row shape can prove rollback after an
-/// ambiguous COMMIT because a later writer may have restored any prior value;
-/// every non-post-state shape is therefore quarantined as unknown.
-pub(crate) async fn reconcile_prepared_player_spell_acquisition_and_money_like_cpp(
-    character_db: &CharacterDatabase,
+/// Converts an already validated application plan into the complete SQLx-free
+/// transaction request consumed by the Character-database adapter.
+pub(crate) fn player_spell_acquisition_persistence_request_like_cpp(
     guid_counter: u64,
     prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
+    money_before: u64,
     money_after: u64,
-    operation_token: &[u8; 16],
-) -> Result<PlayerSpellAcquisitionMoneyReconciliationLikeCpp, DatabaseError> {
-    validate_prepared_character_counter_like_cpp(guid_counter, prepared)?;
-    let mut transaction = character_db
-        .pool()
-        .begin()
-        .await
-        .map_err(DatabaseError::from)?;
-    let observed_money =
-        sqlx::query_scalar::<_, u64>("SELECT money FROM characters WHERE guid = ? FOR UPDATE")
-            .bind(guid_counter)
-            .fetch_optional(&mut *transaction)
-            .await
-            .map_err(DatabaseError::from)?;
-    let Some(observed_money) = observed_money else {
-        rollback_player_spell_acquisition_like_cpp(transaction).await;
-        return Err(DatabaseError::Transaction(
-            "trainer acquisition character vanished during reconciliation".to_string(),
-        ));
-    };
-    let observed_operation_token = sqlx::query_scalar::<_, Vec<u8>>(
-        "SELECT operation_token FROM character_spell_acquisition_operation \
-         WHERE guid = ? FOR UPDATE",
-    )
-    .bind(guid_counter)
-    .fetch_optional(&mut *transaction)
-    .await
-    .map_err(DatabaseError::from)?;
-    let spell_rows = sqlx::query_as::<_, (i32, bool, bool)>(
-        "SELECT spell, active, disabled FROM character_spell WHERE guid = ? ORDER BY spell",
-    )
-    .bind(guid_counter)
-    .fetch_all(&mut *transaction)
-    .await
-    .map_err(DatabaseError::from)?
-    .into_iter()
-    .map(
-        |(spell_id, active, disabled)| DurablePlayerSpellRowLikeCpp {
-            spell_id,
-            active,
-            disabled,
-        },
-    )
-    .collect::<Vec<_>>();
-    let favorite_spell_ids = sqlx::query_scalar::<_, i32>(
-        "SELECT spell FROM character_spell_favorite WHERE guid = ? ORDER BY spell",
-    )
-    .bind(guid_counter)
-    .fetch_all(&mut *transaction)
-    .await
-    .map_err(DatabaseError::from)?;
-    let skill_rows = sqlx::query_as::<_, (u16, u16, u16, i8)>(
-        "SELECT skill, value, max, professionSlot FROM character_skills WHERE guid = ? ORDER BY skill",
-    )
-    .bind(guid_counter)
-    .fetch_all(&mut *transaction)
-    .await
-    .map_err(DatabaseError::from)?
-    .into_iter()
-    .map(
-        |(skill_id, value, maximum, profession_slot)| DurablePlayerSkillRowLikeCpp {
-            skill_id,
-            value,
-            maximum,
-            profession_slot,
-        },
-    )
-    .collect::<Vec<_>>();
-    transaction.commit().await.map_err(DatabaseError::from)?;
-
-    let durable_matches = spell_rows == prepared.durable_spells
-        && favorite_spell_ids == prepared.durable_favorite_spell_ids
-        && skill_rows == prepared.durable_skills;
-    let operation_matches = observed_operation_token
-        .as_deref()
-        .is_some_and(|observed| observed == operation_token);
-    Ok(
-        classify_player_spell_acquisition_money_reconciliation_like_cpp(
-            money_after,
-            observed_money,
-            durable_matches,
-            operation_matches,
-        ),
-    )
-}
-
-fn classify_player_spell_acquisition_money_reconciliation_like_cpp(
-    money_after: u64,
-    observed_money: u64,
-    durable_matches: bool,
-    operation_matches: bool,
-) -> PlayerSpellAcquisitionMoneyReconciliationLikeCpp {
-    if observed_money == money_after && durable_matches && operation_matches {
-        PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Committed
-    } else {
-        PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Indeterminate
-    }
-}
-
-/// Re-reads the complete durable authority after a lost COMMIT response.
-/// Exact equality proves that publishing the prepared result is safe; any
-/// other complete state is treated as not committed and is never guessed.
-pub(crate) async fn reconcile_prepared_player_spell_acquisition_like_cpp(
-    character_db: &CharacterDatabase,
-    guid_counter: u64,
-    prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
-) -> Result<PlayerSpellAcquisitionReconciliationLikeCpp, DatabaseError> {
-    validate_prepared_character_counter_like_cpp(guid_counter, prepared)?;
-    let mut transaction = character_db
-        .pool()
-        .begin()
-        .await
-        .map_err(DatabaseError::from)?;
-    let locked_guid =
-        sqlx::query_scalar::<_, u64>("SELECT guid FROM characters WHERE guid = ? FOR UPDATE")
-            .bind(guid_counter)
-            .fetch_optional(&mut *transaction)
-            .await
-            .map_err(DatabaseError::from)?;
-    if locked_guid != Some(guid_counter) {
-        rollback_player_spell_acquisition_like_cpp(transaction).await;
-        return Err(DatabaseError::Transaction(
-            "prepared player spell acquisition character vanished during reconciliation"
-                .to_string(),
-        ));
-    }
-
-    let spell_rows = sqlx::query_as::<_, (i32, bool, bool)>(
-        "SELECT spell, active, disabled FROM character_spell WHERE guid = ? ORDER BY spell",
-    )
-    .bind(guid_counter)
-    .fetch_all(&mut *transaction)
-    .await
-    .map_err(DatabaseError::from)?
-    .into_iter()
-    .map(
-        |(spell_id, active, disabled)| DurablePlayerSpellRowLikeCpp {
-            spell_id,
-            active,
-            disabled,
-        },
-    )
-    .collect::<Vec<_>>();
-    let favorite_spell_ids = sqlx::query_scalar::<_, i32>(
-        "SELECT spell FROM character_spell_favorite WHERE guid = ? ORDER BY spell",
-    )
-    .bind(guid_counter)
-    .fetch_all(&mut *transaction)
-    .await
-    .map_err(DatabaseError::from)?;
-    let skill_rows = sqlx::query_as::<_, (u16, u16, u16, i8)>(
-        "SELECT skill, value, max, professionSlot FROM character_skills WHERE guid = ? ORDER BY skill",
-    )
-    .bind(guid_counter)
-    .fetch_all(&mut *transaction)
-    .await
-    .map_err(DatabaseError::from)?
-    .into_iter()
-    .map(
-        |(skill_id, value, maximum, profession_slot)| DurablePlayerSkillRowLikeCpp {
-            skill_id,
-            value,
-            maximum,
-            profession_slot,
-        },
-    )
-    .collect::<Vec<_>>();
-
-    transaction.commit().await.map_err(DatabaseError::from)?;
-    Ok(
-        if spell_rows == prepared.durable_spells
-            && favorite_spell_ids == prepared.durable_favorite_spell_ids
-            && skill_rows == prepared.durable_skills
-        {
-            PlayerSpellAcquisitionReconciliationLikeCpp::Committed
-        } else {
-            PlayerSpellAcquisitionReconciliationLikeCpp::NotCommitted
-        },
-    )
-}
-
-async fn persist_prepared_player_spell_acquisition_with_fault_like_cpp<F>(
-    character_db: &CharacterDatabase,
-    guid_counter: u64,
-    prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
-    mut fault: F,
-) -> Result<(), SqlTransactionCommitError>
-where
-    F: FnMut(PlayerSpellAcquisitionPersistenceFaultPointLikeCpp) -> Result<(), DatabaseError>,
-{
-    validate_prepared_character_counter_like_cpp(guid_counter, prepared)
-        .map_err(SqlTransactionCommitError::DefinitelyRolledBack)?;
-    let mut transaction = character_db
-        .pool()
-        .begin()
-        .await
-        .map_err(DatabaseError::from)
-        .map_err(SqlTransactionCommitError::DefinitelyRolledBack)?;
-
-    for (index, operation) in prepared.durable_operations.iter().copied().enumerate() {
-        if let Err(error) =
-            fault(PlayerSpellAcquisitionPersistenceFaultPointLikeCpp::BeforeOperation(index))
-        {
-            rollback_player_spell_acquisition_like_cpp(transaction).await;
-            return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
-        }
-        if let Err(error) = execute_player_spell_acquisition_operation_like_cpp(
-            &mut transaction,
-            guid_counter,
-            operation,
-        )
-        .await
-        {
-            rollback_player_spell_acquisition_like_cpp(transaction).await;
-            return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
-        }
-    }
-
-    if let Err(error) = fault(PlayerSpellAcquisitionPersistenceFaultPointLikeCpp::BeforeCommit) {
-        rollback_player_spell_acquisition_like_cpp(transaction).await;
-        return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
-    }
-
-    transaction.commit().await.map_err(|error| {
-        let error = DatabaseError::from(error);
-        if is_database_deadlock_like_cpp(&error) {
-            SqlTransactionCommitError::DefinitelyRolledBack(error)
-        } else {
-            SqlTransactionCommitError::CommitOutcomeUnknown(error)
-        }
-    })
-}
-
-fn validate_prepared_character_counter_like_cpp(
-    guid_counter: u64,
-    prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
-) -> Result<(), DatabaseError> {
+    operation_token: [u8; 16],
+) -> Result<PlayerSpellAcquisitionPersistenceRequestLikeCpp, String> {
     let prepared_counter = prepared
         .character_guid
         .and_then(|guid| u64::try_from(guid.counter()).ok());
     if prepared_counter != Some(guid_counter) {
-        return Err(DatabaseError::Transaction(
-            "prepared player spell acquisition character GUID mismatch".to_string(),
-        ));
+        return Err("prepared player spell acquisition character GUID mismatch".to_owned());
     }
-    Ok(())
+    let source_authority = stable_source_durable_authority_like_cpp(&prepared.source_snapshot)
+        .ok_or_else(|| {
+            "trainer acquisition source contains unsaved persistence state".to_owned()
+        })?;
+    Ok(PlayerSpellAcquisitionPersistenceRequestLikeCpp {
+        player_guid: guid_counter,
+        money_before,
+        money_after,
+        operation_token,
+        source_authority,
+        resulting_authority: DurablePlayerSpellAcquisitionAuthorityLikeCpp {
+            spells: prepared.durable_spells.clone(),
+            favorite_spell_ids: prepared.durable_favorite_spell_ids.clone(),
+            skills: prepared.durable_skills.clone(),
+        },
+        operations: prepared.durable_operations.clone(),
+    })
 }
 
-async fn rollback_player_spell_acquisition_like_cpp(transaction: Transaction<'_, MySql>) {
-    if let Err(error) = transaction.rollback().await {
-        tracing::error!(
-            error = %error,
-            "Failed to roll back prepared player spell acquisition transaction"
-        );
-    }
-}
-
-async fn execute_player_spell_acquisition_operation_like_cpp(
-    transaction: &mut Transaction<'_, MySql>,
-    guid_counter: u64,
-    operation: PlayerSpellAcquisitionDurableOperationLikeCpp,
-) -> Result<(), DatabaseError> {
-    let result = match operation {
-        PlayerSpellAcquisitionDurableOperationLikeCpp::LockCharacter => {
-            let row = sqlx::query_scalar::<_, u64>(
-                "SELECT guid FROM characters WHERE guid = ? FOR UPDATE",
-            )
-            .bind(guid_counter)
-            .fetch_optional(&mut **transaction)
-            .await
-            .map_err(DatabaseError::from)?;
-            if row != Some(guid_counter) {
-                return Err(DatabaseError::Transaction(
-                    "prepared player spell acquisition character vanished".to_string(),
-                ));
-            }
-            return Ok(());
-        }
-        PlayerSpellAcquisitionDurableOperationLikeCpp::DeleteSpells => {
-            sqlx::query("DELETE FROM character_spell WHERE guid = ?")
-                .bind(guid_counter)
-                .execute(&mut **transaction)
-                .await
-        }
-        PlayerSpellAcquisitionDurableOperationLikeCpp::DeleteFavoriteSpells => {
-            sqlx::query("DELETE FROM character_spell_favorite WHERE guid = ?")
-                .bind(guid_counter)
-                .execute(&mut **transaction)
-                .await
-        }
-        PlayerSpellAcquisitionDurableOperationLikeCpp::DeleteSkills => {
-            sqlx::query("DELETE FROM character_skills WHERE guid = ?")
-                .bind(guid_counter)
-                .execute(&mut **transaction)
-                .await
-        }
-        PlayerSpellAcquisitionDurableOperationLikeCpp::InsertSpell(spell) => {
-            sqlx::query(
-                "INSERT INTO character_spell (guid, spell, active, disabled) VALUES (?, ?, ?, ?)",
-            )
-            .bind(guid_counter)
-            .bind(spell.spell_id)
-            .bind(spell.active)
-            .bind(spell.disabled)
-            .execute(&mut **transaction)
-            .await
-        }
-        PlayerSpellAcquisitionDurableOperationLikeCpp::InsertFavoriteSpell(spell_id) => {
-            sqlx::query("INSERT INTO character_spell_favorite (guid, spell) VALUES (?, ?)")
-                .bind(guid_counter)
-                .bind(spell_id)
-                .execute(&mut **transaction)
-                .await
-        }
-        PlayerSpellAcquisitionDurableOperationLikeCpp::InsertSkill(skill) => {
-            sqlx::query(
-                "INSERT INTO character_skills (guid, skill, value, max, professionSlot) VALUES (?, ?, ?, ?, ?)",
-            )
-            .bind(guid_counter)
-            .bind(skill.skill_id)
-            .bind(skill.value)
-            .bind(skill.maximum)
-            .bind(skill.profession_slot)
-            .execute(&mut **transaction)
-            .await
-        }
+pub(crate) async fn persist_player_spell_acquisition_through_port_like_cpp(
+    port: &dyn PlayerSpellAcquisitionPersistencePortLikeCpp,
+    request: PlayerSpellAcquisitionPersistenceRequestLikeCpp,
+) -> PlayerSpellAcquisitionPersistenceOutcomeLikeCpp {
+    use wow_persistence::{
+        PlayerSpellAcquisitionMoneyReconciliationLikeCpp as Reconciliation,
+        PlayerSpellAcquisitionPersistenceAttemptLikeCpp as Attempt,
     };
 
-    let result = result.map_err(DatabaseError::from)?;
-    if matches!(
-        operation,
-        PlayerSpellAcquisitionDurableOperationLikeCpp::InsertSpell(_)
-            | PlayerSpellAcquisitionDurableOperationLikeCpp::InsertFavoriteSpell(_)
-            | PlayerSpellAcquisitionDurableOperationLikeCpp::InsertSkill(_)
-    ) && result.rows_affected() != 1
+    match port
+        .attempt_player_spell_acquisition_like_cpp(request.clone())
+        .await
     {
-        return Err(DatabaseError::Transaction(format!(
-            "prepared player spell acquisition insert affected {} rows; expected exactly 1",
-            result.rows_affected()
-        )));
+        Attempt::Applied => PlayerSpellAcquisitionPersistenceOutcomeLikeCpp::Applied,
+        Attempt::DefinitelyRolledBack { reason, .. } => {
+            PlayerSpellAcquisitionPersistenceOutcomeLikeCpp::DefinitelyRolledBack(reason)
+        }
+        Attempt::CommitOutcomeUnknown { reason } => match port
+            .reconcile_player_spell_acquisition_like_cpp(request)
+            .await
+        {
+            Reconciliation::Committed => {
+                PlayerSpellAcquisitionPersistenceOutcomeLikeCpp::ReconciledCommit(reason)
+            }
+            Reconciliation::Indeterminate => {
+                PlayerSpellAcquisitionPersistenceOutcomeLikeCpp::Indeterminate(reason)
+            }
+        },
     }
-    Ok(())
 }
-
 /// Applies and publishes an already committed plan. This function contains no
 /// await point: the live mirrors are replaced first and the ordered C++ packet
 /// and side-effect intents are observed only afterwards.
@@ -2833,7 +2290,10 @@ mod tests {
         else {
             panic!("expected durable acquisition")
         };
-        assert!(validate_prepared_character_counter_like_cpp(43, &prepared).is_err());
+        assert!(
+            player_spell_acquisition_persistence_request_like_cpp(43, &prepared, 100, 80, [7; 16],)
+                .is_err()
+        );
 
         let (mut other_session, send_rx) = make_session();
         other_session.attach_player_controller_like_cpp(
@@ -3013,6 +2473,15 @@ mod tests {
                 PlayerSpellAcquisitionDurableOperationLikeCpp::InsertFavoriteSpell(100),
             ]
         );
+        let request =
+            player_spell_acquisition_persistence_request_like_cpp(42, &prepared, 100, 80, [9; 16])
+                .expect("the validated plan has one complete SQLx-free request");
+        assert_eq!(request.player_guid, 42);
+        assert_eq!(request.money_before, 100);
+        assert_eq!(request.money_after, 80);
+        assert_eq!(request.operation_token, [9; 16]);
+        assert_eq!(request.operations, prepared.durable_operations);
+        assert_eq!(request.resulting_authority.spells, prepared.durable_spells);
     }
 
     #[test]
@@ -4029,5 +3498,91 @@ mod tests {
                 skills: vec![164],
             }
         );
+    }
+
+    struct RecordingSpellAcquisitionPort {
+        attempt: wow_persistence::PlayerSpellAcquisitionPersistenceAttemptLikeCpp,
+        reconciliation: PlayerSpellAcquisitionMoneyReconciliationLikeCpp,
+        reconciliation_calls: std::sync::atomic::AtomicUsize,
+    }
+
+    impl PlayerSpellAcquisitionPersistencePortLikeCpp for RecordingSpellAcquisitionPort {
+        fn attempt_player_spell_acquisition_like_cpp(
+            &self,
+            _request: PlayerSpellAcquisitionPersistenceRequestLikeCpp,
+        ) -> wow_persistence::PersistenceFutureLikeCpp<
+            '_,
+            wow_persistence::PlayerSpellAcquisitionPersistenceAttemptLikeCpp,
+        > {
+            Box::pin(std::future::ready(self.attempt.clone()))
+        }
+
+        fn reconcile_player_spell_acquisition_like_cpp(
+            &self,
+            _request: PlayerSpellAcquisitionPersistenceRequestLikeCpp,
+        ) -> wow_persistence::PersistenceFutureLikeCpp<
+            '_,
+            PlayerSpellAcquisitionMoneyReconciliationLikeCpp,
+        > {
+            self.reconciliation_calls
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            Box::pin(std::future::ready(self.reconciliation))
+        }
+    }
+
+    fn empty_persistence_request() -> PlayerSpellAcquisitionPersistenceRequestLikeCpp {
+        let authority = DurablePlayerSpellAcquisitionAuthorityLikeCpp {
+            spells: Vec::new(),
+            favorite_spell_ids: Vec::new(),
+            skills: Vec::new(),
+        };
+        PlayerSpellAcquisitionPersistenceRequestLikeCpp {
+            player_guid: 42,
+            money_before: 100,
+            money_after: 80,
+            operation_token: [7; 16],
+            source_authority: authority.clone(),
+            resulting_authority: authority,
+            operations: Vec::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn port_outcome_reconciles_only_an_unknown_commit_like_cpp() {
+        use std::sync::atomic::Ordering;
+        use wow_persistence::PlayerSpellAcquisitionPersistenceAttemptLikeCpp as Attempt;
+
+        let applied = RecordingSpellAcquisitionPort {
+            attempt: Attempt::Applied,
+            reconciliation: PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Indeterminate,
+            reconciliation_calls: std::sync::atomic::AtomicUsize::new(0),
+        };
+        assert!(matches!(
+            persist_player_spell_acquisition_through_port_like_cpp(
+                &applied,
+                empty_persistence_request()
+            )
+            .await,
+            PlayerSpellAcquisitionPersistenceOutcomeLikeCpp::Applied
+        ));
+        assert_eq!(applied.reconciliation_calls.load(Ordering::Relaxed), 0);
+
+        let unknown = RecordingSpellAcquisitionPort {
+            attempt: Attempt::CommitOutcomeUnknown {
+                reason: "lost reply".to_owned(),
+            },
+            reconciliation: PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Committed,
+            reconciliation_calls: std::sync::atomic::AtomicUsize::new(0),
+        };
+        assert!(matches!(
+            persist_player_spell_acquisition_through_port_like_cpp(
+                &unknown,
+                empty_persistence_request()
+            )
+            .await,
+            PlayerSpellAcquisitionPersistenceOutcomeLikeCpp::ReconciledCommit(reason)
+                if reason == "lost reply"
+        ));
+        assert_eq!(unknown.reconciliation_calls.load(Ordering::Relaxed), 1);
     }
 }

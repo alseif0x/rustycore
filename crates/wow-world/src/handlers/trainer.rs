@@ -783,12 +783,10 @@ impl WorldSession {
             return;
         }
 
-        let character_db = self.char_db().map(Arc::clone);
         let committed_money_persistence = match &prepared {
             PreparedTrainerAcquisitionLikeCpp::Durable(prepared) => {
                 self.commit_exclusive_player_money_and_spell_acquisition_like_cpp(
                     money_persistence,
-                    character_db.as_deref(),
                     prepared,
                     old_money,
                     new_money,

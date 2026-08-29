@@ -165,8 +165,8 @@ use wow_data::{
 #[cfg(test)]
 use wow_database::{CharStatements, StatementDef};
 use wow_database::{
-    CharacterDatabase, LoginDatabase, PreparedStatement, SqlTransaction, SqlTransactionCommitError,
-    WorldDatabase, retry_deadlocked_operation_like_cpp,
+    CharacterDatabase, LoginDatabase, PreparedStatement, SqlTransaction, WorldDatabase,
+    retry_deadlocked_operation_like_cpp,
 };
 use wow_entities::{
     AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentDurationAction,
@@ -5186,6 +5186,8 @@ struct SessionPersistencePortsLikeCpp {
     next_mail_time: Option<Arc<dyn wow_persistence::NextMailTimePersistencePortLikeCpp>>,
     gameobject_use_template:
         Option<Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>>,
+    player_spell_acquisition:
+        Option<Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>>,
 }
 
 pub struct WorldSession {
@@ -16388,6 +16390,13 @@ impl WorldSession {
         port: Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>,
     ) {
         self.persistence_ports_like_cpp.gameobject_use_template = Some(port);
+    }
+
+    pub fn set_spell_acquisition_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.player_spell_acquisition = Some(port);
     }
 
     pub(crate) fn gameobject_use_template_persistence_port_like_cpp(
@@ -27951,7 +27960,6 @@ impl WorldSession {
     pub(crate) async fn commit_exclusive_player_money_and_spell_acquisition_like_cpp(
         &mut self,
         money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
-        character_db: Option<&CharacterDatabase>,
         prepared: &crate::spell_acquisition::PreparedPlayerSpellAcquisitionLikeCpp,
         money_before: u64,
         money_after: u64,
@@ -27961,7 +27969,10 @@ impl WorldSession {
             return success.then_some(money_persistence);
         }
 
-        let character_db = character_db?;
+        let port = self
+            .persistence_ports_like_cpp
+            .player_spell_acquisition
+            .clone()?;
         let player_guid = self.player_guid()?;
         let guid_counter = player_guid.counter() as u64;
         let mut cancellation_fence = PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(
@@ -27969,59 +27980,48 @@ impl WorldSession {
         ));
         let mut operation_token = [0u8; 16];
         rand::thread_rng().fill_bytes(&mut operation_token);
-        let commit_result =
-            crate::spell_acquisition::persist_prepared_player_spell_acquisition_and_money_like_cpp(
-                character_db,
+        let request =
+            match crate::spell_acquisition::player_spell_acquisition_persistence_request_like_cpp(
                 guid_counter,
                 prepared,
                 money_before,
                 money_after,
-                &operation_token,
-            )
-            .await;
-        match commit_result {
-            Ok(()) => {
+                operation_token,
+            ) {
+                Ok(request) => request,
+                Err(error) => {
+                    cancellation_fence.disarm_like_cpp();
+                    warn!(%error, "trainer purchase request was not persistence-safe");
+                    return None;
+                }
+            };
+        use crate::spell_acquisition::PlayerSpellAcquisitionPersistenceOutcomeLikeCpp as Outcome;
+        match crate::spell_acquisition::persist_player_spell_acquisition_through_port_like_cpp(
+            &*port, request,
+        )
+        .await
+        {
+            Outcome::Applied => {
                 cancellation_fence.disarm_like_cpp();
                 Some(money_persistence)
             }
-            Err(SqlTransactionCommitError::DefinitelyRolledBack(error)) => {
+            Outcome::DefinitelyRolledBack(reason) => {
                 cancellation_fence.disarm_like_cpp();
-                warn!(%error, "trainer purchase transaction definitely rolled back");
+                warn!(error = %reason, "trainer purchase transaction definitely rolled back");
                 None
             }
-            Err(SqlTransactionCommitError::CommitOutcomeUnknown(error)) => {
-                let reconciliation = crate::spell_acquisition::reconcile_prepared_player_spell_acquisition_and_money_like_cpp(
-                    character_db,
-                    guid_counter,
-                    prepared,
-                    money_after,
-                    &operation_token,
-                )
-                .await;
-                match reconciliation {
-                    Ok(crate::spell_acquisition::PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Committed) => {
-                        cancellation_fence.disarm_like_cpp();
-                        warn!(
-                            %error,
-                            "trainer COMMIT reply was lost but durable money and acquisition rows prove commit"
-                        );
-                        Some(money_persistence)
-                    }
-                    Ok(crate::spell_acquisition::PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Indeterminate)
-                    | Err(_) => {
-                        self.durable_loot_money_persistence_like_cpp
-                            .mark_indeterminate_like_cpp();
-                        cancellation_fence.disarm_like_cpp();
-                        self.kick(
-                            "trainer purchase COMMIT outcome is unknown; relog required before another money mutation",
-                        );
-                        warn!(
-                            %error,
-                            "trainer COMMIT outcome remains indeterminate; quarantined the session"
-                        );
-                        None
-                    }
-                }
+            Outcome::ReconciledCommit(reason) => {
+                cancellation_fence.disarm_like_cpp();
+                warn!(error = %reason, "trainer COMMIT reply was lost but durable rows prove commit");
+                Some(money_persistence)
+            }
+            Outcome::Indeterminate(reason) => {
+                self.durable_loot_money_persistence_like_cpp
+                    .mark_indeterminate_like_cpp();
+                cancellation_fence.disarm_like_cpp();
+                self.kick("trainer purchase COMMIT outcome is unknown; relog required");
+                warn!(error = %reason, "trainer COMMIT outcome remains indeterminate; session quarantined");
+                None
             }
         }
     }

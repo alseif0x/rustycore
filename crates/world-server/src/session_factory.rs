@@ -275,7 +275,6 @@ pub(super) async fn create_session(
         id: active_session_id,
     };
     let account_id = account.id;
-    // Configure session with resources
     if let Some(ref db) = resources.char_db {
         session.set_char_db(Arc::clone(db));
     }
@@ -320,6 +319,9 @@ pub(super) async fn create_session(
     }
     if let Some(ref port) = resources.gameobject_use_template_persistence_port {
         session.set_gameobject_use_template_persistence_port_like_cpp(Arc::clone(port));
+    }
+    if let Some(ref port) = resources.player_spell_acquisition_persistence_port {
+        session.set_spell_acquisition_port_like_cpp(Arc::clone(port));
     }
     session.set_remote_address_like_cpp(account.client_address.map(|addr| addr.to_string()));
     session.set_battlenet_account_id(account.battlenet_account_id);
