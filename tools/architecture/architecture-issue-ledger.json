@@ -94,6 +94,7 @@
     466,
     468,
     470,
+    472,
     189,
     192,
     193,
@@ -1542,7 +1543,7 @@
     },
     {
       "number": 470,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.DB.44] Move represented Group startup loading behind a typed port",
       "kind": "slice",
       "parents": [
@@ -1551,6 +1552,19 @@
       ],
       "depends_on": [
         468
+      ]
+    },
+    {
+      "number": 472,
+      "state": "open",
+      "title": "[ARCH.DB.45] Move represented Player spell-acquisition persistence behind a typed port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        470
       ]
     }
   ]
