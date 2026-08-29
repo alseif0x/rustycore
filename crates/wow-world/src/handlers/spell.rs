@@ -1177,16 +1177,18 @@ impl WorldSession {
     }
 
     async fn load_item_template_addon_money_loot_like_cpp(&self, item_entry: u32) -> (u32, u32) {
-        let Some(world_db) = self.world_db() else {
+        let Some(port) = self.item_template_addon_catalog_persistence_port_like_cpp() else {
             return (0, 0);
         };
 
-        let mut stmt = world_db.prepare(WorldStatements::SEL_ITEM_TEMPLATE_ADDON_MONEY_LOOT);
-        stmt.set_u32(0, item_entry);
-
-        match world_db.query(&stmt).await {
-            Ok(result) if !result.is_empty() => {
-                match (result.try_read::<u32>(0), result.try_read::<u32>(1)) {
+        match port
+            .load_item_template_addon_money_like_cpp(
+                wow_persistence::ItemTemplateAddonCatalogRequestLikeCpp { item_entry },
+            )
+            .await
+        {
+            wow_persistence::ItemTemplateAddonMoneyOutcomeLikeCpp::Found(row) => {
+                match (row.min_money, row.max_money) {
                     (Some(min_money), Some(max_money)) => {
                         if min_money > max_money {
                             // ObjectMgr::LoadItemTemplateAddon swaps invalid item
@@ -1210,11 +1212,11 @@ impl WorldSession {
                     }
                 }
             }
-            Ok(_) => (0, 0),
-            Err(err) => {
+            wow_persistence::ItemTemplateAddonMoneyOutcomeLikeCpp::Missing => (0, 0),
+            wow_persistence::ItemTemplateAddonMoneyOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     item_entry,
-                    error = %err,
+                    error = %reason,
                     "failed to load item_template_addon money loot"
                 );
                 (0, 0)
@@ -1226,23 +1228,29 @@ impl WorldSession {
         &self,
         item_entry: u32,
     ) -> ItemTemplateAddonLootMetadataLikeCpp {
-        let Some(world_db) = self.world_db() else {
+        let Some(port) = self.item_template_addon_catalog_persistence_port_like_cpp() else {
             return ItemTemplateAddonLootMetadataLikeCpp::default();
         };
 
-        let mut stmt = world_db.prepare(WorldStatements::SEL_ITEM_TEMPLATE_ADDON_LOOT_METADATA);
-        stmt.set_u32(0, item_entry);
-
-        match world_db.query(&stmt).await {
-            Ok(result) if !result.is_empty() => ItemTemplateAddonLootMetadataLikeCpp {
-                flags_cu: result.try_read::<u32>(0).unwrap_or(0),
-                quest_log_item_id: result.try_read::<i32>(1).unwrap_or(0),
-            },
-            Ok(_) => ItemTemplateAddonLootMetadataLikeCpp::default(),
-            Err(err) => {
+        match port
+            .load_item_template_addon_loot_metadata_like_cpp(
+                wow_persistence::ItemTemplateAddonCatalogRequestLikeCpp { item_entry },
+            )
+            .await
+        {
+            wow_persistence::ItemTemplateAddonLootMetadataOutcomeLikeCpp::Found(row) => {
+                ItemTemplateAddonLootMetadataLikeCpp {
+                    flags_cu: row.flags_cu,
+                    quest_log_item_id: row.quest_log_item_id,
+                }
+            }
+            wow_persistence::ItemTemplateAddonLootMetadataOutcomeLikeCpp::Missing => {
+                ItemTemplateAddonLootMetadataLikeCpp::default()
+            }
+            wow_persistence::ItemTemplateAddonLootMetadataOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     item_entry,
-                    error = %err,
+                    error = %reason,
                     "failed to load item_template_addon loot metadata"
                 );
                 ItemTemplateAddonLootMetadataLikeCpp::default()
@@ -2781,6 +2789,7 @@ fn add_loot_template_row_item_like_cpp<F>(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
     use std::sync::{Arc, Mutex};
     use std::time::Instant;
 
@@ -2803,6 +2812,11 @@ mod tests {
     use wow_packet::packets::loot::{LootEntry, LootEntryFlags};
     use wow_packet::packets::movement::MovementInfo;
     use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
+    use wow_persistence::{
+        ItemTemplateAddonCatalogPersistencePortLikeCpp, ItemTemplateAddonCatalogRequestLikeCpp,
+        ItemTemplateAddonLootMetadataOutcomeLikeCpp, ItemTemplateAddonMoneyOutcomeLikeCpp,
+        PersistenceFutureLikeCpp,
+    };
 
     use super::{
         ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP, ITEM_FLAGS_CU_IGNORE_QUEST_STATUS_LIKE_CPP,
@@ -2841,6 +2855,57 @@ mod tests {
             ),
             send_rx,
         )
+    }
+
+    struct ItemTemplateAddonCatalogPortFixtureLikeCpp {
+        money_requests: Mutex<Vec<ItemTemplateAddonCatalogRequestLikeCpp>>,
+        money_outcomes: Mutex<VecDeque<ItemTemplateAddonMoneyOutcomeLikeCpp>>,
+        metadata_requests: Mutex<Vec<ItemTemplateAddonCatalogRequestLikeCpp>>,
+        metadata_outcomes: Mutex<VecDeque<ItemTemplateAddonLootMetadataOutcomeLikeCpp>>,
+    }
+
+    impl ItemTemplateAddonCatalogPortFixtureLikeCpp {
+        fn new(
+            money_outcomes: impl IntoIterator<Item = ItemTemplateAddonMoneyOutcomeLikeCpp>,
+            metadata_outcomes: impl IntoIterator<Item = ItemTemplateAddonLootMetadataOutcomeLikeCpp>,
+        ) -> Arc<Self> {
+            Arc::new(Self {
+                money_requests: Mutex::new(Vec::new()),
+                money_outcomes: Mutex::new(money_outcomes.into_iter().collect()),
+                metadata_requests: Mutex::new(Vec::new()),
+                metadata_outcomes: Mutex::new(metadata_outcomes.into_iter().collect()),
+            })
+        }
+    }
+
+    impl ItemTemplateAddonCatalogPersistencePortLikeCpp for ItemTemplateAddonCatalogPortFixtureLikeCpp {
+        fn load_item_template_addon_money_like_cpp<'a>(
+            &'a self,
+            request: ItemTemplateAddonCatalogRequestLikeCpp,
+        ) -> PersistenceFutureLikeCpp<'a, ItemTemplateAddonMoneyOutcomeLikeCpp> {
+            self.money_requests.lock().unwrap().push(request);
+            let outcome = self
+                .money_outcomes
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("one item-addon money outcome per request");
+            Box::pin(async move { outcome })
+        }
+
+        fn load_item_template_addon_loot_metadata_like_cpp<'a>(
+            &'a self,
+            request: ItemTemplateAddonCatalogRequestLikeCpp,
+        ) -> PersistenceFutureLikeCpp<'a, ItemTemplateAddonLootMetadataOutcomeLikeCpp> {
+            self.metadata_requests.lock().unwrap().push(request);
+            let outcome = self
+                .metadata_outcomes
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("one item-addon metadata outcome per request");
+            Box::pin(async move { outcome })
+        }
     }
 
     fn shared_canonical_map_manager() -> SharedCanonicalMapManager {
@@ -6019,6 +6084,107 @@ mod tests {
             wow_loot::generate_money_loot_with_rate_like_cpp(1_000, 100_000, 1.0, &mut rng);
         assert_eq!(wide_range & 0xFF, 0);
         assert!((((1_000 >> 8) << 8)..=((100_000 >> 8) << 8)).contains(&wide_range));
+    }
+
+    #[tokio::test]
+    async fn item_template_addon_port_preserves_found_rows_and_request_order() {
+        let fixture = ItemTemplateAddonCatalogPortFixtureLikeCpp::new(
+            [ItemTemplateAddonMoneyOutcomeLikeCpp::Found(
+                wow_persistence::ItemTemplateAddonMoneyRowLikeCpp {
+                    min_money: Some(120),
+                    max_money: Some(100),
+                },
+            )],
+            [ItemTemplateAddonLootMetadataOutcomeLikeCpp::Found(
+                wow_persistence::ItemTemplateAddonLootMetadataRowLikeCpp {
+                    flags_cu: ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP,
+                    quest_log_item_id: 77,
+                },
+            )],
+        );
+        let (mut session, _send_rx) = make_session();
+        session.set_item_template_addon_catalog_persistence_port_like_cpp(fixture.clone());
+
+        assert_eq!(
+            session
+                .load_item_template_addon_money_loot_like_cpp(1001)
+                .await,
+            (100, 120)
+        );
+        assert_eq!(
+            session
+                .load_item_template_addon_loot_metadata_like_cpp(1002)
+                .await,
+            ItemTemplateAddonLootMetadataLikeCpp {
+                flags_cu: ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP,
+                quest_log_item_id: 77,
+            }
+        );
+        assert_eq!(
+            *fixture.money_requests.lock().unwrap(),
+            [ItemTemplateAddonCatalogRequestLikeCpp { item_entry: 1001 }]
+        );
+        assert_eq!(
+            *fixture.metadata_requests.lock().unwrap(),
+            [ItemTemplateAddonCatalogRequestLikeCpp { item_entry: 1002 }]
+        );
+    }
+
+    #[tokio::test]
+    async fn item_template_addon_port_preserves_absent_malformed_and_failed_defaults() {
+        let fixture = ItemTemplateAddonCatalogPortFixtureLikeCpp::new(
+            [
+                ItemTemplateAddonMoneyOutcomeLikeCpp::Found(
+                    wow_persistence::ItemTemplateAddonMoneyRowLikeCpp {
+                        min_money: Some(10),
+                        max_money: None,
+                    },
+                ),
+                ItemTemplateAddonMoneyOutcomeLikeCpp::Missing,
+                ItemTemplateAddonMoneyOutcomeLikeCpp::Failed {
+                    reason: "world read failed".into(),
+                },
+            ],
+            [
+                ItemTemplateAddonLootMetadataOutcomeLikeCpp::Missing,
+                ItemTemplateAddonLootMetadataOutcomeLikeCpp::Failed {
+                    reason: "world read failed".into(),
+                },
+            ],
+        );
+        let (mut session, _send_rx) = make_session();
+        session.set_item_template_addon_catalog_persistence_port_like_cpp(fixture);
+
+        for item_entry in [2001, 2002, 2003] {
+            assert_eq!(
+                session
+                    .load_item_template_addon_money_loot_like_cpp(item_entry)
+                    .await,
+                (0, 0)
+            );
+        }
+        for item_entry in [2004, 2005] {
+            assert_eq!(
+                session
+                    .load_item_template_addon_loot_metadata_like_cpp(item_entry)
+                    .await,
+                ItemTemplateAddonLootMetadataLikeCpp::default()
+            );
+        }
+
+        let (session_without_port, _send_rx) = make_session();
+        assert_eq!(
+            session_without_port
+                .load_item_template_addon_money_loot_like_cpp(2006)
+                .await,
+            (0, 0)
+        );
+        assert_eq!(
+            session_without_port
+                .load_item_template_addon_loot_metadata_like_cpp(2007)
+                .await,
+            ItemTemplateAddonLootMetadataLikeCpp::default()
+        );
     }
 
     #[test]

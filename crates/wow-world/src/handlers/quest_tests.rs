@@ -48,6 +48,8 @@ use wow_packet::WorldPacket;
 use wow_packet::packets::item::InventoryChangeFailure;
 use wow_packet::packets::quest::QuestGiverQuestFailed;
 use wow_persistence::{
+    ItemTemplateAddonCatalogPersistencePortLikeCpp, ItemTemplateAddonCatalogRequestLikeCpp,
+    ItemTemplateAddonLootMetadataOutcomeLikeCpp, ItemTemplateAddonMoneyOutcomeLikeCpp,
     PersistenceFutureLikeCpp, QuestPoiBlobLoadRowLikeCpp, QuestPoiLoadOutcomeLikeCpp,
     QuestPoiLoadStageLikeCpp, QuestPoiPersistencePortLikeCpp, QuestPoiPointLoadRowLikeCpp,
 };
@@ -803,6 +805,95 @@ impl QuestPoiPersistencePortLikeCpp for QuestPoiPortFixtureLikeCpp {
         let outcome = self.0.clone();
         Box::pin(async move { outcome })
     }
+}
+
+struct ItemTemplateAddonCatalogPortFixtureLikeCpp {
+    requests: std::sync::Mutex<Vec<ItemTemplateAddonCatalogRequestLikeCpp>>,
+    outcomes:
+        std::sync::Mutex<std::collections::VecDeque<ItemTemplateAddonLootMetadataOutcomeLikeCpp>>,
+}
+
+impl ItemTemplateAddonCatalogPortFixtureLikeCpp {
+    fn new(
+        outcomes: impl IntoIterator<Item = ItemTemplateAddonLootMetadataOutcomeLikeCpp>,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            requests: std::sync::Mutex::new(Vec::new()),
+            outcomes: std::sync::Mutex::new(outcomes.into_iter().collect()),
+        })
+    }
+}
+
+impl ItemTemplateAddonCatalogPersistencePortLikeCpp for ItemTemplateAddonCatalogPortFixtureLikeCpp {
+    fn load_item_template_addon_money_like_cpp<'a>(
+        &'a self,
+        _request: ItemTemplateAddonCatalogRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, ItemTemplateAddonMoneyOutcomeLikeCpp> {
+        panic!("quest source-item lookup never requests item-addon money")
+    }
+
+    fn load_item_template_addon_loot_metadata_like_cpp<'a>(
+        &'a self,
+        request: ItemTemplateAddonCatalogRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, ItemTemplateAddonLootMetadataOutcomeLikeCpp> {
+        self.requests.lock().unwrap().push(request);
+        let outcome = self
+            .outcomes
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("one item-addon metadata outcome per uncached request");
+        Box::pin(async move { outcome })
+    }
+}
+
+#[tokio::test]
+async fn quest_source_item_addon_port_preserves_lookup_and_zero_cache_like_cpp() {
+    let port = ItemTemplateAddonCatalogPortFixtureLikeCpp::new([
+        ItemTemplateAddonLootMetadataOutcomeLikeCpp::Found(
+            wow_persistence::ItemTemplateAddonLootMetadataRowLikeCpp {
+                flags_cu: 0x55,
+                quest_log_item_id: 9101,
+            },
+        ),
+        ItemTemplateAddonLootMetadataOutcomeLikeCpp::Failed {
+            reason: "world read failed".into(),
+        },
+    ]);
+    let (mut session, _send_rx) = make_session();
+    session.set_item_template_addon_catalog_persistence_port_like_cpp(port.clone());
+
+    assert_eq!(
+        session
+            .quest_source_item_quest_log_item_id_like_cpp(1001)
+            .await,
+        9101
+    );
+    assert_eq!(
+        session
+            .quest_source_item_quest_log_item_id_like_cpp(1001)
+            .await,
+        9101
+    );
+    assert_eq!(
+        session
+            .quest_source_item_quest_log_item_id_like_cpp(1002)
+            .await,
+        0
+    );
+    assert_eq!(
+        session
+            .quest_source_item_quest_log_item_id_like_cpp(1002)
+            .await,
+        0
+    );
+    assert_eq!(
+        *port.requests.lock().unwrap(),
+        [
+            ItemTemplateAddonCatalogRequestLikeCpp { item_entry: 1001 },
+            ItemTemplateAddonCatalogRequestLikeCpp { item_entry: 1002 },
+        ]
+    );
 }
 
 fn quest_poi_blob_row_like_cpp(quest_id: i32, idx1: i32) -> QuestPoiBlobLoadRowLikeCpp {

@@ -13553,23 +13553,6 @@
       "package": "wow-world",
       "module": "crate::handlers::loot::sources",
       "source": "crates/wow-world/src/handlers/loot/sources.rs",
-      "enclosing": "impl WorldSession::load_creature_item_template_addon_loot_metadata_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world catalog data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::loot::sources",
-      "source": "crates/wow-world/src/handlers/loot/sources.rs",
       "enclosing": "impl WorldSession::load_represented_creature_loot_condition_rows_for_id_like_cpp",
       "logical_databases": [
         "world"
@@ -13704,41 +13687,6 @@
       "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::quest::objectives",
-      "source": "crates/wow-world/src/handlers/quest/objectives.rs",
-      "enclosing": "impl WorldSession::quest_source_item_quest_log_item_id_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-world residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::quest::objectives",
-      "source": "crates/wow-world/src/handlers/quest/objectives.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "characters",
-        "world"
-      ],
-      "boundary": "wow-world residual persistence boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for characters, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
     },
     {
       "package": "wow-world",
@@ -13980,40 +13928,6 @@
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::spell",
-      "source": "crates/wow-world/src/handlers/spell.rs",
-      "enclosing": "impl WorldSession::load_item_template_addon_loot_metadata_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world catalog data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::handlers::spell",
-      "source": "crates/wow-world/src/handlers/spell.rs",
-      "enclosing": "impl WorldSession::load_item_template_addon_money_loot_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world catalog data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
     {
       "package": "wow-world",
@@ -15061,6 +14975,97 @@
       "stable_boundary": true,
       "connection_affinity": "The adapter stores exactly one World database handle.",
       "current_order": "The handle surface implies no runtime order beyond the port method.",
+      "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::item_template_addon_catalog_adapter",
+      "source": "crates/wow-database/src/item_template_addon_catalog_adapter.rs",
+      "enclosing": "fn loot_metadata_statement_like_cpp",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free item-template-addon reads (#489)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure construction of one World-database metadata statement; it opens no connection or transaction.",
+      "current_order": "Build WORLD_SEL_ITEM_TEMPLATE_ADDON_LOOT_METADATA and bind the item entry exactly once.",
+      "failure_and_unknown_commit": "No I/O occurs while constructing a statement."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::item_template_addon_catalog_adapter",
+      "source": "crates/wow-database/src/item_template_addon_catalog_adapter.rs",
+      "enclosing": "fn money_statement_like_cpp",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free item-template-addon reads (#489)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure construction of one World-database money statement; it opens no connection or transaction.",
+      "current_order": "Build WORLD_SEL_ITEM_TEMPLATE_ADDON_MONEY_LOOT and bind the item entry exactly once.",
+      "failure_and_unknown_commit": "No I/O occurs while constructing a statement."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::item_template_addon_catalog_adapter",
+      "source": "crates/wow-database/src/item_template_addon_catalog_adapter.rs",
+      "enclosing": "impl MariaDbItemTemplateAddonCatalogPersistenceAdapterLikeCpp::new",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free item-template-addon reads (#489)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Composition supplies exactly one World database handle before sessions are accepted.",
+      "current_order": "Construction stores the handle only and performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::item_template_addon_catalog_adapter",
+      "source": "crates/wow-database/src/item_template_addon_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp for MariaDbItemTemplateAddonCatalogPersistenceAdapterLikeCpp::load_item_template_addon_loot_metadata_like_cpp",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free item-template-addon reads (#489)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The read uses the adapter's single World database handle; no cross-database boundary is implied.",
+      "current_order": "Execute one metadata read, classify missing before projecting FlagsCu and QuestLogItemId in statement order.",
+      "failure_and_unknown_commit": "Missing rows remain Missing; field decode retains zero fallback and database errors become Failed. Reads have no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::item_template_addon_catalog_adapter",
+      "source": "crates/wow-database/src/item_template_addon_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp for MariaDbItemTemplateAddonCatalogPersistenceAdapterLikeCpp::load_item_template_addon_money_like_cpp",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free item-template-addon reads (#489)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The read uses the adapter's single World database handle; no cross-database boundary is implied.",
+      "current_order": "Execute one money read, classify missing before projecting MinMoneyLoot and MaxMoneyLoot in statement order.",
+      "failure_and_unknown_commit": "Missing rows remain Missing; independently malformed columns remain absent and database errors become Failed. Reads have no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::item_template_addon_catalog_adapter",
+      "source": "crates/wow-database/src/item_template_addon_catalog_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free item-template-addon reads (#489)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The module owns only the transitional World item-addon adapter.",
+      "current_order": "SQL identities, binds and row projection stay private; normalization, logging and the quest cache remain in wow-world.",
+      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::item_template_addon_catalog_adapter",
+      "source": "crates/wow-database/src/item_template_addon_catalog_adapter.rs",
+      "enclosing": "struct MariaDbItemTemplateAddonCatalogPersistenceAdapterLikeCpp",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for SQLx-free item-template-addon reads (#489)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter stores exactly one World database handle.",
+      "current_order": "The handle surface implies no runtime order beyond the two typed port methods.",
       "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome."
     },
     {
