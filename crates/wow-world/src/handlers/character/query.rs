@@ -76,8 +76,8 @@ impl WorldSession {
         }
         self.creature_query_cache.insert(query.creature_id);
 
-        let world_db = match self.world_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.creature_query_catalog_persistence_port_like_cpp() {
+            Some(port) => port,
             None => {
                 self.send_packet(&QueryCreatureResponse {
                     creature_id: query.creature_id,
@@ -88,15 +88,27 @@ impl WorldSession {
             }
         };
 
-        // Query creature template
-        let mut stmt = world_db.prepare(WorldStatements::SEL_CREATURE_QUERY_RESPONSE);
-        stmt.set_u32(0, query.creature_id);
-
-        let result = match world_db.query(&stmt).await {
-            Ok(r) => r,
-            Err(e) => {
+        let row = match port
+            .load_creature_query_catalog_like_cpp(
+                wow_persistence::CreatureQueryCatalogRequestLikeCpp {
+                    entry: query.creature_id,
+                    locale: self.locale.clone(),
+                },
+            )
+            .await
+        {
+            wow_persistence::CreatureQueryCatalogOutcomeLikeCpp::Found { row, locale_error } => {
+                if let Some(error) = locale_error {
+                    warn!(
+                        "Failed to query creature locale for {}: {error}",
+                        query.creature_id
+                    );
+                }
+                row
+            }
+            wow_persistence::CreatureQueryCatalogOutcomeLikeCpp::Failed { reason } => {
                 debug!(
-                    "Failed to query creature template {}: {e}",
+                    "Failed to query creature template {}: {reason}",
                     query.creature_id
                 );
                 self.send_packet(&QueryCreatureResponse {
@@ -106,140 +118,58 @@ impl WorldSession {
                 });
                 return;
             }
+            wow_persistence::CreatureQueryCatalogOutcomeLikeCpp::Missing => {
+                self.send_packet(&QueryCreatureResponse {
+                    creature_id: query.creature_id,
+                    allow: false,
+                    stats: None,
+                });
+                return;
+            }
         };
 
-        if result.is_empty() {
-            self.send_packet(&QueryCreatureResponse {
-                creature_id: query.creature_id,
-                allow: false,
-                stats: None,
-            });
-            return;
-        }
-
-        // Parse template fields
-        let name: String = result.read_string(1);
-        let _female_name: String = result.read_string(2);
-        let subname: String = result.read_string(3);
-        let title_alt: String = result.read_string(4);
-        let icon_name: String = result.read_string(5);
-        let creature_type: i32 = result.try_read(6).unwrap_or(0);
-        let creature_family: i32 = result.try_read(7).unwrap_or(0);
-        let classification: i32 = result.try_read(8).unwrap_or(0);
-        let kill_credit1: i32 = result.try_read(9).unwrap_or(0);
-        let kill_credit2: i32 = result.try_read(10).unwrap_or(0);
-        let civilian: bool = result.try_read::<u8>(11).unwrap_or(0) != 0;
-        let racial_leader: bool = result.try_read::<u8>(12).unwrap_or(0) != 0;
-        let movement_id: i32 = result.try_read(13).unwrap_or(0);
-        let required_expansion: i32 = result.try_read(14).unwrap_or(0);
-        let vignette_id: i32 = result.try_read(15).unwrap_or(0);
-        let unit_class: i32 = result.try_read::<u8>(16).unwrap_or(1) as i32;
-        let widget_set_id: i32 = result.try_read(17).unwrap_or(0);
-        let widget_set_unit_condition_id: i32 = result.try_read(18).unwrap_or(0);
-        // LEFT JOIN nullable fields from creature_template_difficulty
-        let hp_multi: f32 = result.try_read::<Option<f32>>(19).flatten().unwrap_or(1.0);
-        let energy_multi: f32 = result.try_read::<Option<f32>>(20).flatten().unwrap_or(1.0);
-        let creature_difficulty_id: i32 = result.try_read::<Option<i32>>(21).flatten().unwrap_or(0);
-        let type_flags: u32 = result.try_read::<Option<u32>>(22).flatten().unwrap_or(0);
-        let type_flags2: u32 = result.try_read::<Option<u32>>(23).flatten().unwrap_or(0);
-
-        // Override name/subname/title_alt with localized versions when not English
-        let locale = &self.locale;
-        let (name, subname, title_alt) = if !locale.is_empty() && locale != "enUS" {
-            let mut loc_stmt = world_db.prepare(WorldStatements::SEL_CREATURE_TEMPLATE_LOCALE);
-            loc_stmt.set_u32(0, query.creature_id);
-            loc_stmt.set_string(1, locale);
-            match world_db.query(&loc_stmt).await {
-                Ok(r) if !r.is_empty() => {
-                    let loc_name: String = r.read_string(0);
-                    // col 1 = NameAlt (female name)
-                    let loc_subname: String = r.read_string(2);
-                    let loc_title_alt: String = r.read_string(3);
-                    (
-                        if loc_name.is_empty() { name } else { loc_name },
-                        if loc_subname.is_empty() {
-                            subname
-                        } else {
-                            loc_subname
-                        },
-                        if loc_title_alt.is_empty() {
-                            title_alt
-                        } else {
-                            loc_title_alt
-                        },
-                    )
-                }
-                Ok(_) => (name, subname, title_alt),
-                Err(e) => {
-                    warn!(
-                        "Failed to query creature locale for {}: {e}",
-                        query.creature_id
-                    );
-                    (name, subname, title_alt)
-                }
-            }
-        } else {
-            (name, subname, title_alt)
-        };
-
-        // Query display models
-        let mut display_stmt = world_db.prepare(WorldStatements::SEL_CREATURE_DISPLAY_MODELS);
-        display_stmt.set_u32(0, query.creature_id);
-
-        let mut displays = Vec::new();
-        let mut total_probability: f32 = 0.0;
-
-        if let Ok(disp_result) = world_db.query(&display_stmt).await {
-            if !disp_result.is_empty() {
-                let mut disp_result = disp_result;
-                loop {
-                    let display_id: u32 = disp_result.try_read(0).unwrap_or(0);
-                    let scale: f32 = disp_result.try_read(1).unwrap_or(1.0);
-                    let probability: f32 = disp_result.try_read(2).unwrap_or(1.0);
-                    total_probability += probability;
-                    displays.push(CreatureXDisplay {
-                        creature_display_id: display_id,
-                        scale,
-                        probability,
-                    });
-                    if !disp_result.next_row() {
-                        break;
-                    }
-                }
-            }
-        }
+        let total_probability = row.displays.iter().map(|display| display.probability).sum();
+        let displays = row
+            .displays
+            .iter()
+            .map(|display| CreatureXDisplay {
+                creature_display_id: display.display_id,
+                scale: display.scale,
+                probability: display.probability,
+            })
+            .collect();
 
         let mut names: [String; 4] = Default::default();
-        names[0] = name;
+        names[0] = row.name;
 
         let stats = CreatureStats {
-            title: subname,
-            title_alt,
-            cursor_name: icon_name,
-            civilian,
-            leader: racial_leader,
+            title: row.subname,
+            title_alt: row.title_alt,
+            cursor_name: row.icon_name,
+            civilian: row.civilian,
+            leader: row.racial_leader,
             names,
             name_alts: Default::default(),
-            flags: [type_flags, type_flags2],
-            creature_type,
-            creature_family,
-            classification,
-            proxy_creature_ids: [kill_credit1, kill_credit2],
+            flags: row.type_flags,
+            creature_type: row.creature_type,
+            creature_family: row.creature_family,
+            classification: row.classification,
+            proxy_creature_ids: row.kill_credits,
             display: CreatureDisplayStats {
                 displays,
                 total_probability,
             },
-            hp_multi,
-            energy_multi,
+            hp_multi: row.hp_multi,
+            energy_multi: row.energy_multi,
             quest_items: Vec::new(),
-            creature_movement_info_id: movement_id,
+            creature_movement_info_id: row.movement_id,
             health_scaling_expansion: 0,
-            required_expansion,
-            vignette_id,
-            unit_class,
-            creature_difficulty_id,
-            widget_set_id,
-            widget_set_unit_condition_id,
+            required_expansion: row.required_expansion,
+            vignette_id: row.vignette_id,
+            unit_class: row.unit_class,
+            creature_difficulty_id: row.creature_difficulty_id,
+            widget_set_id: row.widget_set_id,
+            widget_set_unit_condition_id: row.widget_set_unit_condition_id,
         };
 
         self.send_packet(&QueryCreatureResponse {

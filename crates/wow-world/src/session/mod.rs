@@ -5200,6 +5200,8 @@ struct SessionPersistencePortsLikeCpp {
     next_mail_time: Option<Arc<dyn wow_persistence::NextMailTimePersistencePortLikeCpp>>,
     gameobject_use_template:
         Option<Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>>,
+    creature_query_catalog:
+        Option<Arc<dyn wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp>>,
     player_spell_acquisition:
         Option<Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>>,
 }
@@ -16433,6 +16435,21 @@ impl WorldSession {
     ) -> Option<Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>> {
         self.persistence_ports_like_cpp
             .gameobject_use_template
+            .clone()
+    }
+
+    pub fn set_creature_query_catalog_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.creature_query_catalog = Some(port);
+    }
+
+    pub(crate) fn creature_query_catalog_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .creature_query_catalog
             .clone()
     }
 

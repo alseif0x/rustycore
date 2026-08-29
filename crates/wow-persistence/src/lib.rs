@@ -664,6 +664,65 @@ pub trait GameObjectUseTemplatePersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<'a, GameObjectUseTemplateLoadOutcomeLikeCpp>;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreatureQueryCatalogRequestLikeCpp {
+    pub entry: u32,
+    pub locale: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreatureQueryDisplayRowLikeCpp {
+    pub display_id: u32,
+    pub scale: f32,
+    pub probability: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreatureQueryCatalogRowLikeCpp {
+    pub name: String,
+    pub subname: String,
+    pub title_alt: String,
+    pub icon_name: String,
+    pub creature_type: i32,
+    pub creature_family: i32,
+    pub classification: i32,
+    pub kill_credits: [i32; 2],
+    pub civilian: bool,
+    pub racial_leader: bool,
+    pub movement_id: i32,
+    pub required_expansion: i32,
+    pub vignette_id: i32,
+    pub unit_class: i32,
+    pub widget_set_id: i32,
+    pub widget_set_unit_condition_id: i32,
+    pub hp_multi: f32,
+    pub energy_multi: f32,
+    pub creature_difficulty_id: i32,
+    pub type_flags: [u32; 2],
+    pub displays: Vec<CreatureQueryDisplayRowLikeCpp>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CreatureQueryCatalogOutcomeLikeCpp {
+    Found {
+        row: CreatureQueryCatalogRowLikeCpp,
+        locale_error: Option<String>,
+    },
+    Missing,
+    Failed {
+        reason: String,
+    },
+}
+
+/// Transitional on-demand World catalog read. C++ serves the same projection
+/// from ObjectMgr; #153 owns convergence onto the startup-loaded owner.
+pub trait CreatureQueryCatalogPersistencePortLikeCpp: Send + Sync {
+    fn load_creature_query_catalog_like_cpp<'a>(
+        &'a self,
+        request: CreatureQueryCatalogRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'a, CreatureQueryCatalogOutcomeLikeCpp>;
+}
+
 /// Commit classification for a transaction protected by the Session-owned
 /// player-money exclusion fence.
 ///
