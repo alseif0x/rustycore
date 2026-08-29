@@ -110,6 +110,7 @@
     499,
     501,
     503,
+    505,
     189,
     192,
     193,
@@ -1766,7 +1767,7 @@
   },
   {
     "number": 503,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.60] Move reputation startup catalogs behind a typed persistence port",
     "kind": "slice",
     "parents": [
@@ -1775,6 +1776,19 @@
     ],
     "depends_on": [
       501
+    ]
+  },
+  {
+    "number": 505,
+    "state": "open",
+    "title": "[ARCH.DB.61] Move AreaTrigger template startup reads behind a typed persistence port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      503
     ]
   }
 ]

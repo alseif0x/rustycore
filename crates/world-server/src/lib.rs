@@ -82,6 +82,7 @@ use wow_world::{
 };
 
 mod area_trigger_loaded_grid;
+mod area_trigger_template_catalog;
 mod creature_loaded_grid;
 mod gameobject_loaded_grid;
 mod mount_catalog;

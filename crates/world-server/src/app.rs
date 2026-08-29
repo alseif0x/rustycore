@@ -1448,14 +1448,19 @@ async fn run_inner(
         scaling_stat_distribution_store.len(),
         scaling_stat_values_store.len()
     );
-    let area_trigger_template_outcome = wow_data::AreaTriggerTemplateStore::load_like_cpp(
-        world_db.as_ref(),
-        &world_safe_loc_store,
-        |id| curve_store.get(id).is_some(),
-        |name| script_name_interner.get_script_id_like_cpp(name, true),
-    )
-    .await
-    .context("Failed to load C++ AreaTriggerDataStore template/create-properties rows")?;
+    let area_trigger_template_persistence =
+        wow_database::MariaDbAreaTriggerTemplateCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
+            &world_db,
+        ));
+    let area_trigger_template_outcome =
+        crate::area_trigger_template_catalog::load_area_trigger_template_store_like_cpp(
+            &area_trigger_template_persistence,
+            &world_safe_loc_store,
+            |id| curve_store.get(id).is_some(),
+            |name| script_name_interner.get_script_id_like_cpp(name, true),
+        )
+        .await
+        .context("Failed to load C++ AreaTriggerDataStore template/create-properties rows")?;
     for (area_trigger_id, action_type, param) in &area_trigger_template_outcome
         .report
         .skipped_actions_invalid_action_type

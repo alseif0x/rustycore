@@ -21,11 +21,20 @@
 use std::future::Future;
 use std::pin::Pin;
 
+mod area_trigger_template_catalog;
 mod instance_lock;
 mod mount_catalog;
 mod player_choice;
 mod reputation_catalog;
 
+pub use area_trigger_template_catalog::{
+    AREA_TRIGGER_SHAPE_DATA_COUNT_LIKE_CPP, AreaTriggerCreatePropertiesOrbitPersistenceRowLikeCpp,
+    AreaTriggerCreatePropertiesPersistenceRowLikeCpp,
+    AreaTriggerPolygonVertexPersistenceRowLikeCpp, AreaTriggerSplinePointPersistenceRowLikeCpp,
+    AreaTriggerTemplateActionPersistenceRowLikeCpp, AreaTriggerTemplateCatalogLoadOutcomeLikeCpp,
+    AreaTriggerTemplateCatalogPersistencePortLikeCpp, AreaTriggerTemplateCatalogRowsLikeCpp,
+    AreaTriggerTemplatePersistenceRowLikeCpp,
+};
 pub use instance_lock::{
     CharacterInstanceLockPersistenceRowLikeCpp, InstanceLockPersistenceLoadOutcomeLikeCpp,
     InstanceLockPersistenceMutationLikeCpp, InstanceLockPersistenceOutcomeLikeCpp,
