@@ -3045,8 +3045,12 @@ async fn run_inner(
         wow_data::progression_rewards::QuestPackageItemStore::load(&data_dir, &locale)
             .context("Failed to load QuestPackageItem.db2 — check DataDir and DBC.Locale config")?,
     );
-    let mut player_choice_outcome = wow_data::PlayerChoiceStoreLikeCpp::load_core_like_cpp(
-        world_db.as_ref(),
+    let player_choice_catalog_persistence =
+        wow_database::MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
+            &world_db,
+        ));
+    let mut player_choice_outcome = crate::player_choice_catalog::load_core_like_cpp(
+        &player_choice_catalog_persistence,
         |title_id| char_titles_store.contains(title_id),
         |package_id| {
             quest_package_item_store
@@ -3433,11 +3437,12 @@ async fn run_inner(
                 .invalid_reward_skill_lines
                 .len()
     );
-    let player_choice_locale_report = player_choice_outcome
-        .store
-        .load_locales_like_cpp(world_db.as_ref())
-        .await
-        .context("Failed to load C++ playerchoice_locale/playerchoice_response_locale rows")?;
+    let player_choice_locale_report = crate::player_choice_catalog::load_locales_like_cpp(
+        &mut player_choice_outcome.store,
+        &player_choice_catalog_persistence,
+    )
+    .await
+    .context("Failed to load C++ playerchoice_locale/playerchoice_response_locale rows")?;
     for (choice_id, locale_name) in
         &player_choice_locale_report.skipped_choice_locales_missing_choice
     {

@@ -107,6 +107,7 @@
     493,
     495,
     497,
+    499,
     189,
     192,
     193,
@@ -1724,7 +1725,7 @@
   },
   {
     "number": 497,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.57] Move instance-lock persistence behind a typed port",
     "kind": "slice",
     "parents": [
@@ -1733,6 +1734,19 @@
     ],
     "depends_on": [
       495
+    ]
+  },
+  {
+    "number": 499,
+    "state": "open",
+    "title": "[ARCH.DB.58] Move PlayerChoice startup loading behind a typed port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      497
     ]
   }
 ]

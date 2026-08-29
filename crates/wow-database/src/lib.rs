@@ -53,6 +53,7 @@ pub mod packet_spoof_ban_adapter;
 pub mod page_text_catalog_adapter;
 pub mod params;
 pub mod persistence_trace;
+pub mod player_choice_catalog_adapter;
 pub mod player_lifecycle_adapter;
 pub mod player_money_transaction_adapter;
 pub mod player_name_query_adapter;
@@ -94,6 +95,7 @@ pub use loader::{
 };
 pub use page_text_catalog_adapter::MariaDbPageTextCatalogPersistenceAdapterLikeCpp;
 pub use params::{PreparedStatement, SqlParam};
+pub use player_choice_catalog_adapter::MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp;
 pub use player_name_query_adapter::MariaDbPlayerNameQueryPersistenceAdapterLikeCpp;
 pub use query_holder::{SqlQueryHolder, SqlQueryHolderResult};
 pub use respawn_persistence_adapter::MariaDbRespawnPersistenceAdapterLikeCpp;
