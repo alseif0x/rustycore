@@ -6,7 +6,6 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use tracing::info;
 use wow_core::Position;
-use wow_database::{HotfixDatabase, HotfixStatements, WorldDatabase};
 use wow_entities::{VehicleAccessory, VehicleSeatAddon, VehicleSeatInfo, VehicleTemplate};
 
 use crate::wdc4::Wdc4Reader;
@@ -164,46 +163,16 @@ impl VehicleStore {
         Ok(store)
     }
 
-    pub async fn load_with_hotfixes(
-        data_dir: &str,
-        locale: &str,
-        hotfix_db: &HotfixDatabase,
-    ) -> Result<Self> {
-        let mut store = Self::load(data_dir, locale)?;
-        let hotfix_rows = store.load_hotfix_rows(hotfix_db).await?;
-        if hotfix_rows != 0 {
-            info!("Loaded {hotfix_rows} Vehicle hotfix rows");
-        }
-        Ok(store)
-    }
-
-    async fn load_hotfix_rows(&mut self, db: &HotfixDatabase) -> Result<usize> {
-        let stmt = db.prepare(HotfixStatements::SEL_VEHICLE);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(0);
-        }
-
-        let mut count = 0usize;
-        loop {
-            let mut seat_ids = [0u16; MAX_VEHICLE_SEATS_LIKE_CPP];
-            for (offset, seat_id) in seat_ids.iter_mut().enumerate() {
-                *seat_id = result.read(18 + offset);
-            }
-            let entry = VehicleEntry {
-                id: result.read(0),
-                flags: result.read(1),
-                flags_b: result.read(2),
-                seat_ids,
-            };
+    pub fn apply_hotfix_entries_like_cpp(
+        &mut self,
+        entries: impl IntoIterator<Item = VehicleEntry>,
+    ) -> usize {
+        let mut count = 0;
+        for entry in entries {
             self.by_id.insert(entry.id, entry);
             count += 1;
-
-            if !result.next_row() {
-                break;
-            }
         }
-        Ok(count)
+        count
     }
 
     pub fn get(&self, id: u32) -> Option<&VehicleEntry> {
@@ -256,45 +225,16 @@ impl VehicleSeatStore {
         Ok(store)
     }
 
-    pub async fn load_with_hotfixes(
-        data_dir: &str,
-        locale: &str,
-        hotfix_db: &HotfixDatabase,
-    ) -> Result<Self> {
-        let mut store = Self::load(data_dir, locale)?;
-        let hotfix_rows = store.load_hotfix_rows(hotfix_db).await?;
-        if hotfix_rows != 0 {
-            info!("Loaded {hotfix_rows} VehicleSeat hotfix rows");
-        }
-        Ok(store)
-    }
-
-    async fn load_hotfix_rows(&mut self, db: &HotfixDatabase) -> Result<usize> {
-        let stmt = db.prepare(HotfixStatements::SEL_VEHICLE_SEAT);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(0);
-        }
-
-        let mut count = 0usize;
-        loop {
-            let entry = VehicleSeatEntry {
-                id: result.read(0),
-                attachment_offset_x: result.read(1),
-                attachment_offset_y: result.read(2),
-                attachment_offset_z: result.read(3),
-                flags: result.read(7),
-                flags_b: result.read(8),
-                flags_c: result.read(9),
-            };
+    pub fn apply_hotfix_entries_like_cpp(
+        &mut self,
+        entries: impl IntoIterator<Item = VehicleSeatEntry>,
+    ) -> usize {
+        let mut count = 0;
+        for entry in entries {
             self.by_id.insert(entry.id, entry);
             count += 1;
-
-            if !result.next_row() {
-                break;
-            }
         }
-        Ok(count)
+        count
     }
 
     pub fn get(&self, id: u32) -> Option<&VehicleSeatEntry> {
@@ -340,33 +280,6 @@ impl VehicleTemplateStoreLikeCpp {
         }
     }
 
-    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<Self> {
-        let mut result = db
-            .direct_query("SELECT `creatureId`, `despawnDelayMs` FROM `vehicle_template`")
-            .await?;
-        if result.is_empty() {
-            info!("Loaded 0 Vehicle Template entries");
-            return Ok(Self::default());
-        }
-
-        let mut entries = HashMap::new();
-        loop {
-            let creature_entry = result.read::<u32>(0);
-            let despawn_delay_ms = result.read::<i32>(1);
-            entries.insert(creature_entry, VehicleTemplate { despawn_delay_ms });
-
-            if !result.next_row() {
-                break;
-            }
-        }
-
-        let store = Self {
-            by_creature_entry: entries,
-        };
-        info!("Loaded {} Vehicle Template entries", store.len());
-        Ok(store)
-    }
-
     pub fn get(&self, creature_entry: u32) -> Option<&VehicleTemplate> {
         self.by_creature_entry.get(&creature_entry)
     }
@@ -395,81 +308,6 @@ impl VehicleAccessoryStoreLikeCpp {
             by_spawn_guid: by_spawn_guid.into_iter().collect(),
             by_creature_entry: by_creature_entry.into_iter().collect(),
         }
-    }
-
-    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<Self> {
-        let mut store = Self::default();
-        let template_rows = store.load_template_accessories_like_cpp(db).await?;
-        let spawn_rows = store.load_spawn_accessories_like_cpp(db).await?;
-        info!(
-            "Loaded {template_rows} vehicle template accessories and {spawn_rows} vehicle accessories"
-        );
-        Ok(store)
-    }
-
-    async fn load_template_accessories_like_cpp(&mut self, db: &WorldDatabase) -> Result<usize> {
-        let mut result = db
-            .direct_query(
-                "SELECT `entry`, `accessory_entry`, `seat_id`, `minion`, `summontype`, `summontimer` \
-                 FROM `vehicle_template_accessory`",
-            )
-            .await?;
-        if result.is_empty() {
-            return Ok(0);
-        }
-
-        let mut count = 0usize;
-        loop {
-            let entry = result.read::<u32>(0);
-            let accessory = VehicleAccessory {
-                accessory_entry: result.read(1),
-                seat_id: result.read::<i8>(2),
-                is_minion: result.read::<bool>(3),
-                summoned_type: result.read(4),
-                summon_time_ms: result.read(5),
-            };
-            self.by_creature_entry
-                .entry(entry)
-                .or_default()
-                .push(accessory);
-            count += 1;
-
-            if !result.next_row() {
-                break;
-            }
-        }
-        Ok(count)
-    }
-
-    async fn load_spawn_accessories_like_cpp(&mut self, db: &WorldDatabase) -> Result<usize> {
-        let mut result = db
-            .direct_query(
-                "SELECT `guid`, `accessory_entry`, `seat_id`, `minion`, `summontype`, `summontimer` \
-                 FROM `vehicle_accessory`",
-            )
-            .await?;
-        if result.is_empty() {
-            return Ok(0);
-        }
-
-        let mut count = 0usize;
-        loop {
-            let guid = result.read::<u64>(0);
-            let accessory = VehicleAccessory {
-                accessory_entry: result.read(1),
-                seat_id: result.read::<i8>(2),
-                is_minion: result.read::<bool>(3),
-                summoned_type: result.read(4),
-                summon_time_ms: result.read(5),
-            };
-            self.by_spawn_guid.entry(guid).or_default().push(accessory);
-            count += 1;
-
-            if !result.next_row() {
-                break;
-            }
-        }
-        Ok(count)
     }
 
     pub fn accessories_for_vehicle_like_cpp(

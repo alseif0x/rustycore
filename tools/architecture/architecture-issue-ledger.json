@@ -111,6 +111,7 @@
     501,
     503,
     505,
+    507,
     189,
     192,
     193,
@@ -1780,7 +1781,7 @@
   },
   {
     "number": 505,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.61] Move AreaTrigger template startup reads behind a typed persistence port",
     "kind": "slice",
     "parents": [
@@ -1789,6 +1790,19 @@
     ],
     "depends_on": [
       503
+    ]
+  },
+  {
+    "number": 507,
+    "state": "open",
+    "title": "[ARCH.DB.62] Move vehicle startup reads behind typed persistence ports",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      505
     ]
   }
 ]

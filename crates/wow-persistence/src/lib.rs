@@ -26,6 +26,7 @@ mod instance_lock;
 mod mount_catalog;
 mod player_choice;
 mod reputation_catalog;
+mod vehicle_catalog;
 
 pub use area_trigger_template_catalog::{
     AREA_TRIGGER_SHAPE_DATA_COUNT_LIKE_CPP, AreaTriggerCreatePropertiesOrbitPersistenceRowLikeCpp,
@@ -58,6 +59,13 @@ pub use reputation_catalog::{
     CreatureOnKillReputationPersistenceRowLikeCpp, REPUTATION_SPILLOVER_SLOT_COUNT_LIKE_CPP,
     ReputationCatalogLoadOutcomeLikeCpp, ReputationCatalogPersistencePortLikeCpp,
     ReputationRewardRatePersistenceRowLikeCpp, ReputationSpilloverTemplatePersistenceRowLikeCpp,
+};
+pub use vehicle_catalog::{
+    VEHICLE_SEAT_COUNT_LIKE_CPP, VehicleHotfixLoadOutcomeLikeCpp,
+    VehicleHotfixPersistencePortLikeCpp, VehicleHotfixPersistenceRowLikeCpp,
+    VehicleSeatHotfixPersistenceRowLikeCpp, VehicleSpawnAccessoryPersistenceRowLikeCpp,
+    VehicleTemplateAccessoryPersistenceRowLikeCpp, VehicleTemplatePersistenceRowLikeCpp,
+    VehicleWorldCatalogLoadOutcomeLikeCpp, VehicleWorldCatalogPersistencePortLikeCpp,
 };
 
 /// A future returned by a port method.

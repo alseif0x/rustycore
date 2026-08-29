@@ -91,6 +91,7 @@ mod reputation_catalog;
 mod session_resources;
 mod spawn_store_loader;
 mod spell_acquisition_loader;
+mod vehicle_catalog;
 
 use session_resources::SessionResources;
 
