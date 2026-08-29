@@ -5,12 +5,6 @@
 
 //! Creature spawn, despawn and respawn scheduling.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::PreparedStatement;
-
 use super::*;
 
 impl WorldCreature {
@@ -199,7 +193,7 @@ impl MapInstance {
         respawn: &PendingRespawn,
         now: Instant,
         now_secs: i64,
-    ) -> Option<PreparedStatement> {
+    ) -> Option<RespawnPersistenceMutationLikeCpp> {
         let row = PersistedRespawnRowLikeCpp {
             object_type: SpawnObjectType::Creature,
             spawn_id: respawn.spawn_id,
@@ -210,7 +204,15 @@ impl MapInstance {
         match self.add_persisted_respawn_time_like_cpp(row) {
             LegacyRespawnTimeAddOutcomeLikeCpp::Inserted
             | LegacyRespawnTimeAddOutcomeLikeCpp::ReplacedExisting => {
-                Some(respawn_replace_statement_like_cpp(&row))
+                Some(RespawnPersistenceMutationLikeCpp::Save {
+                    key: RespawnPersistenceKeyLikeCpp {
+                        object_type_raw: spawn_object_type_raw_like_cpp(row.object_type),
+                        spawn_id: row.spawn_id,
+                        map_id: row.map_id,
+                        instance_id: row.instance_id,
+                    },
+                    respawn_time: row.respawn_time,
+                })
             }
             LegacyRespawnTimeAddOutcomeLikeCpp::RejectedZeroSpawnId
             | LegacyRespawnTimeAddOutcomeLikeCpp::RejectedUnsupportedType
@@ -327,7 +329,7 @@ impl MapManager {
         respawn: &PendingRespawn,
         now: Instant,
         now_secs: i64,
-    ) -> Option<PreparedStatement> {
+    ) -> Option<RespawnPersistenceMutationLikeCpp> {
         self.get_or_create_map(map_id, instance_id)
             .save_pending_respawn_time_like_cpp(respawn, now, now_secs)
     }

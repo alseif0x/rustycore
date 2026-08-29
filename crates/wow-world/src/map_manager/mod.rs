@@ -30,9 +30,6 @@ use wow_constants::{
     UnitFlags2, UnitMoveType, UnitStandStateType, UnitState, WeaponAttackType,
 };
 use wow_core::{ObjectGuid, Position};
-use wow_database::{
-    CharStatements, CharacterDatabase, DatabaseError, PreparedStatement, StatementDef,
-};
 use wow_entities::{
     AllowedPositionZCaps, Creature, CreatureAddonLifecycleRecordLikeCpp, CreatureAiState,
     CreatureCombatLogStatsLikeCpp, DEFAULT_HEIGHT_SEARCH, DistractMovementAction,
@@ -59,6 +56,7 @@ use wow_movement::{
     WaypointRandomAtPathEnd, WaypointUnitSnapshot, compute_random_destination_like_cpp,
 };
 use wow_packet::packets::update::CreatureCreateData;
+use wow_persistence::{RespawnPersistenceKeyLikeCpp, RespawnPersistenceMutationLikeCpp};
 use wow_recastdetour::{
     CENTER_GRID_ID_LIKE_CPP, DetourNavMeshQueryError, DetourOwnerCapabilitiesLikeCpp,
     DetourPathOptions, DetourPathType, DetourPointPath, DetourPolyPath, DetourQueryFilterError,
@@ -150,13 +148,6 @@ pub struct PersistedRespawnRowLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct PersistedRespawnLoadReportLikeCpp {
-    pub rows: usize,
-    pub loaded: usize,
-    pub invalid_type: usize,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct LegacyRespawnQueueReloadReportLikeCpp {
     pub rows: usize,
     pub timers_loaded: usize,
@@ -221,115 +212,20 @@ pub fn instant_from_respawn_time_like_cpp(
     now.checked_add(Duration::from_secs(low)).unwrap_or(now)
 }
 
-pub fn respawn_replace_statement_like_cpp(row: &PersistedRespawnRowLikeCpp) -> PreparedStatement {
-    let mut stmt = PreparedStatement::for_statement(CharStatements::REP_RESPAWN);
-    // C++ `Map::SaveRespawnInfoDB`: type, spawnId, respawnTime, mapId, instanceId.
-    stmt.set_u16(0, spawn_object_type_raw_like_cpp(row.object_type));
-    stmt.set_u64(1, row.spawn_id);
-    stmt.set_i64(2, row.respawn_time);
-    stmt.set_u16(3, row.map_id);
-    stmt.set_u32(4, row.instance_id);
-    stmt
-}
-
-pub fn respawn_delete_statement_like_cpp(
+pub fn respawn_delete_mutation_like_cpp(
     object_type: SpawnObjectType,
     spawn_id: u64,
     map_id: u16,
     instance_id: u32,
-) -> PreparedStatement {
-    let mut stmt = PreparedStatement::for_statement(CharStatements::DEL_RESPAWN);
-    // C++ `Map::DeleteRespawnInfoFromDB`: type, spawnId, mapId, instanceId.
-    stmt.set_u16(0, spawn_object_type_raw_like_cpp(object_type));
-    stmt.set_u64(1, spawn_id);
-    stmt.set_u16(2, map_id);
-    stmt.set_u32(3, instance_id);
-    stmt
-}
-
-pub async fn load_persisted_respawn_rows_for_map_like_cpp(
-    character_db: &CharacterDatabase,
-    map_id: u16,
-    instance_id: u32,
-) -> Result<
-    (
-        Vec<PersistedRespawnRowLikeCpp>,
-        PersistedRespawnLoadReportLikeCpp,
-    ),
-    DatabaseError,
-> {
-    let mut stmt = character_db.prepare(CharStatements::SEL_RESPAWNS);
-    stmt.set_u16(0, map_id);
-    stmt.set_u32(1, instance_id);
-    let mut result = character_db.query(&stmt).await?;
-    let mut rows = Vec::new();
-    let mut report = PersistedRespawnLoadReportLikeCpp::default();
-
-    if result.is_empty() {
-        return Ok((rows, report));
-    }
-
-    loop {
-        report.rows += 1;
-        let object_type_raw = result
-            .try_read::<u16>(0)
-            .or_else(|| result.try_read::<u8>(0).map(u16::from))
-            .unwrap_or(u16::MAX);
-        let Some(object_type) = u8::try_from(object_type_raw)
-            .ok()
-            .and_then(SpawnObjectType::from_raw)
-        else {
-            report.invalid_type += 1;
-            if !result.next_row() {
-                break;
-            }
-            continue;
-        };
-
-        rows.push(PersistedRespawnRowLikeCpp {
-            object_type,
-            spawn_id: result
-                .try_read::<u64>(1)
-                .or_else(|| result.try_read::<i64>(1).map(|value| value as u64))
-                .unwrap_or(0),
-            respawn_time: result.try_read::<i64>(2).unwrap_or(0),
-            map_id,
-            instance_id,
-        });
-        report.loaded += 1;
-
-        if !result.next_row() {
-            break;
-        }
-    }
-
-    Ok((rows, report))
-}
-
-pub async fn execute_respawn_replace_like_cpp(
-    character_db: &CharacterDatabase,
-    row: &PersistedRespawnRowLikeCpp,
-) -> Result<u64, DatabaseError> {
-    character_db
-        .execute(&respawn_replace_statement_like_cpp(row))
-        .await
-}
-
-pub async fn execute_respawn_delete_like_cpp(
-    character_db: &CharacterDatabase,
-    object_type: SpawnObjectType,
-    spawn_id: u64,
-    map_id: u16,
-    instance_id: u32,
-) -> Result<u64, DatabaseError> {
-    character_db
-        .execute(&respawn_delete_statement_like_cpp(
-            object_type,
+) -> RespawnPersistenceMutationLikeCpp {
+    RespawnPersistenceMutationLikeCpp::Delete {
+        key: RespawnPersistenceKeyLikeCpp {
+            object_type_raw: spawn_object_type_raw_like_cpp(object_type),
             spawn_id,
             map_id,
             instance_id,
-        ))
-        .await
+        },
+    }
 }
 
 fn point_path_limit_for_distance_like_cpp(distance: f32) -> usize {

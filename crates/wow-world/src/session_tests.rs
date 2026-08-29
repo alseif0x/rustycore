@@ -85,7 +85,6 @@ use wow_data::{
     reputation::ReputationFlagsLikeCpp,
 };
 use wow_data::{ItemStatEntry, PvpItemEntry};
-use wow_database::SqlParam;
 use wow_entities::{
     AccessorObjectRef, ApplyEnchantmentDurationAction, ApplyEnchantmentResult,
     ApplyEnchantmentSkipReason, BANK_SLOT_BAG_START, BANK_SLOT_ITEM_START, CharmType,
@@ -90363,10 +90362,12 @@ fn legacy_creature_lifecycle_persistence_does_not_double_count_stale_tick_time_l
     );
 
     assert_eq!(outcome.corpses_despawned, 0);
-    assert_eq!(outcome.respawn_db_statements.len(), 1);
-    let respawn_time = match &outcome.respawn_db_statements[0].params()[2] {
-        SqlParam::I64(value) => *value,
-        _ => panic!("REP_RESPAWN must bind its absolute respawn timestamp as I64"),
+    assert_eq!(outcome.respawn_db_mutations.len(), 1);
+    let respawn_time = match outcome.respawn_db_mutations[0] {
+        wow_persistence::RespawnPersistenceMutationLikeCpp::Save { respawn_time, .. } => {
+            respawn_time
+        }
+        _ => panic!("the death transition must emit a typed respawn save"),
     };
     assert!(respawn_time >= before_unix + 28);
     assert!(
@@ -90414,15 +90415,12 @@ fn legacy_creature_lifecycle_tick_once_despawns_corpse_queues_respawn_and_refres
     assert_eq!(outcome.creatures_seen, 1);
     assert_eq!(outcome.corpses_despawned, 1);
     assert_eq!(outcome.respawns_processed, 0);
-    assert_eq!(outcome.respawn_db_statements.len(), 1);
-    assert_eq!(
-        outcome.respawn_db_statements[0].sql(),
-        CharStatements::REP_RESPAWN.sql()
-    );
+    assert_eq!(outcome.respawn_db_mutations.len(), 1);
     assert!(
         matches!(
-            outcome.respawn_db_statements[0].params()[2],
-            SqlParam::I64(respawn_time) if respawn_time > unix_now()
+            outcome.respawn_db_mutations[0],
+            wow_persistence::RespawnPersistenceMutationLikeCpp::Save { respawn_time, .. }
+                if respawn_time > unix_now()
         ),
         "C++ persists an absolute future GameTime value, never creature-local uptime"
     );
@@ -90523,7 +90521,7 @@ fn assert_instanceable_map_does_not_persist_respawn_like_cpp(
 
     assert_eq!(outcome.corpses_despawned, 1);
     assert!(
-        outcome.respawn_db_statements.is_empty(),
+        outcome.respawn_db_mutations.is_empty(),
         "C++ Map::SaveRespawnInfoDB returns for Instanceable maps"
     );
     assert_eq!(
@@ -90639,11 +90637,11 @@ fn legacy_creature_lifecycle_tick_once_respawns_ready_queue_and_syncs_canonical_
     assert_eq!(outcome.maps_seen, 1);
     assert_eq!(outcome.corpses_despawned, 0);
     assert_eq!(outcome.respawns_processed, 1);
-    assert_eq!(outcome.respawn_db_statements.len(), 1);
-    assert_eq!(
-        outcome.respawn_db_statements[0].sql(),
-        CharStatements::DEL_RESPAWN.sql()
-    );
+    assert_eq!(outcome.respawn_db_mutations.len(), 1);
+    assert!(matches!(
+        outcome.respawn_db_mutations[0],
+        wow_persistence::RespawnPersistenceMutationLikeCpp::Delete { .. }
+    ));
     assert_eq!(outcome.canonical_removes, 0);
     assert_eq!(outcome.canonical_inserts, 1);
     assert_eq!(outcome.canonical_respawn_adds, 0);
@@ -90785,11 +90783,11 @@ fn legacy_creature_lifecycle_tick_once_clears_timer_when_canonical_won_like_cpp(
         outcome.respawns_processed, 0,
         "legacy must not insert a duplicate when the creature is already present"
     );
-    assert_eq!(outcome.respawn_db_statements.len(), 1);
-    assert_eq!(
-        outcome.respawn_db_statements[0].sql(),
-        CharStatements::DEL_RESPAWN.sql()
-    );
+    assert_eq!(outcome.respawn_db_mutations.len(), 1);
+    assert!(matches!(
+        outcome.respawn_db_mutations[0],
+        wow_persistence::RespawnPersistenceMutationLikeCpp::Delete { .. }
+    ));
     assert_eq!(outcome.canonical_inserts, 0);
     assert_eq!(outcome.canonical_respawn_removes, 0);
     assert_eq!(outcome.refresh_map_keys, vec![(0, 0)]);
@@ -90886,11 +90884,11 @@ fn legacy_creature_lifecycle_tick_once_ignores_dead_spawn_id_duplicate_like_cpp(
     );
 
     assert_eq!(outcome.respawns_processed, 1);
-    assert_eq!(outcome.respawn_db_statements.len(), 1);
-    assert_eq!(
-        outcome.respawn_db_statements[0].sql(),
-        CharStatements::DEL_RESPAWN.sql()
-    );
+    assert_eq!(outcome.respawn_db_mutations.len(), 1);
+    assert!(matches!(
+        outcome.respawn_db_mutations[0],
+        wow_persistence::RespawnPersistenceMutationLikeCpp::Delete { .. }
+    ));
     let guard = manager.read().unwrap();
     assert!(guard.find_creature(0, 0, queued_guid).unwrap().is_alive());
     assert!(!guard.find_creature(0, 0, dead_guid).unwrap().is_alive());
@@ -90964,7 +90962,7 @@ fn legacy_creature_lifecycle_tick_once_respawns_synthetic_spawn_id_collision_lik
     );
 
     assert_eq!(outcome.respawns_processed, 1);
-    assert!(outcome.respawn_db_statements.is_empty());
+    assert!(outcome.respawn_db_mutations.is_empty());
     assert_eq!(outcome.canonical_inserts, 1);
     assert_eq!(outcome.canonical_respawn_removes, 0);
 
