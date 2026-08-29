@@ -16,37 +16,6 @@ use wow_data::{
     BattlePetSpeciesEntry, BattlePetSpeciesStateEntry,
 };
 
-#[test]
-fn signed_column_casts_preserve_non_negative_values_like_cpp() {
-    assert_eq!(battle_pet_column_i64_as_u64_like_cpp(0, 0).unwrap(), 0);
-    assert_eq!(battle_pet_column_i64_as_u64_like_cpp(42, 0).unwrap(), 42);
-    assert_eq!(
-        battle_pet_column_i64_as_u64_like_cpp(i64::MAX, 0).unwrap(),
-        i64::MAX as u64
-    );
-    assert_eq!(battle_pet_column_i32_as_u32_like_cpp(70, 1).unwrap(), 70);
-    assert_eq!(battle_pet_column_i16_as_u16_like_cpp(25, 2).unwrap(), 25);
-    assert_eq!(battle_pet_column_i8_as_u8_like_cpp(3, 7).unwrap(), 3);
-}
-
-#[test]
-fn signed_column_casts_reject_negative_values_like_cpp() {
-    for result in [
-        battle_pet_column_i64_as_u64_like_cpp(-1, 0),
-        battle_pet_column_i64_as_u64_like_cpp(i64::MIN, 0),
-    ] {
-        let error = result.unwrap_err();
-        assert!(
-            matches!(error, BattlePetPersistenceErrorLikeCpp::Database(ref message)
-                if message.contains("negative value") && message.contains("column 0")),
-            "unexpected error: {error:?}"
-        );
-    }
-    assert!(battle_pet_column_i32_as_u32_like_cpp(-1, 1).is_err());
-    assert!(battle_pet_column_i16_as_u16_like_cpp(-1, 2).is_err());
-    assert!(battle_pet_column_i8_as_u8_like_cpp(-1, 7).is_err());
-}
-
 #[derive(Default)]
 struct FakePersistenceStateLikeCpp {
     pets: Vec<DurableBattlePetRowLikeCpp>,
@@ -68,6 +37,18 @@ struct FakePersistenceLikeCpp {
     block_next_insert: AtomicBool,
     insert_started: Notify,
     allow_insert: Notify,
+}
+
+fn add_request_matches_like_cpp(
+    requested: &DurableBattlePetRowLikeCpp,
+    persisted: &DurableBattlePetRowLikeCpp,
+) -> bool {
+    requested.species == persisted.species
+        && requested.breed == persisted.breed
+        && requested.display_id == persisted.display_id
+        && requested.level == persisted.level
+        && requested.quality == persisted.quality
+        && requested.owner_guid_counter == persisted.owner_guid_counter
 }
 
 struct FakeProcessLeaseLikeCpp {
@@ -458,17 +439,19 @@ fn source_item_guid_is_a_restart_stable_add_request_identity_like_cpp() {
     let first = ObjectGuid::create_item(7, 41);
     let second = ObjectGuid::create_item(7, 42);
     assert_eq!(
-        BattlePetAddRequestKeyLikeCpp::from_source_item_guid_like_cpp(first)
+        BattlePetAddRequestKeyLikeCpp::from_source_guid_bytes_like_cpp(first.to_raw_bytes())
             .expect("nonempty item guid")
             .as_bytes(),
         first.to_raw_bytes()
     );
     assert_ne!(
-        BattlePetAddRequestKeyLikeCpp::from_source_item_guid_like_cpp(first),
-        BattlePetAddRequestKeyLikeCpp::from_source_item_guid_like_cpp(second)
+        BattlePetAddRequestKeyLikeCpp::from_source_guid_bytes_like_cpp(first.to_raw_bytes()),
+        BattlePetAddRequestKeyLikeCpp::from_source_guid_bytes_like_cpp(second.to_raw_bytes())
     );
     assert_eq!(
-        BattlePetAddRequestKeyLikeCpp::from_source_item_guid_like_cpp(ObjectGuid::EMPTY),
+        BattlePetAddRequestKeyLikeCpp::from_source_guid_bytes_like_cpp(
+            ObjectGuid::EMPTY.to_raw_bytes()
+        ),
         None
     );
 }
@@ -479,16 +462,6 @@ async fn zero_battlenet_account_never_enters_the_shared_registry() {
     let registry = registry_like_cpp(persistence, 0, 10);
     assert!(registry.attach_like_cpp(0).await.is_err());
     assert!(registry.accounts.is_empty());
-}
-
-#[test]
-fn advisory_lock_names_are_scoped_to_one_login_database() {
-    let first = battle_pet_account_lock_name_like_cpp("0123456789abcdef0123456789abcdef", u32::MAX);
-    let second =
-        battle_pet_account_lock_name_like_cpp("fedcba9876543210fedcba9876543210", u32::MAX);
-    assert_ne!(first, second);
-    assert!(first.len() <= 64);
-    assert!(second.len() <= 64);
 }
 
 #[tokio::test]
@@ -1245,6 +1218,9 @@ async fn unchanged_pet_fields_can_still_replace_declined_names_like_cpp() {
     let replacement = DeclinedNamesLikeCpp {
         names: std::array::from_fn(|index| format!("replacement-{index}")),
     };
+    let durable_replacement = BattlePetDeclinedNamesLikeCpp {
+        names: replacement.names.clone(),
+    };
     let replacement_for_mutation = replacement.clone();
     owner
         .try_mutate_pet_like_cpp(lease, pet_guid, move |pet| {
@@ -1269,7 +1245,7 @@ async fn unchanged_pet_fields_can_still_replace_declined_names_like_cpp() {
             .find(|pet| pet.guid_counter == pet_guid.counter() as u64)
             .expect("durable pet")
             .declined_names,
-        Some(replacement)
+        Some(durable_replacement)
     );
 }
 

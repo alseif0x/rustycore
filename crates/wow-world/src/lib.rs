@@ -49,7 +49,4 @@ pub use session_policy::{
     LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, ReputationRatesLikeCpp,
 };
 
-pub use battle_pet_account::{
-    BattlePetAccountAttachmentLikeCpp, BattlePetAccountRegistryLikeCpp,
-    LoginBattlePetPersistenceLikeCpp,
-};
+pub use battle_pet_account::{BattlePetAccountAttachmentLikeCpp, BattlePetAccountRegistryLikeCpp};
