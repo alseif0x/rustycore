@@ -1,10 +1,9 @@
 //! Canonical game-event map updates and player fanout.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::{CharStatements, CharacterDatabase, PreparedStatement};
+use wow_persistence::{
+    GameEventPersistenceMutationLikeCpp, GameEventPersistenceMutationOutcomeLikeCpp,
+    GameEventPersistencePortLikeCpp,
+};
 
 use super::*;
 
@@ -1519,7 +1518,7 @@ pub(crate) fn game_event_quest_complete_processor_failed_response_like_cpp(
 pub(crate) async fn run_game_event_quest_complete_processor_like_cpp(
     command_rx: flume::Receiver<GameEventQuestCompleteCommandLikeCpp>,
     canonical_spawn_metadata: SharedCanonicalSpawnMetadataLikeCpp,
-    character_db: Arc<CharacterDatabase>,
+    game_event_persistence: Arc<dyn GameEventPersistencePortLikeCpp>,
 ) {
     while let Ok(command) = command_rx.recv_async().await {
         let quest_id = command.quest_id;
@@ -1543,12 +1542,12 @@ pub(crate) async fn run_game_event_quest_complete_processor_like_cpp(
 
         let mut summary = maybe_summary;
         execute_game_event_quest_complete_condition_save_db_bridge_like_cpp(
-            character_db.as_ref(),
+            game_event_persistence.as_ref(),
             &mut summary,
         )
         .await;
         execute_game_event_world_event_state_db_bridge_like_cpp(
-            character_db.as_ref(),
+            game_event_persistence.as_ref(),
             &mut summary.world_event_state_summary,
         )
         .await;
@@ -1606,7 +1605,7 @@ pub(crate) enum GameEventLiveUpdateActionLikeCpp {
 pub(crate) struct GameEventSeasonalQuestDbDeleteLikeCpp {
     pub(crate) event_id: u16,
     pub(crate) event_start_time: i64,
-    pub(crate) statement: PreparedStatement,
+    pub(crate) mutation: GameEventPersistenceMutationLikeCpp,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -1811,19 +1810,16 @@ pub(crate) fn game_event_seasonal_quest_db_delete_like_cpp(
         return;
     };
 
-    let mut statement = PreparedStatement::new(
-        CharStatements::DEL_RESET_CHARACTER_QUESTSTATUS_SEASONAL_BY_EVENT.sql(),
-    );
-    statement.set_u16(0, event_id);
-    statement.set_i64(1, event_start_time_i64);
-
     summary.reset_event_seasonal_quests_character_db_delete_queued += 1;
     summary
         .reset_event_seasonal_quest_db_deletes
         .push(GameEventSeasonalQuestDbDeleteLikeCpp {
             event_id,
             event_start_time: event_start_time_i64,
-            statement,
+            mutation: GameEventPersistenceMutationLikeCpp::ResetSeasonalQuests {
+                event_id,
+                event_start_time: event_start_time_i64,
+            },
         });
 }
 
@@ -1878,7 +1874,7 @@ pub(crate) fn fanout_reset_event_seasonal_quests_to_player_sessions_after_db_del
 }
 
 pub(crate) async fn execute_game_event_seasonal_quest_db_deletes_like_cpp(
-    character_db: &CharacterDatabase,
+    persistence: &dyn GameEventPersistencePortLikeCpp,
     summary: &mut GameEventLiveUpdateSideEffectSummaryLikeCpp,
 ) {
     let db_delete_total = summary.reset_event_seasonal_quest_db_deletes.len();
@@ -1887,14 +1883,17 @@ pub(crate) async fn execute_game_event_seasonal_quest_db_deletes_like_cpp(
         .drain(..)
         .enumerate()
     {
-        match character_db.execute(&db_delete.statement).await {
-            Ok(_) => {
+        match persistence
+            .execute_mutation_like_cpp(db_delete.mutation)
+            .await
+        {
+            GameEventPersistenceMutationOutcomeLikeCpp::Applied => {
                 summary.reset_event_seasonal_quests_character_db_delete_executed += 1;
             }
-            Err(error) => {
+            GameEventPersistenceMutationOutcomeLikeCpp::Failed { reason } => {
                 summary.reset_event_seasonal_quests_character_db_delete_failed += 1;
                 tracing::error!(
-                    error = %error,
+                    error = %reason,
                     db_delete_index = db_delete_index + 1,
                     db_delete_total,
                     event_id = db_delete.event_id,

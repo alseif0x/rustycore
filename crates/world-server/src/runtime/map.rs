@@ -1,10 +1,9 @@
 //! Canonical map respawn persistence, periodic work, and update loops.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::{CharStatements, CharacterDatabase, PreparedStatement, SqlTransaction};
+use wow_persistence::{
+    GameEventPersistenceMutationLikeCpp, GameEventPersistenceMutationOutcomeLikeCpp,
+    GameEventPersistencePortLikeCpp,
+};
 
 use super::*;
 
@@ -173,19 +172,6 @@ pub(crate) fn queue_respawn_db_save_like_cpp(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum GameEventWorldEventStateDbStatementKindLikeCpp {
-    DelGameEventSave,
-    InsGameEventSave,
-    DelAllGameEventConditionSave,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct GameEventWorldEventStateDbStatementLikeCpp {
-    pub(crate) kind: GameEventWorldEventStateDbStatementKindLikeCpp,
-    pub(crate) statement: PreparedStatement,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum GameEventWorldEventStateDbOperationKindLikeCpp {
     Save,
     Delete,
@@ -195,7 +181,9 @@ pub(crate) enum GameEventWorldEventStateDbOperationKindLikeCpp {
 pub(crate) struct GameEventWorldEventStateDbOperationLikeCpp {
     pub(crate) event_id: u8,
     pub(crate) kind: GameEventWorldEventStateDbOperationKindLikeCpp,
-    pub(crate) statements: Vec<GameEventWorldEventStateDbStatementLikeCpp>,
+    pub(crate) delete_condition_saves: bool,
+    pub(crate) delete_world_event_state: bool,
+    pub(crate) mutation: GameEventPersistenceMutationLikeCpp,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -216,25 +204,11 @@ pub(crate) struct GameEventWorldEventStateDbBridgeSummaryLikeCpp {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum GameEventQuestCompleteConditionSaveDbStatementKindLikeCpp {
-    DelGameEventConditionSave,
-    InsGameEventConditionSave,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub(crate) struct GameEventQuestCompleteConditionSaveDbStatementLikeCpp {
-    pub(crate) kind: GameEventQuestCompleteConditionSaveDbStatementKindLikeCpp,
-    pub(crate) statement: PreparedStatement,
-}
-
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub(crate) struct GameEventQuestCompleteConditionSaveDbOperationLikeCpp {
     pub(crate) event_id: u8,
     pub(crate) condition_id: u32,
-    pub(crate) statements: Vec<GameEventQuestCompleteConditionSaveDbStatementLikeCpp>,
+    pub(crate) mutation: GameEventPersistenceMutationLikeCpp,
 }
 
 #[allow(dead_code)]
@@ -336,35 +310,17 @@ pub(crate) fn materialize_game_event_quest_complete_db_bridge_like_cpp(
         summary.force_game_event_update_requested_flag = true;
     }
 
-    let mut delete = PreparedStatement::new(progress.del_statement.statement.sql());
-    delete.set_u8(0, progress.del_statement.event_id);
-    delete.set_u32(1, progress.del_statement.condition_id);
-
-    let mut insert = PreparedStatement::new(progress.ins_statement.statement.sql());
-    insert.set_u8(0, progress.ins_statement.event_id);
-    insert.set_u32(1, progress.ins_statement.condition_id);
-    let done_after = match progress.ins_statement.done {
-        Some(done) => done,
-        None => progress.done_after,
-    };
-    insert.set_f32(2, done_after);
-
     summary.condition_save_updates_queued += 1;
     summary
         .operations
         .push(GameEventQuestCompleteConditionSaveDbOperationLikeCpp {
-            event_id: progress.del_statement.event_id,
-            condition_id: progress.del_statement.condition_id,
-            statements: vec![
-                GameEventQuestCompleteConditionSaveDbStatementLikeCpp {
-                    kind: GameEventQuestCompleteConditionSaveDbStatementKindLikeCpp::DelGameEventConditionSave,
-                    statement: delete,
-                },
-                GameEventQuestCompleteConditionSaveDbStatementLikeCpp {
-                    kind: GameEventQuestCompleteConditionSaveDbStatementKindLikeCpp::InsGameEventConditionSave,
-                    statement: insert,
-                },
-            ],
+            event_id: progress.persistence_event_id,
+            condition_id: progress.condition_id,
+            mutation: GameEventPersistenceMutationLikeCpp::ReplaceConditionSave {
+                event_id: progress.persistence_event_id,
+                condition_id: progress.condition_id,
+                done: progress.done_after,
+            },
         });
 
     if progress.save_world_event_state_requested {
@@ -380,21 +336,22 @@ pub(crate) fn materialize_game_event_quest_complete_db_bridge_like_cpp(
 
 #[allow(dead_code)]
 pub(crate) async fn execute_game_event_quest_complete_condition_save_db_bridge_like_cpp(
-    character_db: &CharacterDatabase,
+    persistence: &dyn GameEventPersistencePortLikeCpp,
     summary: &mut GameEventQuestCompleteDbBridgeSummaryLikeCpp,
 ) {
     let operation_total = summary.operations.len();
     for (operation_index, operation) in summary.operations.drain(..).enumerate() {
-        let mut transaction = SqlTransaction::new();
-        for statement in operation.statements.iter().cloned() {
-            transaction.append(statement.statement);
-        }
-        match transaction.commit(character_db.pool()).await {
-            Ok(()) => summary.condition_save_updates_executed += 1,
-            Err(error) => {
+        match persistence
+            .execute_mutation_like_cpp(operation.mutation)
+            .await
+        {
+            GameEventPersistenceMutationOutcomeLikeCpp::Applied => {
+                summary.condition_save_updates_executed += 1
+            }
+            GameEventPersistenceMutationOutcomeLikeCpp::Failed { reason } => {
                 summary.condition_save_updates_failed += 1;
                 tracing::error!(
-                    error = %error,
+                    error = %reason,
                     operation_index = operation_index + 1,
                     operation_total,
                     event_id = operation.event_id,
@@ -424,29 +381,19 @@ pub(crate) fn game_event_world_event_state_db_save_operation_like_cpp(
         return;
     };
 
-    let mut delete = PreparedStatement::for_statement(CharStatements::DEL_GAME_EVENT_SAVE);
-    delete.set_u8(0, event_id_u8);
-    let mut insert = PreparedStatement::for_statement(CharStatements::INS_GAME_EVENT_SAVE);
-    insert.set_u8(0, event_id_u8);
-    insert.set_u8(1, event.state_raw);
-    insert.set_i64(2, next_start);
-
     summary.saves_queued += 1;
     summary
         .operations
         .push(GameEventWorldEventStateDbOperationLikeCpp {
             event_id: event_id_u8,
             kind: GameEventWorldEventStateDbOperationKindLikeCpp::Save,
-            statements: vec![
-                GameEventWorldEventStateDbStatementLikeCpp {
-                    kind: GameEventWorldEventStateDbStatementKindLikeCpp::DelGameEventSave,
-                    statement: delete,
-                },
-                GameEventWorldEventStateDbStatementLikeCpp {
-                    kind: GameEventWorldEventStateDbStatementKindLikeCpp::InsGameEventSave,
-                    statement: insert,
-                },
-            ],
+            delete_condition_saves: false,
+            delete_world_event_state: false,
+            mutation: GameEventPersistenceMutationLikeCpp::SaveWorldEventState {
+                event_id: event_id_u8,
+                state: event.state_raw,
+                next_start,
+            },
         });
 }
 
@@ -464,24 +411,10 @@ pub(crate) fn game_event_world_event_state_db_delete_operation_like_cpp(
         return;
     };
 
-    let mut statements = Vec::new();
     if delete_condition_saves_requested {
-        let mut delete_conditions =
-            PreparedStatement::for_statement(CharStatements::DEL_ALL_GAME_EVENT_CONDITION_SAVE);
-        delete_conditions.set_u8(0, event_id_u8);
-        statements.push(GameEventWorldEventStateDbStatementLikeCpp {
-            kind: GameEventWorldEventStateDbStatementKindLikeCpp::DelAllGameEventConditionSave,
-            statement: delete_conditions,
-        });
         summary.condition_delete_rows_queued += 1;
     }
     if delete_world_event_state_requested {
-        let mut delete_save = PreparedStatement::for_statement(CharStatements::DEL_GAME_EVENT_SAVE);
-        delete_save.set_u8(0, event_id_u8);
-        statements.push(GameEventWorldEventStateDbStatementLikeCpp {
-            kind: GameEventWorldEventStateDbStatementKindLikeCpp::DelGameEventSave,
-            statement: delete_save,
-        });
         summary.deletes_queued += 1;
     }
 
@@ -490,7 +423,13 @@ pub(crate) fn game_event_world_event_state_db_delete_operation_like_cpp(
         .push(GameEventWorldEventStateDbOperationLikeCpp {
             event_id: event_id_u8,
             kind: GameEventWorldEventStateDbOperationKindLikeCpp::Delete,
-            statements,
+            delete_condition_saves: delete_condition_saves_requested,
+            delete_world_event_state: delete_world_event_state_requested,
+            mutation: GameEventPersistenceMutationLikeCpp::DeleteWorldEventState {
+                event_id: event_id_u8,
+                delete_condition_saves: delete_condition_saves_requested,
+                delete_world_event_state: delete_world_event_state_requested,
+            },
         });
 }
 
@@ -542,55 +481,42 @@ pub(crate) fn materialize_game_event_world_event_state_db_bridge_like_cpp(
 }
 
 pub(crate) async fn execute_game_event_world_event_state_db_bridge_like_cpp(
-    character_db: &CharacterDatabase,
+    persistence: &dyn GameEventPersistencePortLikeCpp,
     summary: &mut GameEventWorldEventStateDbBridgeSummaryLikeCpp,
 ) {
     let operation_total = summary.operations.len();
     for (operation_index, operation) in summary.operations.drain(..).enumerate() {
-        let mut transaction = SqlTransaction::new();
-        for statement in operation.statements.iter().cloned() {
-            transaction.append(statement.statement);
-        }
-        match transaction.commit(character_db.pool()).await {
-            Ok(()) => match operation.kind {
+        match persistence
+            .execute_mutation_like_cpp(operation.mutation)
+            .await
+        {
+            GameEventPersistenceMutationOutcomeLikeCpp::Applied => match operation.kind {
                 GameEventWorldEventStateDbOperationKindLikeCpp::Save => summary.saves_executed += 1,
                 GameEventWorldEventStateDbOperationKindLikeCpp::Delete => {
-                    if operation.statements.iter().any(|statement| {
-                        statement.kind
-                            == GameEventWorldEventStateDbStatementKindLikeCpp::DelGameEventSave
-                    }) {
+                    if operation.delete_world_event_state {
                         summary.deletes_executed += 1;
                     }
-                    if operation.statements.iter().any(|statement| {
-                        statement.kind
-                            == GameEventWorldEventStateDbStatementKindLikeCpp::DelAllGameEventConditionSave
-                    }) {
+                    if operation.delete_condition_saves {
                         summary.condition_delete_rows_executed += 1;
                     }
                 }
             },
-            Err(error) => {
+            GameEventPersistenceMutationOutcomeLikeCpp::Failed { reason } => {
                 match operation.kind {
                     GameEventWorldEventStateDbOperationKindLikeCpp::Save => {
                         summary.saves_failed += 1;
                     }
                     GameEventWorldEventStateDbOperationKindLikeCpp::Delete => {
-                        if operation.statements.iter().any(|statement| {
-                            statement.kind
-                                == GameEventWorldEventStateDbStatementKindLikeCpp::DelGameEventSave
-                        }) {
+                        if operation.delete_world_event_state {
                             summary.deletes_failed += 1;
                         }
-                        if operation.statements.iter().any(|statement| {
-                            statement.kind
-                                == GameEventWorldEventStateDbStatementKindLikeCpp::DelAllGameEventConditionSave
-                        }) {
+                        if operation.delete_condition_saves {
                             summary.condition_delete_rows_failed += 1;
                         }
                     }
                 }
                 tracing::error!(
-                    error = %error,
+                    error = %reason,
                     operation_index = operation_index + 1,
                     operation_total,
                     event_id = operation.event_id,
@@ -1685,7 +1611,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
     canonical_spawn_metadata: SharedCanonicalSpawnMetadataLikeCpp,
     condition_store: Arc<wow_data::ConditionEntriesByTypeStore>,
     map_store: Arc<wow_data::MapStore>,
-    character_db: Arc<CharacterDatabase>,
+    game_event_persistence: Arc<dyn GameEventPersistencePortLikeCpp>,
     respawn_db_writer_tx: RespawnDbWriterSenderLikeCpp,
     respawn_db_mutation_order: SharedRespawnDbMutationOrderLikeCpp,
     respawn_db_producer_stop: SharedRespawnDbProducerStopLikeCpp,
@@ -1858,7 +1784,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 };
                 warn_about_sync_queries_scope_like_cpp(
                     execute_game_event_world_event_state_db_bridge_like_cpp(
-                        character_db.as_ref(),
+                        game_event_persistence.as_ref(),
                         &mut db_bridge_summary,
                     ),
                 )
@@ -1897,7 +1823,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 };
                 warn_about_sync_queries_scope_like_cpp(
                     execute_game_event_seasonal_quest_db_deletes_like_cpp(
-                        character_db.as_ref(),
+                        game_event_persistence.as_ref(),
                         &mut side_effect_summary,
                     ),
                 )

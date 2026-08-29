@@ -105,6 +105,7 @@
     489,
     491,
     493,
+    495,
     189,
     192,
     193,
@@ -1696,7 +1697,7 @@
   },
   {
     "number": 493,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.55] Move respawn persistence behind a typed port",
     "kind": "slice",
     "parents": [
@@ -1705,6 +1706,19 @@
     ],
     "depends_on": [
       491
+    ]
+  },
+  {
+    "number": 495,
+    "state": "open",
+    "title": "[ARCH.DB.56] Move represented game-event persistence behind a typed port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      493
     ]
   }
 ]
