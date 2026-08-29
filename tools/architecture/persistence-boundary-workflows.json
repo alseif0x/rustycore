@@ -3635,57 +3635,6 @@
     },
     {
       "package": "wow-data",
-      "module": "crate::player_choice",
-      "source": "crates/wow-data/src/player_choice.rs",
-      "enclosing": "impl PlayerChoiceStoreLikeCpp::load_core_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::player_choice",
-      "source": "crates/wow-data/src/player_choice.rs",
-      "enclosing": "impl PlayerChoiceStoreLikeCpp::load_locales_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::player_choice",
-      "source": "crates/wow-data/src/player_choice.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
       "module": "crate::player_create",
       "source": "crates/wow-data/src/player_create.rs",
       "enclosing": "impl PlayerCreateInfoCastSpellStoreLikeCpp::load_like_cpp",
@@ -14586,6 +14535,126 @@
       "connection_affinity": "The adapter owns one concrete Character database handle.",
       "current_order": "The composition root owns construction; domain and Session code receive only the trait object.",
       "failure_and_unknown_commit": "The concrete handle never crosses the adapter boundary."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_choice_catalog_adapter",
+      "source": "crates/wow-database/src/player_choice_catalog_adapter.rs",
+      "enclosing": "fn query_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free PlayerChoice startup loading (#499)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Each query uses the same World database adapter without inventing a transaction.",
+      "current_order": "The core and locale port methods call this helper sequentially in the exact represented C++ statement order.",
+      "failure_and_unknown_commit": "The first query error stops the load and crosses the typed port only as a failure reason."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_choice_catalog_adapter",
+      "source": "crates/wow-database/src/player_choice_catalog_adapter.rs",
+      "enclosing": "impl MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free PlayerChoice startup loading (#499)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter stores exactly one World database handle.",
+      "current_order": "Composition constructs the adapter before the core and locale startup loads.",
+      "failure_and_unknown_commit": "Construction performs no I/O."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_choice_catalog_adapter",
+      "source": "crates/wow-database/src/player_choice_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerChoiceCatalogPersistencePortLikeCpp for MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp::load_core_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free PlayerChoice startup loading (#499)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "All eight core queries use one World database adapter and no transaction.",
+      "current_order": "Choices, responses, rewards, reward items, currencies, factions, item choices and Maw powers load sequentially.",
+      "failure_and_unknown_commit": "The first query error returns Failed and exposes no partial row bundle."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_choice_catalog_adapter",
+      "source": "crates/wow-database/src/player_choice_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerChoiceCatalogPersistencePortLikeCpp for MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp::load_locale_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free PlayerChoice startup loading (#499)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Both locale queries use the same World database adapter and no transaction.",
+      "current_order": "Choice locales load before response locales after the complete core catalog.",
+      "failure_and_unknown_commit": "The first query error returns Failed and exposes no partial locale bundle."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_choice_catalog_adapter",
+      "source": "crates/wow-database/src/player_choice_catalog_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free PlayerChoice startup loading (#499)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "All concrete PlayerChoice loading stays inside one World database adapter module.",
+      "current_order": "The two statement arrays freeze the represented C++ core and locale query order.",
+      "failure_and_unknown_commit": "No SQLx result or concrete database error crosses the typed port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_choice_catalog_adapter",
+      "source": "crates/wow-database/src/player_choice_catalog_adapter.rs",
+      "enclosing": "struct MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free PlayerChoice startup loading (#499)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns one concrete World database handle.",
+      "current_order": "The composition root owns construction; wow-data receives only the typed capability.",
+      "failure_and_unknown_commit": "The concrete handle never crosses the adapter boundary."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_choice_catalog_adapter",
+      "source": "crates/wow-database/src/player_choice_catalog_adapter.rs",
+      "enclosing": "const CORE_STATEMENTS_LIKE_CPP",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free PlayerChoice startup loading (#499)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The constant names World statement identities only and owns no connection.",
+      "current_order": "The array fixes the eight represented C++ core queries in execution order.",
+      "failure_and_unknown_commit": "No I/O occurs while defining statement identity."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_choice_catalog_adapter",
+      "source": "crates/wow-database/src/player_choice_catalog_adapter.rs",
+      "enclosing": "const LOCALE_STATEMENTS_LIKE_CPP",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free PlayerChoice startup loading (#499)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The constant names World statement identities only and owns no connection.",
+      "current_order": "The array fixes choice locales before response locales.",
+      "failure_and_unknown_commit": "No I/O occurs while defining statement identity."
     }
   ]
 }
