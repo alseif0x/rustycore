@@ -1059,8 +1059,8 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.session_resources.fields"
       },
       "audited_summary": {
-        "field_count": 262,
-        "option_field_count": 204,
+        "field_count": 263,
+        "option_field_count": 205,
         "count_kind": "baseline observation; AST is authoritative"
       },
       "coverage_rule": {
@@ -1068,7 +1068,7 @@
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_field_count": 262,
+        "expected_field_count": 263,
         "validation": "Compare sorted AST field names with the sorted concatenation of every entry.field_names; reject gaps, duplicates, stale names, entry count drift, or total count drift."
       },
       "entries": [
@@ -1102,11 +1102,12 @@
         },
         {
           "id": "session_resources_runtime_handles",
-          "expected_field_count": 19,
+          "expected_field_count": 20,
           "field_names": [
             "battle_pet_purchase_persistence_port",
             "character_enumeration_persistence_port",
             "creature_query_catalog_persistence_port",
+            "gameobject_query_catalog_persistence_port",
             "gameobject_use_template_persistence_port",
             "group_loot_money_persistence_port",
             "instance_lock_mgr",
@@ -1128,7 +1129,7 @@
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "Session receives only the minimal typed runtime ports/PlayerHandle and cannot select or tick duplicate map authorities. #452 adds the narrow stored Item money capability, #454 adds the distinct multi-recipient payout capability, #458 adds the dedicated support bug-report capability, #460 adds the transitional next-mail read capability, #472 adds the atomic trainer fee plus spell-acquisition capability, #476 adds the recoverable battle-pet purchase durability capability, #478 adds the character-enumeration read capability, and #480 adds the transitional creature-query catalog capability without exposing a pool, row, transaction or generic query API."
+          "retirement_condition": "Session receives only the minimal typed runtime ports/PlayerHandle and cannot select or tick duplicate map authorities. #452 adds the narrow stored Item money capability, #454 adds the distinct multi-recipient payout capability, #458 adds the dedicated support bug-report capability, #460 adds the transitional next-mail read capability, #472 adds the atomic trainer fee plus spell-acquisition capability, #476 adds the recoverable battle-pet purchase durability capability, #478 adds the character-enumeration read capability, #480 adds the transitional creature-query catalog capability, and #482 adds the transitional gameobject-query catalog capability without exposing a pool, row, transaction or generic query API."
         },
         {
           "id": "session_resources_catalogs_and_configuration",
@@ -1390,7 +1391,7 @@
           "retirement_condition": "Every remaining field has an exact capability bundle/consumer owner or is removed from Session construction."
         }
       ],
-      "expected_field_count": 262
+      "expected_field_count": 263
     },
     "session_command": {
       "coverage_source": {
@@ -1672,9 +1673,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 72637,
+          "production_lines": 72654,
           "test_lines": 97011,
-          "total_lines": 169648,
+          "total_lines": 169665,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153
@@ -1694,9 +1695,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20586,
-          "test_lines": 12252,
-          "total_lines": 32838,
+          "production_lines": 20545,
+          "test_lines": 12392,
+          "total_lines": 32937,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "open_retirement_issues": [
             153
@@ -1717,9 +1718,9 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-      "production_lines": 25396,
+      "production_lines": 25409,
           "test_lines": 21708,
-      "total_lines": 47104,
+      "total_lines": 47117,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "open_retirement_issues": [
             153

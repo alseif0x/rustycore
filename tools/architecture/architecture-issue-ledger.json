@@ -99,6 +99,7 @@
     476,
     478,
     480,
+    482,
     189,
     192,
     193,
@@ -1612,7 +1613,7 @@
   },
   {
     "number": 480,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.49] Move creature-query catalog reads behind a typed port",
     "kind": "slice",
     "parents": [
@@ -1621,6 +1622,19 @@
     ],
     "depends_on": [
       478
+    ]
+  },
+  {
+    "number": 482,
+    "state": "open",
+    "title": "[ARCH.DB.50] Move gameobject-query catalog reads behind a typed port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      480
     ]
   }
   ]

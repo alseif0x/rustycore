@@ -290,6 +290,9 @@ pub(super) async fn create_session(
     if let Some(ref port) = resources.creature_query_catalog_persistence_port {
         session.set_creature_query_catalog_persistence_port_like_cpp(Arc::clone(port));
     }
+    if let Some(ref port) = resources.gameobject_query_catalog_persistence_port {
+        session.set_gameobject_query_catalog_persistence_port_like_cpp(Arc::clone(port));
+    }
     if let Some(ref port) = resources.session_account_state_port {
         session.set_session_account_state_port_like_cpp(Arc::clone(port));
     }
