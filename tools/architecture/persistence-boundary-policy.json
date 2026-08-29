@@ -7009,294 +7009,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-data:crate::reputation:crates/wow-data/src/reputation.rs::fn read_db_bool_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/reputation.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::reputation"
-      ],
-      "enclosings": [
-        "fn read_db_bool_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow fn read_db_bool_like_cpp in crates/wow-data/src/reputation.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::reputation:crates/wow-data/src/reputation.rs::fn read_db_i16_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/reputation.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::reputation"
-      ],
-      "enclosings": [
-        "fn read_db_i16_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow fn read_db_i16_like_cpp in crates/wow-data/src/reputation.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::reputation:crates/wow-data/src/reputation.rs::fn read_db_u16_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/reputation.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::reputation"
-      ],
-      "enclosings": [
-        "fn read_db_u16_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow fn read_db_u16_like_cpp in crates/wow-data/src/reputation.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::reputation:crates/wow-data/src/reputation.rs::fn read_db_u32_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/reputation.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::reputation"
-      ],
-      "enclosings": [
-        "fn read_db_u32_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow fn read_db_u32_like_cpp in crates/wow-data/src/reputation.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::reputation:crates/wow-data/src/reputation.rs::fn read_db_u8_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/reputation.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::reputation"
-      ],
-      "enclosings": [
-        "fn read_db_u8_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow fn read_db_u8_like_cpp in crates/wow-data/src/reputation.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::reputation:crates/wow-data/src/reputation.rs::impl CreatureOnKillReputationStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/reputation.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::reputation"
-      ],
-      "enclosings": [
-        "impl CreatureOnKillReputationStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl CreatureOnKillReputationStoreLikeCpp::load_like_cpp in crates/wow-data/src/reputation.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::reputation:crates/wow-data/src/reputation.rs::impl RepSpilloverTemplateStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/reputation.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::reputation"
-      ],
-      "enclosings": [
-        "impl RepSpilloverTemplateStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl RepSpilloverTemplateStoreLikeCpp::load_like_cpp in crates/wow-data/src/reputation.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::reputation:crates/wow-data/src/reputation.rs::impl ReputationRewardRateStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/reputation.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::reputation"
-      ],
-      "enclosings": [
-        "impl ReputationRewardRateStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl ReputationRewardRateStoreLikeCpp::load_like_cpp in crates/wow-data/src/reputation.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::reputation:crates/wow-data/src/reputation.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/reputation.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::reputation"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow module in crates/wow-data/src/reputation.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-data:crate::reserved_names:crates/wow-data/src/reserved_names.rs::impl ReservedNameStoreLikeCpp::load_like_cpp",
       "source_class": "production",
       "packages": [
@@ -19893,6 +19605,426 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::reputation_catalog_adapter:crates/wow-database/src/reputation_catalog_adapter.rs::const STARTUP_STATEMENTS_LIKE_CPP",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/reputation_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::reputation_catalog_adapter"
+      ],
+      "enclosings": [
+        "const STARTUP_STATEMENTS_LIKE_CPP"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free reputation startup loading (#503) currently owns the complete wow-database workflow const STARTUP_STATEMENTS_LIKE_CPP in crates/wow-database/src/reputation_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all three queries; each statement is fully decoded before the next world-server step and no transaction is implied.",
+      "current_order": "Preserve reward-rate -> creature-onkill -> spillover-template startup order; each workflow retains its existing statement identity and row/coercion order.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row or driver error crosses the port and the affected immutable store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::reputation_catalog_adapter:crates/wow-database/src/reputation_catalog_adapter.rs::fn classify_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/reputation_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::reputation_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn classify_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free reputation startup loading (#503) currently owns the complete wow-database workflow fn classify_rows_like_cpp in crates/wow-database/src/reputation_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all three queries; each statement is fully decoded before the next world-server step and no transaction is implied.",
+      "current_order": "Preserve reward-rate -> creature-onkill -> spillover-template startup order; each workflow retains its existing statement identity and row/coercion order.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row or driver error crosses the port and the affected immutable store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::reputation_catalog_adapter:crates/wow-database/src/reputation_catalog_adapter.rs::fn query_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/reputation_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::reputation_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn query_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free reputation startup loading (#503) currently owns the complete wow-database workflow fn query_rows_like_cpp in crates/wow-database/src/reputation_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all three queries; each statement is fully decoded before the next world-server step and no transaction is implied.",
+      "current_order": "Preserve reward-rate -> creature-onkill -> spillover-template startup order; each workflow retains its existing statement identity and row/coercion order.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row or driver error crosses the port and the affected immutable store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::reputation_catalog_adapter:crates/wow-database/src/reputation_catalog_adapter.rs::fn read_db_bool_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/reputation_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::reputation_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn read_db_bool_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free reputation startup loading (#503) currently owns the complete wow-database workflow fn read_db_bool_like_cpp in crates/wow-database/src/reputation_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all three queries; each statement is fully decoded before the next world-server step and no transaction is implied.",
+      "current_order": "Preserve reward-rate -> creature-onkill -> spillover-template startup order; each workflow retains its existing statement identity and row/coercion order.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row or driver error crosses the port and the affected immutable store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::reputation_catalog_adapter:crates/wow-database/src/reputation_catalog_adapter.rs::fn read_db_i16_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/reputation_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::reputation_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn read_db_i16_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free reputation startup loading (#503) currently owns the complete wow-database workflow fn read_db_i16_like_cpp in crates/wow-database/src/reputation_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all three queries; each statement is fully decoded before the next world-server step and no transaction is implied.",
+      "current_order": "Preserve reward-rate -> creature-onkill -> spillover-template startup order; each workflow retains its existing statement identity and row/coercion order.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row or driver error crosses the port and the affected immutable store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::reputation_catalog_adapter:crates/wow-database/src/reputation_catalog_adapter.rs::fn read_db_u16_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/reputation_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::reputation_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn read_db_u16_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free reputation startup loading (#503) currently owns the complete wow-database workflow fn read_db_u16_like_cpp in crates/wow-database/src/reputation_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all three queries; each statement is fully decoded before the next world-server step and no transaction is implied.",
+      "current_order": "Preserve reward-rate -> creature-onkill -> spillover-template startup order; each workflow retains its existing statement identity and row/coercion order.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row or driver error crosses the port and the affected immutable store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::reputation_catalog_adapter:crates/wow-database/src/reputation_catalog_adapter.rs::fn read_db_u32_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/reputation_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::reputation_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn read_db_u32_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free reputation startup loading (#503) currently owns the complete wow-database workflow fn read_db_u32_like_cpp in crates/wow-database/src/reputation_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all three queries; each statement is fully decoded before the next world-server step and no transaction is implied.",
+      "current_order": "Preserve reward-rate -> creature-onkill -> spillover-template startup order; each workflow retains its existing statement identity and row/coercion order.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row or driver error crosses the port and the affected immutable store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::reputation_catalog_adapter:crates/wow-database/src/reputation_catalog_adapter.rs::fn read_db_u8_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/reputation_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::reputation_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn read_db_u8_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free reputation startup loading (#503) currently owns the complete wow-database workflow fn read_db_u8_like_cpp in crates/wow-database/src/reputation_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all three queries; each statement is fully decoded before the next world-server step and no transaction is implied.",
+      "current_order": "Preserve reward-rate -> creature-onkill -> spillover-template startup order; each workflow retains its existing statement identity and row/coercion order.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row or driver error crosses the port and the affected immutable store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::reputation_catalog_adapter:crates/wow-database/src/reputation_catalog_adapter.rs::impl MariaDbReputationCatalogPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/reputation_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::reputation_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbReputationCatalogPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free reputation startup loading (#503) currently owns the complete wow-database workflow impl MariaDbReputationCatalogPersistenceAdapterLikeCpp::new in crates/wow-database/src/reputation_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all three queries; each statement is fully decoded before the next world-server step and no transaction is implied.",
+      "current_order": "Preserve reward-rate -> creature-onkill -> spillover-template startup order; each workflow retains its existing statement identity and row/coercion order.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row or driver error crosses the port and the affected immutable store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::reputation_catalog_adapter:crates/wow-database/src/reputation_catalog_adapter.rs::impl wow_persistence::ReputationCatalogPersistencePortLikeCpp for MariaDbReputationCatalogPersistenceAdapterLikeCpp::load_creature_onkill_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/reputation_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::reputation_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::ReputationCatalogPersistencePortLikeCpp for MariaDbReputationCatalogPersistenceAdapterLikeCpp::load_creature_onkill_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free reputation startup loading (#503) currently owns the complete wow-database workflow impl wow_persistence::ReputationCatalogPersistencePortLikeCpp for MariaDbReputationCatalogPersistenceAdapterLikeCpp::load_creature_onkill_rows_like_cpp in crates/wow-database/src/reputation_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all three queries; each statement is fully decoded before the next world-server step and no transaction is implied.",
+      "current_order": "Preserve reward-rate -> creature-onkill -> spillover-template startup order; each workflow retains its existing statement identity and row/coercion order.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row or driver error crosses the port and the affected immutable store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::reputation_catalog_adapter:crates/wow-database/src/reputation_catalog_adapter.rs::impl wow_persistence::ReputationCatalogPersistencePortLikeCpp for MariaDbReputationCatalogPersistenceAdapterLikeCpp::load_reward_rate_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/reputation_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::reputation_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::ReputationCatalogPersistencePortLikeCpp for MariaDbReputationCatalogPersistenceAdapterLikeCpp::load_reward_rate_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free reputation startup loading (#503) currently owns the complete wow-database workflow impl wow_persistence::ReputationCatalogPersistencePortLikeCpp for MariaDbReputationCatalogPersistenceAdapterLikeCpp::load_reward_rate_rows_like_cpp in crates/wow-database/src/reputation_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all three queries; each statement is fully decoded before the next world-server step and no transaction is implied.",
+      "current_order": "Preserve reward-rate -> creature-onkill -> spillover-template startup order; each workflow retains its existing statement identity and row/coercion order.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row or driver error crosses the port and the affected immutable store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::reputation_catalog_adapter:crates/wow-database/src/reputation_catalog_adapter.rs::impl wow_persistence::ReputationCatalogPersistencePortLikeCpp for MariaDbReputationCatalogPersistenceAdapterLikeCpp::load_spillover_template_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/reputation_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::reputation_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::ReputationCatalogPersistencePortLikeCpp for MariaDbReputationCatalogPersistenceAdapterLikeCpp::load_spillover_template_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free reputation startup loading (#503) currently owns the complete wow-database workflow impl wow_persistence::ReputationCatalogPersistencePortLikeCpp for MariaDbReputationCatalogPersistenceAdapterLikeCpp::load_spillover_template_rows_like_cpp in crates/wow-database/src/reputation_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all three queries; each statement is fully decoded before the next world-server step and no transaction is implied.",
+      "current_order": "Preserve reward-rate -> creature-onkill -> spillover-template startup order; each workflow retains its existing statement identity and row/coercion order.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row or driver error crosses the port and the affected immutable store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::reputation_catalog_adapter:crates/wow-database/src/reputation_catalog_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/reputation_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::reputation_catalog_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free reputation startup loading (#503) currently owns the complete wow-database workflow module in crates/wow-database/src/reputation_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all three queries; each statement is fully decoded before the next world-server step and no transaction is implied.",
+      "current_order": "Preserve reward-rate -> creature-onkill -> spillover-template startup order; each workflow retains its existing statement identity and row/coercion order.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row or driver error crosses the port and the affected immutable store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::reputation_catalog_adapter:crates/wow-database/src/reputation_catalog_adapter.rs::struct MariaDbReputationCatalogPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/reputation_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::reputation_catalog_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbReputationCatalogPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free reputation startup loading (#503) currently owns the complete wow-database workflow struct MariaDbReputationCatalogPersistenceAdapterLikeCpp in crates/wow-database/src/reputation_catalog_adapter.rs.",
+      "connection_affinity": "One World startup connection owns all three queries; each statement is fully decoded before the next world-server step and no transaction is implied.",
+      "current_order": "Preserve reward-rate -> creature-onkill -> spillover-template startup order; each workflow retains its existing statement identity and row/coercion order.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome; no concrete row or driver error crosses the port and the affected immutable store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::respawn_persistence_adapter:crates/wow-database/src/respawn_persistence_adapter.rs::fn decode_rows_like_cpp",
       "source_class": "production",
       "packages": [
@@ -28015,6 +28147,7 @@
         "crates/wow-database/src/player_spell_acquisition_adapter.rs",
         "crates/wow-database/src/query_holder.rs",
         "crates/wow-database/src/represented_group_persistence_adapter.rs",
+        "crates/wow-database/src/reputation_catalog_adapter.rs",
         "crates/wow-database/src/respawn_persistence_adapter.rs",
         "crates/wow-database/src/session_account_state_adapter.rs",
         "crates/wow-database/src/statements/character.rs",

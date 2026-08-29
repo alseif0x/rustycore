@@ -24,6 +24,7 @@ use std::pin::Pin;
 mod instance_lock;
 mod mount_catalog;
 mod player_choice;
+mod reputation_catalog;
 
 pub use instance_lock::{
     CharacterInstanceLockPersistenceRowLikeCpp, InstanceLockPersistenceLoadOutcomeLikeCpp,
@@ -43,6 +44,11 @@ pub use player_choice::{
     PlayerChoiceResponseMawPowerRowLikeCpp, PlayerChoiceResponseRewardCurrencyRowLikeCpp,
     PlayerChoiceResponseRewardFactionRowLikeCpp, PlayerChoiceResponseRewardItemRowLikeCpp,
     PlayerChoiceResponseRewardRowLikeCpp, PlayerChoiceResponseRowLikeCpp, PlayerChoiceRowLikeCpp,
+};
+pub use reputation_catalog::{
+    CreatureOnKillReputationPersistenceRowLikeCpp, REPUTATION_SPILLOVER_SLOT_COUNT_LIKE_CPP,
+    ReputationCatalogLoadOutcomeLikeCpp, ReputationCatalogPersistencePortLikeCpp,
+    ReputationRewardRatePersistenceRowLikeCpp, ReputationSpilloverTemplatePersistenceRowLikeCpp,
 };
 
 /// A future returned by a port method.
