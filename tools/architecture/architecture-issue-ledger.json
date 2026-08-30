@@ -116,6 +116,7 @@
     511,
     513,
     515,
+    517,
     189,
     192,
     193,
@@ -1850,7 +1851,7 @@
   },
   {
     "number": 515,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.66] Move foundational SpellMgr World catalogs behind a typed port",
     "kind": "slice",
     "parents": [
@@ -1859,6 +1860,19 @@
     ],
     "depends_on": [
       513
+    ]
+  },
+  {
+    "number": 517,
+    "state": "open",
+    "title": "[ARCH.DB.67] Move remaining SpellMgr World catalogs behind the typed port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      515
     ]
   }
 ]

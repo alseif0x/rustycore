@@ -81,10 +81,12 @@ pub use spell_info_key_hotfix::{
     SpellInfoKeyHotfixRowsLikeCpp, SpellInfoPowerDifficultyHotfixRowLikeCpp,
 };
 pub use spell_world_catalog::{
-    SpellLinkedPersistenceRowLikeCpp, SpellPetAuraPersistenceRowLikeCpp,
-    SpellRequiredPersistenceRowLikeCpp, SpellThreatPersistenceRowLikeCpp,
-    SpellTotemModelPersistenceRowLikeCpp, SpellWorldCatalogLoadOutcomeLikeCpp,
-    SpellWorldCatalogPersistencePortLikeCpp,
+    SpellAreaPersistenceRowLikeCpp, SpellGroupPersistenceRowLikeCpp,
+    SpellGroupStackRulePersistenceRowLikeCpp, SpellLinkedPersistenceRowLikeCpp,
+    SpellPetAuraPersistenceRowLikeCpp, SpellProcPersistenceRowLikeCpp,
+    SpellRequiredPersistenceRowLikeCpp, SpellTargetPositionPersistenceRowLikeCpp,
+    SpellThreatPersistenceRowLikeCpp, SpellTotemModelPersistenceRowLikeCpp,
+    SpellWorldCatalogLoadOutcomeLikeCpp, SpellWorldCatalogPersistencePortLikeCpp,
 };
 pub use vehicle_catalog::{
     VEHICLE_SEAT_COUNT_LIKE_CPP, VehicleHotfixLoadOutcomeLikeCpp,

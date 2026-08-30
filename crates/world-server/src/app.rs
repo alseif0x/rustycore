@@ -2692,8 +2692,10 @@ async fn run_inner(
             "RUST_LFG_TRACE random entries level80 expansion2"
         );
     }
-    let spell_area_outcome = wow_data::SpellAreaStoreLikeCpp::load_like_cpp(
-        world_db.as_ref(),
+    let spell_world_catalog_persistence =
+        wow_database::MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
+    let spell_area_outcome = crate::spell_world_catalog::load_spell_area_like_cpp(
+        &spell_world_catalog_persistence,
         |spell_id| spell_store.get(spell_id as i32).is_some(),
         |area_id| area_table_store.get(area_id).is_some(),
         |quest_id| quest_store.get(quest_id).is_some(),
@@ -3939,8 +3941,8 @@ async fn run_inner(
         spellclick_template_flags_removed
     );
     let spell_target_position_store = Arc::new(
-        wow_data::SpellTargetPositionStoreLikeCpp::load_like_cpp(
-            world_db.as_ref(),
+        crate::spell_world_catalog::load_spell_target_position_like_cpp(
+            &spell_world_catalog_persistence,
             &spell_store,
             |map_id| map_store.get(u32::from(map_id)).is_some(),
         )
@@ -3966,8 +3968,8 @@ async fn run_inner(
             .load_report_like_cpp()
             .skipped_unsupported_target
     );
-    let spell_proc_outcome = wow_data::SpellProcStoreLikeCpp::load_like_cpp(
-        world_db.as_ref(),
+    let spell_proc_outcome = crate::spell_world_catalog::load_spell_proc_like_cpp(
+        &spell_world_catalog_persistence,
         &spell_store,
         spell_chain_store.as_ref(),
         spell_aura_options_store.as_ref(),
@@ -3984,8 +3986,6 @@ async fn run_inner(
         spell_proc_outcome.generated_entry_count,
         spell_proc_outcome.errors.len()
     );
-    let spell_world_catalog_persistence =
-        wow_database::MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
     let spell_required_outcome = crate::spell_world_catalog::load_spell_required_like_cpp(
         &spell_world_catalog_persistence,
         &spell_store,
@@ -3999,8 +3999,8 @@ async fn run_inner(
         spell_required_outcome.loaded_row_count,
         spell_required_outcome.errors.len()
     );
-    let spell_group_outcome = wow_data::SpellGroupStoreLikeCpp::load_like_cpp(
-        world_db.as_ref(),
+    let spell_group_outcome = crate::spell_world_catalog::load_spell_group_like_cpp(
+        &spell_world_catalog_persistence,
         &spell_store,
         spell_chain_store.as_ref(),
     )
@@ -4012,14 +4012,15 @@ async fn run_inner(
         spell_group_outcome.loaded_row_count,
         spell_group_outcome.errors.len()
     );
-    let spell_group_stack_rule_outcome = wow_data::SpellGroupStackRuleStoreLikeCpp::load_like_cpp(
-        world_db.as_ref(),
-        spell_group_store.as_ref(),
-        &spell_store,
-        spell_chain_store.as_ref(),
-    )
-    .await
-    .context("Failed to load C++ spell_group_stack_rules rows")?;
+    let spell_group_stack_rule_outcome =
+        crate::spell_world_catalog::load_spell_group_stack_rule_like_cpp(
+            &spell_world_catalog_persistence,
+            spell_group_store.as_ref(),
+            &spell_store,
+            spell_chain_store.as_ref(),
+        )
+        .await
+        .context("Failed to load C++ spell_group_stack_rules rows")?;
     let spell_group_stack_rule_store = Arc::new(spell_group_stack_rule_outcome.store);
     info!(
         "Loaded {} C++ spell_group_stack_rules rows and parsed {} same-effect groups ({} validation issues)",
