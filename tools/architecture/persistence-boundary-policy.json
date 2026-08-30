@@ -8229,70 +8229,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-data:crate::trainer:crates/wow-data/src/trainer.rs::impl TrainerStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/trainer.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::trainer"
-      ],
-      "enclosings": [
-        "impl TrainerStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl TrainerStoreLikeCpp::load_like_cpp in crates/wow-data/src/trainer.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::trainer:crates/wow-data/src/trainer.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/trainer.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::trainer"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow module in crates/wow-data/src/trainer.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-data:crate::trinity_string:crates/wow-data/src/trinity_string.rs::impl TrinityStringStoreLikeCpp::load_like_cpp",
       "source_class": "production",
       "packages": [
@@ -22446,6 +22382,186 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::trainer_catalog_adapter:crates/wow-database/src/trainer_catalog_adapter.rs::const TRAINER_CATALOG_STATEMENTS_LIKE_CPP",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/trainer_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::trainer_catalog_adapter"
+      ],
+      "enclosings": [
+        "const TRAINER_CATALOG_STATEMENTS_LIKE_CPP"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free trainer startup-catalog capability (#519) currently owns the complete wow-database workflow const TRAINER_CATALOG_STATEMENTS_LIKE_CPP in crates/wow-database/src/trainer_catalog_adapter.rs.",
+      "connection_affinity": "All four reads use only the World connection; they are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter fully reads trainer_spell, trainer, trainer_locale and creature_trainer in that order before world-server invokes wow-data validation and immutable publication.",
+      "failure_and_unknown_commit": "Any query error becomes a typed Failed outcome before domain publication; an empty result remains a successful empty row family and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::trainer_catalog_adapter:crates/wow-database/src/trainer_catalog_adapter.rs::fn query_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/trainer_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::trainer_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn query_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free trainer startup-catalog capability (#519) currently owns the complete wow-database workflow fn query_rows_like_cpp in crates/wow-database/src/trainer_catalog_adapter.rs.",
+      "connection_affinity": "All four reads use only the World connection; they are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter fully reads trainer_spell, trainer, trainer_locale and creature_trainer in that order before world-server invokes wow-data validation and immutable publication.",
+      "failure_and_unknown_commit": "Any query error becomes a typed Failed outcome before domain publication; an empty result remains a successful empty row family and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::trainer_catalog_adapter:crates/wow-database/src/trainer_catalog_adapter.rs::impl MariaDbTrainerCatalogPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/trainer_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::trainer_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbTrainerCatalogPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free trainer startup-catalog capability (#519) currently owns the complete wow-database workflow impl MariaDbTrainerCatalogPersistenceAdapterLikeCpp::new in crates/wow-database/src/trainer_catalog_adapter.rs.",
+      "connection_affinity": "All four reads use only the World connection; they are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter fully reads trainer_spell, trainer, trainer_locale and creature_trainer in that order before world-server invokes wow-data validation and immutable publication.",
+      "failure_and_unknown_commit": "Any query error becomes a typed Failed outcome before domain publication; an empty result remains a successful empty row family and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::trainer_catalog_adapter:crates/wow-database/src/trainer_catalog_adapter.rs::impl wow_persistence::TrainerCatalogPersistencePortLikeCpp for MariaDbTrainerCatalogPersistenceAdapterLikeCpp::load_trainer_catalog_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/trainer_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::trainer_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::TrainerCatalogPersistencePortLikeCpp for MariaDbTrainerCatalogPersistenceAdapterLikeCpp::load_trainer_catalog_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free trainer startup-catalog capability (#519) currently owns the complete wow-database workflow impl wow_persistence::TrainerCatalogPersistencePortLikeCpp for MariaDbTrainerCatalogPersistenceAdapterLikeCpp::load_trainer_catalog_rows_like_cpp in crates/wow-database/src/trainer_catalog_adapter.rs.",
+      "connection_affinity": "All four reads use only the World connection; they are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter fully reads trainer_spell, trainer, trainer_locale and creature_trainer in that order before world-server invokes wow-data validation and immutable publication.",
+      "failure_and_unknown_commit": "Any query error becomes a typed Failed outcome before domain publication; an empty result remains a successful empty row family and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::trainer_catalog_adapter:crates/wow-database/src/trainer_catalog_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/trainer_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::trainer_catalog_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free trainer startup-catalog capability (#519) currently owns the complete wow-database workflow module in crates/wow-database/src/trainer_catalog_adapter.rs.",
+      "connection_affinity": "All four reads use only the World connection; they are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter fully reads trainer_spell, trainer, trainer_locale and creature_trainer in that order before world-server invokes wow-data validation and immutable publication.",
+      "failure_and_unknown_commit": "Any query error becomes a typed Failed outcome before domain publication; an empty result remains a successful empty row family and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::trainer_catalog_adapter:crates/wow-database/src/trainer_catalog_adapter.rs::struct MariaDbTrainerCatalogPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/trainer_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::trainer_catalog_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbTrainerCatalogPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free trainer startup-catalog capability (#519) currently owns the complete wow-database workflow struct MariaDbTrainerCatalogPersistenceAdapterLikeCpp in crates/wow-database/src/trainer_catalog_adapter.rs.",
+      "connection_affinity": "All four reads use only the World connection; they are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter fully reads trainer_spell, trainer, trainer_locale and creature_trainer in that order before world-server invokes wow-data validation and immutable publication.",
+      "failure_and_unknown_commit": "Any query error becomes a typed Failed outcome before domain publication; an empty result remains a successful empty row family and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::transaction:crates/wow-database/src/transaction.rs::enum SqlTransactionCommitError::CommitOutcomeUnknown",
       "source_class": "production",
       "packages": [
@@ -28658,6 +28774,7 @@
         "crates/wow-database/src/statements/world.rs",
         "crates/wow-database/src/stored_item_money_adapter.rs",
         "crates/wow-database/src/support_bug_report_adapter.rs",
+        "crates/wow-database/src/trainer_catalog_adapter.rs",
         "crates/wow-database/src/transaction.rs",
         "crates/wow-database/src/updater.rs",
         "crates/wow-database/src/void_storage_adapter.rs"

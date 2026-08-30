@@ -7,9 +7,7 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
 use wow_constants::shared::Locale;
-use wow_database::{WorldDatabase, WorldStatements};
 
 pub const TRAINER_TYPE_NONE_LIKE_CPP: u8 = 0;
 pub const TRAINER_TYPE_TALENT_LIKE_CPP: u8 = 1;
@@ -392,108 +390,6 @@ impl TrainerStoreLikeCpp {
         }
 
         TrainerLoadOutcomeLikeCpp { store, report }
-    }
-
-    /// C++ `ObjectMgr::LoadTrainers` + `LoadCreatureTrainers`.
-    pub async fn load_like_cpp<
-        SpellExists,
-        SkillLineExists,
-        CreatureTemplateExists,
-        GossipOptionExists,
-    >(
-        db: &WorldDatabase,
-        spell_exists: SpellExists,
-        skill_line_exists: SkillLineExists,
-        creature_template_exists: CreatureTemplateExists,
-        gossip_option_exists: GossipOptionExists,
-    ) -> Result<TrainerLoadOutcomeLikeCpp>
-    where
-        SpellExists: FnMut(u32) -> bool,
-        SkillLineExists: FnMut(u32) -> bool,
-        CreatureTemplateExists: FnMut(u32) -> bool,
-        GossipOptionExists: FnMut(u32, u32) -> bool,
-    {
-        let stmt = db.prepare(WorldStatements::SEL_TRAINER_SPELLS_ALL);
-        let mut result = db.query(&stmt).await?;
-        let mut spell_rows = Vec::new();
-        if !result.is_empty() {
-            loop {
-                spell_rows.push(TrainerSpellRowLikeCpp {
-                    trainer_id: result.read(0),
-                    spell: TrainerSpellLikeCpp {
-                        spell_id: result.read(1),
-                        money_cost: result.read(2),
-                        req_skill_line: result.read(3),
-                        req_skill_rank: result.read(4),
-                        req_ability: [result.read(5), result.read(6), result.read(7)],
-                        req_level: result.read(8),
-                    },
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        let stmt = db.prepare(WorldStatements::SEL_TRAINERS_ALL);
-        let mut result = db.query(&stmt).await?;
-        let mut trainer_rows = Vec::new();
-        if !result.is_empty() {
-            loop {
-                trainer_rows.push(TrainerRowLikeCpp {
-                    id: result.read(0),
-                    trainer_type: result.read(1),
-                    greeting: result.read_string(2),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        let stmt = db.prepare(WorldStatements::SEL_TRAINER_LOCALES);
-        let mut result = db.query(&stmt).await?;
-        let mut locale_rows = Vec::new();
-        if !result.is_empty() {
-            loop {
-                locale_rows.push(TrainerLocaleRowLikeCpp {
-                    id: result.read(0),
-                    locale: result.read_string(1),
-                    greeting: result.read_string(2),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        let stmt = db.prepare(WorldStatements::SEL_CREATURE_TRAINERS_ALL);
-        let mut result = db.query(&stmt).await?;
-        let mut creature_trainer_rows = Vec::new();
-        if !result.is_empty() {
-            loop {
-                creature_trainer_rows.push(CreatureTrainerRowLikeCpp {
-                    creature_id: result.read(0),
-                    trainer_id: result.read(1),
-                    menu_id: result.read(2),
-                    option_id: result.read(3),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(
-            trainer_rows,
-            spell_rows,
-            locale_rows,
-            creature_trainer_rows,
-            spell_exists,
-            skill_line_exists,
-            creature_template_exists,
-            gossip_option_exists,
-        ))
     }
 
     /// C++ `ObjectMgr::GetTrainer`.

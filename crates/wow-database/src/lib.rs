@@ -74,6 +74,7 @@ pub mod spell_world_catalog_adapter;
 pub mod statements;
 pub mod stored_item_money_adapter;
 pub mod support_bug_report_adapter;
+pub mod trainer_catalog_adapter;
 pub mod transaction;
 pub mod updater;
 pub mod vehicle_catalog_adapter;
@@ -120,6 +121,7 @@ pub use statements::{
     CharStatements, HOTFIX_STATEMENT_STRATEGY_LIKE_CPP, HotfixStatementStrategyLikeCpp,
     HotfixStatements, LoginStatements, StatementDef, WorldStatements,
 };
+pub use trainer_catalog_adapter::MariaDbTrainerCatalogPersistenceAdapterLikeCpp;
 pub use transaction::{
     ItemGuidAllocatorAdvisoryLockLikeCpp, SqlTransaction, SqlTransactionCommitError,
     is_database_deadlock_like_cpp, retry_deadlocked_operation_like_cpp,

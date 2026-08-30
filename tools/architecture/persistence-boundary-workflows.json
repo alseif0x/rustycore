@@ -4386,40 +4386,6 @@
     },
     {
       "package": "wow-data",
-      "module": "crate::trainer",
-      "source": "crates/wow-data/src/trainer.rs",
-      "enclosing": "impl TrainerStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::trainer",
-      "source": "crates/wow-data/src/trainer.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
       "module": "crate::trinity_string",
       "source": "crates/wow-data/src/trinity_string.rs",
       "enclosing": "impl TrinityStringStoreLikeCpp::load_like_cpp",
@@ -14909,6 +14875,84 @@
       "connection_affinity": "Every workflow uses only the World connection; the ten reads are independent startup queries and imply no transaction or cross-database atomicity.",
       "current_order": "Each family executes its exact C++ World query and fully decodes the typed rows before wow-data validation and immutable publication; world-server preserves the pre-cut invocation order.",
       "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable catalog is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::trainer_catalog_adapter",
+      "source": "crates/wow-database/src/trainer_catalog_adapter.rs",
+      "enclosing": "const TRAINER_CATALOG_STATEMENTS_LIKE_CPP",
+      "logical_databases": ["world"],
+      "boundary": "MariaDB adapter for the SQLx-free trainer startup-catalog capability (#519)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "All four reads use only the World connection; they are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter fully reads trainer_spell, trainer, trainer_locale and creature_trainer in that order before world-server invokes wow-data validation and immutable publication.",
+      "failure_and_unknown_commit": "Any query error becomes a typed Failed outcome before domain publication; an empty result remains a successful empty row family and no concrete row or driver error crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::trainer_catalog_adapter",
+      "source": "crates/wow-database/src/trainer_catalog_adapter.rs",
+      "enclosing": "fn query_rows_like_cpp",
+      "logical_databases": ["world"],
+      "boundary": "MariaDB adapter for the SQLx-free trainer startup-catalog capability (#519)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "All four reads use only the World connection; they are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter fully reads trainer_spell, trainer, trainer_locale and creature_trainer in that order before world-server invokes wow-data validation and immutable publication.",
+      "failure_and_unknown_commit": "Any query error becomes a typed Failed outcome before domain publication; an empty result remains a successful empty row family and no concrete row or driver error crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::trainer_catalog_adapter",
+      "source": "crates/wow-database/src/trainer_catalog_adapter.rs",
+      "enclosing": "impl MariaDbTrainerCatalogPersistenceAdapterLikeCpp::new",
+      "logical_databases": ["world"],
+      "boundary": "MariaDB adapter for the SQLx-free trainer startup-catalog capability (#519)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "All four reads use only the World connection; they are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter fully reads trainer_spell, trainer, trainer_locale and creature_trainer in that order before world-server invokes wow-data validation and immutable publication.",
+      "failure_and_unknown_commit": "Any query error becomes a typed Failed outcome before domain publication; an empty result remains a successful empty row family and no concrete row or driver error crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::trainer_catalog_adapter",
+      "source": "crates/wow-database/src/trainer_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::TrainerCatalogPersistencePortLikeCpp for MariaDbTrainerCatalogPersistenceAdapterLikeCpp::load_trainer_catalog_rows_like_cpp",
+      "logical_databases": ["world"],
+      "boundary": "MariaDB adapter for the SQLx-free trainer startup-catalog capability (#519)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "All four reads use only the World connection; they are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter fully reads trainer_spell, trainer, trainer_locale and creature_trainer in that order before world-server invokes wow-data validation and immutable publication.",
+      "failure_and_unknown_commit": "Any query error becomes a typed Failed outcome before domain publication; an empty result remains a successful empty row family and no concrete row or driver error crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::trainer_catalog_adapter",
+      "source": "crates/wow-database/src/trainer_catalog_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": ["world"],
+      "boundary": "MariaDB adapter for the SQLx-free trainer startup-catalog capability (#519)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "All four reads use only the World connection; they are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter fully reads trainer_spell, trainer, trainer_locale and creature_trainer in that order before world-server invokes wow-data validation and immutable publication.",
+      "failure_and_unknown_commit": "Any query error becomes a typed Failed outcome before domain publication; an empty result remains a successful empty row family and no concrete row or driver error crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::trainer_catalog_adapter",
+      "source": "crates/wow-database/src/trainer_catalog_adapter.rs",
+      "enclosing": "struct MariaDbTrainerCatalogPersistenceAdapterLikeCpp",
+      "logical_databases": ["world"],
+      "boundary": "MariaDB adapter for the SQLx-free trainer startup-catalog capability (#519)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "All four reads use only the World connection; they are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter fully reads trainer_spell, trainer, trainer_locale and creature_trainer in that order before world-server invokes wow-data validation and immutable publication.",
+      "failure_and_unknown_commit": "Any query error becomes a typed Failed outcome before domain publication; an empty result remains a successful empty row family and no concrete row or driver error crosses the port."
     }
   ]
 }
