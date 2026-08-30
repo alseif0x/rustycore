@@ -105,7 +105,7 @@ pub use access_requirement::{
 pub use area::{
     AREA_FLAG_ALLIANCE_RESTING_LIKE_CPP, AREA_FLAG_ALLOW_HEARTH_AND_RESURRECT_FROM_AREA_LIKE_CPP,
     AREA_FLAG_HORDE_RESTING_LIKE_CPP, AREA_FLAG_LINKED_CHAT_LIKE_CPP, AREA_FLAG_NO_PVP_LIKE_CPP,
-    AreaTableEntry, AreaTableStore, FishingBaseSkillStoreLikeCpp,
+    AreaTableEntry, AreaTableStore, FishingBaseSkillRowLikeCpp, FishingBaseSkillStoreLikeCpp,
 };
 pub use area_trigger::{
     AreaTriggerData, AreaTriggerScriptLoadOutcomeLikeCpp, AreaTriggerScriptLoadReportLikeCpp,

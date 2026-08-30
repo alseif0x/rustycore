@@ -1849,34 +1849,16 @@
       "package": "wow-data",
       "module": "crate::area",
       "source": "crates/wow-data/src/area.rs",
-      "enclosing": "impl FishingBaseSkillStoreLikeCpp::load",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::area",
-      "source": "crates/wow-data/src/area.rs",
       "enclosing": "module",
       "logical_databases": [
-        "hotfix",
-        "world"
+        "hotfix"
       ],
       "boundary": "wow-data catalog/data-source boundary",
       "target_issues": [
         153
       ],
       "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for hotfix, world; it does not itself imply a runtime transaction.",
+      "connection_affinity": "This is a shared dependency/type surface for hotfix; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
@@ -3668,40 +3650,6 @@
     },
     {
       "package": "wow-data",
-      "module": "crate::skill",
-      "source": "crates/wow-data/src/skill.rs",
-      "enclosing": "impl SkillTiersStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::skill",
-      "source": "crates/wow-data/src/skill.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
       "module": "crate::spawn_group",
       "source": "crates/wow-data/src/spawn_group.rs",
       "enclosing": "impl SpawnGroupTemplateStore::load_like_cpp",
@@ -5284,7 +5232,9 @@
       "module": "crate::chr_specialization_hotfix_adapter",
       "source": "crates/wow-database/src/chr_specialization_hotfix_adapter.rs",
       "enclosing": "fn chr_specialization_row_like_cpp",
-      "logical_databases": ["hotfix"],
+      "logical_databases": [
+        "hotfix"
+      ],
       "boundary": "MariaDB adapter for the SQLx-free ChrSpecialization Hotfix capability (#521)",
       "target_issues": [],
       "stable_boundary": true,
@@ -5297,7 +5247,9 @@
       "module": "crate::chr_specialization_hotfix_adapter",
       "source": "crates/wow-database/src/chr_specialization_hotfix_adapter.rs",
       "enclosing": "fn read_integer_checked_like_cpp",
-      "logical_databases": ["hotfix"],
+      "logical_databases": [
+        "hotfix"
+      ],
       "boundary": "MariaDB adapter for the SQLx-free ChrSpecialization Hotfix capability (#521)",
       "target_issues": [],
       "stable_boundary": true,
@@ -5310,7 +5262,9 @@
       "module": "crate::chr_specialization_hotfix_adapter",
       "source": "crates/wow-database/src/chr_specialization_hotfix_adapter.rs",
       "enclosing": "impl MariaDbChrSpecializationHotfixPersistenceAdapterLikeCpp::new",
-      "logical_databases": ["hotfix"],
+      "logical_databases": [
+        "hotfix"
+      ],
       "boundary": "MariaDB adapter for the SQLx-free ChrSpecialization Hotfix capability (#521)",
       "target_issues": [],
       "stable_boundary": true,
@@ -5323,7 +5277,9 @@
       "module": "crate::chr_specialization_hotfix_adapter",
       "source": "crates/wow-database/src/chr_specialization_hotfix_adapter.rs",
       "enclosing": "impl wow_persistence::ChrSpecializationHotfixPersistencePortLikeCpp for MariaDbChrSpecializationHotfixPersistenceAdapterLikeCpp::load_chr_specialization_hotfix_rows_like_cpp",
-      "logical_databases": ["hotfix"],
+      "logical_databases": [
+        "hotfix"
+      ],
       "boundary": "MariaDB adapter for the SQLx-free ChrSpecialization Hotfix capability (#521)",
       "target_issues": [],
       "stable_boundary": true,
@@ -5336,7 +5292,9 @@
       "module": "crate::chr_specialization_hotfix_adapter",
       "source": "crates/wow-database/src/chr_specialization_hotfix_adapter.rs",
       "enclosing": "module",
-      "logical_databases": ["hotfix"],
+      "logical_databases": [
+        "hotfix"
+      ],
       "boundary": "MariaDB adapter for the SQLx-free ChrSpecialization Hotfix capability (#521)",
       "target_issues": [],
       "stable_boundary": true,
@@ -5349,7 +5307,9 @@
       "module": "crate::chr_specialization_hotfix_adapter",
       "source": "crates/wow-database/src/chr_specialization_hotfix_adapter.rs",
       "enclosing": "struct MariaDbChrSpecializationHotfixPersistenceAdapterLikeCpp",
-      "logical_databases": ["hotfix"],
+      "logical_databases": [
+        "hotfix"
+      ],
       "boundary": "MariaDB adapter for the SQLx-free ChrSpecialization Hotfix capability (#521)",
       "target_issues": [],
       "stable_boundary": true,
@@ -10272,6 +10232,156 @@
     },
     {
       "package": "wow-database",
+      "module": "crate::skill_world_rules_adapter",
+      "source": "crates/wow-database/src/skill_world_rules_adapter.rs",
+      "enclosing": "const STARTUP_STATEMENTS_LIKE_CPP",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free immutable World skill-rules capability (#526)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Both statement identities are confined to the adapter's one World database handle.",
+      "current_order": "The constant records the C++ relative order: fishing-base rules before skill tiers; the composition root preserves their existing separated startup points.",
+      "failure_and_unknown_commit": "Statement identity performs no I/O and implies no commit outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::skill_world_rules_adapter",
+      "source": "crates/wow-database/src/skill_world_rules_adapter.rs",
+      "enclosing": "fn fishing_row_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free immutable World skill-rules capability (#526)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The row comes from the adapter's one World handle; decoding implies no transaction.",
+      "current_order": "Decode AreaID then signed int16 fishing skill in selected-column order.",
+      "failure_and_unknown_commit": "A missing, non-integer or out-of-range field fails the complete read before publication."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::skill_world_rules_adapter",
+      "source": "crates/wow-database/src/skill_world_rules_adapter.rs",
+      "enclosing": "fn query_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free immutable World skill-rules capability (#526)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Each operation performs one sequential query through the adapter's one World handle and implies no transaction.",
+      "current_order": "Prepare and query the requested named statement, then decode rows in database order.",
+      "failure_and_unknown_commit": "Query or row-decode failure returns no partial batch; there is no commit boundary."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::skill_world_rules_adapter",
+      "source": "crates/wow-database/src/skill_world_rules_adapter.rs",
+      "enclosing": "fn read_integer_checked_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free immutable World skill-rules capability (#526)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Decoding uses the current row from one World query and opens no connection or transaction.",
+      "current_order": "Try every represented signed and unsigned SQL integer width without fabricating a default.",
+      "failure_and_unknown_commit": "A missing or non-integer consumed field fails the complete read before publication."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::skill_world_rules_adapter",
+      "source": "crates/wow-database/src/skill_world_rules_adapter.rs",
+      "enclosing": "fn skill_tier_row_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free immutable World skill-rules capability (#526)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The row comes from the adapter's one World handle; decoding implies no transaction.",
+      "current_order": "Decode ID followed by Value1 through Value16 in exact selected-column order.",
+      "failure_and_unknown_commit": "A missing, non-integer or out-of-range field fails the complete read before publication."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::skill_world_rules_adapter",
+      "source": "crates/wow-database/src/skill_world_rules_adapter.rs",
+      "enclosing": "impl MariaDbSkillWorldRulesPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free immutable World skill-rules capability (#526)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter stores exactly one shared World database handle.",
+      "current_order": "Construction introduces no runtime order beyond the two port methods.",
+      "failure_and_unknown_commit": "Construction performs no I/O and implies no commit outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::skill_world_rules_adapter",
+      "source": "crates/wow-database/src/skill_world_rules_adapter.rs",
+      "enclosing": "impl wow_persistence::SkillWorldRulesPersistencePortLikeCpp for MariaDbSkillWorldRulesPersistenceAdapterLikeCpp::load_fishing_base_skill_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free immutable World skill-rules capability (#526)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The fishing read uses the adapter's one World handle and no transaction.",
+      "current_order": "Query and fully decode skill_fishing_base_level when the existing composition point is reached.",
+      "failure_and_unknown_commit": "Any query or decode failure becomes one Failed outcome; no partial rows cross the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::skill_world_rules_adapter",
+      "source": "crates/wow-database/src/skill_world_rules_adapter.rs",
+      "enclosing": "impl wow_persistence::SkillWorldRulesPersistencePortLikeCpp for MariaDbSkillWorldRulesPersistenceAdapterLikeCpp::load_skill_tier_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free immutable World skill-rules capability (#526)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The skill-tier read uses the adapter's one World handle and no transaction.",
+      "current_order": "Query and fully decode skill_tiers at its later existing composition point.",
+      "failure_and_unknown_commit": "Any query or decode failure becomes one Failed outcome; no partial rows cross the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::skill_world_rules_adapter",
+      "source": "crates/wow-database/src/skill_world_rules_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free immutable World skill-rules capability (#526)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "This module surface is confined to one World adapter and implies no wider transaction.",
+      "current_order": "Shared syntax introduces no order beyond the two typed startup reads.",
+      "failure_and_unknown_commit": "Shared syntax introduces no additional failure or commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::skill_world_rules_adapter",
+      "source": "crates/wow-database/src/skill_world_rules_adapter.rs",
+      "enclosing": "struct MariaDbSkillWorldRulesPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free immutable World skill-rules capability (#526)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns exactly one shared World database handle.",
+      "current_order": "The handle surface introduces no runtime order beyond the port methods.",
+      "failure_and_unknown_commit": "The handle surface performs no I/O and implies no commit outcome."
+    },
+    {
+      "package": "wow-database",
       "module": "crate::social_adapter",
       "source": "crates/wow-database/src/social_adapter.rs",
       "enclosing": "fn execute_social_count_like_cpp",
@@ -14840,7 +14950,9 @@
       "module": "crate::trainer_catalog_adapter",
       "source": "crates/wow-database/src/trainer_catalog_adapter.rs",
       "enclosing": "const TRAINER_CATALOG_STATEMENTS_LIKE_CPP",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "MariaDB adapter for the SQLx-free trainer startup-catalog capability (#519)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14853,7 +14965,9 @@
       "module": "crate::trainer_catalog_adapter",
       "source": "crates/wow-database/src/trainer_catalog_adapter.rs",
       "enclosing": "fn query_rows_like_cpp",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "MariaDB adapter for the SQLx-free trainer startup-catalog capability (#519)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14866,7 +14980,9 @@
       "module": "crate::trainer_catalog_adapter",
       "source": "crates/wow-database/src/trainer_catalog_adapter.rs",
       "enclosing": "impl MariaDbTrainerCatalogPersistenceAdapterLikeCpp::new",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "MariaDB adapter for the SQLx-free trainer startup-catalog capability (#519)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14879,7 +14995,9 @@
       "module": "crate::trainer_catalog_adapter",
       "source": "crates/wow-database/src/trainer_catalog_adapter.rs",
       "enclosing": "impl wow_persistence::TrainerCatalogPersistencePortLikeCpp for MariaDbTrainerCatalogPersistenceAdapterLikeCpp::load_trainer_catalog_rows_like_cpp",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "MariaDB adapter for the SQLx-free trainer startup-catalog capability (#519)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14892,7 +15010,9 @@
       "module": "crate::trainer_catalog_adapter",
       "source": "crates/wow-database/src/trainer_catalog_adapter.rs",
       "enclosing": "module",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "MariaDB adapter for the SQLx-free trainer startup-catalog capability (#519)",
       "target_issues": [],
       "stable_boundary": true,
@@ -14905,7 +15025,9 @@
       "module": "crate::trainer_catalog_adapter",
       "source": "crates/wow-database/src/trainer_catalog_adapter.rs",
       "enclosing": "struct MariaDbTrainerCatalogPersistenceAdapterLikeCpp",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "MariaDB adapter for the SQLx-free trainer startup-catalog capability (#519)",
       "target_issues": [],
       "stable_boundary": true,

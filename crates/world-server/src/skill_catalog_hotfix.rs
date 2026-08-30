@@ -180,7 +180,7 @@ mod tests {
             .find("load_skill_store_like_cpp")
             .expect("skill relation catalog stage must remain composed");
         let tiers = source
-            .find("SkillTiersStoreLikeCpp::load_like_cpp")
+            .find("load_skill_tiers_store_like_cpp")
             .expect("independent World skill tiers stage must remain composed");
         assert!(skill_line < relations && relations < tiers);
     }

@@ -28,6 +28,7 @@ mod mount_catalog;
 mod player_choice;
 mod reputation_catalog;
 mod skill_catalog_hotfix;
+mod skill_world_rules;
 mod spell_core_db2_hotfix;
 mod spell_info_key_hotfix;
 mod spell_world_catalog;
@@ -74,6 +75,11 @@ pub use skill_catalog_hotfix::{
     SkillCatalogHotfixLoadOutcomeLikeCpp, SkillCatalogHotfixPersistencePortLikeCpp,
     SkillLineAbilityHotfixRowLikeCpp, SkillLineHotfixRowLikeCpp, SkillLineHotfixRowsLikeCpp,
     SkillRaceClassInfoHotfixRowLikeCpp, SkillRelationHotfixRowsLikeCpp,
+};
+pub use skill_world_rules::{
+    FishingBaseSkillPersistenceRowLikeCpp, SKILL_TIER_VALUE_COUNT_LIKE_CPP,
+    SkillTierPersistenceRowLikeCpp, SkillWorldRulesLoadOutcomeLikeCpp,
+    SkillWorldRulesPersistencePortLikeCpp,
 };
 pub use spell_core_db2_hotfix::{
     SpellAuraRestrictionsHotfixRowLikeCpp, SpellCastTimesHotfixRowLikeCpp,
