@@ -152,6 +152,8 @@ async fn run_inner(
 
     info!("Connected to world database");
     let world_db = Arc::new(world_db);
+    let skill_world_rules_persistence =
+        wow_database::MariaDbSkillWorldRulesPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
 
     // Connect to hotfix database
     let hotfix_info = wow_config::get_database_info_default(
@@ -646,9 +648,12 @@ async fn run_inner(
         area_trigger_db2_store.len()
     );
     let fishing_base_skill_store = Arc::new(
-        wow_data::FishingBaseSkillStoreLikeCpp::load(world_db.as_ref(), &area_table_store)
-            .await
-            .context("Failed to load skill_fishing_base_level")?,
+        crate::skill_world_rules::load_fishing_base_skill_store_like_cpp(
+            &skill_world_rules_persistence,
+            &area_table_store,
+        )
+        .await
+        .context("Failed to load skill_fishing_base_level")?,
     );
     let phase_store = Arc::new(
         wow_data::PhaseStore::load_with_hotfixes(&data_dir, &locale, &hotfix_db)
@@ -1063,7 +1068,7 @@ async fn run_inner(
             .context("Failed to load TraitNodeEntry.db2")?,
     );
     let skill_tiers_store = Arc::new(
-        wow_data::SkillTiersStoreLikeCpp::load_like_cpp(world_db.as_ref())
+        crate::skill_world_rules::load_skill_tiers_store_like_cpp(&skill_world_rules_persistence)
             .await
             .context("Failed to load world.skill_tiers")?,
     );

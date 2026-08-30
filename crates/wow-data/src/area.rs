@@ -10,7 +10,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::info;
-use wow_database::{HotfixDatabase, HotfixStatements, WorldDatabase, WorldStatements};
+use wow_database::{HotfixDatabase, HotfixStatements};
 
 use crate::wdc4::Wdc4Reader;
 
@@ -34,6 +34,12 @@ pub struct AreaTableStore {
 #[derive(Debug, Clone, Default)]
 pub struct FishingBaseSkillStoreLikeCpp {
     levels_by_area: HashMap<u32, i32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FishingBaseSkillRowLikeCpp {
+    pub area_id: u32,
+    pub skill: i16,
 }
 
 pub const AREA_FLAG_ALLOW_HEARTH_AND_RESURRECT_FROM_AREA_LIKE_CPP: u32 = 0x0800_0000;
@@ -274,33 +280,23 @@ impl FishingBaseSkillStoreLikeCpp {
         }
     }
 
-    /// C++ `ObjectMgr::LoadFishingBaseSkillLevel`.
-    pub async fn load(db: &WorldDatabase, area_store: &AreaTableStore) -> Result<Self> {
-        let stmt = db.prepare(WorldStatements::SEL_FISHING_BASE_SKILL_LEVELS);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            info!("Loaded 0 areas for fishing base skill level");
-            return Ok(Self::default());
-        }
-
+    /// Compose C++ `ObjectMgr::LoadFishingBaseSkillLevel` rows while retaining
+    /// AreaTable validation in the data owner.
+    pub fn from_rows_validated_like_cpp(
+        rows: impl IntoIterator<Item = FishingBaseSkillRowLikeCpp>,
+        area_store: &AreaTableStore,
+    ) -> Self {
         let mut levels_by_area = HashMap::new();
-        loop {
-            let area_id: u32 = result.read(0);
-            let skill: i16 = result.read(1);
-            if area_store.contains(area_id) {
-                levels_by_area.insert(area_id, i32::from(skill));
-            }
-
-            if !result.next_row() {
-                break;
+        for row in rows {
+            if area_store.contains(row.area_id) {
+                levels_by_area.insert(row.area_id, i32::from(row.skill));
             }
         }
-
         info!(
             "Loaded {} areas for fishing base skill level",
             levels_by_area.len()
         );
-        Ok(Self { levels_by_area })
+        Self { levels_by_area }
     }
 
     pub fn get(&self, area_id: u32) -> Option<i32> {
@@ -487,6 +483,39 @@ mod tests {
 
         assert_eq!(fishing.base_skill_level_like_cpp(&areas, 11), 225);
         assert_eq!(fishing.base_skill_level_like_cpp(&areas, 999), 0);
+    }
+
+    #[test]
+    fn fishing_base_skill_rows_filter_missing_areas_and_last_valid_row_wins_like_cpp() {
+        let areas = AreaTableStore::from_entries([AreaTableEntry {
+            id: 10,
+            continent_id: 0,
+            parent_area_id: 0,
+            area_bit: -1,
+            exploration_level: 0,
+            mount_flags: 0,
+            flags: 0,
+        }]);
+        let fishing = FishingBaseSkillStoreLikeCpp::from_rows_validated_like_cpp(
+            [
+                FishingBaseSkillRowLikeCpp {
+                    area_id: 10,
+                    skill: -1,
+                },
+                FishingBaseSkillRowLikeCpp {
+                    area_id: 999,
+                    skill: 300,
+                },
+                FishingBaseSkillRowLikeCpp {
+                    area_id: 10,
+                    skill: 225,
+                },
+            ],
+            &areas,
+        );
+
+        assert_eq!(fishing.get(10), Some(225));
+        assert_eq!(fishing.get(999), None);
     }
 
     #[test]

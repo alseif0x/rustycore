@@ -14,7 +14,6 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::info;
-use wow_database::{WorldDatabase, WorldStatements};
 
 use crate::Db2HotfixRemovalStoreLikeCpp;
 use crate::entities_movement::CreatureFamilyEntry;
@@ -296,35 +295,6 @@ impl SkillTiersStoreLikeCpp {
         }
 
         Self { tiers }
-    }
-
-    /// C++ `ObjectMgr::LoadSkillTiers`.
-    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<Self> {
-        let stmt = db.prepare(WorldStatements::SEL_SKILL_TIERS);
-        let mut result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                let mut value = [0u32; MAX_SKILL_STEP_LIKE_CPP];
-                for (field_index, tier_value) in value.iter_mut().enumerate() {
-                    *tier_value = result.read(1 + field_index);
-                }
-
-                rows.push(SkillTiersRowLikeCpp {
-                    id: result.read(0),
-                    value,
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        let store = Self::from_rows_like_cpp(rows);
-        info!("Loaded {} skill max values", store.len());
-        Ok(store)
     }
 
     /// C++ `ObjectMgr::GetSkillTier`.

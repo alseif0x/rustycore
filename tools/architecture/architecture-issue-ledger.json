@@ -120,6 +120,7 @@
     519,
     521,
     523,
+    526,
     189,
     192,
     193,
@@ -1906,7 +1907,7 @@
   },
   {
     "number": 523,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.70] Move the effective skill catalog behind one typed Hotfix source",
     "kind": "slice",
     "parents": [
@@ -1915,6 +1916,19 @@
     ],
     "depends_on": [
       521
+    ]
+  },
+  {
+    "number": 526,
+    "state": "open",
+    "title": "[ARCH.DB.71] Move World skill-rule catalogs behind one typed persistence port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      523
     ]
   }
 ]
