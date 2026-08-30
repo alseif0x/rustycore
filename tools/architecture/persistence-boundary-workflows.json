@@ -2561,74 +2561,6 @@
     },
     {
       "package": "wow-data",
-      "module": "crate::difficulty",
-      "source": "crates/wow-data/src/difficulty.rs",
-      "enclosing": "fn read_u32_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::difficulty",
-      "source": "crates/wow-data/src/difficulty.rs",
-      "enclosing": "fn read_u8_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::difficulty",
-      "source": "crates/wow-data/src/difficulty.rs",
-      "enclosing": "impl DifficultyStore::load_effective_like_cpp",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::difficulty",
-      "source": "crates/wow-data/src/difficulty.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for hotfix; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
       "module": "crate::disable_mgr",
       "source": "crates/wow-data/src/disable_mgr.rs",
       "enclosing": "fn read_db_u16_like_cpp",
@@ -15306,6 +15238,84 @@
       "stable_boundary": true,
       "connection_affinity": "The adapter owns exactly one shared World database handle.",
       "current_order": "The handle surface introduces no runtime order beyond the three staged operations.",
+      "failure_and_unknown_commit": "The handle surface performs no I/O and implies no commit outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::difficulty_hotfix_adapter",
+      "source": "crates/wow-database/src/difficulty_hotfix_adapter.rs",
+      "enclosing": "fn difficulty_row_like_cpp",
+      "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free effective Difficulty Hotfix capability (#532)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The row comes from one query on the adapter's Hotfix handle and opens no transaction.",
+      "current_order": "Decode the five represented Difficulty fields at their exact C++ statement positions.",
+      "failure_and_unknown_commit": "A missing, non-integer or out-of-width consumed field fails the complete overlay result before publication."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::difficulty_hotfix_adapter",
+      "source": "crates/wow-database/src/difficulty_hotfix_adapter.rs",
+      "enclosing": "fn read_integer_checked_like_cpp",
+      "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free effective Difficulty Hotfix capability (#532)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Decoding reads only the current Hotfix-query row and opens no transaction.",
+      "current_order": "Try every represented signed and unsigned SQL integer width without fabricating a default.",
+      "failure_and_unknown_commit": "A missing or non-integer required value fails both overlay batches before publication."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::difficulty_hotfix_adapter",
+      "source": "crates/wow-database/src/difficulty_hotfix_adapter.rs",
+      "enclosing": "impl MariaDbDifficultyHotfixPersistenceAdapterLikeCpp::new",
+      "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free effective Difficulty Hotfix capability (#532)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter stores exactly one shared Hotfix database handle.",
+      "current_order": "Construction performs no query and introduces no publication order.",
+      "failure_and_unknown_commit": "Construction performs no I/O and implies no commit outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::difficulty_hotfix_adapter",
+      "source": "crates/wow-database/src/difficulty_hotfix_adapter.rs",
+      "enclosing": "impl wow_persistence::DifficultyHotfixPersistencePortLikeCpp for MariaDbDifficultyHotfixPersistenceAdapterLikeCpp::load_difficulty_hotfix_rows_like_cpp",
+      "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free effective Difficulty Hotfix capability (#532)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Both ordered reads use the adapter's one Hotfix handle and no transaction.",
+      "current_order": "Query and fully decode official rows first, then custom rows, returning both only after the second batch completes.",
+      "failure_and_unknown_commit": "Either query or decode failure returns one Failed outcome; empty batches remain successful and no partial batch crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::difficulty_hotfix_adapter",
+      "source": "crates/wow-database/src/difficulty_hotfix_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free effective Difficulty Hotfix capability (#532)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Shared syntax is confined to one Hotfix adapter and implies no wider transaction.",
+      "current_order": "The module pins official-before-custom binding and delegates final publication to world-server.",
+      "failure_and_unknown_commit": "Shared syntax introduces no additional failure or commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::difficulty_hotfix_adapter",
+      "source": "crates/wow-database/src/difficulty_hotfix_adapter.rs",
+      "enclosing": "struct MariaDbDifficultyHotfixPersistenceAdapterLikeCpp",
+      "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free effective Difficulty Hotfix capability (#532)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns exactly one shared Hotfix database handle.",
+      "current_order": "The handle surface introduces no order beyond the one official-then-custom operation.",
       "failure_and_unknown_commit": "The handle surface performs no I/O and implies no commit outcome."
     }
   ]

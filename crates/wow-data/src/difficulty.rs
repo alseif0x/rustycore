@@ -11,7 +11,6 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use tracing::info;
 use wow_constants::shared::DifficultyFlags;
-use wow_database::{HotfixDatabase, HotfixStatements, SqlResult};
 
 use crate::Db2HotfixRemovalStoreLikeCpp;
 use crate::wdc4::Wdc4Reader;
@@ -99,68 +98,25 @@ impl DifficultyStore {
         })
     }
 
-    /// Load the effective C++ `sDifficultyStore` authority.
-    ///
-    /// C++ refs:
-    /// - `DB2StorageBase::LoadFromDB`: WDC4, official SQL, then custom SQL;
-    /// - `HotfixDatabase.cpp::HOTFIX_SEL_DIFFICULTY`: exact SQL field order;
-    /// - `DB2Manager::LoadHotfixData`: final `(TableHash, RecordID)` removals.
-    pub async fn load_effective_like_cpp(
-        data_dir: &str,
-        locale: &str,
-        hotfix_db: &HotfixDatabase,
+    /// Apply C++ official/custom SQL overlays and final Hotfix removals to an
+    /// already loaded WDC4 store.
+    pub fn apply_hotfix_overlays_like_cpp(
+        mut self,
+        official_overlay_entries: impl IntoIterator<Item = DifficultyEntry>,
+        custom_overlay_entries: impl IntoIterator<Item = DifficultyEntry>,
         removals: &Db2HotfixRemovalStoreLikeCpp,
     ) -> Result<Self> {
-        const DIFFICULTY_OVERLAY_SQL: &str = concat!(
-            "SELECT ID, Name, InstanceType, OrderIndex, OldEnumValue, FallbackDifficultyID, ",
-            "MinPlayers, MaxPlayers, Flags, ItemContext, ToggleDifficultyID, ",
-            "GroupSizeHealthCurveID, GroupSizeDmgCurveID, GroupSizeSpellPointsCurveID ",
-            "FROM difficulty WHERE (`VerifiedBuild` > 0) = ?"
-        );
-
-        let mut store = Self::load(data_dir, locale)?;
-        let table_hash = store
+        let table_hash = self
             .table_hash_like_cpp
             .context("Difficulty.db2 is missing its WDC4 table hash")?;
-        let mut overlay_batches = [Vec::new(), Vec::new()];
-
-        // `DB2StorageBase::LoadFromDB` calls `Load(false)` before
-        // `Load(true)`. The loader binds `!custom`, so official
-        // (`VerifiedBuild > 0`) records precede custom records.
-        for (batch_index, official) in [true, false].into_iter().enumerate() {
-            let mut statement = hotfix_db.prepare(HotfixStatements::base(DIFFICULTY_OVERLAY_SQL));
-            statement.set_bool(0, official);
-            let mut result = hotfix_db
-                .query(&statement)
-                .await
-                .context("failed to load Difficulty.db2 SQL overlay")?;
-            if result.is_empty() {
-                continue;
-            }
-
-            loop {
-                overlay_batches[batch_index].push(DifficultyEntry {
-                    id: read_u32_like_cpp(&result, 0),
-                    instance_type: read_u8_like_cpp(&result, 2),
-                    fallback_difficulty_id: read_u8_like_cpp(&result, 5),
-                    flags: read_u8_like_cpp(&result, 8),
-                    toggle_difficulty_id: read_u8_like_cpp(&result, 10),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        let [official_overlay_entries, custom_overlay_entries] = overlay_batches;
-        store.entries = compose_effective_difficulty_entries_like_cpp(
-            std::mem::take(&mut store.entries).into_values(),
+        self.entries = compose_effective_difficulty_entries_like_cpp(
+            std::mem::take(&mut self.entries).into_values(),
             official_overlay_entries,
             custom_overlay_entries,
             table_hash,
             removals,
         );
-        Ok(store)
+        Ok(self)
     }
 
     pub fn get(&self, id: u32) -> Option<&DifficultyEntry> {
@@ -251,24 +207,6 @@ fn compose_effective_difficulty_entries_like_cpp(
     effective_entries
 }
 
-fn read_u32_like_cpp(result: &SqlResult, column: usize) -> u32 {
-    result
-        .try_read::<u32>(column)
-        .or_else(|| result.try_read::<i32>(column).map(|value| value as u32))
-        .or_else(|| result.try_read::<u64>(column).map(|value| value as u32))
-        .or_else(|| result.try_read::<i64>(column).map(|value| value as u32))
-        .unwrap_or(0)
-}
-
-fn read_u8_like_cpp(result: &SqlResult, column: usize) -> u8 {
-    result
-        .try_read::<u8>(column)
-        .or_else(|| result.try_read::<u16>(column).map(|value| value as u8))
-        .or_else(|| result.try_read::<u32>(column).map(|value| value as u8))
-        .or_else(|| result.try_read::<i32>(column).map(|value| value as u8))
-        .unwrap_or(0)
-}
-
 fn difficulty_can_select_like_cpp(entry: &DifficultyEntry) -> bool {
     DifficultyFlags::from_bits_truncate(entry.flags).contains(DifficultyFlags::CAN_SELECT)
 }
@@ -320,6 +258,21 @@ mod tests {
         assert_eq!(entries.get(&1), Some(&entry(1, 17, 18, 19, 20)));
         assert_eq!(entries.get(&2), Some(&entry(2, 5, 6, 7, 8)));
         assert_eq!(entries.get(&3), Some(&entry(3, 21, 22, 23, 24)));
+    }
+
+    #[test]
+    fn empty_hotfix_batches_preserve_the_loaded_wdc4_authority() {
+        let table_hash = 0xCB29_7E3A;
+        let entries = compose_effective_difficulty_entries_like_cpp(
+            [entry(1, 1, 2, 3, 4), entry(2, 5, 6, 7, 8)],
+            [],
+            [],
+            table_hash,
+            &Db2HotfixRemovalStoreLikeCpp::default(),
+        );
+
+        assert_eq!(entries.get(&1), Some(&entry(1, 1, 2, 3, 4)));
+        assert_eq!(entries.get(&2), Some(&entry(2, 5, 6, 7, 8)));
     }
 
     #[test]

@@ -84,6 +84,7 @@ use wow_world::{
 mod area_trigger_loaded_grid;
 mod area_trigger_template_catalog;
 mod creature_loaded_grid;
+mod difficulty_hotfix;
 mod gameobject_loaded_grid;
 mod mount_catalog;
 mod player_choice_catalog;

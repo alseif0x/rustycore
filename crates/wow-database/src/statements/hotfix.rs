@@ -46,6 +46,8 @@ pub enum HotfixStatements {
     SEL_POWER_TYPE,
     /// C++ `HOTFIX_SEL_CHR_SPECIALIZATION`.
     SEL_CHR_SPECIALIZATION,
+    /// C++ `HOTFIX_SEL_DIFFICULTY` projected to represented gameplay fields.
+    SEL_DIFFICULTY,
     /// C++ `HOTFIX_SEL_SKILL_LINE` projected to represented acquisition fields.
     SEL_SKILL_LINE,
     /// C++ `HOTFIX_SEL_SKILL_LINE_ABILITY`.
@@ -152,6 +154,7 @@ impl HotfixStatements {
                 | Self::SEL_VEHICLE_SEAT
                 | Self::SEL_POWER_TYPE
                 | Self::SEL_CHR_SPECIALIZATION
+                | Self::SEL_DIFFICULTY
                 | Self::SEL_SKILL_LINE
                 | Self::SEL_SKILL_LINE_ABILITY
                 | Self::SEL_SKILL_RACE_CLASS_INFO
@@ -278,6 +281,12 @@ impl StatementDef for HotfixStatements {
                 "SELECT Name, FemaleName, Description, ID, ClassID, OrderIndex, PetTalentType, Role, Flags, ",
                 "SpellIconFileID, PrimaryStatPriority, AnimReplacements, MasterySpellID1, MasterySpellID2 ",
                 "FROM chr_specialization WHERE (`VerifiedBuild` > 0) = ?"
+            ),
+            Self::SEL_DIFFICULTY => concat!(
+                "SELECT ID, Name, InstanceType, OrderIndex, OldEnumValue, FallbackDifficultyID, ",
+                "MinPlayers, MaxPlayers, Flags, ItemContext, ToggleDifficultyID, ",
+                "GroupSizeHealthCurveID, GroupSizeDmgCurveID, GroupSizeSpellPointsCurveID ",
+                "FROM difficulty WHERE (`VerifiedBuild` > 0) = ?"
             ),
             Self::SEL_SKILL_LINE => concat!(
                 "SELECT ID, CategoryID, ParentSkillLineID, ParentTierIndex FROM skill_line ",

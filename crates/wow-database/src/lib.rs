@@ -40,6 +40,7 @@ pub mod character_enumeration_adapter;
 pub mod chr_specialization_hotfix_adapter;
 pub mod creature_query_catalog_adapter;
 pub mod database;
+pub mod difficulty_hotfix_adapter;
 pub mod error;
 pub mod game_event_persistence_adapter;
 pub mod gameobject_query_catalog_adapter;
@@ -97,6 +98,7 @@ pub use database::{
     escape_string_like_cpp, warn_about_sync_queries_enabled_like_cpp,
     warn_about_sync_queries_scope_like_cpp,
 };
+pub use difficulty_hotfix_adapter::MariaDbDifficultyHotfixPersistenceAdapterLikeCpp;
 pub use error::DatabaseError;
 pub use game_event_persistence_adapter::MariaDbGameEventPersistenceAdapterLikeCpp;
 pub use gameobject_query_catalog_adapter::MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp;
