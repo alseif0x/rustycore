@@ -12,8 +12,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use anyhow::{Context, Result};
-use wow_database::{HotfixDatabase, HotfixStatements, SqlResult};
+use anyhow::{Context, Result, bail};
 
 use crate::Db2HotfixRemovalStoreLikeCpp;
 use crate::spell_db2::{
@@ -28,6 +27,7 @@ use crate::spell_db2::{
 
 /// The exact DB2 contributors iterated by C++
 /// `SpellMgr::LoadSpellInfoStore`, excluding the `SpellPowerDifficulty` join.
+#[cfg(test)]
 pub(crate) const SPELL_INFO_CONTRIBUTOR_TABLES_LIKE_CPP: [&str; 20] = [
     "SpellEffect.db2",
     "SpellAuraOptions.db2",
@@ -51,47 +51,77 @@ pub(crate) const SPELL_INFO_CONTRIBUTOR_TABLES_LIKE_CPP: [&str; 20] = [
     "SpellXSpellVisual.db2",
 ];
 
-const SPELL_EFFECT_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID, DifficultyID FROM spell_effect WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_AURA_OPTIONS_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID, DifficultyID FROM spell_aura_options WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_AURA_RESTRICTIONS_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID, DifficultyID FROM spell_aura_restrictions WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_CASTING_REQUIREMENTS_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID FROM spell_casting_requirements WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_CATEGORIES_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID, DifficultyID FROM spell_categories WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_CLASS_OPTIONS_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID FROM spell_class_options WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_COOLDOWNS_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID, DifficultyID FROM spell_cooldowns WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_EQUIPPED_ITEMS_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID FROM spell_equipped_items WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_INTERRUPTS_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID, DifficultyID FROM spell_interrupts WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_LABEL_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID FROM spell_label WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_LEVELS_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID, DifficultyID FROM spell_levels WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_MISC_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID, DifficultyID FROM spell_misc WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_POWER_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID FROM spell_power WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_POWER_DIFFICULTY_OVERLAY_SQL: &str =
-    "SELECT ID, DifficultyID FROM spell_power_difficulty WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_REAGENTS_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID FROM spell_reagents WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_REAGENTS_CURRENCY_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID FROM spell_reagents_currency WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_SCALING_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID FROM spell_scaling WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_SHAPESHIFT_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID FROM spell_shapeshift WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_TARGET_RESTRICTIONS_OVERLAY_SQL: &str = "SELECT ID, SpellID, DifficultyID FROM spell_target_restrictions WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_TOTEMS_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID FROM spell_totems WHERE (`VerifiedBuild` > 0) = ?";
-const SPELL_X_SPELL_VISUAL_OVERLAY_SQL: &str =
-    "SELECT ID, SpellID, DifficultyID FROM spell_x_spell_visual WHERE (`VerifiedBuild` > 0) = ?";
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellInfoKeyContributorLikeCpp {
+    SpellEffect,
+    SpellAuraOptions,
+    SpellAuraRestrictions,
+    SpellCastingRequirements,
+    SpellCategories,
+    SpellClassOptions,
+    SpellCooldowns,
+    SpellEquippedItems,
+    SpellInterrupts,
+    SpellLabel,
+    SpellLevels,
+    SpellMisc,
+    SpellPower,
+    SpellReagents,
+    SpellReagentsCurrency,
+    SpellScaling,
+    SpellShapeshift,
+    SpellTargetRestrictions,
+    SpellTotems,
+    SpellXSpellVisual,
+}
+
+pub const SPELL_INFO_KEY_CONTRIBUTOR_ORDER_LIKE_CPP: [SpellInfoKeyContributorLikeCpp; 20] = [
+    SpellInfoKeyContributorLikeCpp::SpellEffect,
+    SpellInfoKeyContributorLikeCpp::SpellAuraOptions,
+    SpellInfoKeyContributorLikeCpp::SpellAuraRestrictions,
+    SpellInfoKeyContributorLikeCpp::SpellCastingRequirements,
+    SpellInfoKeyContributorLikeCpp::SpellCategories,
+    SpellInfoKeyContributorLikeCpp::SpellClassOptions,
+    SpellInfoKeyContributorLikeCpp::SpellCooldowns,
+    SpellInfoKeyContributorLikeCpp::SpellEquippedItems,
+    SpellInfoKeyContributorLikeCpp::SpellInterrupts,
+    SpellInfoKeyContributorLikeCpp::SpellLabel,
+    SpellInfoKeyContributorLikeCpp::SpellLevels,
+    SpellInfoKeyContributorLikeCpp::SpellMisc,
+    SpellInfoKeyContributorLikeCpp::SpellPower,
+    SpellInfoKeyContributorLikeCpp::SpellReagents,
+    SpellInfoKeyContributorLikeCpp::SpellReagentsCurrency,
+    SpellInfoKeyContributorLikeCpp::SpellScaling,
+    SpellInfoKeyContributorLikeCpp::SpellShapeshift,
+    SpellInfoKeyContributorLikeCpp::SpellTargetRestrictions,
+    SpellInfoKeyContributorLikeCpp::SpellTotems,
+    SpellInfoKeyContributorLikeCpp::SpellXSpellVisual,
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellInfoKeyHotfixOverlayRowLikeCpp {
+    pub record_id: u32,
+    pub spell_id: u32,
+    pub difficulty_id: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellInfoKeyHotfixOverlayBatchLikeCpp {
+    pub contributor: SpellInfoKeyContributorLikeCpp,
+    pub rows: Vec<SpellInfoKeyHotfixOverlayRowLikeCpp>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellInfoPowerDifficultyHotfixOverlayRowLikeCpp {
+    pub power_record_id: u32,
+    pub difficulty_id: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellInfoKeyHotfixOverlaysLikeCpp {
+    pub contributor_batches: Vec<SpellInfoKeyHotfixOverlayBatchLikeCpp>,
+    pub power_difficulty_rows: Vec<SpellInfoPowerDifficultyHotfixOverlayRowLikeCpp>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct SpellInfoSourceRowLikeCpp {
@@ -228,49 +258,63 @@ impl SpellInfoKeyStoreLikeCpp {
     /// 3. the final `hotfix_data` status removes records;
     /// 4. the twenty effective stores contribute `loadData` keys;
     /// 5. only keys with an effective `SpellName` record become `SpellInfo`.
-    pub(crate) async fn load_like_cpp(
+    pub(crate) fn load_from_hotfix_rows_like_cpp(
         data_dir: &str,
         locale: &str,
-        hotfix_db: &HotfixDatabase,
         spell_name_store: &SpellNameStore,
         removed_records: &Db2HotfixRemovalStoreLikeCpp,
+        hotfix_overlays: SpellInfoKeyHotfixOverlaysLikeCpp,
     ) -> Result<Self> {
         let effective_spell_name_ids: HashSet<u32> = spell_name_store
             .entries_like_cpp()
             .map(|entry| entry.id)
             .collect();
 
+        let SpellInfoKeyHotfixOverlaysLikeCpp {
+            contributor_batches,
+            power_difficulty_rows,
+        } = hotfix_overlays;
+        if contributor_batches
+            .iter()
+            .map(|batch| batch.contributor)
+            .ne(SPELL_INFO_KEY_CONTRIBUTOR_ORDER_LIKE_CPP)
+        {
+            bail!("SpellInfo key Hotfix contributor batches are missing, duplicated, or reordered");
+        }
+
         let mut candidate_keys = HashSet::new();
-        let mut loaded_contributor_tables = HashSet::new();
+        let mut contributor_batches = contributor_batches.into_iter();
 
         macro_rules! load_source {
-            ($store:ty, $file:literal, $sql:expr, $has_difficulty:expr, $map:expr) => {{
+            ($store:ty, $file:literal, $contributor:expr, $map:expr) => {{
+                let batch = contributor_batches
+                    .next()
+                    .with_context(|| format!("missing {} Hotfix overlay batch", $file))?;
+                debug_assert_eq!(batch.contributor, $contributor);
                 let store = <$store>::load(data_dir, locale)
                     .with_context(|| format!("failed to load {}", $file))?;
                 let table_hash = store
                     .table_hash_like_cpp()
                     .with_context(|| format!("{} is missing its WDC4 table hash", $file))?;
                 let base_rows = store.entries_like_cpp().map($map);
-                let rows = load_effective_source_rows_like_cpp(
-                    hotfix_db,
-                    removed_records,
-                    table_hash,
-                    $file,
-                    $sql,
-                    $has_difficulty,
+                let rows = compose_effective_source_rows_like_cpp(
                     base_rows,
-                )
-                .await?;
+                    batch
+                        .rows
+                        .into_iter()
+                        .map(spell_info_source_row_from_hotfix_like_cpp),
+                    std::iter::empty(),
+                    table_hash,
+                    removed_records,
+                );
                 candidate_keys.extend(rows.keys_like_cpp());
-                debug_assert!(loaded_contributor_tables.insert($file));
             }};
         }
 
         load_source!(
             SpellEffectDb2Store,
             "SpellEffect.db2",
-            SPELL_EFFECT_OVERLAY_SQL,
-            true,
+            SpellInfoKeyContributorLikeCpp::SpellEffect,
             |entry| SpellInfoSourceRowLikeCpp::new(
                 entry.id,
                 entry.spell_id,
@@ -280,106 +324,100 @@ impl SpellInfoKeyStoreLikeCpp {
         load_source!(
             SpellAuraOptionsStore,
             "SpellAuraOptions.db2",
-            SPELL_AURA_OPTIONS_OVERLAY_SQL,
-            true,
+            SpellInfoKeyContributorLikeCpp::SpellAuraOptions,
             |entry| SpellInfoSourceRowLikeCpp::new(entry.id, entry.spell_id, entry.difficulty_id,)
         );
         load_source!(
             SpellAuraRestrictionsStore,
             "SpellAuraRestrictions.db2",
-            SPELL_AURA_RESTRICTIONS_OVERLAY_SQL,
-            true,
+            SpellInfoKeyContributorLikeCpp::SpellAuraRestrictions,
             |entry| SpellInfoSourceRowLikeCpp::new(entry.id, entry.spell_id, entry.difficulty_id,)
         );
         load_source!(
             SpellCastingRequirementsStore,
             "SpellCastingRequirements.db2",
-            SPELL_CASTING_REQUIREMENTS_OVERLAY_SQL,
-            false,
+            SpellInfoKeyContributorLikeCpp::SpellCastingRequirements,
             |entry| SpellInfoSourceRowLikeCpp::signed_spell(entry.id, entry.spell_id, 0)
         );
         load_source!(
             SpellCategoriesStore,
             "SpellCategories.db2",
-            SPELL_CATEGORIES_OVERLAY_SQL,
-            true,
+            SpellInfoKeyContributorLikeCpp::SpellCategories,
             |entry| SpellInfoSourceRowLikeCpp::new(entry.id, entry.spell_id, entry.difficulty_id,)
         );
         load_source!(
             SpellClassOptionsStore,
             "SpellClassOptions.db2",
-            SPELL_CLASS_OPTIONS_OVERLAY_SQL,
-            false,
+            SpellInfoKeyContributorLikeCpp::SpellClassOptions,
             |entry| SpellInfoSourceRowLikeCpp::signed_spell(entry.id, entry.spell_id, 0)
         );
         load_source!(
             SpellCooldownsStore,
             "SpellCooldowns.db2",
-            SPELL_COOLDOWNS_OVERLAY_SQL,
-            true,
+            SpellInfoKeyContributorLikeCpp::SpellCooldowns,
             |entry| SpellInfoSourceRowLikeCpp::new(entry.id, entry.spell_id, entry.difficulty_id,)
         );
         load_source!(
             SpellEquippedItemsStore,
             "SpellEquippedItems.db2",
-            SPELL_EQUIPPED_ITEMS_OVERLAY_SQL,
-            false,
+            SpellInfoKeyContributorLikeCpp::SpellEquippedItems,
             |entry| SpellInfoSourceRowLikeCpp::signed_spell(entry.id, entry.spell_id, 0)
         );
         load_source!(
             SpellInterruptsStore,
             "SpellInterrupts.db2",
-            SPELL_INTERRUPTS_OVERLAY_SQL,
-            true,
+            SpellInfoKeyContributorLikeCpp::SpellInterrupts,
             |entry| SpellInfoSourceRowLikeCpp::new(entry.id, entry.spell_id, entry.difficulty_id,)
         );
         load_source!(
             SpellLabelStore,
             "SpellLabel.db2",
-            SPELL_LABEL_OVERLAY_SQL,
-            false,
+            SpellInfoKeyContributorLikeCpp::SpellLabel,
             |entry| SpellInfoSourceRowLikeCpp::new(entry.id, entry.spell_id, 0)
         );
         load_source!(
             SpellLevelsStore,
             "SpellLevels.db2",
-            SPELL_LEVELS_OVERLAY_SQL,
-            true,
+            SpellInfoKeyContributorLikeCpp::SpellLevels,
             spell_levels_source_row_like_cpp
         );
         load_source!(
             SpellMiscStore,
             "SpellMisc.db2",
-            SPELL_MISC_OVERLAY_SQL,
-            true,
+            SpellInfoKeyContributorLikeCpp::SpellMisc,
             |entry| SpellInfoSourceRowLikeCpp::new(entry.id, entry.spell_id, entry.difficulty_id,)
         );
 
+        let spell_power_batch = contributor_batches
+            .next()
+            .context("missing SpellPower.db2 Hotfix overlay batch")?;
+        debug_assert_eq!(
+            spell_power_batch.contributor,
+            SpellInfoKeyContributorLikeCpp::SpellPower
+        );
         let spell_power_store =
             SpellPowerStore::load(data_dir, locale).context("failed to load SpellPower.db2")?;
-        debug_assert!(loaded_contributor_tables.insert("SpellPower.db2"));
         let spell_power_table_hash = spell_power_store
             .table_hash_like_cpp()
             .context("SpellPower.db2 is missing its WDC4 table hash")?;
-        let spell_power_rows = load_effective_source_rows_like_cpp(
-            hotfix_db,
-            removed_records,
-            spell_power_table_hash,
-            "SpellPower.db2",
-            SPELL_POWER_OVERLAY_SQL,
-            false,
+        let spell_power_rows = compose_effective_source_rows_like_cpp(
             spell_power_store
                 .entries_like_cpp()
                 .map(|entry| SpellInfoSourceRowLikeCpp::new(entry.id, entry.spell_id, 0)),
-        )
-        .await?;
-        let spell_power_difficulties = load_effective_power_difficulties_like_cpp(
+            spell_power_batch
+                .rows
+                .into_iter()
+                .map(spell_info_source_row_from_hotfix_like_cpp),
+            std::iter::empty(),
+            spell_power_table_hash,
+            removed_records,
+        );
+        let spell_power_difficulties = load_effective_power_difficulties_from_hotfix_rows_like_cpp(
             data_dir,
             locale,
-            hotfix_db,
             removed_records,
-        )
-        .await?;
+            power_difficulty_rows,
+        )?;
         candidate_keys.extend(power_keys_like_cpp(
             &spell_power_rows,
             &spell_power_difficulties,
@@ -388,114 +426,52 @@ impl SpellInfoKeyStoreLikeCpp {
         load_source!(
             SpellReagentsStore,
             "SpellReagents.db2",
-            SPELL_REAGENTS_OVERLAY_SQL,
-            false,
+            SpellInfoKeyContributorLikeCpp::SpellReagents,
             |entry| SpellInfoSourceRowLikeCpp::signed_spell(entry.id, entry.spell_id, 0)
         );
         load_source!(
             SpellReagentsCurrencyStore,
             "SpellReagentsCurrency.db2",
-            SPELL_REAGENTS_CURRENCY_OVERLAY_SQL,
-            false,
+            SpellInfoKeyContributorLikeCpp::SpellReagentsCurrency,
             |entry| SpellInfoSourceRowLikeCpp::new(entry.id, entry.spell_id, 0)
         );
         load_source!(
             SpellScalingStore,
             "SpellScaling.db2",
-            SPELL_SCALING_OVERLAY_SQL,
-            false,
+            SpellInfoKeyContributorLikeCpp::SpellScaling,
             |entry| SpellInfoSourceRowLikeCpp::signed_spell(entry.id, entry.spell_id, 0)
         );
         load_source!(
             SpellShapeshiftStore,
             "SpellShapeshift.db2",
-            SPELL_SHAPESHIFT_OVERLAY_SQL,
-            false,
+            SpellInfoKeyContributorLikeCpp::SpellShapeshift,
             |entry| SpellInfoSourceRowLikeCpp::signed_spell(entry.id, entry.spell_id, 0)
         );
         load_source!(
             SpellTargetRestrictionsStore,
             "SpellTargetRestrictions.db2",
-            SPELL_TARGET_RESTRICTIONS_OVERLAY_SQL,
-            true,
+            SpellInfoKeyContributorLikeCpp::SpellTargetRestrictions,
             |entry| SpellInfoSourceRowLikeCpp::new(entry.id, entry.spell_id, entry.difficulty_id,)
         );
         load_source!(
             SpellTotemsStore,
             "SpellTotems.db2",
-            SPELL_TOTEMS_OVERLAY_SQL,
-            false,
+            SpellInfoKeyContributorLikeCpp::SpellTotems,
             |entry| SpellInfoSourceRowLikeCpp::signed_spell(entry.id, entry.spell_id, 0)
         );
         load_source!(
             SpellXSpellVisualStore,
             "SpellXSpellVisual.db2",
-            SPELL_X_SPELL_VISUAL_OVERLAY_SQL,
-            true,
+            SpellInfoKeyContributorLikeCpp::SpellXSpellVisual,
             |entry| SpellInfoSourceRowLikeCpp::new(entry.id, entry.spell_id, entry.difficulty_id,)
         );
 
-        debug_assert_eq!(
-            loaded_contributor_tables,
-            HashSet::from(SPELL_INFO_CONTRIBUTOR_TABLES_LIKE_CPP)
-        );
+        debug_assert!(contributor_batches.next().is_none());
         Ok(Self::from_candidate_keys_like_cpp(
             candidate_keys,
             &effective_spell_name_ids,
         ))
     }
-}
-
-async fn load_effective_source_rows_like_cpp(
-    hotfix_db: &HotfixDatabase,
-    removed_records: &Db2HotfixRemovalStoreLikeCpp,
-    table_hash: u32,
-    db2_file: &str,
-    overlay_sql: &'static str,
-    has_difficulty: bool,
-    base_rows: impl IntoIterator<Item = SpellInfoSourceRowLikeCpp>,
-) -> Result<EffectiveSpellInfoSourceRowsLikeCpp> {
-    let mut overlay_batches = [Vec::new(), Vec::new()];
-
-    for (batch_index, official) in [true, false].into_iter().enumerate() {
-        let mut statement = hotfix_db.prepare(HotfixStatements::base(overlay_sql));
-        statement.set_bool(0, official);
-        let mut result = hotfix_db
-            .query(&statement)
-            .await
-            .with_context(|| format!("failed to load {db2_file} SQL overlay"))?;
-        if result.is_empty() {
-            continue;
-        }
-
-        loop {
-            let record_id = read_u32_like_cpp(&result, 0);
-            let spell_id = read_u32_like_cpp(&result, 1);
-            let difficulty_id = if has_difficulty {
-                read_u8_like_cpp(&result, 2)
-            } else {
-                0
-            };
-            overlay_batches[batch_index].push(SpellInfoSourceRowLikeCpp::new(
-                record_id,
-                spell_id,
-                difficulty_id,
-            ));
-
-            if !result.next_row() {
-                break;
-            }
-        }
-    }
-
-    let [official_overlay_rows, custom_overlay_rows] = overlay_batches;
-    Ok(compose_effective_source_rows_like_cpp(
-        base_rows,
-        official_overlay_rows,
-        custom_overlay_rows,
-        table_hash,
-        removed_records,
-    ))
 }
 
 fn compose_effective_source_rows_like_cpp(
@@ -516,11 +492,11 @@ fn compose_effective_source_rows_like_cpp(
     effective
 }
 
-async fn load_effective_power_difficulties_like_cpp(
+fn load_effective_power_difficulties_from_hotfix_rows_like_cpp(
     data_dir: &str,
     locale: &str,
-    hotfix_db: &HotfixDatabase,
     removed_records: &Db2HotfixRemovalStoreLikeCpp,
+    hotfix_rows: Vec<SpellInfoPowerDifficultyHotfixOverlayRowLikeCpp>,
 ) -> Result<EffectivePowerDifficultyRowsLikeCpp> {
     let store = SpellPowerDifficultyStore::load(data_dir, locale)
         .context("failed to load SpellPowerDifficulty.db2")?;
@@ -533,27 +509,8 @@ async fn load_effective_power_difficulties_like_cpp(
             .map(|entry| (entry.id as i32, entry.difficulty_id)),
     );
 
-    for official in [true, false] {
-        let mut statement =
-            hotfix_db.prepare(HotfixStatements::base(SPELL_POWER_DIFFICULTY_OVERLAY_SQL));
-        statement.set_bool(0, official);
-        let mut result = hotfix_db
-            .query(&statement)
-            .await
-            .context("failed to load SpellPowerDifficulty.db2 SQL overlay")?;
-        if result.is_empty() {
-            continue;
-        }
-
-        loop {
-            rows.overlay_like_cpp(
-                read_u32_like_cpp(&result, 0) as i32,
-                read_u8_like_cpp(&result, 1),
-            );
-            if !result.next_row() {
-                break;
-            }
-        }
+    for row in hotfix_rows {
+        rows.overlay_like_cpp(row.power_record_id as i32, row.difficulty_id);
     }
 
     rows.apply_removals_like_cpp(table_hash, removed_records);
@@ -576,22 +533,10 @@ fn spell_levels_source_row_like_cpp(entry: &SpellLevelsEntry) -> SpellInfoSource
     SpellInfoSourceRowLikeCpp::new(entry.id, entry.spell_id, entry.difficulty_id)
 }
 
-fn read_u32_like_cpp(result: &SqlResult, column: usize) -> u32 {
-    result
-        .try_read::<u32>(column)
-        .or_else(|| result.try_read::<i32>(column).map(|value| value as u32))
-        .or_else(|| result.try_read::<u64>(column).map(|value| value as u32))
-        .or_else(|| result.try_read::<i64>(column).map(|value| value as u32))
-        .unwrap_or(0)
-}
-
-fn read_u8_like_cpp(result: &SqlResult, column: usize) -> u8 {
-    result
-        .try_read::<u8>(column)
-        .or_else(|| result.try_read::<u16>(column).map(|value| value as u8))
-        .or_else(|| result.try_read::<u32>(column).map(|value| value as u8))
-        .or_else(|| result.try_read::<i32>(column).map(|value| value as u8))
-        .unwrap_or(0)
+fn spell_info_source_row_from_hotfix_like_cpp(
+    row: SpellInfoKeyHotfixOverlayRowLikeCpp,
+) -> SpellInfoSourceRowLikeCpp {
+    SpellInfoSourceRowLikeCpp::new(row.record_id, row.spell_id, row.difficulty_id)
 }
 
 #[cfg(test)]

@@ -549,6 +549,11 @@ pub use spell_db2::{
     SpellVisualMissileEntry, SpellVisualMissileStore, SpellVisualStore, SpellXSpellVisualEntry,
     SpellXSpellVisualStore, spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
 };
+pub use spell_info_keys::{
+    SPELL_INFO_KEY_CONTRIBUTOR_ORDER_LIKE_CPP, SpellInfoKeyContributorLikeCpp,
+    SpellInfoKeyHotfixOverlayBatchLikeCpp, SpellInfoKeyHotfixOverlayRowLikeCpp,
+    SpellInfoKeyHotfixOverlaysLikeCpp, SpellInfoPowerDifficultyHotfixOverlayRowLikeCpp,
+};
 pub use spell_item_enchantment::{
     SpellEnchantProcEntryLikeCpp, SpellEnchantProcLoadErrorLikeCpp,
     SpellEnchantProcLoadOutcomeLikeCpp, SpellEnchantProcRowLikeCpp, SpellEnchantProcStoreLikeCpp,

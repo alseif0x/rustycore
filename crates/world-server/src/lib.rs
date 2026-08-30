@@ -92,6 +92,7 @@ mod session_resources;
 mod spawn_store_loader;
 mod spell_acquisition_loader;
 mod spell_core_db2_hotfix;
+mod spell_info_key_hotfix;
 mod vehicle_catalog;
 
 use session_resources::SessionResources;

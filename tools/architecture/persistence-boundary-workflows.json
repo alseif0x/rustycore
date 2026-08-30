@@ -4235,23 +4235,6 @@
       "package": "wow-data",
       "module": "crate::spell::stores",
       "source": "crates/wow-data/src/spell/stores.rs",
-      "enclosing": "impl SpellStore::load_spell_info_key_seed_like_cpp",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell::stores",
-      "source": "crates/wow-data/src/spell/stores.rs",
       "enclosing": "impl SpellTargetPositionStoreLikeCpp::load_like_cpp",
       "logical_databases": [
         "world"
@@ -4661,108 +4644,6 @@
       "package": "wow-data",
       "module": "crate::spell_db2",
       "source": "crates/wow-data/src/spell_db2.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for hotfix; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_info_keys",
-      "source": "crates/wow-data/src/spell_info_keys.rs",
-      "enclosing": "fn load_effective_power_difficulties_like_cpp",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_info_keys",
-      "source": "crates/wow-data/src/spell_info_keys.rs",
-      "enclosing": "fn load_effective_source_rows_like_cpp",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_info_keys",
-      "source": "crates/wow-data/src/spell_info_keys.rs",
-      "enclosing": "fn read_u32_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_info_keys",
-      "source": "crates/wow-data/src/spell_info_keys.rs",
-      "enclosing": "fn read_u8_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_info_keys",
-      "source": "crates/wow-data/src/spell_info_keys.rs",
-      "enclosing": "impl SpellInfoKeyStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_info_keys",
-      "source": "crates/wow-data/src/spell_info_keys.rs",
       "enclosing": "module",
       "logical_databases": [
         "hotfix"
@@ -11239,6 +11120,126 @@
       "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
       "current_order": "Each row family is queried with official rows first and custom rows second; world-server preserves SpellName, the existing key seed, then Categories, Misc, Effect, Shapeshift, Interrupts, CastTimes, Cooldowns, CastingRequirements, Power and PowerDifficulty before hydration.",
       "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_info_key_hotfix_adapter",
+      "source": "crates/wow-database/src/spell_info_key_hotfix_adapter.rs",
+      "enclosing": "fn query_contributor_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for SQLx-free exact SpellInfo key Hotfix overlays (#511)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter queries each contributor with official rows before custom rows in C++ LoadSpellInfoStore order; SpellPowerDifficulty follows SpellPower immediately. wow-data then applies DB2 base rows, the ordered overlays and final tombstones before key publication.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome before the SpellInfo key seed is published; an empty query remains a successful empty batch and no concrete row or driver error crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_info_key_hotfix_adapter",
+      "source": "crates/wow-database/src/spell_info_key_hotfix_adapter.rs",
+      "enclosing": "fn query_power_difficulties_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for SQLx-free exact SpellInfo key Hotfix overlays (#511)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter queries each contributor with official rows before custom rows in C++ LoadSpellInfoStore order; SpellPowerDifficulty follows SpellPower immediately. wow-data then applies DB2 base rows, the ordered overlays and final tombstones before key publication.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome before the SpellInfo key seed is published; an empty query remains a successful empty batch and no concrete row or driver error crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_info_key_hotfix_adapter",
+      "source": "crates/wow-database/src/spell_info_key_hotfix_adapter.rs",
+      "enclosing": "fn read_u32_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for SQLx-free exact SpellInfo key Hotfix overlays (#511)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter queries each contributor with official rows before custom rows in C++ LoadSpellInfoStore order; SpellPowerDifficulty follows SpellPower immediately. wow-data then applies DB2 base rows, the ordered overlays and final tombstones before key publication.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome before the SpellInfo key seed is published; an empty query remains a successful empty batch and no concrete row or driver error crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_info_key_hotfix_adapter",
+      "source": "crates/wow-database/src/spell_info_key_hotfix_adapter.rs",
+      "enclosing": "fn read_u8_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for SQLx-free exact SpellInfo key Hotfix overlays (#511)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter queries each contributor with official rows before custom rows in C++ LoadSpellInfoStore order; SpellPowerDifficulty follows SpellPower immediately. wow-data then applies DB2 base rows, the ordered overlays and final tombstones before key publication.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome before the SpellInfo key seed is published; an empty query remains a successful empty batch and no concrete row or driver error crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_info_key_hotfix_adapter",
+      "source": "crates/wow-database/src/spell_info_key_hotfix_adapter.rs",
+      "enclosing": "impl MariaDbSpellInfoKeyHotfixPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for SQLx-free exact SpellInfo key Hotfix overlays (#511)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter queries each contributor with official rows before custom rows in C++ LoadSpellInfoStore order; SpellPowerDifficulty follows SpellPower immediately. wow-data then applies DB2 base rows, the ordered overlays and final tombstones before key publication.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome before the SpellInfo key seed is published; an empty query remains a successful empty batch and no concrete row or driver error crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_info_key_hotfix_adapter",
+      "source": "crates/wow-database/src/spell_info_key_hotfix_adapter.rs",
+      "enclosing": "impl wow_persistence::SpellInfoKeyHotfixPersistencePortLikeCpp for MariaDbSpellInfoKeyHotfixPersistenceAdapterLikeCpp::load_spell_info_key_rows_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for SQLx-free exact SpellInfo key Hotfix overlays (#511)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter queries each contributor with official rows before custom rows in C++ LoadSpellInfoStore order; SpellPowerDifficulty follows SpellPower immediately. wow-data then applies DB2 base rows, the ordered overlays and final tombstones before key publication.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome before the SpellInfo key seed is published; an empty query remains a successful empty batch and no concrete row or driver error crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_info_key_hotfix_adapter",
+      "source": "crates/wow-database/src/spell_info_key_hotfix_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for SQLx-free exact SpellInfo key Hotfix overlays (#511)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter queries each contributor with official rows before custom rows in C++ LoadSpellInfoStore order; SpellPowerDifficulty follows SpellPower immediately. wow-data then applies DB2 base rows, the ordered overlays and final tombstones before key publication.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome before the SpellInfo key seed is published; an empty query remains a successful empty batch and no concrete row or driver error crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_info_key_hotfix_adapter",
+      "source": "crates/wow-database/src/spell_info_key_hotfix_adapter.rs",
+      "enclosing": "struct MariaDbSpellInfoKeyHotfixPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for SQLx-free exact SpellInfo key Hotfix overlays (#511)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "The adapter queries each contributor with official rows before custom rows in C++ LoadSpellInfoStore order; SpellPowerDifficulty follows SpellPower immediately. wow-data then applies DB2 base rows, the ordered overlays and final tombstones before key publication.",
+      "failure_and_unknown_commit": "The first query error becomes a typed Failed outcome before the SpellInfo key seed is published; an empty query remains a successful empty batch and no concrete row or driver error crosses the port."
     },
     {
       "package": "wow-database",

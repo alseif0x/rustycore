@@ -10,7 +10,7 @@ use super::catalog::{SpellHitEffectMechanicRowLikeCpp, SpellInterruptRowLikeCpp}
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::{HotfixDatabase, WorldDatabase, WorldStatements};
+use wow_database::{WorldDatabase, WorldStatements};
 
 use super::*;
 
@@ -2398,22 +2398,21 @@ impl SpellStore {
 
     /// Load the exact regular `SpellInfo` key authority that still has
     /// non-core Hotfix DB2 contributors outside #509.
-    pub async fn load_spell_info_key_seed_like_cpp(
+    pub fn load_spell_info_key_seed_from_hotfix_rows_like_cpp(
         data_dir: &str,
         locale: &str,
-        hotfix_db: &HotfixDatabase,
         spell_name_store: &crate::spell_db2::SpellNameStore,
         hotfix_removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+        hotfix_overlays: crate::SpellInfoKeyHotfixOverlaysLikeCpp,
     ) -> Result<Self> {
         let spell_info_keys_like_cpp =
-            crate::spell_info_keys::SpellInfoKeyStoreLikeCpp::load_like_cpp(
+            crate::spell_info_keys::SpellInfoKeyStoreLikeCpp::load_from_hotfix_rows_like_cpp(
                 data_dir,
                 locale,
-                hotfix_db,
                 spell_name_store,
                 hotfix_removals,
-            )
-            .await?;
+                hotfix_overlays,
+            )?;
         let mut store = Self::new();
         store.spell_info_keys_like_cpp = spell_info_keys_like_cpp;
         Ok(store)
