@@ -390,8 +390,9 @@ pub use player_power::{
     ClassPowerIndexRecord, Db2PlayerPowerIndexResolver, PlayerClassPowerIndexStore,
 };
 pub use player_stats::{
-    PlayerLevelStats, PlayerStatSystemInputLikeCpp, PlayerStatSystemProjectionLikeCpp,
-    PlayerStatsStore, calculate_player_stat_system_like_cpp,
+    PlayerClassLevelStatsRowLikeCpp, PlayerClassLevelStatsRowsLikeCpp, PlayerLevelStats,
+    PlayerRaceStatsRowLikeCpp, PlayerRaceStatsRowsLikeCpp, PlayerStatSystemInputLikeCpp,
+    PlayerStatSystemProjectionLikeCpp, PlayerStatsStore, calculate_player_stat_system_like_cpp,
 };
 pub use poi::{
     PointOfInterestLikeCpp, PointOfInterestLoadOutcomeLikeCpp, PointOfInterestLoadReportLikeCpp,

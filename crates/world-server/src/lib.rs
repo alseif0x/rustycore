@@ -1539,6 +1539,7 @@ use shutdown::*;
 
 mod bootstrap;
 mod chr_specialization_hotfix;
+mod player_base_stats;
 mod skill_catalog_hotfix;
 mod skill_world_rules;
 use bootstrap::*;
