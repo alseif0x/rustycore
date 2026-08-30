@@ -70,6 +70,7 @@ pub mod session_account_state_adapter;
 pub mod social_adapter;
 pub mod spell_core_db2_hotfix_adapter;
 pub mod spell_info_key_hotfix_adapter;
+pub mod spell_world_catalog_adapter;
 pub mod statements;
 pub mod stored_item_money_adapter;
 pub mod support_bug_report_adapter;
@@ -114,6 +115,7 @@ pub use result::{
 };
 pub use spell_core_db2_hotfix_adapter::MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp;
 pub use spell_info_key_hotfix_adapter::MariaDbSpellInfoKeyHotfixPersistenceAdapterLikeCpp;
+pub use spell_world_catalog_adapter::MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp;
 pub use statements::{
     CharStatements, HOTFIX_STATEMENT_STRATEGY_LIKE_CPP, HotfixStatementStrategyLikeCpp,
     HotfixStatements, LoginStatements, StatementDef, WorldStatements,
