@@ -899,19 +899,31 @@ async fn run_inner(
         "Loaded {} creature template mount fallback rows",
         creature_template_mount_store.len()
     );
+    let creature_display_hotfix_persistence =
+        wow_database::MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp::new(Arc::clone(
+            &hotfix_db,
+        ));
     let creature_display_info_store = Arc::new(
-        wow_data::CreatureDisplayInfoStore::load_with_hotfixes(&data_dir, &locale, &hotfix_db)
-            .await
-            .context("Failed to load CreatureDisplayInfo.db2 / hotfix rows")?,
+        crate::creature_display_hotfix::load_creature_display_info_store_like_cpp(
+            &data_dir,
+            &locale,
+            &creature_display_hotfix_persistence,
+        )
+        .await
+        .context("Failed to load CreatureDisplayInfo.db2 / hotfix rows")?,
     );
     info!(
         "Loaded {} creature display info rows",
         creature_display_info_store.len()
     );
     let creature_model_data_store = Arc::new(
-        wow_data::CreatureModelDataStore::load_with_hotfixes(&data_dir, &locale, &hotfix_db)
-            .await
-            .context("Failed to load CreatureModelData.db2 / hotfix rows")?,
+        crate::creature_display_hotfix::load_creature_model_data_store_like_cpp(
+            &data_dir,
+            &locale,
+            &creature_display_hotfix_persistence,
+        )
+        .await
+        .context("Failed to load CreatureModelData.db2 / hotfix rows")?,
     );
     info!(
         "Loaded {} creature model data rows",

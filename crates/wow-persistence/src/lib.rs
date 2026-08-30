@@ -24,6 +24,7 @@ use std::pin::Pin;
 mod area_trigger_template_catalog;
 mod area_trigger_world_catalog;
 mod chr_specialization_hotfix;
+mod creature_display_hotfix;
 mod difficulty_hotfix;
 mod hotfix_delivery_metadata;
 mod instance_lock;
@@ -57,6 +58,10 @@ pub use area_trigger_world_catalog::{
 pub use chr_specialization_hotfix::{
     ChrSpecializationHotfixLoadOutcomeLikeCpp, ChrSpecializationHotfixPersistencePortLikeCpp,
     ChrSpecializationHotfixRowLikeCpp, ChrSpecializationHotfixRowsLikeCpp,
+};
+pub use creature_display_hotfix::{
+    CreatureDisplayHotfixLoadOutcomeLikeCpp, CreatureDisplayHotfixPersistencePortLikeCpp,
+    CreatureDisplayInfoHotfixRowLikeCpp, CreatureModelDataHotfixRowLikeCpp,
 };
 pub use difficulty_hotfix::{
     DifficultyHotfixLoadOutcomeLikeCpp, DifficultyHotfixPersistencePortLikeCpp,
