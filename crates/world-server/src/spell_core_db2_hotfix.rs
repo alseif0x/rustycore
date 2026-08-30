@@ -2,21 +2,29 @@
 
 use anyhow::{Result, anyhow};
 use wow_data::{
-    Db2HotfixRemovalStoreLikeCpp, EffectiveCoreSpellDb2StoresLikeCpp, SpellCastTimesEntry,
-    SpellCastTimesStore, SpellCastingRequirementsEntry, SpellCastingRequirementsStore,
-    SpellCategoriesEntry, SpellCategoriesStore, SpellCooldownsEntry, SpellCooldownsStore,
-    SpellEffectDb2Entry, SpellEffectDb2Store, SpellInterruptsEntry, SpellInterruptsStore,
-    SpellMiscEntry, SpellMiscStore, SpellNameEffectiveLoadReportLikeCpp, SpellNameEntry,
-    SpellNameStore, SpellPowerDifficultyEntry, SpellPowerDifficultyStore, SpellPowerEntry,
-    SpellPowerStore, SpellShapeshiftEntry, SpellShapeshiftStore, SpellStore,
+    Db2HotfixRemovalStoreLikeCpp, EffectiveCoreSpellDb2StoresLikeCpp, SpellAuraRestrictionsEntry,
+    SpellAuraRestrictionsStore, SpellCastTimesEntry, SpellCastTimesStore,
+    SpellCastingRequirementsEntry, SpellCastingRequirementsStore, SpellCategoriesEntry,
+    SpellCategoriesStore, SpellCategoryEntry, SpellCategoryStore, SpellCooldownsEntry,
+    SpellCooldownsStore, SpellDurationEntry, SpellDurationStore, SpellEffectDb2Entry,
+    SpellEffectDb2Store, SpellEquippedItemsEntry, SpellEquippedItemsStore, SpellInterruptsEntry,
+    SpellInterruptsStore, SpellMiscEntry, SpellMiscStore, SpellNameEffectiveLoadReportLikeCpp,
+    SpellNameEntry, SpellNameStore, SpellPowerDifficultyEntry, SpellPowerDifficultyStore,
+    SpellPowerEntry, SpellPowerStore, SpellRadiusEntry, SpellRadiusStore, SpellRangeEntry,
+    SpellRangeStore, SpellShapeshiftEntry, SpellShapeshiftStore, SpellStore,
+    SpellTargetRestrictionsEntry, SpellTargetRestrictionsStore, SpellXSpellVisualEntry,
+    SpellXSpellVisualStore,
 };
 use wow_persistence::{
-    SpellCastTimesHotfixRowLikeCpp, SpellCastingRequirementsHotfixRowLikeCpp,
-    SpellCategoriesHotfixRowLikeCpp, SpellCooldownsHotfixRowLikeCpp,
+    SpellAuraRestrictionsHotfixRowLikeCpp, SpellCastTimesHotfixRowLikeCpp,
+    SpellCastingRequirementsHotfixRowLikeCpp, SpellCategoriesHotfixRowLikeCpp,
+    SpellCategoryHotfixRowLikeCpp, SpellCooldownsHotfixRowLikeCpp,
     SpellCoreDb2HotfixLoadOutcomeLikeCpp, SpellCoreDb2HotfixPersistencePortLikeCpp,
-    SpellEffectHotfixRowLikeCpp, SpellInterruptsHotfixRowLikeCpp, SpellMiscHotfixRowLikeCpp,
-    SpellNameHotfixRowLikeCpp, SpellPowerDifficultyHotfixRowLikeCpp, SpellPowerHotfixRowLikeCpp,
-    SpellShapeshiftHotfixRowLikeCpp,
+    SpellDurationHotfixRowLikeCpp, SpellEffectHotfixRowLikeCpp, SpellEquippedItemsHotfixRowLikeCpp,
+    SpellInterruptsHotfixRowLikeCpp, SpellMiscHotfixRowLikeCpp, SpellNameHotfixRowLikeCpp,
+    SpellPowerDifficultyHotfixRowLikeCpp, SpellPowerHotfixRowLikeCpp, SpellRadiusHotfixRowLikeCpp,
+    SpellRangeHotfixRowLikeCpp, SpellShapeshiftHotfixRowLikeCpp,
+    SpellTargetRestrictionsHotfixRowLikeCpp, SpellXSpellVisualHotfixRowLikeCpp,
 };
 
 fn loaded_rows_like_cpp<T>(outcome: SpellCoreDb2HotfixLoadOutcomeLikeCpp<T>) -> Result<Vec<T>> {
@@ -188,6 +196,114 @@ fn spell_power_difficulty_entry_like_cpp(
     }
 }
 
+fn spell_aura_restrictions_entry_like_cpp(
+    row: SpellAuraRestrictionsHotfixRowLikeCpp,
+) -> SpellAuraRestrictionsEntry {
+    SpellAuraRestrictionsEntry {
+        id: row.id,
+        difficulty_id: row.difficulty_id,
+        caster_aura_state: row.caster_aura_state,
+        target_aura_state: row.target_aura_state,
+        exclude_caster_aura_state: row.exclude_caster_aura_state,
+        exclude_target_aura_state: row.exclude_target_aura_state,
+        caster_aura_spell: row.caster_aura_spell,
+        target_aura_spell: row.target_aura_spell,
+        exclude_caster_aura_spell: row.exclude_caster_aura_spell,
+        exclude_target_aura_spell: row.exclude_target_aura_spell,
+        spell_id: row.spell_id,
+    }
+}
+
+fn spell_category_entry_like_cpp(row: SpellCategoryHotfixRowLikeCpp) -> SpellCategoryEntry {
+    SpellCategoryEntry {
+        id: row.id,
+        name: row.name,
+        flags: row.flags,
+        uses_per_week: row.uses_per_week,
+        max_charges: row.max_charges,
+        charge_recovery_time: row.charge_recovery_time,
+        type_mask: row.type_mask,
+    }
+}
+
+fn spell_duration_entry_like_cpp(row: SpellDurationHotfixRowLikeCpp) -> SpellDurationEntry {
+    SpellDurationEntry {
+        id: row.id,
+        duration: row.duration,
+        duration_per_level: row.duration_per_level,
+        max_duration: row.max_duration,
+    }
+}
+
+fn spell_radius_entry_like_cpp(row: SpellRadiusHotfixRowLikeCpp) -> SpellRadiusEntry {
+    SpellRadiusEntry {
+        id: row.id,
+        radius: row.radius,
+        radius_per_level: row.radius_per_level,
+        radius_min: row.radius_min,
+        radius_max: row.radius_max,
+    }
+}
+
+fn spell_range_entry_like_cpp(row: SpellRangeHotfixRowLikeCpp) -> SpellRangeEntry {
+    SpellRangeEntry {
+        id: row.id,
+        display_name: row.display_name,
+        display_name_short: row.display_name_short,
+        flags: row.flags,
+        range_min: row.range_min,
+        range_max: row.range_max,
+    }
+}
+
+fn spell_equipped_items_entry_like_cpp(
+    row: SpellEquippedItemsHotfixRowLikeCpp,
+) -> SpellEquippedItemsEntry {
+    SpellEquippedItemsEntry {
+        id: row.id,
+        spell_id: row.spell_id,
+        equipped_item_class: row.equipped_item_class,
+        equipped_item_inv_types: row.equipped_item_inv_types,
+        equipped_item_subclass: row.equipped_item_subclass,
+    }
+}
+
+fn spell_target_restrictions_entry_like_cpp(
+    row: SpellTargetRestrictionsHotfixRowLikeCpp,
+) -> SpellTargetRestrictionsEntry {
+    SpellTargetRestrictionsEntry {
+        id: row.id,
+        difficulty_id: row.difficulty_id,
+        cone_degrees: row.cone_degrees,
+        max_targets: row.max_targets,
+        max_target_level: row.max_target_level,
+        target_creature_type: row.target_creature_type,
+        targets: row.targets,
+        width: row.width,
+        spell_id: row.spell_id,
+    }
+}
+
+fn spell_x_spell_visual_entry_like_cpp(
+    row: SpellXSpellVisualHotfixRowLikeCpp,
+) -> SpellXSpellVisualEntry {
+    SpellXSpellVisualEntry {
+        id: row.id,
+        difficulty_id: row.difficulty_id,
+        spell_visual_id: row.spell_visual_id,
+        probability: row.probability,
+        flags: row.flags,
+        priority: row.priority,
+        spell_icon_file_id: row.spell_icon_file_id,
+        active_icon_file_id: row.active_icon_file_id,
+        viewer_unit_condition_id: row.viewer_unit_condition_id,
+        viewer_player_condition_id: row.viewer_player_condition_id,
+        caster_unit_condition_id: row.caster_unit_condition_id,
+        caster_player_condition_id: row.caster_player_condition_id,
+        spell_id: row.spell_id,
+    }
+}
+
 pub(super) async fn load_spell_name_store_like_cpp(
     data_dir: &str,
     locale: &str,
@@ -356,6 +472,135 @@ pub(super) async fn load_spell_cooldowns_store_like_cpp(
         data_dir,
         locale,
         rows.into_iter().map(spell_cooldowns_entry_like_cpp),
+        removals,
+    )
+}
+
+pub(super) async fn load_spell_aura_restrictions_store_like_cpp(
+    data_dir: &str,
+    locale: &str,
+    persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
+    removals: &Db2HotfixRemovalStoreLikeCpp,
+) -> Result<SpellAuraRestrictionsStore> {
+    let rows = loaded_rows_like_cpp(
+        persistence
+            .load_spell_aura_restrictions_rows_like_cpp()
+            .await,
+    )?;
+    SpellAuraRestrictionsStore::load_effective_from_hotfix_rows_like_cpp(
+        data_dir,
+        locale,
+        rows.into_iter().map(spell_aura_restrictions_entry_like_cpp),
+        removals,
+    )
+}
+
+pub(super) async fn load_spell_category_store_like_cpp(
+    data_dir: &str,
+    locale: &str,
+    persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
+    removals: &Db2HotfixRemovalStoreLikeCpp,
+) -> Result<SpellCategoryStore> {
+    let rows = loaded_rows_like_cpp(persistence.load_spell_category_rows_like_cpp().await)?;
+    SpellCategoryStore::load_effective_from_hotfix_rows_like_cpp(
+        data_dir,
+        locale,
+        rows.into_iter().map(spell_category_entry_like_cpp),
+        removals,
+    )
+}
+
+pub(super) async fn load_spell_duration_store_like_cpp(
+    data_dir: &str,
+    locale: &str,
+    persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
+    removals: &Db2HotfixRemovalStoreLikeCpp,
+) -> Result<SpellDurationStore> {
+    let rows = loaded_rows_like_cpp(persistence.load_spell_duration_rows_like_cpp().await)?;
+    SpellDurationStore::load_effective_from_hotfix_rows_like_cpp(
+        data_dir,
+        locale,
+        rows.into_iter().map(spell_duration_entry_like_cpp),
+        removals,
+    )
+}
+
+pub(super) async fn load_spell_radius_store_like_cpp(
+    data_dir: &str,
+    locale: &str,
+    persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
+    removals: &Db2HotfixRemovalStoreLikeCpp,
+) -> Result<SpellRadiusStore> {
+    let rows = loaded_rows_like_cpp(persistence.load_spell_radius_rows_like_cpp().await)?;
+    SpellRadiusStore::load_effective_from_hotfix_rows_like_cpp(
+        data_dir,
+        locale,
+        rows.into_iter().map(spell_radius_entry_like_cpp),
+        removals,
+    )
+}
+
+pub(super) async fn load_spell_range_store_like_cpp(
+    data_dir: &str,
+    locale: &str,
+    persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
+    removals: &Db2HotfixRemovalStoreLikeCpp,
+) -> Result<SpellRangeStore> {
+    let rows = loaded_rows_like_cpp(persistence.load_spell_range_rows_like_cpp().await)?;
+    SpellRangeStore::load_effective_from_hotfix_rows_like_cpp(
+        data_dir,
+        locale,
+        rows.into_iter().map(spell_range_entry_like_cpp),
+        removals,
+    )
+}
+
+pub(super) async fn load_spell_equipped_items_store_like_cpp(
+    data_dir: &str,
+    locale: &str,
+    persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
+    removals: &Db2HotfixRemovalStoreLikeCpp,
+) -> Result<SpellEquippedItemsStore> {
+    let rows = loaded_rows_like_cpp(persistence.load_spell_equipped_items_rows_like_cpp().await)?;
+    SpellEquippedItemsStore::load_effective_from_hotfix_rows_like_cpp(
+        data_dir,
+        locale,
+        rows.into_iter().map(spell_equipped_items_entry_like_cpp),
+        removals,
+    )
+}
+
+pub(super) async fn load_spell_target_restrictions_store_like_cpp(
+    data_dir: &str,
+    locale: &str,
+    persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
+    removals: &Db2HotfixRemovalStoreLikeCpp,
+) -> Result<SpellTargetRestrictionsStore> {
+    let rows = loaded_rows_like_cpp(
+        persistence
+            .load_spell_target_restrictions_rows_like_cpp()
+            .await,
+    )?;
+    SpellTargetRestrictionsStore::load_effective_from_hotfix_rows_like_cpp(
+        data_dir,
+        locale,
+        rows.into_iter()
+            .map(spell_target_restrictions_entry_like_cpp),
+        removals,
+    )
+}
+
+pub(super) async fn load_spell_x_spell_visual_store_like_cpp(
+    data_dir: &str,
+    locale: &str,
+    persistence: &dyn SpellCoreDb2HotfixPersistencePortLikeCpp,
+    removals: &Db2HotfixRemovalStoreLikeCpp,
+) -> Result<SpellXSpellVisualStore> {
+    let rows = loaded_rows_like_cpp(persistence.load_spell_x_spell_visual_rows_like_cpp().await)?;
+    SpellXSpellVisualStore::load_effective_from_hotfix_rows_like_cpp(
+        data_dir,
+        locale,
+        rows.into_iter().map(spell_x_spell_visual_entry_like_cpp),
         removals,
     )
 }
@@ -689,6 +934,178 @@ mod tests {
                 id: 45,
                 difficulty_id: 46,
                 order_index: 47,
+            }
+        );
+    }
+
+    #[test]
+    fn standalone_spell_db2_row_conversion_preserves_every_field() {
+        assert_eq!(
+            spell_aura_restrictions_entry_like_cpp(SpellAuraRestrictionsHotfixRowLikeCpp {
+                id: 1,
+                difficulty_id: 2,
+                caster_aura_state: 3,
+                target_aura_state: 4,
+                exclude_caster_aura_state: 5,
+                exclude_target_aura_state: 6,
+                caster_aura_spell: -7,
+                target_aura_spell: -8,
+                exclude_caster_aura_spell: -9,
+                exclude_target_aura_spell: -10,
+                spell_id: 11,
+            }),
+            SpellAuraRestrictionsEntry {
+                id: 1,
+                difficulty_id: 2,
+                caster_aura_state: 3,
+                target_aura_state: 4,
+                exclude_caster_aura_state: 5,
+                exclude_target_aura_state: 6,
+                caster_aura_spell: -7,
+                target_aura_spell: -8,
+                exclude_caster_aura_spell: -9,
+                exclude_target_aura_spell: -10,
+                spell_id: 11,
+            }
+        );
+        assert_eq!(
+            spell_category_entry_like_cpp(SpellCategoryHotfixRowLikeCpp {
+                id: 12,
+                name: "category".to_owned(),
+                flags: -13,
+                uses_per_week: 14,
+                max_charges: -15,
+                charge_recovery_time: -16,
+                type_mask: -17,
+            }),
+            SpellCategoryEntry {
+                id: 12,
+                name: "category".to_owned(),
+                flags: -13,
+                uses_per_week: 14,
+                max_charges: -15,
+                charge_recovery_time: -16,
+                type_mask: -17,
+            }
+        );
+        assert_eq!(
+            spell_duration_entry_like_cpp(SpellDurationHotfixRowLikeCpp {
+                id: 18,
+                duration: -19,
+                duration_per_level: 20,
+                max_duration: -21,
+            }),
+            SpellDurationEntry {
+                id: 18,
+                duration: -19,
+                duration_per_level: 20,
+                max_duration: -21
+            }
+        );
+        assert_eq!(
+            spell_radius_entry_like_cpp(SpellRadiusHotfixRowLikeCpp {
+                id: 22,
+                radius: 23.5,
+                radius_per_level: 24.5,
+                radius_min: 25.5,
+                radius_max: 26.5,
+            }),
+            SpellRadiusEntry {
+                id: 22,
+                radius: 23.5,
+                radius_per_level: 24.5,
+                radius_min: 25.5,
+                radius_max: 26.5,
+            }
+        );
+        assert_eq!(
+            spell_range_entry_like_cpp(SpellRangeHotfixRowLikeCpp {
+                id: 27,
+                display_name: "range".to_owned(),
+                display_name_short: "r".to_owned(),
+                flags: 28,
+                range_min: [29.5, 30.5],
+                range_max: [31.5, 32.5],
+            }),
+            SpellRangeEntry {
+                id: 27,
+                display_name: "range".to_owned(),
+                display_name_short: "r".to_owned(),
+                flags: 28,
+                range_min: [29.5, 30.5],
+                range_max: [31.5, 32.5],
+            }
+        );
+        assert_eq!(
+            spell_equipped_items_entry_like_cpp(SpellEquippedItemsHotfixRowLikeCpp {
+                id: 33,
+                spell_id: -34,
+                equipped_item_class: -35,
+                equipped_item_inv_types: -36,
+                equipped_item_subclass: -37,
+            }),
+            SpellEquippedItemsEntry {
+                id: 33,
+                spell_id: -34,
+                equipped_item_class: -35,
+                equipped_item_inv_types: -36,
+                equipped_item_subclass: -37,
+            }
+        );
+        assert_eq!(
+            spell_target_restrictions_entry_like_cpp(SpellTargetRestrictionsHotfixRowLikeCpp {
+                id: 38,
+                difficulty_id: 39,
+                cone_degrees: 40.5,
+                max_targets: 41,
+                max_target_level: 42,
+                target_creature_type: -43,
+                targets: -44,
+                width: 45.5,
+                spell_id: 46,
+            }),
+            SpellTargetRestrictionsEntry {
+                id: 38,
+                difficulty_id: 39,
+                cone_degrees: 40.5,
+                max_targets: 41,
+                max_target_level: 42,
+                target_creature_type: -43,
+                targets: -44,
+                width: 45.5,
+                spell_id: 46,
+            }
+        );
+        assert_eq!(
+            spell_x_spell_visual_entry_like_cpp(SpellXSpellVisualHotfixRowLikeCpp {
+                id: 47,
+                difficulty_id: 48,
+                spell_visual_id: 49,
+                probability: 50.5,
+                flags: 51,
+                priority: -52,
+                spell_icon_file_id: -53,
+                active_icon_file_id: -54,
+                viewer_unit_condition_id: 55,
+                viewer_player_condition_id: 56,
+                caster_unit_condition_id: 57,
+                caster_player_condition_id: 58,
+                spell_id: 59,
+            }),
+            SpellXSpellVisualEntry {
+                id: 47,
+                difficulty_id: 48,
+                spell_visual_id: 49,
+                probability: 50.5,
+                flags: 51,
+                priority: -52,
+                spell_icon_file_id: -53,
+                active_icon_file_id: -54,
+                viewer_unit_condition_id: 55,
+                viewer_player_condition_id: 56,
+                caster_unit_condition_id: 57,
+                caster_player_condition_id: 58,
+                spell_id: 59,
             }
         );
     }

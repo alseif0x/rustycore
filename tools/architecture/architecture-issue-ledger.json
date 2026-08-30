@@ -114,6 +114,7 @@
     507,
     509,
     511,
+    513,
     189,
     192,
     193,
@@ -1822,7 +1823,7 @@
   },
   {
     "number": 511,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.64] Move exact SpellInfo key overlays behind a typed persistence port",
     "kind": "slice",
     "parents": [
@@ -1831,6 +1832,19 @@
     ],
     "depends_on": [
       509
+    ]
+  },
+  {
+    "number": 513,
+    "state": "open",
+    "title": "[ARCH.DB.65] Move remaining Spell DB2 overlays behind a typed persistence port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      511
     ]
   }
 ]
