@@ -721,10 +721,15 @@ async fn run_inner(
         graveyard_report.missing_zones.len(),
         graveyard_report.duplicates.len()
     );
+    let gossip_catalog_adapter = Arc::new(
+        wow_database::MariaDbGossipCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db)),
+    );
     let (mut gossip_store, gossip_load_report) =
-        wow_data::GossipStore::load_like_cpp(world_db.as_ref())
-            .await
-            .context("Failed to load C++ gossip_menu/gossip_menu_option stores")?;
+        crate::gossip_startup_catalog::load_gossip_startup_catalog_like_cpp(
+            gossip_catalog_adapter.as_ref(),
+        )
+        .await
+        .context("Failed to load C++ gossip_menu/gossip_menu_option stores")?;
     info!(
         "Loaded {} gossip menu rows, {} gossip menu option rows, {} gossip_menu_option locale keys, and {} gossip_menu_addon rows",
         gossip_load_report.menu_rows,
@@ -4544,9 +4549,7 @@ async fn run_inner(
     );
     let gossip_catalog_persistence_port: Arc<
         dyn wow_persistence::GossipCatalogPersistencePortLikeCpp,
-    > = Arc::new(
-        wow_database::MariaDbGossipCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db)),
-    );
+    > = gossip_catalog_adapter.clone();
     let page_text_catalog_persistence_port: Arc<
         dyn wow_persistence::PageTextCatalogPersistencePortLikeCpp,
     > = Arc::new(

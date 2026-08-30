@@ -7,12 +7,16 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
 use wow_constants::ConditionSourceType;
 use wow_constants::shared::Locale;
-use wow_database::{WorldDatabase, WorldStatements};
 
 use crate::{ConditionEntriesByTypeStore, ConditionId, ConditionsReference};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GossipMenuRowLikeCpp {
+    pub menu_id: u32,
+    pub text_id: u32,
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct GossipMenu {
@@ -104,91 +108,40 @@ pub struct GossipConditionAttachmentReport {
 }
 
 impl GossipStore {
-    /// C++ `ObjectMgr::LoadGossipMenu` + `LoadGossipMenuItems` +
-    /// `LoadGossipMenuItemsLocales` + `LoadGossipMenuAddon`, represented
-    /// without cross-store validation.
-    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<(Self, GossipLoadReport)> {
+    /// Apply the already decoded rows for C++ `ObjectMgr::LoadGossipMenu` +
+    /// `LoadGossipMenuItems` + `LoadGossipMenuItemsLocales` +
+    /// `LoadGossipMenuAddon`, represented without cross-store validation.
+    pub fn from_rows_like_cpp(
+        menus: impl IntoIterator<Item = GossipMenuRowLikeCpp>,
+        menu_items: impl IntoIterator<Item = GossipMenuItem>,
+        locales: impl IntoIterator<Item = GossipMenuItemsLocaleRowLikeCpp>,
+        addons: impl IntoIterator<Item = GossipMenuAddonRowLikeCpp>,
+    ) -> (Self, GossipLoadReport) {
         let mut store = Self::default();
         let mut report = GossipLoadReport::default();
 
-        let stmt = db.prepare(WorldStatements::SEL_GOSSIP_MENUS);
-        let mut result = db.query(&stmt).await?;
-        if !result.is_empty() {
-            loop {
-                store.add_menu_like_cpp(result.read(0), result.read(1));
-                report.menu_rows += 1;
-                if !result.next_row() {
-                    break;
-                }
-            }
+        for row in menus {
+            store.add_menu_like_cpp(row.menu_id, row.text_id);
+            report.menu_rows += 1;
         }
 
-        let stmt = db.prepare(WorldStatements::SEL_GOSSIP_MENU_OPTIONS_ALL);
-        let mut result = db.query(&stmt).await?;
-        if !result.is_empty() {
-            loop {
-                store.add_menu_item_full_like_cpp(GossipMenuItem {
-                    menu_id: result.read(0),
-                    gossip_option_id: result.read(1),
-                    order_index: result.read(2),
-                    option_npc: result.read(3),
-                    option_text: result.read_string(4),
-                    option_broadcast_text_id: result.read(5),
-                    language: result.read(6),
-                    flags: result.read(7),
-                    action_menu_id: result.read(8),
-                    action_poi_id: result.read(9),
-                    gossip_npc_option_id: result.try_read(10),
-                    box_coded: result.try_read::<u8>(11).unwrap_or(0) != 0,
-                    box_money: result.read(12),
-                    box_text: result.read_string(13),
-                    box_broadcast_text_id: result.read(14),
-                    spell_id: result.try_read(15),
-                    override_icon_id: result.try_read(16),
-                    conditions: ConditionsReference::default(),
-                });
-                report.menu_item_rows += 1;
-                if !result.next_row() {
-                    break;
-                }
-            }
+        for item in menu_items {
+            store.add_menu_item_full_like_cpp(item);
+            report.menu_item_rows += 1;
         }
 
-        let stmt = db.prepare(WorldStatements::SEL_GOSSIP_MENU_OPTION_LOCALES);
-        let mut result = db.query(&stmt).await?;
-        if !result.is_empty() {
-            loop {
-                report.locale_rows_seen += 1;
-                store.add_menu_item_locale_like_cpp(GossipMenuItemsLocaleRowLikeCpp {
-                    menu_id: result.read(0),
-                    option_id: result.read(1),
-                    locale: result.read_string(2),
-                    option_text: result.read_string(3),
-                    box_text: result.read_string(4),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
+        for row in locales {
+            report.locale_rows_seen += 1;
+            store.add_menu_item_locale_like_cpp(row);
         }
         report.locale_entries = store.locales_by_menu_option.len();
 
-        let stmt = db.prepare(WorldStatements::SEL_GOSSIP_MENU_ADDON);
-        let mut result = db.query(&stmt).await?;
-        if !result.is_empty() {
-            loop {
-                store.add_menu_addon_like_cpp(GossipMenuAddonRowLikeCpp {
-                    menu_id: result.read(0),
-                    friendship_faction_id: result.read(1),
-                });
-                report.addon_rows += 1;
-                if !result.next_row() {
-                    break;
-                }
-            }
+        for row in addons {
+            store.add_menu_addon_like_cpp(row);
+            report.addon_rows += 1;
         }
 
-        Ok((store, report))
+        (store, report)
     }
 
     pub fn menu_row_count(&self) -> usize {
@@ -524,6 +477,81 @@ mod tests {
         });
 
         assert_eq!(gossip.menu_addon_count(), 1);
+        assert_eq!(
+            gossip.menu_addon_like_cpp(7).unwrap().friendship_faction_id,
+            200
+        );
+    }
+
+    #[test]
+    fn decoded_startup_rows_build_one_store_and_report_like_cpp() {
+        let (gossip, report) = GossipStore::from_rows_like_cpp(
+            [
+                GossipMenuRowLikeCpp {
+                    menu_id: 7,
+                    text_id: 10,
+                },
+                GossipMenuRowLikeCpp {
+                    menu_id: 7,
+                    text_id: 20,
+                },
+            ],
+            [GossipMenuItem {
+                menu_id: 7,
+                order_index: 2,
+                option_text: "Train me".to_owned(),
+                conditions: ConditionsReference::default(),
+                ..GossipMenuItem::default()
+            }],
+            [
+                GossipMenuItemsLocaleRowLikeCpp {
+                    menu_id: 7,
+                    option_id: 2,
+                    locale: "enUS".to_owned(),
+                    option_text: "ignored".to_owned(),
+                    box_text: String::new(),
+                },
+                GossipMenuItemsLocaleRowLikeCpp {
+                    menu_id: 7,
+                    option_id: 2,
+                    locale: "esES".to_owned(),
+                    option_text: "Entréname".to_owned(),
+                    box_text: String::new(),
+                },
+            ],
+            [
+                GossipMenuAddonRowLikeCpp {
+                    menu_id: 7,
+                    friendship_faction_id: 100,
+                },
+                GossipMenuAddonRowLikeCpp {
+                    menu_id: 7,
+                    friendship_faction_id: 200,
+                },
+            ],
+        );
+
+        assert_eq!(
+            report,
+            GossipLoadReport {
+                menu_rows: 2,
+                menu_item_rows: 1,
+                locale_rows_seen: 2,
+                locale_entries: 1,
+                addon_rows: 2,
+            }
+        );
+        assert_eq!(gossip.menu_row_count(), 2);
+        assert_eq!(gossip.menu_item_row_count(), 1);
+        assert_eq!(gossip.menu_item_locale_count(), 1);
+        assert_eq!(gossip.menu_addon_count(), 1);
+        assert_eq!(
+            gossip
+                .menu_item_locale_like_cpp(7, 2)
+                .unwrap()
+                .option_text_like_cpp(Locale::EsES),
+            Some("Entréname")
+        );
         assert_eq!(
             gossip.menu_addon_like_cpp(7).unwrap().friendship_faction_id,
             200

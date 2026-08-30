@@ -2510,40 +2510,6 @@
     },
     {
       "package": "wow-data",
-      "module": "crate::gossip",
-      "source": "crates/wow-data/src/gossip.rs",
-      "enclosing": "impl GossipStore::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::gossip",
-      "source": "crates/wow-data/src/gossip.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
       "module": "crate::graveyard",
       "source": "crates/wow-data/src/graveyard.rs",
       "enclosing": "impl GraveyardStore::load_graveyard_zones_like_cpp",
@@ -5751,7 +5717,7 @@
       "logical_databases": [
         "world"
       ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491)",
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491/#542)",
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "Pure construction of one World-database locale statement; it opens no connection or transaction.",
@@ -5766,7 +5732,7 @@
       "logical_databases": [
         "world"
       ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491)",
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491/#542)",
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "Pure construction of one World-database statement with one unsigned bind; it opens no connection or transaction.",
@@ -5781,7 +5747,7 @@
       "logical_databases": [
         "world"
       ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491)",
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491/#542)",
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "Composition supplies exactly one World database handle before sessions are accepted.",
@@ -5796,7 +5762,7 @@
       "logical_databases": [
         "world"
       ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491)",
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491/#542)",
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The read uses the adapter's single World database handle; no cross-database boundary is implied.",
@@ -5811,7 +5777,7 @@
       "logical_databases": [
         "world"
       ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491)",
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491/#542)",
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The read uses the adapter's single World database handle; no cross-database boundary is implied.",
@@ -5826,7 +5792,7 @@
       "logical_databases": [
         "world"
       ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491)",
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491/#542)",
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The read uses the adapter's single World database handle; no cross-database boundary is implied.",
@@ -5841,7 +5807,7 @@
       "logical_databases": [
         "world"
       ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491)",
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491/#542)",
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The read uses the adapter's single World database handle; no cross-database boundary is implied.",
@@ -5856,7 +5822,7 @@
       "logical_databases": [
         "world"
       ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491)",
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491/#542)",
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The read uses the adapter's single World database handle; no cross-database boundary is implied.",
@@ -5871,7 +5837,7 @@
       "logical_databases": [
         "world"
       ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491)",
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491/#542)",
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The module owns only the transitional World gossip adapter.",
@@ -5886,7 +5852,7 @@
       "logical_databases": [
         "world"
       ],
-      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491)",
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip catalog reads (#491/#542)",
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The adapter stores exactly one World database handle.",
@@ -15619,6 +15585,201 @@
       "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
       "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
       "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gossip_catalog_adapter",
+      "source": "crates/wow-database/src/gossip_catalog_adapter.rs",
+      "enclosing": "fn addon_row_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip startup catalogs (#542)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of one row already returned by the adapter's World connection.",
+      "current_order": "Decode MenuID then FriendshipFactionID in the existing statement order.",
+      "failure_and_unknown_commit": "Missing, malformed or out-of-width fields fail the batch before publication; this read has no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gossip_catalog_adapter",
+      "source": "crates/wow-database/src/gossip_catalog_adapter.rs",
+      "enclosing": "fn locale_row_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip startup catalogs (#542)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of one row already returned by the adapter's World connection.",
+      "current_order": "Decode MenuID, OptionID, Locale, OptionText and BoxText in statement order; locale filtering remains in wow-data.",
+      "failure_and_unknown_commit": "Integer decode failures fail the batch; existing string decoding remains unchanged and this read has no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gossip_catalog_adapter",
+      "source": "crates/wow-database/src/gossip_catalog_adapter.rs",
+      "enclosing": "fn menu_option_row_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip startup catalogs (#542)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of one row already returned by the adapter's World connection.",
+      "current_order": "Decode all seventeen option fields in statement order and preserve the three nullable int32 fields plus BoxCoded conversion.",
+      "failure_and_unknown_commit": "A malformed non-null integer fails the complete startup batch before publication; SQL NULL stays None and this read has no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gossip_catalog_adapter",
+      "source": "crates/wow-database/src/gossip_catalog_adapter.rs",
+      "enclosing": "fn menu_row_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip startup catalogs (#542)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of one row already returned by the adapter's World connection.",
+      "current_order": "Decode MenuID followed by TextID in the existing statement order.",
+      "failure_and_unknown_commit": "Missing, malformed or out-of-width fields fail the batch before publication; this read has no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gossip_catalog_adapter",
+      "source": "crates/wow-database/src/gossip_catalog_adapter.rs",
+      "enclosing": "fn query_startup_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip startup catalogs (#542)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Each invocation uses the adapter's single World connection and never spans another logical database or transaction.",
+      "current_order": "Prepare and execute exactly the supplied stable statement, then decode the entire result set in database order before returning rows.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query or decode failure exposes no partial batch and reads have no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gossip_catalog_adapter",
+      "source": "crates/wow-database/src/gossip_catalog_adapter.rs",
+      "enclosing": "fn read_i32_checked_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip startup catalogs (#542)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure field conversion over one World result row; it opens no connection or transaction.",
+      "current_order": "Read one integer and apply the C++ int32 width conversion before constructing a typed row.",
+      "failure_and_unknown_commit": "Missing, non-integer or out-of-width values return a decode failure; no I/O or COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gossip_catalog_adapter",
+      "source": "crates/wow-database/src/gossip_catalog_adapter.rs",
+      "enclosing": "fn read_integer_checked_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip startup catalogs (#542)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure field conversion over one World result row; it opens no connection or transaction.",
+      "current_order": "Try the represented signed and unsigned MySQL integer widths before field-specific C++ narrowing.",
+      "failure_and_unknown_commit": "Missing or non-integer values return a decode failure; no I/O or COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gossip_catalog_adapter",
+      "source": "crates/wow-database/src/gossip_catalog_adapter.rs",
+      "enclosing": "fn read_nullable_i32_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip startup catalogs (#542)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure field conversion over one World result row; it opens no connection or transaction.",
+      "current_order": "Check SQL NULL first, then decode a present value with the checked int32 conversion.",
+      "failure_and_unknown_commit": "NULL stays None while malformed non-null data fails; no I/O or COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gossip_catalog_adapter",
+      "source": "crates/wow-database/src/gossip_catalog_adapter.rs",
+      "enclosing": "fn read_u32_checked_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip startup catalogs (#542)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure field conversion over one World result row; it opens no connection or transaction.",
+      "current_order": "Read one integer and apply the C++ uint32 width conversion before constructing a typed row.",
+      "failure_and_unknown_commit": "Missing, non-integer or out-of-width values return a decode failure; no I/O or COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gossip_catalog_adapter",
+      "source": "crates/wow-database/src/gossip_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::GossipStartupCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_menu_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip startup catalogs (#542)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The read uses the adapter's single World connection and opens no transaction.",
+      "current_order": "Execute SEL_GOSSIP_MENUS as the first startup gossip stage and preserve database row order.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query/decode errors become Failed before later stages or publication and reads have no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gossip_catalog_adapter",
+      "source": "crates/wow-database/src/gossip_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::GossipStartupCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_menu_option_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip startup catalogs (#542)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The read uses the adapter's single World connection and opens no transaction.",
+      "current_order": "Execute ordered SEL_GOSSIP_MENU_OPTIONS_ALL as the second startup gossip stage and fully decode seventeen fields per row.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query/decode errors become Failed before later stages or publication and reads have no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gossip_catalog_adapter",
+      "source": "crates/wow-database/src/gossip_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::GossipStartupCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_menu_option_locale_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip startup catalogs (#542)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The read uses the adapter's single World connection and opens no transaction.",
+      "current_order": "Execute SEL_GOSSIP_MENU_OPTION_LOCALES as Rust's existing third startup gossip stage; domain locale filtering remains later.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query/decode errors become Failed before the addon stage or publication and reads have no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gossip_catalog_adapter",
+      "source": "crates/wow-database/src/gossip_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::GossipStartupCatalogPersistencePortLikeCpp for MariaDbGossipCatalogPersistenceAdapterLikeCpp::load_menu_addon_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for SQLx-free gossip startup catalogs (#542)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The read uses the adapter's single World connection and opens no transaction.",
+      "current_order": "Execute SEL_GOSSIP_MENU_ADDON as Rust's existing fourth and final startup gossip stage.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query/decode errors become Failed before publication and reads have no COMMIT outcome."
     }
   ]
 }
