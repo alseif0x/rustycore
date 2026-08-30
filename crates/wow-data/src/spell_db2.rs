@@ -798,11 +798,6 @@ impl SpellAuraRestrictionsStore {
 }
 
 impl SpellCastTimesStore {
-    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
-        "SELECT ID, Base, PerLevel, Minimum FROM spell_cast_times ",
-        "WHERE (`VerifiedBuild` > 0) = ?"
-    );
-
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellCastTimes.db2", |id, idx, r| {
             SpellCastTimesEntry {
@@ -816,35 +811,15 @@ impl SpellCastTimesStore {
 
     /// Load C++'s effective cast-time authority: DB2, official SQL, custom SQL,
     /// then final `hotfix_data` tombstones.
-    pub async fn load_effective_like_cpp(
+    pub fn load_effective_from_hotfix_rows_like_cpp(
         data_dir: &str,
         locale: &str,
-        db: &HotfixDatabase,
+        rows: impl IntoIterator<Item = SpellCastTimesEntry>,
         removals: &crate::Db2HotfixRemovalStoreLikeCpp,
     ) -> Result<Self> {
         let mut store = Self::load(data_dir, locale)?;
-        for official in [true, false] {
-            let mut statement =
-                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
-            statement.set_bool(0, official);
-            let mut result = db
-                .query(&statement)
-                .await
-                .context("failed to load SpellCastTimes SQL overlay")?;
-            if result.is_empty() {
-                continue;
-            }
-            loop {
-                store.overlay_effective_row_like_cpp(SpellCastTimesEntry {
-                    id: result.try_read::<u32>(0).unwrap_or(0),
-                    base: result.try_read::<i32>(1).unwrap_or(0),
-                    per_level: result.try_read::<i16>(2).unwrap_or(0),
-                    minimum: result.try_read::<i32>(3).unwrap_or(0),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
+        for entry in rows {
+            store.overlay_effective_row_like_cpp(entry);
         }
         store.apply_final_hotfix_removals_like_cpp(removals)?;
         Ok(store)
@@ -852,12 +827,6 @@ impl SpellCastTimesStore {
 }
 
 impl SpellCastingRequirementsStore {
-    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
-        "SELECT ID, SpellID, FacingCasterFlags, MinFactionID, MinReputation, ",
-        "RequiredAreasID, RequiredAuraVision, RequiresSpellFocus ",
-        "FROM spell_casting_requirements WHERE (`VerifiedBuild` > 0) = ?"
-    );
-
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(
             data_dir,
@@ -878,37 +847,15 @@ impl SpellCastingRequirementsStore {
 
     /// Compose C++'s final `SpellCastingRequirements` authority: DB2 file,
     /// official/custom SQL replacements, then final hotfix tombstones.
-    pub async fn load_effective_like_cpp(
+    pub fn load_effective_from_hotfix_rows_like_cpp(
         data_dir: &str,
         locale: &str,
-        db: &HotfixDatabase,
+        rows: impl IntoIterator<Item = SpellCastingRequirementsEntry>,
         removals: &crate::Db2HotfixRemovalStoreLikeCpp,
     ) -> Result<Self> {
         let mut store = Self::load(data_dir, locale)?;
-        for official in [true, false] {
-            let mut statement =
-                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
-            statement.set_bool(0, official);
-            let mut result = db.query(&statement).await?;
-            if result.is_empty() {
-                continue;
-            }
-            loop {
-                let entry = SpellCastingRequirementsEntry {
-                    id: result.try_read::<u32>(0).unwrap_or(0),
-                    spell_id: result.try_read::<i32>(1).unwrap_or(0),
-                    facing_caster_flags: result.try_read::<u8>(2).unwrap_or(0),
-                    min_faction_id: result.try_read::<u16>(3).unwrap_or(0),
-                    min_reputation: result.try_read::<i32>(4).unwrap_or(0),
-                    required_areas_id: result.try_read::<u16>(5).unwrap_or(0),
-                    required_aura_vision: result.try_read::<u8>(6).unwrap_or(0),
-                    requires_spell_focus: result.try_read::<u16>(7).unwrap_or(0),
-                };
-                store.entries.insert(entry.id, entry);
-                if !result.next_row() {
-                    break;
-                }
-            }
+        for entry in rows {
+            store.entries.insert(entry.id, entry);
         }
 
         let table_hash = store
@@ -935,12 +882,6 @@ impl SpellCastingRequirementsStore {
 }
 
 impl SpellCategoriesStore {
-    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
-        "SELECT ID, DifficultyID, Category, DefenseType, DispelType, Mechanic, ",
-        "PreventionType, StartRecoveryCategory, ChargeCategory, SpellID ",
-        "FROM spell_categories WHERE (`VerifiedBuild` > 0) = ?"
-    );
-
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellCategories.db2", |id, idx, r| {
             SpellCategoriesEntry {
@@ -961,41 +902,15 @@ impl SpellCategoriesStore {
     /// Load the effective C++ `sSpellCategoriesStore` authority: DB2 file,
     /// official SQL replacements, custom SQL replacements, then final
     /// `hotfix_data` tombstones.
-    pub async fn load_effective_like_cpp(
+    pub fn load_effective_from_hotfix_rows_like_cpp(
         data_dir: &str,
         locale: &str,
-        db: &HotfixDatabase,
+        rows: impl IntoIterator<Item = SpellCategoriesEntry>,
         removals: &crate::Db2HotfixRemovalStoreLikeCpp,
     ) -> Result<Self> {
         let mut store = Self::load(data_dir, locale)?;
-        for official in [true, false] {
-            let mut statement =
-                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
-            statement.set_bool(0, official);
-            let mut result = db
-                .query(&statement)
-                .await
-                .context("failed to load SpellCategories SQL overlay")?;
-            if result.is_empty() {
-                continue;
-            }
-            loop {
-                store.overlay_effective_row_like_cpp(SpellCategoriesEntry {
-                    id: result.try_read::<u32>(0).unwrap_or(0),
-                    difficulty_id: result.try_read::<u8>(1).unwrap_or(0),
-                    category: result.try_read::<i16>(2).unwrap_or(0),
-                    defense_type: result.try_read::<i8>(3).unwrap_or(0),
-                    dispel_type: result.try_read::<i8>(4).unwrap_or(0),
-                    mechanic: result.try_read::<i8>(5).unwrap_or(0),
-                    prevention_type: result.try_read::<i8>(6).unwrap_or(0),
-                    start_recovery_category: result.try_read::<i16>(7).unwrap_or(0),
-                    charge_category: result.try_read::<i16>(8).unwrap_or(0),
-                    spell_id: result.try_read::<u32>(9).unwrap_or(0),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
+        for entry in rows {
+            store.overlay_effective_row_like_cpp(entry);
         }
 
         let table_hash = store
@@ -1102,12 +1017,6 @@ impl SpellClassOptionsStore {
 }
 
 impl SpellCooldownsStore {
-    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
-        "SELECT ID, DifficultyID, CategoryRecoveryTime, RecoveryTime, ",
-        "StartRecoveryTime, SpellID FROM spell_cooldowns ",
-        "WHERE (`VerifiedBuild` > 0) = ?"
-    );
-
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellCooldowns.db2", |id, idx, r| {
             SpellCooldownsEntry {
@@ -1123,37 +1032,15 @@ impl SpellCooldownsStore {
 
     /// Load C++'s effective cooldown authority: DB2, official SQL, custom
     /// SQL, then final `hotfix_data` tombstones.
-    pub async fn load_effective_like_cpp(
+    pub fn load_effective_from_hotfix_rows_like_cpp(
         data_dir: &str,
         locale: &str,
-        db: &HotfixDatabase,
+        rows: impl IntoIterator<Item = SpellCooldownsEntry>,
         removals: &crate::Db2HotfixRemovalStoreLikeCpp,
     ) -> Result<Self> {
         let mut store = Self::load(data_dir, locale)?;
-        for official in [true, false] {
-            let mut statement =
-                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
-            statement.set_bool(0, official);
-            let mut result = db
-                .query(&statement)
-                .await
-                .context("failed to load SpellCooldowns SQL overlay")?;
-            if result.is_empty() {
-                continue;
-            }
-            loop {
-                store.overlay_effective_row_like_cpp(SpellCooldownsEntry {
-                    id: result.try_read::<u32>(0).unwrap_or(0),
-                    difficulty_id: result.try_read::<u8>(1).unwrap_or(0),
-                    category_recovery_time: result.try_read::<i32>(2).unwrap_or(0),
-                    recovery_time: result.try_read::<i32>(3).unwrap_or(0),
-                    start_recovery_time: result.try_read::<i32>(4).unwrap_or(0),
-                    spell_id: result.try_read::<u32>(5).unwrap_or(0),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
+        for entry in rows {
+            store.overlay_effective_row_like_cpp(entry);
         }
 
         let table_hash = store
@@ -1245,31 +1132,12 @@ impl SpellNameStore {
     /// official rows first, then custom rows. The name locale overlays remain
     /// separate; callers that only need `HasRecord` receive the effective ID
     /// set after both base-table passes.
-    pub async fn apply_hotfix_overlays_like_cpp(&mut self, db: &HotfixDatabase) -> Result<usize> {
-        let mut count = 0usize;
-        for official in [true, false] {
-            let mut stmt = db.prepare(HotfixStatements::SEL_SPELL_NAME);
-            stmt.set_bool(0, official);
-            let mut result = db.query(&stmt).await?;
-            if result.is_empty() {
-                continue;
-            }
-
-            loop {
-                if let Some(id) = result.try_read::<u32>(0) {
-                    self.overlay_hotfix_row_like_cpp(
-                        id,
-                        result.try_read::<String>(1).unwrap_or_default(),
-                    );
-                    count += 1;
-                }
-
-                if !result.next_row() {
-                    break;
-                }
-            }
+    pub fn apply_hotfix_rows_like_cpp(&mut self, rows: Vec<SpellNameEntry>) -> usize {
+        let count = rows.len();
+        for entry in rows {
+            self.overlay_hotfix_row_like_cpp(entry.id, entry.name);
         }
-        Ok(count)
+        count
     }
 
     /// Load the effective C++ `sSpellNameStore` used by `SpellMgr`.
@@ -1277,14 +1145,14 @@ impl SpellNameStore {
     /// This keeps the full DB2 lifecycle in one API: file rows, official SQL
     /// replacements, custom SQL replacements, then final `hotfix_data`
     /// removals by `(TableHash, RecordID)`.
-    pub async fn load_effective_like_cpp(
+    pub fn load_effective_from_hotfix_rows_like_cpp(
         data_dir: &str,
         locale: &str,
-        db: &HotfixDatabase,
+        rows: Vec<SpellNameEntry>,
         removals: &crate::Db2HotfixRemovalStoreLikeCpp,
     ) -> Result<(Self, SpellNameEffectiveLoadReportLikeCpp)> {
         let mut store = Self::load(data_dir, locale)?;
-        let overlay_rows = store.apply_hotfix_overlays_like_cpp(db).await?;
+        let overlay_rows = store.apply_hotfix_rows_like_cpp(rows);
         let removed_rows = store.apply_hotfix_removals_like_cpp(removals)?;
 
         Ok((
@@ -1315,13 +1183,6 @@ impl SpellNameStore {
 }
 
 impl SpellPowerStore {
-    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
-        "SELECT ID, OrderIndex, ManaCost, ManaCostPerLevel, ManaPerSecond, ",
-        "PowerDisplayID, AltPowerBarID, PowerCostPct, PowerCostMaxPct, ",
-        "PowerPctPerSecond, PowerType, RequiredAuraSpellID, OptionalCost, SpellID ",
-        "FROM spell_power WHERE (`VerifiedBuild` > 0) = ?"
-    );
-
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellPower.db2", |_id, idx, r| {
             SpellPowerEntry {
@@ -1345,45 +1206,15 @@ impl SpellPowerStore {
 
     /// Load C++'s effective power-cost authority: DB2, official SQL, custom
     /// SQL, then final `hotfix_data` tombstones.
-    pub async fn load_effective_like_cpp(
+    pub fn load_effective_from_hotfix_rows_like_cpp(
         data_dir: &str,
         locale: &str,
-        db: &HotfixDatabase,
+        rows: impl IntoIterator<Item = SpellPowerEntry>,
         removals: &crate::Db2HotfixRemovalStoreLikeCpp,
     ) -> Result<Self> {
         let mut store = Self::load(data_dir, locale)?;
-        for official in [true, false] {
-            let mut statement =
-                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
-            statement.set_bool(0, official);
-            let mut result = db
-                .query(&statement)
-                .await
-                .context("failed to load SpellPower SQL overlay")?;
-            if result.is_empty() {
-                continue;
-            }
-            loop {
-                store.overlay_effective_row_like_cpp(SpellPowerEntry {
-                    id: result.try_read::<u32>(0).unwrap_or(0),
-                    order_index: result.try_read::<u8>(1).unwrap_or(0),
-                    mana_cost: result.try_read::<i32>(2).unwrap_or(0),
-                    mana_cost_per_level: result.try_read::<i32>(3).unwrap_or(0),
-                    mana_per_second: result.try_read::<i32>(4).unwrap_or(0),
-                    power_display_id: result.try_read::<u32>(5).unwrap_or(0),
-                    alt_power_bar_id: result.try_read::<i32>(6).unwrap_or(0),
-                    power_cost_pct: result.try_read::<f32>(7).unwrap_or(0.0),
-                    power_cost_max_pct: result.try_read::<f32>(8).unwrap_or(0.0),
-                    power_pct_per_second: result.try_read::<f32>(9).unwrap_or(0.0),
-                    power_type: result.try_read::<i8>(10).unwrap_or(0),
-                    required_aura_spell_id: result.try_read::<i32>(11).unwrap_or(0),
-                    optional_cost: result.try_read::<u32>(12).unwrap_or(0),
-                    spell_id: result.try_read::<u32>(13).unwrap_or(0),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
+        for entry in rows {
+            store.overlay_effective_row_like_cpp(entry);
         }
 
         let table_hash = store
@@ -1421,11 +1252,6 @@ impl SpellPowerStore {
 }
 
 impl SpellPowerDifficultyStore {
-    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
-        "SELECT ID, DifficultyID, OrderIndex FROM spell_power_difficulty ",
-        "WHERE (`VerifiedBuild` > 0) = ?"
-    );
-
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(
             data_dir,
@@ -1441,34 +1267,15 @@ impl SpellPowerDifficultyStore {
 
     /// Load C++'s effective power-difficulty authority: DB2, official SQL,
     /// custom SQL, then final `hotfix_data` tombstones.
-    pub async fn load_effective_like_cpp(
+    pub fn load_effective_from_hotfix_rows_like_cpp(
         data_dir: &str,
         locale: &str,
-        db: &HotfixDatabase,
+        rows: impl IntoIterator<Item = SpellPowerDifficultyEntry>,
         removals: &crate::Db2HotfixRemovalStoreLikeCpp,
     ) -> Result<Self> {
         let mut store = Self::load(data_dir, locale)?;
-        for official in [true, false] {
-            let mut statement =
-                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
-            statement.set_bool(0, official);
-            let mut result = db
-                .query(&statement)
-                .await
-                .context("failed to load SpellPowerDifficulty SQL overlay")?;
-            if result.is_empty() {
-                continue;
-            }
-            loop {
-                store.overlay_effective_row_like_cpp(SpellPowerDifficultyEntry {
-                    id: result.try_read::<u32>(0).unwrap_or(0),
-                    difficulty_id: result.try_read::<u8>(1).unwrap_or(0),
-                    order_index: result.try_read::<u8>(2).unwrap_or(0),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
+        for entry in rows {
+            store.overlay_effective_row_like_cpp(entry);
         }
 
         let table_hash = store
@@ -1732,20 +1539,6 @@ impl SpellReagentsCurrencyStore {
 }
 
 impl SpellEffectDb2Store {
-    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
-        "SELECT ID, DifficultyID, EffectIndex, Effect, EffectAmplitude, ",
-        "EffectAttributes, EffectAura, EffectAuraPeriod, EffectBasePoints, ",
-        "EffectBonusCoefficient, EffectChainAmplitude, EffectChainTargets, ",
-        "EffectDieSides, EffectItemType, EffectMechanic, EffectPointsPerResource, ",
-        "EffectPosFacing, EffectRealPointsPerLevel, EffectTriggerSpell, ",
-        "BonusCoefficientFromAP, PvpMultiplier, Coefficient, Variance, ",
-        "ResourceCoefficient, GroupSizeBasePointsCoefficient, EffectMiscValue1, ",
-        "EffectMiscValue2, EffectRadiusIndex1, EffectRadiusIndex2, ",
-        "EffectSpellClassMask1, EffectSpellClassMask2, EffectSpellClassMask3, ",
-        "EffectSpellClassMask4, ImplicitTarget1, ImplicitTarget2, SpellID ",
-        "FROM spell_effect WHERE (`VerifiedBuild` > 0) = ?"
-    );
-
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellEffect.db2", |id, idx, r| {
             SpellEffectDb2Entry {
@@ -1792,75 +1585,15 @@ impl SpellEffectDb2Store {
     /// Load the effective C++ `sSpellEffectStore` authority: DB2 file,
     /// official SQL replacements, custom SQL replacements, then final
     /// `hotfix_data` tombstones.
-    pub async fn load_effective_like_cpp(
+    pub fn load_effective_from_hotfix_rows_like_cpp(
         data_dir: &str,
         locale: &str,
-        db: &HotfixDatabase,
+        rows: impl IntoIterator<Item = SpellEffectDb2Entry>,
         removals: &crate::Db2HotfixRemovalStoreLikeCpp,
     ) -> Result<Self> {
         let mut store = Self::load(data_dir, locale)?;
-        for official in [true, false] {
-            let mut statement =
-                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
-            statement.set_bool(0, official);
-            let mut result = db
-                .query(&statement)
-                .await
-                .context("failed to load SpellEffect SQL overlay")?;
-            if result.is_empty() {
-                continue;
-            }
-            loop {
-                store.overlay_effective_row_like_cpp(SpellEffectDb2Entry {
-                    id: result.try_read::<u32>(0).unwrap_or(0),
-                    difficulty_id: result.try_read::<i32>(1).unwrap_or(0),
-                    effect_index: result.try_read::<i32>(2).unwrap_or(0),
-                    effect: result.try_read::<u32>(3).unwrap_or(0),
-                    effect_amplitude: result.try_read::<f32>(4).unwrap_or(0.0),
-                    effect_attributes: result.try_read::<i32>(5).unwrap_or(0),
-                    effect_aura: result.try_read::<i16>(6).unwrap_or(0),
-                    effect_aura_period: result.try_read::<i32>(7).unwrap_or(0),
-                    effect_base_points: result.try_read::<i32>(8).unwrap_or(0),
-                    effect_bonus_coefficient: result.try_read::<f32>(9).unwrap_or(0.0),
-                    effect_chain_amplitude: result.try_read::<f32>(10).unwrap_or(0.0),
-                    effect_chain_targets: result.try_read::<i32>(11).unwrap_or(0),
-                    effect_die_sides: result.try_read::<i32>(12).unwrap_or(0),
-                    effect_item_type: result.try_read::<i32>(13).unwrap_or(0),
-                    effect_mechanic: result.try_read::<i32>(14).unwrap_or(0),
-                    effect_points_per_resource: result.try_read::<f32>(15).unwrap_or(0.0),
-                    effect_pos_facing: result.try_read::<f32>(16).unwrap_or(0.0),
-                    effect_real_points_per_level: result.try_read::<f32>(17).unwrap_or(0.0),
-                    effect_trigger_spell: result.try_read::<i32>(18).unwrap_or(0),
-                    bonus_coefficient_from_ap: result.try_read::<f32>(19).unwrap_or(0.0),
-                    pvp_multiplier: result.try_read::<f32>(20).unwrap_or(0.0),
-                    coefficient: result.try_read::<f32>(21).unwrap_or(0.0),
-                    variance: result.try_read::<f32>(22).unwrap_or(0.0),
-                    resource_coefficient: result.try_read::<f32>(23).unwrap_or(0.0),
-                    group_size_base_points_coefficient: result.try_read::<f32>(24).unwrap_or(0.0),
-                    effect_misc_value: [
-                        result.try_read::<i32>(25).unwrap_or(0),
-                        result.try_read::<i32>(26).unwrap_or(0),
-                    ],
-                    effect_radius_index: [
-                        result.try_read::<u32>(27).unwrap_or(0),
-                        result.try_read::<u32>(28).unwrap_or(0),
-                    ],
-                    effect_spell_class_mask: [
-                        result.try_read::<i32>(29).unwrap_or(0) as u32,
-                        result.try_read::<i32>(30).unwrap_or(0) as u32,
-                        result.try_read::<i32>(31).unwrap_or(0) as u32,
-                        result.try_read::<i32>(32).unwrap_or(0) as u32,
-                    ],
-                    implicit_target: [
-                        result.try_read::<i16>(33).unwrap_or(0),
-                        result.try_read::<i16>(34).unwrap_or(0),
-                    ],
-                    spell_id: result.try_read::<u32>(35).unwrap_or(0),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
+        for entry in rows {
+            store.overlay_effective_row_like_cpp(entry);
         }
 
         let table_hash = store
@@ -1978,12 +1711,6 @@ impl SpellFocusObjectStore {
 }
 
 impl SpellInterruptsStore {
-    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
-        "SELECT ID, DifficultyID, InterruptFlags, AuraInterruptFlags1, ",
-        "AuraInterruptFlags2, ChannelInterruptFlags1, ChannelInterruptFlags2, ",
-        "SpellID FROM spell_interrupts WHERE (`VerifiedBuild` > 0) = ?"
-    );
-
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellInterrupts.db2", |id, idx, r| {
             SpellInterruptsEntry {
@@ -2008,43 +1735,15 @@ impl SpellInterruptsStore {
     /// `SpellStore` is what makes the tombstone pass reachable: a removed row
     /// must stop contributing its aura/channel masks instead of keeping the file
     /// values a row-keyed overlay would leave behind.
-    pub async fn load_effective_like_cpp(
+    pub fn load_effective_from_hotfix_rows_like_cpp(
         data_dir: &str,
         locale: &str,
-        db: &HotfixDatabase,
+        rows: impl IntoIterator<Item = SpellInterruptsEntry>,
         removals: &crate::Db2HotfixRemovalStoreLikeCpp,
     ) -> Result<Self> {
         let mut store = Self::load(data_dir, locale)?;
-        for official in [true, false] {
-            let mut statement =
-                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
-            statement.set_bool(0, official);
-            let mut result = db
-                .query(&statement)
-                .await
-                .context("failed to load SpellInterrupts SQL overlay")?;
-            if result.is_empty() {
-                continue;
-            }
-            loop {
-                store.overlay_effective_row_like_cpp(SpellInterruptsEntry {
-                    id: result.try_read::<u32>(0).unwrap_or(0),
-                    difficulty_id: result.try_read::<u8>(1).unwrap_or(0),
-                    interrupt_flags: result.try_read::<i16>(2).unwrap_or(0),
-                    aura_interrupt_flags: [
-                        result.try_read::<i32>(3).unwrap_or(0),
-                        result.try_read::<i32>(4).unwrap_or(0),
-                    ],
-                    channel_interrupt_flags: [
-                        result.try_read::<i32>(5).unwrap_or(0),
-                        result.try_read::<i32>(6).unwrap_or(0),
-                    ],
-                    spell_id: result.try_read::<u32>(7).unwrap_or(0),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
+        for entry in rows {
+            store.overlay_effective_row_like_cpp(entry);
         }
         store.apply_final_hotfix_removals_like_cpp(removals)?;
         Ok(store)
@@ -2139,16 +1838,6 @@ impl SpellLevelsStore {
 }
 
 impl SpellMiscStore {
-    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
-        "SELECT ID, Attributes1, Attributes2, Attributes3, Attributes4, ",
-        "Attributes5, Attributes6, Attributes7, Attributes8, Attributes9, ",
-        "Attributes10, Attributes11, Attributes12, Attributes13, Attributes14, ",
-        "Attributes15, DifficultyID, CastingTimeIndex, DurationIndex, RangeIndex, ",
-        "SchoolMask, Speed, LaunchDelay, MinDuration, SpellIconFileDataID, ",
-        "ActiveIconFileDataID, ContentTuningID, ShowFutureSpellPlayerConditionID, ",
-        "SpellID FROM spell_misc WHERE (`VerifiedBuild` > 0) = ?"
-    );
-
     pub fn get_by_spell_id(&self, spell_id: u32) -> Option<&SpellMiscEntry> {
         self.entries
             .values()
@@ -2191,48 +1880,15 @@ impl SpellMiscStore {
     /// Load the effective C++ `sSpellMiscStore` authority: DB2 file,
     /// official SQL replacements, custom SQL replacements, then final
     /// `hotfix_data` tombstones.
-    pub async fn load_effective_like_cpp(
+    pub fn load_effective_from_hotfix_rows_like_cpp(
         data_dir: &str,
         locale: &str,
-        db: &HotfixDatabase,
+        rows: impl IntoIterator<Item = SpellMiscEntry>,
         removals: &crate::Db2HotfixRemovalStoreLikeCpp,
     ) -> Result<Self> {
         let mut store = Self::load(data_dir, locale)?;
-        for official in [true, false] {
-            let mut statement =
-                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
-            statement.set_bool(0, official);
-            let mut result = db
-                .query(&statement)
-                .await
-                .context("failed to load SpellMisc SQL overlay")?;
-            if result.is_empty() {
-                continue;
-            }
-            loop {
-                store.overlay_effective_row_like_cpp(SpellMiscEntry {
-                    id: result.try_read::<u32>(0).unwrap_or(0),
-                    attributes: std::array::from_fn(|index| {
-                        result.try_read::<i32>(index + 1).unwrap_or(0)
-                    }),
-                    difficulty_id: result.try_read::<u8>(16).unwrap_or(0),
-                    casting_time_index: result.try_read::<u16>(17).unwrap_or(0),
-                    duration_index: result.try_read::<u16>(18).unwrap_or(0),
-                    range_index: result.try_read::<u16>(19).unwrap_or(0),
-                    school_mask: result.try_read::<u8>(20).unwrap_or(0),
-                    speed: result.try_read::<f32>(21).unwrap_or(0.0),
-                    launch_delay: result.try_read::<f32>(22).unwrap_or(0.0),
-                    min_duration: result.try_read::<f32>(23).unwrap_or(0.0),
-                    spell_icon_file_data_id: result.try_read::<i32>(24).unwrap_or(0),
-                    active_icon_file_data_id: result.try_read::<i32>(25).unwrap_or(0),
-                    content_tuning_id: result.try_read::<i32>(26).unwrap_or(0),
-                    show_future_spell_player_condition_id: result.try_read::<i32>(27).unwrap_or(0),
-                    spell_id: result.try_read::<u32>(28).unwrap_or(0),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
+        for entry in rows {
+            store.overlay_effective_row_like_cpp(entry);
         }
 
         let table_hash = store
@@ -2272,12 +1928,6 @@ impl SpellScalingStore {
 }
 
 impl SpellShapeshiftStore {
-    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
-        "SELECT ID, SpellID, StanceBarOrder, ShapeshiftExclude1, ShapeshiftExclude2, ",
-        "ShapeshiftMask1, ShapeshiftMask2 FROM spell_shapeshift ",
-        "WHERE (`VerifiedBuild` > 0) = ?"
-    );
-
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellShapeshift.db2", |id, idx, r| {
             SpellShapeshiftEntry {
@@ -2295,42 +1945,15 @@ impl SpellShapeshiftStore {
     /// Load C++'s effective shapeshift authority: DB2, official SQL, custom SQL,
     /// then final `hotfix_data` tombstones. A tombstoned row must stop gating
     /// the spell's stance requirement entirely.
-    pub async fn load_effective_like_cpp(
+    pub fn load_effective_from_hotfix_rows_like_cpp(
         data_dir: &str,
         locale: &str,
-        db: &HotfixDatabase,
+        rows: impl IntoIterator<Item = SpellShapeshiftEntry>,
         removals: &crate::Db2HotfixRemovalStoreLikeCpp,
     ) -> Result<Self> {
         let mut store = Self::load(data_dir, locale)?;
-        for official in [true, false] {
-            let mut statement =
-                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
-            statement.set_bool(0, official);
-            let mut result = db
-                .query(&statement)
-                .await
-                .context("failed to load SpellShapeshift SQL overlay")?;
-            if result.is_empty() {
-                continue;
-            }
-            loop {
-                store.overlay_effective_row_like_cpp(SpellShapeshiftEntry {
-                    id: result.try_read::<u32>(0).unwrap_or(0),
-                    spell_id: result.try_read::<i32>(1).unwrap_or(0),
-                    stance_bar_order: result.try_read::<i8>(2).unwrap_or(0),
-                    shapeshift_exclude: [
-                        result.try_read::<i32>(3).unwrap_or(0),
-                        result.try_read::<i32>(4).unwrap_or(0),
-                    ],
-                    shapeshift_mask: [
-                        result.try_read::<i32>(5).unwrap_or(0),
-                        result.try_read::<i32>(6).unwrap_or(0),
-                    ],
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
+        for entry in rows {
+            store.overlay_effective_row_like_cpp(entry);
         }
         store.apply_final_hotfix_removals_like_cpp(removals)?;
         Ok(store)
