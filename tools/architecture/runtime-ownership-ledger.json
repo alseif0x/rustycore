@@ -1723,11 +1723,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 27180,
-          "test_lines": 23501,
-          "total_lines": 50681,
+          "production_lines": 27277,
+          "test_lines": 23641,
+          "total_lines": 50918,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-          "latest_growth_review": "#517 completes the private SpellMgr World-catalog boundary for five complex families: +165 production conversion/composition lines and +101 focused field/failure test lines; SQL remains in wow-database while area/group/proc/target validation remains in wow-data.",
+          "latest_growth_review": "#519 adds the private trainer-catalog composition boundary: +97 production conversion/composition lines and +140 focused field, success and failure-before-publication test lines; SQL remains in wow-database while trainer/spell/locale/creature validation remains in wow-data.",
           "open_retirement_issues": [
             153
           ],

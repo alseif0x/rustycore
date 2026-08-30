@@ -2894,8 +2894,10 @@ async fn run_inner(
         npc_vendor_store.len(),
         npc_vendor_outcome.report.reference_rows_seen
     );
-    let trainer_data_outcome = wow_data::TrainerStoreLikeCpp::load_like_cpp(
-        world_db.as_ref(),
+    let trainer_catalog_persistence =
+        wow_database::MariaDbTrainerCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
+    let trainer_data_outcome = crate::trainer_catalog::load_trainer_catalog_like_cpp(
+        &trainer_catalog_persistence,
         |spell_id| {
             spell_store.contains_spell_info_difficulty_none_like_cpp(
                 serverside_spell_store.as_ref(),

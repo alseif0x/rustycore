@@ -29,6 +29,7 @@ mod reputation_catalog;
 mod spell_core_db2_hotfix;
 mod spell_info_key_hotfix;
 mod spell_world_catalog;
+mod trainer_catalog;
 mod vehicle_catalog;
 
 pub use area_trigger_template_catalog::{
@@ -87,6 +88,12 @@ pub use spell_world_catalog::{
     SpellRequiredPersistenceRowLikeCpp, SpellTargetPositionPersistenceRowLikeCpp,
     SpellThreatPersistenceRowLikeCpp, SpellTotemModelPersistenceRowLikeCpp,
     SpellWorldCatalogLoadOutcomeLikeCpp, SpellWorldCatalogPersistencePortLikeCpp,
+};
+pub use trainer_catalog::{
+    CreatureTrainerPersistenceRowLikeCpp, TrainerCatalogLoadOutcomeLikeCpp,
+    TrainerCatalogPersistencePortLikeCpp, TrainerCatalogPersistenceRowsLikeCpp,
+    TrainerLocalePersistenceRowLikeCpp, TrainerPersistenceRowLikeCpp,
+    TrainerSpellPersistenceRowLikeCpp,
 };
 pub use vehicle_catalog::{
     VEHICLE_SEAT_COUNT_LIKE_CPP, VehicleHotfixLoadOutcomeLikeCpp,
