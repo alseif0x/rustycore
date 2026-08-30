@@ -2051,91 +2051,6 @@
     },
     {
       "package": "wow-data",
-      "module": "crate::creature_display",
-      "source": "crates/wow-data/src/creature_display.rs",
-      "enclosing": "impl CreatureDisplayInfoStore::load_hotfix_rows",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::creature_display",
-      "source": "crates/wow-data/src/creature_display.rs",
-      "enclosing": "impl CreatureDisplayInfoStore::load_with_hotfixes",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::creature_display",
-      "source": "crates/wow-data/src/creature_display.rs",
-      "enclosing": "impl CreatureModelDataStore::load_hotfix_rows",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::creature_display",
-      "source": "crates/wow-data/src/creature_display.rs",
-      "enclosing": "impl CreatureModelDataStore::load_with_hotfixes",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::creature_display",
-      "source": "crates/wow-data/src/creature_display.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for hotfix; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
       "module": "crate::creature_equipment",
       "source": "crates/wow-data/src/creature_equipment.rs",
       "enclosing": "impl CreatureEquipmentStoreLikeCpp::load_like_cpp",
@@ -15569,6 +15484,141 @@
       "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
       "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
       "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::creature_display_hotfix_adapter",
+      "source": "crates/wow-database/src/creature_display_hotfix_adapter.rs",
+      "enclosing": "fn display_row_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free creature display/model Hotfix capability (#540)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
+      "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
+      "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::creature_display_hotfix_adapter",
+      "source": "crates/wow-database/src/creature_display_hotfix_adapter.rs",
+      "enclosing": "fn model_row_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free creature display/model Hotfix capability (#540)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
+      "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
+      "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::creature_display_hotfix_adapter",
+      "source": "crates/wow-database/src/creature_display_hotfix_adapter.rs",
+      "enclosing": "fn read_f32_checked_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free creature display/model Hotfix capability (#540)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
+      "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
+      "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::creature_display_hotfix_adapter",
+      "source": "crates/wow-database/src/creature_display_hotfix_adapter.rs",
+      "enclosing": "fn read_integer_checked_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free creature display/model Hotfix capability (#540)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
+      "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
+      "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::creature_display_hotfix_adapter",
+      "source": "crates/wow-database/src/creature_display_hotfix_adapter.rs",
+      "enclosing": "impl MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free creature display/model Hotfix capability (#540)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
+      "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
+      "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::creature_display_hotfix_adapter",
+      "source": "crates/wow-database/src/creature_display_hotfix_adapter.rs",
+      "enclosing": "impl wow_persistence::CreatureDisplayHotfixPersistencePortLikeCpp for MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp::load_creature_display_info_rows_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free creature display/model Hotfix capability (#540)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
+      "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
+      "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::creature_display_hotfix_adapter",
+      "source": "crates/wow-database/src/creature_display_hotfix_adapter.rs",
+      "enclosing": "impl wow_persistence::CreatureDisplayHotfixPersistencePortLikeCpp for MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp::load_creature_model_data_rows_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free creature display/model Hotfix capability (#540)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
+      "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
+      "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::creature_display_hotfix_adapter",
+      "source": "crates/wow-database/src/creature_display_hotfix_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free creature display/model Hotfix capability (#540)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
+      "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
+      "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::creature_display_hotfix_adapter",
+      "source": "crates/wow-database/src/creature_display_hotfix_adapter.rs",
+      "enclosing": "struct MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free creature display/model Hotfix capability (#540)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
+      "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
+      "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists."
     }
   ]
 }
