@@ -7813,70 +7813,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-data:crate::spell::stores:crates/wow-data/src/spell/stores.rs::impl SpellLinkedStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell/stores.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell::stores"
-      ],
-      "enclosings": [
-        "impl SpellLinkedStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl SpellLinkedStoreLikeCpp::load_like_cpp in crates/wow-data/src/spell/stores.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell::stores:crates/wow-data/src/spell/stores.rs::impl SpellPetAuraStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell/stores.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell::stores"
-      ],
-      "enclosings": [
-        "impl SpellPetAuraStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl SpellPetAuraStoreLikeCpp::load_like_cpp in crates/wow-data/src/spell/stores.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-data:crate::spell::stores:crates/wow-data/src/spell/stores.rs::impl SpellProcStoreLikeCpp::load_like_cpp",
       "source_class": "production",
       "packages": [
@@ -7909,38 +7845,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-data:crate::spell::stores:crates/wow-data/src/spell/stores.rs::impl SpellRequiredStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell/stores.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell::stores"
-      ],
-      "enclosings": [
-        "impl SpellRequiredStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl SpellRequiredStoreLikeCpp::load_like_cpp in crates/wow-data/src/spell/stores.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-data:crate::spell::stores:crates/wow-data/src/spell/stores.rs::impl SpellTargetPositionStoreLikeCpp::load_like_cpp",
       "source_class": "production",
       "packages": [
@@ -7963,70 +7867,6 @@
         "world"
       ],
       "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl SpellTargetPositionStoreLikeCpp::load_like_cpp in crates/wow-data/src/spell/stores.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell::stores:crates/wow-data/src/spell/stores.rs::impl SpellThreatStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell/stores.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell::stores"
-      ],
-      "enclosings": [
-        "impl SpellThreatStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl SpellThreatStoreLikeCpp::load_like_cpp in crates/wow-data/src/spell/stores.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell::stores:crates/wow-data/src/spell/stores.rs::impl SpellTotemModelStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell/stores.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell::stores"
-      ],
-      "enclosings": [
-        "impl SpellTotemModelStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl SpellTotemModelStoreLikeCpp::load_like_cpp in crates/wow-data/src/spell/stores.rs.",
       "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -21533,6 +21373,336 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::spell_world_catalog_adapter:crates/wow-database/src/spell_world_catalog_adapter.rs::const FOUNDATIONAL_SPELL_STATEMENTS_LIKE_CPP",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "const FOUNDATIONAL_SPELL_STATEMENTS_LIKE_CPP"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free foundational SpellMgr World catalogs (#515) currently owns the complete wow-database workflow const FOUNDATIONAL_SPELL_STATEMENTS_LIKE_CPP in crates/wow-database/src/spell_world_catalog_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the World connection; the five reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each family executes its exact C++ World query and fully decodes the typed rows before wow-data validation and immutable publication; world-server preserves the pre-cut invocation order.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable catalog is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_world_catalog_adapter:crates/wow-database/src/spell_world_catalog_adapter.rs::fn classify_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn classify_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free foundational SpellMgr World catalogs (#515) currently owns the complete wow-database workflow fn classify_rows_like_cpp in crates/wow-database/src/spell_world_catalog_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the World connection; the five reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each family executes its exact C++ World query and fully decodes the typed rows before wow-data validation and immutable publication; world-server preserves the pre-cut invocation order.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable catalog is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_world_catalog_adapter:crates/wow-database/src/spell_world_catalog_adapter.rs::fn query_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn query_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free foundational SpellMgr World catalogs (#515) currently owns the complete wow-database workflow fn query_rows_like_cpp in crates/wow-database/src/spell_world_catalog_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the World connection; the five reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each family executes its exact C++ World query and fully decodes the typed rows before wow-data validation and immutable publication; world-server preserves the pre-cut invocation order.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable catalog is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_world_catalog_adapter:crates/wow-database/src/spell_world_catalog_adapter.rs::impl MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free foundational SpellMgr World catalogs (#515) currently owns the complete wow-database workflow impl MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::new in crates/wow-database/src/spell_world_catalog_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the World connection; the five reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each family executes its exact C++ World query and fully decodes the typed rows before wow-data validation and immutable publication; world-server preserves the pre-cut invocation order.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable catalog is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_world_catalog_adapter:crates/wow-database/src/spell_world_catalog_adapter.rs::impl wow_persistence::SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::load_spell_linked_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::load_spell_linked_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free foundational SpellMgr World catalogs (#515) currently owns the complete wow-database workflow impl wow_persistence::SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::load_spell_linked_rows_like_cpp in crates/wow-database/src/spell_world_catalog_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the World connection; the five reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each family executes its exact C++ World query and fully decodes the typed rows before wow-data validation and immutable publication; world-server preserves the pre-cut invocation order.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable catalog is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_world_catalog_adapter:crates/wow-database/src/spell_world_catalog_adapter.rs::impl wow_persistence::SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::load_spell_pet_aura_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::load_spell_pet_aura_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free foundational SpellMgr World catalogs (#515) currently owns the complete wow-database workflow impl wow_persistence::SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::load_spell_pet_aura_rows_like_cpp in crates/wow-database/src/spell_world_catalog_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the World connection; the five reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each family executes its exact C++ World query and fully decodes the typed rows before wow-data validation and immutable publication; world-server preserves the pre-cut invocation order.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable catalog is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_world_catalog_adapter:crates/wow-database/src/spell_world_catalog_adapter.rs::impl wow_persistence::SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::load_spell_required_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::load_spell_required_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free foundational SpellMgr World catalogs (#515) currently owns the complete wow-database workflow impl wow_persistence::SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::load_spell_required_rows_like_cpp in crates/wow-database/src/spell_world_catalog_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the World connection; the five reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each family executes its exact C++ World query and fully decodes the typed rows before wow-data validation and immutable publication; world-server preserves the pre-cut invocation order.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable catalog is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_world_catalog_adapter:crates/wow-database/src/spell_world_catalog_adapter.rs::impl wow_persistence::SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::load_spell_threat_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::load_spell_threat_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free foundational SpellMgr World catalogs (#515) currently owns the complete wow-database workflow impl wow_persistence::SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::load_spell_threat_rows_like_cpp in crates/wow-database/src/spell_world_catalog_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the World connection; the five reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each family executes its exact C++ World query and fully decodes the typed rows before wow-data validation and immutable publication; world-server preserves the pre-cut invocation order.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable catalog is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_world_catalog_adapter:crates/wow-database/src/spell_world_catalog_adapter.rs::impl wow_persistence::SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::load_spell_totem_model_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::load_spell_totem_model_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free foundational SpellMgr World catalogs (#515) currently owns the complete wow-database workflow impl wow_persistence::SpellWorldCatalogPersistencePortLikeCpp for MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::load_spell_totem_model_rows_like_cpp in crates/wow-database/src/spell_world_catalog_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the World connection; the five reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each family executes its exact C++ World query and fully decodes the typed rows before wow-data validation and immutable publication; world-server preserves the pre-cut invocation order.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable catalog is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_world_catalog_adapter:crates/wow-database/src/spell_world_catalog_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free foundational SpellMgr World catalogs (#515) currently owns the complete wow-database workflow module in crates/wow-database/src/spell_world_catalog_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the World connection; the five reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each family executes its exact C++ World query and fully decodes the typed rows before wow-data validation and immutable publication; world-server preserves the pre-cut invocation order.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable catalog is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_world_catalog_adapter:crates/wow-database/src/spell_world_catalog_adapter.rs::struct MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free foundational SpellMgr World catalogs (#515) currently owns the complete wow-database workflow struct MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp in crates/wow-database/src/spell_world_catalog_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the World connection; the five reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each family executes its exact C++ World query and fully decodes the typed rows before wow-data validation and immutable publication; world-server preserves the pre-cut invocation order.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable catalog is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::statements:crates/wow-database/src/statements/mod.rs::module",
       "source_class": "production",
       "packages": [
@@ -28494,6 +28664,7 @@
         "crates/wow-database/src/respawn_persistence_adapter.rs",
         "crates/wow-database/src/session_account_state_adapter.rs",
         "crates/wow-database/src/spell_core_db2_hotfix_adapter.rs",
+        "crates/wow-database/src/spell_world_catalog_adapter.rs",
         "crates/wow-database/src/statements/character.rs",
         "crates/wow-database/src/statements/hotfix.rs",
         "crates/wow-database/src/statements/mod.rs",

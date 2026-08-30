@@ -28,6 +28,7 @@ mod player_choice;
 mod reputation_catalog;
 mod spell_core_db2_hotfix;
 mod spell_info_key_hotfix;
+mod spell_world_catalog;
 mod vehicle_catalog;
 
 pub use area_trigger_template_catalog::{
@@ -78,6 +79,12 @@ pub use spell_info_key_hotfix::{
     SpellInfoKeyContributorHotfixRowLikeCpp, SpellInfoKeyContributorLikeCpp,
     SpellInfoKeyHotfixLoadOutcomeLikeCpp, SpellInfoKeyHotfixPersistencePortLikeCpp,
     SpellInfoKeyHotfixRowsLikeCpp, SpellInfoPowerDifficultyHotfixRowLikeCpp,
+};
+pub use spell_world_catalog::{
+    SpellLinkedPersistenceRowLikeCpp, SpellPetAuraPersistenceRowLikeCpp,
+    SpellRequiredPersistenceRowLikeCpp, SpellThreatPersistenceRowLikeCpp,
+    SpellTotemModelPersistenceRowLikeCpp, SpellWorldCatalogLoadOutcomeLikeCpp,
+    SpellWorldCatalogPersistencePortLikeCpp,
 };
 pub use vehicle_catalog::{
     VEHICLE_SEAT_COUNT_LIKE_CPP, VehicleHotfixLoadOutcomeLikeCpp,
