@@ -39,6 +39,7 @@ pub mod battle_pet_account_adapter;
 pub mod battle_pet_purchase_adapter;
 pub mod character_enumeration_adapter;
 pub mod chr_specialization_hotfix_adapter;
+pub mod creature_display_hotfix_adapter;
 pub mod creature_query_catalog_adapter;
 pub mod database;
 pub mod difficulty_hotfix_adapter;
@@ -95,6 +96,7 @@ pub use battle_pet_account_adapter::LoginBattlePetPersistenceLikeCpp;
 pub use battle_pet_purchase_adapter::CharacterBattlePetPurchasePersistenceAdapterLikeCpp;
 pub use character_enumeration_adapter::MariaDbCharacterEnumerationPersistenceAdapterLikeCpp;
 pub use chr_specialization_hotfix_adapter::MariaDbChrSpecializationHotfixPersistenceAdapterLikeCpp;
+pub use creature_display_hotfix_adapter::MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp;
 pub use creature_query_catalog_adapter::MariaDbCreatureQueryCatalogPersistenceAdapterLikeCpp;
 pub use database::{
     Database, build_connection_string, build_connection_string_with_ssl_like_cpp,

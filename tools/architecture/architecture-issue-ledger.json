@@ -127,6 +127,7 @@
     534,
     536,
     538,
+    540,
     189,
     192,
     193,
@@ -2005,7 +2006,7 @@
   },
   {
     "number": 538,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.77] Reuse the typed HotfixData source for effective DB2 removals",
     "kind": "slice",
     "parents": [
@@ -2015,6 +2016,19 @@
     "depends_on": [
       534,
       536
+    ]
+  },
+  {
+    "number": 540,
+    "state": "open",
+    "title": "[ARCH.DB.78] Move creature display/model Hotfix overlays behind one typed source",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      538
     ]
   }
 ]

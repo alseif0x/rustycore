@@ -3839,166 +3839,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-data:crate::creature_display:crates/wow-data/src/creature_display.rs::impl CreatureDisplayInfoStore::load_hotfix_rows",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/creature_display.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::creature_display"
-      ],
-      "enclosings": [
-        "impl CreatureDisplayInfoStore::load_hotfix_rows"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl CreatureDisplayInfoStore::load_hotfix_rows in crates/wow-data/src/creature_display.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::creature_display:crates/wow-data/src/creature_display.rs::impl CreatureDisplayInfoStore::load_with_hotfixes",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/creature_display.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::creature_display"
-      ],
-      "enclosings": [
-        "impl CreatureDisplayInfoStore::load_with_hotfixes"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl CreatureDisplayInfoStore::load_with_hotfixes in crates/wow-data/src/creature_display.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::creature_display:crates/wow-data/src/creature_display.rs::impl CreatureModelDataStore::load_hotfix_rows",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/creature_display.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::creature_display"
-      ],
-      "enclosings": [
-        "impl CreatureModelDataStore::load_hotfix_rows"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl CreatureModelDataStore::load_hotfix_rows in crates/wow-data/src/creature_display.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::creature_display:crates/wow-data/src/creature_display.rs::impl CreatureModelDataStore::load_with_hotfixes",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/creature_display.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::creature_display"
-      ],
-      "enclosings": [
-        "impl CreatureModelDataStore::load_with_hotfixes"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl CreatureModelDataStore::load_with_hotfixes in crates/wow-data/src/creature_display.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::creature_display:crates/wow-data/src/creature_display.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/creature_display.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::creature_display"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow module in crates/wow-data/src/creature_display.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for hotfix; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-data:crate::creature_equipment:crates/wow-data/src/creature_equipment.rs::impl CreatureEquipmentStoreLikeCpp::load_like_cpp",
       "source_class": "production",
       "packages": [
@@ -9857,6 +9697,276 @@
       "connection_affinity": "The adapter owns exactly one shared Hotfix database handle.",
       "current_order": "The handle surface introduces no runtime order beyond the port method.",
       "failure_and_unknown_commit": "The handle surface performs no I/O and implies no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::creature_display_hotfix_adapter:crates/wow-database/src/creature_display_hotfix_adapter.rs::fn display_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/creature_display_hotfix_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::creature_display_hotfix_adapter"
+      ],
+      "enclosings": [
+        "fn display_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free creature display/model Hotfix capability (#540) currently owns the complete wow-database workflow fn display_row_like_cpp in crates/wow-database/src/creature_display_hotfix_adapter.rs.",
+      "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
+      "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
+      "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::creature_display_hotfix_adapter:crates/wow-database/src/creature_display_hotfix_adapter.rs::fn model_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/creature_display_hotfix_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::creature_display_hotfix_adapter"
+      ],
+      "enclosings": [
+        "fn model_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free creature display/model Hotfix capability (#540) currently owns the complete wow-database workflow fn model_row_like_cpp in crates/wow-database/src/creature_display_hotfix_adapter.rs.",
+      "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
+      "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
+      "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::creature_display_hotfix_adapter:crates/wow-database/src/creature_display_hotfix_adapter.rs::fn read_f32_checked_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/creature_display_hotfix_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::creature_display_hotfix_adapter"
+      ],
+      "enclosings": [
+        "fn read_f32_checked_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free creature display/model Hotfix capability (#540) currently owns the complete wow-database workflow fn read_f32_checked_like_cpp in crates/wow-database/src/creature_display_hotfix_adapter.rs.",
+      "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
+      "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
+      "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::creature_display_hotfix_adapter:crates/wow-database/src/creature_display_hotfix_adapter.rs::fn read_integer_checked_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/creature_display_hotfix_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::creature_display_hotfix_adapter"
+      ],
+      "enclosings": [
+        "fn read_integer_checked_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free creature display/model Hotfix capability (#540) currently owns the complete wow-database workflow fn read_integer_checked_like_cpp in crates/wow-database/src/creature_display_hotfix_adapter.rs.",
+      "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
+      "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
+      "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::creature_display_hotfix_adapter:crates/wow-database/src/creature_display_hotfix_adapter.rs::impl MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/creature_display_hotfix_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::creature_display_hotfix_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free creature display/model Hotfix capability (#540) currently owns the complete wow-database workflow impl MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp::new in crates/wow-database/src/creature_display_hotfix_adapter.rs.",
+      "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
+      "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
+      "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::creature_display_hotfix_adapter:crates/wow-database/src/creature_display_hotfix_adapter.rs::impl wow_persistence::CreatureDisplayHotfixPersistencePortLikeCpp for MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp::load_creature_display_info_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/creature_display_hotfix_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::creature_display_hotfix_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::CreatureDisplayHotfixPersistencePortLikeCpp for MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp::load_creature_display_info_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free creature display/model Hotfix capability (#540) currently owns the complete wow-database workflow impl wow_persistence::CreatureDisplayHotfixPersistencePortLikeCpp for MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp::load_creature_display_info_rows_like_cpp in crates/wow-database/src/creature_display_hotfix_adapter.rs.",
+      "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
+      "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
+      "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::creature_display_hotfix_adapter:crates/wow-database/src/creature_display_hotfix_adapter.rs::impl wow_persistence::CreatureDisplayHotfixPersistencePortLikeCpp for MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp::load_creature_model_data_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/creature_display_hotfix_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::creature_display_hotfix_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::CreatureDisplayHotfixPersistencePortLikeCpp for MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp::load_creature_model_data_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free creature display/model Hotfix capability (#540) currently owns the complete wow-database workflow impl wow_persistence::CreatureDisplayHotfixPersistencePortLikeCpp for MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp::load_creature_model_data_rows_like_cpp in crates/wow-database/src/creature_display_hotfix_adapter.rs.",
+      "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
+      "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
+      "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::creature_display_hotfix_adapter:crates/wow-database/src/creature_display_hotfix_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/creature_display_hotfix_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::creature_display_hotfix_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free creature display/model Hotfix capability (#540) currently owns the complete wow-database workflow module in crates/wow-database/src/creature_display_hotfix_adapter.rs.",
+      "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
+      "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
+      "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::creature_display_hotfix_adapter:crates/wow-database/src/creature_display_hotfix_adapter.rs::struct MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/creature_display_hotfix_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::creature_display_hotfix_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free creature display/model Hotfix capability (#540) currently owns the complete wow-database workflow struct MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp in crates/wow-database/src/creature_display_hotfix_adapter.rs.",
+      "connection_affinity": "The workflow uses or describes the adapter own single Hotfix handle; it opens no transaction and implies no wider database boundary.",
+      "current_order": "Preserve independent CreatureDisplayInfo then CreatureModelData startup stages; each selected query fully decodes in result order before its typed outcome crosses the port.",
+      "failure_and_unknown_commit": "A query, missing/type-invalid or out-of-width consumed field returns one Failed stage before domain mutation; empty remains a successful empty overlay and no commit outcome exists.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -30038,6 +30148,7 @@
         "crates/wow-database/src/battle_pet_account_adapter.rs",
         "crates/wow-database/src/character_enumeration_adapter.rs",
         "crates/wow-database/src/chr_specialization_hotfix_adapter.rs",
+        "crates/wow-database/src/creature_display_hotfix_adapter.rs",
         "crates/wow-database/src/creature_query_catalog_adapter.rs",
         "crates/wow-database/src/database.rs",
         "crates/wow-database/src/difficulty_hotfix_adapter.rs",

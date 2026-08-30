@@ -8,11 +8,9 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use crate::wdc4::Wdc4Reader;
 use anyhow::{Context, Result};
 use tracing::info;
-use wow_database::{HotfixDatabase, HotfixStatements};
-
-use crate::wdc4::Wdc4Reader;
 
 pub const DEFAULT_COLLISION_HEIGHT_LIKE_CPP: f32 = 2.03128;
 
@@ -89,42 +87,16 @@ impl CreatureDisplayInfoStore {
         Ok(store)
     }
 
-    pub async fn load_with_hotfixes(
-        data_dir: &str,
-        locale: &str,
-        hotfix_db: &HotfixDatabase,
-    ) -> Result<Self> {
-        let mut store = Self::load(data_dir, locale)?;
-        let hotfix_rows = store.load_hotfix_rows(hotfix_db).await?;
-        if hotfix_rows != 0 {
-            info!("Loaded {hotfix_rows} CreatureDisplayInfo hotfix rows");
-        }
-        Ok(store)
-    }
-
-    async fn load_hotfix_rows(&mut self, db: &HotfixDatabase) -> Result<usize> {
-        let stmt = db.prepare(HotfixStatements::SEL_CREATURE_DISPLAY_INFO);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(0);
-        }
-
-        let mut count = 0usize;
-        loop {
-            let entry = CreatureDisplayInfoEntry {
-                id: result.read(0),
-                model_id: result.read(1),
-                extended_display_info_id: result.read(7),
-                creature_model_scale: result.read(4),
-            };
+    pub fn apply_hotfix_entries_like_cpp(
+        &mut self,
+        entries: impl IntoIterator<Item = CreatureDisplayInfoEntry>,
+    ) -> usize {
+        let mut count = 0;
+        for entry in entries {
             self.entries.insert(entry.id, entry);
             count += 1;
-
-            if !result.next_row() {
-                break;
-            }
         }
-        Ok(count)
+        count
     }
 
     pub fn get(&self, id: u32) -> Option<&CreatureDisplayInfoEntry> {
@@ -185,45 +157,16 @@ impl CreatureModelDataStore {
         Ok(store)
     }
 
-    pub async fn load_with_hotfixes(
-        data_dir: &str,
-        locale: &str,
-        hotfix_db: &HotfixDatabase,
-    ) -> Result<Self> {
-        let mut store = Self::load(data_dir, locale)?;
-        let hotfix_rows = store.load_hotfix_rows(hotfix_db).await?;
-        if hotfix_rows != 0 {
-            info!("Loaded {hotfix_rows} CreatureModelData hotfix rows");
-        }
-        Ok(store)
-    }
-
-    async fn load_hotfix_rows(&mut self, db: &HotfixDatabase) -> Result<usize> {
-        let stmt = db.prepare(HotfixStatements::SEL_CREATURE_MODEL_DATA);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(0);
-        }
-
-        let mut count = 0usize;
-        loop {
-            let entry = CreatureModelDataEntry {
-                id: result.read(0),
-                flags: result.read(7),
-                file_data_id: result.read(8),
-                collision_height: result.read(20),
-                hover_height: result.read(23),
-                model_scale: result.read(25),
-                mount_height: result.read(29),
-            };
+    pub fn apply_hotfix_entries_like_cpp(
+        &mut self,
+        entries: impl IntoIterator<Item = CreatureModelDataEntry>,
+    ) -> usize {
+        let mut count = 0;
+        for entry in entries {
             self.entries.insert(entry.id, entry);
             count += 1;
-
-            if !result.next_row() {
-                break;
-            }
         }
-        Ok(count)
+        count
     }
 
     pub fn get(&self, id: u32) -> Option<&CreatureModelDataEntry> {
@@ -281,6 +224,48 @@ pub fn unit_collision_height_like_cpp(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hotfix_entries_replace_by_id_and_keep_last_row_like_cpp() {
+        let mut displays = CreatureDisplayInfoStore::from_entries([CreatureDisplayInfoEntry {
+            id: 10,
+            model_id: 1,
+            extended_display_info_id: 2,
+            creature_model_scale: 1.0,
+        }]);
+        let count = displays.apply_hotfix_entries_like_cpp([
+            CreatureDisplayInfoEntry {
+                id: 10,
+                model_id: 3,
+                extended_display_info_id: 4,
+                creature_model_scale: 1.5,
+            },
+            CreatureDisplayInfoEntry {
+                id: 10,
+                model_id: 5,
+                extended_display_info_id: 6,
+                creature_model_scale: 2.0,
+            },
+        ]);
+
+        assert_eq!(count, 2);
+        assert_eq!(displays.get(10).unwrap().model_id, 5);
+
+        let mut models = CreatureModelDataStore::from_entries([]);
+        assert_eq!(
+            models.apply_hotfix_entries_like_cpp([CreatureModelDataEntry {
+                id: 5,
+                flags: 6,
+                file_data_id: 7,
+                collision_height: 1.0,
+                hover_height: 2.0,
+                model_scale: 3.0,
+                mount_height: 4.0,
+            }]),
+            1
+        );
+        assert_eq!(models.get(5).unwrap().mount_height, 4.0);
+    }
 
     #[test]
     fn unit_collision_height_matches_cpp_mount_formula() {

@@ -1723,11 +1723,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 28014,
-          "test_lines": 24597,
-          "total_lines": 52611,
+          "production_lines": 28096,
+          "test_lines": 24695,
+          "total_lines": 52791,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-          "latest_growth_review": "#538 adds 14 production composition lines and 87 focused test lines to reuse the existing typed HotfixData stage for the earlier effective-removal projection. The process still constructs one MariaDB adapter and deliberately performs the early fatal read separately from the later warn-and-continue delivery read; SQL remains in wow-database and final-status/tombstone authority remains in wow-data.",
+          "latest_growth_review": "#540 adds one private two-stage creature display/model Hotfix composition boundary: +82 production conversion/orchestration lines and +98 focused mapping, failure/empty and source-order test lines. One adapter is composed once while each WDC4 store retains its independent load/overlay/publication point; SQL remains in wow-database and immutable stores plus collision/model math remain in wow-data.",
           "open_retirement_issues": [
             153
           ],
