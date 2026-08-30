@@ -582,9 +582,15 @@ async fn run_inner(
         item_set_spell_store.len()
     );
 
-    let db2_hotfix_removals = wow_data::Db2HotfixRemovalStoreLikeCpp::load_like_cpp(&hotfix_db)
-        .await
-        .context("Failed to load effective DB2 hotfix removals")?;
+    let hotfix_delivery_metadata_persistence =
+        wow_database::MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::new(Arc::clone(
+            &hotfix_db,
+        ));
+    let db2_hotfix_removals = crate::hotfix_delivery_metadata::load_db2_hotfix_removals_like_cpp(
+        &hotfix_delivery_metadata_persistence,
+    )
+    .await
+    .context("Failed to load effective DB2 hotfix removals")?;
 
     // Load effective ChrSpecialization authority for C++ specialization validation.
     let chr_specialization_hotfix_persistence =
@@ -2522,10 +2528,6 @@ async fn run_inner(
 
     // Build hotfix blob cache — pre-loads raw DB2 record bytes and hotfix DB overlays for DBReply.
     let mut hotfix_blob_cache = wow_data::build_hotfix_blob_cache(&data_dir, &locale);
-    let hotfix_delivery_metadata_persistence =
-        wow_database::MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::new(Arc::clone(
-            &hotfix_db,
-        ));
     let [hotfix_blobs, hotfix_data, hotfix_optional_data] =
         crate::hotfix_delivery_metadata::load_hotfix_delivery_metadata_like_cpp(
             &mut hotfix_blob_cache,

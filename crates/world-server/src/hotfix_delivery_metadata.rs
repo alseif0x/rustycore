@@ -14,6 +14,18 @@ fn loaded_rows_like_cpp<T>(outcome: HotfixDeliveryMetadataLoadOutcomeLikeCpp<T>)
     }
 }
 
+pub(super) async fn load_db2_hotfix_removals_like_cpp(
+    persistence: &dyn HotfixDeliveryMetadataPersistencePortLikeCpp,
+) -> Result<wow_data::Db2HotfixRemovalStoreLikeCpp> {
+    let rows = loaded_rows_like_cpp(persistence.load_hotfix_data_rows_like_cpp().await)?;
+    Ok(
+        wow_data::Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp(
+            rows.into_iter()
+                .map(|row| (row.table_hash, row.record_id, row.status)),
+        ),
+    )
+}
+
 fn apply_hotfix_blob_outcome_like_cpp(
     cache: &mut wow_data::HotfixBlobCache,
     outcome: HotfixDeliveryMetadataLoadOutcomeLikeCpp<HotfixBlobPersistenceRowLikeCpp>,
@@ -160,6 +172,87 @@ mod tests {
         assert_eq!(cache.get_optional_data(1, 2, "enUS").unwrap()[0].data, [4]);
     }
 
+    struct RemovalPort {
+        fail_data: bool,
+    }
+
+    impl HotfixDeliveryMetadataPersistencePortLikeCpp for RemovalPort {
+        fn load_hotfix_blob_rows_like_cpp(
+            &self,
+        ) -> PersistenceFutureLikeCpp<
+            '_,
+            HotfixDeliveryMetadataLoadOutcomeLikeCpp<HotfixBlobPersistenceRowLikeCpp>,
+        > {
+            panic!("the early removal stage must not query hotfix_blob")
+        }
+
+        fn load_hotfix_data_rows_like_cpp(
+            &self,
+        ) -> PersistenceFutureLikeCpp<
+            '_,
+            HotfixDeliveryMetadataLoadOutcomeLikeCpp<HotfixDataPersistenceRowLikeCpp>,
+        > {
+            if self.fail_data {
+                return Box::pin(async {
+                    HotfixDeliveryMetadataLoadOutcomeLikeCpp::Failed {
+                        reason: "hotfix_data unavailable".to_owned(),
+                    }
+                });
+            }
+            Box::pin(async {
+                HotfixDeliveryMetadataLoadOutcomeLikeCpp::Loaded(vec![
+                    HotfixDataPersistenceRowLikeCpp {
+                        push_id: 1,
+                        unique_id: 10,
+                        table_hash: 0xAAAA,
+                        record_id: 7,
+                        status: 2,
+                    },
+                    HotfixDataPersistenceRowLikeCpp {
+                        push_id: 2,
+                        unique_id: 11,
+                        table_hash: 0xAAAA,
+                        record_id: 7,
+                        status: 1,
+                    },
+                    HotfixDataPersistenceRowLikeCpp {
+                        push_id: 3,
+                        unique_id: 12,
+                        table_hash: 0xBBBB,
+                        record_id: -8,
+                        status: 2,
+                    },
+                ])
+            })
+        }
+
+        fn load_hotfix_optional_data_rows_like_cpp(
+            &self,
+        ) -> PersistenceFutureLikeCpp<
+            '_,
+            HotfixDeliveryMetadataLoadOutcomeLikeCpp<HotfixOptionalDataPersistenceRowLikeCpp>,
+        > {
+            panic!("the early removal stage must not query hotfix_optional_data")
+        }
+    }
+
+    #[tokio::test]
+    async fn early_removal_stage_uses_only_typed_data_and_keeps_last_status() {
+        let removals = load_db2_hotfix_removals_like_cpp(&RemovalPort { fail_data: false })
+            .await
+            .unwrap();
+
+        assert!(!removals.contains_like_cpp(0xAAAA, 7));
+        assert!(removals.contains_like_cpp(0xBBBB, -8));
+    }
+
+    #[tokio::test]
+    async fn early_removal_failure_publishes_no_store() {
+        let result = load_db2_hotfix_removals_like_cpp(&RemovalPort { fail_data: true }).await;
+
+        assert_eq!(result.unwrap_err().to_string(), "hotfix_data unavailable");
+    }
+
     #[test]
     fn app_composes_one_adapter_after_local_db2_and_before_ordered_stages() {
         let source = include_str!("app.rs");
@@ -169,10 +262,16 @@ mod tests {
                 .count(),
             1
         );
+        let adapter = source
+            .find("let hotfix_delivery_metadata_persistence")
+            .unwrap();
+        let removals = source.find("load_db2_hotfix_removals_like_cpp").unwrap();
         let local_db2 = source.find("build_hotfix_blob_cache").unwrap();
         let staged_sql = source
             .find("load_hotfix_delivery_metadata_like_cpp")
             .unwrap();
+        assert!(adapter < removals);
+        assert!(removals < local_db2);
         assert!(local_db2 < staged_sql);
     }
 }
