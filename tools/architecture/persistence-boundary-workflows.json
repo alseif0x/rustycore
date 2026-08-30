@@ -2069,108 +2069,6 @@
     },
     {
       "package": "wow-data",
-      "module": "crate::chr_specialization",
-      "source": "crates/wow-data/src/chr_specialization.rs",
-      "enclosing": "fn read_i8_checked_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::chr_specialization",
-      "source": "crates/wow-data/src/chr_specialization.rs",
-      "enclosing": "fn read_integer_checked_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::chr_specialization",
-      "source": "crates/wow-data/src/chr_specialization.rs",
-      "enclosing": "fn read_u32_checked_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::chr_specialization",
-      "source": "crates/wow-data/src/chr_specialization.rs",
-      "enclosing": "fn read_u8_checked_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::chr_specialization",
-      "source": "crates/wow-data/src/chr_specialization.rs",
-      "enclosing": "impl ChrSpecializationStore::load_effective_like_cpp",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::chr_specialization",
-      "source": "crates/wow-data/src/chr_specialization.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for hotfix; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
       "module": "crate::conditions",
       "source": "crates/wow-data/src/conditions.rs",
       "enclosing": "fn load_condition_rows_like_cpp",
@@ -5517,6 +5415,84 @@
       "connection_affinity": "The adapter stores exactly one Characters database handle.",
       "current_order": "The handle surface implies no runtime order beyond the port method.",
       "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::chr_specialization_hotfix_adapter",
+      "source": "crates/wow-database/src/chr_specialization_hotfix_adapter.rs",
+      "enclosing": "fn chr_specialization_row_like_cpp",
+      "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free ChrSpecialization Hotfix capability (#521)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Both overlay reads use one Hotfix database handle; they are sequential startup reads and imply no transaction.",
+      "current_order": "Decode every consumed ChrSpecialization field before returning the current official or custom row.",
+      "failure_and_unknown_commit": "A missing, non-integer or out-of-range consumed field becomes one typed Failed outcome before domain publication."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::chr_specialization_hotfix_adapter",
+      "source": "crates/wow-database/src/chr_specialization_hotfix_adapter.rs",
+      "enclosing": "fn read_integer_checked_like_cpp",
+      "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free ChrSpecialization Hotfix capability (#521)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Both overlay reads use one Hotfix database handle; they are sequential startup reads and imply no transaction.",
+      "current_order": "Try the represented signed and unsigned SQL integer widths without fabricating a default.",
+      "failure_and_unknown_commit": "A missing or non-integer consumed field becomes one typed Failed outcome before domain publication."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::chr_specialization_hotfix_adapter",
+      "source": "crates/wow-database/src/chr_specialization_hotfix_adapter.rs",
+      "enclosing": "impl MariaDbChrSpecializationHotfixPersistenceAdapterLikeCpp::new",
+      "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free ChrSpecialization Hotfix capability (#521)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter stores exactly one Hotfix database handle.",
+      "current_order": "Construction introduces no runtime order beyond the port method.",
+      "failure_and_unknown_commit": "Construction performs no I/O and implies no commit outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::chr_specialization_hotfix_adapter",
+      "source": "crates/wow-database/src/chr_specialization_hotfix_adapter.rs",
+      "enclosing": "impl wow_persistence::ChrSpecializationHotfixPersistencePortLikeCpp for MariaDbChrSpecializationHotfixPersistenceAdapterLikeCpp::load_chr_specialization_hotfix_rows_like_cpp",
+      "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free ChrSpecialization Hotfix capability (#521)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Both overlay reads use one Hotfix database handle; they are sequential startup reads and imply no transaction.",
+      "current_order": "Query and fully decode VerifiedBuild official rows before custom rows, matching DB2StorageBase::LoadFromDB.",
+      "failure_and_unknown_commit": "Any query or decode error becomes one typed Failed outcome; no partial overlay batch crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::chr_specialization_hotfix_adapter",
+      "source": "crates/wow-database/src/chr_specialization_hotfix_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free ChrSpecialization Hotfix capability (#521)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "This module surface is confined to the Hotfix adapter and does not imply a wider transaction.",
+      "current_order": "Shared module syntax introduces no order beyond the typed port workflow.",
+      "failure_and_unknown_commit": "Shared module syntax introduces no additional failure or commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::chr_specialization_hotfix_adapter",
+      "source": "crates/wow-database/src/chr_specialization_hotfix_adapter.rs",
+      "enclosing": "struct MariaDbChrSpecializationHotfixPersistenceAdapterLikeCpp",
+      "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free ChrSpecialization Hotfix capability (#521)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns exactly one shared Hotfix database handle.",
+      "current_order": "The handle surface introduces no runtime order beyond the port method.",
+      "failure_and_unknown_commit": "The handle surface performs no I/O and implies no commit outcome."
     },
     {
       "package": "wow-database",
