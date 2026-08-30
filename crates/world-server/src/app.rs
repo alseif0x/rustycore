@@ -3984,8 +3984,10 @@ async fn run_inner(
         spell_proc_outcome.generated_entry_count,
         spell_proc_outcome.errors.len()
     );
-    let spell_required_outcome = wow_data::SpellRequiredStoreLikeCpp::load_like_cpp(
-        world_db.as_ref(),
+    let spell_world_catalog_persistence =
+        wow_database::MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
+    let spell_required_outcome = crate::spell_world_catalog::load_spell_required_like_cpp(
+        &spell_world_catalog_persistence,
         &spell_store,
         spell_chain_store.as_ref(),
     )
@@ -4025,20 +4027,24 @@ async fn run_inner(
         spell_group_stack_rule_outcome.same_effect_parsed_count,
         spell_group_stack_rule_outcome.errors.len()
     );
-    let spell_threat_outcome =
-        wow_data::SpellThreatStoreLikeCpp::load_like_cpp(world_db.as_ref(), &spell_store)
-            .await
-            .context("Failed to load C++ spell_threat rows")?;
+    let spell_threat_outcome = crate::spell_world_catalog::load_spell_threat_like_cpp(
+        &spell_world_catalog_persistence,
+        &spell_store,
+    )
+    .await
+    .context("Failed to load C++ spell_threat rows")?;
     let spell_threat_store = Arc::new(spell_threat_outcome.store);
     info!(
         "Loaded {} C++ spell_threat rows ({} missing spells)",
         spell_threat_outcome.loaded_row_count,
         spell_threat_outcome.errors.len()
     );
-    let spell_linked_outcome =
-        wow_data::SpellLinkedStoreLikeCpp::load_like_cpp(world_db.as_ref(), &spell_store)
-            .await
-            .context("Failed to load C++ spell_linked_spell rows")?;
+    let spell_linked_outcome = crate::spell_world_catalog::load_spell_linked_like_cpp(
+        &spell_world_catalog_persistence,
+        &spell_store,
+    )
+    .await
+    .context("Failed to load C++ spell_linked_spell rows")?;
     let spell_linked_rejected_trigger_spell_ids = Arc::new(
         spell_linked_outcome
             .errors
@@ -4053,8 +4059,8 @@ async fn run_inner(
         spell_linked_outcome.errors.len(),
         spell_linked_outcome.warnings.len()
     );
-    let spell_totem_model_outcome = wow_data::SpellTotemModelStoreLikeCpp::load_like_cpp(
-        world_db.as_ref(),
+    let spell_totem_model_outcome = crate::spell_world_catalog::load_spell_totem_model_like_cpp(
+        &spell_world_catalog_persistence,
         |spell_id| spell_store.get(spell_id as i32).is_some(),
         |race_id| chr_races_store.get(u32::from(race_id)).is_some(),
         |display_id| creature_display_info_store.get(display_id).is_some(),
@@ -4067,10 +4073,12 @@ async fn run_inner(
         spell_totem_model_outcome.loaded_row_count,
         spell_totem_model_outcome.errors.len()
     );
-    let spell_pet_aura_outcome =
-        wow_data::SpellPetAuraStoreLikeCpp::load_like_cpp(world_db.as_ref(), &spell_store)
-            .await
-            .context("Failed to load C++ spell_pet_auras rows")?;
+    let spell_pet_aura_outcome = crate::spell_world_catalog::load_spell_pet_aura_like_cpp(
+        &spell_world_catalog_persistence,
+        &spell_store,
+    )
+    .await
+    .context("Failed to load C++ spell_pet_auras rows")?;
     let spell_pet_aura_store = Arc::new(spell_pet_aura_outcome.store);
     info!(
         "Loaded {} C++ spell_pet_auras rows ({} validation issues)",

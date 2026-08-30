@@ -6,10 +6,8 @@
 //! Spell DB2 stores and their loaders.
 
 use super::catalog::{SpellHitEffectMechanicRowLikeCpp, SpellInterruptRowLikeCpp};
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
+// Remaining complex SpellMgr World catalogs still cross the concrete database
+// boundary here; #169's next bounded slice owns their extraction.
 use wow_database::{WorldDatabase, WorldStatements};
 
 use super::*;
@@ -39,30 +37,14 @@ impl SpellPetAuraStoreLikeCpp {
             .get(&Self::key_like_cpp(spell_id, effect_index))
     }
 
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
+    pub fn from_rows_and_spell_store_like_cpp<I>(
+        rows: I,
         spells: &SpellStore,
-    ) -> Result<SpellPetAuraLoadOutcomeLikeCpp> {
-        let stmt = db.prepare(WorldStatements::SEL_SPELL_PET_AURAS);
-        let mut result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(SpellPetAuraRowLikeCpp {
-                    spell_id: result.try_read::<u32>(0).unwrap_or(0),
-                    effect_index: result.try_read::<u8>(1).unwrap_or(0),
-                    pet_entry: result.try_read::<u32>(2).unwrap_or(0),
-                    aura_id: result.try_read::<u32>(3).unwrap_or(0),
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::load_spell_pet_auras_like_cpp(
+    ) -> SpellPetAuraLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellPetAuraRowLikeCpp>,
+    {
+        Self::load_spell_pet_auras_like_cpp(
             rows,
             |spell_id, effect_index| {
                 let Some(spell) = spells.get(spell_id as i32) else {
@@ -83,7 +65,7 @@ impl SpellPetAuraStoreLikeCpp {
                 })
             },
             |aura_id| spells.get(aura_id as i32).is_some(),
-        ))
+        )
     }
 
     pub fn load_spell_pet_auras_like_cpp<I, SourceEffect, AuraExists>(
@@ -166,32 +148,14 @@ pub struct SpellThreatStoreLikeCpp {
 }
 
 impl SpellThreatStoreLikeCpp {
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
+    pub fn from_rows_and_spell_store_like_cpp<I>(
+        rows: I,
         spells: &SpellStore,
-    ) -> Result<SpellThreatLoadOutcomeLikeCpp> {
-        let stmt = db.prepare(WorldStatements::SEL_SPELL_THREATS);
-        let mut result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(SpellThreatRowLikeCpp {
-                    spell_id: result.try_read::<u32>(0).unwrap_or(0),
-                    flat_mod: result.try_read::<i32>(1).unwrap_or(0),
-                    pct_mod: result.try_read::<f32>(2).unwrap_or(0.0),
-                    ap_pct_mod: result.try_read::<f32>(3).unwrap_or(0.0),
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(rows, |spell_id| {
-            spells.get(spell_id as i32).is_some()
-        }))
+    ) -> SpellThreatLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellThreatRowLikeCpp>,
+    {
+        Self::from_rows_like_cpp(rows, |spell_id| spells.get(spell_id as i32).is_some())
     }
 
     pub fn from_rows_like_cpp<I, SpellExists>(
@@ -251,33 +215,18 @@ pub struct SpellLinkedStoreLikeCpp {
 }
 
 impl SpellLinkedStoreLikeCpp {
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
+    pub fn from_rows_and_spell_store_like_cpp<I>(
+        rows: I,
         spells: &SpellStore,
-    ) -> Result<SpellLinkedLoadOutcomeLikeCpp> {
-        let stmt = db.prepare(WorldStatements::SEL_SPELL_LINKED);
-        let mut result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(SpellLinkedRowLikeCpp {
-                    spell_trigger: result.try_read::<i32>(0).unwrap_or(0),
-                    spell_effect: result.try_read::<i32>(1).unwrap_or(0),
-                    link_type: result.try_read::<u8>(2).unwrap_or(0),
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(rows, |spell_id| {
+    ) -> SpellLinkedLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellLinkedRowLikeCpp>,
+    {
+        Self::from_rows_like_cpp(rows, |spell_id| {
             spells
                 .get(spell_id as i32)
                 .map(SpellLinkedSpellInfoLikeCpp::from_represented_spell_info_base_points)
-        }))
+        })
     }
 
     pub fn from_rows_like_cpp<I, SpellLookup>(
@@ -391,41 +340,19 @@ pub struct SpellTotemModelStoreLikeCpp {
 }
 
 impl SpellTotemModelStoreLikeCpp {
-    pub async fn load_like_cpp<SpellExists, RaceExists, DisplayExists>(
-        db: &WorldDatabase,
+    pub fn from_rows_and_stores_like_cpp<I, SpellExists, RaceExists, DisplayExists>(
+        rows: I,
         spell_exists: SpellExists,
         race_exists: RaceExists,
         display_exists: DisplayExists,
-    ) -> Result<SpellTotemModelLoadOutcomeLikeCpp>
+    ) -> SpellTotemModelLoadOutcomeLikeCpp
     where
+        I: IntoIterator<Item = SpellTotemModelRowLikeCpp>,
         SpellExists: FnMut(u32) -> bool,
         RaceExists: FnMut(u8) -> bool,
         DisplayExists: FnMut(u32) -> bool,
     {
-        let stmt = db.prepare(WorldStatements::SEL_SPELL_TOTEM_MODEL);
-        let mut result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(SpellTotemModelRowLikeCpp {
-                    spell_id: result.try_read::<u32>(0).unwrap_or(0),
-                    race_id: result.try_read::<u8>(1).unwrap_or(0),
-                    display_id: result.try_read::<u32>(2).unwrap_or(0),
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(
-            rows,
-            spell_exists,
-            race_exists,
-            display_exists,
-        ))
+        Self::from_rows_like_cpp(rows, spell_exists, race_exists, display_exists)
     }
 
     pub fn from_rows_like_cpp<I, SpellExists, RaceExists, DisplayExists>(
@@ -497,33 +424,19 @@ pub struct SpellRequiredStoreLikeCpp {
 }
 
 impl SpellRequiredStoreLikeCpp {
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
+    pub fn from_rows_and_stores_like_cpp<I>(
+        rows: I,
         spells: &SpellStore,
         spell_chains: &SpellChainStoreLikeCpp,
-    ) -> Result<SpellRequiredLoadOutcomeLikeCpp> {
-        let stmt = db.prepare(WorldStatements::SEL_SPELL_REQUIRED);
-        let mut result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(SpellRequiredRowLikeCpp {
-                    spell_id: result.try_read::<u32>(0).unwrap_or(0),
-                    req_spell: result.try_read::<u32>(1).unwrap_or(0),
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(
+    ) -> SpellRequiredLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellRequiredRowLikeCpp>,
+    {
+        Self::from_rows_like_cpp(
             rows,
             |spell_id| spells.get(spell_id as i32).is_some(),
             |spell_id, req_spell| spell_chains.is_rank_of_like_cpp(spell_id, req_spell),
-        ))
+        )
     }
 
     pub fn from_rows_like_cpp<I, SpellExists, SameRankChain>(
