@@ -2522,24 +2522,26 @@ async fn run_inner(
 
     // Build hotfix blob cache — pre-loads raw DB2 record bytes and hotfix DB overlays for DBReply.
     let mut hotfix_blob_cache = wow_data::build_hotfix_blob_cache(&data_dir, &locale);
-    match hotfix_blob_cache
-        .load_hotfix_blobs_from_db(&hotfix_db, &locale)
-        .await
-    {
+    let hotfix_delivery_metadata_persistence =
+        wow_database::MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::new(Arc::clone(
+            &hotfix_db,
+        ));
+    let [hotfix_blobs, hotfix_data, hotfix_optional_data] =
+        crate::hotfix_delivery_metadata::load_hotfix_delivery_metadata_like_cpp(
+            &mut hotfix_blob_cache,
+            &hotfix_delivery_metadata_persistence,
+            &locale,
+        )
+        .await;
+    match hotfix_blobs {
         Ok(n) => info!("HotfixBlobCache: loaded {n} hotfix_blob rows"),
         Err(e) => tracing::warn!("HotfixBlobCache: failed to load hotfix_blob rows: {e}"),
     }
-    match hotfix_blob_cache
-        .load_hotfix_data_from_db(&hotfix_db, &locale)
-        .await
-    {
+    match hotfix_data {
         Ok(n) => info!("HotfixBlobCache: loaded {n} hotfix_data rows"),
         Err(e) => tracing::warn!("HotfixBlobCache: failed to load hotfix_data rows: {e}"),
     }
-    match hotfix_blob_cache
-        .load_hotfix_optional_data_from_db(&hotfix_db, &locale)
-        .await
-    {
+    match hotfix_optional_data {
         Ok(n) => info!("HotfixBlobCache: loaded {n} hotfix_optional_data rows"),
         Err(e) => tracing::warn!("HotfixBlobCache: failed to load hotfix_optional_data rows: {e}"),
     }
