@@ -6,9 +6,6 @@
 //! Spell DB2 stores and their loaders.
 
 use super::catalog::{SpellHitEffectMechanicRowLikeCpp, SpellInterruptRowLikeCpp};
-// Remaining complex SpellMgr World catalogs still cross the concrete database
-// boundary here; #169's next bounded slice owns their extraction.
-use wow_database::{WorldDatabase, WorldStatements};
 
 use super::*;
 
@@ -1014,46 +1011,6 @@ pub struct SpellAreaStoreLikeCpp {
 }
 
 impl SpellAreaStoreLikeCpp {
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        spell_exists: impl FnMut(u32) -> bool,
-        area_exists: impl FnMut(u32) -> bool,
-        quest_exists: impl FnMut(u32) -> bool,
-    ) -> Result<SpellAreaLoadOutcomeLikeCpp> {
-        let mut result = db
-            .direct_query(WorldStatements::SEL_SPELL_AREA.sql())
-            .await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(SpellAreaRowLikeCpp {
-                    spell_id: result.try_read::<u32>(0).unwrap_or(0),
-                    area_id: result.try_read::<u32>(1).unwrap_or(0),
-                    quest_start: result.try_read::<u32>(2).unwrap_or(0),
-                    quest_start_status: result.try_read::<u32>(3).unwrap_or(0),
-                    quest_end_status: result.try_read::<u32>(4).unwrap_or(0),
-                    quest_end: result.try_read::<u32>(5).unwrap_or(0),
-                    aura_spell: result.try_read::<i32>(6).unwrap_or(0),
-                    race_mask: result.try_read::<u64>(7).unwrap_or(0),
-                    gender: result.try_read::<u8>(8).unwrap_or(GENDER_NONE_LIKE_CPP),
-                    flags: result.try_read::<u8>(9).unwrap_or(0),
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(
-            rows,
-            spell_exists,
-            area_exists,
-            quest_exists,
-        ))
-    }
-
     pub fn from_rows_like_cpp<I, SpellExists, AreaExists, QuestExists>(
         rows: I,
         mut spell_exists: SpellExists,
@@ -1304,35 +1261,6 @@ pub struct SpellGroupStoreLikeCpp {
 }
 
 impl SpellGroupStoreLikeCpp {
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        spells: &SpellStore,
-        spell_chains: &SpellChainStoreLikeCpp,
-    ) -> Result<SpellGroupLoadOutcomeLikeCpp> {
-        let stmt = db.prepare(WorldStatements::SEL_SPELL_GROUP);
-        let mut result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(SpellGroupRowLikeCpp {
-                    group_id: result.try_read::<u32>(0).unwrap_or(0),
-                    spell_id: result.try_read::<i32>(1).unwrap_or(0),
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(
-            rows,
-            |spell_id| spells.get(spell_id as i32).is_some(),
-            |spell_id| u32::from(spell_chains.spell_rank_like_cpp(spell_id)),
-        ))
-    }
-
     pub fn from_rows_like_cpp<I, SpellExists, SpellRank>(
         rows: I,
         mut spell_exists: SpellExists,
@@ -1503,40 +1431,6 @@ pub struct SpellGroupStackRuleStoreLikeCpp {
 }
 
 impl SpellGroupStackRuleStoreLikeCpp {
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        spell_groups: &SpellGroupStoreLikeCpp,
-        spells: &SpellStore,
-        spell_chains: &SpellChainStoreLikeCpp,
-    ) -> Result<SpellGroupStackRuleLoadOutcomeLikeCpp> {
-        let stmt = db.prepare(WorldStatements::SEL_SPELL_GROUP_STACK_RULES);
-        let mut result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(SpellGroupStackRuleRowLikeCpp {
-                    group_id: result.try_read::<u32>(0).unwrap_or(0),
-                    stack_rule: result.try_read::<u8>(1).unwrap_or(0),
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(
-            rows,
-            spell_groups,
-            |spell_id| spells.get(spell_id as i32).cloned(),
-            |spell_id| {
-                let next_spell_id = spell_chains.next_spell_in_chain_like_cpp(spell_id);
-                (next_spell_id != 0).then_some(next_spell_id)
-            },
-        ))
-    }
-
     pub fn from_rows_like_cpp<I, SpellInfoById, NextRankSpell>(
         rows: I,
         spell_groups: &SpellGroupStoreLikeCpp,
@@ -1703,52 +1597,18 @@ pub struct SpellProcStoreLikeCpp {
 }
 
 impl SpellProcStoreLikeCpp {
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
+    pub fn from_rows_and_stores_like_cpp<I>(
+        rows: I,
         spells: &SpellStore,
         spell_chains: &SpellChainStoreLikeCpp,
         spell_aura_options: &crate::spell_db2::SpellAuraOptionsStore,
         spell_misc: &crate::spell_db2::SpellMiscStore,
         spell_class_options: &crate::spell_db2::SpellClassOptionsStore,
         spell_procs_per_minute: &crate::spell_db2::SpellProcsPerMinuteStore,
-    ) -> Result<SpellProcLoadOutcomeLikeCpp> {
-        let stmt = db.prepare(WorldStatements::SEL_SPELL_PROC);
-        let mut result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(SpellProcRowLikeCpp {
-                    spell_id: result.try_read::<i32>(0).unwrap_or(0),
-                    school_mask: result.try_read::<u8>(1).unwrap_or(0),
-                    spell_family_name: result.try_read::<u16>(2).unwrap_or(0),
-                    spell_family_mask: [
-                        result.try_read::<u32>(3).unwrap_or(0),
-                        result.try_read::<u32>(4).unwrap_or(0),
-                        result.try_read::<u32>(5).unwrap_or(0),
-                        result.try_read::<u32>(6).unwrap_or(0),
-                    ],
-                    proc_flags: [
-                        result.try_read::<u32>(7).unwrap_or(0),
-                        result.try_read::<u32>(8).unwrap_or(0),
-                    ],
-                    spell_type_mask: result.try_read::<u32>(9).unwrap_or(0),
-                    spell_phase_mask: result.try_read::<u32>(10).unwrap_or(0),
-                    hit_mask: result.try_read::<u32>(11).unwrap_or(0),
-                    attributes_mask: result.try_read::<u32>(12).unwrap_or(0),
-                    disable_effects_mask: result.try_read::<u32>(13).unwrap_or(0),
-                    procs_per_minute: result.try_read::<f32>(14).unwrap_or(0.0),
-                    chance: result.try_read::<f32>(15).unwrap_or(0.0),
-                    cooldown_ms: result.try_read::<u32>(16).unwrap_or(0),
-                    charges: result.try_read::<u8>(17).unwrap_or(0),
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
+    ) -> SpellProcLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellProcRowLikeCpp>,
+    {
         let spell_infos = spells
             .iter()
             .filter_map(|spell| {
@@ -1772,11 +1632,11 @@ impl SpellProcStoreLikeCpp {
             .map(|spell_info| (spell_info.spell_id, spell_info))
             .collect::<BTreeMap<_, _>>();
 
-        Ok(Self::from_rows_and_spell_infos_like_cpp(
+        Self::from_rows_and_spell_infos_like_cpp(
             rows,
             |spell_id| spell_infos_by_id.get(&spell_id).cloned(),
             spell_infos,
-        ))
+        )
     }
 
     pub fn from_rows_like_cpp<I, SpellInfoById>(
@@ -2027,37 +1887,6 @@ impl SpellTargetPositionStoreLikeCpp {
         }
 
         store
-    }
-
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        spells: &SpellStore,
-        map_exists: impl FnMut(u16) -> bool,
-    ) -> Result<Self> {
-        let mut result = db
-            .direct_query(wow_database::WorldStatements::SEL_SPELL_TARGET_POSITION.sql())
-            .await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(SpellTargetPositionRowLikeCpp {
-                    spell_id: result.try_read::<u32>(0).unwrap_or(0),
-                    effect_index: result.try_read::<u8>(1).unwrap_or(0) as u32,
-                    target_map_id: result.try_read::<u16>(2).unwrap_or(0),
-                    x: result.try_read::<f32>(3).unwrap_or(0.0),
-                    y: result.try_read::<f32>(4).unwrap_or(0.0),
-                    z: result.try_read::<f32>(5).unwrap_or(0.0),
-                    orientation: result.try_read::<Option<f32>>(6).unwrap_or(None),
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(rows, spells, map_exists))
     }
 
     pub fn get(&self, spell_id: u32, effect_index: u32) -> Option<&SpellTargetPositionLikeCpp> {
