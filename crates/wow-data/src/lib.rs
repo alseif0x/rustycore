@@ -384,7 +384,7 @@ pub use player_create::{
     PlayerCreateInfoCustomSpellLoadReportLikeCpp, PlayerCreateInfoCustomSpellRowLikeCpp,
     PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerCreateInfoLikeCpp,
     PlayerCreateInfoLoadReportLikeCpp, PlayerCreateInfoRowLikeCpp, PlayerCreateInfoStoreLikeCpp,
-    PlayerCreatePositionLikeCpp,
+    PlayerCreatePositionLikeCpp, player_create_npe_transport_template_valid_like_cpp,
 };
 pub use player_power::{
     ClassPowerIndexRecord, Db2PlayerPowerIndexResolver, PlayerClassPowerIndexStore,

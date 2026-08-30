@@ -87,6 +87,7 @@ mod creature_loaded_grid;
 mod gameobject_loaded_grid;
 mod mount_catalog;
 mod player_choice_catalog;
+mod player_creation_catalog;
 mod reputation_catalog;
 mod session_resources;
 mod spawn_store_loader;

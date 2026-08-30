@@ -1723,11 +1723,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 27619,
-          "test_lines": 23963,
-          "total_lines": 51582,
+          "production_lines": 27792,
+          "test_lines": 24198,
+          "total_lines": 51990,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-          "latest_growth_review": "#528 adds one private staged Player base-stat composition boundary: +81 production conversion/composition lines plus +130 focused field, race-empty short-circuit, class-failure-before-BaseMp and single-adapter placement test lines. One capability covers race modifiers then class-level bases without a port per table; SQL remains in wow-database while the domain validates the first stage before issuing the second, and BaseMp, race/class selection, configured-level filtering, duplicate replacement, stat combination and gap filling remain in wow-data.",
+          "latest_growth_review": "#530 adds one private staged Player-creation catalog composition boundary: +173 production conversion/composition lines plus +235 focused field/null grouping, base-empty short-circuit, per-stage failure and single-adapter startup-order test lines. One capability covers the three represented ObjectMgr::LoadPlayerInfo World sources without an eager bundle or table repositories; SQL remains in wow-database while race/class/model/map/NPE transport and mask/create-mode rules remain in wow-data. The structural cut deliberately preserves the existing Rust cast-before-custom publication order and its represented NPE transport resolution instead of mixing parity changes into persistence ownership.",
           "open_retirement_issues": [
             153
           ],
