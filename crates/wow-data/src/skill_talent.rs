@@ -5,7 +5,6 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::{info, warn};
-use wow_database::{HotfixDatabase, HotfixStatements, SqlResult};
 
 use crate::Db2HotfixRemovalStoreLikeCpp;
 use crate::wdc4::Wdc4Reader;
@@ -172,6 +171,17 @@ pub struct SkillLineAcquisitionFieldsLikeCpp {
     pub category_id: i8,
     pub parent_skill_line_id: u32,
     pub parent_tier_index: i32,
+}
+
+/// Raw Hotfix projection used to compose the effective SkillLine catalog.
+/// Wide values let the data owner retain an invalid overlay identity while
+/// classifying its acquisition payload as incomplete.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SkillLineHotfixOverlayLikeCpp {
+    pub id: u32,
+    pub category_id: i128,
+    pub parent_skill_line_id: i128,
+    pub parent_tier_index: i128,
 }
 
 /// Coverage of the acquisition payload for one `SkillLine` record ID.
@@ -640,89 +650,38 @@ impl SkillLineStore {
     /// acquisition-payload composition follow C++ `DB2StorageBase::LoadFromDB` and
     /// `DB2Manager::LoadHotfixData`: DB2, official SQL, custom SQL, then final
     /// record removals.
-    pub async fn load_effective_like_cpp(
-        data_dir: &str,
-        locale: &str,
-        hotfix_db: &HotfixDatabase,
+    pub fn apply_hotfix_overlays_like_cpp(
+        mut self,
+        official_overlays: impl IntoIterator<Item = SkillLineHotfixOverlayLikeCpp>,
+        custom_overlays: impl IntoIterator<Item = SkillLineHotfixOverlayLikeCpp>,
         removed_records: &Db2HotfixRemovalStoreLikeCpp,
     ) -> Result<Self> {
-        const SKILL_LINE_ACQUISITION_OVERLAY_SQL: &str = "SELECT ID, CategoryID, ParentSkillLineID, ParentTierIndex FROM skill_line \
-             WHERE (`VerifiedBuild` > 0) = ?";
-
-        let mut store = Self::load(data_dir, locale)?;
-        let table_hash = store
+        let table_hash = self
             .table_hash_like_cpp
             .context("SkillLine.db2 is missing its WDC4 table hash")?;
-        let mut overlay_batches = [Vec::new(), Vec::new()];
-
-        // C++ passes !custom into the predicate: true (official) first,
-        // false (VerifiedBuild <= 0 custom rows) second.
-        for (batch_index, official) in [true, false].into_iter().enumerate() {
-            let mut statement =
-                hotfix_db.prepare(HotfixStatements::base(SKILL_LINE_ACQUISITION_OVERLAY_SQL));
-            statement.set_bool(0, official);
-            let mut result = hotfix_db
-                .query(&statement)
-                .await
-                .context("failed to load SkillLine.db2 SQL classification overlay")?;
-            if result.is_empty() {
-                continue;
-            }
-
-            loop {
-                let record_id =
-                    read_u32_checked_like_cpp(&result, 0).context("invalid SkillLine SQL ID")?;
-                let category_id = read_i128_checked_like_cpp(&result, 1)?;
-                let parent_skill_line_id = read_i128_checked_like_cpp(&result, 2)?;
-                let parent_tier_index = read_i128_checked_like_cpp(&result, 3)?;
-                let acquisition_fields = match (
-                    i8::try_from(category_id),
-                    u32::try_from(parent_skill_line_id),
-                    i32::try_from(parent_tier_index),
-                ) {
-                    (Ok(category_id), Ok(parent_skill_line_id), Ok(parent_tier_index)) => {
-                        Some(SkillLineAcquisitionFieldsLikeCpp {
-                            category_id,
-                            parent_skill_line_id,
-                            parent_tier_index,
-                        })
-                    }
-                    _ => {
-                        warn!(
-                            record_id,
-                            category_id,
-                            parent_skill_line_id,
-                            parent_tier_index,
-                            official,
-                            "SkillLine SQL overlay has an out-of-domain acquisition payload; \
-                             retaining its effective identity as incomplete"
-                        );
-                        None
-                    }
-                };
-                overlay_batches[batch_index].push((record_id, acquisition_fields));
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        let [official_overlays, custom_overlays] = overlay_batches;
-        store.effective_record_ids_like_cpp = compose_effective_skill_line_ids_like_cpp(
-            store.entries.keys().copied(),
+        let official_overlays = official_overlays
+            .into_iter()
+            .map(|overlay| classify_skill_line_hotfix_overlay_like_cpp(overlay, true))
+            .collect::<Vec<_>>();
+        let custom_overlays = custom_overlays
+            .into_iter()
+            .map(|overlay| classify_skill_line_hotfix_overlay_like_cpp(overlay, false))
+            .collect::<Vec<_>>();
+        self.effective_record_ids_like_cpp = compose_effective_skill_line_ids_like_cpp(
+            self.entries.keys().copied(),
             official_overlays.iter().map(|(id, _)| *id),
             custom_overlays.iter().map(|(id, _)| *id),
             table_hash,
             removed_records,
         );
-        store.acquisition_fields_by_effective_record_like_cpp =
+        self.acquisition_fields_by_effective_record_like_cpp =
             compose_effective_skill_line_acquisition_payloads_like_cpp(
-                std::mem::take(&mut store.acquisition_fields_by_effective_record_like_cpp),
+                std::mem::take(&mut self.acquisition_fields_by_effective_record_like_cpp),
                 official_overlays,
                 custom_overlays,
-                &store.effective_record_ids_like_cpp,
+                &self.effective_record_ids_like_cpp,
             );
-        Ok(store)
+        Ok(self)
     }
 
     /// C++ `Player::GetProfessionSkillForExp`.
@@ -874,6 +833,38 @@ fn skill_line_entry_from_wdc4_like_cpp(
     }
 }
 
+fn classify_skill_line_hotfix_overlay_like_cpp(
+    overlay: SkillLineHotfixOverlayLikeCpp,
+    official: bool,
+) -> (u32, Option<SkillLineAcquisitionFieldsLikeCpp>) {
+    let acquisition_fields = match (
+        i8::try_from(overlay.category_id),
+        u32::try_from(overlay.parent_skill_line_id),
+        i32::try_from(overlay.parent_tier_index),
+    ) {
+        (Ok(category_id), Ok(parent_skill_line_id), Ok(parent_tier_index)) => {
+            Some(SkillLineAcquisitionFieldsLikeCpp {
+                category_id,
+                parent_skill_line_id,
+                parent_tier_index,
+            })
+        }
+        _ => {
+            warn!(
+                record_id = overlay.id,
+                category_id = overlay.category_id,
+                parent_skill_line_id = overlay.parent_skill_line_id,
+                parent_tier_index = overlay.parent_tier_index,
+                official,
+                "SkillLine SQL overlay has an out-of-domain acquisition payload; retaining its \
+                 effective identity as incomplete"
+            );
+            None
+        }
+    };
+    (overlay.id, acquisition_fields)
+}
+
 fn compose_effective_skill_line_ids_like_cpp(
     base_ids: impl IntoIterator<Item = u32>,
     official_overlay_ids: impl IntoIterator<Item = u32>,
@@ -930,19 +921,6 @@ fn compose_effective_skill_line_acquisition_payloads_like_cpp(
                 .map(|fields| (record_id, fields))
         })
         .collect()
-}
-
-fn read_i128_checked_like_cpp(result: &SqlResult, column: usize) -> Result<i128> {
-    result
-        .try_read::<i64>(column)
-        .map(i128::from)
-        .or_else(|| result.try_read::<u64>(column).map(i128::from))
-        .with_context(|| format!("missing or non-integer SQL column {column}"))
-}
-
-fn read_u32_checked_like_cpp(result: &SqlResult, column: usize) -> Result<u32> {
-    let value = read_i128_checked_like_cpp(result, column)?;
-    u32::try_from(value).with_context(|| format!("SQL column {column} value {value} is not u32"))
 }
 
 fn load_store<T, S>(
@@ -1343,6 +1321,40 @@ mod tests {
             "a final removal must erase even an invalid SQL overlay identity"
         );
         assert!(!store.has_complete_acquisition_payload_like_cpp());
+    }
+
+    #[test]
+    fn typed_hotfix_application_retains_invalid_identity_and_custom_repairs_payload() {
+        const TABLE_HASH: u32 = 0x51A1_0001;
+        let mut base = SkillLineStore::from_entries([skill_line(100, 11, 0, 0)]);
+        base.table_hash_like_cpp = Some(TABLE_HASH);
+        let store = base
+            .apply_hotfix_overlays_like_cpp(
+                [SkillLineHotfixOverlayLikeCpp {
+                    id: 200,
+                    category_id: i128::from(i8::MAX) + 1,
+                    parent_skill_line_id: 100,
+                    parent_tier_index: 4,
+                }],
+                [SkillLineHotfixOverlayLikeCpp {
+                    id: 200,
+                    category_id: 11,
+                    parent_skill_line_id: 100,
+                    parent_tier_index: 4,
+                }],
+                &Db2HotfixRemovalStoreLikeCpp::default(),
+            )
+            .unwrap();
+
+        assert!(store.contains_effective_record_like_cpp(200));
+        assert_eq!(
+            store.acquisition_payload_like_cpp(200),
+            SkillLineAcquisitionPayloadLikeCpp::Complete(SkillLineAcquisitionFieldsLikeCpp {
+                category_id: 11,
+                parent_skill_line_id: 100,
+                parent_tier_index: 4,
+            })
+        );
     }
 
     #[test]

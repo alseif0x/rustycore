@@ -3670,74 +3670,6 @@
       "package": "wow-data",
       "module": "crate::skill",
       "source": "crates/wow-data/src/skill.rs",
-      "enclosing": "fn read_sql_source_field_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::skill",
-      "source": "crates/wow-data/src/skill.rs",
-      "enclosing": "fn skill_line_ability_source_from_sql_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::skill",
-      "source": "crates/wow-data/src/skill.rs",
-      "enclosing": "fn skill_race_class_info_source_from_sql_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::skill",
-      "source": "crates/wow-data/src/skill.rs",
-      "enclosing": "impl SkillStore::load_effective_like_cpp",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::skill",
-      "source": "crates/wow-data/src/skill.rs",
       "enclosing": "impl SkillTiersStoreLikeCpp::load_like_cpp",
       "logical_databases": [
         "world"
@@ -3757,7 +3689,6 @@
       "source": "crates/wow-data/src/skill.rs",
       "enclosing": "module",
       "logical_databases": [
-        "hotfix",
         "world"
       ],
       "boundary": "wow-data catalog/data-source boundary",
@@ -3765,75 +3696,7 @@
         153
       ],
       "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for hotfix, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::skill_talent",
-      "source": "crates/wow-data/src/skill_talent.rs",
-      "enclosing": "fn read_i128_checked_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::skill_talent",
-      "source": "crates/wow-data/src/skill_talent.rs",
-      "enclosing": "fn read_u32_checked_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::skill_talent",
-      "source": "crates/wow-data/src/skill_talent.rs",
-      "enclosing": "impl SkillLineStore::load_effective_like_cpp",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::skill_talent",
-      "source": "crates/wow-data/src/skill_talent.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for hotfix; it does not itself imply a runtime transaction.",
+      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
@@ -10286,6 +10149,126 @@
       "connection_affinity": "The concrete adapter stores exactly one Characters-database handle and exposes it only through the typed port.",
       "current_order": "Storage alone performs no operation; each port method preserves its documented C++-anchored order.",
       "failure_and_unknown_commit": "The handle is private and no driver error type crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::skill_catalog_hotfix_adapter",
+      "source": "crates/wow-database/src/skill_catalog_hotfix_adapter.rs",
+      "enclosing": "fn read_integer_checked_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free effective skill-catalog Hotfix capability (#523)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "All staged reads use the adapter's one Hotfix database handle; decoding itself opens no connection or transaction.",
+      "current_order": "Try every represented signed and unsigned SQL integer width without fabricating a default.",
+      "failure_and_unknown_commit": "A missing or non-integer consumed field fails the complete stage before any batch crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::skill_catalog_hotfix_adapter",
+      "source": "crates/wow-database/src/skill_catalog_hotfix_adapter.rs",
+      "enclosing": "fn skill_line_ability_row_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free effective skill-catalog Hotfix capability (#523)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The row comes from the adapter's one Hotfix handle; decoding implies no wider transaction.",
+      "current_order": "Decode the represented SkillLineAbility projection in the exact selected-column order before returning a row.",
+      "failure_and_unknown_commit": "A missing, non-integer or invalid ID fails the complete stage before domain publication."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::skill_catalog_hotfix_adapter",
+      "source": "crates/wow-database/src/skill_catalog_hotfix_adapter.rs",
+      "enclosing": "fn skill_line_row_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free effective skill-catalog Hotfix capability (#523)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The row comes from the adapter's one Hotfix handle; decoding implies no wider transaction.",
+      "current_order": "Decode the represented SkillLine acquisition projection in the exact selected-column order before returning a row.",
+      "failure_and_unknown_commit": "A missing, non-integer or invalid ID fails the complete stage before domain publication."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::skill_catalog_hotfix_adapter",
+      "source": "crates/wow-database/src/skill_catalog_hotfix_adapter.rs",
+      "enclosing": "impl MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free effective skill-catalog Hotfix capability (#523)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter stores exactly one shared Hotfix database handle.",
+      "current_order": "Construction introduces no runtime order beyond the two staged port methods.",
+      "failure_and_unknown_commit": "Construction performs no I/O and implies no commit outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::skill_catalog_hotfix_adapter",
+      "source": "crates/wow-database/src/skill_catalog_hotfix_adapter.rs",
+      "enclosing": "impl wow_persistence::SkillCatalogHotfixPersistencePortLikeCpp for MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp::load_skill_line_hotfix_rows_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free effective skill-catalog Hotfix capability (#523)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Both SkillLine overlay reads use one Hotfix handle sequentially and imply no transaction.",
+      "current_order": "Query and fully decode official SkillLine rows before custom rows, matching DB2StorageBase::LoadFromDB.",
+      "failure_and_unknown_commit": "Any query, missing/non-integer field or invalid ID becomes one Failed outcome; no partial batch crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::skill_catalog_hotfix_adapter",
+      "source": "crates/wow-database/src/skill_catalog_hotfix_adapter.rs",
+      "enclosing": "impl wow_persistence::SkillCatalogHotfixPersistencePortLikeCpp for MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp::load_skill_relation_hotfix_rows_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free effective skill-catalog Hotfix capability (#523)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "All four relation reads use one Hotfix handle sequentially and imply no transaction.",
+      "current_order": "Preserve the pre-#523 Rust order: for official and then custom, fully decode SkillLineAbility before SkillRaceClassInfo. C++ table-granular convergence is tracked separately by #524.",
+      "failure_and_unknown_commit": "Any query, missing/non-integer field or invalid ID becomes one Failed outcome; no partial relation batch crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::skill_catalog_hotfix_adapter",
+      "source": "crates/wow-database/src/skill_catalog_hotfix_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free effective skill-catalog Hotfix capability (#523)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "This module surface is confined to the Hotfix adapter and does not imply a wider transaction.",
+      "current_order": "Shared module syntax introduces no order beyond the typed staged workflow.",
+      "failure_and_unknown_commit": "Shared module syntax introduces no additional failure or commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::skill_catalog_hotfix_adapter",
+      "source": "crates/wow-database/src/skill_catalog_hotfix_adapter.rs",
+      "enclosing": "struct MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free effective skill-catalog Hotfix capability (#523)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns exactly one shared Hotfix database handle.",
+      "current_order": "The handle surface introduces no runtime order beyond the staged port methods.",
+      "failure_and_unknown_commit": "The handle surface performs no I/O and implies no commit outcome."
     },
     {
       "package": "wow-database",

@@ -119,6 +119,7 @@
     517,
     519,
     521,
+    523,
     189,
     192,
     193,
@@ -1892,7 +1893,7 @@
   },
   {
     "number": 521,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.69] Move ChrSpecialization hotfix overlay behind a typed persistence port",
     "kind": "slice",
     "parents": [
@@ -1901,6 +1902,19 @@
     ],
     "depends_on": [
       519
+    ]
+  },
+  {
+    "number": 523,
+    "state": "open",
+    "title": "[ARCH.DB.70] Move the effective skill catalog behind one typed Hotfix source",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      521
     ]
   }
 ]

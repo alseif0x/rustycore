@@ -68,6 +68,7 @@ pub mod reputation_catalog_adapter;
 pub mod respawn_persistence_adapter;
 pub mod result;
 pub mod session_account_state_adapter;
+pub mod skill_catalog_hotfix_adapter;
 pub mod social_adapter;
 pub mod spell_core_db2_hotfix_adapter;
 pub mod spell_info_key_hotfix_adapter;
@@ -116,6 +117,7 @@ pub use result::{
     DatabaseFieldTypeLikeCpp, SqlFields, SqlResult, database_field_type_like_cpp,
     rust_type_compatible_with_database_field_like_cpp,
 };
+pub use skill_catalog_hotfix_adapter::MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp;
 pub use spell_core_db2_hotfix_adapter::MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp;
 pub use spell_info_key_hotfix_adapter::MariaDbSpellInfoKeyHotfixPersistenceAdapterLikeCpp;
 pub use spell_world_catalog_adapter::MariaDbSpellWorldCatalogPersistenceAdapterLikeCpp;

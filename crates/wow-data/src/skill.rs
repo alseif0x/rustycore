@@ -14,7 +14,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::info;
-use wow_database::{HotfixDatabase, HotfixStatements, SqlResult, WorldDatabase, WorldStatements};
+use wow_database::{WorldDatabase, WorldStatements};
 
 use crate::Db2HotfixRemovalStoreLikeCpp;
 use crate::entities_movement::CreatureFamilyEntry;
@@ -197,34 +197,44 @@ pub enum SkillRaceClassInfoMatchCoverageLikeCpp<'a> {
 }
 
 #[derive(Debug, Clone)]
-struct SkillLineAbilitySourceRecordLikeCpp {
-    source: SkillStoreLoadSourceLikeCpp,
-    id: u32,
-    race_mask: i128,
-    skill_line: i128,
-    spell: i128,
-    min_skill_line_rank: i128,
-    class_mask: i128,
-    supercedes_spell: i128,
-    acquire_method: i128,
-    trivial_rank_high: i128,
-    trivial_rank_low: i128,
-    flags: i128,
-    num_skill_ups: i128,
-    skillup_skill_line_id: i128,
+pub struct SkillLineAbilitySourceRecordLikeCpp {
+    pub source: SkillStoreLoadSourceLikeCpp,
+    pub id: u32,
+    pub race_mask: i128,
+    pub skill_line: i128,
+    pub spell: i128,
+    pub min_skill_line_rank: i128,
+    pub class_mask: i128,
+    pub supercedes_spell: i128,
+    pub acquire_method: i128,
+    pub trivial_rank_high: i128,
+    pub trivial_rank_low: i128,
+    pub flags: i128,
+    pub num_skill_ups: i128,
+    pub skillup_skill_line_id: i128,
 }
 
 #[derive(Debug, Clone)]
-struct SkillRaceClassInfoSourceRecordLikeCpp {
-    source: SkillStoreLoadSourceLikeCpp,
-    id: u32,
-    race_mask: i128,
-    skill_id: i128,
-    class_mask: i128,
-    flags: i128,
-    availability: i128,
-    min_level: i128,
-    skill_tier_id: i128,
+pub struct SkillRaceClassInfoSourceRecordLikeCpp {
+    pub source: SkillStoreLoadSourceLikeCpp,
+    pub id: u32,
+    pub race_mask: i128,
+    pub skill_id: i128,
+    pub class_mask: i128,
+    pub flags: i128,
+    pub availability: i128,
+    pub min_level: i128,
+    pub skill_tier_id: i128,
+}
+
+/// Opaque WDC4 half of the effective skill catalog. Keeping this value opaque
+/// lets the composition root preserve C++ file/SQL order without exposing the
+/// store's intermediate maps or table hashes.
+pub struct SkillStoreWdc4BaseLikeCpp {
+    abilities: Vec<SkillLineAbilitySourceRecordLikeCpp>,
+    ability_table_hash: u32,
+    race_class_infos: Vec<SkillRaceClassInfoSourceRecordLikeCpp>,
+    race_class_table_hash: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -988,33 +998,12 @@ impl SkillStore {
         })
     }
 
-    /// Load the final effective C++ skill authority.
-    ///
-    /// Composition follows `DB2StorageBase::LoadFromDB` and
-    /// `DB2Manager::LoadHotfixData`: WDC4, official SQL, custom SQL, then the
-    /// final removal status. Unlike C++'s historical initialization order,
-    /// every derived index is rebuilt only after removal.
-    pub async fn load_effective_like_cpp(
+    /// Load the WDC4 half of the effective C++ skill authority before any SQL
+    /// overlay is requested, matching `DB2Manager::LoadStores`.
+    pub fn load_wdc4_base_like_cpp(
         data_dir: &str,
         locale: &str,
-        hotfix_db: &HotfixDatabase,
-        removed_records: &Db2HotfixRemovalStoreLikeCpp,
-        skill_line_store: &SkillLineStore,
-    ) -> Result<SkillStoreEffectiveLoadOutcomeLikeCpp> {
-        const SKILL_LINE_ABILITY_OVERLAY_SQL: &str = concat!(
-            "SELECT RaceMask, ID, SkillLine, Spell, MinSkillLineRank, ClassMask, ",
-            "SupercedesSpell, AcquireMethod, TrivialSkillLineRankHigh, ",
-            "TrivialSkillLineRankLow, Flags, NumSkillUps, UniqueBit, ",
-            "TradeSkillCategoryID, SkillupSkillLineID, CharacterPoints1, ",
-            "CharacterPoints2 FROM skill_line_ability ",
-            "WHERE (`VerifiedBuild` > 0) = ?"
-        );
-        const SKILL_RACE_CLASS_INFO_OVERLAY_SQL: &str = concat!(
-            "SELECT ID, RaceMask, SkillID, ClassMask, Flags, Availability, ",
-            "MinLevel, SkillTierID FROM skill_race_class_info ",
-            "WHERE (`VerifiedBuild` > 0) = ?"
-        );
-
+    ) -> Result<SkillStoreWdc4BaseLikeCpp> {
         let dbc_dir = Path::new(data_dir).join("dbc").join(locale);
         let sla_path = dbc_dir.join("SkillLineAbility.db2");
         let sla_reader = Wdc4Reader::open(&sla_path)
@@ -1034,63 +1023,34 @@ impl SkillStore {
             .map(|(id, idx)| skill_race_class_info_source_from_wdc4_like_cpp(id, idx, &srci_reader))
             .collect::<Vec<_>>();
 
-        let mut ability_overlay_batches = [Vec::new(), Vec::new()];
-        let mut race_class_overlay_batches = [Vec::new(), Vec::new()];
-        for (batch_index, (source, official)) in [
-            (SkillStoreLoadSourceLikeCpp::OfficialSql, true),
-            (SkillStoreLoadSourceLikeCpp::CustomSql, false),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            let mut statement =
-                hotfix_db.prepare(HotfixStatements::base(SKILL_LINE_ABILITY_OVERLAY_SQL));
-            statement.set_bool(0, official);
-            let mut result = hotfix_db
-                .query(&statement)
-                .await
-                .context("failed to load SkillLineAbility.db2 SQL overlay")?;
-            if !result.is_empty() {
-                loop {
-                    ability_overlay_batches[batch_index].push(
-                        skill_line_ability_source_from_sql_like_cpp(&result, source)?,
-                    );
-                    if !result.next_row() {
-                        break;
-                    }
-                }
-            }
+        Ok(SkillStoreWdc4BaseLikeCpp {
+            abilities: base_abilities,
+            ability_table_hash: sla_table_hash,
+            race_class_infos: base_race_class_infos,
+            race_class_table_hash: srci_table_hash,
+        })
+    }
 
-            let mut statement =
-                hotfix_db.prepare(HotfixStatements::base(SKILL_RACE_CLASS_INFO_OVERLAY_SQL));
-            statement.set_bool(0, official);
-            let mut result = hotfix_db
-                .query(&statement)
-                .await
-                .context("failed to load SkillRaceClassInfo.db2 SQL overlay")?;
-            if !result.is_empty() {
-                loop {
-                    race_class_overlay_batches[batch_index].push(
-                        skill_race_class_info_source_from_sql_like_cpp(&result, source)?,
-                    );
-                    if !result.next_row() {
-                        break;
-                    }
-                }
-            }
-        }
-
-        let [official_abilities, custom_abilities] = ability_overlay_batches;
-        let [official_race_class_infos, custom_race_class_infos] = race_class_overlay_batches;
+    /// Compose already decoded Hotfix overlays over an opaque WDC4 base.
+    /// Derived indexes are rebuilt only after final tombstones.
+    pub fn compose_effective_from_hotfix_overlays_like_cpp(
+        base: SkillStoreWdc4BaseLikeCpp,
+        official_abilities: impl IntoIterator<Item = SkillLineAbilitySourceRecordLikeCpp>,
+        custom_abilities: impl IntoIterator<Item = SkillLineAbilitySourceRecordLikeCpp>,
+        official_race_class_infos: impl IntoIterator<Item = SkillRaceClassInfoSourceRecordLikeCpp>,
+        custom_race_class_infos: impl IntoIterator<Item = SkillRaceClassInfoSourceRecordLikeCpp>,
+        removed_records: &Db2HotfixRemovalStoreLikeCpp,
+        skill_line_store: &SkillLineStore,
+    ) -> SkillStoreEffectiveLoadOutcomeLikeCpp {
         let outcome = compose_effective_skill_store_like_cpp(
-            base_abilities,
+            base.abilities,
             official_abilities,
             custom_abilities,
-            sla_table_hash,
-            base_race_class_infos,
+            base.ability_table_hash,
+            base.race_class_infos,
             official_race_class_infos,
             custom_race_class_infos,
-            srci_table_hash,
+            base.race_class_table_hash,
             removed_records,
             skill_line_store,
         );
@@ -1104,7 +1064,7 @@ impl SkillStore {
             outcome.report.skill_race_class_info_indexed_rows,
             outcome.report.diagnostics_in_record_order_like_cpp.len()
         );
-        Ok(outcome)
+        outcome
     }
 
     /// C++ `DB2Manager::GetSkillRaceClassInfo(skill, race, class)`, with a
@@ -1642,97 +1602,6 @@ fn skill_race_class_info_source_from_wdc4_like_cpp(
         min_level: i128::from(reader.get_field_i8(record_idx, 5)),
         skill_tier_id: i128::from(reader.get_field_i16(record_idx, 6)),
     }
-}
-
-fn skill_line_ability_source_from_sql_like_cpp(
-    result: &SqlResult,
-    source: SkillStoreLoadSourceLikeCpp,
-) -> Result<SkillLineAbilitySourceRecordLikeCpp> {
-    let id =
-        read_sql_source_field_like_cpp(result, 1, "SkillLineAbility.ID").and_then(|value| {
-            u32::try_from(value)
-                .with_context(|| format!("SkillLineAbility SQL ID {value} is not u32"))
-        })?;
-    Ok(SkillLineAbilitySourceRecordLikeCpp {
-        source,
-        id,
-        race_mask: read_sql_source_field_like_cpp(result, 0, "SkillLineAbility.RaceMask")?,
-        skill_line: read_sql_source_field_like_cpp(result, 2, "SkillLineAbility.SkillLine")?,
-        spell: read_sql_source_field_like_cpp(result, 3, "SkillLineAbility.Spell")?,
-        min_skill_line_rank: read_sql_source_field_like_cpp(
-            result,
-            4,
-            "SkillLineAbility.MinSkillLineRank",
-        )?,
-        class_mask: read_sql_source_field_like_cpp(result, 5, "SkillLineAbility.ClassMask")?,
-        supercedes_spell: read_sql_source_field_like_cpp(
-            result,
-            6,
-            "SkillLineAbility.SupercedesSpell",
-        )?,
-        acquire_method: read_sql_source_field_like_cpp(
-            result,
-            7,
-            "SkillLineAbility.AcquireMethod",
-        )?,
-        trivial_rank_high: read_sql_source_field_like_cpp(
-            result,
-            8,
-            "SkillLineAbility.TrivialSkillLineRankHigh",
-        )?,
-        trivial_rank_low: read_sql_source_field_like_cpp(
-            result,
-            9,
-            "SkillLineAbility.TrivialSkillLineRankLow",
-        )?,
-        flags: read_sql_source_field_like_cpp(result, 10, "SkillLineAbility.Flags")?,
-        num_skill_ups: read_sql_source_field_like_cpp(result, 11, "SkillLineAbility.NumSkillUps")?,
-        skillup_skill_line_id: read_sql_source_field_like_cpp(
-            result,
-            14,
-            "SkillLineAbility.SkillupSkillLineID",
-        )?,
-    })
-}
-
-fn skill_race_class_info_source_from_sql_like_cpp(
-    result: &SqlResult,
-    source: SkillStoreLoadSourceLikeCpp,
-) -> Result<SkillRaceClassInfoSourceRecordLikeCpp> {
-    let id =
-        read_sql_source_field_like_cpp(result, 0, "SkillRaceClassInfo.ID").and_then(|value| {
-            u32::try_from(value)
-                .with_context(|| format!("SkillRaceClassInfo SQL ID {value} is not u32"))
-        })?;
-    Ok(SkillRaceClassInfoSourceRecordLikeCpp {
-        source,
-        id,
-        race_mask: read_sql_source_field_like_cpp(result, 1, "SkillRaceClassInfo.RaceMask")?,
-        skill_id: read_sql_source_field_like_cpp(result, 2, "SkillRaceClassInfo.SkillID")?,
-        class_mask: read_sql_source_field_like_cpp(result, 3, "SkillRaceClassInfo.ClassMask")?,
-        flags: read_sql_source_field_like_cpp(result, 4, "SkillRaceClassInfo.Flags")?,
-        availability: read_sql_source_field_like_cpp(result, 5, "SkillRaceClassInfo.Availability")?,
-        min_level: read_sql_source_field_like_cpp(result, 6, "SkillRaceClassInfo.MinLevel")?,
-        skill_tier_id: read_sql_source_field_like_cpp(result, 7, "SkillRaceClassInfo.SkillTierID")?,
-    })
-}
-
-fn read_sql_source_field_like_cpp(
-    result: &SqlResult,
-    column: usize,
-    field: &'static str,
-) -> Result<i128> {
-    result
-        .try_read::<i64>(column)
-        .map(i128::from)
-        .or_else(|| result.try_read::<u64>(column).map(i128::from))
-        .or_else(|| result.try_read::<i32>(column).map(i128::from))
-        .or_else(|| result.try_read::<u32>(column).map(i128::from))
-        .or_else(|| result.try_read::<i16>(column).map(i128::from))
-        .or_else(|| result.try_read::<u16>(column).map(i128::from))
-        .or_else(|| result.try_read::<i8>(column).map(i128::from))
-        .or_else(|| result.try_read::<u8>(column).map(i128::from))
-        .with_context(|| format!("missing or non-integer {field} SQL column {column}"))
 }
 
 #[allow(clippy::too_many_arguments)]

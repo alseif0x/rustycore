@@ -1012,11 +1012,15 @@ async fn run_inner(
     // C++ acquisition authority is composed in dependency order: the final
     // SkillLine identities first, then SkillLineAbility/SkillRaceClassInfo
     // with their official/custom overlays and final removals.
+    let skill_catalog_hotfix_persistence =
+        wow_database::MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp::new(Arc::clone(
+            &hotfix_db,
+        ));
     let skill_line_store = Arc::new(
-        wow_data::SkillLineStore::load_effective_like_cpp(
+        crate::skill_catalog_hotfix::load_skill_line_store_like_cpp(
             &data_dir,
             &locale,
-            &hotfix_db,
+            &skill_catalog_hotfix_persistence,
             &db2_hotfix_removals,
         )
         .await
@@ -1027,10 +1031,10 @@ async fn run_inner(
         skill_line_store.len(),
         skill_line_store.effective_record_count_like_cpp()
     );
-    let skill_store_outcome = wow_data::SkillStore::load_effective_like_cpp(
+    let skill_store_outcome = crate::skill_catalog_hotfix::load_skill_store_like_cpp(
         &data_dir,
         &locale,
-        &hotfix_db,
+        &skill_catalog_hotfix_persistence,
         &db2_hotfix_removals,
         skill_line_store.as_ref(),
     )
