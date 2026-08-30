@@ -27,6 +27,7 @@ mod mount_catalog;
 mod player_choice;
 mod reputation_catalog;
 mod spell_core_db2_hotfix;
+mod spell_info_key_hotfix;
 mod vehicle_catalog;
 
 pub use area_trigger_template_catalog::{
@@ -68,6 +69,12 @@ pub use spell_core_db2_hotfix::{
     SpellEffectHotfixRowLikeCpp, SpellInterruptsHotfixRowLikeCpp, SpellMiscHotfixRowLikeCpp,
     SpellNameHotfixRowLikeCpp, SpellPowerDifficultyHotfixRowLikeCpp, SpellPowerHotfixRowLikeCpp,
     SpellShapeshiftHotfixRowLikeCpp,
+};
+pub use spell_info_key_hotfix::{
+    SPELL_INFO_KEY_CONTRIBUTOR_ORDER_LIKE_CPP, SpellInfoKeyContributorHotfixBatchLikeCpp,
+    SpellInfoKeyContributorHotfixRowLikeCpp, SpellInfoKeyContributorLikeCpp,
+    SpellInfoKeyHotfixLoadOutcomeLikeCpp, SpellInfoKeyHotfixPersistencePortLikeCpp,
+    SpellInfoKeyHotfixRowsLikeCpp, SpellInfoPowerDifficultyHotfixRowLikeCpp,
 };
 pub use vehicle_catalog::{
     VEHICLE_SEAT_COUNT_LIKE_CPP, VehicleHotfixLoadOutcomeLikeCpp,

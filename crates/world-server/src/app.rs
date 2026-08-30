@@ -1154,10 +1154,14 @@ async fn run_inner(
         spell_name_load_report.removed_rows,
         db2_hotfix_removals.len()
     );
-    let spell_store_seed = wow_data::SpellStore::load_spell_info_key_seed_like_cpp(
+    let spell_info_key_hotfix_persistence =
+        wow_database::MariaDbSpellInfoKeyHotfixPersistenceAdapterLikeCpp::new(Arc::clone(
+            &hotfix_db,
+        ));
+    let spell_store_seed = spell_info_key_hotfix::load_spell_store_seed_like_cpp(
         &data_dir,
         &locale,
-        &hotfix_db,
+        &spell_info_key_hotfix_persistence,
         &spell_name_store,
         &db2_hotfix_removals,
     )
