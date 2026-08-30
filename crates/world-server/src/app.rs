@@ -579,11 +579,15 @@ async fn run_inner(
         .context("Failed to load effective DB2 hotfix removals")?;
 
     // Load effective ChrSpecialization authority for C++ specialization validation.
+    let chr_specialization_hotfix_persistence =
+        wow_database::MariaDbChrSpecializationHotfixPersistenceAdapterLikeCpp::new(Arc::clone(
+            &hotfix_db,
+        ));
     let chr_specialization_store = Arc::new(
-        wow_data::ChrSpecializationStore::load_effective_like_cpp(
+        crate::chr_specialization_hotfix::load_chr_specialization_store_like_cpp(
             &data_dir,
             &locale,
-            &hotfix_db,
+            &chr_specialization_hotfix_persistence,
             &db2_hotfix_removals,
         )
         .await

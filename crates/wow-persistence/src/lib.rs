@@ -22,6 +22,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 mod area_trigger_template_catalog;
+mod chr_specialization_hotfix;
 mod instance_lock;
 mod mount_catalog;
 mod player_choice;
@@ -39,6 +40,10 @@ pub use area_trigger_template_catalog::{
     AreaTriggerTemplateActionPersistenceRowLikeCpp, AreaTriggerTemplateCatalogLoadOutcomeLikeCpp,
     AreaTriggerTemplateCatalogPersistencePortLikeCpp, AreaTriggerTemplateCatalogRowsLikeCpp,
     AreaTriggerTemplatePersistenceRowLikeCpp,
+};
+pub use chr_specialization_hotfix::{
+    ChrSpecializationHotfixLoadOutcomeLikeCpp, ChrSpecializationHotfixPersistencePortLikeCpp,
+    ChrSpecializationHotfixRowLikeCpp, ChrSpecializationHotfixRowsLikeCpp,
 };
 pub use instance_lock::{
     CharacterInstanceLockPersistenceRowLikeCpp, InstanceLockPersistenceLoadOutcomeLikeCpp,

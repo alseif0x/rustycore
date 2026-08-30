@@ -1723,11 +1723,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 27277,
-          "test_lines": 23641,
-          "total_lines": 50918,
+          "production_lines": 27336,
+          "test_lines": 23680,
+          "total_lines": 51016,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-          "latest_growth_review": "#519 adds the private trainer-catalog composition boundary: +97 production conversion/composition lines and +140 focused field, success and failure-before-publication test lines; SQL remains in wow-database while trainer/spell/locale/creature validation remains in wow-data.",
+          "latest_growth_review": "#521 adds the private ChrSpecialization Hotfix composition boundary: +59 production conversion/composition and C++-anchor lines plus +39 focused field and failure-before-domain-application test lines; SQL remains in wow-database while WDC4 replacement, derived-index and tombstone authority remain in wow-data.",
           "open_retirement_issues": [
             153
           ],
