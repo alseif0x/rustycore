@@ -46,6 +46,12 @@ pub enum HotfixStatements {
     SEL_POWER_TYPE,
     /// C++ `HOTFIX_SEL_CHR_SPECIALIZATION`.
     SEL_CHR_SPECIALIZATION,
+    /// C++ `HOTFIX_SEL_SKILL_LINE` projected to represented acquisition fields.
+    SEL_SKILL_LINE,
+    /// C++ `HOTFIX_SEL_SKILL_LINE_ABILITY`.
+    SEL_SKILL_LINE_ABILITY,
+    /// C++ `HOTFIX_SEL_SKILL_RACE_CLASS_INFO`.
+    SEL_SKILL_RACE_CLASS_INFO,
     /// `DB2Manager::LoadHotfixData`.
     SEL_HOTFIX_DATA,
     /// `DB2Manager::LoadHotfixBlob`.
@@ -146,6 +152,9 @@ impl HotfixStatements {
                 | Self::SEL_VEHICLE_SEAT
                 | Self::SEL_POWER_TYPE
                 | Self::SEL_CHR_SPECIALIZATION
+                | Self::SEL_SKILL_LINE
+                | Self::SEL_SKILL_LINE_ABILITY
+                | Self::SEL_SKILL_RACE_CLASS_INFO
                 | Self::SEL_PHASE
                 | Self::SEL_PHASE_X_PHASE_GROUP
                 | Self::SEL_UI_MAP_X_MAP_ART
@@ -269,6 +278,22 @@ impl StatementDef for HotfixStatements {
                 "SELECT Name, FemaleName, Description, ID, ClassID, OrderIndex, PetTalentType, Role, Flags, ",
                 "SpellIconFileID, PrimaryStatPriority, AnimReplacements, MasterySpellID1, MasterySpellID2 ",
                 "FROM chr_specialization WHERE (`VerifiedBuild` > 0) = ?"
+            ),
+            Self::SEL_SKILL_LINE => concat!(
+                "SELECT ID, CategoryID, ParentSkillLineID, ParentTierIndex FROM skill_line ",
+                "WHERE (`VerifiedBuild` > 0) = ?"
+            ),
+            Self::SEL_SKILL_LINE_ABILITY => concat!(
+                "SELECT RaceMask, ID, SkillLine, Spell, MinSkillLineRank, ClassMask, ",
+                "SupercedesSpell, AcquireMethod, TrivialSkillLineRankHigh, ",
+                "TrivialSkillLineRankLow, Flags, NumSkillUps, UniqueBit, ",
+                "TradeSkillCategoryID, SkillupSkillLineID, CharacterPoints1, ",
+                "CharacterPoints2 FROM skill_line_ability WHERE (`VerifiedBuild` > 0) = ?"
+            ),
+            Self::SEL_SKILL_RACE_CLASS_INFO => concat!(
+                "SELECT ID, RaceMask, SkillID, ClassMask, Flags, Availability, ",
+                "MinLevel, SkillTierID FROM skill_race_class_info ",
+                "WHERE (`VerifiedBuild` > 0) = ?"
             ),
             Self::SEL_HOTFIX_DATA => {
                 "SELECT Id, UniqueId, TableHash, RecordId, Status FROM hotfix_data ORDER BY Id"
@@ -444,6 +469,9 @@ mod tests {
         assert!(HotfixStatements::SEL_VEHICLE_SEAT.is_selected_overlay_like_cpp());
         assert!(HotfixStatements::SEL_POWER_TYPE.is_selected_overlay_like_cpp());
         assert!(HotfixStatements::SEL_CHR_SPECIALIZATION.is_selected_overlay_like_cpp());
+        assert!(HotfixStatements::SEL_SKILL_LINE.is_selected_overlay_like_cpp());
+        assert!(HotfixStatements::SEL_SKILL_LINE_ABILITY.is_selected_overlay_like_cpp());
+        assert!(HotfixStatements::SEL_SKILL_RACE_CLASS_INFO.is_selected_overlay_like_cpp());
         assert!(HotfixStatements::SEL_SPELL_INTERRUPTS.is_selected_overlay_like_cpp());
         assert!(HotfixStatements::SEL_SPELL_NAME.is_selected_overlay_like_cpp());
         assert!(!HotfixStatements::SEL_HOTFIX_DATA.is_selected_overlay_like_cpp());

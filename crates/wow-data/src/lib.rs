@@ -423,11 +423,13 @@ pub use skill::{
     SKILL_CATEGORY_ARMOR_LIKE_CPP, SKILL_CATEGORY_LANGUAGES_LIKE_CPP,
     SKILL_FLAG_ALWAYS_MAX_VALUE_LIKE_CPP, SKILL_RUNEFORGING_LIKE_CPP, SkillInfoEntry,
     SkillLineAbilityCoverageLikeCpp, SkillLineAbilityRankRowLikeCpp, SkillLineAbilityRecord,
-    SkillRaceClassInfoCoverageLikeCpp, SkillRaceClassInfoMatchCoverageLikeCpp,
-    SkillRaceClassInfoRecord, SkillRangeTypeLikeCpp, SkillRewardedSpellChangesLikeCpp, SkillStore,
-    SkillStoreEffectiveLoadOutcomeLikeCpp, SkillStoreEffectiveLoadReportLikeCpp,
+    SkillLineAbilitySourceRecordLikeCpp, SkillRaceClassInfoCoverageLikeCpp,
+    SkillRaceClassInfoMatchCoverageLikeCpp, SkillRaceClassInfoRecord,
+    SkillRaceClassInfoSourceRecordLikeCpp, SkillRangeTypeLikeCpp, SkillRewardedSpellChangesLikeCpp,
+    SkillStore, SkillStoreEffectiveLoadOutcomeLikeCpp, SkillStoreEffectiveLoadReportLikeCpp,
     SkillStoreLoadDiagnosticLikeCpp, SkillStoreLoadSourceLikeCpp, SkillStoreTableLikeCpp,
-    SkillTiersEntryLikeCpp, SkillTiersRowLikeCpp, SkillTiersStoreLikeCpp,
+    SkillStoreWdc4BaseLikeCpp, SkillTiersEntryLikeCpp, SkillTiersRowLikeCpp,
+    SkillTiersStoreLikeCpp,
 };
 pub use skill_talent::{
     GlyphBindableSpellEntry, GlyphBindableSpellStore, GlyphPropertiesEntry, GlyphPropertiesStore,
@@ -437,8 +439,9 @@ pub use skill_talent::{
     JournalTierStore, PvpSeasonEntry, PvpSeasonStore, PvpTalentCategoryEntry,
     PvpTalentCategoryStore, PvpTalentEntry, PvpTalentSlotUnlockEntry, PvpTalentSlotUnlockStore,
     PvpTalentStore, PvpTierEntry, PvpTierStore, SkillLineAcquisitionFieldsLikeCpp,
-    SkillLineAcquisitionPayloadLikeCpp, SkillLineEntry, SkillLineStore, SkillLineXTraitTreeEntry,
-    SkillLineXTraitTreeStore, TalentEntry, TalentStore, TalentTabEntry, TalentTabStore,
+    SkillLineAcquisitionPayloadLikeCpp, SkillLineEntry, SkillLineHotfixOverlayLikeCpp,
+    SkillLineStore, SkillLineXTraitTreeEntry, SkillLineXTraitTreeStore, TalentEntry, TalentStore,
+    TalentTabEntry, TalentTabStore,
 };
 pub use spawn_group::{
     SpawnGroupTemplate, SpawnGroupTemplateLoadReport, SpawnGroupTemplateRow,
