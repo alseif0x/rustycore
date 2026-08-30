@@ -25,6 +25,7 @@ mod area_trigger_template_catalog;
 mod chr_specialization_hotfix;
 mod instance_lock;
 mod mount_catalog;
+mod player_base_stats;
 mod player_choice;
 mod reputation_catalog;
 mod skill_catalog_hotfix;
@@ -57,6 +58,11 @@ pub use mount_catalog::{
     MountCapabilityHotfixRowLikeCpp, MountCatalogLoadOutcomeLikeCpp,
     MountCatalogPersistencePortLikeCpp, MountDefinitionRowLikeCpp, MountHotfixRowLikeCpp,
     MountTypeXCapabilityHotfixRowLikeCpp, MountXDisplayHotfixRowLikeCpp,
+};
+pub use player_base_stats::{
+    PLAYER_PRIMARY_STAT_COUNT_LIKE_CPP, PlayerBaseStatsLoadOutcomeLikeCpp,
+    PlayerBaseStatsPersistencePortLikeCpp, PlayerClassLevelStatsPersistenceRowLikeCpp,
+    PlayerRaceStatsPersistenceRowLikeCpp,
 };
 pub use player_choice::{
     PlayerChoiceCatalogCoreRowsLikeCpp, PlayerChoiceCatalogLoadOutcomeLikeCpp,
