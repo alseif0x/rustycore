@@ -1723,11 +1723,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 27464,
-          "test_lines": 23744,
-          "total_lines": 51208,
+          "production_lines": 27538,
+          "test_lines": 23833,
+          "total_lines": 51371,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-          "latest_growth_review": "#523 adds the private effective-skill-catalog composition boundary: +128 production conversion/composition and C++-order lines plus +64 focused field, failure-before-domain-application and startup-order test lines. One staged capability covers SkillLine, SkillLineAbility and SkillRaceClassInfo without a port per table; SQL remains in wow-database while WDC4 parsing, invalid/incomplete diagnostics, derived indexes and tombstones remain in wow-data.",
+          "latest_growth_review": "#526 adds one private World skill-rules composition boundary: +74 production conversion/composition lines plus +89 focused field, empty/success/failure-before-publication and single-adapter startup-order test lines. One capability covers fishing-base requirements and skill-tier caps without a port per table; SQL remains in wow-database while area validation, duplicate replacement, parent fallback and tier gameplay rules remain in wow-data.",
           "open_retirement_issues": [
             153
           ],

@@ -1540,6 +1540,7 @@ use shutdown::*;
 mod bootstrap;
 mod chr_specialization_hotfix;
 mod skill_catalog_hotfix;
+mod skill_world_rules;
 use bootstrap::*;
 
 async fn load_loot_stores_like_cpp(
