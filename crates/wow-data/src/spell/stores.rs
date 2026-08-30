@@ -2181,6 +2181,54 @@ pub struct SpellStore {
     implicit_target_conditions: HashMap<(i32, u32), ConditionsReference>,
 }
 
+/// Effective DB2 authorities consumed together by C++
+/// `SpellMgr::LoadSpellInfoStore`.
+///
+/// The stores own DB2 parsing, row replacement and final tombstones. The
+/// composition root supplies already-decoded rows without exposing a database
+/// or persistence contract to `wow-data`.
+pub struct EffectiveCoreSpellDb2StoresLikeCpp {
+    spell_categories: crate::spell_db2::SpellCategoriesStore,
+    spell_misc: crate::spell_db2::SpellMiscStore,
+    spell_effect: crate::spell_db2::SpellEffectDb2Store,
+    spell_shapeshift: crate::spell_db2::SpellShapeshiftStore,
+    spell_interrupts: crate::spell_db2::SpellInterruptsStore,
+    spell_cast_times: crate::spell_db2::SpellCastTimesStore,
+    spell_cooldowns: crate::spell_db2::SpellCooldownsStore,
+    spell_casting_requirements: crate::spell_db2::SpellCastingRequirementsStore,
+    spell_power: crate::spell_db2::SpellPowerStore,
+    spell_power_difficulty: crate::spell_db2::SpellPowerDifficultyStore,
+}
+
+impl EffectiveCoreSpellDb2StoresLikeCpp {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        spell_categories: crate::spell_db2::SpellCategoriesStore,
+        spell_misc: crate::spell_db2::SpellMiscStore,
+        spell_effect: crate::spell_db2::SpellEffectDb2Store,
+        spell_shapeshift: crate::spell_db2::SpellShapeshiftStore,
+        spell_interrupts: crate::spell_db2::SpellInterruptsStore,
+        spell_cast_times: crate::spell_db2::SpellCastTimesStore,
+        spell_cooldowns: crate::spell_db2::SpellCooldownsStore,
+        spell_casting_requirements: crate::spell_db2::SpellCastingRequirementsStore,
+        spell_power: crate::spell_db2::SpellPowerStore,
+        spell_power_difficulty: crate::spell_db2::SpellPowerDifficultyStore,
+    ) -> Self {
+        Self {
+            spell_categories,
+            spell_misc,
+            spell_effect,
+            spell_shapeshift,
+            spell_interrupts,
+            spell_cast_times,
+            spell_cooldowns,
+            spell_casting_requirements,
+            spell_power,
+            spell_power_difficulty,
+        }
+    }
+}
+
 impl SpellStore {
     /// Create a new empty spell store.
     pub fn new() -> Self {
@@ -2348,14 +2396,9 @@ impl SpellStore {
         }
     }
 
-    /// Load base spell data from DB2 and overlay SQL hotfix rows.
-    ///
-    /// C++ builds `SpellInfo` primarily from `sSpellEffectStore` and
-    /// `sSpellMiscStore` (`SpellMgr::LoadSpellInfoStore`) and then applies
-    /// hotfix data through the DB2 hotfix pipeline. Mount spells commonly
-    /// exist only in `SpellEffect.db2`/`SpellMisc.db2`, so a hotfix-only
-    /// loader makes account mounts fail as unknown or effectless spells.
-    pub async fn load_with_db2_and_hotfixes(
+    /// Load the exact regular `SpellInfo` key authority that still has
+    /// non-core Hotfix DB2 contributors outside #509.
+    pub async fn load_spell_info_key_seed_like_cpp(
         data_dir: &str,
         locale: &str,
         hotfix_db: &HotfixDatabase,
@@ -2371,123 +2414,36 @@ impl SpellStore {
                 hotfix_removals,
             )
             .await?;
-        let spell_categories_store =
-            crate::spell_db2::SpellCategoriesStore::load_effective_like_cpp(
-                data_dir,
-                locale,
-                hotfix_db,
-                hotfix_removals,
-            )
-            .await?;
-        let spell_misc_store = crate::spell_db2::SpellMiscStore::load_effective_like_cpp(
-            data_dir,
-            locale,
-            hotfix_db,
-            hotfix_removals,
-        )
-        .await?;
-        let spell_effect_store = crate::spell_db2::SpellEffectDb2Store::load_effective_like_cpp(
-            data_dir,
-            locale,
-            hotfix_db,
-            hotfix_removals,
-        )
-        .await?;
-        let spell_shapeshift_store =
-            crate::spell_db2::SpellShapeshiftStore::load_effective_like_cpp(
-                data_dir,
-                locale,
-                hotfix_db,
-                hotfix_removals,
-            )
-            .await?;
-        // The effective interrupt store already carries the official/custom SQL
-        // rows, so overlaying them onto the hydrated SpellStore afterwards would
-        // both duplicate the work and skip the tombstone pass.
-        let spell_interrupts_store =
-            crate::spell_db2::SpellInterruptsStore::load_effective_like_cpp(
-                data_dir,
-                locale,
-                hotfix_db,
-                hotfix_removals,
-            )
-            .await?;
-        let mut store = Self::from_spell_db2_stores_like_cpp(
-            &spell_categories_store,
-            &spell_misc_store,
-            &spell_effect_store,
-            &spell_shapeshift_store,
-        );
+        let mut store = Self::new();
         store.spell_info_keys_like_cpp = spell_info_keys_like_cpp;
-        store.apply_db2_interrupts_like_cpp(&spell_interrupts_store);
+        Ok(store)
+    }
 
-        // C++ builds every SpellInfo field from the DB2 stores composed above,
-        // each of which already carries official/custom SQL overlays and the
-        // final `hotfix_data` tombstones. Re-merging a raw
-        // `hotfixes.spell_effect`/`spell_misc` query here would resurrect rows
-        // the tombstone pass just removed, so the remaining SQL-only column,
-        // `RequiresSpellFocus`, is hydrated from its own effective store below.
-
-        // [M0.1/#14] Join DB2 SpellCastTimes via SpellMisc.CastingTimeIndex.
-        // C++ sSpellCastTimesStore.
-        let spell_cast_times_store =
-            crate::spell_db2::SpellCastTimesStore::load_effective_like_cpp(
-                data_dir,
-                locale,
-                hotfix_db,
-                hotfix_removals,
-            )
-            .await?;
-        store.apply_db2_cast_times_like_cpp(&spell_misc_store, &spell_cast_times_store);
-
-        // [M0.1/#14] Join DB2 SpellCooldowns (per-spell cooldown).
-        let spell_cooldowns_store = crate::spell_db2::SpellCooldownsStore::load_effective_like_cpp(
-            data_dir,
-            locale,
-            hotfix_db,
-            hotfix_removals,
-        )
-        .await?;
-        store.apply_db2_cooldowns_like_cpp(&spell_cooldowns_store);
-
-        // C++ `SpellMgr::LoadSpellInfoStore` reads
-        // `SpellCastingRequirements::RequiresSpellFocus` from the same effective
-        // store the cast-time gates use.
-        let spell_casting_requirements_store =
-            crate::spell_db2::SpellCastingRequirementsStore::load_effective_like_cpp(
-                data_dir,
-                locale,
-                hotfix_db,
-                hotfix_removals,
-            )
-            .await?;
-        store.apply_db2_casting_requirements_like_cpp(&spell_casting_requirements_store);
-
-        // [M0.1/#72] C++ SpellMgr loads SpellInfo::PowerCosts from
-        // `sSpellPowerStore` after base SpellInfo construction.
-        let spell_power_store = crate::spell_db2::SpellPowerStore::load_effective_like_cpp(
-            data_dir,
-            locale,
-            hotfix_db,
-            hotfix_removals,
-        )
-        .await?;
-        let spell_power_difficulty_store =
-            crate::spell_db2::SpellPowerDifficultyStore::load_effective_like_cpp(
-                data_dir,
-                locale,
-                hotfix_db,
-                hotfix_removals,
-            )
-            .await?;
-        store.apply_db2_power_costs_like_cpp(&spell_power_store, &spell_power_difficulty_store);
+    /// Hydrate the represented `SpellInfo` payload from already-effective DB2
+    /// authorities while preserving C++ `SpellMgr::LoadSpellInfoStore` order.
+    pub fn hydrate_effective_core_db2_like_cpp(
+        self,
+        stores: EffectiveCoreSpellDb2StoresLikeCpp,
+    ) -> Self {
+        let mut store = Self::from_spell_db2_stores_like_cpp(
+            &stores.spell_categories,
+            &stores.spell_misc,
+            &stores.spell_effect,
+            &stores.spell_shapeshift,
+        );
+        store.spell_info_keys_like_cpp = self.spell_info_keys_like_cpp;
+        store.apply_db2_interrupts_like_cpp(&stores.spell_interrupts);
+        store.apply_db2_cast_times_like_cpp(&stores.spell_misc, &stores.spell_cast_times);
+        store.apply_db2_cooldowns_like_cpp(&stores.spell_cooldowns);
+        store.apply_db2_casting_requirements_like_cpp(&stores.spell_casting_requirements);
+        store.apply_db2_power_costs_like_cpp(&stores.spell_power, &stores.spell_power_difficulty);
         store.apply_interrupt_flag_corrections_like_cpp();
 
         info!(
             "Loaded {} spells from SpellMisc/SpellEffect DB2 with hotfix overlay",
             store.spells.len()
         );
-        Ok(store)
+        store
     }
 
     /// Whether C++ `SpellMgr::GetSpellInfo` has an exact regular-spell key.

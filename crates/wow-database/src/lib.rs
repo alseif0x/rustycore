@@ -68,6 +68,7 @@ pub mod respawn_persistence_adapter;
 pub mod result;
 pub mod session_account_state_adapter;
 pub mod social_adapter;
+pub mod spell_core_db2_hotfix_adapter;
 pub mod statements;
 pub mod stored_item_money_adapter;
 pub mod support_bug_report_adapter;
@@ -110,6 +111,7 @@ pub use result::{
     DatabaseFieldTypeLikeCpp, SqlFields, SqlResult, database_field_type_like_cpp,
     rust_type_compatible_with_database_field_like_cpp,
 };
+pub use spell_core_db2_hotfix_adapter::MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp;
 pub use statements::{
     CharStatements, HOTFIX_STATEMENT_STRATEGY_LIKE_CPP, HotfixStatementStrategyLikeCpp,
     HotfixStatements, LoginStatements, StatementDef, WorldStatements,
