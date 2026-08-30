@@ -126,6 +126,7 @@
     532,
     534,
     536,
+    538,
     189,
     192,
     193,
@@ -1990,7 +1991,7 @@
   },
   {
     "number": 536,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.76] Move remaining AreaTrigger World reads behind one staged persistence port",
     "kind": "slice",
     "parents": [
@@ -2000,6 +2001,20 @@
     "depends_on": [
       505,
       534
+    ]
+  },
+  {
+    "number": 538,
+    "state": "open",
+    "title": "[ARCH.DB.77] Reuse the typed HotfixData source for effective DB2 removals",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      534,
+      536
     ]
   }
 ]

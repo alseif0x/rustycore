@@ -2,9 +2,6 @@
 
 use std::collections::{HashMap, HashSet};
 
-use anyhow::{Context, Result};
-use wow_database::{HotfixDatabase, HotfixStatements, SqlResult};
-
 /// Records whose final `hotfix_data` status is `RecordRemoved`.
 ///
 /// `hotfix_data` is ordered by push id in C++. A later status for the same
@@ -15,31 +12,6 @@ pub struct Db2HotfixRemovalStoreLikeCpp {
 }
 
 impl Db2HotfixRemovalStoreLikeCpp {
-    pub async fn load_like_cpp(hotfix_db: &HotfixDatabase) -> Result<Self> {
-        let statement = hotfix_db.prepare(HotfixStatements::SEL_HOTFIX_DATA);
-        let mut result = hotfix_db
-            .query(&statement)
-            .await
-            .context("failed to load effective hotfix_data removals")?;
-        if result.is_empty() {
-            return Ok(Self::default());
-        }
-
-        let mut status_rows = Vec::with_capacity(result.count());
-        loop {
-            status_rows.push((
-                read_u32_like_cpp(&result, 2),
-                read_i32_like_cpp(&result, 3),
-                read_u8_like_cpp(&result, 4),
-            ));
-            if !result.next_row() {
-                break;
-            }
-        }
-
-        Ok(Self::from_status_rows_like_cpp(status_rows))
-    }
-
     pub fn contains_like_cpp(&self, table_hash: u32, record_id: i32) -> bool {
         self.removed_records.contains(&(table_hash, record_id))
     }
@@ -58,7 +30,7 @@ impl Db2HotfixRemovalStoreLikeCpp {
         records
     }
 
-    pub(crate) fn from_status_rows_like_cpp(
+    pub fn from_status_rows_like_cpp(
         status_rows_in_push_order: impl IntoIterator<Item = (u32, i32, u8)>,
     ) -> Self {
         let mut final_status_by_record = HashMap::new();
@@ -78,33 +50,6 @@ impl Db2HotfixRemovalStoreLikeCpp {
                 .collect(),
         }
     }
-}
-
-fn read_u32_like_cpp(result: &SqlResult, column: usize) -> u32 {
-    result
-        .try_read::<u32>(column)
-        .or_else(|| result.try_read::<i32>(column).map(|value| value as u32))
-        .or_else(|| result.try_read::<u64>(column).map(|value| value as u32))
-        .or_else(|| result.try_read::<i64>(column).map(|value| value as u32))
-        .unwrap_or(0)
-}
-
-fn read_i32_like_cpp(result: &SqlResult, column: usize) -> i32 {
-    result
-        .try_read::<i32>(column)
-        .or_else(|| result.try_read::<u32>(column).map(|value| value as i32))
-        .or_else(|| result.try_read::<i64>(column).map(|value| value as i32))
-        .or_else(|| result.try_read::<u64>(column).map(|value| value as i32))
-        .unwrap_or(0)
-}
-
-fn read_u8_like_cpp(result: &SqlResult, column: usize) -> u8 {
-    result
-        .try_read::<u8>(column)
-        .or_else(|| result.try_read::<u16>(column).map(|value| value as u8))
-        .or_else(|| result.try_read::<u32>(column).map(|value| value as u8))
-        .or_else(|| result.try_read::<i32>(column).map(|value| value as u8))
-        .unwrap_or(0)
 }
 
 #[cfg(test)]
