@@ -122,6 +122,7 @@
     523,
     526,
     528,
+    530,
     189,
     192,
     193,
@@ -1934,7 +1935,7 @@
   },
   {
     "number": 528,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.72] Move Player base-stat sources behind one typed World persistence port",
     "kind": "slice",
     "parents": [
@@ -1943,6 +1944,19 @@
     ],
     "depends_on": [
       526
+    ]
+  },
+  {
+    "number": 530,
+    "state": "open",
+    "title": "[ARCH.DB.73] Move Player-creation catalogs behind one typed World persistence port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      528
     ]
   }
 ]

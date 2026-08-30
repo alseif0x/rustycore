@@ -7,13 +7,8 @@
 
 use std::collections::{HashMap, HashSet};
 
-use anyhow::{Context, Result, bail};
 use wow_core::Position;
-use wow_database::{WorldDatabase, WorldStatements};
 
-use crate::character_progression::{
-    ChrClassesStore, ChrModelStore, ChrRaceXChrModelStore, ChrRacesStore,
-};
 use crate::{GameObjectTemplateLifecycleStoreLikeCpp, MapStore, TaxiPathNodeStore, TaxiPathStore};
 
 pub const PLAYER_CREATE_MODE_NORMAL_LIKE_CPP: u8 = 0;
@@ -134,92 +129,6 @@ impl PlayerCreateInfoStoreLikeCpp {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub async fn load_like_cpp(
-        world_db: &WorldDatabase,
-        map_store: &MapStore,
-        chr_races_store: &ChrRacesStore,
-        chr_classes_store: &ChrClassesStore,
-        chr_model_store: &ChrModelStore,
-        chr_race_x_chr_model_store: &ChrRaceXChrModelStore,
-        gameobject_template_store: &GameObjectTemplateLifecycleStoreLikeCpp,
-        taxi_path_store: &TaxiPathStore,
-        taxi_path_node_store: &TaxiPathNodeStore,
-    ) -> Result<Self> {
-        let stmt = world_db.prepare(WorldStatements::SEL_PLAYER_CREATEINFO);
-        let mut result = world_db
-            .query(&stmt)
-            .await
-            .context("Failed to query playercreateinfo")?;
-        if result.is_empty() {
-            bail!("playercreateinfo is empty");
-        }
-
-        let mut rows = Vec::new();
-        loop {
-            let transport_guid = result.try_read::<Option<u64>>(12).flatten();
-            let transport_entry = result.try_read::<Option<u32>>(13).flatten();
-            let create_position_npe = (!(7..=11).any(|column| result.is_null(column))).then(|| {
-                PlayerCreatePositionLikeCpp {
-                    map_id: result.try_read::<u32>(7).unwrap_or(u32::MAX),
-                    position: Position::new(
-                        result.try_read::<f32>(8).unwrap_or(f32::NAN),
-                        result.try_read::<f32>(9).unwrap_or(f32::NAN),
-                        result.try_read::<f32>(10).unwrap_or(f32::NAN),
-                        result.try_read::<f32>(11).unwrap_or(f32::NAN),
-                    ),
-                    transport_guid,
-                }
-            });
-            rows.push(PlayerCreateInfoRowLikeCpp {
-                race: result.try_read::<u8>(0).unwrap_or(0),
-                class: result.try_read::<u8>(1).unwrap_or(0),
-                create_position: PlayerCreatePositionLikeCpp {
-                    map_id: u32::from(result.try_read::<u16>(2).unwrap_or(u16::MAX)),
-                    position: Position::new(
-                        result.try_read::<f32>(3).unwrap_or(f32::NAN),
-                        result.try_read::<f32>(4).unwrap_or(f32::NAN),
-                        result.try_read::<f32>(5).unwrap_or(f32::NAN),
-                        result.try_read::<f32>(6).unwrap_or(f32::NAN),
-                    ),
-                    transport_guid: None,
-                },
-                create_position_npe,
-                npe_transport_template_valid: transport_guid.is_none()
-                    || transport_entry.is_some_and(|entry| {
-                        valid_transport_template_like_cpp(
-                            entry,
-                            gameobject_template_store,
-                            taxi_path_store,
-                            taxi_path_node_store,
-                            map_store,
-                        )
-                    }),
-            });
-            if !result.next_row() {
-                break;
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(
-            rows,
-            map_store,
-            |race| chr_races_store.get(u32::from(race)).is_some(),
-            |class| chr_classes_store.get(u32::from(class)).is_some(),
-            |race| {
-                [0, 1].into_iter().all(|sex| {
-                    chr_race_x_chr_model_store.entries().any(|race_model| {
-                        race_model.chr_races_id == u32::from(race)
-                            && race_model.sex == sex
-                            && u32::try_from(race_model.chr_model_id)
-                                .ok()
-                                .is_some_and(|model_id| chr_model_store.get(model_id).is_some())
-                    })
-                })
-            },
-        ))
-    }
-
     pub fn get(&self, race: u8, class: u8) -> Option<&PlayerCreateInfoLikeCpp> {
         self.info_by_key.get(&(race, class))
     }
@@ -242,7 +151,7 @@ impl PlayerCreateInfoStoreLikeCpp {
     }
 }
 
-fn valid_transport_template_like_cpp(
+pub fn player_create_npe_transport_template_valid_like_cpp(
     transport_entry: u32,
     gameobject_template_store: &GameObjectTemplateLifecycleStoreLikeCpp,
     taxi_path_store: &TaxiPathStore,
@@ -375,31 +284,6 @@ impl PlayerCreateInfoCastSpellStoreLikeCpp {
         }
     }
 
-    pub async fn load_like_cpp(world_db: &WorldDatabase) -> Result<Self> {
-        let stmt = world_db.prepare(WorldStatements::SEL_PLAYER_CREATEINFO_CAST_SPELL);
-        let mut result = world_db
-            .query(&stmt)
-            .await
-            .context("Failed to query playercreateinfo_cast_spell")?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(PlayerCreateInfoCastSpellRowLikeCpp {
-                    race_mask: result.try_read::<u64>(0).unwrap_or(0),
-                    class_mask: result.try_read::<u32>(1).unwrap_or(0),
-                    spell_id: result.try_read::<u32>(2).unwrap_or(0),
-                    create_mode: result.try_read::<i8>(3).unwrap_or(-1),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(rows))
-    }
-
     pub fn cast_spells_like_cpp(&self, race: u8, class: u8, create_mode: u8) -> &[u32] {
         self.spells_by_key
             .get(&(race, class, create_mode))
@@ -453,30 +337,6 @@ impl PlayerCreateInfoCustomSpellStoreLikeCpp {
             spells_by_key,
             load_report,
         }
-    }
-
-    pub async fn load_like_cpp(world_db: &WorldDatabase) -> Result<Self> {
-        let stmt = world_db.prepare(WorldStatements::SEL_PLAYER_CREATEINFO_CUSTOM_SPELL);
-        let mut result = world_db
-            .query(&stmt)
-            .await
-            .context("Failed to query playercreateinfo_spell_custom")?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(PlayerCreateInfoCustomSpellRowLikeCpp {
-                    race_mask: result.try_read::<u64>(0).unwrap_or(0),
-                    class_mask: result.try_read::<u32>(1).unwrap_or(0),
-                    spell_id: result.try_read::<u32>(2).unwrap_or(0),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(rows))
     }
 
     pub fn custom_spells_like_cpp(&self, race: u8, class: u8) -> &[u32] {
@@ -649,14 +509,14 @@ mod tests {
             departure_event_id: 0,
         }]);
 
-        assert!(valid_transport_template_like_cpp(
+        assert!(player_create_npe_transport_template_valid_like_cpp(
             100,
             &gameobject_templates,
             &taxi_paths,
             &taxi_path_nodes,
             &map_store,
         ));
-        assert!(!valid_transport_template_like_cpp(
+        assert!(!player_create_npe_transport_template_valid_like_cpp(
             999,
             &gameobject_templates,
             &taxi_paths,

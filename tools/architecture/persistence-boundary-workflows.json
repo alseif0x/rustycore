@@ -3310,74 +3310,6 @@
     },
     {
       "package": "wow-data",
-      "module": "crate::player_create",
-      "source": "crates/wow-data/src/player_create.rs",
-      "enclosing": "impl PlayerCreateInfoCastSpellStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::player_create",
-      "source": "crates/wow-data/src/player_create.rs",
-      "enclosing": "impl PlayerCreateInfoCustomSpellStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::player_create",
-      "source": "crates/wow-data/src/player_create.rs",
-      "enclosing": "impl PlayerCreateInfoStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::player_create",
-      "source": "crates/wow-data/src/player_create.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
       "module": "crate::poi",
       "source": "crates/wow-data/src/poi.rs",
       "enclosing": "impl PointOfInterestLocaleStoreLikeCpp::load_like_cpp",
@@ -15149,6 +15081,231 @@
       "stable_boundary": true,
       "connection_affinity": "The adapter owns exactly one shared World database handle.",
       "current_order": "The handle surface introduces no runtime order beyond the two staged operations.",
+      "failure_and_unknown_commit": "The handle surface performs no I/O and implies no commit outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_creation_catalog_adapter",
+      "source": "crates/wow-database/src/player_creation_catalog_adapter.rs",
+      "enclosing": "const STARTUP_STATEMENTS_LIKE_CPP",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free represented Player-creation catalog capability (#530)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "All three statement identities are confined to the adapter's one World database handle.",
+      "current_order": "Pin the represented Rust statement order: base definitions, cast spells, then custom spells.",
+      "failure_and_unknown_commit": "Statement identity performs no I/O and implies no commit outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_creation_catalog_adapter",
+      "source": "crates/wow-database/src/player_creation_catalog_adapter.rs",
+      "enclosing": "fn player_create_cast_spell_row_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free represented Player-creation catalog capability (#530)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The row comes from one query on the adapter's World handle and opens no transaction.",
+      "current_order": "Decode race mask, class mask, spell ID and signed create mode in selected-column order.",
+      "failure_and_unknown_commit": "A missing, non-integer or out-of-range consumed field fails the complete cast-spell batch before publication."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_creation_catalog_adapter",
+      "source": "crates/wow-database/src/player_creation_catalog_adapter.rs",
+      "enclosing": "fn player_create_custom_spell_row_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free represented Player-creation catalog capability (#530)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The row comes from one query on the adapter's World handle and opens no transaction.",
+      "current_order": "Decode race mask, class mask and spell ID in selected-column order.",
+      "failure_and_unknown_commit": "A missing, non-integer or out-of-range consumed field fails the complete custom-spell batch before publication."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_creation_catalog_adapter",
+      "source": "crates/wow-database/src/player_creation_catalog_adapter.rs",
+      "enclosing": "fn player_create_info_row_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free represented Player-creation catalog capability (#530)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The row comes from one query on the adapter's World handle and opens no transaction.",
+      "current_order": "Decode the seven required base columns followed by each nullable NPE position, transport GUID and transport entry without grouping them in persistence.",
+      "failure_and_unknown_commit": "A required decode failure or invalid non-null optional value fails the complete base batch; SQL NULL remains None and no default is fabricated."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_creation_catalog_adapter",
+      "source": "crates/wow-database/src/player_creation_catalog_adapter.rs",
+      "enclosing": "fn query_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free represented Player-creation catalog capability (#530)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Each staged read uses the adapter's one World handle and no transaction.",
+      "current_order": "Prepare and query the requested named statement, then decode rows in database order.",
+      "failure_and_unknown_commit": "Query or row-decode failure returns no partial batch; there is no commit boundary."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_creation_catalog_adapter",
+      "source": "crates/wow-database/src/player_creation_catalog_adapter.rs",
+      "enclosing": "fn read_float_checked_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free represented Player-creation catalog capability (#530)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Decoding reads only the current World-query row and opens no transaction.",
+      "current_order": "Read a represented SQL float/double as C++ float width without inventing a fallback.",
+      "failure_and_unknown_commit": "A missing or non-numeric required value fails the affected batch before publication."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_creation_catalog_adapter",
+      "source": "crates/wow-database/src/player_creation_catalog_adapter.rs",
+      "enclosing": "fn read_integer_checked_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free represented Player-creation catalog capability (#530)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Decoding reads only the current World-query row and opens no transaction.",
+      "current_order": "Try every represented signed and unsigned SQL integer width without fabricating a default.",
+      "failure_and_unknown_commit": "A missing or non-integer required value fails the affected batch before publication."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_creation_catalog_adapter",
+      "source": "crates/wow-database/src/player_creation_catalog_adapter.rs",
+      "enclosing": "fn read_optional_float_checked_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free represented Player-creation catalog capability (#530)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Decoding reads only the current World-query row and opens no transaction.",
+      "current_order": "Preserve SQL NULL as None; otherwise apply checked floating-point decoding.",
+      "failure_and_unknown_commit": "An invalid non-null value fails the affected batch instead of becoming absence or a numeric default."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_creation_catalog_adapter",
+      "source": "crates/wow-database/src/player_creation_catalog_adapter.rs",
+      "enclosing": "fn read_optional_integer_checked_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free represented Player-creation catalog capability (#530)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Decoding reads only the current World-query row and opens no transaction.",
+      "current_order": "Preserve SQL NULL as None; otherwise apply checked integer decoding and range conversion.",
+      "failure_and_unknown_commit": "An invalid non-null value fails the affected batch instead of becoming absence or a numeric default."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_creation_catalog_adapter",
+      "source": "crates/wow-database/src/player_creation_catalog_adapter.rs",
+      "enclosing": "impl MariaDbPlayerCreationCatalogPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free represented Player-creation catalog capability (#530)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter stores exactly one shared World database handle.",
+      "current_order": "Construction introduces no query or publication order.",
+      "failure_and_unknown_commit": "Construction performs no I/O and implies no commit outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_creation_catalog_adapter",
+      "source": "crates/wow-database/src/player_creation_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerCreationCatalogPersistencePortLikeCpp for MariaDbPlayerCreationCatalogPersistenceAdapterLikeCpp::load_player_create_cast_spell_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free represented Player-creation catalog capability (#530)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The cast-spell read uses the adapter's one World handle and implies no transaction.",
+      "current_order": "Query and fully decode cast-spell rows only at the existing cast-store publication point.",
+      "failure_and_unknown_commit": "Any query or decode failure becomes one Failed outcome; an empty batch remains successful and no partial batch crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_creation_catalog_adapter",
+      "source": "crates/wow-database/src/player_creation_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerCreationCatalogPersistencePortLikeCpp for MariaDbPlayerCreationCatalogPersistenceAdapterLikeCpp::load_player_create_custom_spell_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free represented Player-creation catalog capability (#530)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The custom-spell read uses the adapter's one World handle and implies no transaction.",
+      "current_order": "Query and fully decode custom-spell rows only at the existing custom-store publication point after cast publication.",
+      "failure_and_unknown_commit": "Any query or decode failure becomes one Failed outcome; an empty batch remains successful and no partial batch crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_creation_catalog_adapter",
+      "source": "crates/wow-database/src/player_creation_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::PlayerCreationCatalogPersistencePortLikeCpp for MariaDbPlayerCreationCatalogPersistenceAdapterLikeCpp::load_player_create_info_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free represented Player-creation catalog capability (#530)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The base-definition read uses the adapter's one World handle and implies no transaction.",
+      "current_order": "Query and fully decode base definitions at the first Player-creation stage before later startup work.",
+      "failure_and_unknown_commit": "Any query or decode failure becomes one Failed outcome; world-server classifies an empty batch as fatal before later sources are invoked."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_creation_catalog_adapter",
+      "source": "crates/wow-database/src/player_creation_catalog_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free represented Player-creation catalog capability (#530)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "This shared adapter syntax is confined to one World connection and implies no wider transaction.",
+      "current_order": "Shared syntax introduces no order beyond the three independently invoked staged operations.",
+      "failure_and_unknown_commit": "Shared syntax introduces no additional failure or commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::player_creation_catalog_adapter",
+      "source": "crates/wow-database/src/player_creation_catalog_adapter.rs",
+      "enclosing": "struct MariaDbPlayerCreationCatalogPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free represented Player-creation catalog capability (#530)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns exactly one shared World database handle.",
+      "current_order": "The handle surface introduces no runtime order beyond the three staged operations.",
       "failure_and_unknown_commit": "The handle surface performs no I/O and implies no commit outcome."
     }
   ]

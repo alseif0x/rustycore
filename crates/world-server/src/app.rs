@@ -154,6 +154,10 @@ async fn run_inner(
     let world_db = Arc::new(world_db);
     let player_base_stats_persistence =
         wow_database::MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
+    let player_creation_catalog_persistence =
+        wow_database::MariaDbPlayerCreationCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
+            &world_db,
+        ));
     let skill_world_rules_persistence =
         wow_database::MariaDbSkillWorldRulesPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
 
@@ -2212,8 +2216,8 @@ async fn run_inner(
     let player_create_taxi_path_node_store = wow_data::TaxiPathNodeStore::load(&data_dir, &locale)
         .context("Failed to load TaxiPathNode.db2 for C++ playercreateinfo")?;
     let player_create_info_store = Arc::new(
-        wow_data::PlayerCreateInfoStoreLikeCpp::load_like_cpp(
-            &world_db,
+        crate::player_creation_catalog::load_player_create_info_store_like_cpp(
+            &player_creation_catalog_persistence,
             &map_store,
             &chr_races_store,
             &chr_classes_store,
@@ -2259,9 +2263,11 @@ async fn run_inner(
         player_stats.len()
     );
     let player_create_cast_spell_store = Arc::new(
-        wow_data::PlayerCreateInfoCastSpellStoreLikeCpp::load_like_cpp(&world_db)
-            .await
-            .context("Failed to load playercreateinfo_cast_spell")?,
+        crate::player_creation_catalog::load_player_create_cast_spell_store_like_cpp(
+            &player_creation_catalog_persistence,
+        )
+        .await
+        .context("Failed to load playercreateinfo_cast_spell")?,
     );
     let player_create_cast_spell_report = player_create_cast_spell_store
         .load_report_like_cpp()
@@ -2274,9 +2280,11 @@ async fn run_inner(
         "Loaded C++ player create cast spell assignments"
     );
     let player_create_custom_spell_store = Arc::new(
-        wow_data::PlayerCreateInfoCustomSpellStoreLikeCpp::load_like_cpp(&world_db)
-            .await
-            .context("Failed to load playercreateinfo_spell_custom")?,
+        crate::player_creation_catalog::load_player_create_custom_spell_store_like_cpp(
+            &player_creation_catalog_persistence,
+        )
+        .await
+        .context("Failed to load playercreateinfo_spell_custom")?,
     );
     let player_create_custom_spell_report = player_create_custom_spell_store
         .load_report_like_cpp()
