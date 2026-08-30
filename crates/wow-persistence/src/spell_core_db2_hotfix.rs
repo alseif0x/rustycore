@@ -155,6 +155,98 @@ pub struct SpellPowerDifficultyHotfixRowLikeCpp {
     pub order_index: u8,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellAuraRestrictionsHotfixRowLikeCpp {
+    pub id: u32,
+    pub difficulty_id: u8,
+    pub caster_aura_state: u8,
+    pub target_aura_state: u8,
+    pub exclude_caster_aura_state: u8,
+    pub exclude_target_aura_state: u8,
+    pub caster_aura_spell: i32,
+    pub target_aura_spell: i32,
+    pub exclude_caster_aura_spell: i32,
+    pub exclude_target_aura_spell: i32,
+    pub spell_id: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellCategoryHotfixRowLikeCpp {
+    pub id: u32,
+    pub name: String,
+    pub flags: i32,
+    pub uses_per_week: u8,
+    pub max_charges: i8,
+    pub charge_recovery_time: i32,
+    pub type_mask: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellDurationHotfixRowLikeCpp {
+    pub id: u32,
+    pub duration: i32,
+    pub duration_per_level: u32,
+    pub max_duration: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SpellRadiusHotfixRowLikeCpp {
+    pub id: u32,
+    pub radius: f32,
+    pub radius_per_level: f32,
+    pub radius_min: f32,
+    pub radius_max: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpellRangeHotfixRowLikeCpp {
+    pub id: u32,
+    pub display_name: String,
+    pub display_name_short: String,
+    pub flags: u8,
+    pub range_min: [f32; 2],
+    pub range_max: [f32; 2],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellEquippedItemsHotfixRowLikeCpp {
+    pub id: u32,
+    pub spell_id: i32,
+    pub equipped_item_class: i8,
+    pub equipped_item_inv_types: i32,
+    pub equipped_item_subclass: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SpellTargetRestrictionsHotfixRowLikeCpp {
+    pub id: u32,
+    pub difficulty_id: u8,
+    pub cone_degrees: f32,
+    pub max_targets: u8,
+    pub max_target_level: u32,
+    pub target_creature_type: i16,
+    pub targets: i32,
+    pub width: f32,
+    pub spell_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SpellXSpellVisualHotfixRowLikeCpp {
+    pub id: u32,
+    pub difficulty_id: u8,
+    pub spell_visual_id: u32,
+    pub probability: f32,
+    pub flags: u8,
+    pub priority: i32,
+    pub spell_icon_file_id: i32,
+    pub active_icon_file_id: i32,
+    pub viewer_unit_condition_id: u16,
+    pub viewer_player_condition_id: u32,
+    pub caster_unit_condition_id: u16,
+    pub caster_player_condition_id: u32,
+    pub spell_id: u32,
+}
+
 /// Hotfix DB capability for the core DB2 contributors used to build the
 /// represented `SpellInfo` authority. Every method returns official rows
 /// followed by custom rows, matching C++ `DB2StorageBase::LoadFromDB`.
@@ -228,5 +320,61 @@ pub trait SpellCoreDb2HotfixPersistencePortLikeCpp: Send + Sync {
     ) -> PersistenceFutureLikeCpp<
         '_,
         SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellPowerDifficultyHotfixRowLikeCpp>,
+    >;
+
+    fn load_spell_aura_restrictions_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellAuraRestrictionsHotfixRowLikeCpp>,
+    >;
+
+    fn load_spell_category_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellCategoryHotfixRowLikeCpp>,
+    >;
+
+    fn load_spell_duration_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellDurationHotfixRowLikeCpp>,
+    >;
+
+    fn load_spell_radius_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellRadiusHotfixRowLikeCpp>,
+    >;
+
+    fn load_spell_range_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellRangeHotfixRowLikeCpp>,
+    >;
+
+    fn load_spell_equipped_items_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellEquippedItemsHotfixRowLikeCpp>,
+    >;
+
+    fn load_spell_target_restrictions_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellTargetRestrictionsHotfixRowLikeCpp>,
+    >;
+
+    fn load_spell_x_spell_visual_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellXSpellVisualHotfixRowLikeCpp>,
     >;
 }

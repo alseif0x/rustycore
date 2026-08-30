@@ -1237,10 +1237,10 @@ async fn run_inner(
         pet_default_spell_store.count()
     );
     let spell_category_store = Arc::new(
-        wow_data::SpellCategoryStore::load_effective_like_cpp(
+        spell_core_db2_hotfix::load_spell_category_store_like_cpp(
             &data_dir,
             &locale,
-            &hotfix_db,
+            &spell_core_hotfix_persistence,
             &db2_hotfix_removals,
         )
         .await
@@ -1259,10 +1259,10 @@ async fn run_inner(
         spell_aura_options_store.len()
     );
     let spell_aura_restrictions_store = Arc::new(
-        wow_data::SpellAuraRestrictionsStore::load_effective_like_cpp(
+        spell_core_db2_hotfix::load_spell_aura_restrictions_store_like_cpp(
             &data_dir,
             &locale,
-            &hotfix_db,
+            &spell_core_hotfix_persistence,
             &db2_hotfix_removals,
         )
         .await
@@ -1295,10 +1295,10 @@ async fn run_inner(
         spell_class_options_store.len()
     );
     let spell_equipped_items_store = Arc::new(
-        wow_data::SpellEquippedItemsStore::load_effective_like_cpp(
+        spell_core_db2_hotfix::load_spell_equipped_items_store_like_cpp(
             &data_dir,
             &locale,
-            &hotfix_db,
+            &spell_core_hotfix_persistence,
             &db2_hotfix_removals,
         )
         .await
@@ -1309,10 +1309,10 @@ async fn run_inner(
         spell_equipped_items_store.len()
     );
     let spell_target_restrictions_store = Arc::new(
-        wow_data::SpellTargetRestrictionsStore::load_effective_like_cpp(
+        spell_core_db2_hotfix::load_spell_target_restrictions_store_like_cpp(
             &data_dir,
             &locale,
-            &hotfix_db,
+            &spell_core_hotfix_persistence,
             &db2_hotfix_removals,
         )
         .await
@@ -1369,10 +1369,10 @@ async fn run_inner(
         spell_procs_per_minute_store.len()
     );
     let spell_duration_store = Arc::new(
-        wow_data::SpellDurationStore::load_effective_like_cpp(
+        spell_core_db2_hotfix::load_spell_duration_store_like_cpp(
             &data_dir,
             &locale,
-            &hotfix_db,
+            &spell_core_hotfix_persistence,
             &db2_hotfix_removals,
         )
         .await
@@ -2529,10 +2529,10 @@ async fn run_inner(
 
     // Load spell metadata (cast time, cooldown, effects, etc.) — Phase 2
     let spell_radius_store = Arc::new(
-        wow_data::SpellRadiusStore::load_effective_like_cpp(
+        spell_core_db2_hotfix::load_spell_radius_store_like_cpp(
             &data_dir,
             &locale,
-            &hotfix_db,
+            &spell_core_hotfix_persistence,
             &db2_hotfix_removals,
         )
         .await
@@ -2540,10 +2540,10 @@ async fn run_inner(
     );
     info!("Loaded {} spell radius rows", spell_radius_store.len());
     let spell_range_store = Arc::new(
-        wow_data::SpellRangeStore::load_effective_like_cpp(
+        spell_core_db2_hotfix::load_spell_range_store_like_cpp(
             &data_dir,
             &locale,
-            &hotfix_db,
+            &spell_core_hotfix_persistence,
             &db2_hotfix_removals,
         )
         .await
@@ -3559,10 +3559,10 @@ async fn run_inner(
     let spell_visual_store = wow_data::SpellVisualStore::load(&data_dir, &locale)
         .context("Failed to load SpellVisual.db2 for C++ jump_charge_params validation")?;
     let spell_x_spell_visual_store = Arc::new(
-        wow_data::SpellXSpellVisualStore::load_effective_like_cpp(
+        spell_core_db2_hotfix::load_spell_x_spell_visual_store_like_cpp(
             &data_dir,
             &locale,
-            &hotfix_db,
+            &spell_core_hotfix_persistence,
             &db2_hotfix_removals,
         )
         .await

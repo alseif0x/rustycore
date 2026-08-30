@@ -3,13 +3,15 @@
 use std::sync::Arc;
 
 use wow_persistence::{
-    PersistenceFutureLikeCpp, SpellCastTimesHotfixRowLikeCpp,
-    SpellCastingRequirementsHotfixRowLikeCpp, SpellCategoriesHotfixRowLikeCpp,
-    SpellCooldownsHotfixRowLikeCpp, SpellCoreDb2HotfixLoadOutcomeLikeCpp,
-    SpellCoreDb2HotfixPersistencePortLikeCpp, SpellEffectHotfixRowLikeCpp,
+    PersistenceFutureLikeCpp, SpellAuraRestrictionsHotfixRowLikeCpp,
+    SpellCastTimesHotfixRowLikeCpp, SpellCastingRequirementsHotfixRowLikeCpp,
+    SpellCategoriesHotfixRowLikeCpp, SpellCategoryHotfixRowLikeCpp, SpellCooldownsHotfixRowLikeCpp,
+    SpellCoreDb2HotfixLoadOutcomeLikeCpp, SpellCoreDb2HotfixPersistencePortLikeCpp,
+    SpellDurationHotfixRowLikeCpp, SpellEffectHotfixRowLikeCpp, SpellEquippedItemsHotfixRowLikeCpp,
     SpellInterruptsHotfixRowLikeCpp, SpellMiscHotfixRowLikeCpp, SpellNameHotfixRowLikeCpp,
-    SpellPowerDifficultyHotfixRowLikeCpp, SpellPowerHotfixRowLikeCpp,
-    SpellShapeshiftHotfixRowLikeCpp,
+    SpellPowerDifficultyHotfixRowLikeCpp, SpellPowerHotfixRowLikeCpp, SpellRadiusHotfixRowLikeCpp,
+    SpellRangeHotfixRowLikeCpp, SpellShapeshiftHotfixRowLikeCpp,
+    SpellTargetRestrictionsHotfixRowLikeCpp, SpellXSpellVisualHotfixRowLikeCpp,
 };
 
 use crate::{DatabaseError, HotfixDatabase, HotfixStatements, SqlResult};
@@ -68,10 +70,48 @@ const SPELL_POWER_DIFFICULTY_SQL_LIKE_CPP: &str = concat!(
     "SELECT ID, DifficultyID, OrderIndex FROM spell_power_difficulty ",
     "WHERE (`VerifiedBuild` > 0) = ?"
 );
+const SPELL_AURA_RESTRICTIONS_SQL_LIKE_CPP: &str = concat!(
+    "SELECT ID, DifficultyID, CasterAuraState, TargetAuraState, ",
+    "ExcludeCasterAuraState, ExcludeTargetAuraState, CasterAuraSpell, ",
+    "TargetAuraSpell, ExcludeCasterAuraSpell, ExcludeTargetAuraSpell, SpellID ",
+    "FROM spell_aura_restrictions WHERE (`VerifiedBuild` > 0) = ?"
+);
+const SPELL_CATEGORY_SQL_LIKE_CPP: &str = concat!(
+    "SELECT ID, Name, Flags, UsesPerWeek, MaxCharges, ChargeRecoveryTime, ",
+    "TypeMask FROM spell_category WHERE (`VerifiedBuild` > 0) = ?"
+);
+const SPELL_DURATION_SQL_LIKE_CPP: &str = concat!(
+    "SELECT ID, Duration, DurationPerLevel, MaxDuration FROM spell_duration ",
+    "WHERE (`VerifiedBuild` > 0) = ?"
+);
+const SPELL_RADIUS_SQL_LIKE_CPP: &str = concat!(
+    "SELECT ID, Radius, RadiusPerLevel, RadiusMin, RadiusMax FROM spell_radius ",
+    "WHERE (`VerifiedBuild` > 0) = ?"
+);
+const SPELL_RANGE_SQL_LIKE_CPP: &str = concat!(
+    "SELECT ID, DisplayName, DisplayNameShort, Flags, ",
+    "RangeMin1, RangeMin2, RangeMax1, RangeMax2 ",
+    "FROM spell_range WHERE (`VerifiedBuild` > 0) = ?"
+);
+const SPELL_EQUIPPED_ITEMS_SQL_LIKE_CPP: &str = concat!(
+    "SELECT ID, SpellID, EquippedItemClass, EquippedItemInvTypes, EquippedItemSubclass ",
+    "FROM spell_equipped_items WHERE (`VerifiedBuild` > 0) = ?"
+);
+const SPELL_TARGET_RESTRICTIONS_SQL_LIKE_CPP: &str = concat!(
+    "SELECT ID, DifficultyID, ConeDegrees, MaxTargets, MaxTargetLevel, ",
+    "TargetCreatureType, Targets, Width, SpellID FROM spell_target_restrictions ",
+    "WHERE (`VerifiedBuild` > 0) = ?"
+);
+const SPELL_X_SPELL_VISUAL_SQL_LIKE_CPP: &str = concat!(
+    "SELECT ID, DifficultyID, SpellVisualID, Probability, Flags, Priority, ",
+    "SpellIconFileID, ActiveIconFileID, ViewerUnitConditionID, ",
+    "ViewerPlayerConditionID, CasterUnitConditionID, CasterPlayerConditionID, SpellID ",
+    "FROM spell_x_spell_visual WHERE (`VerifiedBuild` > 0) = ?"
+);
 const OFFICIAL_THEN_CUSTOM_LIKE_CPP: [bool; 2] = [true, false];
 
 #[cfg(test)]
-const CORE_STATEMENT_ORDER_LIKE_RUST: [&str; 11] = [
+const CORE_STATEMENT_ORDER_LIKE_RUST: [&str; 19] = [
     "SEL_SPELL_NAME",
     "SPELL_CATEGORIES_SQL_LIKE_CPP",
     "SPELL_MISC_SQL_LIKE_CPP",
@@ -83,6 +123,14 @@ const CORE_STATEMENT_ORDER_LIKE_RUST: [&str; 11] = [
     "SPELL_CASTING_REQUIREMENTS_SQL_LIKE_CPP",
     "SPELL_POWER_SQL_LIKE_CPP",
     "SPELL_POWER_DIFFICULTY_SQL_LIKE_CPP",
+    "SPELL_AURA_RESTRICTIONS_SQL_LIKE_CPP",
+    "SPELL_CATEGORY_SQL_LIKE_CPP",
+    "SPELL_DURATION_SQL_LIKE_CPP",
+    "SPELL_RADIUS_SQL_LIKE_CPP",
+    "SPELL_RANGE_SQL_LIKE_CPP",
+    "SPELL_EQUIPPED_ITEMS_SQL_LIKE_CPP",
+    "SPELL_TARGET_RESTRICTIONS_SQL_LIKE_CPP",
+    "SPELL_X_SPELL_VISUAL_SQL_LIKE_CPP",
 ];
 
 async fn query_official_then_custom_like_cpp<T>(
@@ -491,6 +539,240 @@ impl SpellCoreDb2HotfixPersistencePortLikeCpp
             )
         })
     }
+
+    fn load_spell_aura_restrictions_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellAuraRestrictionsHotfixRowLikeCpp>,
+    > {
+        Box::pin(async move {
+            classify_rows_like_cpp(
+                query_official_then_custom_like_cpp(
+                    &self.hotfix_db,
+                    HotfixStatements::base(SPELL_AURA_RESTRICTIONS_SQL_LIKE_CPP),
+                    |row| {
+                        Some(SpellAuraRestrictionsHotfixRowLikeCpp {
+                            id: row.try_read(0).unwrap_or(0),
+                            difficulty_id: row.try_read(1).unwrap_or(0),
+                            caster_aura_state: row.try_read(2).unwrap_or(0),
+                            target_aura_state: row.try_read(3).unwrap_or(0),
+                            exclude_caster_aura_state: row.try_read(4).unwrap_or(0),
+                            exclude_target_aura_state: row.try_read(5).unwrap_or(0),
+                            caster_aura_spell: row.try_read(6).unwrap_or(0),
+                            target_aura_spell: row.try_read(7).unwrap_or(0),
+                            exclude_caster_aura_spell: row.try_read(8).unwrap_or(0),
+                            exclude_target_aura_spell: row.try_read(9).unwrap_or(0),
+                            spell_id: row.try_read(10).unwrap_or(0),
+                        })
+                    },
+                )
+                .await,
+            )
+        })
+    }
+
+    fn load_spell_category_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellCategoryHotfixRowLikeCpp>,
+    > {
+        Box::pin(async move {
+            classify_rows_like_cpp(
+                query_official_then_custom_like_cpp(
+                    &self.hotfix_db,
+                    HotfixStatements::base(SPELL_CATEGORY_SQL_LIKE_CPP),
+                    |row| {
+                        Some(SpellCategoryHotfixRowLikeCpp {
+                            id: row.try_read(0).unwrap_or(0),
+                            name: row.try_read(1).unwrap_or_default(),
+                            flags: row.try_read(2).unwrap_or(0),
+                            uses_per_week: row.try_read(3).unwrap_or(0),
+                            max_charges: row.try_read(4).unwrap_or(0),
+                            charge_recovery_time: row.try_read(5).unwrap_or(0),
+                            type_mask: row.try_read(6).unwrap_or(0),
+                        })
+                    },
+                )
+                .await,
+            )
+        })
+    }
+
+    fn load_spell_duration_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellDurationHotfixRowLikeCpp>,
+    > {
+        Box::pin(async move {
+            classify_rows_like_cpp(
+                query_official_then_custom_like_cpp(
+                    &self.hotfix_db,
+                    HotfixStatements::base(SPELL_DURATION_SQL_LIKE_CPP),
+                    |row| {
+                        Some(SpellDurationHotfixRowLikeCpp {
+                            id: row.try_read(0).unwrap_or(0),
+                            duration: row.try_read(1).unwrap_or(0),
+                            duration_per_level: row.try_read(2).unwrap_or(0),
+                            max_duration: row.try_read(3).unwrap_or(0),
+                        })
+                    },
+                )
+                .await,
+            )
+        })
+    }
+
+    fn load_spell_radius_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellRadiusHotfixRowLikeCpp>,
+    > {
+        Box::pin(async move {
+            classify_rows_like_cpp(
+                query_official_then_custom_like_cpp(
+                    &self.hotfix_db,
+                    HotfixStatements::base(SPELL_RADIUS_SQL_LIKE_CPP),
+                    |row| {
+                        Some(SpellRadiusHotfixRowLikeCpp {
+                            id: row.try_read(0).unwrap_or(0),
+                            radius: row.try_read(1).unwrap_or(0.0),
+                            radius_per_level: row.try_read(2).unwrap_or(0.0),
+                            radius_min: row.try_read(3).unwrap_or(0.0),
+                            radius_max: row.try_read(4).unwrap_or(0.0),
+                        })
+                    },
+                )
+                .await,
+            )
+        })
+    }
+
+    fn load_spell_range_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellRangeHotfixRowLikeCpp>,
+    > {
+        Box::pin(async move {
+            classify_rows_like_cpp(
+                query_official_then_custom_like_cpp(
+                    &self.hotfix_db,
+                    HotfixStatements::base(SPELL_RANGE_SQL_LIKE_CPP),
+                    |row| {
+                        Some(SpellRangeHotfixRowLikeCpp {
+                            id: row.try_read(0).unwrap_or(0),
+                            display_name: row.try_read(1).unwrap_or_default(),
+                            display_name_short: row.try_read(2).unwrap_or_default(),
+                            flags: row.try_read(3).unwrap_or(0),
+                            range_min: [
+                                row.try_read(4).unwrap_or(0.0),
+                                row.try_read(5).unwrap_or(0.0),
+                            ],
+                            range_max: [
+                                row.try_read(6).unwrap_or(0.0),
+                                row.try_read(7).unwrap_or(0.0),
+                            ],
+                        })
+                    },
+                )
+                .await,
+            )
+        })
+    }
+
+    fn load_spell_equipped_items_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellEquippedItemsHotfixRowLikeCpp>,
+    > {
+        Box::pin(async move {
+            classify_rows_like_cpp(
+                query_official_then_custom_like_cpp(
+                    &self.hotfix_db,
+                    HotfixStatements::base(SPELL_EQUIPPED_ITEMS_SQL_LIKE_CPP),
+                    |row| {
+                        Some(SpellEquippedItemsHotfixRowLikeCpp {
+                            id: row.try_read(0).unwrap_or(0),
+                            spell_id: row.try_read(1).unwrap_or(0),
+                            equipped_item_class: row.try_read(2).unwrap_or(0),
+                            equipped_item_inv_types: row.try_read(3).unwrap_or(0),
+                            equipped_item_subclass: row.try_read(4).unwrap_or(0),
+                        })
+                    },
+                )
+                .await,
+            )
+        })
+    }
+
+    fn load_spell_target_restrictions_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellTargetRestrictionsHotfixRowLikeCpp>,
+    > {
+        Box::pin(async move {
+            classify_rows_like_cpp(
+                query_official_then_custom_like_cpp(
+                    &self.hotfix_db,
+                    HotfixStatements::base(SPELL_TARGET_RESTRICTIONS_SQL_LIKE_CPP),
+                    |row| {
+                        Some(SpellTargetRestrictionsHotfixRowLikeCpp {
+                            id: row.try_read(0).unwrap_or(0),
+                            difficulty_id: row.try_read(1).unwrap_or(0),
+                            cone_degrees: row.try_read(2).unwrap_or(0.0),
+                            max_targets: row.try_read(3).unwrap_or(0),
+                            max_target_level: row.try_read(4).unwrap_or(0),
+                            target_creature_type: row.try_read(5).unwrap_or(0),
+                            targets: row.try_read(6).unwrap_or(0),
+                            width: row.try_read(7).unwrap_or(0.0),
+                            spell_id: row.try_read(8).unwrap_or(0),
+                        })
+                    },
+                )
+                .await,
+            )
+        })
+    }
+
+    fn load_spell_x_spell_visual_rows_like_cpp(
+        &self,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        SpellCoreDb2HotfixLoadOutcomeLikeCpp<SpellXSpellVisualHotfixRowLikeCpp>,
+    > {
+        Box::pin(async move {
+            classify_rows_like_cpp(
+                query_official_then_custom_like_cpp(
+                    &self.hotfix_db,
+                    HotfixStatements::base(SPELL_X_SPELL_VISUAL_SQL_LIKE_CPP),
+                    |row| {
+                        Some(SpellXSpellVisualHotfixRowLikeCpp {
+                            id: row.try_read(0).unwrap_or(0),
+                            difficulty_id: row.try_read(1).unwrap_or(0),
+                            spell_visual_id: row.try_read(2).unwrap_or(0),
+                            probability: row.try_read(3).unwrap_or(0.0),
+                            flags: row.try_read(4).unwrap_or(0),
+                            priority: row.try_read(5).unwrap_or(0),
+                            spell_icon_file_id: row.try_read(6).unwrap_or(0),
+                            active_icon_file_id: row.try_read(7).unwrap_or(0),
+                            viewer_unit_condition_id: row.try_read(8).unwrap_or(0),
+                            viewer_player_condition_id: row.try_read(9).unwrap_or(0),
+                            caster_unit_condition_id: row.try_read(10).unwrap_or(0),
+                            caster_player_condition_id: row.try_read(11).unwrap_or(0),
+                            spell_id: row.try_read(12).unwrap_or(0),
+                        })
+                    },
+                )
+                .await,
+            )
+        })
+    }
 }
 
 #[cfg(test)]
@@ -514,11 +796,31 @@ mod tests {
                 "SPELL_CASTING_REQUIREMENTS_SQL_LIKE_CPP",
                 "SPELL_POWER_SQL_LIKE_CPP",
                 "SPELL_POWER_DIFFICULTY_SQL_LIKE_CPP",
+                "SPELL_AURA_RESTRICTIONS_SQL_LIKE_CPP",
+                "SPELL_CATEGORY_SQL_LIKE_CPP",
+                "SPELL_DURATION_SQL_LIKE_CPP",
+                "SPELL_RADIUS_SQL_LIKE_CPP",
+                "SPELL_RANGE_SQL_LIKE_CPP",
+                "SPELL_EQUIPPED_ITEMS_SQL_LIKE_CPP",
+                "SPELL_TARGET_RESTRICTIONS_SQL_LIKE_CPP",
+                "SPELL_X_SPELL_VISUAL_SQL_LIKE_CPP",
             ]
         );
         assert_eq!(
             HotfixStatements::base(SPELL_EFFECT_SQL_LIKE_CPP),
             HotfixStatements::base(SPELL_EFFECT_SQL_LIKE_CPP)
         );
+        for sql in [
+            SPELL_AURA_RESTRICTIONS_SQL_LIKE_CPP,
+            SPELL_CATEGORY_SQL_LIKE_CPP,
+            SPELL_DURATION_SQL_LIKE_CPP,
+            SPELL_RADIUS_SQL_LIKE_CPP,
+            SPELL_RANGE_SQL_LIKE_CPP,
+            SPELL_EQUIPPED_ITEMS_SQL_LIKE_CPP,
+            SPELL_TARGET_RESTRICTIONS_SQL_LIKE_CPP,
+            SPELL_X_SPELL_VISUAL_SQL_LIKE_CPP,
+        ] {
+            assert!(sql.ends_with("WHERE (`VerifiedBuild` > 0) = ?"));
+        }
     }
 }
