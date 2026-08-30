@@ -1134,11 +1134,15 @@ async fn run_inner(
         "Loaded {} spell level rows from SpellLevels.db2",
         spell_levels_store.len()
     );
+    let spell_core_hotfix_persistence =
+        wow_database::MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::new(Arc::clone(
+            &hotfix_db,
+        ));
     let (spell_name_store, spell_name_load_report) =
-        wow_data::SpellNameStore::load_effective_like_cpp(
+        spell_core_db2_hotfix::load_spell_name_store_like_cpp(
             &data_dir,
             &locale,
-            &hotfix_db,
+            &spell_core_hotfix_persistence,
             &db2_hotfix_removals,
         )
         .await
@@ -1150,11 +1154,20 @@ async fn run_inner(
         spell_name_load_report.removed_rows,
         db2_hotfix_removals.len()
     );
-    let mut spell_store = wow_data::SpellStore::load_with_db2_and_hotfixes(
+    let spell_store_seed = wow_data::SpellStore::load_spell_info_key_seed_like_cpp(
         &data_dir,
         &locale,
         &hotfix_db,
         &spell_name_store,
+        &db2_hotfix_removals,
+    )
+    .await
+    .context("Failed to load SpellInfo key authority")?;
+    let mut spell_store = spell_core_db2_hotfix::load_spell_store_like_cpp(
+        &data_dir,
+        &locale,
+        spell_store_seed,
+        &spell_core_hotfix_persistence,
         &db2_hotfix_removals,
     )
     .await
@@ -1256,10 +1269,10 @@ async fn run_inner(
         spell_aura_restrictions_store.len()
     );
     let spell_casting_requirements_store = Arc::new(
-        wow_data::SpellCastingRequirementsStore::load_effective_like_cpp(
+        spell_core_db2_hotfix::load_spell_casting_requirements_store_like_cpp(
             &data_dir,
             &locale,
-            &hotfix_db,
+            &spell_core_hotfix_persistence,
             &db2_hotfix_removals,
         )
         .await
@@ -1306,10 +1319,10 @@ async fn run_inner(
         spell_target_restrictions_store.len()
     );
     let spell_misc_store = Arc::new(
-        wow_data::SpellMiscStore::load_effective_like_cpp(
+        spell_core_db2_hotfix::load_spell_misc_store_like_cpp(
             &data_dir,
             &locale,
-            &hotfix_db,
+            &spell_core_hotfix_persistence,
             &db2_hotfix_removals,
         )
         .await
@@ -1363,10 +1376,10 @@ async fn run_inner(
     );
     info!("Loaded {} spell duration rows", spell_duration_store.len());
     let spell_cooldowns_store = Arc::new(
-        wow_data::SpellCooldownsStore::load_effective_like_cpp(
+        spell_core_db2_hotfix::load_spell_cooldowns_store_like_cpp(
             &data_dir,
             &locale,
-            &hotfix_db,
+            &spell_core_hotfix_persistence,
             &db2_hotfix_removals,
         )
         .await

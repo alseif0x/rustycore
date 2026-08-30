@@ -112,6 +112,7 @@
     503,
     505,
     507,
+    509,
     189,
     192,
     193,
@@ -1794,7 +1795,7 @@
   },
   {
     "number": 507,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.62] Move vehicle startup reads behind typed persistence ports",
     "kind": "slice",
     "parents": [
@@ -1803,6 +1804,19 @@
     ],
     "depends_on": [
       505
+    ]
+  },
+  {
+    "number": 509,
+    "state": "open",
+    "title": "[ARCH.DB.63] Move core SpellInfo DB2 overlays behind a typed persistence port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      507
     ]
   }
 ]

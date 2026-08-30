@@ -28,7 +28,7 @@ use tracing::info;
 
 use wow_constants::{PowerType, SpellCastResult};
 
-use wow_database::{HotfixDatabase, StatementDef, WorldDatabase, WorldStatements};
+use wow_database::StatementDef;
 
 use wow_entities::PetAuraLikeCpp;
 

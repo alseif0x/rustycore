@@ -26,6 +26,7 @@ mod instance_lock;
 mod mount_catalog;
 mod player_choice;
 mod reputation_catalog;
+mod spell_core_db2_hotfix;
 mod vehicle_catalog;
 
 pub use area_trigger_template_catalog::{
@@ -59,6 +60,14 @@ pub use reputation_catalog::{
     CreatureOnKillReputationPersistenceRowLikeCpp, REPUTATION_SPILLOVER_SLOT_COUNT_LIKE_CPP,
     ReputationCatalogLoadOutcomeLikeCpp, ReputationCatalogPersistencePortLikeCpp,
     ReputationRewardRatePersistenceRowLikeCpp, ReputationSpilloverTemplatePersistenceRowLikeCpp,
+};
+pub use spell_core_db2_hotfix::{
+    SpellCastTimesHotfixRowLikeCpp, SpellCastingRequirementsHotfixRowLikeCpp,
+    SpellCategoriesHotfixRowLikeCpp, SpellCooldownsHotfixRowLikeCpp,
+    SpellCoreDb2HotfixLoadOutcomeLikeCpp, SpellCoreDb2HotfixPersistencePortLikeCpp,
+    SpellEffectHotfixRowLikeCpp, SpellInterruptsHotfixRowLikeCpp, SpellMiscHotfixRowLikeCpp,
+    SpellNameHotfixRowLikeCpp, SpellPowerDifficultyHotfixRowLikeCpp, SpellPowerHotfixRowLikeCpp,
+    SpellShapeshiftHotfixRowLikeCpp,
 };
 pub use vehicle_catalog::{
     VEHICLE_SEAT_COUNT_LIKE_CPP, VehicleHotfixLoadOutcomeLikeCpp,
