@@ -26,6 +26,7 @@ mod area_trigger_world_catalog;
 mod chr_specialization_hotfix;
 mod creature_display_hotfix;
 mod difficulty_hotfix;
+mod gossip_startup_catalog;
 mod hotfix_delivery_metadata;
 mod instance_lock;
 mod mount_catalog;
@@ -66,6 +67,11 @@ pub use creature_display_hotfix::{
 pub use difficulty_hotfix::{
     DifficultyHotfixLoadOutcomeLikeCpp, DifficultyHotfixPersistencePortLikeCpp,
     DifficultyHotfixRowLikeCpp, DifficultyHotfixRowsLikeCpp,
+};
+pub use gossip_startup_catalog::{
+    GossipMenuAddonPersistenceRowLikeCpp, GossipMenuOptionLocalePersistenceRowLikeCpp,
+    GossipMenuPersistenceRowLikeCpp, GossipStartupCatalogLoadOutcomeLikeCpp,
+    GossipStartupCatalogPersistencePortLikeCpp,
 };
 pub use hotfix_delivery_metadata::{
     HotfixBlobPersistenceRowLikeCpp, HotfixDataPersistenceRowLikeCpp,
