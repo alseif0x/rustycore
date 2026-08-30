@@ -8454,294 +8454,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-data:crate::spell_db2:crates/wow-data/src/spell_db2.rs::impl SpellAuraRestrictionsStore::load_effective_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_db2.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_db2"
-      ],
-      "enclosings": [
-        "impl SpellAuraRestrictionsStore::load_effective_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl SpellAuraRestrictionsStore::load_effective_like_cpp in crates/wow-data/src/spell_db2.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell_db2:crates/wow-data/src/spell_db2.rs::impl SpellCategoryStore::load_effective_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_db2.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_db2"
-      ],
-      "enclosings": [
-        "impl SpellCategoryStore::load_effective_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl SpellCategoryStore::load_effective_like_cpp in crates/wow-data/src/spell_db2.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell_db2:crates/wow-data/src/spell_db2.rs::impl SpellDurationStore::load_effective_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_db2.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_db2"
-      ],
-      "enclosings": [
-        "impl SpellDurationStore::load_effective_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl SpellDurationStore::load_effective_like_cpp in crates/wow-data/src/spell_db2.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell_db2:crates/wow-data/src/spell_db2.rs::impl SpellEquippedItemsStore::load_effective_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_db2.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_db2"
-      ],
-      "enclosings": [
-        "impl SpellEquippedItemsStore::load_effective_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl SpellEquippedItemsStore::load_effective_like_cpp in crates/wow-data/src/spell_db2.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell_db2:crates/wow-data/src/spell_db2.rs::impl SpellRadiusStore::load_effective_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_db2.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_db2"
-      ],
-      "enclosings": [
-        "impl SpellRadiusStore::load_effective_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl SpellRadiusStore::load_effective_like_cpp in crates/wow-data/src/spell_db2.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell_db2:crates/wow-data/src/spell_db2.rs::impl SpellRangeStore::load_effective_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_db2.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_db2"
-      ],
-      "enclosings": [
-        "impl SpellRangeStore::load_effective_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl SpellRangeStore::load_effective_like_cpp in crates/wow-data/src/spell_db2.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell_db2:crates/wow-data/src/spell_db2.rs::impl SpellTargetRestrictionsStore::load_effective_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_db2.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_db2"
-      ],
-      "enclosings": [
-        "impl SpellTargetRestrictionsStore::load_effective_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl SpellTargetRestrictionsStore::load_effective_like_cpp in crates/wow-data/src/spell_db2.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell_db2:crates/wow-data/src/spell_db2.rs::impl SpellXSpellVisualStore::load_effective_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_db2.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_db2"
-      ],
-      "enclosings": [
-        "impl SpellXSpellVisualStore::load_effective_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl SpellXSpellVisualStore::load_effective_like_cpp in crates/wow-data/src/spell_db2.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell_db2:crates/wow-data/src/spell_db2.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_db2.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_db2"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow module in crates/wow-data/src/spell_db2.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for hotfix; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-data:crate::spell_item_enchantment:crates/wow-data/src/spell_item_enchantment.rs::impl SpellEnchantProcStoreLikeCpp::load_like_cpp",
       "source_class": "production",
       "packages": [
@@ -20951,6 +20663,36 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::spell_core_db2_hotfix_adapter:crates/wow-database/src/spell_core_db2_hotfix_adapter.rs::impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_aura_restrictions_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_core_db2_hotfix_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_core_db2_hotfix_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_aura_restrictions_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free Spell DB2 Hotfix overlays (#509/#513) currently owns the complete wow-database workflow impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_aura_restrictions_rows_like_cpp in crates/wow-database/src/spell_core_db2_hotfix_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each row family is queried with official rows first and custom rows second; world-server publishes only after the typed rows are converted, overlaid on DB2 and filtered by final hotfix tombstones.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::spell_core_db2_hotfix_adapter:crates/wow-database/src/spell_core_db2_hotfix_adapter.rs::impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_cast_times_rows_like_cpp",
       "source_class": "production",
       "packages": [
@@ -21041,6 +20783,36 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::spell_core_db2_hotfix_adapter:crates/wow-database/src/spell_core_db2_hotfix_adapter.rs::impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_category_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_core_db2_hotfix_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_core_db2_hotfix_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_category_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free Spell DB2 Hotfix overlays (#509/#513) currently owns the complete wow-database workflow impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_category_rows_like_cpp in crates/wow-database/src/spell_core_db2_hotfix_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each row family is queried with official rows first and custom rows second; world-server publishes only after the typed rows are converted, overlaid on DB2 and filtered by final hotfix tombstones.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::spell_core_db2_hotfix_adapter:crates/wow-database/src/spell_core_db2_hotfix_adapter.rs::impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_cooldowns_rows_like_cpp",
       "source_class": "production",
       "packages": [
@@ -21071,6 +20843,36 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::spell_core_db2_hotfix_adapter:crates/wow-database/src/spell_core_db2_hotfix_adapter.rs::impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_duration_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_core_db2_hotfix_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_core_db2_hotfix_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_duration_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free Spell DB2 Hotfix overlays (#509/#513) currently owns the complete wow-database workflow impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_duration_rows_like_cpp in crates/wow-database/src/spell_core_db2_hotfix_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each row family is queried with official rows first and custom rows second; world-server publishes only after the typed rows are converted, overlaid on DB2 and filtered by final hotfix tombstones.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::spell_core_db2_hotfix_adapter:crates/wow-database/src/spell_core_db2_hotfix_adapter.rs::impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_effect_rows_like_cpp",
       "source_class": "production",
       "packages": [
@@ -21095,6 +20897,36 @@
       "capability_owner": "MariaDB adapter for SQLx-free core SpellInfo Hotfix DB2 overlays (#509) currently owns the complete wow-database workflow impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_effect_rows_like_cpp in crates/wow-database/src/spell_core_db2_hotfix_adapter.rs.",
       "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
       "current_order": "Each row family is queried with official rows first and custom rows second; world-server preserves SpellName, the existing key seed, then Categories, Misc, Effect, Shapeshift, Interrupts, CastTimes, Cooldowns, CastingRequirements, Power and PowerDifficulty before hydration.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_core_db2_hotfix_adapter:crates/wow-database/src/spell_core_db2_hotfix_adapter.rs::impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_equipped_items_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_core_db2_hotfix_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_core_db2_hotfix_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_equipped_items_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free Spell DB2 Hotfix overlays (#509/#513) currently owns the complete wow-database workflow impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_equipped_items_rows_like_cpp in crates/wow-database/src/spell_core_db2_hotfix_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each row family is queried with official rows first and custom rows second; world-server publishes only after the typed rows are converted, overlaid on DB2 and filtered by final hotfix tombstones.",
       "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
@@ -21251,6 +21083,66 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::spell_core_db2_hotfix_adapter:crates/wow-database/src/spell_core_db2_hotfix_adapter.rs::impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_radius_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_core_db2_hotfix_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_core_db2_hotfix_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_radius_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free Spell DB2 Hotfix overlays (#509/#513) currently owns the complete wow-database workflow impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_radius_rows_like_cpp in crates/wow-database/src/spell_core_db2_hotfix_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each row family is queried with official rows first and custom rows second; world-server publishes only after the typed rows are converted, overlaid on DB2 and filtered by final hotfix tombstones.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_core_db2_hotfix_adapter:crates/wow-database/src/spell_core_db2_hotfix_adapter.rs::impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_range_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_core_db2_hotfix_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_core_db2_hotfix_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_range_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free Spell DB2 Hotfix overlays (#509/#513) currently owns the complete wow-database workflow impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_range_rows_like_cpp in crates/wow-database/src/spell_core_db2_hotfix_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each row family is queried with official rows first and custom rows second; world-server publishes only after the typed rows are converted, overlaid on DB2 and filtered by final hotfix tombstones.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::spell_core_db2_hotfix_adapter:crates/wow-database/src/spell_core_db2_hotfix_adapter.rs::impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_shapeshift_rows_like_cpp",
       "source_class": "production",
       "packages": [
@@ -21275,6 +21167,66 @@
       "capability_owner": "MariaDB adapter for SQLx-free core SpellInfo Hotfix DB2 overlays (#509) currently owns the complete wow-database workflow impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_shapeshift_rows_like_cpp in crates/wow-database/src/spell_core_db2_hotfix_adapter.rs.",
       "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
       "current_order": "Each row family is queried with official rows first and custom rows second; world-server preserves SpellName, the existing key seed, then Categories, Misc, Effect, Shapeshift, Interrupts, CastTimes, Cooldowns, CastingRequirements, Power and PowerDifficulty before hydration.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_core_db2_hotfix_adapter:crates/wow-database/src/spell_core_db2_hotfix_adapter.rs::impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_target_restrictions_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_core_db2_hotfix_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_core_db2_hotfix_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_target_restrictions_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free Spell DB2 Hotfix overlays (#509/#513) currently owns the complete wow-database workflow impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_target_restrictions_rows_like_cpp in crates/wow-database/src/spell_core_db2_hotfix_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each row family is queried with official rows first and custom rows second; world-server publishes only after the typed rows are converted, overlaid on DB2 and filtered by final hotfix tombstones.",
+      "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_core_db2_hotfix_adapter:crates/wow-database/src/spell_core_db2_hotfix_adapter.rs::impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_x_spell_visual_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_core_db2_hotfix_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_core_db2_hotfix_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_x_spell_visual_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for SQLx-free Spell DB2 Hotfix overlays (#509/#513) currently owns the complete wow-database workflow impl wow_persistence::SpellCoreDb2HotfixPersistencePortLikeCpp for MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::load_spell_x_spell_visual_rows_like_cpp in crates/wow-database/src/spell_core_db2_hotfix_adapter.rs.",
+      "connection_affinity": "Every workflow uses only the Hotfix connection; reads are independent startup queries and imply no transaction or cross-database atomicity.",
+      "current_order": "Each row family is queried with official rows first and custom rows second; world-server publishes only after the typed rows are converted, overlaid on DB2 and filtered by final hotfix tombstones.",
       "failure_and_unknown_commit": "A query error becomes a typed Failed outcome before the affected immutable store is published; an empty result remains a successful Loaded empty set and no concrete row or driver error crosses the port.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",

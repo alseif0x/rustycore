@@ -63,12 +63,15 @@ pub use reputation_catalog::{
     ReputationRewardRatePersistenceRowLikeCpp, ReputationSpilloverTemplatePersistenceRowLikeCpp,
 };
 pub use spell_core_db2_hotfix::{
-    SpellCastTimesHotfixRowLikeCpp, SpellCastingRequirementsHotfixRowLikeCpp,
-    SpellCategoriesHotfixRowLikeCpp, SpellCooldownsHotfixRowLikeCpp,
+    SpellAuraRestrictionsHotfixRowLikeCpp, SpellCastTimesHotfixRowLikeCpp,
+    SpellCastingRequirementsHotfixRowLikeCpp, SpellCategoriesHotfixRowLikeCpp,
+    SpellCategoryHotfixRowLikeCpp, SpellCooldownsHotfixRowLikeCpp,
     SpellCoreDb2HotfixLoadOutcomeLikeCpp, SpellCoreDb2HotfixPersistencePortLikeCpp,
-    SpellEffectHotfixRowLikeCpp, SpellInterruptsHotfixRowLikeCpp, SpellMiscHotfixRowLikeCpp,
-    SpellNameHotfixRowLikeCpp, SpellPowerDifficultyHotfixRowLikeCpp, SpellPowerHotfixRowLikeCpp,
-    SpellShapeshiftHotfixRowLikeCpp,
+    SpellDurationHotfixRowLikeCpp, SpellEffectHotfixRowLikeCpp, SpellEquippedItemsHotfixRowLikeCpp,
+    SpellInterruptsHotfixRowLikeCpp, SpellMiscHotfixRowLikeCpp, SpellNameHotfixRowLikeCpp,
+    SpellPowerDifficultyHotfixRowLikeCpp, SpellPowerHotfixRowLikeCpp, SpellRadiusHotfixRowLikeCpp,
+    SpellRangeHotfixRowLikeCpp, SpellShapeshiftHotfixRowLikeCpp,
+    SpellTargetRestrictionsHotfixRowLikeCpp, SpellXSpellVisualHotfixRowLikeCpp,
 };
 pub use spell_info_key_hotfix::{
     SPELL_INFO_KEY_CONTRIBUTOR_ORDER_LIKE_CPP, SpellInfoKeyContributorHotfixBatchLikeCpp,
