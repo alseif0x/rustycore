@@ -125,6 +125,7 @@
     530,
     532,
     534,
+    536,
     189,
     192,
     193,
@@ -1976,7 +1977,7 @@
   },
   {
     "number": 534,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.75] Move Hotfix delivery metadata behind one staged persistence port",
     "kind": "slice",
     "parents": [
@@ -1985,6 +1986,20 @@
     ],
     "depends_on": [
       532
+    ]
+  },
+  {
+    "number": 536,
+    "state": "open",
+    "title": "[ARCH.DB.76] Move remaining AreaTrigger World reads behind one staged persistence port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      505,
+      534
     ]
   }
 ]

@@ -22,6 +22,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 mod area_trigger_template_catalog;
+mod area_trigger_world_catalog;
 mod chr_specialization_hotfix;
 mod difficulty_hotfix;
 mod hotfix_delivery_metadata;
@@ -46,6 +47,12 @@ pub use area_trigger_template_catalog::{
     AreaTriggerTemplateActionPersistenceRowLikeCpp, AreaTriggerTemplateCatalogLoadOutcomeLikeCpp,
     AreaTriggerTemplateCatalogPersistencePortLikeCpp, AreaTriggerTemplateCatalogRowsLikeCpp,
     AreaTriggerTemplatePersistenceRowLikeCpp,
+};
+pub use area_trigger_world_catalog::{
+    AreaTriggerDestinationPersistenceRowLikeCpp, AreaTriggerScriptPersistenceRowLikeCpp,
+    AreaTriggerTeleportPersistenceRowLikeCpp, AreaTriggerWorldCatalogPersistencePortLikeCpp,
+    AreaTriggerWorldLoadOutcomeLikeCpp, QuestAreaTriggerPersistenceRowLikeCpp,
+    TavernAreaTriggerPersistenceRowLikeCpp,
 };
 pub use chr_specialization_hotfix::{
     ChrSpecializationHotfixLoadOutcomeLikeCpp, ChrSpecializationHotfixPersistencePortLikeCpp,

@@ -2628,18 +2628,19 @@ async fn run_inner(
     let spell_custom_attribute_store = spell_acquisition_bootstrap.custom_attribute_store;
 
     // Load area trigger store (collision detection + teleportation)
-    let area_trigger_store = Arc::new(
-        wow_data::load_area_triggers(&world_db)
-            .await
-            .context("Failed to load area triggers")?,
-    );
-    let area_trigger_script_outcome = wow_data::AreaTriggerScriptStoreLikeCpp::load_like_cpp(
-        world_db.as_ref(),
-        area_trigger_db2_store.as_ref(),
-        Arc::make_mut(&mut script_name_interner),
-    )
-    .await
-    .context("Failed to load C++ area trigger scripts")?;
+    let area_trigger_world_persistence =
+        wow_database::MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
+            &world_db,
+        ));
+    let area_trigger_world_catalogs =
+        crate::area_trigger_world_catalog::load_area_trigger_world_catalogs_like_cpp(
+            &area_trigger_world_persistence,
+            area_trigger_db2_store.as_ref(),
+            Arc::make_mut(&mut script_name_interner),
+        )
+        .await?;
+    let area_trigger_store = area_trigger_world_catalogs.area_trigger_store;
+    let area_trigger_script_outcome = area_trigger_world_catalogs.script_outcome;
     let area_trigger_script_store = Arc::new(area_trigger_script_outcome.store);
     info!(
         "Loaded {} C++ area trigger script bindings ({} skipped missing area trigger)",
@@ -2649,12 +2650,7 @@ async fn run_inner(
             .skipped_missing_area_trigger
             .len()
     );
-    let tavern_area_trigger_outcome = wow_data::TavernAreaTriggerStoreLikeCpp::load_like_cpp(
-        world_db.as_ref(),
-        area_trigger_db2_store.as_ref(),
-    )
-    .await
-    .context("Failed to load C++ tavern area triggers")?;
+    let tavern_area_trigger_outcome = area_trigger_world_catalogs.tavern_outcome;
     let tavern_area_trigger_store = Arc::new(tavern_area_trigger_outcome.store);
     info!(
         "Loaded {} C++ tavern area triggers ({} rows seen; {} skipped missing AreaTrigger.db2)",

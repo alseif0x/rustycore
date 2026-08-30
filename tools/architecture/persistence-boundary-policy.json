@@ -3487,198 +3487,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-data:crate::area_trigger:crates/wow-data/src/area_trigger.rs::fn load_area_triggers",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/area_trigger.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::area_trigger"
-      ],
-      "enclosings": [
-        "fn load_area_triggers"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow fn load_area_triggers in crates/wow-data/src/area_trigger.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::area_trigger:crates/wow-data/src/area_trigger.rs::impl AreaTriggerScriptStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/area_trigger.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::area_trigger"
-      ],
-      "enclosings": [
-        "impl AreaTriggerScriptStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl AreaTriggerScriptStoreLikeCpp::load_like_cpp in crates/wow-data/src/area_trigger.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::area_trigger:crates/wow-data/src/area_trigger.rs::impl AreaTriggerTeleportStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/area_trigger.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::area_trigger"
-      ],
-      "enclosings": [
-        "impl AreaTriggerTeleportStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl AreaTriggerTeleportStoreLikeCpp::load_like_cpp in crates/wow-data/src/area_trigger.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::area_trigger:crates/wow-data/src/area_trigger.rs::impl QuestAreaTriggerStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/area_trigger.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::area_trigger"
-      ],
-      "enclosings": [
-        "impl QuestAreaTriggerStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl QuestAreaTriggerStoreLikeCpp::load_like_cpp in crates/wow-data/src/area_trigger.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::area_trigger:crates/wow-data/src/area_trigger.rs::impl TavernAreaTriggerStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/area_trigger.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::area_trigger"
-      ],
-      "enclosings": [
-        "impl TavernAreaTriggerStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl TavernAreaTriggerStoreLikeCpp::load_like_cpp in crates/wow-data/src/area_trigger.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::area_trigger:crates/wow-data/src/area_trigger.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/area_trigger.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::area_trigger"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow module in crates/wow-data/src/area_trigger.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-data:crate::battle_pet_selection:crates/wow-data/src/battle_pet_selection.rs::impl BattlePetSelectionStoreLikeCpp::load_like_cpp",
       "source_class": "production",
       "packages": [
@@ -8049,6 +7857,576 @@
       "connection_affinity": "One World startup connection owns all six queries; each row family is fully decoded before the next query and no transaction is implied.",
       "current_order": "Preserve represented actions -> polygon vertices -> spline points -> create properties -> orbit -> templates query/failure order and each statement row order.",
       "failure_and_unknown_commit": "The first query error becomes one typed Failed outcome; no concrete row or driver error crosses the port and the immutable AreaTrigger store is not published.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::const AREA_TRIGGER_STATEMENTS_LIKE_CPP",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "const AREA_TRIGGER_STATEMENTS_LIKE_CPP"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow const AREA_TRIGGER_STATEMENTS_LIKE_CPP in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::fn destination_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn destination_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow fn destination_row_like_cpp in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::fn query_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn query_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow fn query_rows_like_cpp in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::fn quest_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn quest_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow fn quest_row_like_cpp in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::fn read_f32_checked_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn read_f32_checked_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow fn read_f32_checked_like_cpp in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::fn read_integer_checked_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn read_integer_checked_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow fn read_integer_checked_like_cpp in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::fn read_string_checked_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn read_string_checked_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow fn read_string_checked_like_cpp in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::fn read_u32_checked_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn read_u32_checked_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow fn read_u32_checked_like_cpp in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::fn script_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn script_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow fn script_row_like_cpp in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::fn tavern_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn tavern_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow fn tavern_row_like_cpp in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::fn teleport_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn teleport_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow fn teleport_row_like_cpp in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::impl MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow impl MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::new in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::impl wow_persistence::AreaTriggerWorldCatalogPersistencePortLikeCpp for MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::load_destination_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::AreaTriggerWorldCatalogPersistencePortLikeCpp for MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::load_destination_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow impl wow_persistence::AreaTriggerWorldCatalogPersistencePortLikeCpp for MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::load_destination_rows_like_cpp in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::impl wow_persistence::AreaTriggerWorldCatalogPersistencePortLikeCpp for MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::load_quest_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::AreaTriggerWorldCatalogPersistencePortLikeCpp for MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::load_quest_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow impl wow_persistence::AreaTriggerWorldCatalogPersistencePortLikeCpp for MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::load_quest_rows_like_cpp in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::impl wow_persistence::AreaTriggerWorldCatalogPersistencePortLikeCpp for MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::load_script_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::AreaTriggerWorldCatalogPersistencePortLikeCpp for MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::load_script_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow impl wow_persistence::AreaTriggerWorldCatalogPersistencePortLikeCpp for MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::load_script_rows_like_cpp in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::impl wow_persistence::AreaTriggerWorldCatalogPersistencePortLikeCpp for MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::load_tavern_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::AreaTriggerWorldCatalogPersistencePortLikeCpp for MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::load_tavern_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow impl wow_persistence::AreaTriggerWorldCatalogPersistencePortLikeCpp for MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::load_tavern_rows_like_cpp in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::impl wow_persistence::AreaTriggerWorldCatalogPersistencePortLikeCpp for MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::load_teleport_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::AreaTriggerWorldCatalogPersistencePortLikeCpp for MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::load_teleport_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow impl wow_persistence::AreaTriggerWorldCatalogPersistencePortLikeCpp for MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp::load_teleport_rows_like_cpp in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow module in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::area_trigger_world_catalog_adapter:crates/wow-database/src/area_trigger_world_catalog_adapter.rs::struct MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::area_trigger_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free staged AreaTrigger World-catalog capability (#536) currently owns the complete wow-database workflow struct MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp in crates/wow-database/src/area_trigger_world_catalog_adapter.rs.",
+      "connection_affinity": "The operation is confined to the adapter shared World handle and opens no transaction.",
+      "current_order": "The adapter preserves the selected AreaTrigger operation statement identity and fully decodes its row batch before returning it.",
+      "failure_and_unknown_commit": "A query or checked-decode failure returns no partial batch; this read-only capability has no commit outcome.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -29816,6 +30194,7 @@
       ],
       "sources": [
         "crates/wow-database/src/area_trigger_template_catalog_adapter.rs",
+        "crates/wow-database/src/area_trigger_world_catalog_adapter.rs",
         "crates/wow-database/src/battle_pet_account_adapter.rs",
         "crates/wow-database/src/character_enumeration_adapter.rs",
         "crates/wow-database/src/chr_specialization_hotfix_adapter.rs",
