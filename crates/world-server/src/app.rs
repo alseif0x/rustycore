@@ -835,11 +835,13 @@ async fn run_inner(
         trivial: world_config_f32(&world_configs, "Rate.Creature.Health.Trivial", 1.0),
         minus_mob: world_config_f32(&world_configs, "Rate.Creature.Health.MinusMob", 1.0),
     };
+    let difficulty_hotfix_persistence =
+        wow_database::MariaDbDifficultyHotfixPersistenceAdapterLikeCpp::new(Arc::clone(&hotfix_db));
     let difficulty_store = Arc::new(
-        wow_data::DifficultyStore::load_effective_like_cpp(
+        crate::difficulty_hotfix::load_difficulty_store_like_cpp(
             &data_dir,
             &locale,
-            &hotfix_db,
+            &difficulty_hotfix_persistence,
             &db2_hotfix_removals,
         )
         .await
