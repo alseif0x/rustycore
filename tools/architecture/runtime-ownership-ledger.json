@@ -1723,11 +1723,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 27792,
-          "test_lines": 24198,
-          "total_lines": 51990,
+          "production_lines": 27841,
+          "test_lines": 24260,
+          "total_lines": 52101,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-          "latest_growth_review": "#530 adds one private staged Player-creation catalog composition boundary: +173 production conversion/composition lines plus +235 focused field/null grouping, base-empty short-circuit, per-stage failure and single-adapter startup-order test lines. One capability covers the three represented ObjectMgr::LoadPlayerInfo World sources without an eager bundle or table repositories; SQL remains in wow-database while race/class/model/map/NPE transport and mask/create-mode rules remain in wow-data. The structural cut deliberately preserves the existing Rust cast-before-custom publication order and its represented NPE transport resolution instead of mixing parity changes into persistence ownership.",
+          "latest_growth_review": "#532 adds one private effective-Difficulty composition boundary: +49 production conversion/composition lines plus +62 focused field, failure-before-publication and single-adapter startup-order test lines. One capability carries official and custom Hotfix batches without exposing SQL, a generic repository or a second runtime; SQL remains in wow-database while WDC4 base parsing, whole-row replacement and final tombstones remain in wow-data.",
           "open_retirement_issues": [
             153
           ],

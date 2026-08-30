@@ -123,6 +123,7 @@
     526,
     528,
     530,
+    532,
     189,
     192,
     193,
@@ -1948,7 +1949,7 @@
   },
   {
     "number": 530,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.73] Move Player-creation catalogs behind one typed World persistence port",
     "kind": "slice",
     "parents": [
@@ -1957,6 +1958,19 @@
     ],
     "depends_on": [
       528
+    ]
+  },
+  {
+    "number": 532,
+    "state": "open",
+    "title": "[ARCH.DB.74] Move Difficulty Hotfix overlays behind one typed persistence port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      530
     ]
   }
 ]
