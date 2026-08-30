@@ -5343,134 +5343,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-data:crate::hotfix_cache:crates/wow-data/src/hotfix_cache.rs::impl HotfixBlobCache::load_hotfix_blobs_from_db",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/hotfix_cache.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::hotfix_cache"
-      ],
-      "enclosings": [
-        "impl HotfixBlobCache::load_hotfix_blobs_from_db"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl HotfixBlobCache::load_hotfix_blobs_from_db in crates/wow-data/src/hotfix_cache.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::hotfix_cache:crates/wow-data/src/hotfix_cache.rs::impl HotfixBlobCache::load_hotfix_data_from_db",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/hotfix_cache.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::hotfix_cache"
-      ],
-      "enclosings": [
-        "impl HotfixBlobCache::load_hotfix_data_from_db"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl HotfixBlobCache::load_hotfix_data_from_db in crates/wow-data/src/hotfix_cache.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::hotfix_cache:crates/wow-data/src/hotfix_cache.rs::impl HotfixBlobCache::load_hotfix_optional_data_from_db",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/hotfix_cache.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::hotfix_cache"
-      ],
-      "enclosings": [
-        "impl HotfixBlobCache::load_hotfix_optional_data_from_db"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl HotfixBlobCache::load_hotfix_optional_data_from_db in crates/wow-data/src/hotfix_cache.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::hotfix_cache:crates/wow-data/src/hotfix_cache.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/hotfix_cache.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::hotfix_cache"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow module in crates/wow-data/src/hotfix_cache.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for hotfix; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-data:crate::item_random_enchantment:crates/wow-data/src/item_random_enchantment.rs::impl ItemRandomEnchantmentTemplateStore::load",
       "source_class": "production",
       "packages": [
@@ -12233,6 +12105,426 @@
       "connection_affinity": "The adapter stores exactly one Characters-database handle.",
       "current_order": "Construction stores the handle only; typed methods own transaction and reconciliation order.",
       "failure_and_unknown_commit": "No I/O or transaction occurs while storing the adapter.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::hotfix_delivery_metadata_adapter:crates/wow-database/src/hotfix_delivery_metadata_adapter.rs::const STARTUP_STATEMENTS_LIKE_CPP",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::hotfix_delivery_metadata_adapter"
+      ],
+      "enclosings": [
+        "const STARTUP_STATEMENTS_LIKE_CPP"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534) currently owns the complete wow-database workflow const STARTUP_STATEMENTS_LIKE_CPP in crates/wow-database/src/hotfix_delivery_metadata_adapter.rs.",
+      "connection_affinity": "All three statement identities are confined to one Hotfix handle and imply no transaction.",
+      "current_order": "Pin blob, data, then optional-data statement order.",
+      "failure_and_unknown_commit": "Statement identity performs no I/O and implies no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::hotfix_delivery_metadata_adapter:crates/wow-database/src/hotfix_delivery_metadata_adapter.rs::fn hotfix_blob_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::hotfix_delivery_metadata_adapter"
+      ],
+      "enclosings": [
+        "fn hotfix_blob_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534) currently owns the complete wow-database workflow fn hotfix_blob_row_like_cpp in crates/wow-database/src/hotfix_delivery_metadata_adapter.rs.",
+      "connection_affinity": "Decode one row from the current Hotfix query without opening a transaction.",
+      "current_order": "Decode table hash, record id, locale and blob in selected-column order.",
+      "failure_and_unknown_commit": "Any invalid consumed value fails the complete blob batch before mutation.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::hotfix_delivery_metadata_adapter:crates/wow-database/src/hotfix_delivery_metadata_adapter.rs::fn hotfix_data_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::hotfix_delivery_metadata_adapter"
+      ],
+      "enclosings": [
+        "fn hotfix_data_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534) currently owns the complete wow-database workflow fn hotfix_data_row_like_cpp in crates/wow-database/src/hotfix_delivery_metadata_adapter.rs.",
+      "connection_affinity": "Decode one row from the current Hotfix query without opening a transaction.",
+      "current_order": "Decode push id, unique id, table hash, record id and status in selected-column order.",
+      "failure_and_unknown_commit": "Any invalid consumed value fails the complete data batch before mutation.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::hotfix_delivery_metadata_adapter:crates/wow-database/src/hotfix_delivery_metadata_adapter.rs::fn hotfix_optional_data_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::hotfix_delivery_metadata_adapter"
+      ],
+      "enclosings": [
+        "fn hotfix_optional_data_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534) currently owns the complete wow-database workflow fn hotfix_optional_data_row_like_cpp in crates/wow-database/src/hotfix_delivery_metadata_adapter.rs.",
+      "connection_affinity": "Decode one row from the current Hotfix query without opening a transaction.",
+      "current_order": "Decode table hash, record id, locale, key and data in selected-column order.",
+      "failure_and_unknown_commit": "Any invalid consumed value fails the complete optional-data batch before mutation.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::hotfix_delivery_metadata_adapter:crates/wow-database/src/hotfix_delivery_metadata_adapter.rs::fn query_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::hotfix_delivery_metadata_adapter"
+      ],
+      "enclosings": [
+        "fn query_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534) currently owns the complete wow-database workflow fn query_rows_like_cpp in crates/wow-database/src/hotfix_delivery_metadata_adapter.rs.",
+      "connection_affinity": "Each staged read uses the adapter's one Hotfix handle and no transaction.",
+      "current_order": "Prepare, query and fully decode the requested named statement in database order.",
+      "failure_and_unknown_commit": "Query or decode failure returns no partial batch.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::hotfix_delivery_metadata_adapter:crates/wow-database/src/hotfix_delivery_metadata_adapter.rs::fn read_binary_checked_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::hotfix_delivery_metadata_adapter"
+      ],
+      "enclosings": [
+        "fn read_binary_checked_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534) currently owns the complete wow-database workflow fn read_binary_checked_like_cpp in crates/wow-database/src/hotfix_delivery_metadata_adapter.rs.",
+      "connection_affinity": "Read only the current Hotfix-query row.",
+      "current_order": "Preserve binary payload bytes exactly.",
+      "failure_and_unknown_commit": "Missing or non-binary data fails the stage instead of fabricating an empty payload.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::hotfix_delivery_metadata_adapter:crates/wow-database/src/hotfix_delivery_metadata_adapter.rs::fn read_integer_checked_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::hotfix_delivery_metadata_adapter"
+      ],
+      "enclosings": [
+        "fn read_integer_checked_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534) currently owns the complete wow-database workflow fn read_integer_checked_like_cpp in crates/wow-database/src/hotfix_delivery_metadata_adapter.rs.",
+      "connection_affinity": "Read only the current Hotfix-query row.",
+      "current_order": "Try represented signed and unsigned SQL widths without defaults.",
+      "failure_and_unknown_commit": "Missing or non-integer data fails the stage before publication.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::hotfix_delivery_metadata_adapter:crates/wow-database/src/hotfix_delivery_metadata_adapter.rs::fn read_string_checked_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::hotfix_delivery_metadata_adapter"
+      ],
+      "enclosings": [
+        "fn read_string_checked_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534) currently owns the complete wow-database workflow fn read_string_checked_like_cpp in crates/wow-database/src/hotfix_delivery_metadata_adapter.rs.",
+      "connection_affinity": "Read only the current Hotfix-query row.",
+      "current_order": "Preserve the locale name for domain admission.",
+      "failure_and_unknown_commit": "Missing or non-string locale data fails the stage before publication.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::hotfix_delivery_metadata_adapter:crates/wow-database/src/hotfix_delivery_metadata_adapter.rs::impl MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::hotfix_delivery_metadata_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534) currently owns the complete wow-database workflow impl MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::new in crates/wow-database/src/hotfix_delivery_metadata_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one shared Hotfix handle.",
+      "current_order": "Construction performs no query.",
+      "failure_and_unknown_commit": "Construction performs no I/O and implies no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::hotfix_delivery_metadata_adapter:crates/wow-database/src/hotfix_delivery_metadata_adapter.rs::impl wow_persistence::HotfixDeliveryMetadataPersistencePortLikeCpp for MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::load_hotfix_blob_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::hotfix_delivery_metadata_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::HotfixDeliveryMetadataPersistencePortLikeCpp for MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::load_hotfix_blob_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534) currently owns the complete wow-database workflow impl wow_persistence::HotfixDeliveryMetadataPersistencePortLikeCpp for MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::load_hotfix_blob_rows_like_cpp in crates/wow-database/src/hotfix_delivery_metadata_adapter.rs.",
+      "connection_affinity": "The blob read uses the adapter's one Hotfix handle and no transaction.",
+      "current_order": "Load and fully decode blobs only at the first SQL stage.",
+      "failure_and_unknown_commit": "Failure becomes one Failed outcome; empty remains successful.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::hotfix_delivery_metadata_adapter:crates/wow-database/src/hotfix_delivery_metadata_adapter.rs::impl wow_persistence::HotfixDeliveryMetadataPersistencePortLikeCpp for MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::load_hotfix_data_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::hotfix_delivery_metadata_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::HotfixDeliveryMetadataPersistencePortLikeCpp for MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::load_hotfix_data_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534) currently owns the complete wow-database workflow impl wow_persistence::HotfixDeliveryMetadataPersistencePortLikeCpp for MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::load_hotfix_data_rows_like_cpp in crates/wow-database/src/hotfix_delivery_metadata_adapter.rs.",
+      "connection_affinity": "The data read uses the adapter's one Hotfix handle and no transaction.",
+      "current_order": "Load and fully decode push data only after the caller has applied blobs.",
+      "failure_and_unknown_commit": "Failure becomes one Failed outcome; empty remains successful.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::hotfix_delivery_metadata_adapter:crates/wow-database/src/hotfix_delivery_metadata_adapter.rs::impl wow_persistence::HotfixDeliveryMetadataPersistencePortLikeCpp for MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::load_hotfix_optional_data_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::hotfix_delivery_metadata_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::HotfixDeliveryMetadataPersistencePortLikeCpp for MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::load_hotfix_optional_data_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534) currently owns the complete wow-database workflow impl wow_persistence::HotfixDeliveryMetadataPersistencePortLikeCpp for MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::load_hotfix_optional_data_rows_like_cpp in crates/wow-database/src/hotfix_delivery_metadata_adapter.rs.",
+      "connection_affinity": "The optional-data read uses the adapter's one Hotfix handle and no transaction.",
+      "current_order": "Load and fully decode optional data as the final stage.",
+      "failure_and_unknown_commit": "Failure becomes one Failed outcome; empty remains successful.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::hotfix_delivery_metadata_adapter:crates/wow-database/src/hotfix_delivery_metadata_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::hotfix_delivery_metadata_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534) currently owns the complete wow-database workflow module in crates/wow-database/src/hotfix_delivery_metadata_adapter.rs.",
+      "connection_affinity": "Shared syntax is confined to one Hotfix adapter.",
+      "current_order": "Shared syntax preserves the three-stage contract without eager loading.",
+      "failure_and_unknown_commit": "Shared syntax adds no transaction or commit guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::hotfix_delivery_metadata_adapter:crates/wow-database/src/hotfix_delivery_metadata_adapter.rs::struct MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::hotfix_delivery_metadata_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534) currently owns the complete wow-database workflow struct MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp in crates/wow-database/src/hotfix_delivery_metadata_adapter.rs.",
+      "connection_affinity": "The adapter owns exactly one shared Hotfix handle.",
+      "current_order": "The handle surface introduces no order beyond the staged operations.",
+      "failure_and_unknown_commit": "The handle surface performs no I/O and implies no commit outcome.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -29535,6 +29827,7 @@
         "crates/wow-database/src/gameobject_use_template_adapter.rs",
         "crates/wow-database/src/gossip_catalog_adapter.rs",
         "crates/wow-database/src/group_loot_money_adapter.rs",
+        "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs",
         "crates/wow-database/src/instance_lock_persistence_adapter.rs",
         "crates/wow-database/src/item_template_addon_catalog_adapter.rs",
         "crates/wow-database/src/map_corpse_adapter.rs",

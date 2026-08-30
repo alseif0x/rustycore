@@ -1723,11 +1723,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 27841,
-          "test_lines": 24260,
-          "total_lines": 52101,
+          "production_lines": 27932,
+          "test_lines": 24350,
+          "total_lines": 52282,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-          "latest_growth_review": "#532 adds one private effective-Difficulty composition boundary: +49 production conversion/composition lines plus +62 focused field, failure-before-publication and single-adapter startup-order test lines. One capability carries official and custom Hotfix batches without exposing SQL, a generic repository or a second runtime; SQL remains in wow-database while WDC4 base parsing, whole-row replacement and final tombstones remain in wow-data.",
+          "latest_growth_review": "#534 adds one private staged Hotfix-delivery composition boundary: +91 production conversion/orchestration lines plus +90 focused order, independent-failure and failure-before-stage-mutation test lines. One capability exposes three separately invoked stages rather than an eager table bundle; SQL remains in wow-database while local WDC4 discovery, locale admission, push grouping and optional-data indexing remain in wow-data.",
           "open_retirement_issues": [
             153
           ],
