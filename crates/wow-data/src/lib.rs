@@ -210,7 +210,10 @@ pub use gameobject_template::{
     GameObjectTemplateLifecycleRecordLikeCpp, GameObjectTemplateLifecycleStoreLikeCpp,
     gameobject_template_lifecycle_record_like_cpp,
 };
-pub use gossip::{GossipConditionAttachmentReport, GossipMenu, GossipMenuItem, GossipStore};
+pub use gossip::{
+    GossipConditionAttachmentReport, GossipLoadReport, GossipMenu, GossipMenuAddonRowLikeCpp,
+    GossipMenuItem, GossipMenuItemsLocaleRowLikeCpp, GossipMenuRowLikeCpp, GossipStore,
+};
 pub use graveyard::{
     ALLIANCE_GRAVEYARD_SAFE_LOC_ID_LIKE_CPP, GraveyardConditionAttachmentReport, GraveyardData,
     GraveyardLoadReport, GraveyardLookupContextLikeCpp, GraveyardStore, GraveyardZoneRow,
