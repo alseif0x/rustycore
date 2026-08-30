@@ -17,7 +17,6 @@ use std::path::Path;
 
 use anyhow::Result;
 use tracing::info;
-use wow_database::{HotfixDatabase, HotfixStatements};
 
 use crate::wdc4::Wdc4Reader;
 
@@ -146,59 +145,32 @@ impl HotfixBlobCache {
         self.max_hotfix_id = self.max_hotfix_id.max(push_id);
     }
 
-    /// Load C++ `hotfix_blob` rows from the Hotfix database for one locale.
-    pub async fn load_hotfix_blobs_from_db(
+    /// Apply a fully decoded C++ `hotfix_blob` batch for one locale.
+    pub fn apply_hotfix_blob_rows_like_cpp(
         &mut self,
-        db: &HotfixDatabase,
+        rows: impl IntoIterator<Item = (u32, i32, String, Vec<u8>)>,
         locale: &str,
-    ) -> Result<usize> {
-        let stmt = db.prepare(HotfixStatements::SEL_HOTFIX_BLOB);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(0);
-        }
-
+    ) -> usize {
         let mut count = 0usize;
-        loop {
-            let table_hash: u32 = result.read(0);
-            let record_id: i32 = result.read(1);
-            let row_locale = result.read_string(2);
-            let blob: Vec<u8> = result.try_read(3).unwrap_or_default();
-
+        for (table_hash, record_id, row_locale, blob) in rows {
             if row_locale == locale {
                 self.insert_hotfix_blob(table_hash, record_id, blob);
                 count += 1;
             }
-
-            if !result.next_row() {
-                break;
-            }
         }
-
-        Ok(count)
+        count
     }
 
-    /// Load C++ `hotfix_data` rows and group them by push id.
-    pub async fn load_hotfix_data_from_db(
+    /// Apply a fully decoded C++ `hotfix_data` batch and group by push id.
+    pub fn apply_hotfix_data_rows_like_cpp(
         &mut self,
-        db: &HotfixDatabase,
+        rows: impl IntoIterator<Item = (i32, u32, u32, i32, u8)>,
         locale: &str,
-    ) -> Result<usize> {
-        let stmt = db.prepare(HotfixStatements::SEL_HOTFIX_DATA);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(0);
-        }
-
+    ) -> usize {
         let locale_mask = locale_mask_for_name(locale);
         let mut count = 0usize;
-        loop {
-            let push_id: i32 = result.read(0);
-            let unique_id: u32 = result.read(1);
-            let table_hash: u32 = result.read(2);
-            let record_id: i32 = result.read(3);
-            let status = HotfixRecordStatus::from(result.read::<u8>(4));
-
+        for (push_id, unique_id, table_hash, record_id, status) in rows {
+            let status = HotfixRecordStatus::from(status);
             // C++ only requires a `hotfix_blob` fallback when the table hash is
             // not a loaded DB2 store. Known stores stay advertised; if Rust does
             // not yet have a typed `DB2StorageBase::WriteRecord` serializer,
@@ -208,9 +180,6 @@ impl HotfixBlobCache {
                 && !self.has_table(table_hash)
                 && self.get_hotfix_blob(table_hash, record_id).is_none()
             {
-                if !result.next_row() {
-                    break;
-                }
                 continue;
             }
 
@@ -224,35 +193,18 @@ impl HotfixBlobCache {
 
             self.insert_hotfix_record_like_cpp(record);
             count += 1;
-
-            if !result.next_row() {
-                break;
-            }
         }
-
-        Ok(count)
+        count
     }
 
-    /// Load C++ `hotfix_optional_data` rows for one locale.
-    pub async fn load_hotfix_optional_data_from_db(
+    /// Apply a fully decoded C++ `hotfix_optional_data` batch for one locale.
+    pub fn apply_hotfix_optional_data_rows_like_cpp(
         &mut self,
-        db: &HotfixDatabase,
+        rows: impl IntoIterator<Item = (u32, i32, String, u32, Vec<u8>)>,
         locale: &str,
-    ) -> Result<usize> {
-        let stmt = db.prepare(HotfixStatements::SEL_HOTFIX_OPTIONAL_DATA);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(0);
-        }
-
+    ) -> usize {
         let mut count = 0usize;
-        loop {
-            let table_hash: u32 = result.read(0);
-            let record_id: i32 = result.read(1);
-            let row_locale = result.read_string(2);
-            let key: u32 = result.read(3);
-            let data: Vec<u8> = result.try_read(4).unwrap_or_default();
-
+        for (table_hash, record_id, row_locale, key, data) in rows {
             if row_locale == locale {
                 self.optional_data
                     .entry(row_locale)
@@ -262,13 +214,8 @@ impl HotfixBlobCache {
                     .push(HotfixOptionalData { key, data });
                 count += 1;
             }
-
-            if !result.next_row() {
-                break;
-            }
         }
-
-        Ok(count)
+        count
     }
 
     /// Look up the raw blob for a `(table_hash, record_id)` pair.
@@ -465,6 +412,34 @@ mod tests {
         assert_eq!(cache.get_hotfix_blob(0x919B_E54E, 58256), Some(&[4, 5][..]));
         assert_eq!(cache.total_blobs(), 1);
         assert_eq!(cache.total_hotfix_blobs(), 1);
+    }
+
+    #[test]
+    fn decoded_sql_batches_keep_locale_filter_and_blob_before_data_dependency() {
+        let mut cache = HotfixBlobCache::new();
+        assert_eq!(
+            cache.apply_hotfix_blob_rows_like_cpp(
+                [
+                    (0xAABB_CCDD, 7, "esES".into(), vec![1]),
+                    (0xAABB_CCDD, 8, "enUS".into(), vec![2]),
+                ],
+                "esES",
+            ),
+            1
+        );
+        assert_eq!(
+            cache.apply_hotfix_data_rows_like_cpp(
+                [
+                    (1, 2, 0xAABB_CCDD, 7, HotfixRecordStatus::Valid as u8),
+                    (3, 4, 0xAABB_CCDD, 8, HotfixRecordStatus::Valid as u8),
+                ],
+                "esES",
+            ),
+            1
+        );
+        assert_eq!(cache.hotfix_count(), 1);
+        assert_eq!(cache.get_hotfix_blob(0xAABB_CCDD, 7), Some(&[1][..]));
+        assert_eq!(cache.get_hotfix_blob(0xAABB_CCDD, 8), None);
     }
 
     #[test]

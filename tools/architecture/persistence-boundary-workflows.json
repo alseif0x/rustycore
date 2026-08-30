@@ -2850,74 +2850,6 @@
     },
     {
       "package": "wow-data",
-      "module": "crate::hotfix_cache",
-      "source": "crates/wow-data/src/hotfix_cache.rs",
-      "enclosing": "impl HotfixBlobCache::load_hotfix_blobs_from_db",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::hotfix_cache",
-      "source": "crates/wow-data/src/hotfix_cache.rs",
-      "enclosing": "impl HotfixBlobCache::load_hotfix_data_from_db",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::hotfix_cache",
-      "source": "crates/wow-data/src/hotfix_cache.rs",
-      "enclosing": "impl HotfixBlobCache::load_hotfix_optional_data_from_db",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::hotfix_cache",
-      "source": "crates/wow-data/src/hotfix_cache.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for hotfix; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
       "module": "crate::item_random_enchantment",
       "source": "crates/wow-data/src/item_random_enchantment.rs",
       "enclosing": "impl ItemRandomEnchantmentTemplateStore::load",
@@ -15317,6 +15249,76 @@
       "connection_affinity": "The adapter owns exactly one shared Hotfix database handle.",
       "current_order": "The handle surface introduces no order beyond the one official-then-custom operation.",
       "failure_and_unknown_commit": "The handle surface performs no I/O and implies no commit outcome."
+    },
+    {
+      "package": "wow-database", "module": "crate::hotfix_delivery_metadata_adapter", "source": "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs", "enclosing": "const STARTUP_STATEMENTS_LIKE_CPP", "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534)", "target_issues": [], "stable_boundary": true,
+      "connection_affinity": "All three statement identities are confined to one Hotfix handle and imply no transaction.", "current_order": "Pin blob, data, then optional-data statement order.", "failure_and_unknown_commit": "Statement identity performs no I/O and implies no commit outcome."
+    },
+    {
+      "package": "wow-database", "module": "crate::hotfix_delivery_metadata_adapter", "source": "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs", "enclosing": "fn hotfix_blob_row_like_cpp", "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534)", "target_issues": [], "stable_boundary": true,
+      "connection_affinity": "Decode one row from the current Hotfix query without opening a transaction.", "current_order": "Decode table hash, record id, locale and blob in selected-column order.", "failure_and_unknown_commit": "Any invalid consumed value fails the complete blob batch before mutation."
+    },
+    {
+      "package": "wow-database", "module": "crate::hotfix_delivery_metadata_adapter", "source": "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs", "enclosing": "fn hotfix_data_row_like_cpp", "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534)", "target_issues": [], "stable_boundary": true,
+      "connection_affinity": "Decode one row from the current Hotfix query without opening a transaction.", "current_order": "Decode push id, unique id, table hash, record id and status in selected-column order.", "failure_and_unknown_commit": "Any invalid consumed value fails the complete data batch before mutation."
+    },
+    {
+      "package": "wow-database", "module": "crate::hotfix_delivery_metadata_adapter", "source": "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs", "enclosing": "fn hotfix_optional_data_row_like_cpp", "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534)", "target_issues": [], "stable_boundary": true,
+      "connection_affinity": "Decode one row from the current Hotfix query without opening a transaction.", "current_order": "Decode table hash, record id, locale, key and data in selected-column order.", "failure_and_unknown_commit": "Any invalid consumed value fails the complete optional-data batch before mutation."
+    },
+    {
+      "package": "wow-database", "module": "crate::hotfix_delivery_metadata_adapter", "source": "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs", "enclosing": "fn query_rows_like_cpp", "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534)", "target_issues": [], "stable_boundary": true,
+      "connection_affinity": "Each staged read uses the adapter's one Hotfix handle and no transaction.", "current_order": "Prepare, query and fully decode the requested named statement in database order.", "failure_and_unknown_commit": "Query or decode failure returns no partial batch."
+    },
+    {
+      "package": "wow-database", "module": "crate::hotfix_delivery_metadata_adapter", "source": "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs", "enclosing": "fn read_binary_checked_like_cpp", "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534)", "target_issues": [], "stable_boundary": true,
+      "connection_affinity": "Read only the current Hotfix-query row.", "current_order": "Preserve binary payload bytes exactly.", "failure_and_unknown_commit": "Missing or non-binary data fails the stage instead of fabricating an empty payload."
+    },
+    {
+      "package": "wow-database", "module": "crate::hotfix_delivery_metadata_adapter", "source": "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs", "enclosing": "fn read_integer_checked_like_cpp", "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534)", "target_issues": [], "stable_boundary": true,
+      "connection_affinity": "Read only the current Hotfix-query row.", "current_order": "Try represented signed and unsigned SQL widths without defaults.", "failure_and_unknown_commit": "Missing or non-integer data fails the stage before publication."
+    },
+    {
+      "package": "wow-database", "module": "crate::hotfix_delivery_metadata_adapter", "source": "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs", "enclosing": "fn read_string_checked_like_cpp", "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534)", "target_issues": [], "stable_boundary": true,
+      "connection_affinity": "Read only the current Hotfix-query row.", "current_order": "Preserve the locale name for domain admission.", "failure_and_unknown_commit": "Missing or non-string locale data fails the stage before publication."
+    },
+    {
+      "package": "wow-database", "module": "crate::hotfix_delivery_metadata_adapter", "source": "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs", "enclosing": "impl MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::new", "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534)", "target_issues": [], "stable_boundary": true,
+      "connection_affinity": "The adapter stores exactly one shared Hotfix handle.", "current_order": "Construction performs no query.", "failure_and_unknown_commit": "Construction performs no I/O and implies no commit outcome."
+    },
+    {
+      "package": "wow-database", "module": "crate::hotfix_delivery_metadata_adapter", "source": "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs", "enclosing": "impl wow_persistence::HotfixDeliveryMetadataPersistencePortLikeCpp for MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::load_hotfix_blob_rows_like_cpp", "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534)", "target_issues": [], "stable_boundary": true,
+      "connection_affinity": "The blob read uses the adapter's one Hotfix handle and no transaction.", "current_order": "Load and fully decode blobs only at the first SQL stage.", "failure_and_unknown_commit": "Failure becomes one Failed outcome; empty remains successful."
+    },
+    {
+      "package": "wow-database", "module": "crate::hotfix_delivery_metadata_adapter", "source": "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs", "enclosing": "impl wow_persistence::HotfixDeliveryMetadataPersistencePortLikeCpp for MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::load_hotfix_data_rows_like_cpp", "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534)", "target_issues": [], "stable_boundary": true,
+      "connection_affinity": "The data read uses the adapter's one Hotfix handle and no transaction.", "current_order": "Load and fully decode push data only after the caller has applied blobs.", "failure_and_unknown_commit": "Failure becomes one Failed outcome; empty remains successful."
+    },
+    {
+      "package": "wow-database", "module": "crate::hotfix_delivery_metadata_adapter", "source": "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs", "enclosing": "impl wow_persistence::HotfixDeliveryMetadataPersistencePortLikeCpp for MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::load_hotfix_optional_data_rows_like_cpp", "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534)", "target_issues": [], "stable_boundary": true,
+      "connection_affinity": "The optional-data read uses the adapter's one Hotfix handle and no transaction.", "current_order": "Load and fully decode optional data as the final stage.", "failure_and_unknown_commit": "Failure becomes one Failed outcome; empty remains successful."
+    },
+    {
+      "package": "wow-database", "module": "crate::hotfix_delivery_metadata_adapter", "source": "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs", "enclosing": "module", "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534)", "target_issues": [], "stable_boundary": true,
+      "connection_affinity": "Shared syntax is confined to one Hotfix adapter.", "current_order": "Shared syntax preserves the three-stage contract without eager loading.", "failure_and_unknown_commit": "Shared syntax adds no transaction or commit guarantee."
+    },
+    {
+      "package": "wow-database", "module": "crate::hotfix_delivery_metadata_adapter", "source": "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs", "enclosing": "struct MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp", "logical_databases": ["hotfix"],
+      "boundary": "MariaDB adapter for the SQLx-free Hotfix delivery metadata capability (#534)", "target_issues": [], "stable_boundary": true,
+      "connection_affinity": "The adapter owns exactly one shared Hotfix handle.", "current_order": "The handle surface introduces no order beyond the staged operations.", "failure_and_unknown_commit": "The handle surface performs no I/O and implies no commit outcome."
     }
   ]
 }

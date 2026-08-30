@@ -24,6 +24,7 @@ use std::pin::Pin;
 mod area_trigger_template_catalog;
 mod chr_specialization_hotfix;
 mod difficulty_hotfix;
+mod hotfix_delivery_metadata;
 mod instance_lock;
 mod mount_catalog;
 mod player_base_stats;
@@ -53,6 +54,11 @@ pub use chr_specialization_hotfix::{
 pub use difficulty_hotfix::{
     DifficultyHotfixLoadOutcomeLikeCpp, DifficultyHotfixPersistencePortLikeCpp,
     DifficultyHotfixRowLikeCpp, DifficultyHotfixRowsLikeCpp,
+};
+pub use hotfix_delivery_metadata::{
+    HotfixBlobPersistenceRowLikeCpp, HotfixDataPersistenceRowLikeCpp,
+    HotfixDeliveryMetadataLoadOutcomeLikeCpp, HotfixDeliveryMetadataPersistencePortLikeCpp,
+    HotfixOptionalDataPersistenceRowLikeCpp,
 };
 pub use instance_lock::{
     CharacterInstanceLockPersistenceRowLikeCpp, InstanceLockPersistenceLoadOutcomeLikeCpp,
