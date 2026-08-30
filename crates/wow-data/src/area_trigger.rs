@@ -8,16 +8,14 @@
 //! Handles all area trigger shapes (Sphere, Box, Cylinder, Polygon, Disk, BoundedPlane)
 //! and supports teleportation destinations.
 
-use anyhow::Result;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use tracing::info;
 use wow_core::Position;
-use wow_database::{WorldDatabase, WorldStatements};
 
 use crate::quest::{
     QUEST_FLAGS_COMPLETION_AREA_TRIGGER_LIKE_CPP, QUEST_OBJECTIVE_AREATRIGGER_LIKE_CPP, QuestStore,
 };
-use crate::{AreaTriggerDb2Store, ScriptIdLikeCpp, ScriptNameInternerLikeCpp, WorldSafeLocStore};
+use crate::{ScriptIdLikeCpp, ScriptNameInternerLikeCpp, WorldSafeLocStore};
 
 /// Area trigger shape types (from AreaTriggerShapeType).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,6 +55,16 @@ pub struct AreaTriggerTeleport {
     pub id: u32,
     pub target_map: u32,
     pub target_position: Position,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AreaTriggerDestinationRowLikeCpp {
+    pub trigger_id: u32,
+    pub target_map: u32,
+    pub target_x: f32,
+    pub target_y: f32,
+    pub target_z: f32,
+    pub target_orientation: f32,
 }
 
 /// Complete area trigger record with geometry and optional teleport.
@@ -347,37 +355,27 @@ impl Default for AreaTriggerStore {
 /// Queries:
 /// - areatrigger + areatrigger_teleport for basic data
 /// - areatrigger_create_properties for geometry (shape, vertices, etc.)
-pub async fn load_area_triggers(db: &WorldDatabase) -> Result<AreaTriggerStore> {
+pub fn load_area_triggers(
+    rows: impl IntoIterator<Item = AreaTriggerDestinationRowLikeCpp>,
+) -> AreaTriggerStore {
     let mut store = AreaTriggerStore::new();
 
     // First, load teleport destinations
     let mut teleports: HashMap<u32, AreaTriggerTeleport> = HashMap::new();
-    let stmt = db.prepare(WorldStatements::SEL_AREA_TRIGGER_TELEPORT);
-    let result = db.query(&stmt).await?;
-
-    if !result.is_empty() {
-        let mut result = result;
-        loop {
-            let id: u32 = result.read(0);
-            let target_map: u32 = result.read(1);
-            let target_x: f32 = result.read(2);
-            let target_y: f32 = result.read(3);
-            let target_z: f32 = result.read(4);
-            let target_o: f32 = result.read(5);
-
-            teleports.insert(
-                id,
-                AreaTriggerTeleport {
-                    id,
-                    target_map,
-                    target_position: Position::new(target_x, target_y, target_z, target_o),
-                },
-            );
-
-            if !result.next_row() {
-                break;
-            }
-        }
+    for row in rows {
+        teleports.insert(
+            row.trigger_id,
+            AreaTriggerTeleport {
+                id: row.trigger_id,
+                target_map: row.target_map,
+                target_position: Position::new(
+                    row.target_x,
+                    row.target_y,
+                    row.target_z,
+                    row.target_orientation,
+                ),
+            },
+        );
     }
 
     info!("Loaded {} area trigger teleports", teleports.len());
@@ -401,10 +399,13 @@ pub async fn load_area_triggers(db: &WorldDatabase) -> Result<AreaTriggerStore> 
     }
 
     info!("Loaded {} area triggers total", store.len());
-    Ok(store)
+    store
 }
 
 impl AreaTriggerScriptStoreLikeCpp {
+    /// Applies C++ `ObjectMgr::LoadAreaTriggerScripts` rows after persistence
+    /// decoding, validating against authoritative `sAreaTriggerStore` and
+    /// interning `ScriptName` (`ObjectMgr.cpp:6647-6680`).
     pub fn from_rows_like_cpp(
         rows: impl IntoIterator<Item = AreaTriggerScriptRowLikeCpp>,
         mut area_trigger_exists: impl FnMut(u32) -> bool,
@@ -431,40 +432,6 @@ impl AreaTriggerScriptStoreLikeCpp {
         }
     }
 
-    /// Loads C++ `ObjectMgr::LoadAreaTriggerScripts`.
-    ///
-    /// C++ anchors:
-    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:6653-6680`
-    /// - validates `entry` against the authoritative DB2 `sAreaTriggerStore`
-    /// - stores `entry -> GetScriptId(ScriptName)`
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        area_trigger_store: &AreaTriggerDb2Store,
-        script_names: &mut ScriptNameInternerLikeCpp,
-    ) -> Result<AreaTriggerScriptLoadOutcomeLikeCpp> {
-        let mut rows = Vec::new();
-        let mut result = db
-            .direct_query("SELECT entry, ScriptName FROM areatrigger_scripts")
-            .await?;
-        if !result.is_empty() {
-            loop {
-                rows.push(AreaTriggerScriptRowLikeCpp {
-                    entry: result.try_read::<u32>(0).unwrap_or(0),
-                    script_name: result.try_read::<String>(1).unwrap_or_default(),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(
-            rows,
-            |entry| area_trigger_store.get(entry).is_some(),
-            script_names,
-        ))
-    }
-
     pub fn get_script_id_like_cpp(&self, trigger_id: u32) -> Option<ScriptIdLikeCpp> {
         self.scripts_by_trigger_id.get(&trigger_id).copied()
     }
@@ -479,6 +446,8 @@ impl AreaTriggerScriptStoreLikeCpp {
 }
 
 impl AreaTriggerTeleportStoreLikeCpp {
+    /// Applies C++ `ObjectMgr::LoadAreaTriggerTeleports` relations, validating
+    /// WorldSafeLoc before AreaTrigger existence (`ObjectMgr.cpp:7126-7180`).
     pub fn from_rows_like_cpp(
         rows: impl IntoIterator<Item = AreaTriggerTeleportRowLikeCpp>,
         mut area_trigger_exists: impl FnMut(u32) -> bool,
@@ -523,41 +492,6 @@ impl AreaTriggerTeleportStoreLikeCpp {
         }
     }
 
-    /// Loads C++ `ObjectMgr::LoadAreaTriggerTeleports`.
-    ///
-    /// C++ anchors:
-    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:7126-7180`
-    /// - queries `areatrigger_teleport(ID, PortLocID)`
-    /// - validates `PortLocID` through `GetWorldSafeLoc` before `sAreaTriggerStore`
-    /// - stores `AreaTriggerStruct` target map/position/orientation by trigger id
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        area_trigger_store: &AreaTriggerStore,
-        world_safe_locs: &WorldSafeLocStore,
-    ) -> Result<AreaTriggerTeleportLoadOutcomeLikeCpp> {
-        let mut rows = Vec::new();
-        let mut result = db
-            .direct_query("SELECT ID, PortLocID FROM areatrigger_teleport")
-            .await?;
-        if !result.is_empty() {
-            loop {
-                rows.push(AreaTriggerTeleportRowLikeCpp {
-                    trigger_id: result.try_read::<u32>(0).unwrap_or(0),
-                    port_loc_id: result.try_read::<u32>(1).unwrap_or(0),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(
-            rows,
-            |trigger_id| area_trigger_store.contains_trigger_like_cpp(trigger_id),
-            world_safe_locs,
-        ))
-    }
-
     pub fn get_area_trigger_like_cpp(&self, trigger_id: u32) -> Option<&AreaTriggerTeleport> {
         self.teleports_by_trigger_id.get(&trigger_id)
     }
@@ -572,6 +506,8 @@ impl AreaTriggerTeleportStoreLikeCpp {
 }
 
 impl QuestAreaTriggerStoreLikeCpp {
+    /// Applies C++ `ObjectMgr::LoadQuestAreaTriggers` relations and objective
+    /// additions (`ObjectMgr.cpp:6470-6532`).
     pub fn from_rows_like_cpp(
         rows: impl IntoIterator<Item = QuestAreaTriggerRowLikeCpp>,
         mut area_trigger_exists: impl FnMut(u32) -> bool,
@@ -635,40 +571,6 @@ impl QuestAreaTriggerStoreLikeCpp {
         }
     }
 
-    /// Loads C++ `ObjectMgr::LoadQuestAreaTriggers`.
-    ///
-    /// C++ anchors:
-    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:6470-6532`
-    /// - validates relation rows against authoritative `sAreaTriggerStore` and loaded quests
-    /// - additionally indexes every `QUEST_OBJECTIVE_AREATRIGGER` objective by `ObjectID`
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        area_trigger_store: &AreaTriggerStore,
-        quest_store: &QuestStore,
-    ) -> Result<QuestAreaTriggerLoadOutcomeLikeCpp> {
-        let mut rows = Vec::new();
-        let mut result = db
-            .direct_query("SELECT id, quest FROM areatrigger_involvedrelation")
-            .await?;
-        if !result.is_empty() {
-            loop {
-                rows.push(QuestAreaTriggerRowLikeCpp {
-                    trigger_id: result.try_read::<u32>(0).unwrap_or(0),
-                    quest_id: result.try_read::<u32>(1).unwrap_or(0),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(
-            rows,
-            |entry| area_trigger_store.contains_trigger_like_cpp(entry),
-            quest_store,
-        ))
-    }
-
     fn insert_like_cpp(&mut self, trigger_id: u32, quest_id: u32) -> bool {
         self.quests_by_trigger_id
             .entry(trigger_id)
@@ -690,6 +592,8 @@ impl QuestAreaTriggerStoreLikeCpp {
 }
 
 impl TavernAreaTriggerStoreLikeCpp {
+    /// Applies C++ `ObjectMgr::LoadTavernAreaTriggers` ids after persistence
+    /// decoding (`ObjectMgr.cpp:6610-6643`).
     pub fn from_ids_like_cpp(
         rows: impl IntoIterator<Item = u32>,
         mut area_trigger_exists: impl FnMut(u32) -> bool,
@@ -717,32 +621,6 @@ impl TavernAreaTriggerStoreLikeCpp {
         }
     }
 
-    /// Loads C++ `ObjectMgr::LoadTavernAreaTriggers`.
-    ///
-    /// C++ anchors:
-    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:6610-6643`
-    /// - validates `id` against authoritative `sAreaTriggerStore`
-    /// - stores a set consumed by `ObjectMgr::IsTavernAreaTrigger`
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        area_trigger_db2_store: &AreaTriggerDb2Store,
-    ) -> Result<TavernAreaTriggerLoadOutcomeLikeCpp> {
-        let mut rows = Vec::new();
-        let mut result = db.direct_query("SELECT id FROM areatrigger_tavern").await?;
-        if !result.is_empty() {
-            loop {
-                rows.push(result.try_read::<u32>(0).unwrap_or(0));
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_ids_like_cpp(rows, |trigger_id| {
-            area_trigger_db2_store.get(trigger_id).is_some()
-        }))
-    }
-
     pub fn is_tavern_area_trigger_like_cpp(&self, trigger_id: u32) -> bool {
         self.trigger_ids.contains(&trigger_id)
     }
@@ -759,6 +637,7 @@ impl TavernAreaTriggerStoreLikeCpp {
 #[cfg(test)]
 mod area_trigger_script_tests {
     use super::*;
+    use crate::AreaTriggerDb2Store;
     use crate::quest::{
         QUEST_ITEM_DROP_COUNT, QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_CURRENCY_COUNT,
         QUEST_REWARD_DISPLAY_SPELL_COUNT, QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_REPUTATIONS_COUNT,

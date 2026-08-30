@@ -108,9 +108,9 @@ pub use area::{
     AreaTableEntry, AreaTableStore, FishingBaseSkillRowLikeCpp, FishingBaseSkillStoreLikeCpp,
 };
 pub use area_trigger::{
-    AreaTriggerData, AreaTriggerScriptLoadOutcomeLikeCpp, AreaTriggerScriptLoadReportLikeCpp,
-    AreaTriggerScriptRowLikeCpp, AreaTriggerScriptStoreLikeCpp, AreaTriggerStore,
-    AreaTriggerTeleport, AreaTriggerTeleportLoadOutcomeLikeCpp,
+    AreaTriggerData, AreaTriggerDestinationRowLikeCpp, AreaTriggerScriptLoadOutcomeLikeCpp,
+    AreaTriggerScriptLoadReportLikeCpp, AreaTriggerScriptRowLikeCpp, AreaTriggerScriptStoreLikeCpp,
+    AreaTriggerStore, AreaTriggerTeleport, AreaTriggerTeleportLoadOutcomeLikeCpp,
     AreaTriggerTeleportLoadReportLikeCpp, AreaTriggerTeleportRowLikeCpp,
     AreaTriggerTeleportStoreLikeCpp, QuestAreaTriggerLoadOutcomeLikeCpp,
     QuestAreaTriggerLoadReportLikeCpp, QuestAreaTriggerRowLikeCpp, QuestAreaTriggerStoreLikeCpp,

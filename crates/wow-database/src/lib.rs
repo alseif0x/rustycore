@@ -34,6 +34,7 @@
 //! - Statement enums: [`LoginStatements`], [`WorldStatements`], [`CharStatements`], [`HotfixStatements`]
 
 pub mod area_trigger_template_catalog_adapter;
+pub mod area_trigger_world_catalog_adapter;
 pub mod battle_pet_account_adapter;
 pub mod battle_pet_purchase_adapter;
 pub mod character_enumeration_adapter;
@@ -89,6 +90,7 @@ pub mod void_storage_adapter;
 
 // Re-export primary types at crate root for convenience.
 pub use area_trigger_template_catalog_adapter::MariaDbAreaTriggerTemplateCatalogPersistenceAdapterLikeCpp;
+pub use area_trigger_world_catalog_adapter::MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp;
 pub use battle_pet_account_adapter::LoginBattlePetPersistenceLikeCpp;
 pub use battle_pet_purchase_adapter::CharacterBattlePetPurchasePersistenceAdapterLikeCpp;
 pub use character_enumeration_adapter::MariaDbCharacterEnumerationPersistenceAdapterLikeCpp;

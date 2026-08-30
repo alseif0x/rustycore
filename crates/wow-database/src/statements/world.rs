@@ -362,6 +362,14 @@ pub enum WorldStatements {
     SEL_ITEM_RANDOM_ENCHANTMENT_TEMPLATE,
     /// Load all area trigger teleport destinations.
     SEL_AREA_TRIGGER_TELEPORT,
+    /// C++ `ObjectMgr::LoadAreaTriggerScripts` startup query.
+    SEL_AREA_TRIGGER_SCRIPTS,
+    /// C++ `ObjectMgr::LoadAreaTriggerTeleports` relation query.
+    SEL_AREA_TRIGGER_TELEPORT_RELATIONS,
+    /// C++ `ObjectMgr::LoadQuestAreaTriggers` relation query.
+    SEL_QUEST_AREA_TRIGGER_RELATIONS,
+    /// C++ `ObjectMgr::LoadTavernAreaTriggers` startup query.
+    SEL_TAVERN_AREA_TRIGGERS,
     /// C++ `ObjectMgr::LoadPhaseNames`.
     SEL_PHASE_NAMES,
     /// C++ `ObjectMgr::LoadSceneTemplates`.
@@ -1184,6 +1192,14 @@ impl StatementDef for WorldStatements {
             Self::SEL_AREA_TRIGGER_TELEPORT => {
                 "SELECT at.ID, wsl.MapID, wsl.LocX, wsl.LocY, wsl.LocZ, wsl.Facing FROM areatrigger_teleport at LEFT JOIN world_safe_locs wsl ON at.PortLocID = wsl.ID"
             }
+            Self::SEL_AREA_TRIGGER_SCRIPTS => "SELECT entry, ScriptName FROM areatrigger_scripts",
+            Self::SEL_AREA_TRIGGER_TELEPORT_RELATIONS => {
+                "SELECT ID, PortLocID FROM areatrigger_teleport"
+            }
+            Self::SEL_QUEST_AREA_TRIGGER_RELATIONS => {
+                "SELECT id, quest FROM areatrigger_involvedrelation"
+            }
+            Self::SEL_TAVERN_AREA_TRIGGERS => "SELECT id FROM areatrigger_tavern",
             Self::SEL_PHASE_NAMES => "SELECT `ID`, `Name` FROM `phase_name`",
             Self::SEL_SCENE_TEMPLATES => {
                 "SELECT SceneId, Flags, ScriptPackageID, Encrypted, ScriptName FROM scene_template"
