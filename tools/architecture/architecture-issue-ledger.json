@@ -121,6 +121,7 @@
     521,
     523,
     526,
+    528,
     189,
     192,
     193,
@@ -1920,7 +1921,7 @@
   },
   {
     "number": 526,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.71] Move World skill-rule catalogs behind one typed persistence port",
     "kind": "slice",
     "parents": [
@@ -1929,6 +1930,19 @@
     ],
     "depends_on": [
       523
+    ]
+  },
+  {
+    "number": 528,
+    "state": "open",
+    "title": "[ARCH.DB.72] Move Player base-stat sources behind one typed World persistence port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      526
     ]
   }
 ]

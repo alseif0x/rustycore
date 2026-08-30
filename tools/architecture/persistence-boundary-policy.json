@@ -6336,70 +6336,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-data:crate::player_stats:crates/wow-data/src/player_stats.rs::impl PlayerStatsStore::load",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/player_stats.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_stats"
-      ],
-      "enclosings": [
-        "impl PlayerStatsStore::load"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl PlayerStatsStore::load in crates/wow-data/src/player_stats.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::player_stats:crates/wow-data/src/player_stats.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/player_stats.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::player_stats"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow module in crates/wow-data/src/player_stats.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-data:crate::poi:crates/wow-data/src/poi.rs::impl PointOfInterestLocaleStoreLikeCpp::load_like_cpp",
       "source_class": "production",
       "packages": [
@@ -14540,6 +14476,306 @@
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
       "current_order": "Defines the order contract rather than executing one: logical database, connection affinity, commit outcome and the ordered event list that freezes a plan's observable behaviour before persistence ports are extracted.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; recording never alters it, and a poisoned recorder drops its event rather than propagating a panic through a persistence path.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_base_stats_adapter:crates/wow-database/src/player_base_stats_adapter.rs::const STARTUP_STATEMENTS_LIKE_CPP",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_base_stats_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_base_stats_adapter"
+      ],
+      "enclosings": [
+        "const STARTUP_STATEMENTS_LIKE_CPP"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free immutable Player base-stat capability (#528) currently owns the complete wow-database workflow const STARTUP_STATEMENTS_LIKE_CPP in crates/wow-database/src/player_base_stats_adapter.rs.",
+      "connection_affinity": "Both statement identities are confined to the adapter's one World database handle.",
+      "current_order": "The constant pins the C++ order: player_racestats before player_classlevelstats.",
+      "failure_and_unknown_commit": "Statement identity performs no I/O and implies no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_base_stats_adapter:crates/wow-database/src/player_base_stats_adapter.rs::fn class_level_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_base_stats_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_base_stats_adapter"
+      ],
+      "enclosings": [
+        "fn class_level_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free immutable Player base-stat capability (#528) currently owns the complete wow-database workflow fn class_level_row_like_cpp in crates/wow-database/src/player_base_stats_adapter.rs.",
+      "connection_affinity": "The row comes from the adapter's one World handle and opens no transaction.",
+      "current_order": "Decode class, level, then strength/agility/stamina/intellect/spirit in selected-column order.",
+      "failure_and_unknown_commit": "A missing or non-integer consumed field fails the complete bundle before publication.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_base_stats_adapter:crates/wow-database/src/player_base_stats_adapter.rs::fn query_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_base_stats_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_base_stats_adapter"
+      ],
+      "enclosings": [
+        "fn query_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free immutable Player base-stat capability (#528) currently owns the complete wow-database workflow fn query_rows_like_cpp in crates/wow-database/src/player_base_stats_adapter.rs.",
+      "connection_affinity": "Each sequential read uses the adapter's one World handle and no transaction.",
+      "current_order": "Prepare and query the requested named statement, then decode rows in database order.",
+      "failure_and_unknown_commit": "Query or row-decode failure returns no partial bundle; there is no commit boundary.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_base_stats_adapter:crates/wow-database/src/player_base_stats_adapter.rs::fn race_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_base_stats_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_base_stats_adapter"
+      ],
+      "enclosings": [
+        "fn race_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free immutable Player base-stat capability (#528) currently owns the complete wow-database workflow fn race_row_like_cpp in crates/wow-database/src/player_base_stats_adapter.rs.",
+      "connection_affinity": "The row comes from the adapter's one World handle and opens no transaction.",
+      "current_order": "Decode race, then five signed stat modifiers in selected-column order.",
+      "failure_and_unknown_commit": "A missing or non-integer consumed field fails the complete bundle before publication.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_base_stats_adapter:crates/wow-database/src/player_base_stats_adapter.rs::fn read_integer_checked_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_base_stats_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_base_stats_adapter"
+      ],
+      "enclosings": [
+        "fn read_integer_checked_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free immutable Player base-stat capability (#528) currently owns the complete wow-database workflow fn read_integer_checked_like_cpp in crates/wow-database/src/player_base_stats_adapter.rs.",
+      "connection_affinity": "Decoding uses the current row from one World query and opens no transaction.",
+      "current_order": "Try every represented signed and unsigned SQL integer width without fabricating a default.",
+      "failure_and_unknown_commit": "A missing or non-integer consumed field fails the complete bundle before publication.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_base_stats_adapter:crates/wow-database/src/player_base_stats_adapter.rs::impl MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_base_stats_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_base_stats_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free immutable Player base-stat capability (#528) currently owns the complete wow-database workflow impl MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp::new in crates/wow-database/src/player_base_stats_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one shared World database handle.",
+      "current_order": "Construction introduces no runtime order beyond the two staged port operations.",
+      "failure_and_unknown_commit": "Construction performs no I/O and implies no commit outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_base_stats_adapter:crates/wow-database/src/player_base_stats_adapter.rs::impl wow_persistence::PlayerBaseStatsPersistencePortLikeCpp for MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp::load_player_class_level_stats_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_base_stats_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_base_stats_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::PlayerBaseStatsPersistencePortLikeCpp for MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp::load_player_class_level_stats_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free immutable Player base-stat capability (#528) currently owns the complete wow-database workflow impl wow_persistence::PlayerBaseStatsPersistencePortLikeCpp for MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp::load_player_class_level_stats_rows_like_cpp in crates/wow-database/src/player_base_stats_adapter.rs.",
+      "connection_affinity": "The class-level read uses the adapter's one World handle and implies no transaction.",
+      "current_order": "Query and fully decode class-level bases only after the domain accepted the race batch.",
+      "failure_and_unknown_commit": "Any query or decode failure becomes one Failed outcome; no partial class-level batch crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_base_stats_adapter:crates/wow-database/src/player_base_stats_adapter.rs::impl wow_persistence::PlayerBaseStatsPersistencePortLikeCpp for MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp::load_player_race_stats_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_base_stats_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_base_stats_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::PlayerBaseStatsPersistencePortLikeCpp for MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp::load_player_race_stats_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free immutable Player base-stat capability (#528) currently owns the complete wow-database workflow impl wow_persistence::PlayerBaseStatsPersistencePortLikeCpp for MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp::load_player_race_stats_rows_like_cpp in crates/wow-database/src/player_base_stats_adapter.rs.",
+      "connection_affinity": "The race read uses the adapter's one World handle and implies no transaction.",
+      "current_order": "Query and fully decode race modifiers at the first C++ stage.",
+      "failure_and_unknown_commit": "Any query or decode failure becomes one Failed outcome; no partial race batch crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_base_stats_adapter:crates/wow-database/src/player_base_stats_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_base_stats_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_base_stats_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free immutable Player base-stat capability (#528) currently owns the complete wow-database workflow module in crates/wow-database/src/player_base_stats_adapter.rs.",
+      "connection_affinity": "This module surface is confined to one World adapter and implies no wider transaction.",
+      "current_order": "Shared syntax introduces no order beyond the staged race-then-class reads.",
+      "failure_and_unknown_commit": "Shared syntax introduces no additional failure or commit guarantee.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::player_base_stats_adapter:crates/wow-database/src/player_base_stats_adapter.rs::struct MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/player_base_stats_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::player_base_stats_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "MariaDB adapter for the SQLx-free immutable Player base-stat capability (#528) currently owns the complete wow-database workflow struct MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp in crates/wow-database/src/player_base_stats_adapter.rs.",
+      "connection_affinity": "The adapter owns exactly one shared World database handle.",
+      "current_order": "The handle surface introduces no runtime order beyond the two staged operations.",
+      "failure_and_unknown_commit": "The handle surface performs no I/O and implies no commit outcome.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -28932,6 +29168,7 @@
         "crates/wow-database/src/page_text_catalog_adapter.rs",
         "crates/wow-database/src/params.rs",
         "crates/wow-database/src/persistence_trace.rs",
+        "crates/wow-database/src/player_base_stats_adapter.rs",
         "crates/wow-database/src/player_choice_catalog_adapter.rs",
         "crates/wow-database/src/player_lifecycle_adapter.rs",
         "crates/wow-database/src/player_name_query_adapter.rs",

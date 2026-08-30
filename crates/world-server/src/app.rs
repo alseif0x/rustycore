@@ -152,6 +152,8 @@ async fn run_inner(
 
     info!("Connected to world database");
     let world_db = Arc::new(world_db);
+    let player_base_stats_persistence =
+        wow_database::MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
     let skill_world_rules_persistence =
         wow_database::MariaDbSkillWorldRulesPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
 
@@ -2243,8 +2245,8 @@ async fn run_inner(
     // only for `_playerInfo` race/class pairs, with create mana read from
     // gt/BaseMp.txt.
     let player_stats = Arc::new(
-        wow_data::PlayerStatsStore::load(
-            &world_db,
+        crate::player_base_stats::load_player_base_stats_like_cpp(
+            &player_base_stats_persistence,
             &data_dir,
             world_config_u8(&world_configs, "CONFIG_MAX_PLAYER_LEVEL", 80),
             &valid_player_race_classes,

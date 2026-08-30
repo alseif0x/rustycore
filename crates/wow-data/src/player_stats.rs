@@ -13,11 +13,50 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
+use crate::BaseMpGameTableLikeCpp;
 use anyhow::{Context, Result, bail};
 use tracing::info;
-use wow_database::{WorldDatabase, WorldStatements};
 
-use crate::BaseMpGameTableLikeCpp;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerRaceStatsRowLikeCpp {
+    pub race: u8,
+    pub stat_modifiers: [i16; 5],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerClassLevelStatsRowLikeCpp {
+    pub class: u8,
+    pub level: u8,
+    pub primary_stats: [u16; 5],
+}
+
+pub struct PlayerRaceStatsRowsLikeCpp(Vec<PlayerRaceStatsRowLikeCpp>);
+
+impl PlayerRaceStatsRowsLikeCpp {
+    pub fn try_from_rows_like_cpp(
+        rows: impl IntoIterator<Item = PlayerRaceStatsRowLikeCpp>,
+    ) -> Result<Self> {
+        let rows: Vec<_> = rows.into_iter().collect();
+        if rows.is_empty() {
+            bail!("Loaded 0 race stats definitions: player_racestats is empty");
+        }
+        Ok(Self(rows))
+    }
+}
+
+pub struct PlayerClassLevelStatsRowsLikeCpp(Vec<PlayerClassLevelStatsRowLikeCpp>);
+
+impl PlayerClassLevelStatsRowsLikeCpp {
+    pub fn try_from_rows_like_cpp(
+        rows: impl IntoIterator<Item = PlayerClassLevelStatsRowLikeCpp>,
+    ) -> Result<Self> {
+        let rows: Vec<_> = rows.into_iter().collect();
+        if rows.is_empty() {
+            bail!("Loaded 0 level stats definitions: player_classlevelstats is empty");
+        }
+        Ok(Self(rows))
+    }
+}
 
 /// C++ `PlayerLevelInfo` plus the class/level `GtBaseMP` value.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -242,81 +281,25 @@ pub struct PlayerStatsStore {
 }
 
 impl PlayerStatsStore {
-    /// Load the exact C++ sources used by `ObjectMgr::LoadPlayerInfo`.
-    pub async fn load(
-        world_db: &WorldDatabase,
+    /// Compose the exact C++ sources used by `ObjectMgr::LoadPlayerInfo`.
+    pub fn load_from_validated_rows_like_cpp(
         data_dir: impl AsRef<Path>,
         max_player_level: u8,
         valid_race_classes: &[(u8, u8)],
+        race_rows: PlayerRaceStatsRowsLikeCpp,
+        class_rows: PlayerClassLevelStatsRowsLikeCpp,
     ) -> Result<Self> {
-        let race_stmt = world_db.prepare(WorldStatements::SEL_PLAYER_RACESTATS);
-        let mut race_result = world_db
-            .query(&race_stmt)
-            .await
-            .context("Failed to query player_racestats")?;
-        let mut race_rows = Vec::new();
-        if !race_result.is_empty() {
-            loop {
-                race_rows.push((
-                    race_result.read::<u8>(0),
-                    [
-                        race_result.read::<i16>(1),
-                        race_result.read::<i16>(2),
-                        race_result.read::<i16>(3),
-                        race_result.read::<i16>(4),
-                        race_result.read::<i16>(5),
-                    ],
-                ));
-                if !race_result.next_row() {
-                    break;
-                }
-            }
-        }
-        if race_rows.is_empty() {
-            bail!("Loaded 0 race stats definitions: player_racestats is empty");
-        }
+        let race_rows: Vec<_> = race_rows
+            .0
+            .into_iter()
+            .map(|row| (row.race, row.stat_modifiers))
+            .collect();
 
-        let class_stmt = world_db.prepare(WorldStatements::SEL_PLAYER_CLASSLEVELSTATS);
-        let mut class_result = world_db
-            .query(&class_stmt)
-            .await
-            .context("Failed to query player_classlevelstats")?;
-        let mut class_rows = Vec::new();
-        if !class_result.is_empty() {
-            loop {
-                let read_stat_like_cpp = |column| {
-                    class_result
-                        .try_read::<u16>(column)
-                        .or_else(|| {
-                            class_result
-                                .try_read::<i16>(column)
-                                .map(|value| value as u16)
-                        })
-                        .with_context(|| {
-                            format!(
-                                "Failed to decode player_classlevelstats column {column} as uint16"
-                            )
-                        })
-                };
-                class_rows.push((
-                    class_result.read::<u8>(0),
-                    class_result.read::<u8>(1),
-                    [
-                        read_stat_like_cpp(2)?,
-                        read_stat_like_cpp(3)?,
-                        read_stat_like_cpp(4)?,
-                        read_stat_like_cpp(5)?,
-                        read_stat_like_cpp(6)?,
-                    ],
-                ));
-                if !class_result.next_row() {
-                    break;
-                }
-            }
-        }
-        if class_rows.is_empty() {
-            bail!("Loaded 0 level stats definitions: player_classlevelstats is empty");
-        }
+        let class_rows: Vec<_> = class_rows
+            .0
+            .into_iter()
+            .map(|row| (row.class, row.level, row.primary_stats))
+            .collect();
 
         let base_mp = BaseMpGameTableLikeCpp::load(data_dir)
             .context("Failed to load gt/BaseMp.txt for player class-level stats")?;

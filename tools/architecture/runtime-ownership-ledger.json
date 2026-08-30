@@ -1723,11 +1723,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 27538,
-          "test_lines": 23833,
-          "total_lines": 51371,
+          "production_lines": 27619,
+          "test_lines": 23963,
+          "total_lines": 51582,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-          "latest_growth_review": "#526 adds one private World skill-rules composition boundary: +74 production conversion/composition lines plus +89 focused field, empty/success/failure-before-publication and single-adapter startup-order test lines. One capability covers fishing-base requirements and skill-tier caps without a port per table; SQL remains in wow-database while area validation, duplicate replacement, parent fallback and tier gameplay rules remain in wow-data.",
+          "latest_growth_review": "#528 adds one private staged Player base-stat composition boundary: +81 production conversion/composition lines plus +130 focused field, race-empty short-circuit, class-failure-before-BaseMp and single-adapter placement test lines. One capability covers race modifiers then class-level bases without a port per table; SQL remains in wow-database while the domain validates the first stage before issuing the second, and BaseMp, race/class selection, configured-level filtering, duplicate replacement, stat combination and gap filling remain in wow-data.",
           "open_retirement_issues": [
             153
           ],
