@@ -118,6 +118,7 @@
     515,
     517,
     519,
+    521,
     189,
     192,
     193,
@@ -1878,7 +1879,7 @@
   },
   {
     "number": 519,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.68] Move trainer startup catalogs behind a typed persistence port",
     "kind": "slice",
     "parents": [
@@ -1887,6 +1888,19 @@
     ],
     "depends_on": [
       517
+    ]
+  },
+  {
+    "number": 521,
+    "state": "open",
+    "title": "[ARCH.DB.69] Move ChrSpecialization hotfix overlay behind a typed persistence port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      519
     ]
   }
 ]

@@ -10,7 +10,6 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::info;
-use wow_database::{HotfixDatabase, HotfixStatements, SqlResult};
 
 use crate::Db2HotfixRemovalStoreLikeCpp;
 use crate::wdc4::Wdc4Reader;
@@ -81,67 +80,33 @@ impl ChrSpecializationStore {
         })
     }
 
-    /// Load the effective C++ `sChrSpecializationStore` authority.
+    /// Apply the already decoded official/custom SQL overlays and final
+    /// tombstones to a WDC4-backed store in C++ order.
     ///
     /// C++ refs:
-    /// - `DB2StorageBase::LoadFromDB`: WDC4, official SQL, then custom SQL;
-    /// - `HotfixDatabase.cpp::HOTFIX_SEL_CHR_SPECIALIZATION`: SQL field order;
-    /// - `DB2Manager::LoadHotfixData`: final `(TableHash, RecordID)` removals.
-    pub async fn load_effective_like_cpp(
-        data_dir: &str,
-        locale: &str,
-        hotfix_db: &HotfixDatabase,
+    /// - `DB2Store.cpp::DB2StorageBase::LoadFromDB` supplies official then custom;
+    /// - `DB2Stores.cpp::DB2Manager::LoadStores` builds the class/order index;
+    /// - `DB2Stores.cpp::DB2Manager::LoadHotfixData` erases final tombstones.
+    pub fn apply_hotfix_overlays_like_cpp(
+        mut self,
+        official_overlay_entries: impl IntoIterator<Item = ChrSpecializationEntry>,
+        custom_overlay_entries: impl IntoIterator<Item = ChrSpecializationEntry>,
         removals: &Db2HotfixRemovalStoreLikeCpp,
     ) -> Result<Self> {
-        let mut store = Self::load(data_dir, locale)?;
-        let table_hash = store
+        let table_hash = self
             .table_hash_like_cpp
             .context("ChrSpecialization.db2 is missing its WDC4 table hash")?;
-        let mut overlay_batches = [Vec::new(), Vec::new()];
-
-        // `DB2StorageBase::LoadFromDB` calls `Load(false)` before
-        // `Load(true)`. The loader binds `!custom`, so official
-        // (`VerifiedBuild > 0`) records precede custom records.
-        for (batch_index, official) in [true, false].into_iter().enumerate() {
-            let mut stmt = hotfix_db.prepare(HotfixStatements::SEL_CHR_SPECIALIZATION);
-            stmt.set_bool(0, official);
-            let mut result = hotfix_db
-                .query(&stmt)
-                .await
-                .context("failed to load ChrSpecialization.db2 SQL overlay")?;
-            if result.is_empty() {
-                continue;
-            }
-
-            loop {
-                overlay_batches[batch_index].push(ChrSpecializationEntry {
-                    id: read_u32_checked_like_cpp(&result, 3, "ChrSpecialization.ID")?,
-                    class_id: read_u8_checked_like_cpp(&result, 4, "ChrSpecialization.ClassID")?,
-                    order_index: read_i8_checked_like_cpp(
-                        &result,
-                        5,
-                        "ChrSpecialization.OrderIndex",
-                    )?,
-                    role: read_i8_checked_like_cpp(&result, 7, "ChrSpecialization.Role")?,
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        let [official_overlay_entries, custom_overlay_entries] = overlay_batches;
         let (entries, by_class_and_index_like_cpp) =
             compose_effective_chr_specialization_entries_like_cpp(
-                std::mem::take(&mut store.entries).into_values(),
+                std::mem::take(&mut self.entries).into_values(),
                 official_overlay_entries,
                 custom_overlay_entries,
                 table_hash,
                 removals,
             );
-        store.entries = entries;
-        store.by_class_and_index_like_cpp = by_class_and_index_like_cpp;
-        Ok(store)
+        self.entries = entries;
+        self.by_class_and_index_like_cpp = by_class_and_index_like_cpp;
+        Ok(self)
     }
 
     pub fn get(&self, id: u32) -> Option<&ChrSpecializationEntry> {
@@ -223,43 +188,6 @@ fn build_class_index_before_removals_like_cpp(
         by_class_and_index.insert((entry.class_id, entry.order_index), entry);
     }
     by_class_and_index
-}
-
-fn read_integer_checked_like_cpp(
-    result: &SqlResult,
-    column: usize,
-    field: &'static str,
-) -> Result<i128> {
-    result
-        .try_read::<i64>(column)
-        .map(i128::from)
-        .or_else(|| result.try_read::<u64>(column).map(i128::from))
-        .or_else(|| result.try_read::<i32>(column).map(i128::from))
-        .or_else(|| result.try_read::<u32>(column).map(i128::from))
-        .or_else(|| result.try_read::<i16>(column).map(i128::from))
-        .or_else(|| result.try_read::<u16>(column).map(i128::from))
-        .or_else(|| result.try_read::<i8>(column).map(i128::from))
-        .or_else(|| result.try_read::<u8>(column).map(i128::from))
-        .with_context(|| format!("missing or non-integer {field} SQL column {column}"))
-}
-
-fn read_u32_checked_like_cpp(
-    result: &SqlResult,
-    column: usize,
-    field: &'static str,
-) -> Result<u32> {
-    let value = read_integer_checked_like_cpp(result, column, field)?;
-    u32::try_from(value).with_context(|| format!("{field} SQL value {value} is not u32"))
-}
-
-fn read_u8_checked_like_cpp(result: &SqlResult, column: usize, field: &'static str) -> Result<u8> {
-    let value = read_integer_checked_like_cpp(result, column, field)?;
-    u8::try_from(value).with_context(|| format!("{field} SQL value {value} is not u8"))
-}
-
-fn read_i8_checked_like_cpp(result: &SqlResult, column: usize, field: &'static str) -> Result<i8> {
-    let value = read_integer_checked_like_cpp(result, column, field)?;
-    i8::try_from(value).with_context(|| format!("{field} SQL value {value} is not i8"))
 }
 
 #[cfg(test)]
