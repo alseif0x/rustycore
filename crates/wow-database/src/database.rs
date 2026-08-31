@@ -636,7 +636,12 @@ mod tests {
         let recorder = PersistenceRecorder::new();
         let _recording = RecordingSession::install(recorder.clone());
 
-        let db: Database<CharStatements> = Database::from_pool(unreachable_pool());
+        // A closed pool yields `PoolClosed` before any connection attempt. That
+        // exercises the definite non-execution branch without relying on a
+        // network timeout winning a race with an immediate connection refusal.
+        let pool = unreachable_pool();
+        pool.close().await;
+        let db: Database<CharStatements> = Database::from_pool(pool);
         let stmt = db.prepare(CharStatements::SEL_ENUM);
         let _ = db.query(&stmt).await;
 
