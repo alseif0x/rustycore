@@ -2421,9 +2421,13 @@ async fn run_inner(
         item_disenchant_loot_store.len()
     );
 
+    let item_random_enchantment_persistence =
+        wow_database::MariaDbItemRandomEnchantmentCatalogPersistenceAdapterLikeCpp::new(
+            Arc::clone(&world_db),
+        );
     let item_random_enchantment_template_store = Arc::new(
-        wow_data::ItemRandomEnchantmentTemplateStore::load_validated(
-            &world_db,
+        crate::item_random_enchantment_catalog::load_item_random_enchantment_store_like_cpp(
+            &item_random_enchantment_persistence,
             &item_random_properties_store,
             &item_random_suffix_store,
         )
