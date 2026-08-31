@@ -7,9 +7,6 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use anyhow::Result;
-use wow_database::{WorldDatabase, WorldStatements};
-
 use crate::{LfgDungeonsEntry, LfgDungeonsStore, MapDifficultyStore, MapStore, quest::QuestStore};
 
 pub const LFG_FLAG_SEASONAL_LIKE_CPP: i32 = 0x4;
@@ -225,68 +222,6 @@ impl LfgDungeonStoreLikeCpp {
         }
 
         LfgLoadOutcomeLikeCpp { store, report }
-    }
-
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        db2_store: &LfgDungeonsStore,
-        map_difficulty_store: &MapDifficultyStore,
-        quest_store: &QuestStore,
-    ) -> Result<LfgLoadOutcomeLikeCpp> {
-        let mut template_rows = Vec::new();
-        let mut template_result = db
-            .query(&db.prepare(WorldStatements::SEL_LFG_DUNGEON_TEMPLATES))
-            .await?;
-        if !template_result.is_empty() {
-            loop {
-                template_rows.push(LfgDungeonTemplateRowLikeCpp {
-                    dungeon_id: template_result.try_read::<u32>(0).unwrap_or(0),
-                    position_x: template_result.try_read::<f32>(1).unwrap_or(0.0),
-                    position_y: template_result.try_read::<f32>(2).unwrap_or(0.0),
-                    position_z: template_result.try_read::<f32>(3).unwrap_or(0.0),
-                    orientation: template_result.try_read::<f32>(4).unwrap_or(0.0),
-                    required_item_level: template_result
-                        .try_read::<u16>(5)
-                        .or_else(|| {
-                            template_result
-                                .try_read::<i16>(5)
-                                .and_then(|value| u16::try_from(value).ok())
-                        })
-                        .unwrap_or(0),
-                });
-                if !template_result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        let mut reward_rows = Vec::new();
-        let mut reward_result = db
-            .query(&db.prepare(WorldStatements::SEL_LFG_DUNGEON_REWARDS))
-            .await?;
-        if !reward_result.is_empty() {
-            loop {
-                reward_rows.push(LfgDungeonRewardRowLikeCpp {
-                    dungeon_id: reward_result.try_read::<u32>(0).unwrap_or(0),
-                    reward: LfgDungeonRewardLikeCpp {
-                        max_level: reward_result.try_read::<u8>(1).unwrap_or(0),
-                        first_quest_id: reward_result.try_read::<u32>(2).unwrap_or(0),
-                        other_quest_id: reward_result.try_read::<u32>(3).unwrap_or(0),
-                    },
-                });
-                if !reward_result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_sources_like_cpp(
-            db2_store,
-            map_difficulty_store,
-            template_rows,
-            reward_rows,
-            quest_store,
-        ))
     }
 
     pub fn get(&self, id: u32) -> Option<&LfgDungeonDataLikeCpp> {

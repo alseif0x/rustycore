@@ -133,6 +133,7 @@
     546,
     548,
     550,
+    552,
     189,
     192,
     193,
@@ -2090,7 +2091,7 @@
   },
   {
     "number": 550,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.83] Move LFGDungeons Hotfix overlay behind one typed capability",
     "kind": "slice",
     "parents": [
@@ -2099,6 +2100,19 @@
     ],
     "depends_on": [
       548
+    ]
+  },
+  {
+    "number": 552,
+    "state": "open",
+    "title": "[ARCH.DB.84] Move late LFG World catalogs behind one typed capability",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      550
     ]
   }
 ]
