@@ -129,6 +129,7 @@
     538,
     540,
     542,
+    544,
     189,
     192,
     193,
@@ -2034,7 +2035,7 @@
   },
   {
     "number": 542,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.79] Move gossip startup catalogs behind one typed World source",
     "kind": "slice",
     "parents": [
@@ -2043,6 +2044,19 @@
     ],
     "depends_on": [
       540
+    ]
+  },
+  {
+    "number": 544,
+    "state": "open",
+    "title": "[ARCH.DB.80] Move Phase DB2 Hotfix overlays behind one typed source",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      542
     ]
   }
 ]

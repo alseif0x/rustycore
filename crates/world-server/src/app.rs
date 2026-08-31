@@ -667,16 +667,17 @@ async fn run_inner(
         .await
         .context("Failed to load skill_fishing_base_level")?,
     );
-    let phase_store = Arc::new(
-        wow_data::PhaseStore::load_with_hotfixes(&data_dir, &locale, &hotfix_db)
-            .await
-            .context("Failed to load Phase.db2 / hotfix rows")?,
-    );
-    let phase_group_store = Arc::new(
-        wow_data::PhaseGroupStore::load_with_hotfixes(&data_dir, &locale, &phase_store, &hotfix_db)
-            .await
-            .context("Failed to load PhaseXPhaseGroup.db2 / hotfix rows")?,
-    );
+    let phase_hotfix_adapter =
+        wow_database::MariaDbPhaseHotfixPersistenceAdapterLikeCpp::new(Arc::clone(&hotfix_db));
+    let (phase_store, phase_group_store) = crate::phase_hotfix_catalog::load_phase_stores_like_cpp(
+        &data_dir,
+        &locale,
+        &phase_hotfix_adapter,
+    )
+    .await
+    .context("Failed to load Phase/PhaseXPhaseGroup DB2 and hotfix rows")?;
+    let phase_store = Arc::new(phase_store);
+    let phase_group_store = Arc::new(phase_group_store);
     info!(
         "Loaded {} phases and {} phase-group rows",
         phase_store.len(),
