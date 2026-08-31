@@ -8,7 +8,7 @@
 use std::collections::{BTreeSet, HashMap};
 
 use anyhow::Result;
-use wow_database::{HotfixDatabase, HotfixStatements, WorldDatabase, WorldStatements};
+use wow_database::{WorldDatabase, WorldStatements};
 
 use crate::{LfgDungeonsEntry, LfgDungeonsStore, MapDifficultyStore, MapStore, quest::QuestStore};
 
@@ -353,78 +353,23 @@ impl LfgDungeonStoreLikeCpp {
 }
 
 impl LfgDungeonsStore {
-    /// Load `LFGDungeons.db2` and overlay C++ hotfix rows from `hotfixes.lfg_dungeons`.
-    pub async fn load_with_hotfixes(
-        data_dir: &str,
-        locale: &str,
-        hotfix_db: &HotfixDatabase,
-    ) -> Result<Self> {
-        let mut entries = Self::load(data_dir, locale)?
+    /// Apply complete C++ `LFGDungeonsEntry` replacements by ID.
+    pub fn apply_hotfix_entries_like_cpp(
+        &mut self,
+        hotfix_entries: impl IntoIterator<Item = LfgDungeonsEntry>,
+    ) -> usize {
+        let mut entries = self
             .entries()
             .cloned()
             .map(|entry| (entry.id, entry))
             .collect::<HashMap<_, _>>();
-
-        let stmt = hotfix_db.prepare(HotfixStatements::SEL_LFG_DUNGEONS);
-        let mut result = hotfix_db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(Self::from_entries(entries.into_values()));
-        }
-
         let mut hotfix_rows = 0usize;
-        loop {
-            let id: u32 = result.read(0);
-            entries.insert(
-                id,
-                LfgDungeonsEntry {
-                    id,
-                    name: result.try_read::<String>(1).unwrap_or_default(),
-                    description: result.try_read::<String>(2).unwrap_or_default(),
-                    min_level: result.try_read::<u8>(3).unwrap_or(0),
-                    max_level: result.try_read::<u16>(4).unwrap_or(0),
-                    type_id: result.try_read::<u8>(5).unwrap_or(0),
-                    subtype: result.try_read::<u8>(6).unwrap_or(0),
-                    faction: result.try_read::<i8>(7).unwrap_or(0),
-                    icon_texture_file_id: result.try_read::<i32>(8).unwrap_or(0),
-                    rewards_bg_texture_file_id: result.try_read::<i32>(9).unwrap_or(0),
-                    popup_bg_texture_file_id: result.try_read::<i32>(10).unwrap_or(0),
-                    expansion_level: result.try_read::<u8>(11).unwrap_or(0),
-                    map_id: result.try_read::<i16>(12).unwrap_or(0),
-                    difficulty_id: result.try_read::<u8>(13).unwrap_or(0),
-                    min_gear: result.try_read::<f32>(14).unwrap_or(0.0),
-                    group_id: result.try_read::<u8>(15).unwrap_or(0),
-                    order_index: result.try_read::<u8>(16).unwrap_or(0),
-                    required_player_condition_id: result.try_read::<u32>(17).unwrap_or(0),
-                    target_level: result.try_read::<u8>(18).unwrap_or(0),
-                    target_level_min: result.try_read::<u8>(19).unwrap_or(0),
-                    target_level_max: result.try_read::<u16>(20).unwrap_or(0),
-                    random_id: result.try_read::<u16>(21).unwrap_or(0),
-                    scenario_id: result.try_read::<u16>(22).unwrap_or(0),
-                    final_encounter_id: result.try_read::<u16>(23).unwrap_or(0),
-                    count_tank: result.try_read::<u8>(24).unwrap_or(0),
-                    count_healer: result.try_read::<u8>(25).unwrap_or(0),
-                    count_damage: result.try_read::<u8>(26).unwrap_or(0),
-                    min_count_tank: result.try_read::<u8>(27).unwrap_or(0),
-                    min_count_healer: result.try_read::<u8>(28).unwrap_or(0),
-                    min_count_damage: result.try_read::<u8>(29).unwrap_or(0),
-                    bonus_reputation_amount: result.try_read::<u16>(30).unwrap_or(0),
-                    mentor_item_level: result.try_read::<u16>(31).unwrap_or(0),
-                    mentor_char_level: result.try_read::<u8>(32).unwrap_or(0),
-                    flags: [
-                        result.try_read::<i32>(33).unwrap_or(0),
-                        result.try_read::<i32>(34).unwrap_or(0),
-                    ],
-                },
-            );
+        for entry in hotfix_entries {
+            entries.insert(entry.id, entry);
             hotfix_rows += 1;
-
-            if !result.next_row() {
-                break;
-            }
         }
-
-        tracing::info!("Loaded {hotfix_rows} LFGDungeons hotfix rows");
-        Ok(Self::from_entries(entries.into_values()))
+        *self = Self::from_entries(entries.into_values());
+        hotfix_rows
     }
 }
 

@@ -29,6 +29,7 @@ mod difficulty_hotfix;
 mod gossip_startup_catalog;
 mod hotfix_delivery_metadata;
 mod instance_lock;
+mod lfg_dungeons_hotfix;
 mod mount_catalog;
 mod phase_hotfix_catalog;
 mod phase_world_catalog;
@@ -86,6 +87,10 @@ pub use instance_lock::{
     InstanceLockPersistenceMutationLikeCpp, InstanceLockPersistenceOutcomeLikeCpp,
     InstanceLockPersistencePlanLikeCpp, InstanceLockPersistencePortLikeCpp,
     SharedInstanceLockPersistenceRowLikeCpp,
+};
+pub use lfg_dungeons_hotfix::{
+    LfgDungeonsHotfixLoadOutcomeLikeCpp, LfgDungeonsHotfixPersistencePortLikeCpp,
+    LfgDungeonsHotfixRowLikeCpp,
 };
 pub use mount_catalog::{
     MountCapabilityHotfixRowLikeCpp, MountCatalogLoadOutcomeLikeCpp,

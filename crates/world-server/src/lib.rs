@@ -90,6 +90,7 @@ mod difficulty_hotfix;
 mod gameobject_loaded_grid;
 mod gossip_startup_catalog;
 mod hotfix_delivery_metadata;
+mod lfg_dungeons_hotfix;
 mod mount_catalog;
 mod phase_hotfix_catalog;
 mod phase_world_catalog;

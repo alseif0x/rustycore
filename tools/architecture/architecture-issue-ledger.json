@@ -132,6 +132,7 @@
     544,
     546,
     548,
+    550,
     189,
     192,
     193,
@@ -2076,7 +2077,7 @@
   },
   {
     "number": 548,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.82] Move quest-item catalogs behind one typed World persistence port",
     "kind": "slice",
     "parents": [
@@ -2085,6 +2086,19 @@
     ],
     "depends_on": [
       546
+    ]
+  },
+  {
+    "number": 550,
+    "state": "open",
+    "title": "[ARCH.DB.83] Move LFGDungeons Hotfix overlay behind one typed capability",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      548
     ]
   }
 ]
