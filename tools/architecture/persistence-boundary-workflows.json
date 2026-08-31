@@ -2665,26 +2665,8 @@
       "package": "wow-data",
       "module": "crate::lfg",
       "source": "crates/wow-data/src/lfg.rs",
-      "enclosing": "impl LfgDungeonsStore::load_with_hotfixes",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::lfg",
-      "source": "crates/wow-data/src/lfg.rs",
       "enclosing": "module",
       "logical_databases": [
-        "hotfix",
         "world"
       ],
       "boundary": "wow-data catalog/data-source boundary",
@@ -2692,7 +2674,7 @@
         153
       ],
       "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for hotfix, world; it does not itself imply a runtime transaction.",
+      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
@@ -16114,6 +16096,126 @@
       "connection_affinity": "The adapter stores exactly one Hotfix database handle.",
       "current_order": "The handle surface implies no runtime order beyond the two typed port methods.",
       "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::lfg_dungeons_hotfix_adapter",
+      "source": "crates/wow-database/src/lfg_dungeons_hotfix_adapter.rs",
+      "enclosing": "fn float_field_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free LFGDungeons Hotfix capability (#550)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure field conversion over one row already returned by the adapter's Hotfix connection.",
+      "current_order": "Decode MinGear at its exact C++ LfgDungeonsLoadInfo position without reordering any other field.",
+      "failure_and_unknown_commit": "A missing or non-float MinGear fails the complete overlay batch without fabricating zero; no COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::lfg_dungeons_hotfix_adapter",
+      "source": "crates/wow-database/src/lfg_dungeons_hotfix_adapter.rs",
+      "enclosing": "fn lfg_dungeons_row_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free LFGDungeons Hotfix capability (#550)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of one row already returned by the adapter's single Hotfix connection.",
+      "current_order": "Decode all 35 selected columns in C++ LfgDungeonsLoadInfo order, preserving signed Faction, MapID, texture IDs and Flags.",
+      "failure_and_unknown_commit": "Any missing, wrong-type or out-of-width consumed field fails the complete batch; no partial row crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::lfg_dungeons_hotfix_adapter",
+      "source": "crates/wow-database/src/lfg_dungeons_hotfix_adapter.rs",
+      "enclosing": "fn read_integer_checked_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free LFGDungeons Hotfix capability (#550)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure field conversion over one Hotfix result row; it opens no connection or transaction.",
+      "current_order": "Try every represented signed and unsigned SQL integer width before field-specific C++ narrowing.",
+      "failure_and_unknown_commit": "Missing or non-integer values fail without fabricating a default; no I/O or COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::lfg_dungeons_hotfix_adapter",
+      "source": "crates/wow-database/src/lfg_dungeons_hotfix_adapter.rs",
+      "enclosing": "fn string_field_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free LFGDungeons Hotfix capability (#550)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure field conversion over one row already returned by the adapter's Hotfix connection.",
+      "current_order": "Decode Name and Description at their exact C++ selected-column positions.",
+      "failure_and_unknown_commit": "A missing or non-string consumed field fails the complete overlay batch without fabricating an empty string."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::lfg_dungeons_hotfix_adapter",
+      "source": "crates/wow-database/src/lfg_dungeons_hotfix_adapter.rs",
+      "enclosing": "impl MariaDbLfgDungeonsHotfixPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free LFGDungeons Hotfix capability (#550)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Composition supplies exactly one shared Hotfix database handle.",
+      "current_order": "Construction stores the handle only and performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::lfg_dungeons_hotfix_adapter",
+      "source": "crates/wow-database/src/lfg_dungeons_hotfix_adapter.rs",
+      "enclosing": "impl wow_persistence::LfgDungeonsHotfixPersistencePortLikeCpp for MariaDbLfgDungeonsHotfixPersistenceAdapterLikeCpp::load_lfg_dungeons_hotfix_rows_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free LFGDungeons Hotfix capability (#550)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The complete read uses the adapter's one Hotfix connection and opens no transaction or World connection.",
+      "current_order": "Execute SEL_LFG_DUNGEONS once at the early DB2 startup fence and fully decode the result set in database order.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query or decode errors become Failed and expose no partial overlay batch. This read has no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::lfg_dungeons_hotfix_adapter",
+      "source": "crates/wow-database/src/lfg_dungeons_hotfix_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free LFGDungeons Hotfix capability (#550)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The module owns only the LFGDungeons MariaDB Hotfix adapter.",
+      "current_order": "SQL identity and row decoding stay private; DB2 loading and whole-row replacement remain outside the adapter.",
+      "failure_and_unknown_commit": "No SQL row, database handle or driver error crosses the typed port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::lfg_dungeons_hotfix_adapter",
+      "source": "crates/wow-database/src/lfg_dungeons_hotfix_adapter.rs",
+      "enclosing": "struct MariaDbLfgDungeonsHotfixPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free LFGDungeons Hotfix capability (#550)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter stores exactly one Hotfix database handle.",
+      "current_order": "The handle surface implies no runtime order beyond the one typed port method.",
+      "failure_and_unknown_commit": "The handle surface performs no I/O and implies no failure or COMMIT outcome."
     }
   ]
 }

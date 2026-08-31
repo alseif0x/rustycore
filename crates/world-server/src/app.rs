@@ -1730,12 +1730,20 @@ async fn run_inner(
         "Loaded {} map difficulty conditions from MapDifficultyXCondition.db2",
         map_difficulty_x_condition_store.len()
     );
+    let lfg_dungeons_hotfix_persistence =
+        wow_database::MariaDbLfgDungeonsHotfixPersistenceAdapterLikeCpp::new(Arc::clone(
+            &hotfix_db,
+        ));
     let lfg_dungeons_store = Arc::new(
-        wow_data::LfgDungeonsStore::load_with_hotfixes(&data_dir, &locale, &hotfix_db)
-            .await
-            .context(
-                "Failed to load LFGDungeons.db2 / hotfix rows — check DataDir and DBC.Locale config",
-            )?,
+        lfg_dungeons_hotfix::load_lfg_dungeons_like_cpp(
+            &data_dir,
+            &locale,
+            &lfg_dungeons_hotfix_persistence,
+        )
+        .await
+        .context(
+            "Failed to load LFGDungeons.db2 / hotfix rows — check DataDir and DBC.Locale config",
+        )?,
     );
     info!(
         "Loaded {} LFG dungeons from LFGDungeons.db2 / hotfix rows",
