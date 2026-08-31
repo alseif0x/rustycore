@@ -70,6 +70,7 @@ pub mod player_money_transaction_adapter;
 pub mod player_name_query_adapter;
 pub mod player_spell_acquisition_adapter;
 pub mod query_holder;
+pub mod quest_item_catalog_adapter;
 pub mod quest_poi_adapter;
 pub mod represented_group_persistence_adapter;
 pub mod reputation_catalog_adapter;
@@ -128,6 +129,7 @@ pub use player_choice_catalog_adapter::MariaDbPlayerChoiceCatalogPersistenceAdap
 pub use player_creation_catalog_adapter::MariaDbPlayerCreationCatalogPersistenceAdapterLikeCpp;
 pub use player_name_query_adapter::MariaDbPlayerNameQueryPersistenceAdapterLikeCpp;
 pub use query_holder::{SqlQueryHolder, SqlQueryHolderResult};
+pub use quest_item_catalog_adapter::MariaDbQuestItemCatalogPersistenceAdapterLikeCpp;
 pub use reputation_catalog_adapter::MariaDbReputationCatalogPersistenceAdapterLikeCpp;
 pub use respawn_persistence_adapter::MariaDbRespawnPersistenceAdapterLikeCpp;
 pub use result::{

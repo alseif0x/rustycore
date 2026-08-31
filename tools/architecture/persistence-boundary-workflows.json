@@ -2851,57 +2851,6 @@
     },
     {
       "package": "wow-data",
-      "module": "crate::quest_item",
-      "source": "crates/wow-data/src/quest_item.rs",
-      "enclosing": "impl CreatureQuestItemStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::quest_item",
-      "source": "crates/wow-data/src/quest_item.rs",
-      "enclosing": "impl GameObjectQuestItemStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::quest_item",
-      "source": "crates/wow-data/src/quest_item.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
       "module": "crate::reserved_names",
       "source": "crates/wow-data/src/reserved_names.rs",
       "enclosing": "impl ReservedNameStoreLikeCpp::load_like_cpp",
@@ -8393,6 +8342,171 @@
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_item_catalog_adapter",
+      "source": "crates/wow-database/src/quest_item_catalog_adapter.rs",
+      "enclosing": "const CREATURE_QUEST_ITEM_STATEMENT_LIKE_CPP",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World quest-item capability (#548)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The statement identity is confined to the adapter's one World database handle.",
+      "current_order": "Name exactly SEL_CREATURE_QUEST_ITEM_ROWS for the second quest-item startup stage.",
+      "failure_and_unknown_commit": "Statement identity performs no I/O and implies no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_item_catalog_adapter",
+      "source": "crates/wow-database/src/quest_item_catalog_adapter.rs",
+      "enclosing": "const GAMEOBJECT_QUEST_ITEM_STATEMENT_LIKE_CPP",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World quest-item capability (#548)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The statement identity is confined to the adapter's one World database handle.",
+      "current_order": "Name exactly SEL_GAMEOBJECT_QUEST_ITEM_ROWS for the first quest-item startup stage.",
+      "failure_and_unknown_commit": "Statement identity performs no I/O and implies no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_item_catalog_adapter",
+      "source": "crates/wow-database/src/quest_item_catalog_adapter.rs",
+      "enclosing": "fn creature_quest_item_row_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World quest-item capability (#548)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of one row already returned by the adapter's World connection.",
+      "current_order": "Decode CreatureEntry, DifficultyID, ItemId and Idx in C++ ObjectMgr::LoadCreatureQuestItems selected-column order.",
+      "failure_and_unknown_commit": "Missing, non-integer or out-of-range unsigned fields fail the complete creature batch; no COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_item_catalog_adapter",
+      "source": "crates/wow-database/src/quest_item_catalog_adapter.rs",
+      "enclosing": "fn gameobject_quest_item_row_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World quest-item capability (#548)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of one row already returned by the adapter's World connection.",
+      "current_order": "Decode GameObjectEntry, ItemId and Idx in C++ ObjectMgr::LoadGameObjectQuestItems selected-column order.",
+      "failure_and_unknown_commit": "Missing, non-integer or out-of-u32 fields fail the complete gameobject batch; no COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_item_catalog_adapter",
+      "source": "crates/wow-database/src/quest_item_catalog_adapter.rs",
+      "enclosing": "fn query_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World quest-item capability (#548)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Each invocation uses the adapter's one World connection and opens no transaction or second logical database.",
+      "current_order": "Prepare and execute exactly the supplied quest-item statement, then decode the complete result set in database order.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query or decode failure exposes no partial batch and reads have no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_item_catalog_adapter",
+      "source": "crates/wow-database/src/quest_item_catalog_adapter.rs",
+      "enclosing": "fn read_integer_checked_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World quest-item capability (#548)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure field conversion over one World result row; it opens no connection or transaction.",
+      "current_order": "Try every represented signed and unsigned SQL integer width before field-specific u32 or u8 narrowing.",
+      "failure_and_unknown_commit": "Missing or non-integer consumed fields fail without fabricating zero; no I/O or COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_item_catalog_adapter",
+      "source": "crates/wow-database/src/quest_item_catalog_adapter.rs",
+      "enclosing": "impl MariaDbQuestItemCatalogPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World quest-item capability (#548)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Composition supplies exactly one shared World database handle.",
+      "current_order": "Construction stores the handle only and performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_item_catalog_adapter",
+      "source": "crates/wow-database/src/quest_item_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::QuestItemCatalogPersistencePortLikeCpp for MariaDbQuestItemCatalogPersistenceAdapterLikeCpp::load_creature_quest_item_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World quest-item capability (#548)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The read uses the adapter's one World connection and opens no transaction.",
+      "current_order": "Execute SEL_CREATURE_QUEST_ITEM_ROWS only after gameobject rows have been read, validated and published, preserving C++ startup order.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query/decode errors become Failed before the store pair is returned."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_item_catalog_adapter",
+      "source": "crates/wow-database/src/quest_item_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::QuestItemCatalogPersistencePortLikeCpp for MariaDbQuestItemCatalogPersistenceAdapterLikeCpp::load_gameobject_quest_item_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World quest-item capability (#548)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The read uses the adapter's one World connection and opens no transaction.",
+      "current_order": "Execute SEL_GAMEOBJECT_QUEST_ITEM_ROWS as the first C++ quest-item startup stage.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query/decode errors become Failed before the creature read."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_item_catalog_adapter",
+      "source": "crates/wow-database/src/quest_item_catalog_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World quest-item capability (#548)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The module owns only the quest-item MariaDB World adapter.",
+      "current_order": "SQL identities and row decoding stay private; template/item validation, ordered indexing and difficulty fallback remain outside the adapter.",
+      "failure_and_unknown_commit": "No SQL row, database handle or driver error crosses the typed port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_item_catalog_adapter",
+      "source": "crates/wow-database/src/quest_item_catalog_adapter.rs",
+      "enclosing": "struct MariaDbQuestItemCatalogPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World quest-item capability (#548)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter stores exactly one World database handle.",
+      "current_order": "The handle surface implies no runtime order beyond the two typed port methods.",
+      "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome."
     },
     {
       "package": "wow-database",
