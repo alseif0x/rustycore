@@ -404,9 +404,8 @@ pub use poi::{
 };
 pub use quest_item::{
     CreatureQuestItemLoadOutcomeLikeCpp, CreatureQuestItemLoadReportLikeCpp,
-    CreatureQuestItemRowLikeCpp, CreatureQuestItemStoreLikeCpp,
-    GameObjectQuestItemLoadOutcomeLikeCpp, GameObjectQuestItemLoadReportLikeCpp,
-    GameObjectQuestItemRowLikeCpp, GameObjectQuestItemStoreLikeCpp,
+    CreatureQuestItemStoreLikeCpp, GameObjectQuestItemLoadOutcomeLikeCpp,
+    GameObjectQuestItemLoadReportLikeCpp, GameObjectQuestItemStoreLikeCpp,
 };
 pub use rand_prop_points::{RandPropPointsEntry, RandPropPointsStore};
 pub use reserved_names::ReservedNameStoreLikeCpp;
