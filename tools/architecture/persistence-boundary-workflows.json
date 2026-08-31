@@ -2646,40 +2646,6 @@
     },
     {
       "package": "wow-data",
-      "module": "crate::lfg",
-      "source": "crates/wow-data/src/lfg.rs",
-      "enclosing": "impl LfgDungeonStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::lfg",
-      "source": "crates/wow-data/src/lfg.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
       "module": "crate::mail",
       "source": "crates/wow-data/src/mail.rs",
       "enclosing": "impl MailLevelRewardStoreLikeCpp::load_like_cpp",
@@ -16216,6 +16182,136 @@
       "connection_affinity": "The adapter stores exactly one Hotfix database handle.",
       "current_order": "The handle surface implies no runtime order beyond the one typed port method.",
       "failure_and_unknown_commit": "The handle surface performs no I/O and implies no failure or COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::lfg_world_catalog_adapter",
+      "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
+      "enclosing": "fn float_field_like_cpp",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure conversion over one row returned by the adapter's World connection.",
+      "current_order": "Decode the four template coordinates at their exact selected-column positions.",
+      "failure_and_unknown_commit": "Missing or non-float coordinates fail the complete template batch without fabricating zero."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::lfg_world_catalog_adapter",
+      "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
+      "enclosing": "fn query_rows_like_cpp",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Each invocation uses the adapter's one World connection and opens no transaction.",
+      "current_order": "Prepare and execute exactly the supplied LFG statement, then fully decode its result set in database order.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query or decode failure exposes no partial batch and no COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::lfg_world_catalog_adapter",
+      "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
+      "enclosing": "fn read_integer_checked_like_cpp",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure field conversion over one World result row.",
+      "current_order": "Try represented signed and unsigned SQL widths before field-specific C++ narrowing.",
+      "failure_and_unknown_commit": "Missing/non-integer values fail without defaults; no I/O or COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::lfg_world_catalog_adapter",
+      "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
+      "enclosing": "fn reward_row_like_cpp",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of one reward row from the adapter's World connection.",
+      "current_order": "Decode dungeonId, maxLevel, firstQuestId and otherQuestId in C++ LoadRewards order.",
+      "failure_and_unknown_commit": "Missing or out-of-width values fail the complete ordered reward batch."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::lfg_world_catalog_adapter",
+      "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
+      "enclosing": "fn template_row_like_cpp",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of one template row from the adapter's World connection.",
+      "current_order": "Decode dungeonId, coordinates, orientation and requiredItemLevel in C++ LoadLFGDungeons order.",
+      "failure_and_unknown_commit": "Missing or out-of-width values fail the complete template batch."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::lfg_world_catalog_adapter",
+      "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
+      "enclosing": "impl MariaDbLfgWorldCatalogPersistenceAdapterLikeCpp::new",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Composition supplies exactly one shared World database handle.",
+      "current_order": "Construction stores the handle only and performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::lfg_world_catalog_adapter",
+      "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::LfgWorldCatalogPersistencePortLikeCpp for MariaDbLfgWorldCatalogPersistenceAdapterLikeCpp::load_lfg_dungeon_reward_rows_like_cpp",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The read uses the adapter's one World connection and opens no transaction.",
+      "current_order": "Execute the maxLevel-ordered rewards statement only after the template batch succeeds.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query/decode failure prevents publication of the LFG store."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::lfg_world_catalog_adapter",
+      "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::LfgWorldCatalogPersistencePortLikeCpp for MariaDbLfgWorldCatalogPersistenceAdapterLikeCpp::load_lfg_dungeon_template_rows_like_cpp",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The read uses the adapter's one World connection and opens no transaction.",
+      "current_order": "Execute the entrance-template statement as the first late LFG World stage.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query/decode failure stops before the reward read."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::lfg_world_catalog_adapter",
+      "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The module owns only the late LFG MariaDB World adapter.",
+      "current_order": "SQL and decoding stay private; DB2/MapDifficulty/Quest validation stays in wow-data.",
+      "failure_and_unknown_commit": "No SQL row, database handle or driver error crosses the typed port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::lfg_world_catalog_adapter",
+      "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
+      "enclosing": "struct MariaDbLfgWorldCatalogPersistenceAdapterLikeCpp",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter stores exactly one World database handle.",
+      "current_order": "The handle surface implies no order beyond the two typed methods.",
+      "failure_and_unknown_commit": "The handle surface performs no I/O and implies no COMMIT outcome."
     }
   ]
 }
