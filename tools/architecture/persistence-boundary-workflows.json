@@ -2949,40 +2949,6 @@
     },
     {
       "package": "wow-data",
-      "module": "crate::reserved_names",
-      "source": "crates/wow-data/src/reserved_names.rs",
-      "enclosing": "impl ReservedNameStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::reserved_names",
-      "source": "crates/wow-data/src/reserved_names.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
       "module": "crate::scene_template",
       "source": "crates/wow-data/src/scene_template.rs",
       "enclosing": "impl SceneTemplateStoreLikeCpp::load_like_cpp",
@@ -3768,6 +3734,66 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The adapter stores exactly one World database handle.",
+      "current_order": "The handle surface implies no order beyond the one typed load method.",
+      "failure_and_unknown_commit": "The handle surface performs no I/O and implies no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::reserved_name_catalog_adapter",
+      "source": "crates/wow-database/src/reserved_name_catalog_adapter.rs",
+      "enclosing": "impl MariaDbReservedNameCatalogPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free reserved-player-name Character capability (#564)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Composition supplies exactly one shared Character database handle.",
+      "current_order": "Construction stores the handle only and performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::reserved_name_catalog_adapter",
+      "source": "crates/wow-database/src/reserved_name_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::ReservedNameCatalogPersistencePortLikeCpp for MariaDbReservedNameCatalogPersistenceAdapterLikeCpp::load_rows_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free reserved-player-name Character capability (#564)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The read uses the adapter's one Character connection and opens no transaction.",
+      "current_order": "Execute the one exact C++ reserved-name statement and fully decode every row in database order before returning.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query or decode failure exposes no partial batch and preserves Rust's startup-fatal policy at composition."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::reserved_name_catalog_adapter",
+      "source": "crates/wow-database/src/reserved_name_catalog_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free reserved-player-name Character capability (#564)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The module owns only the reserved-player-name MariaDB Character adapter.",
+      "current_order": "SQL and decoding stay private; normalization, duplicate accounting and lookup rules stay in wow-data.",
+      "failure_and_unknown_commit": "No SQL row, database handle or driver error crosses the typed port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::reserved_name_catalog_adapter",
+      "source": "crates/wow-database/src/reserved_name_catalog_adapter.rs",
+      "enclosing": "struct MariaDbReservedNameCatalogPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free reserved-player-name Character capability (#564)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter stores exactly one Character database handle.",
       "current_order": "The handle surface implies no order beyond the one typed load method.",
       "failure_and_unknown_commit": "The handle surface performs no I/O and implies no COMMIT outcome."
     },

@@ -80,6 +80,7 @@ pub mod quest_item_catalog_adapter;
 pub mod quest_poi_adapter;
 pub mod represented_group_persistence_adapter;
 pub mod reputation_catalog_adapter;
+pub mod reserved_name_catalog_adapter;
 pub mod respawn_persistence_adapter;
 pub mod result;
 pub mod session_account_state_adapter;
@@ -143,6 +144,7 @@ pub use player_name_query_adapter::MariaDbPlayerNameQueryPersistenceAdapterLikeC
 pub use query_holder::{SqlQueryHolder, SqlQueryHolderResult};
 pub use quest_item_catalog_adapter::MariaDbQuestItemCatalogPersistenceAdapterLikeCpp;
 pub use reputation_catalog_adapter::MariaDbReputationCatalogPersistenceAdapterLikeCpp;
+pub use reserved_name_catalog_adapter::MariaDbReservedNameCatalogPersistenceAdapterLikeCpp;
 pub use respawn_persistence_adapter::MariaDbRespawnPersistenceAdapterLikeCpp;
 pub use result::{
     DatabaseFieldTypeLikeCpp, SqlFields, SqlResult, database_field_type_like_cpp,

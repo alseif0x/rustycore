@@ -4991,70 +4991,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-data:crate::reserved_names:crates/wow-data/src/reserved_names.rs::impl ReservedNameStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/reserved_names.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::reserved_names"
-      ],
-      "enclosings": [
-        "impl ReservedNameStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl ReservedNameStoreLikeCpp::load_like_cpp in crates/wow-data/src/reserved_names.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::reserved_names:crates/wow-data/src/reserved_names.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/reserved_names.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::reserved_names"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow module in crates/wow-data/src/reserved_names.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-data:crate::scene_template:crates/wow-data/src/scene_template.rs::impl SceneTemplateStoreLikeCpp::load_like_cpp",
       "source_class": "production",
       "packages": [
@@ -21324,6 +21260,126 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::reserved_name_catalog_adapter:crates/wow-database/src/reserved_name_catalog_adapter.rs::impl MariaDbReservedNameCatalogPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/reserved_name_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::reserved_name_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbReservedNameCatalogPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free reserved-player-name Character capability (#564) currently owns the complete wow-database workflow impl MariaDbReservedNameCatalogPersistenceAdapterLikeCpp::new in crates/wow-database/src/reserved_name_catalog_adapter.rs.",
+      "connection_affinity": "Composition supplies exactly one shared Character database handle.",
+      "current_order": "Construction stores the handle only and performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::reserved_name_catalog_adapter:crates/wow-database/src/reserved_name_catalog_adapter.rs::impl wow_persistence::ReservedNameCatalogPersistencePortLikeCpp for MariaDbReservedNameCatalogPersistenceAdapterLikeCpp::load_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/reserved_name_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::reserved_name_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::ReservedNameCatalogPersistencePortLikeCpp for MariaDbReservedNameCatalogPersistenceAdapterLikeCpp::load_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free reserved-player-name Character capability (#564) currently owns the complete wow-database workflow impl wow_persistence::ReservedNameCatalogPersistencePortLikeCpp for MariaDbReservedNameCatalogPersistenceAdapterLikeCpp::load_rows_like_cpp in crates/wow-database/src/reserved_name_catalog_adapter.rs.",
+      "connection_affinity": "The read uses the adapter's one Character connection and opens no transaction.",
+      "current_order": "Execute the one exact C++ reserved-name statement and fully decode every row in database order before returning.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query or decode failure exposes no partial batch and preserves Rust's startup-fatal policy at composition.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::reserved_name_catalog_adapter:crates/wow-database/src/reserved_name_catalog_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/reserved_name_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::reserved_name_catalog_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free reserved-player-name Character capability (#564) currently owns the complete wow-database workflow module in crates/wow-database/src/reserved_name_catalog_adapter.rs.",
+      "connection_affinity": "The module owns only the reserved-player-name MariaDB Character adapter.",
+      "current_order": "SQL and decoding stay private; normalization, duplicate accounting and lookup rules stay in wow-data.",
+      "failure_and_unknown_commit": "No SQL row, database handle or driver error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::reserved_name_catalog_adapter:crates/wow-database/src/reserved_name_catalog_adapter.rs::struct MariaDbReservedNameCatalogPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/reserved_name_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::reserved_name_catalog_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbReservedNameCatalogPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free reserved-player-name Character capability (#564) currently owns the complete wow-database workflow struct MariaDbReservedNameCatalogPersistenceAdapterLikeCpp in crates/wow-database/src/reserved_name_catalog_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one Character database handle.",
+      "current_order": "The handle surface implies no order beyond the one typed load method.",
+      "failure_and_unknown_commit": "The handle surface performs no I/O and implies no COMMIT outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::respawn_persistence_adapter:crates/wow-database/src/respawn_persistence_adapter.rs::fn decode_rows_like_cpp",
       "source_class": "production",
       "packages": [
@@ -32075,6 +32131,7 @@
         "crates/wow-database/src/quest_item_catalog_adapter.rs",
         "crates/wow-database/src/represented_group_persistence_adapter.rs",
         "crates/wow-database/src/reputation_catalog_adapter.rs",
+        "crates/wow-database/src/reserved_name_catalog_adapter.rs",
         "crates/wow-database/src/respawn_persistence_adapter.rs",
         "crates/wow-database/src/session_account_state_adapter.rs",
         "crates/wow-database/src/skill_catalog_hotfix_adapter.rs",

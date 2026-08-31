@@ -2791,10 +2791,16 @@ async fn run_inner(
         "Loaded {} C++ GameObjects for quests",
         gameobject_for_quest_store.len()
     );
+    let reserved_name_persistence =
+        wow_database::MariaDbReservedNameCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
+            &char_db,
+        ));
     let reserved_name_store = Arc::new(
-        wow_data::ReservedNameStoreLikeCpp::load_like_cpp(char_db.as_ref())
-            .await
-            .context("Failed to load C++ reserved player names")?,
+        crate::reserved_name_catalog::load_reserved_name_catalog_like_cpp(
+            &reserved_name_persistence,
+        )
+        .await
+        .context("Failed to load C++ reserved player names")?,
     );
     info!(
         "Loaded {} C++ reserved player names ({} unique)",
