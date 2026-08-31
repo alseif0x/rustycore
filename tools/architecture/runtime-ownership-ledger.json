@@ -1723,11 +1723,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-        "production_lines": 28828,
-        "test_lines": 26064,
-        "total_lines": 54892,
+          "production_lines": 28494,
+          "test_lines": 26215,
+          "total_lines": 54709,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-        "latest_growth_review": "#566 adds one private jump-charge World composition boundary: +41 net production conversion/composition lines and +85 focused field/null transfer, retained DB2-reference validation, empty-success and preserved-failure test lines. SQL and nullable row decoding remain in wow-database; defaults, validation, reports, duplicate replacement and lookup remain in wow-data; no spell, movement, gameplay or runtime authority moves into the composition root.",
+          "latest_growth_review": "#568 removes 334 net production lines from the world-server logical hotspot while adding 151 focused order/fail-fast test lines: GameEvent World SQL, handles, rows and decoding move to one staged wow-database adapter behind SQLx-free wow-persistence prefix/suffix outcomes. SpawnStore, PoolMgr, GameEvent validation/publication, the independent Character condition-save overlay, scheduler and runtime authority remain unchanged.",
           "open_retirement_issues": [
             153
           ],

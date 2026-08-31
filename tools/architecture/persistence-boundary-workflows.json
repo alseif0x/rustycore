@@ -1125,23 +1125,6 @@
       "package": "world-server",
       "module": "crate::spawn_store_loader",
       "source": "crates/world-server/src/spawn_store_loader.rs",
-      "enclosing": "fn load_creature_equip_template_ids_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spawn_store_loader",
-      "source": "crates/world-server/src/spawn_store_loader.rs",
       "enclosing": "fn load_creature_formations_like_cpp",
       "logical_databases": [
         "world"
@@ -1176,227 +1159,6 @@
       "package": "world-server",
       "module": "crate::spawn_store_loader",
       "source": "crates/world-server/src/spawn_store_loader.rs",
-      "enclosing": "fn load_game_event_conditions_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spawn_store_loader",
-      "source": "crates/world-server/src/spawn_store_loader.rs",
-      "enclosing": "fn load_game_event_creature_quest_relations_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spawn_store_loader",
-      "source": "crates/world-server/src/spawn_store_loader.rs",
-      "enclosing": "fn load_game_event_gameobject_quest_relations_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spawn_store_loader",
-      "source": "crates/world-server/src/spawn_store_loader.rs",
-      "enclosing": "fn load_game_event_model_equip_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spawn_store_loader",
-      "source": "crates/world-server/src/spawn_store_loader.rs",
-      "enclosing": "fn load_game_event_npc_flags_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spawn_store_loader",
-      "source": "crates/world-server/src/spawn_store_loader.rs",
-      "enclosing": "fn load_game_event_npc_vendors_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spawn_store_loader",
-      "source": "crates/world-server/src/spawn_store_loader.rs",
-      "enclosing": "fn load_game_event_object_guids_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spawn_store_loader",
-      "source": "crates/world-server/src/spawn_store_loader.rs",
-      "enclosing": "fn load_game_event_pool_ids_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spawn_store_loader",
-      "source": "crates/world-server/src/spawn_store_loader.rs",
-      "enclosing": "fn load_game_event_prerequisites_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spawn_store_loader",
-      "source": "crates/world-server/src/spawn_store_loader.rs",
-      "enclosing": "fn load_game_event_quest_conditions_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spawn_store_loader",
-      "source": "crates/world-server/src/spawn_store_loader.rs",
-      "enclosing": "fn load_game_event_quest_relations_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spawn_store_loader",
-      "source": "crates/world-server/src/spawn_store_loader.rs",
-      "enclosing": "fn load_game_event_spawn_guids_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spawn_store_loader",
-      "source": "crates/world-server/src/spawn_store_loader.rs",
-      "enclosing": "fn load_game_events_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spawn_store_loader",
-      "source": "crates/world-server/src/spawn_store_loader.rs",
       "enclosing": "fn load_gameobject_spawns_like_cpp",
       "logical_databases": [
         "world"
@@ -1415,23 +1177,6 @@
       "module": "crate::spawn_store_loader",
       "source": "crates/world-server/src/spawn_store_loader.rs",
       "enclosing": "fn load_linked_respawns_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spawn_store_loader",
-      "source": "crates/world-server/src/spawn_store_loader.rs",
-      "enclosing": "fn load_max_game_event_entry_like_cpp",
       "logical_databases": [
         "world"
       ],
@@ -1534,24 +1279,6 @@
       "module": "crate::spawn_store_loader",
       "source": "crates/world-server/src/spawn_store_loader.rs",
       "enclosing": "fn load_world_state_mgr_like_cpp",
-      "logical_databases": [
-        "characters",
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow uses independent characters, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spawn_store_loader",
-      "source": "crates/world-server/src/spawn_store_loader.rs",
-      "enclosing": "fn read_signed_db_i8_like_cpp",
       "logical_databases": [
         "characters",
         "world"
@@ -1897,7 +1624,9 @@
       "module": "crate::battle_pet_selection_catalog_adapter",
       "source": "crates/wow-database/src/battle_pet_selection_catalog_adapter.rs",
       "enclosing": "impl MariaDbBattlePetSelectionCatalogPersistenceAdapterLikeCpp::new",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free battle-pet selection World capability (#554)",
       "target_issues": [],
       "stable_boundary": true,
@@ -1910,7 +1639,9 @@
       "module": "crate::battle_pet_selection_catalog_adapter",
       "source": "crates/wow-database/src/battle_pet_selection_catalog_adapter.rs",
       "enclosing": "impl wow_persistence::BattlePetSelectionCatalogPersistencePortLikeCpp for MariaDbBattlePetSelectionCatalogPersistenceAdapterLikeCpp::load_breed_rows_like_cpp",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free battle-pet selection World capability (#554)",
       "target_issues": [],
       "stable_boundary": true,
@@ -1923,7 +1654,9 @@
       "module": "crate::battle_pet_selection_catalog_adapter",
       "source": "crates/wow-database/src/battle_pet_selection_catalog_adapter.rs",
       "enclosing": "impl wow_persistence::BattlePetSelectionCatalogPersistencePortLikeCpp for MariaDbBattlePetSelectionCatalogPersistenceAdapterLikeCpp::load_quality_rows_like_cpp",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free battle-pet selection World capability (#554)",
       "target_issues": [],
       "stable_boundary": true,
@@ -1936,7 +1669,9 @@
       "module": "crate::battle_pet_selection_catalog_adapter",
       "source": "crates/wow-database/src/battle_pet_selection_catalog_adapter.rs",
       "enclosing": "module",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free battle-pet selection World capability (#554)",
       "target_issues": [],
       "stable_boundary": true,
@@ -1949,7 +1684,9 @@
       "module": "crate::battle_pet_selection_catalog_adapter",
       "source": "crates/wow-database/src/battle_pet_selection_catalog_adapter.rs",
       "enclosing": "struct MariaDbBattlePetSelectionCatalogPersistenceAdapterLikeCpp",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free battle-pet selection World capability (#554)",
       "target_issues": [],
       "stable_boundary": true,
@@ -2739,7 +2476,9 @@
       "module": "crate::item_random_enchantment_catalog_adapter",
       "source": "crates/wow-database/src/item_random_enchantment_catalog_adapter.rs",
       "enclosing": "module",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free item random-enchantment World capability (#556)",
       "target_issues": [],
       "stable_boundary": true,
@@ -2752,7 +2491,9 @@
       "module": "crate::item_random_enchantment_catalog_adapter",
       "source": "crates/wow-database/src/item_random_enchantment_catalog_adapter.rs",
       "enclosing": "struct MariaDbItemRandomEnchantmentCatalogPersistenceAdapterLikeCpp",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free item random-enchantment World capability (#556)",
       "target_issues": [],
       "stable_boundary": true,
@@ -16429,7 +16170,9 @@
       "module": "crate::lfg_world_catalog_adapter",
       "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
       "enclosing": "fn float_field_like_cpp",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
       "target_issues": [],
       "stable_boundary": true,
@@ -16442,7 +16185,9 @@
       "module": "crate::lfg_world_catalog_adapter",
       "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
       "enclosing": "fn query_rows_like_cpp",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
       "target_issues": [],
       "stable_boundary": true,
@@ -16455,7 +16200,9 @@
       "module": "crate::lfg_world_catalog_adapter",
       "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
       "enclosing": "fn read_integer_checked_like_cpp",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
       "target_issues": [],
       "stable_boundary": true,
@@ -16468,7 +16215,9 @@
       "module": "crate::lfg_world_catalog_adapter",
       "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
       "enclosing": "fn reward_row_like_cpp",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
       "target_issues": [],
       "stable_boundary": true,
@@ -16481,7 +16230,9 @@
       "module": "crate::lfg_world_catalog_adapter",
       "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
       "enclosing": "fn template_row_like_cpp",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
       "target_issues": [],
       "stable_boundary": true,
@@ -16494,7 +16245,9 @@
       "module": "crate::lfg_world_catalog_adapter",
       "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
       "enclosing": "impl MariaDbLfgWorldCatalogPersistenceAdapterLikeCpp::new",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
       "target_issues": [],
       "stable_boundary": true,
@@ -16507,7 +16260,9 @@
       "module": "crate::lfg_world_catalog_adapter",
       "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
       "enclosing": "impl wow_persistence::LfgWorldCatalogPersistencePortLikeCpp for MariaDbLfgWorldCatalogPersistenceAdapterLikeCpp::load_lfg_dungeon_reward_rows_like_cpp",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
       "target_issues": [],
       "stable_boundary": true,
@@ -16520,7 +16275,9 @@
       "module": "crate::lfg_world_catalog_adapter",
       "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
       "enclosing": "impl wow_persistence::LfgWorldCatalogPersistencePortLikeCpp for MariaDbLfgWorldCatalogPersistenceAdapterLikeCpp::load_lfg_dungeon_template_rows_like_cpp",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
       "target_issues": [],
       "stable_boundary": true,
@@ -16533,7 +16290,9 @@
       "module": "crate::lfg_world_catalog_adapter",
       "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
       "enclosing": "module",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
       "target_issues": [],
       "stable_boundary": true,
@@ -16546,13 +16305,270 @@
       "module": "crate::lfg_world_catalog_adapter",
       "source": "crates/wow-database/src/lfg_world_catalog_adapter.rs",
       "enclosing": "struct MariaDbLfgWorldCatalogPersistenceAdapterLikeCpp",
-      "logical_databases": ["world"],
+      "logical_databases": [
+        "world"
+      ],
       "boundary": "wow-database MariaDB adapter for the SQLx-free late LFG World capability (#552)",
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The adapter stores exactly one World database handle.",
       "current_order": "The handle surface implies no order beyond the two typed methods.",
       "failure_and_unknown_commit": "The handle surface performs no I/O and implies no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::game_event_world_catalog_adapter",
+      "source": "crates/wow-database/src/game_event_world_catalog_adapter.rs",
+      "enclosing": "const GAME_EVENT_WORLD_PREFIX_STATEMENTS_LIKE_CPP",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::game_event_world_catalog_adapter",
+      "source": "crates/wow-database/src/game_event_world_catalog_adapter.rs",
+      "enclosing": "const GAME_EVENT_WORLD_SUFFIX_STATEMENTS_LIKE_CPP",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::game_event_world_catalog_adapter",
+      "source": "crates/wow-database/src/game_event_world_catalog_adapter.rs",
+      "enclosing": "fn load_prefix_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::game_event_world_catalog_adapter",
+      "source": "crates/wow-database/src/game_event_world_catalog_adapter.rs",
+      "enclosing": "fn load_suffix_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::game_event_world_catalog_adapter",
+      "source": "crates/wow-database/src/game_event_world_catalog_adapter.rs",
+      "enclosing": "fn object_guid_row_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::game_event_world_catalog_adapter",
+      "source": "crates/wow-database/src/game_event_world_catalog_adapter.rs",
+      "enclosing": "fn query_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::game_event_world_catalog_adapter",
+      "source": "crates/wow-database/src/game_event_world_catalog_adapter.rs",
+      "enclosing": "fn quest_relation_row_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::game_event_world_catalog_adapter",
+      "source": "crates/wow-database/src/game_event_world_catalog_adapter.rs",
+      "enclosing": "fn read_i8_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::game_event_world_catalog_adapter",
+      "source": "crates/wow-database/src/game_event_world_catalog_adapter.rs",
+      "enclosing": "fn read_u16_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::game_event_world_catalog_adapter",
+      "source": "crates/wow-database/src/game_event_world_catalog_adapter.rs",
+      "enclosing": "fn read_u32_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::game_event_world_catalog_adapter",
+      "source": "crates/wow-database/src/game_event_world_catalog_adapter.rs",
+      "enclosing": "fn read_u64_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::game_event_world_catalog_adapter",
+      "source": "crates/wow-database/src/game_event_world_catalog_adapter.rs",
+      "enclosing": "fn read_u8_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::game_event_world_catalog_adapter",
+      "source": "crates/wow-database/src/game_event_world_catalog_adapter.rs",
+      "enclosing": "impl MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::game_event_world_catalog_adapter",
+      "source": "crates/wow-database/src/game_event_world_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::GameEventWorldCatalogPersistencePortLikeCpp for MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp::load_prefix_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::game_event_world_catalog_adapter",
+      "source": "crates/wow-database/src/game_event_world_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::GameEventWorldCatalogPersistencePortLikeCpp for MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp::load_suffix_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::game_event_world_catalog_adapter",
+      "source": "crates/wow-database/src/game_event_world_catalog_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::game_event_world_catalog_adapter",
+      "source": "crates/wow-database/src/game_event_world_catalog_adapter.rs",
+      "enclosing": "struct MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages."
     }
   ]
 }

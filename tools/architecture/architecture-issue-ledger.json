@@ -140,6 +140,7 @@
     562,
     564,
     566,
+    568,
     189,
     192,
     193,
@@ -2188,7 +2189,7 @@
   },
   {
     "number": 566,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.90] Move jump-charge World catalog behind one typed capability",
     "kind": "slice",
     "parents": [
@@ -2197,6 +2198,19 @@
     ],
     "depends_on": [
       564
+    ]
+  },
+  {
+    "number": 568,
+    "state": "open",
+    "title": "[ARCH.DB.91] Move GameEvent startup World catalogs behind one staged persistence capability",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      566
     ]
   }
 ]

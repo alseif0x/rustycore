@@ -1810,10 +1810,18 @@ async fn run_inner(
         Arc::new(
             wow_database::MariaDbGameEventPersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
         );
+    let game_event_world_catalog: Arc<
+        dyn wow_persistence::GameEventWorldCatalogPersistencePortLikeCpp,
+    > = Arc::new(
+        wow_database::MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
+            &world_db,
+        )),
+    );
     let (canonical_spawn_metadata, canonical_spawn_report) =
         spawn_store_loader::load_canonical_spawn_store_like_cpp(
             world_db.as_ref(),
             game_event_persistence.as_ref(),
+            game_event_world_catalog.as_ref(),
             &map_store,
             &map_difficulty_store,
             &spawn_group_store,
