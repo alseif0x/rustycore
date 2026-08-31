@@ -88,6 +88,7 @@ mod battle_pet_selection_catalog;
 mod creature_display_hotfix;
 mod creature_loaded_grid;
 mod difficulty_hotfix;
+mod exploration_base_xp_catalog;
 mod game_tele_catalog;
 mod gameobject_loaded_grid;
 mod gossip_startup_catalog;

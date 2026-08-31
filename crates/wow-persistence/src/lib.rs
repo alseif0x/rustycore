@@ -27,6 +27,7 @@ mod battle_pet_selection_catalog;
 mod chr_specialization_hotfix;
 mod creature_display_hotfix;
 mod difficulty_hotfix;
+mod exploration_base_xp_catalog;
 mod game_tele_catalog;
 mod gossip_startup_catalog;
 mod hotfix_delivery_metadata;
@@ -79,6 +80,10 @@ pub use creature_display_hotfix::{
 pub use difficulty_hotfix::{
     DifficultyHotfixLoadOutcomeLikeCpp, DifficultyHotfixPersistencePortLikeCpp,
     DifficultyHotfixRowLikeCpp, DifficultyHotfixRowsLikeCpp,
+};
+pub use exploration_base_xp_catalog::{
+    ExplorationBaseXpCatalogLoadOutcomeLikeCpp, ExplorationBaseXpCatalogPersistencePortLikeCpp,
+    ExplorationBaseXpPersistenceRowLikeCpp,
 };
 pub use game_tele_catalog::{
     GameTeleCatalogLoadOutcomeLikeCpp, GameTeleCatalogPersistencePortLikeCpp,

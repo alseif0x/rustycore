@@ -45,6 +45,7 @@ pub mod creature_query_catalog_adapter;
 pub mod database;
 pub mod difficulty_hotfix_adapter;
 pub mod error;
+pub mod exploration_base_xp_catalog_adapter;
 pub mod game_event_persistence_adapter;
 pub mod game_tele_catalog_adapter;
 pub mod gameobject_query_catalog_adapter;
@@ -114,6 +115,7 @@ pub use database::{
 };
 pub use difficulty_hotfix_adapter::MariaDbDifficultyHotfixPersistenceAdapterLikeCpp;
 pub use error::DatabaseError;
+pub use exploration_base_xp_catalog_adapter::MariaDbExplorationBaseXpCatalogPersistenceAdapterLikeCpp;
 pub use game_event_persistence_adapter::MariaDbGameEventPersistenceAdapterLikeCpp;
 pub use game_tele_catalog_adapter::MariaDbGameTeleCatalogPersistenceAdapterLikeCpp;
 pub use gameobject_query_catalog_adapter::MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp;

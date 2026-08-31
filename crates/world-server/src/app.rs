@@ -3073,8 +3073,16 @@ async fn run_inner(
         }
         Arc::new(table)
     };
-    let exploration_base_xp_store =
-        Arc::new(wow_data::ExplorationBaseXpStoreLikeCpp::load_like_cpp(&world_db).await?);
+    let exploration_base_xp_persistence =
+        wow_database::MariaDbExplorationBaseXpCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
+            &world_db,
+        ));
+    let exploration_base_xp_store = Arc::new(
+        crate::exploration_base_xp_catalog::load_exploration_base_xp_catalog_like_cpp(
+            &exploration_base_xp_persistence,
+        )
+        .await?,
+    );
 
     // Load QuestXP.db2 for accurate XP rewards
     let dbc_path = format!("{}/dbc/{}", data_dir, locale);
