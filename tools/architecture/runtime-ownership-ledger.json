@@ -1723,11 +1723,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-        "production_lines": 28659,
-        "test_lines": 25786,
-        "total_lines": 54445,
+        "production_lines": 28701,
+        "test_lines": 25858,
+        "total_lines": 54559,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-        "latest_growth_review": "#556 adds one private item random-enchantment World composition boundary: +53 net production conversion/composition lines and +62 focused field, empty-success and preserved-failure test lines. SQL remains in wow-database; DB2 identity/chance validation and grouping remain in wow-data; no gameplay or runtime authority moves into the composition root.",
+        "latest_growth_review": "#558 adds one private GameTele World composition boundary: +42 net production conversion/composition lines and +72 focused field, empty-success and preserved-failure test lines. SQL and checked C++-width decoding remain in wow-database; coordinate/name validation, duplicate replacement and lookup semantics remain in wow-data; no gameplay or runtime authority moves into the composition root.",
           "open_retirement_issues": [
             153
           ],

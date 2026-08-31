@@ -27,6 +27,7 @@ mod battle_pet_selection_catalog;
 mod chr_specialization_hotfix;
 mod creature_display_hotfix;
 mod difficulty_hotfix;
+mod game_tele_catalog;
 mod gossip_startup_catalog;
 mod hotfix_delivery_metadata;
 mod instance_lock;
@@ -78,6 +79,10 @@ pub use creature_display_hotfix::{
 pub use difficulty_hotfix::{
     DifficultyHotfixLoadOutcomeLikeCpp, DifficultyHotfixPersistencePortLikeCpp,
     DifficultyHotfixRowLikeCpp, DifficultyHotfixRowsLikeCpp,
+};
+pub use game_tele_catalog::{
+    GameTeleCatalogLoadOutcomeLikeCpp, GameTeleCatalogPersistencePortLikeCpp,
+    GameTelePersistenceRowLikeCpp,
 };
 pub use gossip_startup_catalog::{
     GossipMenuAddonPersistenceRowLikeCpp, GossipMenuOptionLocalePersistenceRowLikeCpp,

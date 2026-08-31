@@ -2801,9 +2801,12 @@ async fn run_inner(
         reserved_name_store.loaded_rows_like_cpp(),
         reserved_name_store.len()
     );
-    let game_tele_outcome = wow_data::GameTeleStoreLikeCpp::load_like_cpp(world_db.as_ref())
-        .await
-        .context("Failed to load C++ game teleport locations")?;
+    let game_tele_persistence =
+        wow_database::MariaDbGameTeleCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
+    let game_tele_outcome =
+        crate::game_tele_catalog::load_game_tele_catalog_like_cpp(&game_tele_persistence)
+            .await
+            .context("Failed to load C++ game teleport locations")?;
     for (id, name) in &game_tele_outcome.report.skipped_invalid_coordinates {
         tracing::error!(
             "Wrong position for id {} (name: {}) in `game_tele` table, ignoring.",
