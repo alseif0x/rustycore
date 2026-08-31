@@ -31,6 +31,7 @@ mod hotfix_delivery_metadata;
 mod instance_lock;
 mod mount_catalog;
 mod phase_hotfix_catalog;
+mod phase_world_catalog;
 mod player_base_stats;
 mod player_choice;
 mod player_creation_catalog;
@@ -93,6 +94,11 @@ pub use mount_catalog::{
 pub use phase_hotfix_catalog::{
     PhaseGroupHotfixRowLikeCpp, PhaseHotfixLoadOutcomeLikeCpp, PhaseHotfixPersistencePortLikeCpp,
     PhaseHotfixRowLikeCpp,
+};
+pub use phase_world_catalog::{
+    PhaseAreaPersistenceRowLikeCpp, PhaseNamePersistenceRowLikeCpp,
+    PhaseWorldCatalogLoadOutcomeLikeCpp, PhaseWorldCatalogPersistencePortLikeCpp,
+    TerrainSwapDefaultPersistenceRowLikeCpp, TerrainWorldMapPersistenceRowLikeCpp,
 };
 pub use player_base_stats::{
     PLAYER_PRIMARY_STAT_COUNT_LIKE_CPP, PlayerBaseStatsLoadOutcomeLikeCpp,

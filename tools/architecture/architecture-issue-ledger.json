@@ -130,6 +130,7 @@
     540,
     542,
     544,
+    546,
     189,
     192,
     193,
@@ -2048,7 +2049,7 @@
   },
   {
     "number": 544,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.80] Move Phase DB2 Hotfix overlays behind one typed source",
     "kind": "slice",
     "parents": [
@@ -2057,6 +2058,19 @@
     ],
     "depends_on": [
       542
+    ]
+  },
+  {
+    "number": 546,
+    "state": "open",
+    "title": "[ARCH.DB.81] Move World phasing catalogs behind one typed persistence port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      544
     ]
   }
 ]

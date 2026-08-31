@@ -7,10 +7,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use anyhow::Result;
-use tracing::info;
 use wow_constants::ConditionSourceType;
-use wow_database::{WorldDatabase, WorldStatements};
 
 use crate::{AreaTableStore, Condition, ConditionEntriesByTypeStore, ConditionId, PhaseStore};
 
@@ -85,25 +82,6 @@ impl PhaseNameStoreLikeCpp {
         Self {
             names_by_phase_id: rows.into_iter().collect(),
         }
-    }
-
-    /// C++ `ObjectMgr::LoadPhaseNames`.
-    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<Self> {
-        let stmt = db.prepare(WorldStatements::SEL_PHASE_NAMES);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(Self::default());
-        }
-
-        let mut rows = Vec::new();
-        loop {
-            rows.push((result.read(0), result.read_string(1)));
-            if !result.next_row() {
-                break;
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(rows))
     }
 
     /// C++ `ObjectMgr::GetPhaseName`.
@@ -200,31 +178,6 @@ impl PhaseInfoStore {
 
         self.populate_sub_area_exclusions_like_cpp(area_store);
         count
-    }
-
-    pub async fn load_area_phases_like_cpp(
-        &mut self,
-        db: &WorldDatabase,
-        area_store: &AreaTableStore,
-        phase_store: &PhaseStore,
-    ) -> Result<usize> {
-        let stmt = db.prepare(WorldStatements::SEL_PHASE_AREAS);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(0);
-        }
-
-        let mut rows = Vec::new();
-        loop {
-            rows.push((result.read(0), result.read(1)));
-            if !result.next_row() {
-                break;
-            }
-        }
-
-        let count = self.load_area_phases_from_rows_like_cpp(area_store, phase_store, rows);
-        info!("Loaded {count} phase area definitions");
-        Ok(count)
     }
 
     /// C++ `ConditionMgr::addToPhases`.
