@@ -7,10 +7,6 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::Result;
-use tracing::info;
-use wow_database::{SqlResult, WorldDatabase, WorldStatements};
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExplorationBaseXpRowLikeCpp {
     pub level: u8,
@@ -31,32 +27,6 @@ impl ExplorationBaseXpStoreLikeCpp {
         }
 
         Self { base_xp_by_level }
-    }
-
-    /// C++ `ObjectMgr::LoadExplorationBaseXP`.
-    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<Self> {
-        let stmt = db.prepare(WorldStatements::SEL_EXPLORATION_BASE_XP);
-        let mut result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(ExplorationBaseXpRowLikeCpp {
-                    level: result.read(0),
-                    // C++ `ObjectMgr::LoadExplorationBaseXP` reads `basexp`
-                    // with `Field::GetInt32()` and assigns it to `uint32`.
-                    base_xp: read_db_u32_or_i32_like_cpp(&result, 1),
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        let store = Self::from_rows_like_cpp(rows);
-        info!("Loaded {} BaseXP definitions", store.len());
-        Ok(store)
     }
 
     /// C++ `ObjectMgr::GetBaseXP`.
@@ -108,17 +78,6 @@ impl ExplorationBaseXpStoreLikeCpp {
 
         xp
     }
-}
-
-fn read_db_u32_or_i32_like_cpp(result: &SqlResult, column: usize) -> u32 {
-    if let Some(value) = result.try_read::<u32>(column) {
-        return value;
-    }
-
-    result
-        .try_read::<i32>(column)
-        .map(|value| value as u32)
-        .unwrap_or(0)
 }
 
 #[cfg(test)]
