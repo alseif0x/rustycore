@@ -1723,11 +1723,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-        "production_lines": 28787,
-        "test_lines": 25979,
-        "total_lines": 54766,
+        "production_lines": 28828,
+        "test_lines": 26064,
+        "total_lines": 54892,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-        "latest_growth_review": "#564 adds one private reserved-player-name Character composition boundary: +39 net production conversion/composition lines and +60 focused normalization, duplicate-accounting, empty-success and preserved-failure test lines. SQL and required string decoding remain in wow-database; normalization, immutable storage and lookup remain in wow-data; no gameplay or runtime authority moves into the composition root.",
+        "latest_growth_review": "#566 adds one private jump-charge World composition boundary: +41 net production conversion/composition lines and +85 focused field/null transfer, retained DB2-reference validation, empty-success and preserved-failure test lines. SQL and nullable row decoding remain in wow-database; defaults, validation, reports, duplicate replacement and lookup remain in wow-data; no spell, movement, gameplay or runtime authority moves into the composition root.",
           "open_retirement_issues": [
             153
           ],

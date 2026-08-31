@@ -7,8 +7,6 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
-use wow_database::{WorldDatabase, WorldStatements};
 use wow_movement::{JumpChargeParams, JumpChargeSpec};
 
 pub const SPEED_CHARGE_LIKE_CPP: f32 = 42.0;
@@ -135,53 +133,6 @@ impl JumpChargeParamsStoreLikeCpp {
             store: Self { params_by_id },
             report,
         }
-    }
-
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        spell_visual_exists: impl Fn(u32) -> bool,
-        curve_exists: impl Fn(u32) -> bool,
-    ) -> Result<JumpChargeParamsLoadOutcomeLikeCpp> {
-        let mut result = db
-            .query(&db.prepare(WorldStatements::SEL_JUMP_CHARGE_PARAMS))
-            .await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(JumpChargeParamsRowLikeCpp {
-                    id: result.read(0),
-                    speed: result.read(1),
-                    treat_speed_as_move_time_seconds: result.read(2),
-                    jump_gravity: result.read(3),
-                    spell_visual_id: if result.is_null(4) {
-                        None
-                    } else {
-                        Some(result.read(4))
-                    },
-                    progress_curve_id: if result.is_null(5) {
-                        None
-                    } else {
-                        Some(result.read(5))
-                    },
-                    parabolic_curve_id: if result.is_null(6) {
-                        None
-                    } else {
-                        Some(result.read(6))
-                    },
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(
-            rows,
-            spell_visual_exists,
-            curve_exists,
-        ))
     }
 
     pub fn get_jump_charge_params_like_cpp(&self, id: i32) -> Option<&JumpChargeParams> {

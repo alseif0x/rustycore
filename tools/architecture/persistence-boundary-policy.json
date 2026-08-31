@@ -4639,70 +4639,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-data:crate::jump_charge:crates/wow-data/src/jump_charge.rs::impl JumpChargeParamsStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/jump_charge.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::jump_charge"
-      ],
-      "enclosings": [
-        "impl JumpChargeParamsStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl JumpChargeParamsStoreLikeCpp::load_like_cpp in crates/wow-data/src/jump_charge.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::jump_charge:crates/wow-data/src/jump_charge.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/jump_charge.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::jump_charge"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow module in crates/wow-data/src/jump_charge.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-data:crate::mail:crates/wow-data/src/mail.rs::impl MailLevelRewardStoreLikeCpp::load_like_cpp",
       "source_class": "production",
       "packages": [
@@ -13480,6 +13416,126 @@
       "connection_affinity": "The adapter stores exactly one World database handle.",
       "current_order": "The handle surface implies no runtime order beyond the two typed port methods.",
       "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::jump_charge_catalog_adapter:crates/wow-database/src/jump_charge_catalog_adapter.rs::impl MariaDbJumpChargeCatalogPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/jump_charge_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::jump_charge_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbJumpChargeCatalogPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free jump-charge World capability (#566) currently owns the complete wow-database workflow impl MariaDbJumpChargeCatalogPersistenceAdapterLikeCpp::new in crates/wow-database/src/jump_charge_catalog_adapter.rs.",
+      "connection_affinity": "Composition supplies exactly one shared World database handle.",
+      "current_order": "Construction stores the handle only and performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::jump_charge_catalog_adapter:crates/wow-database/src/jump_charge_catalog_adapter.rs::impl wow_persistence::JumpChargeCatalogPersistencePortLikeCpp for MariaDbJumpChargeCatalogPersistenceAdapterLikeCpp::load_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/jump_charge_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::jump_charge_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::JumpChargeCatalogPersistencePortLikeCpp for MariaDbJumpChargeCatalogPersistenceAdapterLikeCpp::load_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free jump-charge World capability (#566) currently owns the complete wow-database workflow impl wow_persistence::JumpChargeCatalogPersistencePortLikeCpp for MariaDbJumpChargeCatalogPersistenceAdapterLikeCpp::load_rows_like_cpp in crates/wow-database/src/jump_charge_catalog_adapter.rs.",
+      "connection_affinity": "The read uses the adapter's one World connection and opens no transaction.",
+      "current_order": "Execute the one exact C++ jump-charge statement and fully decode every row and nullable reference in database order before returning.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query or required-field decode failure exposes no partial batch and preserves Rust's startup-fatal policy at composition.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::jump_charge_catalog_adapter:crates/wow-database/src/jump_charge_catalog_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/jump_charge_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::jump_charge_catalog_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free jump-charge World capability (#566) currently owns the complete wow-database workflow module in crates/wow-database/src/jump_charge_catalog_adapter.rs.",
+      "connection_affinity": "The module owns only the jump-charge MariaDB World adapter.",
+      "current_order": "SQL and nullable decoding stay private; defaults, DB2-reference validation, reports, duplicate replacement and lookup stay in wow-data.",
+      "failure_and_unknown_commit": "No SQL row, database handle or driver error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::jump_charge_catalog_adapter:crates/wow-database/src/jump_charge_catalog_adapter.rs::struct MariaDbJumpChargeCatalogPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/jump_charge_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::jump_charge_catalog_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbJumpChargeCatalogPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free jump-charge World capability (#566) currently owns the complete wow-database workflow struct MariaDbJumpChargeCatalogPersistenceAdapterLikeCpp in crates/wow-database/src/jump_charge_catalog_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one World database handle.",
+      "current_order": "The handle surface implies no order beyond the one typed load method.",
+      "failure_and_unknown_commit": "The handle surface performs no I/O and implies no COMMIT outcome.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -32111,6 +32167,7 @@
         "crates/wow-database/src/instance_lock_persistence_adapter.rs",
         "crates/wow-database/src/item_random_enchantment_catalog_adapter.rs",
         "crates/wow-database/src/item_template_addon_catalog_adapter.rs",
+        "crates/wow-database/src/jump_charge_catalog_adapter.rs",
         "crates/wow-database/src/lfg_dungeons_hotfix_adapter.rs",
         "crates/wow-database/src/lfg_world_catalog_adapter.rs",
         "crates/wow-database/src/map_corpse_adapter.rs",
