@@ -30,6 +30,7 @@ mod gossip_startup_catalog;
 mod hotfix_delivery_metadata;
 mod instance_lock;
 mod mount_catalog;
+mod phase_hotfix_catalog;
 mod player_base_stats;
 mod player_choice;
 mod player_creation_catalog;
@@ -88,6 +89,10 @@ pub use mount_catalog::{
     MountCapabilityHotfixRowLikeCpp, MountCatalogLoadOutcomeLikeCpp,
     MountCatalogPersistencePortLikeCpp, MountDefinitionRowLikeCpp, MountHotfixRowLikeCpp,
     MountTypeXCapabilityHotfixRowLikeCpp, MountXDisplayHotfixRowLikeCpp,
+};
+pub use phase_hotfix_catalog::{
+    PhaseGroupHotfixRowLikeCpp, PhaseHotfixLoadOutcomeLikeCpp, PhaseHotfixPersistencePortLikeCpp,
+    PhaseHotfixRowLikeCpp,
 };
 pub use player_base_stats::{
     PLAYER_PRIMARY_STAT_COUNT_LIKE_CPP, PlayerBaseStatsLoadOutcomeLikeCpp,

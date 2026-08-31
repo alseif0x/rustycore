@@ -1723,11 +1723,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 28177,
-          "test_lines": 24847,
-          "total_lines": 53024,
+          "production_lines": 28256,
+          "test_lines": 25004,
+          "total_lines": 53260,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-          "latest_growth_review": "#542 adds one private four-stage gossip startup composition boundary: +81 production conversion/orchestration lines and +152 focused mapping, ordering, failure/empty and single-adapter test lines. One existing gossip adapter is composed once and reused by startup plus the transitional runtime reads; SQL remains in wow-database while locale filtering, container semantics, condition attachment and publication remain in wow-data.",
+          "latest_growth_review": "#544 adds one private two-stage Phase Hotfix composition boundary: +79 production conversion/orchestration lines and +157 focused field-mapping, overlay, ordering, failure-fence and retained error-context test lines. SQL remains in wow-database; WDC4 parsing, replacement, group-index rebuilding and phase validation remain in wow-data; no gameplay or runtime authority moves into the composition root.",
           "open_retirement_issues": [
             153
           ],
