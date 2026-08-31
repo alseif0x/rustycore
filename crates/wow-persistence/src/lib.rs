@@ -35,6 +35,7 @@ mod phase_world_catalog;
 mod player_base_stats;
 mod player_choice;
 mod player_creation_catalog;
+mod quest_item_catalog;
 mod reputation_catalog;
 mod skill_catalog_hotfix;
 mod skill_world_rules;
@@ -117,6 +118,10 @@ pub use player_creation_catalog::{
     PlayerCreateCastSpellPersistenceRowLikeCpp, PlayerCreateCustomSpellPersistenceRowLikeCpp,
     PlayerCreateInfoPersistenceRowLikeCpp, PlayerCreationCatalogLoadOutcomeLikeCpp,
     PlayerCreationCatalogPersistencePortLikeCpp,
+};
+pub use quest_item_catalog::{
+    CreatureQuestItemPersistenceRowLikeCpp, GameObjectQuestItemPersistenceRowLikeCpp,
+    QuestItemCatalogLoadOutcomeLikeCpp, QuestItemCatalogPersistencePortLikeCpp,
 };
 pub use reputation_catalog::{
     CreatureOnKillReputationPersistenceRowLikeCpp, REPUTATION_SPILLOVER_SLOT_COUNT_LIKE_CPP,

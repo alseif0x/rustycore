@@ -131,6 +131,7 @@
     542,
     544,
     546,
+    548,
     189,
     192,
     193,
@@ -2062,7 +2063,7 @@
   },
   {
     "number": 546,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.81] Move World phasing catalogs behind one typed persistence port",
     "kind": "slice",
     "parents": [
@@ -2071,6 +2072,19 @@
     ],
     "depends_on": [
       544
+    ]
+  },
+  {
+    "number": 548,
+    "state": "open",
+    "title": "[ARCH.DB.82] Move quest-item catalogs behind one typed World persistence port",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      546
     ]
   }
 ]

@@ -7,25 +7,7 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
-use wow_database::{WorldDatabase, WorldStatements};
-
 use crate::DifficultyStore;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GameObjectQuestItemRowLikeCpp {
-    pub gameobject_entry: u32,
-    pub item_id: u32,
-    pub idx: u32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CreatureQuestItemRowLikeCpp {
-    pub creature_entry: u32,
-    pub difficulty_id: u8,
-    pub item_id: u32,
-    pub idx: u32,
-}
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct GameObjectQuestItemLoadReportLikeCpp {
@@ -65,34 +47,34 @@ pub struct CreatureQuestItemLoadOutcomeLikeCpp {
 
 impl GameObjectQuestItemStoreLikeCpp {
     pub fn from_rows_like_cpp(
-        rows: impl IntoIterator<Item = GameObjectQuestItemRowLikeCpp>,
+        rows: impl IntoIterator<Item = (u32, u32, u32)>,
         gameobject_exists: impl Fn(u32) -> bool,
         item_exists: impl Fn(u32) -> bool,
     ) -> GameObjectQuestItemLoadOutcomeLikeCpp {
         let mut items_by_entry: HashMap<u32, Vec<u32>> = HashMap::new();
         let mut report = GameObjectQuestItemLoadReportLikeCpp::default();
 
-        for row in rows {
+        for (gameobject_entry, item_id, idx) in rows {
             report.rows_seen += 1;
 
-            if !gameobject_exists(row.gameobject_entry) {
+            if !gameobject_exists(gameobject_entry) {
                 report
                     .skipped_missing_gameobject
-                    .push((row.gameobject_entry, row.idx));
+                    .push((gameobject_entry, idx));
                 continue;
             }
 
-            if !item_exists(row.item_id) {
+            if !item_exists(item_id) {
                 report
                     .skipped_missing_item
-                    .push((row.gameobject_entry, row.item_id, row.idx));
+                    .push((gameobject_entry, item_id, idx));
                 continue;
             }
 
             items_by_entry
-                .entry(row.gameobject_entry)
+                .entry(gameobject_entry)
                 .or_default()
-                .push(row.item_id);
+                .push(item_id);
             report.loaded_items += 1;
         }
 
@@ -100,37 +82,6 @@ impl GameObjectQuestItemStoreLikeCpp {
             store: Self { items_by_entry },
             report,
         }
-    }
-
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        gameobject_exists: impl Fn(u32) -> bool,
-        item_exists: impl Fn(u32) -> bool,
-    ) -> Result<GameObjectQuestItemLoadOutcomeLikeCpp> {
-        let mut result = db
-            .query(&db.prepare(WorldStatements::SEL_GAMEOBJECT_QUEST_ITEM_ROWS))
-            .await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(GameObjectQuestItemRowLikeCpp {
-                    gameobject_entry: result.read(0),
-                    item_id: result.read(1),
-                    idx: result.read(2),
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(
-            rows,
-            gameobject_exists,
-            item_exists,
-        ))
     }
 
     pub fn get_gameobject_quest_item_list_like_cpp(&self, entry: u32) -> Option<&[u32]> {
@@ -148,39 +99,34 @@ impl GameObjectQuestItemStoreLikeCpp {
 
 impl CreatureQuestItemStoreLikeCpp {
     pub fn from_rows_like_cpp(
-        rows: impl IntoIterator<Item = CreatureQuestItemRowLikeCpp>,
+        rows: impl IntoIterator<Item = (u32, u8, u32, u32)>,
         creature_exists: impl Fn(u32) -> bool,
         item_exists: impl Fn(u32) -> bool,
     ) -> CreatureQuestItemLoadOutcomeLikeCpp {
         let mut items_by_entry_and_difficulty: HashMap<(u32, u8), Vec<u32>> = HashMap::new();
         let mut report = CreatureQuestItemLoadReportLikeCpp::default();
 
-        for row in rows {
+        for (creature_entry, difficulty_id, item_id, idx) in rows {
             report.rows_seen += 1;
 
-            if !creature_exists(row.creature_entry) {
-                report.skipped_missing_creature.push((
-                    row.creature_entry,
-                    row.difficulty_id,
-                    row.idx,
-                ));
+            if !creature_exists(creature_entry) {
+                report
+                    .skipped_missing_creature
+                    .push((creature_entry, difficulty_id, idx));
                 continue;
             }
 
-            if !item_exists(row.item_id) {
-                report.skipped_missing_item.push((
-                    row.creature_entry,
-                    row.difficulty_id,
-                    row.item_id,
-                    row.idx,
-                ));
+            if !item_exists(item_id) {
+                report
+                    .skipped_missing_item
+                    .push((creature_entry, difficulty_id, item_id, idx));
                 continue;
             }
 
             items_by_entry_and_difficulty
-                .entry((row.creature_entry, row.difficulty_id))
+                .entry((creature_entry, difficulty_id))
                 .or_default()
-                .push(row.item_id);
+                .push(item_id);
             report.loaded_items += 1;
         }
 
@@ -190,34 +136,6 @@ impl CreatureQuestItemStoreLikeCpp {
             },
             report,
         }
-    }
-
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        creature_exists: impl Fn(u32) -> bool,
-        item_exists: impl Fn(u32) -> bool,
-    ) -> Result<CreatureQuestItemLoadOutcomeLikeCpp> {
-        let mut result = db
-            .query(&db.prepare(WorldStatements::SEL_CREATURE_QUEST_ITEM_ROWS))
-            .await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(CreatureQuestItemRowLikeCpp {
-                    creature_entry: result.read(0),
-                    difficulty_id: result.read(1),
-                    item_id: result.read(2),
-                    idx: result.read(3),
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(rows, creature_exists, item_exists))
     }
 
     pub fn get_creature_quest_item_list_like_cpp(
@@ -278,26 +196,12 @@ mod tests {
     use super::*;
     use crate::DifficultyEntry;
 
-    fn go_row(entry: u32, item_id: u32, idx: u32) -> GameObjectQuestItemRowLikeCpp {
-        GameObjectQuestItemRowLikeCpp {
-            gameobject_entry: entry,
-            item_id,
-            idx,
-        }
+    fn go_row(entry: u32, item_id: u32, idx: u32) -> (u32, u32, u32) {
+        (entry, item_id, idx)
     }
 
-    fn creature_row(
-        entry: u32,
-        difficulty_id: u8,
-        item_id: u32,
-        idx: u32,
-    ) -> CreatureQuestItemRowLikeCpp {
-        CreatureQuestItemRowLikeCpp {
-            creature_entry: entry,
-            difficulty_id,
-            item_id,
-            idx,
-        }
+    fn creature_row(entry: u32, difficulty_id: u8, item_id: u32, idx: u32) -> (u32, u8, u32, u32) {
+        (entry, difficulty_id, item_id, idx)
     }
 
     #[test]
