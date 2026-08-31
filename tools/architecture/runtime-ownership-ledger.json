@@ -1723,11 +1723,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 28256,
-          "test_lines": 25004,
-          "total_lines": 53260,
+          "production_lines": 28340,
+          "test_lines": 25230,
+          "total_lines": 53570,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-          "latest_growth_review": "#544 adds one private two-stage Phase Hotfix composition boundary: +79 production conversion/orchestration lines and +157 focused field-mapping, overlay, ordering, failure-fence and retained error-context test lines. SQL remains in wow-database; WDC4 parsing, replacement, group-index rebuilding and phase validation remain in wow-data; no gameplay or runtime authority moves into the composition root.",
+          "latest_growth_review": "#546 adds one private four-stage World phasing composition boundary: +84 net production conversion/orchestration lines and +226 focused typed-row, empty, ordering, validation and failure-fence test lines. SQL remains in wow-database; phase/area/map/UI-map validation, sub-area exclusions and terrain indices remain in wow-data; no gameplay or runtime authority moves into the composition root.",
           "open_retirement_issues": [
             153
           ],
