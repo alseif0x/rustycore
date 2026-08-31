@@ -683,29 +683,19 @@ async fn run_inner(
         phase_store.len(),
         phase_group_store.len()
     );
-    let mut phase_info_store = wow_data::PhaseInfoStore::from_phase_store_like_cpp(&phase_store);
-    phase_info_store
-        .load_area_phases_like_cpp(world_db.as_ref(), &area_table_store, &phase_store)
-        .await
-        .context("Failed to load phase_area rows")?;
-    info!(
-        "Seeded {} phase info records and {} phase area rows",
-        phase_info_store.phase_info_count(),
-        phase_info_store.phase_area_count()
-    );
-    let phase_name_store = Arc::new(
-        wow_data::PhaseNameStoreLikeCpp::load_like_cpp(world_db.as_ref())
-            .await
-            .context("Failed to load C++ phase names")?,
-    );
-    info!("Loaded {} C++ phase names", phase_name_store.len());
-    let terrain_swap_store = Arc::new(
-        wow_data::load_terrain_swaps(world_db.as_ref(), &map_store, |phase_id| {
-            ui_map_x_map_art_store.is_ui_map_phase(phase_id)
-        })
-        .await
-        .context("Failed to load C++ terrain swap stores")?,
-    );
+    let phase_world_adapter =
+        wow_database::MariaDbPhaseWorldCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
+    let (mut phase_info_store, phase_name_store, terrain_swap_store) =
+        crate::phase_world_catalog::load_phase_world_catalogs_like_cpp(
+            &phase_world_adapter,
+            &area_table_store,
+            &phase_store,
+            &map_store,
+            |phase_id| ui_map_x_map_art_store.is_ui_map_phase(phase_id),
+        )
+        .await?;
+    let _phase_name_store = Arc::new(phase_name_store);
+    let terrain_swap_store = Arc::new(terrain_swap_store);
     let mut graveyard_store = wow_data::GraveyardStore::default();
     let graveyard_report = graveyard_store
         .load_graveyard_zones_like_cpp(

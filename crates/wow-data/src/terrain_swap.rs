@@ -1,9 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
 
-use anyhow::Result;
-use tracing::info;
-use wow_database::{WorldDatabase, WorldStatements};
-
 use crate::MapStore;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -110,50 +106,6 @@ impl TerrainSwapStore {
     pub fn terrain_swap_count(&self) -> usize {
         self.terrain_swap_info_by_id.len()
     }
-}
-
-pub async fn load_terrain_swaps(
-    db: &WorldDatabase,
-    map_store: &MapStore,
-    is_ui_map_phase: impl FnMut(u32) -> bool,
-) -> Result<TerrainSwapStore> {
-    let mut terrain_world_maps = Vec::new();
-    let stmt = db.prepare(WorldStatements::SEL_TERRAIN_WORLD_MAPS);
-    let result = db.query(&stmt).await?;
-    if !result.is_empty() {
-        let mut result = result;
-        loop {
-            terrain_world_maps.push((result.read(0), result.read(1)));
-            if !result.next_row() {
-                break;
-            }
-        }
-    }
-
-    let mut terrain_swap_defaults = Vec::new();
-    let stmt = db.prepare(WorldStatements::SEL_TERRAIN_SWAP_DEFAULTS);
-    let result = db.query(&stmt).await?;
-    if !result.is_empty() {
-        let mut result = result;
-        loop {
-            terrain_swap_defaults.push((result.read(0), result.read(1)));
-            if !result.next_row() {
-                break;
-            }
-        }
-    }
-
-    let store = TerrainSwapStore::from_rows_like_cpp(
-        map_store,
-        terrain_world_maps,
-        terrain_swap_defaults,
-        is_ui_map_phase,
-    );
-    info!(
-        "Loaded {} terrain swap definitions",
-        store.terrain_swap_count()
-    );
-    Ok(store)
 }
 
 #[cfg(test)]

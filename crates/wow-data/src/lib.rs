@@ -566,7 +566,7 @@ pub use spell_item_enchantment::{
     SpellEnchantProcLoadOutcomeLikeCpp, SpellEnchantProcRowLikeCpp, SpellEnchantProcStoreLikeCpp,
     SpellItemEnchantmentEntry, SpellItemEnchantmentStore,
 };
-pub use terrain_swap::{TerrainSwapInfo, TerrainSwapStore, load_terrain_swaps};
+pub use terrain_swap::{TerrainSwapInfo, TerrainSwapStore};
 pub use trainer::{
     CreatureTrainerRowLikeCpp, TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP,
     TRAINER_SPELL_STATE_KNOWN_LIKE_CPP, TRAINER_SPELL_STATE_UNAVAILABLE_LIKE_CPP,

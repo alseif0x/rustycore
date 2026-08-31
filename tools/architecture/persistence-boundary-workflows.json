@@ -2732,57 +2732,6 @@
     },
     {
       "package": "wow-data",
-      "module": "crate::phasing",
-      "source": "crates/wow-data/src/phasing.rs",
-      "enclosing": "impl PhaseInfoStore::load_area_phases_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::phasing",
-      "source": "crates/wow-data/src/phasing.rs",
-      "enclosing": "impl PhaseNameStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::phasing",
-      "source": "crates/wow-data/src/phasing.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
       "module": "crate::poi",
       "source": "crates/wow-data/src/poi.rs",
       "enclosing": "impl PointOfInterestLocaleStoreLikeCpp::load_like_cpp",
@@ -3417,40 +3366,6 @@
       "package": "wow-data",
       "module": "crate::spell_item_enchantment",
       "source": "crates/wow-data/src/spell_item_enchantment.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::terrain_swap",
-      "source": "crates/wow-data/src/terrain_swap.rs",
-      "enclosing": "fn load_terrain_swaps",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::terrain_swap",
-      "source": "crates/wow-data/src/terrain_swap.rs",
       "enclosing": "module",
       "logical_databases": [
         "world"
@@ -15695,6 +15610,261 @@
       "connection_affinity": "The read uses the adapter's single World connection and opens no transaction.",
       "current_order": "Execute SEL_GOSSIP_MENU_ADDON as Rust's existing fourth and final startup gossip stage.",
       "failure_and_unknown_commit": "Empty is Loaded(empty); query/decode errors become Failed before publication and reads have no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::phase_world_catalog_adapter",
+      "source": "crates/wow-database/src/phase_world_catalog_adapter.rs",
+      "enclosing": "const PHASE_AREA_STATEMENT_LIKE_CPP",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World phasing capability (#546)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The statement identity is confined to the adapter's one World database handle.",
+      "current_order": "Name exactly SEL_PHASE_AREAS for the first represented Rust phasing startup stage.",
+      "failure_and_unknown_commit": "Statement identity performs no I/O and implies no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::phase_world_catalog_adapter",
+      "source": "crates/wow-database/src/phase_world_catalog_adapter.rs",
+      "enclosing": "const PHASE_NAME_STATEMENT_LIKE_CPP",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World phasing capability (#546)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The statement identity is confined to the adapter's one World database handle.",
+      "current_order": "Name exactly SEL_PHASE_NAMES for the second represented Rust phasing startup stage.",
+      "failure_and_unknown_commit": "Statement identity performs no I/O and implies no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::phase_world_catalog_adapter",
+      "source": "crates/wow-database/src/phase_world_catalog_adapter.rs",
+      "enclosing": "const TERRAIN_SWAP_DEFAULT_STATEMENT_LIKE_CPP",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World phasing capability (#546)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The statement identity is confined to the adapter's one World database handle.",
+      "current_order": "Name exactly SEL_TERRAIN_SWAP_DEFAULTS for the fourth represented Rust phasing startup stage.",
+      "failure_and_unknown_commit": "Statement identity performs no I/O and implies no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::phase_world_catalog_adapter",
+      "source": "crates/wow-database/src/phase_world_catalog_adapter.rs",
+      "enclosing": "const TERRAIN_WORLD_MAP_STATEMENT_LIKE_CPP",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World phasing capability (#546)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The statement identity is confined to the adapter's one World database handle.",
+      "current_order": "Name exactly SEL_TERRAIN_WORLD_MAPS for the third represented Rust phasing startup stage.",
+      "failure_and_unknown_commit": "Statement identity performs no I/O and implies no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::phase_world_catalog_adapter",
+      "source": "crates/wow-database/src/phase_world_catalog_adapter.rs",
+      "enclosing": "fn phase_area_row_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World phasing capability (#546)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of one row already returned by the adapter's World connection.",
+      "current_order": "Decode AreaId then PhaseId in C++ ObjectMgr::LoadAreaPhases selected-column order.",
+      "failure_and_unknown_commit": "Missing, non-integer or out-of-u32 values fail the complete phase-area batch; no COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::phase_world_catalog_adapter",
+      "source": "crates/wow-database/src/phase_world_catalog_adapter.rs",
+      "enclosing": "fn phase_name_row_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World phasing capability (#546)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of one row already returned by the adapter's World connection.",
+      "current_order": "Decode ID then Name in C++ ObjectMgr::LoadPhaseNames selected-column order.",
+      "failure_and_unknown_commit": "Invalid ID fails the complete batch; Name retains the existing binary-collation string conversion and no COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::phase_world_catalog_adapter",
+      "source": "crates/wow-database/src/phase_world_catalog_adapter.rs",
+      "enclosing": "fn query_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World phasing capability (#546)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Each invocation uses the adapter's one World connection and opens no transaction or second logical database.",
+      "current_order": "Prepare and execute exactly the supplied phasing statement, then decode the complete result set in database order.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query or decode failure exposes no partial batch and reads have no COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::phase_world_catalog_adapter",
+      "source": "crates/wow-database/src/phase_world_catalog_adapter.rs",
+      "enclosing": "fn read_integer_checked_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World phasing capability (#546)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure field conversion over one World result row; it opens no connection or transaction.",
+      "current_order": "Try every represented signed and unsigned SQL integer width before field-specific u32 narrowing.",
+      "failure_and_unknown_commit": "Missing or non-integer consumed fields fail without fabricating zero; no I/O or COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::phase_world_catalog_adapter",
+      "source": "crates/wow-database/src/phase_world_catalog_adapter.rs",
+      "enclosing": "fn terrain_swap_default_row_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World phasing capability (#546)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of one row already returned by the adapter's World connection.",
+      "current_order": "Decode MapId then TerrainSwapMap in C++ ObjectMgr::LoadTerrainSwapDefaults selected-column order.",
+      "failure_and_unknown_commit": "Missing, non-integer or out-of-u32 values fail the complete default batch; no COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::phase_world_catalog_adapter",
+      "source": "crates/wow-database/src/phase_world_catalog_adapter.rs",
+      "enclosing": "fn terrain_world_map_row_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World phasing capability (#546)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure decoding of one row already returned by the adapter's World connection.",
+      "current_order": "Decode TerrainSwapMap then UiMapPhaseId in C++ ObjectMgr::LoadTerrainWorldMaps selected-column order.",
+      "failure_and_unknown_commit": "Missing, non-integer or out-of-u32 values fail the complete terrain-world-map batch; no COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::phase_world_catalog_adapter",
+      "source": "crates/wow-database/src/phase_world_catalog_adapter.rs",
+      "enclosing": "impl MariaDbPhaseWorldCatalogPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World phasing capability (#546)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Composition supplies exactly one shared World database handle.",
+      "current_order": "Construction stores the handle only and performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::phase_world_catalog_adapter",
+      "source": "crates/wow-database/src/phase_world_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::PhaseWorldCatalogPersistencePortLikeCpp for MariaDbPhaseWorldCatalogPersistenceAdapterLikeCpp::load_phase_area_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World phasing capability (#546)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The read uses the adapter's one World connection and opens no transaction.",
+      "current_order": "Execute SEL_PHASE_AREAS as the first represented Rust phasing startup stage.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query/decode errors become Failed before every later phasing stage."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::phase_world_catalog_adapter",
+      "source": "crates/wow-database/src/phase_world_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::PhaseWorldCatalogPersistencePortLikeCpp for MariaDbPhaseWorldCatalogPersistenceAdapterLikeCpp::load_phase_name_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World phasing capability (#546)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The read uses the adapter's one World connection and opens no transaction.",
+      "current_order": "Execute SEL_PHASE_NAMES after phase areas and before both terrain stages, preserving current Rust startup order.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query/decode errors become Failed before either terrain stage."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::phase_world_catalog_adapter",
+      "source": "crates/wow-database/src/phase_world_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::PhaseWorldCatalogPersistencePortLikeCpp for MariaDbPhaseWorldCatalogPersistenceAdapterLikeCpp::load_terrain_swap_default_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World phasing capability (#546)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The read uses the adapter's one World connection and opens no transaction.",
+      "current_order": "Execute SEL_TERRAIN_SWAP_DEFAULTS only after the terrain-world-map batch, as the final represented Rust phasing stage.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query/decode errors become Failed before the catalog tuple is returned."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::phase_world_catalog_adapter",
+      "source": "crates/wow-database/src/phase_world_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::PhaseWorldCatalogPersistencePortLikeCpp for MariaDbPhaseWorldCatalogPersistenceAdapterLikeCpp::load_terrain_world_map_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World phasing capability (#546)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The read uses the adapter's one World connection and opens no transaction.",
+      "current_order": "Execute SEL_TERRAIN_WORLD_MAPS after phase names and before terrain defaults, preserving current Rust startup order.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query/decode errors become Failed before the default stage."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::phase_world_catalog_adapter",
+      "source": "crates/wow-database/src/phase_world_catalog_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World phasing capability (#546)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The module owns only the phasing MariaDB World adapter.",
+      "current_order": "SQL identities and row decoding stay private; phase, area, map and UI-map validation remain outside the adapter.",
+      "failure_and_unknown_commit": "No SQL row, database handle or driver error crosses the typed port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::phase_world_catalog_adapter",
+      "source": "crates/wow-database/src/phase_world_catalog_adapter.rs",
+      "enclosing": "struct MariaDbPhaseWorldCatalogPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free World phasing capability (#546)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter stores exactly one World database handle.",
+      "current_order": "The handle surface implies no runtime order beyond the four typed port methods.",
+      "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome."
     },
     {
       "package": "wow-database",
