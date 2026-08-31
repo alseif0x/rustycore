@@ -28,6 +28,7 @@ mod chr_specialization_hotfix;
 mod creature_display_hotfix;
 mod difficulty_hotfix;
 mod exploration_base_xp_catalog;
+mod game_event_world_catalog;
 mod game_tele_catalog;
 mod gossip_startup_catalog;
 mod hotfix_delivery_metadata;
@@ -86,6 +87,16 @@ pub use difficulty_hotfix::{
 pub use exploration_base_xp_catalog::{
     ExplorationBaseXpCatalogLoadOutcomeLikeCpp, ExplorationBaseXpCatalogPersistencePortLikeCpp,
     ExplorationBaseXpPersistenceRowLikeCpp,
+};
+pub use game_event_world_catalog::{
+    CreatureEquipmentIdPersistenceRowLikeCpp, GameEventConditionPersistenceRowLikeCpp,
+    GameEventDataPersistenceRowLikeCpp, GameEventModelEquipPersistenceRowLikeCpp,
+    GameEventNpcFlagPersistenceRowLikeCpp, GameEventNpcVendorPersistenceRowLikeCpp,
+    GameEventObjectGuidPersistenceRowLikeCpp, GameEventPoolPersistenceRowLikeCpp,
+    GameEventPrerequisitePersistenceRowLikeCpp, GameEventQuestConditionPersistenceRowLikeCpp,
+    GameEventQuestRelationPersistenceRowLikeCpp, GameEventWorldCatalogLoadOutcomeLikeCpp,
+    GameEventWorldCatalogPersistencePortLikeCpp, GameEventWorldCatalogPrefixLikeCpp,
+    GameEventWorldCatalogSuffixLikeCpp,
 };
 pub use game_tele_catalog::{
     GameTeleCatalogLoadOutcomeLikeCpp, GameTeleCatalogPersistencePortLikeCpp,

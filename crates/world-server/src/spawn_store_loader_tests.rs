@@ -8,6 +8,8 @@
 
 #![cfg(test)]
 
+use std::sync::{Arc, Mutex};
+
 use super::*;
 
 struct FakeGameEventConditionSavePersistenceLikeCpp {
@@ -35,6 +37,169 @@ impl wow_persistence::GameEventPersistencePortLikeCpp
     > {
         Box::pin(async { wow_persistence::GameEventPersistenceMutationOutcomeLikeCpp::Applied })
     }
+}
+
+struct RecordingGameEventWorldCatalogLikeCpp {
+    calls: Arc<Mutex<Vec<&'static str>>>,
+    fail_prefix: bool,
+    fail_suffix: bool,
+}
+
+impl GameEventWorldCatalogPersistencePortLikeCpp for RecordingGameEventWorldCatalogLikeCpp {
+    fn load_prefix_like_cpp(
+        &self,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        '_,
+        GameEventWorldCatalogLoadOutcomeLikeCpp<GameEventWorldCatalogPrefixLikeCpp>,
+    > {
+        Box::pin(async move {
+            self.calls.lock().unwrap().push("world-prefix");
+            if self.fail_prefix {
+                GameEventWorldCatalogLoadOutcomeLikeCpp::Failed {
+                    reason: "prefix failed".to_owned(),
+                }
+            } else {
+                GameEventWorldCatalogLoadOutcomeLikeCpp::Loaded(empty_game_event_prefix_like_cpp())
+            }
+        })
+    }
+
+    fn load_suffix_like_cpp(
+        &self,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        '_,
+        GameEventWorldCatalogLoadOutcomeLikeCpp<GameEventWorldCatalogSuffixLikeCpp>,
+    > {
+        Box::pin(async move {
+            self.calls.lock().unwrap().push("world-suffix");
+            if self.fail_suffix {
+                GameEventWorldCatalogLoadOutcomeLikeCpp::Failed {
+                    reason: "suffix failed".to_owned(),
+                }
+            } else {
+                GameEventWorldCatalogLoadOutcomeLikeCpp::Loaded(empty_game_event_suffix_like_cpp())
+            }
+        })
+    }
+}
+
+struct RecordingGameEventConditionSaveLikeCpp {
+    calls: Arc<Mutex<Vec<&'static str>>>,
+    fail: bool,
+}
+
+impl wow_persistence::GameEventPersistencePortLikeCpp for RecordingGameEventConditionSaveLikeCpp {
+    fn load_condition_saves_like_cpp<'a>(
+        &'a self,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        'a,
+        wow_persistence::GameEventConditionSaveLoadOutcomeLikeCpp,
+    > {
+        Box::pin(async move {
+            self.calls.lock().unwrap().push("character-saves");
+            if self.fail {
+                wow_persistence::GameEventConditionSaveLoadOutcomeLikeCpp::Failed {
+                    reason: "character failed".to_owned(),
+                }
+            } else {
+                wow_persistence::GameEventConditionSaveLoadOutcomeLikeCpp::Loaded(Vec::new())
+            }
+        })
+    }
+
+    fn execute_mutation_like_cpp<'a>(
+        &'a self,
+        _mutation: wow_persistence::GameEventPersistenceMutationLikeCpp,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        'a,
+        wow_persistence::GameEventPersistenceMutationOutcomeLikeCpp,
+    > {
+        Box::pin(async { wow_persistence::GameEventPersistenceMutationOutcomeLikeCpp::Applied })
+    }
+}
+
+fn empty_game_event_prefix_like_cpp() -> GameEventWorldCatalogPrefixLikeCpp {
+    GameEventWorldCatalogPrefixLikeCpp {
+        max_event_entry: None,
+        events: Vec::new(),
+        prerequisites: Vec::new(),
+        conditions: Vec::new(),
+    }
+}
+
+fn empty_game_event_suffix_like_cpp() -> GameEventWorldCatalogSuffixLikeCpp {
+    GameEventWorldCatalogSuffixLikeCpp {
+        quest_conditions: Vec::new(),
+        pools: Vec::new(),
+        creature_guids: Vec::new(),
+        gameobject_guids: Vec::new(),
+        equipment_ids: Vec::new(),
+        model_equips: Vec::new(),
+        creature_quest_relations: Vec::new(),
+        gameobject_quest_relations: Vec::new(),
+        npc_flags: Vec::new(),
+        npc_vendors: Vec::new(),
+    }
+}
+
+#[tokio::test]
+async fn game_event_world_catalog_keeps_world_character_world_order() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let world = RecordingGameEventWorldCatalogLikeCpp {
+        calls: Arc::clone(&calls),
+        fail_prefix: false,
+        fail_suffix: false,
+    };
+    let character = RecordingGameEventConditionSaveLikeCpp {
+        calls: Arc::clone(&calls),
+        fail: false,
+    };
+    let mut events = GameEventDataStoreLikeCpp::default();
+    let mut report = CanonicalSpawnStoreLoadReport::default();
+
+    load_game_event_world_prefix_like_cpp(&world).await.unwrap();
+    load_game_event_condition_saves_then_world_suffix_like_cpp(
+        &character,
+        &world,
+        &mut events,
+        &mut report,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        *calls.lock().unwrap(),
+        ["world-prefix", "character-saves", "world-suffix"]
+    );
+}
+
+#[tokio::test]
+async fn game_event_character_failure_stops_before_world_suffix() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let world = RecordingGameEventWorldCatalogLikeCpp {
+        calls: Arc::clone(&calls),
+        fail_prefix: false,
+        fail_suffix: false,
+    };
+    let character = RecordingGameEventConditionSaveLikeCpp {
+        calls: Arc::clone(&calls),
+        fail: true,
+    };
+    let mut events = GameEventDataStoreLikeCpp::default();
+    let mut report = CanonicalSpawnStoreLoadReport::default();
+
+    load_game_event_world_prefix_like_cpp(&world).await.unwrap();
+    let error = load_game_event_condition_saves_then_world_suffix_like_cpp(
+        &character,
+        &world,
+        &mut events,
+        &mut report,
+    )
+    .await
+    .unwrap_err();
+
+    assert!(error.to_string().contains("condition-save"));
+    assert_eq!(*calls.lock().unwrap(), ["world-prefix", "character-saves"]);
 }
 
 fn map_store(ids: &[u32]) -> wow_data::MapStore {
@@ -290,20 +455,6 @@ fn signed_game_event_times_are_normalized_like_cpp_getuint64() {
         1_893_456_000
     );
     assert!(normalize_signed_db_u64_like_cpp(-1, "game_event.start_time").is_err());
-}
-
-#[test]
-fn signed_game_event_pool_ids_use_getint8_domain_like_cpp() {
-    assert_eq!(
-        normalize_signed_db_i8_like_cpp(-1, "game_event_pool.eventEntry").unwrap(),
-        -1
-    );
-    assert_eq!(
-        normalize_signed_db_i8_like_cpp(127, "game_event_pool.eventEntry").unwrap(),
-        127
-    );
-    assert!(normalize_signed_db_i8_like_cpp(-129, "game_event_pool.eventEntry").is_err());
-    assert!(normalize_signed_db_i8_like_cpp(128, "game_event_pool.eventEntry").is_err());
 }
 
 #[test]

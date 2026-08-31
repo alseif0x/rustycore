@@ -97,6 +97,21 @@ use wow_map::{
     Difficulty, LinkedRespawnStoreLikeCpp, SpawnData, SpawnGroupFlags, SpawnGroupTemplateData,
     SpawnId, SpawnObjectType, SpawnPosition, SpawnStore,
 };
+use wow_persistence::{
+    CreatureEquipmentIdPersistenceRowLikeCpp,
+    GameEventConditionPersistenceRowLikeCpp as GameEventConditionRowLikeCpp,
+    GameEventDataPersistenceRowLikeCpp as GameEventDataRowLikeCpp,
+    GameEventModelEquipPersistenceRowLikeCpp as GameEventModelEquipRowLikeCpp,
+    GameEventNpcFlagPersistenceRowLikeCpp as GameEventNpcFlagRowLikeCpp,
+    GameEventNpcVendorPersistenceRowLikeCpp as GameEventNpcVendorRowLikeCpp,
+    GameEventObjectGuidPersistenceRowLikeCpp as GameEventObjectGuidRowLikeCpp,
+    GameEventPoolPersistenceRowLikeCpp as GameEventPoolRowLikeCpp,
+    GameEventPrerequisitePersistenceRowLikeCpp as GameEventPrerequisiteRowLikeCpp,
+    GameEventQuestConditionPersistenceRowLikeCpp as GameEventQuestConditionRowLikeCpp,
+    GameEventQuestRelationPersistenceRowLikeCpp as GameEventQuestRelationRowLikeCpp,
+    GameEventWorldCatalogLoadOutcomeLikeCpp, GameEventWorldCatalogPersistencePortLikeCpp,
+    GameEventWorldCatalogPrefixLikeCpp, GameEventWorldCatalogSuffixLikeCpp,
+};
 
 const DIFFICULTY_NONE_LIKE_CPP: Difficulty = 0;
 const PERSONAL_PHASE_FLAG_LIKE_CPP: u32 = 0x8000_0000;
@@ -1599,48 +1614,11 @@ fn world_state_value_i32_like_cpp(
     Ok(truncated as i32)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct GameEventDataRowLikeCpp {
-    event_id: u16,
-    start: u64,
-    end: u64,
-    occurence: u32,
-    length: u32,
-    holiday_id: u32,
-    holiday_stage: u8,
-    description: String,
-    state_raw: u8,
-    announce: u8,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct GameEventPrerequisiteRowLikeCpp {
-    event_id: u16,
-    prerequisite_event: u32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct GameEventConditionRowLikeCpp {
-    event_id: u16,
-    condition_id: u32,
-    req_num: f32,
-    max_world_state: u16,
-    done_world_state: u16,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct GameEventConditionSaveRowLikeCpp {
     event_id: u16,
     condition_id: u32,
     done: f32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct GameEventQuestConditionRowLikeCpp {
-    quest_id: u32,
-    event_id: u16,
-    condition_id: u32,
-    num: f32,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -1990,13 +1968,6 @@ impl GameEventQuestRelationsLikeCpp {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct GameEventQuestRelationRowLikeCpp {
-    event_id: u8,
-    giver_id: u32,
-    quest_id: u32,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GameEventNpcVendorRecordLikeCpp {
     pub spawn_id: SpawnId,
@@ -2063,36 +2034,6 @@ impl GameEventNpcVendorsLikeCpp {
         records.push(record);
         true
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct GameEventNpcVendorRowLikeCpp {
-    event_id: u8,
-    spawn_id: SpawnId,
-    item: u32,
-    maxcount: u32,
-    incrtime: u32,
-    extended_cost: u32,
-    vendor_type: u8,
-    bonus_list_ids: String,
-    player_condition_id: u32,
-    ignore_filtering: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct GameEventNpcFlagRowLikeCpp {
-    spawn_id: SpawnId,
-    event_id: u16,
-    npcflag: u64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct GameEventModelEquipRowLikeCpp {
-    spawn_id: SpawnId,
-    entry: u32,
-    event_id: u16,
-    model_id: u32,
-    equipment_id: u8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3352,18 +3293,6 @@ struct PoolAutospawnCandidateRowLikeCpp {
     mother_pool_id: u32,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct GameEventPoolRowLikeCpp {
-    pool_entry: u32,
-    event_id: i16,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct GameEventObjectGuidRowLikeCpp {
-    guid: SpawnId,
-    event_id: i16,
-}
-
 impl From<LinkedRespawnDbRow> for LinkedRespawnRowLikeCpp {
     fn from(row: LinkedRespawnDbRow) -> Self {
         Self {
@@ -3548,9 +3477,36 @@ async fn load_waypoint_paths_like_cpp(
     Ok(store)
 }
 
+async fn load_game_event_world_prefix_like_cpp(
+    persistence: &dyn GameEventWorldCatalogPersistencePortLikeCpp,
+) -> Result<GameEventWorldCatalogPrefixLikeCpp> {
+    match persistence.load_prefix_like_cpp().await {
+        GameEventWorldCatalogLoadOutcomeLikeCpp::Loaded(rows) => Ok(rows),
+        GameEventWorldCatalogLoadOutcomeLikeCpp::Failed { reason } => {
+            bail!("GameEvent startup World catalog prefix failed: {reason}")
+        }
+    }
+}
+
+async fn load_game_event_condition_saves_then_world_suffix_like_cpp(
+    game_event_persistence: &dyn wow_persistence::GameEventPersistencePortLikeCpp,
+    world_catalog: &dyn GameEventWorldCatalogPersistencePortLikeCpp,
+    game_events: &mut GameEventDataStoreLikeCpp,
+    report: &mut CanonicalSpawnStoreLoadReport,
+) -> Result<GameEventWorldCatalogSuffixLikeCpp> {
+    load_game_event_condition_saves_like_cpp(game_event_persistence, game_events, report).await?;
+    match world_catalog.load_suffix_like_cpp().await {
+        GameEventWorldCatalogLoadOutcomeLikeCpp::Loaded(rows) => Ok(rows),
+        GameEventWorldCatalogLoadOutcomeLikeCpp::Failed { reason } => {
+            bail!("GameEvent startup World catalog suffix failed: {reason}")
+        }
+    }
+}
+
 pub async fn load_canonical_spawn_store_like_cpp(
     db: &WorldDatabase,
     game_event_persistence: &dyn wow_persistence::GameEventPersistencePortLikeCpp,
+    game_event_world_catalog: &dyn GameEventWorldCatalogPersistencePortLikeCpp,
     map_store: &wow_data::MapStore,
     map_difficulty_store: &wow_data::MapDifficultyStore,
     spawn_group_store: &wow_data::SpawnGroupTemplateStore,
@@ -3608,62 +3564,98 @@ pub async fn load_canonical_spawn_store_like_cpp(
     // C++ `PoolMgr::LoadFromDB` uses ObjectMgr creature/gameobject spawn data as
     // existence/map truth. This builds only PoolMgr metadata/plans; no live spawn.
     let pool_mgr = load_pool_mgr_like_cpp(db, &store, &mut report).await?;
-    let game_event_sizing = GameEventSizingLikeCpp::from_max_event_entry_like_cpp(
-        load_max_game_event_entry_like_cpp(db).await?,
-    );
+    let game_event_prefix = load_game_event_world_prefix_like_cpp(game_event_world_catalog).await?;
+    let game_event_sizing =
+        GameEventSizingLikeCpp::from_max_event_entry_like_cpp(game_event_prefix.max_event_entry);
     // C++ `GameEventMgr::LoadFromDB` loads master `game_event` metadata into
     // `mGameEvent` before prerequisite and later event-specific lists consume the same sizing.
     // This is read-only startup metadata: no scheduler, active set, DB2 holiday
     // rewrite, persistence, or apply/unapply side effect is performed here.
-    let mut game_events = load_game_events_like_cpp(db, game_event_sizing, &mut report).await?;
+    let mut game_events =
+        load_game_events_like_cpp(game_event_prefix.events, game_event_sizing, &mut report);
     // C++ `GameEventMgr::LoadFromDB` stores prerequisites on the same `mGameEvent`
     // entries before scheduler helpers read them; no second prerequisite store is created.
-    load_game_event_prerequisites_like_cpp(db, &mut game_events, &mut report).await?;
+    load_game_event_prerequisites_like_cpp(
+        game_event_prefix.prerequisites,
+        &mut game_events,
+        &mut report,
+    );
     // C++ `GameEventMgr::LoadFromDB` loads `game_event_condition` into
     // `mGameEvent[event].conditions`, then overlays character DB saved `done` values.
-    load_game_event_conditions_like_cpp(db, &mut game_events, &mut report).await?;
-    load_game_event_condition_saves_like_cpp(game_event_persistence, &mut game_events, &mut report)
-        .await?;
+    load_game_event_conditions_like_cpp(
+        game_event_prefix.conditions,
+        &mut game_events,
+        &mut report,
+    );
+    let game_event_suffix = load_game_event_condition_saves_then_world_suffix_like_cpp(
+        game_event_persistence,
+        game_event_world_catalog,
+        &mut game_events,
+        &mut report,
+    )
+    .await?;
     // C++ `GameEventMgr::LoadFromDB` loads `game_event_quest_condition` into
     // `mQuestToEventConditions` with quest-key last-row-wins semantics for later
     // `HandleQuestComplete`; this is metadata/evidence only and does not wire quests live.
-    let game_event_quest_conditions =
-        load_game_event_quest_conditions_like_cpp(db, &game_events, &mut report).await?;
+    let game_event_quest_conditions = load_game_event_quest_conditions_like_cpp(
+        game_event_suffix.quest_conditions,
+        &game_events,
+        &mut report,
+    );
     // C++ `GameEventMgr` loads `game_event_pool` after PoolMgr validation so
     // `CheckPool(entry)` can gate each row; this is metadata only.
-    let game_event_pools =
-        load_game_event_pool_ids_like_cpp(db, game_event_sizing, &pool_mgr, &mut report).await?;
+    let game_event_pools = load_game_event_pool_ids_like_cpp(
+        game_event_suffix.pools,
+        game_event_sizing,
+        &pool_mgr,
+        &mut report,
+    );
     // C++ `GameEventMgr` also loads creature/gameobject GUID lists after ObjectMgr
     // spawn metadata exists. This stores only future caller input; no live grid mutation.
-    let game_event_spawn_guids =
-        load_game_event_spawn_guids_like_cpp(db, game_event_sizing, &store, &mut report).await?;
+    let game_event_spawn_guids = load_game_event_spawn_guids_like_cpp(
+        game_event_suffix.creature_guids,
+        game_event_suffix.gameobject_guids,
+        game_event_sizing,
+        &store,
+        &mut report,
+    );
     // C++ `GameEventMgr::LoadFromDB` loads `game_event_model_equip` startup metadata
     // for later `ChangeEquipOrModel`; this slice stores only validated metadata and
     // does not mutate live maps, CreatureData/ObjectMgr baselines, display ids or equipment.
-    let game_event_model_equip =
-        load_game_event_model_equip_like_cpp(db, game_event_sizing, &mut report).await?;
+    let game_event_model_equip = load_game_event_model_equip_like_cpp(
+        game_event_suffix.equipment_ids,
+        game_event_suffix.model_equips,
+        game_event_sizing,
+        &mut report,
+    );
     // C++ `GameEventMgr::LoadFromDB` loads quest relation metadata from
     // `game_event_creature_quest` and `game_event_gameobject_quest` before later
     // condition/NPC flag/vendor metadata. This is read-only startup metadata for
     // future `UpdateEventQuests`; no ObjectMgr quest maps or sessions are mutated.
-    let game_event_quest_relations =
-        load_game_event_quest_relations_like_cpp(db, game_event_sizing, &mut report).await?;
+    let game_event_quest_relations = load_game_event_quest_relations_like_cpp(
+        game_event_suffix.creature_quest_relations,
+        game_event_suffix.gameobject_quest_relations,
+        game_event_sizing,
+        &mut report,
+    );
     // C++ `GameEventMgr::LoadFromDB` loads `game_event_npcflag` into
     // `mGameEventNPCFlags` for later `UpdateEventNPCFlags`/`GetNPCFlag`.
     // This slice stores only static metadata and pure read-only helpers.
-    let game_event_npc_flags =
-        load_game_event_npc_flags_like_cpp(db, game_event_sizing, &mut report).await?;
+    let game_event_npc_flags = load_game_event_npc_flags_like_cpp(
+        game_event_suffix.npc_flags,
+        game_event_sizing,
+        &mut report,
+    );
     // C++ `GameEventMgr::LoadFromDB` loads `game_event_npc_vendor` after
     // `game_event_npcflag` because vendor validation receives the first matching
     // NPC flag low32 mask. Rust stores metadata only and defers ObjectMgr validation/mutation.
     let game_event_npc_vendors = load_game_event_npc_vendors_like_cpp(
-        db,
+        game_event_suffix.npc_vendors,
         game_event_sizing,
         &store,
         &game_event_npc_flags,
         &mut report,
-    )
-    .await?;
+    );
 
     let mut templates = spawn_group_templates_for_spawn_store(spawn_group_store);
     let members = load_spawn_group_members_like_cpp(db).await?;
@@ -3802,133 +3794,55 @@ async fn load_pool_autospawn_candidates_like_cpp(
     Ok(())
 }
 
-async fn load_game_event_pool_ids_like_cpp(
-    db: &WorldDatabase,
+fn load_game_event_pool_ids_like_cpp(
+    rows: Vec<GameEventPoolRowLikeCpp>,
     game_event_sizing: GameEventSizingLikeCpp,
     mgr: &PoolMgrLikeCpp,
     report: &mut CanonicalSpawnStoreLoadReport,
-) -> Result<GameEventPoolIdsLikeCpp> {
+) -> GameEventPoolIdsLikeCpp {
     let mut game_event_pools =
         GameEventPoolIdsLikeCpp::from_game_event_sizing_like_cpp(game_event_sizing);
 
-    let stmt = db.prepare(WorldStatements::SEL_GAME_EVENT_POOLS);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(game_event_pools);
-    }
-
-    loop {
+    for row in rows {
         apply_game_event_pool_row_like_cpp(
-            GameEventPoolRowLikeCpp {
-                pool_entry: read_unsigned_db_u32_like_cpp(
-                    &result,
-                    0,
-                    "game_event_pool.pool_entry",
-                )?,
-                event_id: i16::from(read_signed_db_i8_like_cpp(
-                    &result,
-                    1,
-                    "game_event_pool.eventEntry",
-                )?),
-            },
+            row,
             mgr,
             &mut game_event_pools,
             &mut report.game_event_pools,
         );
-        if !result.next_row() {
-            break;
-        }
     }
-
-    Ok(game_event_pools)
+    game_event_pools
 }
 
-async fn load_max_game_event_entry_like_cpp(db: &WorldDatabase) -> Result<Option<u32>> {
-    let stmt = db.prepare(WorldStatements::SEL_MAX_GAME_EVENT_ENTRY);
-    let result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(None);
-    }
-
-    Ok(result.try_read(0))
-}
-
-async fn load_game_events_like_cpp(
-    db: &WorldDatabase,
+fn load_game_events_like_cpp(
+    rows: Vec<GameEventDataRowLikeCpp>,
     game_event_sizing: GameEventSizingLikeCpp,
     report: &mut CanonicalSpawnStoreLoadReport,
-) -> Result<GameEventDataStoreLikeCpp> {
+) -> GameEventDataStoreLikeCpp {
     let mut game_events =
         GameEventDataStoreLikeCpp::from_game_event_sizing_like_cpp(game_event_sizing);
-    let stmt = db.prepare(WorldStatements::SEL_GAME_EVENTS);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(GameEventDataStoreLikeCpp::default());
+    if rows.is_empty() {
+        return GameEventDataStoreLikeCpp::default();
     }
 
-    loop {
-        apply_game_event_data_row_like_cpp(
-            GameEventDataRowLikeCpp {
-                event_id: u16::from(read_unsigned_db_u8_like_cpp(
-                    &result,
-                    0,
-                    "game_event.eventEntry",
-                )?),
-                start: read_unsigned_db_u64_like_cpp(&result, 1, "game_event.start_time")?,
-                end: read_unsigned_db_u64_like_cpp(&result, 2, "game_event.end_time")?,
-                occurence: read_unsigned_db_u32_like_cpp(&result, 3, "game_event.occurence")?,
-                length: read_unsigned_db_u32_like_cpp(&result, 4, "game_event.length")?,
-                holiday_id: read_unsigned_db_u32_like_cpp(&result, 5, "game_event.holiday")?,
-                holiday_stage: read_unsigned_db_u8_like_cpp(&result, 6, "game_event.holidayStage")?,
-                description: result.read(7),
-                state_raw: read_unsigned_db_u8_like_cpp(&result, 8, "game_event.world_event")?,
-                announce: read_unsigned_db_u8_like_cpp(&result, 9, "game_event.announce")?,
-            },
-            &mut game_events,
-            &mut report.game_events,
-        );
-        if !result.next_row() {
-            break;
-        }
+    for row in rows {
+        apply_game_event_data_row_like_cpp(row, &mut game_events, &mut report.game_events);
     }
-
-    Ok(game_events)
+    game_events
 }
 
-async fn load_game_event_prerequisites_like_cpp(
-    db: &WorldDatabase,
+fn load_game_event_prerequisites_like_cpp(
+    rows: Vec<GameEventPrerequisiteRowLikeCpp>,
     game_events: &mut GameEventDataStoreLikeCpp,
     report: &mut CanonicalSpawnStoreLoadReport,
-) -> Result<()> {
-    let stmt = db.prepare(WorldStatements::SEL_GAME_EVENT_PREREQUISITES);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(());
-    }
-
-    loop {
+) {
+    for row in rows {
         apply_game_event_prerequisite_row_like_cpp(
-            GameEventPrerequisiteRowLikeCpp {
-                event_id: u16::from(read_unsigned_db_u8_like_cpp(
-                    &result,
-                    0,
-                    "game_event_prerequisite.eventEntry",
-                )?),
-                prerequisite_event: read_unsigned_db_u32_like_cpp(
-                    &result,
-                    1,
-                    "game_event_prerequisite.prerequisite_event",
-                )?,
-            },
+            row,
             game_events,
             &mut report.game_event_prerequisites,
         );
-        if !result.next_row() {
-            break;
-        }
     }
-
-    Ok(())
 }
 
 fn apply_game_event_prerequisite_row_like_cpp(
@@ -3952,48 +3866,18 @@ fn apply_game_event_prerequisite_row_like_cpp(
     }
 }
 
-async fn load_game_event_conditions_like_cpp(
-    db: &WorldDatabase,
+fn load_game_event_conditions_like_cpp(
+    rows: Vec<GameEventConditionRowLikeCpp>,
     game_events: &mut GameEventDataStoreLikeCpp,
     report: &mut CanonicalSpawnStoreLoadReport,
-) -> Result<()> {
-    let stmt = db.prepare(WorldStatements::SEL_GAME_EVENT_CONDITIONS);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(());
-    }
-
-    loop {
-        let event_id = read_unsigned_db_u8_like_cpp(&result, 0, "game_event_condition.eventEntry")?;
+) {
+    for row in rows {
         apply_game_event_condition_row_like_cpp(
-            GameEventConditionRowLikeCpp {
-                event_id: u16::from(event_id),
-                condition_id: read_unsigned_db_u32_like_cpp(
-                    &result,
-                    1,
-                    "game_event_condition.condition_id",
-                )?,
-                req_num: result.read(2),
-                max_world_state: read_unsigned_db_u16_like_cpp(
-                    &result,
-                    3,
-                    "game_event_condition.max_world_state_field",
-                )?,
-                done_world_state: read_unsigned_db_u16_like_cpp(
-                    &result,
-                    4,
-                    "game_event_condition.done_world_state_field",
-                )?,
-            },
+            row,
             game_events,
             &mut report.game_event_conditions,
         );
-        if !result.next_row() {
-            break;
-        }
     }
-
-    Ok(())
 }
 
 fn apply_game_event_condition_row_like_cpp(
@@ -4063,46 +3947,21 @@ fn apply_game_event_condition_save_row_like_cpp(
     }
 }
 
-async fn load_game_event_quest_conditions_like_cpp(
-    db: &WorldDatabase,
+fn load_game_event_quest_conditions_like_cpp(
+    rows: Vec<GameEventQuestConditionRowLikeCpp>,
     game_events: &GameEventDataStoreLikeCpp,
     report: &mut CanonicalSpawnStoreLoadReport,
-) -> Result<BTreeMap<u32, GameEventQuestConditionRecordLikeCpp>> {
+) -> BTreeMap<u32, GameEventQuestConditionRecordLikeCpp> {
     let mut quest_conditions = BTreeMap::new();
-    let stmt = db.prepare(WorldStatements::SEL_GAME_EVENT_QUEST_CONDITIONS);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(quest_conditions);
-    }
-
-    loop {
-        let event_id =
-            read_unsigned_db_u8_like_cpp(&result, 1, "game_event_quest_condition.eventEntry")?;
+    for row in rows {
         apply_game_event_quest_condition_row_like_cpp(
-            GameEventQuestConditionRowLikeCpp {
-                quest_id: read_unsigned_db_u32_like_cpp(
-                    &result,
-                    0,
-                    "game_event_quest_condition.quest",
-                )?,
-                event_id: u16::from(event_id),
-                condition_id: read_unsigned_db_u32_like_cpp(
-                    &result,
-                    2,
-                    "game_event_quest_condition.condition_id",
-                )?,
-                num: result.read(3),
-            },
+            row,
             game_events,
             &mut quest_conditions,
             &mut report.game_event_quest_conditions,
         );
-        if !result.next_row() {
-            break;
-        }
     }
-
-    Ok(quest_conditions)
+    quest_conditions
 }
 
 fn apply_game_event_quest_condition_row_like_cpp(
@@ -4192,72 +4051,50 @@ fn apply_game_event_pool_row_like_cpp(
     }
 }
 
-async fn load_game_event_spawn_guids_like_cpp(
-    db: &WorldDatabase,
+fn load_game_event_spawn_guids_like_cpp(
+    creature_rows: Vec<GameEventObjectGuidRowLikeCpp>,
+    gameobject_rows: Vec<GameEventObjectGuidRowLikeCpp>,
     game_event_sizing: GameEventSizingLikeCpp,
     store: &SpawnStore,
     report: &mut CanonicalSpawnStoreLoadReport,
-) -> Result<GameEventSpawnGuidsLikeCpp> {
+) -> GameEventSpawnGuidsLikeCpp {
     let mut game_event_spawn_guids =
         GameEventSpawnGuidsLikeCpp::from_game_event_sizing_like_cpp(game_event_sizing);
 
     load_game_event_object_guids_like_cpp(
-        db,
-        WorldStatements::SEL_GAME_EVENT_CREATURES,
+        creature_rows,
         SpawnObjectType::Creature,
         store,
         &mut game_event_spawn_guids,
         &mut report.game_event_spawn_guids.creature,
-    )
-    .await?;
+    );
     load_game_event_object_guids_like_cpp(
-        db,
-        WorldStatements::SEL_GAME_EVENT_GAMEOBJECTS,
+        gameobject_rows,
         SpawnObjectType::GameObject,
         store,
         &mut game_event_spawn_guids,
         &mut report.game_event_spawn_guids.gameobject,
-    )
-    .await?;
+    );
 
-    Ok(game_event_spawn_guids)
+    game_event_spawn_guids
 }
 
-async fn load_game_event_object_guids_like_cpp(
-    db: &WorldDatabase,
-    statement: WorldStatements,
+fn load_game_event_object_guids_like_cpp(
+    rows: Vec<GameEventObjectGuidRowLikeCpp>,
     object_type: SpawnObjectType,
     store: &SpawnStore,
     game_event_spawn_guids: &mut GameEventSpawnGuidsLikeCpp,
     report: &mut GameEventObjectGuidLoadReportLikeCpp,
-) -> Result<()> {
-    let stmt = db.prepare(statement);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(());
-    }
-
-    loop {
+) {
+    for row in rows {
         apply_game_event_object_guid_row_like_cpp(
-            GameEventObjectGuidRowLikeCpp {
-                guid: read_unsigned_db_u64_like_cpp(&result, 0, "game_event_object.guid")?,
-                event_id: i16::from(read_signed_db_i8_like_cpp(
-                    &result,
-                    1,
-                    "game_event_object.eventEntry",
-                )?),
-            },
+            row,
             object_type,
             store,
             game_event_spawn_guids,
             report,
         );
-        if !result.next_row() {
-            break;
-        }
     }
-
-    Ok(())
 }
 
 fn apply_game_event_object_guid_row_like_cpp(
@@ -4287,85 +4124,44 @@ fn apply_game_event_object_guid_row_like_cpp(
     }
 }
 
-async fn load_creature_equip_template_ids_like_cpp(
-    db: &WorldDatabase,
+fn load_creature_equip_template_ids_like_cpp(
+    rows: Vec<CreatureEquipmentIdPersistenceRowLikeCpp>,
     report: &mut GameEventModelEquipLoadReportLikeCpp,
-) -> Result<BTreeSet<(u32, u8)>> {
-    let stmt = db.prepare(WorldStatements::SEL_CREATURE_EQUIP_TEMPLATE_IDS);
-    let mut result = db.query(&stmt).await?;
+) -> BTreeSet<(u32, u8)> {
     let mut equipment_ids = BTreeSet::new();
-    if result.is_empty() {
-        return Ok(equipment_ids);
-    }
-
-    loop {
+    for row in rows {
         report.equipment_rows += 1;
-        let creature_id: u32 = result.read(0);
-        let equipment_id: u8 = result.read(1);
         // C++ game_event_model_equip validation calls GetEquipmentInfo only for > 0 ids;
         // id 0 is not a valid template key for that positive-id validation path.
-        if equipment_id > 0 && equipment_ids.insert((creature_id, equipment_id)) {
+        if row.equipment_id > 0 && equipment_ids.insert((row.creature_id, row.equipment_id)) {
             report.equipment_ids_loaded += 1;
         }
-        if !result.next_row() {
-            break;
-        }
     }
-
-    Ok(equipment_ids)
+    equipment_ids
 }
 
-async fn load_game_event_model_equip_like_cpp(
-    db: &WorldDatabase,
+fn load_game_event_model_equip_like_cpp(
+    equipment_rows: Vec<CreatureEquipmentIdPersistenceRowLikeCpp>,
+    model_rows: Vec<GameEventModelEquipRowLikeCpp>,
     game_event_sizing: GameEventSizingLikeCpp,
     report: &mut CanonicalSpawnStoreLoadReport,
-) -> Result<GameEventModelEquipLikeCpp> {
-    let equipment_ids =
-        load_creature_equip_template_ids_like_cpp(db, &mut report.game_event_model_equip).await?;
+) -> GameEventModelEquipLikeCpp {
+    let equipment_ids = load_creature_equip_template_ids_like_cpp(
+        equipment_rows,
+        &mut report.game_event_model_equip,
+    );
     let mut model_equip =
         GameEventModelEquipLikeCpp::from_game_event_sizing_like_cpp(game_event_sizing);
 
-    let stmt = db.prepare(WorldStatements::SEL_GAME_EVENT_MODEL_EQUIP);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(model_equip);
-    }
-
-    loop {
+    for row in model_rows {
         apply_game_event_model_equip_row_like_cpp(
-            GameEventModelEquipRowLikeCpp {
-                spawn_id: read_unsigned_db_u64_like_cpp(&result, 0, "game_event_model_equip.guid")?,
-                entry: read_unsigned_db_u32_like_cpp(
-                    &result,
-                    1,
-                    "game_event_model_equip.creature.id",
-                )?,
-                event_id: u16::from(read_unsigned_db_u8_like_cpp(
-                    &result,
-                    2,
-                    "game_event_model_equip.eventEntry",
-                )?),
-                model_id: read_unsigned_db_u32_like_cpp(
-                    &result,
-                    3,
-                    "game_event_model_equip.modelid",
-                )?,
-                equipment_id: read_unsigned_db_u8_like_cpp(
-                    &result,
-                    4,
-                    "game_event_model_equip.equipment_id",
-                )?,
-            },
+            row,
             &equipment_ids,
             &mut model_equip,
             &mut report.game_event_model_equip,
         );
-        if !result.next_row() {
-            break;
-        }
     }
-
-    Ok(model_equip)
+    model_equip
 }
 
 fn apply_game_event_model_equip_row_like_cpp(
@@ -4398,16 +4194,21 @@ fn apply_game_event_model_equip_row_like_cpp(
     }
 }
 
-async fn load_game_event_quest_relations_like_cpp(
-    db: &WorldDatabase,
+fn load_game_event_quest_relations_like_cpp(
+    creature_rows: Vec<GameEventQuestRelationRowLikeCpp>,
+    gameobject_rows: Vec<GameEventQuestRelationRowLikeCpp>,
     game_event_sizing: GameEventSizingLikeCpp,
     report: &mut CanonicalSpawnStoreLoadReport,
-) -> Result<GameEventQuestRelationsLikeCpp> {
+) -> GameEventQuestRelationsLikeCpp {
     let mut quest_relations =
         GameEventQuestRelationsLikeCpp::from_game_event_sizing_like_cpp(game_event_sizing);
 
-    load_game_event_creature_quest_relations_like_cpp(db, &mut quest_relations, report).await?;
-    load_game_event_gameobject_quest_relations_like_cpp(db, &mut quest_relations, report).await?;
+    load_game_event_creature_quest_relations_like_cpp(creature_rows, &mut quest_relations, report);
+    load_game_event_gameobject_quest_relations_like_cpp(
+        gameobject_rows,
+        &mut quest_relations,
+        report,
+    );
 
     report.game_event_quest_relations.creature.events_touched = quest_relations
         .creature_records_by_event_id
@@ -4420,85 +4221,35 @@ async fn load_game_event_quest_relations_like_cpp(
         .filter(|records| !records.is_empty())
         .count();
 
-    Ok(quest_relations)
+    quest_relations
 }
 
-async fn load_game_event_creature_quest_relations_like_cpp(
-    db: &WorldDatabase,
+fn load_game_event_creature_quest_relations_like_cpp(
+    rows: Vec<GameEventQuestRelationRowLikeCpp>,
     quest_relations: &mut GameEventQuestRelationsLikeCpp,
     report: &mut CanonicalSpawnStoreLoadReport,
-) -> Result<()> {
-    let stmt = db.prepare(WorldStatements::SEL_GAME_EVENT_CREATURE_QUESTS);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(());
-    }
-
-    loop {
-        let event_id =
-            read_unsigned_db_u8_like_cpp(&result, 2, "game_event_creature_quest.eventEntry")?;
+) {
+    for row in rows {
         apply_game_event_creature_quest_relation_row_like_cpp(
-            GameEventQuestRelationRowLikeCpp {
-                giver_id: read_unsigned_db_u32_like_cpp(
-                    &result,
-                    0,
-                    "game_event_creature_quest.id",
-                )?,
-                quest_id: read_unsigned_db_u32_like_cpp(
-                    &result,
-                    1,
-                    "game_event_creature_quest.quest",
-                )?,
-                event_id,
-            },
+            row,
             quest_relations,
             &mut report.game_event_quest_relations.creature,
         );
-        if !result.next_row() {
-            break;
-        }
     }
-
-    Ok(())
 }
 
-async fn load_game_event_gameobject_quest_relations_like_cpp(
-    db: &WorldDatabase,
+fn load_game_event_gameobject_quest_relations_like_cpp(
+    rows: Vec<GameEventQuestRelationRowLikeCpp>,
     quest_relations: &mut GameEventQuestRelationsLikeCpp,
     report: &mut CanonicalSpawnStoreLoadReport,
-) -> Result<()> {
-    let stmt = db.prepare(WorldStatements::SEL_GAME_EVENT_GAMEOBJECT_QUESTS);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(());
-    }
-
-    loop {
-        let event_id =
-            read_unsigned_db_u8_like_cpp(&result, 2, "game_event_gameobject_quest.eventEntry")?;
+) {
+    for row in rows {
         apply_game_event_gameobject_quest_relation_row_like_cpp(
-            GameEventQuestRelationRowLikeCpp {
-                giver_id: read_unsigned_db_u32_like_cpp(
-                    &result,
-                    0,
-                    "game_event_gameobject_quest.id",
-                )?,
-                quest_id: read_unsigned_db_u32_like_cpp(
-                    &result,
-                    1,
-                    "game_event_gameobject_quest.quest",
-                )?,
-                event_id,
-            },
+            row,
             quest_relations,
             &mut report.game_event_quest_relations.gameobject,
         );
-        if !result.next_row() {
-            break;
-        }
     }
-
-    Ok(())
 }
 
 fn apply_game_event_creature_quest_relation_row_like_cpp(
@@ -4553,37 +4304,20 @@ fn apply_game_event_gameobject_quest_relation_row_like_cpp(
     }
 }
 
-async fn load_game_event_npc_flags_like_cpp(
-    db: &WorldDatabase,
+fn load_game_event_npc_flags_like_cpp(
+    rows: Vec<GameEventNpcFlagRowLikeCpp>,
     game_event_sizing: GameEventSizingLikeCpp,
     report: &mut CanonicalSpawnStoreLoadReport,
-) -> Result<GameEventNpcFlagsLikeCpp> {
+) -> GameEventNpcFlagsLikeCpp {
     let mut npc_flags =
         GameEventNpcFlagsLikeCpp::from_game_event_sizing_like_cpp(game_event_sizing);
 
-    let stmt = db.prepare(WorldStatements::SEL_GAME_EVENT_NPC_FLAGS);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(npc_flags);
-    }
-
-    loop {
+    for row in rows {
         apply_game_event_npc_flag_row_like_cpp(
-            GameEventNpcFlagRowLikeCpp {
-                spawn_id: read_unsigned_db_u64_like_cpp(&result, 0, "game_event_npcflag.guid")?,
-                event_id: u16::from(read_unsigned_db_u8_like_cpp(
-                    &result,
-                    1,
-                    "game_event_npcflag.eventEntry",
-                )?),
-                npcflag: read_unsigned_db_u64_like_cpp(&result, 2, "game_event_npcflag.npcflag")?,
-            },
+            row,
             &mut npc_flags,
             &mut report.game_event_npc_flags,
         );
-        if !result.next_row() {
-            break;
-        }
     }
 
     report.game_event_npc_flags.events_touched = npc_flags
@@ -4592,7 +4326,7 @@ async fn load_game_event_npc_flags_like_cpp(
         .filter(|records| !records.is_empty())
         .count();
 
-    Ok(npc_flags)
+    npc_flags
 }
 
 fn apply_game_event_npc_flag_row_like_cpp(
@@ -4617,71 +4351,26 @@ fn apply_game_event_npc_flag_row_like_cpp(
     }
 }
 
-async fn load_game_event_npc_vendors_like_cpp(
-    db: &WorldDatabase,
+fn load_game_event_npc_vendors_like_cpp(
+    rows: Vec<GameEventNpcVendorRowLikeCpp>,
     game_event_sizing: GameEventSizingLikeCpp,
     store: &SpawnStore,
     npc_flags: &GameEventNpcFlagsLikeCpp,
     report: &mut CanonicalSpawnStoreLoadReport,
-) -> Result<GameEventNpcVendorsLikeCpp> {
+) -> GameEventNpcVendorsLikeCpp {
     let mut npc_vendors =
         GameEventNpcVendorsLikeCpp::from_game_event_sizing_like_cpp(game_event_sizing);
 
-    let stmt = db.prepare(WorldStatements::SEL_GAME_EVENT_NPC_VENDOR);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(npc_vendors);
-    }
-
-    loop {
-        let event_id =
-            read_unsigned_db_u8_like_cpp(&result, 0, "game_event_npc_vendor.eventEntry")?;
-        let ignore_filtering_raw =
-            read_unsigned_db_u8_like_cpp(&result, 9, "game_event_npc_vendor.IgnoreFiltering")?;
+    for row in rows {
         apply_game_event_npc_vendor_row_like_cpp(
-            GameEventNpcVendorRowLikeCpp {
-                event_id,
-                spawn_id: read_unsigned_db_u64_like_cpp(&result, 1, "game_event_npc_vendor.guid")?,
-                item: read_unsigned_db_u32_like_cpp(&result, 2, "game_event_npc_vendor.item")?,
-                maxcount: read_unsigned_db_u32_like_cpp(
-                    &result,
-                    3,
-                    "game_event_npc_vendor.maxcount",
-                )?,
-                incrtime: read_unsigned_db_u32_like_cpp(
-                    &result,
-                    4,
-                    "game_event_npc_vendor.incrtime",
-                )?,
-                extended_cost: read_unsigned_db_u32_like_cpp(
-                    &result,
-                    5,
-                    "game_event_npc_vendor.ExtendedCost",
-                )?,
-                vendor_type: read_unsigned_db_u8_like_cpp(
-                    &result,
-                    6,
-                    "game_event_npc_vendor.type",
-                )?,
-                bonus_list_ids: result.read_string(7),
-                player_condition_id: read_unsigned_db_u32_like_cpp(
-                    &result,
-                    8,
-                    "game_event_npc_vendor.PlayerConditionId",
-                )?,
-                ignore_filtering: ignore_filtering_raw != 0,
-            },
+            row,
             store,
             npc_flags,
             &mut npc_vendors,
             &mut report.game_event_npc_vendors,
         );
-        if !result.next_row() {
-            break;
-        }
     }
-
-    Ok(npc_vendors)
+    npc_vendors
 }
 
 fn apply_game_event_npc_vendor_row_like_cpp(
@@ -5507,29 +5196,6 @@ fn read_unsigned_db_u16_like_cpp(
     Ok(value as u16)
 }
 
-fn read_signed_db_i8_like_cpp(result: &SqlResult, column: usize, field_name: &str) -> Result<i8> {
-    if result.is_null(column) {
-        return Ok(0);
-    }
-    if let Some(value) = result.try_read::<i8>(column) {
-        return Ok(value);
-    }
-    if let Some(value) = result.try_read::<u8>(column) {
-        return Ok(value as i8);
-    }
-    if let Some(value) = result.try_read::<i16>(column) {
-        return normalize_signed_db_i8_like_cpp(i64::from(value), field_name);
-    }
-    if let Some(value) = result.try_read::<i32>(column) {
-        return normalize_signed_db_i8_like_cpp(i64::from(value), field_name);
-    }
-    if let Some(value) = result.try_read::<i64>(column) {
-        return normalize_signed_db_i8_like_cpp(value, field_name);
-    }
-
-    bail!("could not decode {field_name} at column {column} as a C++ signed 8-bit DB field")
-}
-
 fn normalize_u64_db_u32_like_cpp(value: u64, field_name: &str) -> Result<u32> {
     if value > u64::from(u32::MAX) {
         bail!("{field_name} value {value} exceeds the represented u32 domain");
@@ -5544,14 +5210,6 @@ fn normalize_signed_db_u64_like_cpp(value: i64, field_name: &str) -> Result<u64>
     }
 
     Ok(value as u64)
-}
-
-fn normalize_signed_db_i8_like_cpp(value: i64, field_name: &str) -> Result<i8> {
-    if value < i64::from(i8::MIN) || value > i64::from(i8::MAX) {
-        bail!("{field_name} value {value} exceeds the represented i8 domain");
-    }
-
-    Ok(value as i8)
 }
 
 fn normalize_signed_db_u32_like_cpp(value: i64, field_name: &str) -> Result<u32> {

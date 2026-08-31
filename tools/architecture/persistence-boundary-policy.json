@@ -2101,38 +2101,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_creature_equip_template_ids_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_creature_equip_template_ids_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_creature_equip_template_ids_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_creature_formations_like_cpp",
       "source_class": "production",
       "packages": [
@@ -2197,422 +2165,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_game_event_conditions_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_game_event_conditions_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_game_event_conditions_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_game_event_creature_quest_relations_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_game_event_creature_quest_relations_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_game_event_creature_quest_relations_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_game_event_gameobject_quest_relations_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_game_event_gameobject_quest_relations_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_game_event_gameobject_quest_relations_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_game_event_model_equip_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_game_event_model_equip_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_game_event_model_equip_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_game_event_npc_flags_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_game_event_npc_flags_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_game_event_npc_flags_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_game_event_npc_vendors_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_game_event_npc_vendors_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_game_event_npc_vendors_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_game_event_object_guids_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_game_event_object_guids_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_game_event_object_guids_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_game_event_pool_ids_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_game_event_pool_ids_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_game_event_pool_ids_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_game_event_prerequisites_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_game_event_prerequisites_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_game_event_prerequisites_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_game_event_quest_conditions_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_game_event_quest_conditions_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_game_event_quest_conditions_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_game_event_quest_relations_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_game_event_quest_relations_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_game_event_quest_relations_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_game_event_spawn_guids_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_game_event_spawn_guids_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_game_event_spawn_guids_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_game_events_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_game_events_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_game_events_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_gameobject_spawns_like_cpp",
       "source_class": "production",
       "packages": [
@@ -2667,38 +2219,6 @@
         "world"
       ],
       "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_linked_respawns_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_max_game_event_entry_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_max_game_event_entry_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_max_game_event_entry_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
       "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -2892,39 +2412,6 @@
         "world"
       ],
       "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_world_state_mgr_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow uses independent characters, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn read_signed_db_i8_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn read_signed_db_i8_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters",
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn read_signed_db_i8_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
       "connection_affinity": "The workflow uses independent characters, world connections/pools in source order; no distributed ACID boundary is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -10956,6 +10443,516 @@
       "connection_affinity": "The adapter stores exactly one Character database handle.",
       "current_order": "Preserve C++ statement identity, delete-before-insert order and exact parameter order; gameplay validation remains above the adapter.",
       "failure_and_unknown_commit": "No SQLx row, prepared statement, transaction or database error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_world_catalog_adapter:crates/wow-database/src/game_event_world_catalog_adapter.rs::const GAME_EVENT_WORLD_PREFIX_STATEMENTS_LIKE_CPP",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "const GAME_EVENT_WORLD_PREFIX_STATEMENTS_LIKE_CPP"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568) currently owns the complete wow-database workflow const GAME_EVENT_WORLD_PREFIX_STATEMENTS_LIKE_CPP in crates/wow-database/src/game_event_world_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_world_catalog_adapter:crates/wow-database/src/game_event_world_catalog_adapter.rs::const GAME_EVENT_WORLD_SUFFIX_STATEMENTS_LIKE_CPP",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "const GAME_EVENT_WORLD_SUFFIX_STATEMENTS_LIKE_CPP"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568) currently owns the complete wow-database workflow const GAME_EVENT_WORLD_SUFFIX_STATEMENTS_LIKE_CPP in crates/wow-database/src/game_event_world_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_world_catalog_adapter:crates/wow-database/src/game_event_world_catalog_adapter.rs::fn load_prefix_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn load_prefix_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568) currently owns the complete wow-database workflow fn load_prefix_rows_like_cpp in crates/wow-database/src/game_event_world_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_world_catalog_adapter:crates/wow-database/src/game_event_world_catalog_adapter.rs::fn load_suffix_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn load_suffix_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568) currently owns the complete wow-database workflow fn load_suffix_rows_like_cpp in crates/wow-database/src/game_event_world_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_world_catalog_adapter:crates/wow-database/src/game_event_world_catalog_adapter.rs::fn object_guid_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn object_guid_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568) currently owns the complete wow-database workflow fn object_guid_row_like_cpp in crates/wow-database/src/game_event_world_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_world_catalog_adapter:crates/wow-database/src/game_event_world_catalog_adapter.rs::fn query_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn query_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568) currently owns the complete wow-database workflow fn query_rows_like_cpp in crates/wow-database/src/game_event_world_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_world_catalog_adapter:crates/wow-database/src/game_event_world_catalog_adapter.rs::fn quest_relation_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn quest_relation_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568) currently owns the complete wow-database workflow fn quest_relation_row_like_cpp in crates/wow-database/src/game_event_world_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_world_catalog_adapter:crates/wow-database/src/game_event_world_catalog_adapter.rs::fn read_i8_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn read_i8_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568) currently owns the complete wow-database workflow fn read_i8_like_cpp in crates/wow-database/src/game_event_world_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_world_catalog_adapter:crates/wow-database/src/game_event_world_catalog_adapter.rs::fn read_u16_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn read_u16_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568) currently owns the complete wow-database workflow fn read_u16_like_cpp in crates/wow-database/src/game_event_world_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_world_catalog_adapter:crates/wow-database/src/game_event_world_catalog_adapter.rs::fn read_u32_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn read_u32_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568) currently owns the complete wow-database workflow fn read_u32_like_cpp in crates/wow-database/src/game_event_world_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_world_catalog_adapter:crates/wow-database/src/game_event_world_catalog_adapter.rs::fn read_u64_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn read_u64_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568) currently owns the complete wow-database workflow fn read_u64_like_cpp in crates/wow-database/src/game_event_world_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_world_catalog_adapter:crates/wow-database/src/game_event_world_catalog_adapter.rs::fn read_u8_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn read_u8_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568) currently owns the complete wow-database workflow fn read_u8_like_cpp in crates/wow-database/src/game_event_world_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_world_catalog_adapter:crates/wow-database/src/game_event_world_catalog_adapter.rs::impl MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568) currently owns the complete wow-database workflow impl MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp::new in crates/wow-database/src/game_event_world_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_world_catalog_adapter:crates/wow-database/src/game_event_world_catalog_adapter.rs::impl wow_persistence::GameEventWorldCatalogPersistencePortLikeCpp for MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp::load_prefix_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::GameEventWorldCatalogPersistencePortLikeCpp for MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp::load_prefix_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568) currently owns the complete wow-database workflow impl wow_persistence::GameEventWorldCatalogPersistencePortLikeCpp for MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp::load_prefix_like_cpp in crates/wow-database/src/game_event_world_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_world_catalog_adapter:crates/wow-database/src/game_event_world_catalog_adapter.rs::impl wow_persistence::GameEventWorldCatalogPersistencePortLikeCpp for MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp::load_suffix_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::GameEventWorldCatalogPersistencePortLikeCpp for MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp::load_suffix_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568) currently owns the complete wow-database workflow impl wow_persistence::GameEventWorldCatalogPersistencePortLikeCpp for MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp::load_suffix_like_cpp in crates/wow-database/src/game_event_world_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_world_catalog_adapter:crates/wow-database/src/game_event_world_catalog_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568) currently owns the complete wow-database workflow module in crates/wow-database/src/game_event_world_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::game_event_world_catalog_adapter:crates/wow-database/src/game_event_world_catalog_adapter.rs::struct MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/game_event_world_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::game_event_world_catalog_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged GameEvent startup World catalog capability (#568) currently owns the complete wow-database workflow struct MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp in crates/wow-database/src/game_event_world_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; the composition root invokes the complete prefix and suffix on that same logical database with the independent Character condition-save overlay between them.",
+      "current_order": "Prefix statements remain MAX event, master event, prerequisite and condition; suffix remains quest condition, pool, creature/gameobject GUIDs, equipment/model, creature/gameobject quests, NPC flags and vendor. Each stage fully decodes before domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns either one complete typed batch or Failed and publishes no partial catalog. No transaction or unknown-commit outcome is invented; world-server preserves startup-fatal failure and stops before later stages.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -32158,6 +32155,7 @@
         "crates/wow-database/src/difficulty_hotfix_adapter.rs",
         "crates/wow-database/src/exploration_base_xp_catalog_adapter.rs",
         "crates/wow-database/src/game_event_persistence_adapter.rs",
+        "crates/wow-database/src/game_event_world_catalog_adapter.rs",
         "crates/wow-database/src/game_tele_catalog_adapter.rs",
         "crates/wow-database/src/gameobject_query_catalog_adapter.rs",
         "crates/wow-database/src/gameobject_use_template_adapter.rs",
