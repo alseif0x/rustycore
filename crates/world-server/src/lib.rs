@@ -84,6 +84,7 @@ use wow_world::{
 mod area_trigger_loaded_grid;
 mod area_trigger_template_catalog;
 mod area_trigger_world_catalog;
+mod battle_pet_selection_catalog;
 mod creature_display_hotfix;
 mod creature_loaded_grid;
 mod difficulty_hotfix;

@@ -1863,38 +1863,99 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
     {
-      "package": "wow-data",
-      "module": "crate::battle_pet_selection",
-      "source": "crates/wow-data/src/battle_pet_selection.rs",
-      "enclosing": "impl BattlePetSelectionStoreLikeCpp::load_like_cpp",
+      "package": "wow-database",
+      "module": "crate::battle_pet_selection_catalog_adapter",
+      "source": "crates/wow-database/src/battle_pet_selection_catalog_adapter.rs",
+      "enclosing": "fn integer_like_cpp",
       "logical_databases": [
         "world"
       ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+      "boundary": "wow-database MariaDB adapter for the SQLx-free battle-pet selection World capability (#554)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Pure field conversion over one World result row.",
+      "current_order": "Try represented signed and unsigned SQL widths before narrowing to species, breed or quality widths.",
+      "failure_and_unknown_commit": "Missing, non-integer or out-of-range values fail the complete catalog batch without fabricating zero."
     },
     {
-      "package": "wow-data",
-      "module": "crate::battle_pet_selection",
-      "source": "crates/wow-data/src/battle_pet_selection.rs",
-      "enclosing": "module",
+      "package": "wow-database",
+      "module": "crate::battle_pet_selection_catalog_adapter",
+      "source": "crates/wow-database/src/battle_pet_selection_catalog_adapter.rs",
+      "enclosing": "fn query_rows_like_cpp",
       "logical_databases": [
         "world"
       ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+      "boundary": "wow-database MariaDB adapter for the SQLx-free battle-pet selection World capability (#554)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Each invocation uses the adapter's one World connection and opens no transaction.",
+      "current_order": "Prepare and execute exactly the supplied battle-pet statement, then fully decode its result set in database order.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query or decode failure exposes no partial batch and no COMMIT occurs."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::battle_pet_selection_catalog_adapter",
+      "source": "crates/wow-database/src/battle_pet_selection_catalog_adapter.rs",
+      "enclosing": "impl MariaDbBattlePetSelectionCatalogPersistenceAdapterLikeCpp::new",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free battle-pet selection World capability (#554)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Composition supplies exactly one shared World database handle.",
+      "current_order": "Construction stores the handle only and performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::battle_pet_selection_catalog_adapter",
+      "source": "crates/wow-database/src/battle_pet_selection_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::BattlePetSelectionCatalogPersistencePortLikeCpp for MariaDbBattlePetSelectionCatalogPersistenceAdapterLikeCpp::load_breed_rows_like_cpp",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free battle-pet selection World capability (#554)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The read uses the adapter's one World connection and opens no transaction.",
+      "current_order": "Execute the breed statement as the first battle-pet selection stage.",
+      "failure_and_unknown_commit": "Empty and failure remain distinct at the port; composition deliberately degrades failure to an empty breed source."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::battle_pet_selection_catalog_adapter",
+      "source": "crates/wow-database/src/battle_pet_selection_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::BattlePetSelectionCatalogPersistencePortLikeCpp for MariaDbBattlePetSelectionCatalogPersistenceAdapterLikeCpp::load_quality_rows_like_cpp",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free battle-pet selection World capability (#554)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The read uses the adapter's one World connection and opens no transaction.",
+      "current_order": "Execute the quality statement after the breed outcome, even when the breed read failed.",
+      "failure_and_unknown_commit": "Empty and failure remain distinct at the port; composition deliberately degrades failure to an empty quality source."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::battle_pet_selection_catalog_adapter",
+      "source": "crates/wow-database/src/battle_pet_selection_catalog_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free battle-pet selection World capability (#554)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The module owns only the battle-pet selection MariaDB World adapter.",
+      "current_order": "SQL and decoding stay private; species validation and selection rules stay in wow-data.",
+      "failure_and_unknown_commit": "No SQL row, database handle or driver error crosses the typed port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::battle_pet_selection_catalog_adapter",
+      "source": "crates/wow-database/src/battle_pet_selection_catalog_adapter.rs",
+      "enclosing": "struct MariaDbBattlePetSelectionCatalogPersistenceAdapterLikeCpp",
+      "logical_databases": ["world"],
+      "boundary": "wow-database MariaDB adapter for the SQLx-free battle-pet selection World capability (#554)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter stores exactly one World database handle.",
+      "current_order": "The handle surface implies no order beyond the two typed methods.",
+      "failure_and_unknown_commit": "The handle surface performs no I/O and implies no COMMIT outcome."
     },
     {
       "package": "wow-data",

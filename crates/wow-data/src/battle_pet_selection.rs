@@ -26,7 +26,6 @@ use std::collections::HashMap;
 
 use rand::Rng;
 use tracing::warn;
-use wow_database::{WorldDatabase, WorldStatements};
 
 use crate::creature_template::{
     CreatureModelSelectionRandomLikeCpp, CreatureTemplateLifecycleRecordLikeCpp,
@@ -67,6 +66,18 @@ pub struct BattlePetSelectionStoreLikeCpp {
     qualities: HashMap<u32, u8>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BattlePetBreedRowLikeCpp {
+    pub species_id: u32,
+    pub breed_id: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BattlePetQualityRowLikeCpp {
+    pub species_id: u32,
+    pub quality: u8,
+}
+
 impl BattlePetSelectionStoreLikeCpp {
     pub fn new_for_test_like_cpp(
         breeds: HashMap<u32, Vec<u16>>,
@@ -75,107 +86,70 @@ impl BattlePetSelectionStoreLikeCpp {
         Self { breeds, qualities }
     }
 
-    /// Mirrors the C++ loaders' tolerance: a failed query (missing table) is
-    /// logged and treated as empty, exactly like a null `QueryResult`.
-    pub async fn load_like_cpp<SpeciesFlags>(
-        db: &WorldDatabase,
+    pub fn from_sources_like_cpp<Breeds, Qualities, SpeciesFlags>(
+        breed_rows: Breeds,
+        quality_rows: Qualities,
         mut species_flags: SpeciesFlags,
     ) -> Self
     where
+        Breeds: IntoIterator<Item = BattlePetBreedRowLikeCpp>,
+        Qualities: IntoIterator<Item = BattlePetQualityRowLikeCpp>,
         SpeciesFlags: FnMut(u32) -> Option<i32>,
     {
         let mut store = Self::default();
 
-        let statement = db.prepare(WorldStatements::SEL_BATTLE_PET_BREEDS);
-        match db.query(&statement).await {
-            Ok(mut result) => {
-                if !result.is_empty() {
-                    loop {
-                        let species: u32 = result.try_read(0).unwrap_or_default();
-                        let breed: u16 = result.try_read(1).unwrap_or_default();
-                        if species_flags(species).is_none() {
-                            warn!(
-                                target: "sql.sql",
-                                species,
-                                breed,
-                                "Non-existing BattlePetSpecies.db2 entry referenced in `battle_pet_breeds`"
-                            );
-                        } else {
-                            let entry = store.breeds.entry(species).or_default();
-                            if !entry.contains(&breed) {
-                                entry.push(breed);
-                            }
-                        }
-                        if !result.next_row() {
-                            break;
-                        }
-                    }
-                }
-            }
-            Err(error) => {
+        for row in breed_rows {
+            if species_flags(row.species_id).is_none() {
                 warn!(
                     target: "sql.sql",
-                    %error,
-                    ">> Loaded 0 battle pet breeds. DB table `battle_pet_breeds` could not be read."
+                    species = row.species_id,
+                    breed = row.breed_id,
+                    "Non-existing BattlePetSpecies.db2 entry referenced in `battle_pet_breeds`"
                 );
+            } else {
+                let entry = store.breeds.entry(row.species_id).or_default();
+                if !entry.contains(&row.breed_id) {
+                    entry.push(row.breed_id);
+                }
             }
         }
         for breeds in store.breeds.values_mut() {
             breeds.sort_unstable();
         }
 
-        let statement = db.prepare(WorldStatements::SEL_BATTLE_PET_QUALITY);
-        match db.query(&statement).await {
-            Ok(mut result) => {
-                if !result.is_empty() {
-                    loop {
-                        let species: u32 = result.try_read(0).unwrap_or_default();
-                        let quality: u8 = result.try_read(1).unwrap_or_default();
-                        match species_flags(species) {
-                            None => {
-                                warn!(
-                                    target: "sql.sql",
-                                    species,
-                                    quality,
-                                    "Non-existing BattlePetSpecies.db2 entry referenced in `battle_pet_quality`"
-                                );
-                            }
-                            Some(flags) if quality >= BATTLE_PET_BREED_QUALITY_COUNT_LIKE_CPP => {
-                                warn!(
-                                    target: "sql.sql",
-                                    species,
-                                    quality,
-                                    "BattlePetSpecies.db2 entry referenced in `battle_pet_quality` with non-existing quality"
-                                );
-                                let _ = flags;
-                            }
-                            Some(flags)
-                                if flags & BATTLE_PET_SPECIES_FLAG_WELL_KNOWN_LIKE_CPP != 0
-                                    && quality > BATTLE_PET_BREED_QUALITY_RARE_LIKE_CPP =>
-                            {
-                                warn!(
-                                    target: "sql.sql",
-                                    species,
-                                    quality,
-                                    "Learnable BattlePetSpecies.db2 entry referenced in `battle_pet_quality` with invalid quality"
-                                );
-                            }
-                            Some(_) => {
-                                store.qualities.insert(species, quality);
-                            }
-                        }
-                        if !result.next_row() {
-                            break;
-                        }
-                    }
+        for row in quality_rows {
+            match species_flags(row.species_id) {
+                None => {
+                    warn!(
+                        target: "sql.sql",
+                        species = row.species_id,
+                        quality = row.quality,
+                        "Non-existing BattlePetSpecies.db2 entry referenced in `battle_pet_quality`"
+                    );
                 }
-            }
-            Err(error) => {
-                warn!(
-                    target: "sql.sql",
-                    %error,
-                    ">> Loaded 0 battle pet qualities. DB table `battle_pet_quality` could not be read."
-                );
+                Some(flags) if row.quality >= BATTLE_PET_BREED_QUALITY_COUNT_LIKE_CPP => {
+                    warn!(
+                        target: "sql.sql",
+                        species = row.species_id,
+                        quality = row.quality,
+                        "BattlePetSpecies.db2 entry referenced in `battle_pet_quality` with non-existing quality"
+                    );
+                    let _ = flags;
+                }
+                Some(flags)
+                    if flags & BATTLE_PET_SPECIES_FLAG_WELL_KNOWN_LIKE_CPP != 0
+                        && row.quality > BATTLE_PET_BREED_QUALITY_RARE_LIKE_CPP =>
+                {
+                    warn!(
+                        target: "sql.sql",
+                        species = row.species_id,
+                        quality = row.quality,
+                        "Learnable BattlePetSpecies.db2 entry referenced in `battle_pet_quality` with invalid quality"
+                    );
+                }
+                Some(_) => {
+                    store.qualities.insert(row.species_id, row.quality);
+                }
             }
         }
 

@@ -134,6 +134,7 @@
     548,
     550,
     552,
+    554,
     189,
     192,
     193,
@@ -2104,7 +2105,7 @@
   },
   {
     "number": 552,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.84] Move late LFG World catalogs behind one typed capability",
     "kind": "slice",
     "parents": [
@@ -2113,6 +2114,19 @@
     ],
     "depends_on": [
       550
+    ]
+  },
+  {
+    "number": 554,
+    "state": "open",
+    "title": "[ARCH.DB.85] Move battle-pet selection World catalogs behind one typed capability",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      552
     ]
   }
 ]
