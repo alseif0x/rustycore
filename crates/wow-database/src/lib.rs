@@ -56,6 +56,7 @@ pub mod hotfix_delivery_metadata_adapter;
 pub mod instance_lock_persistence_adapter;
 pub mod item_random_enchantment_catalog_adapter;
 pub mod item_template_addon_catalog_adapter;
+pub mod jump_charge_catalog_adapter;
 pub mod lfg_dungeons_hotfix_adapter;
 pub mod lfg_world_catalog_adapter;
 pub mod loader;
@@ -125,6 +126,7 @@ pub use hotfix_delivery_metadata_adapter::MariaDbHotfixDeliveryMetadataPersisten
 pub use instance_lock_persistence_adapter::MariaDbInstanceLockPersistenceAdapterLikeCpp;
 pub use item_random_enchantment_catalog_adapter::MariaDbItemRandomEnchantmentCatalogPersistenceAdapterLikeCpp;
 pub use item_template_addon_catalog_adapter::MariaDbItemTemplateAddonCatalogPersistenceAdapterLikeCpp;
+pub use jump_charge_catalog_adapter::MariaDbJumpChargeCatalogPersistenceAdapterLikeCpp;
 pub use lfg_dungeons_hotfix_adapter::MariaDbLfgDungeonsHotfixPersistenceAdapterLikeCpp;
 pub use lfg_world_catalog_adapter::MariaDbLfgWorldCatalogPersistenceAdapterLikeCpp;
 pub use loader::{

@@ -33,6 +33,7 @@ mod gossip_startup_catalog;
 mod hotfix_delivery_metadata;
 mod instance_lock;
 mod item_random_enchantment_catalog;
+mod jump_charge_catalog;
 mod lfg_dungeons_hotfix;
 mod lfg_world_catalog;
 mod mount_catalog;
@@ -109,6 +110,10 @@ pub use instance_lock::{
 pub use item_random_enchantment_catalog::{
     ItemRandomEnchantmentCatalogLoadOutcomeLikeCpp,
     ItemRandomEnchantmentCatalogPersistencePortLikeCpp, ItemRandomEnchantmentPersistenceRowLikeCpp,
+};
+pub use jump_charge_catalog::{
+    JumpChargeCatalogLoadOutcomeLikeCpp, JumpChargeCatalogPersistencePortLikeCpp,
+    JumpChargeParamsPersistenceRowLikeCpp,
 };
 pub use lfg_dungeons_hotfix::{
     LfgDungeonsHotfixLoadOutcomeLikeCpp, LfgDungeonsHotfixPersistencePortLikeCpp,
