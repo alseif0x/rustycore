@@ -10,7 +10,6 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::info;
-use wow_database::{HotfixDatabase, HotfixStatements};
 
 use crate::wdc4::Wdc4Reader;
 
@@ -74,43 +73,16 @@ impl PhaseStore {
         Ok(Self { entries })
     }
 
-    pub async fn load_with_hotfixes(
-        data_dir: &str,
-        locale: &str,
-        hotfix_db: &HotfixDatabase,
-    ) -> Result<Self> {
-        let mut store = Self::load(data_dir, locale)?;
-        let hotfix_rows = store.load_hotfix_rows(hotfix_db).await?;
-        if hotfix_rows != 0 {
-            info!("Loaded {hotfix_rows} Phase hotfix rows");
-        }
-        Ok(store)
-    }
-
-    async fn load_hotfix_rows(&mut self, db: &HotfixDatabase) -> Result<usize> {
-        let stmt = db.prepare(HotfixStatements::SEL_PHASE);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(0);
-        }
-
+    pub fn apply_hotfix_entries_like_cpp(
+        &mut self,
+        entries: impl IntoIterator<Item = PhaseEntry>,
+    ) -> usize {
         let mut count = 0usize;
-        loop {
-            let id: u32 = result.read(0);
-            self.entries.insert(
-                id,
-                PhaseEntry {
-                    id,
-                    flags: result.read(1),
-                },
-            );
+        for entry in entries {
+            self.entries.insert(entry.id, entry);
             count += 1;
-
-            if !result.next_row() {
-                break;
-            }
         }
-        Ok(count)
+        count
     }
 
     pub fn get(&self, id: u32) -> Option<&PhaseEntry> {
@@ -206,51 +178,19 @@ impl PhaseGroupStore {
         })
     }
 
-    pub async fn load_with_hotfixes(
-        data_dir: &str,
-        locale: &str,
-        phase_store: &PhaseStore,
-        hotfix_db: &HotfixDatabase,
-    ) -> Result<Self> {
-        let mut store = Self::load(data_dir, locale, phase_store)?;
-        let hotfix_rows = store.load_hotfix_rows(hotfix_db, phase_store).await?;
-        if hotfix_rows != 0 {
-            info!("Loaded {hotfix_rows} PhaseXPhaseGroup hotfix rows");
-        }
-        Ok(store)
-    }
-
-    async fn load_hotfix_rows(
+    pub fn apply_hotfix_entries_like_cpp(
         &mut self,
-        db: &HotfixDatabase,
         phase_store: &PhaseStore,
-    ) -> Result<usize> {
-        let stmt = db.prepare(HotfixStatements::SEL_PHASE_X_PHASE_GROUP);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(0);
-        }
-
+        entries: impl IntoIterator<Item = PhaseXPhaseGroupEntry>,
+    ) -> usize {
         let mut count = 0usize;
-        loop {
-            let id: u32 = result.read(0);
-            self.entries.insert(
-                id,
-                PhaseXPhaseGroupEntry {
-                    id,
-                    phase_id: result.read(1),
-                    phase_group_id: result.read(2),
-                },
-            );
+        for entry in entries {
+            self.entries.insert(entry.id, entry);
             count += 1;
-
-            if !result.next_row() {
-                break;
-            }
         }
 
         self.phases_by_group = build_phases_by_group_like_cpp(phase_store, self.entries.values());
-        Ok(count)
+        count
     }
 
     pub fn get(&self, id: u32) -> Option<&PhaseXPhaseGroupEntry> {
@@ -331,6 +271,64 @@ mod tests {
 
         assert_eq!(group_store.phases_for_group(5), Some([10].as_slice()));
         assert!(group_store.phases_for_group(6).is_none());
+    }
+
+    #[test]
+    fn phase_hotfix_entries_replace_the_effective_db2_row_like_cpp() {
+        let mut store = PhaseStore::from_entries([PhaseEntry { id: 10, flags: 0 }]);
+
+        assert_eq!(
+            store.apply_hotfix_entries_like_cpp([
+                PhaseEntry {
+                    id: 10,
+                    flags: PHASE_ENTRY_FLAG_PERSONAL,
+                },
+                PhaseEntry {
+                    id: 20,
+                    flags: PHASE_ENTRY_FLAG_COSMETIC,
+                },
+            ]),
+            2
+        );
+        assert!(store.is_personal_phase(10));
+        assert!(store.is_cosmetic_phase(20));
+    }
+
+    #[test]
+    fn phase_group_hotfix_entries_rebuild_the_validated_group_index_like_cpp() {
+        let phases = PhaseStore::from_entries([
+            PhaseEntry { id: 10, flags: 0 },
+            PhaseEntry { id: 20, flags: 0 },
+        ]);
+        let mut groups = PhaseGroupStore::from_entries(
+            &phases,
+            [PhaseXPhaseGroupEntry {
+                id: 1,
+                phase_id: 10,
+                phase_group_id: 5,
+            }],
+        );
+
+        assert_eq!(
+            groups.apply_hotfix_entries_like_cpp(
+                &phases,
+                [
+                    PhaseXPhaseGroupEntry {
+                        id: 1,
+                        phase_id: 20,
+                        phase_group_id: 6,
+                    },
+                    PhaseXPhaseGroupEntry {
+                        id: 2,
+                        phase_id: 999,
+                        phase_group_id: 6,
+                    },
+                ],
+            ),
+            2
+        );
+        assert!(groups.phases_for_group(5).is_none());
+        assert_eq!(groups.phases_for_group(6), Some([20].as_slice()));
     }
 
     #[test]
