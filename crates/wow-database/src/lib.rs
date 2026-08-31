@@ -52,6 +52,7 @@ pub mod gossip_catalog_adapter;
 pub mod group_loot_money_adapter;
 pub mod hotfix_delivery_metadata_adapter;
 pub mod instance_lock_persistence_adapter;
+pub mod item_random_enchantment_catalog_adapter;
 pub mod item_template_addon_catalog_adapter;
 pub mod lfg_dungeons_hotfix_adapter;
 pub mod lfg_world_catalog_adapter;
@@ -117,6 +118,7 @@ pub use gameobject_query_catalog_adapter::MariaDbGameObjectQueryCatalogPersisten
 pub use gossip_catalog_adapter::MariaDbGossipCatalogPersistenceAdapterLikeCpp;
 pub use hotfix_delivery_metadata_adapter::MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp;
 pub use instance_lock_persistence_adapter::MariaDbInstanceLockPersistenceAdapterLikeCpp;
+pub use item_random_enchantment_catalog_adapter::MariaDbItemRandomEnchantmentCatalogPersistenceAdapterLikeCpp;
 pub use item_template_addon_catalog_adapter::MariaDbItemTemplateAddonCatalogPersistenceAdapterLikeCpp;
 pub use lfg_dungeons_hotfix_adapter::MariaDbLfgDungeonsHotfixPersistenceAdapterLikeCpp;
 pub use lfg_world_catalog_adapter::MariaDbLfgWorldCatalogPersistenceAdapterLikeCpp;

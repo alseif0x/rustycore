@@ -91,6 +91,7 @@ mod difficulty_hotfix;
 mod gameobject_loaded_grid;
 mod gossip_startup_catalog;
 mod hotfix_delivery_metadata;
+mod item_random_enchantment_catalog;
 mod lfg_dungeons_hotfix;
 mod lfg_world_catalog;
 mod mount_catalog;

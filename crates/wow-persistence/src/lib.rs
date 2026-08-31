@@ -30,6 +30,7 @@ mod difficulty_hotfix;
 mod gossip_startup_catalog;
 mod hotfix_delivery_metadata;
 mod instance_lock;
+mod item_random_enchantment_catalog;
 mod lfg_dungeons_hotfix;
 mod lfg_world_catalog;
 mod mount_catalog;
@@ -93,6 +94,10 @@ pub use instance_lock::{
     InstanceLockPersistenceMutationLikeCpp, InstanceLockPersistenceOutcomeLikeCpp,
     InstanceLockPersistencePlanLikeCpp, InstanceLockPersistencePortLikeCpp,
     SharedInstanceLockPersistenceRowLikeCpp,
+};
+pub use item_random_enchantment_catalog::{
+    ItemRandomEnchantmentCatalogLoadOutcomeLikeCpp,
+    ItemRandomEnchantmentCatalogPersistencePortLikeCpp, ItemRandomEnchantmentPersistenceRowLikeCpp,
 };
 pub use lfg_dungeons_hotfix::{
     LfgDungeonsHotfixLoadOutcomeLikeCpp, LfgDungeonsHotfixPersistencePortLikeCpp,
