@@ -1723,11 +1723,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-        "production_lines": 28467,
-        "test_lines": 25498,
-        "total_lines": 53965,
+        "production_lines": 28539,
+        "test_lines": 25624,
+        "total_lines": 54163,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-        "latest_growth_review": "#550 adds one private LFGDungeons Hotfix composition boundary: +85 net production conversion/composition lines and +106 focused whole-row replacement, empty-success and failed-read test lines. SQL remains in wow-database; DB2 ownership and replacement-by-ID remain in wow-data; the later World template/reward fence is intentionally separate and no gameplay or runtime authority moves into the composition root.",
+        "latest_growth_review": "#552 adds one private late-LFG World composition boundary: +72 net production conversion/composition lines and +126 focused field-mapping, empty-success, read-order and failure-fence test lines. SQL remains in wow-database; DB2/MapDifficulty/Quest validation and reward selection remain in wow-data; the early Hotfix capability remains separate and no gameplay or runtime authority moves into the composition root.",
           "open_retirement_issues": [
             153
           ],

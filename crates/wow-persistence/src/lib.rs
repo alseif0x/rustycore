@@ -30,6 +30,7 @@ mod gossip_startup_catalog;
 mod hotfix_delivery_metadata;
 mod instance_lock;
 mod lfg_dungeons_hotfix;
+mod lfg_world_catalog;
 mod mount_catalog;
 mod phase_hotfix_catalog;
 mod phase_world_catalog;
@@ -91,6 +92,10 @@ pub use instance_lock::{
 pub use lfg_dungeons_hotfix::{
     LfgDungeonsHotfixLoadOutcomeLikeCpp, LfgDungeonsHotfixPersistencePortLikeCpp,
     LfgDungeonsHotfixRowLikeCpp,
+};
+pub use lfg_world_catalog::{
+    LfgDungeonRewardPersistenceRowLikeCpp, LfgDungeonTemplatePersistenceRowLikeCpp,
+    LfgWorldCatalogLoadOutcomeLikeCpp, LfgWorldCatalogPersistencePortLikeCpp,
 };
 pub use mount_catalog::{
     MountCapabilityHotfixRowLikeCpp, MountCatalogLoadOutcomeLikeCpp,

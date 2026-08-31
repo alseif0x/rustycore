@@ -2615,8 +2615,10 @@ async fn run_inner(
             .await
             .context("Failed to load quest store")?,
     );
-    let lfg_load_outcome = wow_data::LfgDungeonStoreLikeCpp::load_like_cpp(
-        world_db.as_ref(),
+    let lfg_world_catalog_persistence =
+        wow_database::MariaDbLfgWorldCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
+    let lfg_load_outcome = lfg_world_catalog::load_lfg_dungeon_store_like_cpp(
+        &lfg_world_catalog_persistence,
         lfg_dungeons_store.as_ref(),
         map_difficulty_store.as_ref(),
         quest_store.as_ref(),
