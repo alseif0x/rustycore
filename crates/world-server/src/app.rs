@@ -3567,8 +3567,10 @@ async fn run_inner(
         .await
         .context("Failed to load effective SpellXSpellVisual authority for creature casts")?,
     );
-    let jump_charge_params_outcome = wow_data::JumpChargeParamsStoreLikeCpp::load_like_cpp(
-        world_db.as_ref(),
+    let jump_charge_persistence =
+        wow_database::MariaDbJumpChargeCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
+    let jump_charge_params_outcome = crate::jump_charge_catalog::load_jump_charge_catalog_like_cpp(
+        &jump_charge_persistence,
         |id| spell_visual_store.get(id).is_some(),
         |id| curve_store.get(id).is_some(),
     )

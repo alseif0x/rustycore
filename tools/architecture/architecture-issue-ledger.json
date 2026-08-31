@@ -139,6 +139,7 @@
     558,
     562,
     564,
+    566,
     189,
     192,
     193,
@@ -2174,7 +2175,7 @@
   },
   {
     "number": 564,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.89] Move reserved-player-name Character catalog behind one typed capability",
     "kind": "slice",
     "parents": [
@@ -2183,6 +2184,19 @@
     ],
     "depends_on": [
       562
+    ]
+  },
+  {
+    "number": 566,
+    "state": "open",
+    "title": "[ARCH.DB.90] Move jump-charge World catalog behind one typed capability",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      564
     ]
   }
 ]
