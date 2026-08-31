@@ -136,6 +136,7 @@
     552,
     554,
     556,
+    558,
     189,
     192,
     193,
@@ -2132,7 +2133,7 @@
   },
   {
     "number": 556,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.86] Move item random-enchantment World catalog behind one typed capability",
     "kind": "slice",
     "parents": [
@@ -2141,6 +2142,19 @@
     ],
     "depends_on": [
       554
+    ]
+  },
+  {
+    "number": 558,
+    "state": "open",
+    "title": "[ARCH.DB.87] Move GameTele World catalog behind one typed capability",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      556
     ]
   }
 ]

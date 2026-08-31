@@ -7,9 +7,7 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
 use wow_core::Position;
-use wow_database::{WorldDatabase, WorldStatements};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GameTeleLikeCpp {
@@ -43,6 +41,7 @@ pub struct GameTeleStoreLikeCpp {
     entries: HashMap<u32, GameTeleLikeCpp>,
 }
 
+#[derive(Debug)]
 pub struct GameTeleLoadOutcomeLikeCpp {
     pub store: GameTeleStoreLikeCpp,
     pub report: GameTeleLoadReportLikeCpp,
@@ -88,33 +87,6 @@ impl GameTeleStoreLikeCpp {
             store: Self { entries },
             report,
         }
-    }
-
-    /// C++ `ObjectMgr::LoadGameTele`.
-    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<GameTeleLoadOutcomeLikeCpp> {
-        let stmt = db.prepare(WorldStatements::SEL_GAME_TELE);
-        let mut result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(GameTeleRowLikeCpp {
-                    id: result.read(0),
-                    position_x: result.read(1),
-                    position_y: result.read(2),
-                    position_z: result.read(3),
-                    orientation: result.read(4),
-                    map_id: result.read(5),
-                    name: result.read(6),
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(rows))
     }
 
     /// C++ `ObjectMgr::GetGameTele(uint32 id)`.
