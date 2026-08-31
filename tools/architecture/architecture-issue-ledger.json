@@ -138,6 +138,7 @@
     556,
     558,
     562,
+    564,
     189,
     192,
     193,
@@ -2160,7 +2161,7 @@
   },
   {
     "number": 562,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.88] Move exploration BaseXP World catalog behind one typed capability",
     "kind": "slice",
     "parents": [
@@ -2169,6 +2170,19 @@
     ],
     "depends_on": [
       558
+    ]
+  },
+  {
+    "number": 564,
+    "state": "open",
+    "title": "[ARCH.DB.89] Move reserved-player-name Character catalog behind one typed capability",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      562
     ]
   }
 ]

@@ -43,6 +43,7 @@ mod player_choice;
 mod player_creation_catalog;
 mod quest_item_catalog;
 mod reputation_catalog;
+mod reserved_name_catalog;
 mod skill_catalog_hotfix;
 mod skill_world_rules;
 mod spell_core_db2_hotfix;
@@ -157,6 +158,10 @@ pub use reputation_catalog::{
     CreatureOnKillReputationPersistenceRowLikeCpp, REPUTATION_SPILLOVER_SLOT_COUNT_LIKE_CPP,
     ReputationCatalogLoadOutcomeLikeCpp, ReputationCatalogPersistencePortLikeCpp,
     ReputationRewardRatePersistenceRowLikeCpp, ReputationSpilloverTemplatePersistenceRowLikeCpp,
+};
+pub use reserved_name_catalog::{
+    ReservedNameCatalogLoadOutcomeLikeCpp, ReservedNameCatalogPersistencePortLikeCpp,
+    ReservedNamePersistenceRowLikeCpp,
 };
 pub use skill_catalog_hotfix::{
     SkillCatalogHotfixLoadOutcomeLikeCpp, SkillCatalogHotfixPersistencePortLikeCpp,

@@ -7,9 +7,6 @@
 
 use std::collections::HashSet;
 
-use anyhow::Result;
-use wow_database::{CharStatements, CharacterDatabase};
-
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ReservedNameStoreLikeCpp {
     names: HashSet<String>,
@@ -24,25 +21,6 @@ impl ReservedNameStoreLikeCpp {
             store.names.insert(normalize_reserved_name_like_cpp(&name));
         }
         store
-    }
-
-    /// C++ `ObjectMgr::LoadReservedPlayersNames`.
-    pub async fn load_like_cpp(db: &CharacterDatabase) -> Result<Self> {
-        let stmt = db.prepare(CharStatements::SEL_RESERVED_NAMES);
-        let mut result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(result.read::<String>(0));
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        let store = Self::from_names_like_cpp(rows);
-        Ok(store)
     }
 
     /// C++ `ObjectMgr::IsReservedName`.
