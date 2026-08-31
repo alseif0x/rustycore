@@ -1723,11 +1723,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-        "production_lines": 28606,
-        "test_lines": 25724,
-        "total_lines": 54330,
+        "production_lines": 28659,
+        "test_lines": 25786,
+        "total_lines": 54445,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-        "latest_growth_review": "#554 adds one private battle-pet selection World composition boundary: +67 net production mapping/composition lines and +100 focused order and independent-failure test lines. SQL remains in wow-database; species validation, breed/quality rules, defaults and RNG selection remain in wow-data; no gameplay or runtime authority moves into the composition root.",
+        "latest_growth_review": "#556 adds one private item random-enchantment World composition boundary: +53 net production conversion/composition lines and +62 focused field, empty-success and preserved-failure test lines. SQL remains in wow-database; DB2 identity/chance validation and grouping remain in wow-data; no gameplay or runtime authority moves into the composition root.",
           "open_retirement_issues": [
             153
           ],

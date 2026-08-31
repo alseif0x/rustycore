@@ -4703,134 +4703,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:wow-data:crate::item_random_enchantment:crates/wow-data/src/item_random_enchantment.rs::impl ItemRandomEnchantmentTemplateStore::load",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/item_random_enchantment.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::item_random_enchantment"
-      ],
-      "enclosings": [
-        "impl ItemRandomEnchantmentTemplateStore::load"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl ItemRandomEnchantmentTemplateStore::load in crates/wow-data/src/item_random_enchantment.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::item_random_enchantment:crates/wow-data/src/item_random_enchantment.rs::impl ItemRandomEnchantmentTemplateStore::load_rows",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/item_random_enchantment.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::item_random_enchantment"
-      ],
-      "enclosings": [
-        "impl ItemRandomEnchantmentTemplateStore::load_rows"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl ItemRandomEnchantmentTemplateStore::load_rows in crates/wow-data/src/item_random_enchantment.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::item_random_enchantment:crates/wow-data/src/item_random_enchantment.rs::impl ItemRandomEnchantmentTemplateStore::load_validated",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/item_random_enchantment.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::item_random_enchantment"
-      ],
-      "enclosings": [
-        "impl ItemRandomEnchantmentTemplateStore::load_validated"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl ItemRandomEnchantmentTemplateStore::load_validated in crates/wow-data/src/item_random_enchantment.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::item_random_enchantment:crates/wow-data/src/item_random_enchantment.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/item_random_enchantment.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::item_random_enchantment"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow module in crates/wow-data/src/item_random_enchantment.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-data:crate::jump_charge:crates/wow-data/src/jump_charge.rs::impl JumpChargeParamsStoreLikeCpp::load_like_cpp",
       "source_class": "production",
       "packages": [
@@ -13052,6 +12924,186 @@
       "connection_affinity": "The adapter owns one concrete Character database handle.",
       "current_order": "The composition root owns construction; domain and Session code receive only the trait object.",
       "failure_and_unknown_commit": "The concrete handle never crosses the adapter boundary.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::item_random_enchantment_catalog_adapter:crates/wow-database/src/item_random_enchantment_catalog_adapter.rs::fn decode_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/item_random_enchantment_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::item_random_enchantment_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn decode_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free item random-enchantment World capability (#556) currently owns the complete wow-database workflow fn decode_row_like_cpp in crates/wow-database/src/item_random_enchantment_catalog_adapter.rs.",
+      "connection_affinity": "Pure decoding of one row returned by the adapter's World connection.",
+      "current_order": "Decode Id, EnchantmentId and Chance at their exact C++ selected-column positions.",
+      "failure_and_unknown_commit": "Missing or invalid fields fail the complete batch without fabricating zero.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::item_random_enchantment_catalog_adapter:crates/wow-database/src/item_random_enchantment_catalog_adapter.rs::fn integer_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/item_random_enchantment_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::item_random_enchantment_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn integer_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free item random-enchantment World capability (#556) currently owns the complete wow-database workflow fn integer_like_cpp in crates/wow-database/src/item_random_enchantment_catalog_adapter.rs.",
+      "connection_affinity": "Pure field conversion over one World result row.",
+      "current_order": "Try represented signed and unsigned SQL widths before narrowing both C++ uint32 identifiers.",
+      "failure_and_unknown_commit": "Missing, non-integer or out-of-range values fail without defaults; no I/O or COMMIT occurs.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::item_random_enchantment_catalog_adapter:crates/wow-database/src/item_random_enchantment_catalog_adapter.rs::impl MariaDbItemRandomEnchantmentCatalogPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/item_random_enchantment_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::item_random_enchantment_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbItemRandomEnchantmentCatalogPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free item random-enchantment World capability (#556) currently owns the complete wow-database workflow impl MariaDbItemRandomEnchantmentCatalogPersistenceAdapterLikeCpp::new in crates/wow-database/src/item_random_enchantment_catalog_adapter.rs.",
+      "connection_affinity": "Composition supplies exactly one shared World database handle.",
+      "current_order": "Construction stores the handle only and performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and opens no transaction.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::item_random_enchantment_catalog_adapter:crates/wow-database/src/item_random_enchantment_catalog_adapter.rs::impl wow_persistence::ItemRandomEnchantmentCatalogPersistencePortLikeCpp for MariaDbItemRandomEnchantmentCatalogPersistenceAdapterLikeCpp::load_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/item_random_enchantment_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::item_random_enchantment_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::ItemRandomEnchantmentCatalogPersistencePortLikeCpp for MariaDbItemRandomEnchantmentCatalogPersistenceAdapterLikeCpp::load_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free item random-enchantment World capability (#556) currently owns the complete wow-database workflow impl wow_persistence::ItemRandomEnchantmentCatalogPersistencePortLikeCpp for MariaDbItemRandomEnchantmentCatalogPersistenceAdapterLikeCpp::load_rows_like_cpp in crates/wow-database/src/item_random_enchantment_catalog_adapter.rs.",
+      "connection_affinity": "The read uses the adapter's one World connection and opens no transaction.",
+      "current_order": "Execute the one C++ template statement and fully decode its rows in database order before returning.",
+      "failure_and_unknown_commit": "Empty is Loaded(empty); query/decode failure exposes no partial batch and preserves Rust's startup-fatal policy at composition.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::item_random_enchantment_catalog_adapter:crates/wow-database/src/item_random_enchantment_catalog_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/item_random_enchantment_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::item_random_enchantment_catalog_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free item random-enchantment World capability (#556) currently owns the complete wow-database workflow module in crates/wow-database/src/item_random_enchantment_catalog_adapter.rs.",
+      "connection_affinity": "The module owns only the item random-enchantment MariaDB World adapter.",
+      "current_order": "SQL and decoding stay private; DB2 identity/chance validation and grouping stay in wow-data.",
+      "failure_and_unknown_commit": "No SQL row, database handle or driver error crosses the typed port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::item_random_enchantment_catalog_adapter:crates/wow-database/src/item_random_enchantment_catalog_adapter.rs::struct MariaDbItemRandomEnchantmentCatalogPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/item_random_enchantment_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::item_random_enchantment_catalog_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbItemRandomEnchantmentCatalogPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free item random-enchantment World capability (#556) currently owns the complete wow-database workflow struct MariaDbItemRandomEnchantmentCatalogPersistenceAdapterLikeCpp in crates/wow-database/src/item_random_enchantment_catalog_adapter.rs.",
+      "connection_affinity": "The adapter stores exactly one World database handle.",
+      "current_order": "The handle surface implies no order beyond the one typed load method.",
+      "failure_and_unknown_commit": "The handle surface performs no I/O and implies no COMMIT outcome.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -31769,6 +31821,7 @@
         "crates/wow-database/src/group_loot_money_adapter.rs",
         "crates/wow-database/src/hotfix_delivery_metadata_adapter.rs",
         "crates/wow-database/src/instance_lock_persistence_adapter.rs",
+        "crates/wow-database/src/item_random_enchantment_catalog_adapter.rs",
         "crates/wow-database/src/item_template_addon_catalog_adapter.rs",
         "crates/wow-database/src/lfg_dungeons_hotfix_adapter.rs",
         "crates/wow-database/src/lfg_world_catalog_adapter.rs",

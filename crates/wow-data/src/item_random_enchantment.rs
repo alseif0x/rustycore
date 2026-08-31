@@ -7,9 +7,7 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
-use tracing::{info, warn};
-use wow_database::{WorldDatabase, WorldStatements};
+use tracing::warn;
 
 use crate::{ItemRandomPropertiesStore, ItemRandomSuffixStore};
 
@@ -66,52 +64,6 @@ impl ItemRandomEnchantmentTemplateStore {
 
             true
         }))
-    }
-
-    pub async fn load(db: &WorldDatabase) -> Result<Self> {
-        let rows = Self::load_rows(db).await?;
-        let store = Self::from_entries(rows);
-        info!(
-            "Loaded {} item random enchantment groups",
-            store.groups.len()
-        );
-        Ok(store)
-    }
-
-    pub async fn load_validated(
-        db: &WorldDatabase,
-        random_properties: &ItemRandomPropertiesStore,
-        random_suffixes: &ItemRandomSuffixStore,
-    ) -> Result<Self> {
-        let rows = Self::load_rows(db).await?;
-        let store = Self::from_entries_validated(rows, random_properties, random_suffixes);
-        info!(
-            "Loaded {} validated item random enchantment groups",
-            store.groups.len()
-        );
-        Ok(store)
-    }
-
-    async fn load_rows(db: &WorldDatabase) -> Result<Vec<ItemRandomEnchantmentTemplateEntry>> {
-        let stmt = db.prepare(WorldStatements::SEL_ITEM_RANDOM_ENCHANTMENT_TEMPLATE);
-        let result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            let mut result = result;
-            loop {
-                rows.push(ItemRandomEnchantmentTemplateEntry {
-                    group_id: result.try_read::<u32>(0).unwrap_or(0),
-                    enchantment_id: result.try_read::<u32>(1).unwrap_or(0),
-                    chance: f64::from(result.try_read::<f32>(2).unwrap_or(0.0)),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(rows)
     }
 
     pub fn group(&self, group_id: u32) -> Option<&[ItemRandomEnchantmentTemplateEntry]> {
