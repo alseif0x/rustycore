@@ -2978,13 +2978,15 @@ async fn run_inner(
         trainer_data_store.creature_trainer_count_like_cpp()
     );
 
-    // Issue #161: C++ `BattlePetMgr::LoadAvailablePetBreeds` /
-    // `LoadDefaultPetQualities` world tables for trainer purchase
-    // materialization. The loader tolerates a missing/empty table exactly
-    // like the C++ null-QueryResult path.
+    // C++ loads breeds and qualities independently and tolerates either
+    // unavailable table as an empty catalog.
+    let battle_pet_selection_persistence =
+        wow_database::MariaDbBattlePetSelectionCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
+            &world_db,
+        ));
     let battle_pet_selection_store = Arc::new(
-        wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp::load_like_cpp(
-            world_db.as_ref(),
+        crate::battle_pet_selection_catalog::load_battle_pet_selection_store_like_cpp(
+            &battle_pet_selection_persistence,
             |species| {
                 battle_pet_species_entry_store
                     .get(species)
