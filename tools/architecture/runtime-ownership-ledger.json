@@ -1723,11 +1723,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-        "production_lines": 28701,
-        "test_lines": 25858,
-        "total_lines": 54559,
+        "production_lines": 28748,
+        "test_lines": 25919,
+        "total_lines": 54667,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-        "latest_growth_review": "#558 adds one private GameTele World composition boundary: +42 net production conversion/composition lines and +72 focused field, empty-success and preserved-failure test lines. SQL and checked C++-width decoding remain in wow-database; coordinate/name validation, duplicate replacement and lookup semantics remain in wow-data; no gameplay or runtime authority moves into the composition root.",
+        "latest_growth_review": "#562 adds one private exploration BaseXP World composition boundary: +47 net production conversion/composition lines and +61 focused field, empty-success and preserved-failure test lines. SQL and C++ int32-to-uint32 decoding remain in wow-database; duplicate replacement, lookup and exploration-reward rules remain in wow-data; no gameplay or runtime authority moves into the composition root.",
           "open_retirement_issues": [
             153
           ],
