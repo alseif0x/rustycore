@@ -5192,6 +5192,8 @@ pub(crate) struct SessionPersistencePortsLikeCpp {
     quest_poi: Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>>,
     stored_item_money: Option<Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>>,
     pub(crate) stored_item: Option<Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>>,
+    pub(crate) player_inventory:
+        Option<Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>>,
     group_loot_money: Option<Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>>,
     represented_group: Option<Arc<dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp>>,
     support_bug_report: Option<Arc<dyn wow_persistence::SupportBugReportPersistencePortLikeCpp>>,

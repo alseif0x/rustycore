@@ -18,6 +18,7 @@ pub mod phasing;
 #[path = "session/directory.rs"]
 pub mod player_directory;
 mod player_directory_canonical_queries;
+mod player_quest_persistence_projection;
 #[allow(dead_code)] // Private prerequisite seam consumed by trainer issue #157.
 pub(crate) mod profession;
 pub mod reputation;

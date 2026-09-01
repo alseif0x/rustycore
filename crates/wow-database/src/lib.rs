@@ -79,6 +79,7 @@ pub mod phase_world_catalog_adapter;
 pub mod player_base_stats_adapter;
 pub mod player_choice_catalog_adapter;
 pub mod player_creation_catalog_adapter;
+pub mod player_inventory_adapter;
 pub mod player_lifecycle_adapter;
 pub mod player_money_transaction_adapter;
 pub mod player_name_query_adapter;
@@ -164,6 +165,7 @@ pub use phase_world_catalog_adapter::MariaDbPhaseWorldCatalogPersistenceAdapterL
 pub use player_base_stats_adapter::MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp;
 pub use player_choice_catalog_adapter::MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp;
 pub use player_creation_catalog_adapter::MariaDbPlayerCreationCatalogPersistenceAdapterLikeCpp;
+pub use player_inventory_adapter::MariaDbPlayerInventoryPersistenceAdapterLikeCpp;
 pub use player_name_query_adapter::MariaDbPlayerNameQueryPersistenceAdapterLikeCpp;
 pub use query_holder::{SqlQueryHolder, SqlQueryHolderResult};
 pub use quest_catalog_adapter::MariaDbQuestCatalogPersistenceAdapterLikeCpp;

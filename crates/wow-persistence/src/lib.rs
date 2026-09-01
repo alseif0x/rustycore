@@ -48,6 +48,7 @@ mod phase_world_catalog;
 mod player_base_stats;
 mod player_choice;
 mod player_creation_catalog;
+mod player_inventory;
 mod quest_catalog;
 mod quest_item_catalog;
 mod reputation_catalog;
@@ -211,6 +212,15 @@ pub use player_creation_catalog::{
     PlayerCreateCastSpellPersistenceRowLikeCpp, PlayerCreateCustomSpellPersistenceRowLikeCpp,
     PlayerCreateInfoPersistenceRowLikeCpp, PlayerCreationCatalogLoadOutcomeLikeCpp,
     PlayerCreationCatalogPersistencePortLikeCpp,
+};
+pub use player_inventory::{
+    InventoryDestroyNodePersistenceLikeCpp, InventoryEquipPersistenceLikeCpp,
+    InventoryGraphDestroyPersistenceLikeCpp, InventoryItemMutablePersistenceLikeCpp,
+    InventoryLinkPersistenceLikeCpp, InventoryPartialDestroyPersistenceLikeCpp,
+    InventoryStackMergePersistenceLikeCpp, InventoryStackMergeSourcePersistenceLikeCpp,
+    InventoryStorageMovePersistenceLikeCpp, InventorySwapPersistenceLikeCpp,
+    PlayerInventoryPersistencePortLikeCpp, PlayerInventoryPersistenceRequestLikeCpp,
+    QuestObjectiveCountPersistenceLikeCpp, QuestStatusPersistenceLikeCpp,
 };
 pub use quest_catalog::*;
 pub use quest_item_catalog::{

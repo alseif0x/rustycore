@@ -535,17 +535,7 @@ fn inventory_storage_move_quest_directions_like_cpp(
     (moving_to_bank, moving_from_bank)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ItemStorageMutablePersistenceLikeCpp {
-    db_guid: u64,
-    count: u32,
-    expiration: u32,
-    charges: String,
-    flags: u32,
-    enchantments: String,
-    durability: u32,
-    played_time: u32,
-}
+type ItemStorageMutablePersistenceLikeCpp = wow_persistence::InventoryItemMutablePersistenceLikeCpp;
 
 fn loaded_item_random_properties_like_cpp(
     random_properties_id: i32,
@@ -2610,35 +2600,6 @@ fn item_spell_charges_db_string(charges: &[i32], effect_count: usize) -> String 
     out
 }
 
-fn append_item_storage_mutable_persistence_like_cpp(
-    char_db: &CharacterDatabase,
-    tx: &mut SqlTransaction,
-    update: &ItemStorageMutablePersistenceLikeCpp,
-) {
-    let mut statement = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_STORAGE_MUTABLE);
-    statement.set_u32(0, update.count);
-    statement.set_u32(1, update.expiration);
-    statement.set_string(2, &update.charges);
-    statement.set_u32(3, update.flags);
-    statement.set_string(4, &update.enchantments);
-    statement.set_u32(5, update.durability);
-    statement.set_u32(6, update.played_time);
-    statement.set_u64(7, update.db_guid);
-    tx.append(statement);
-}
-
-fn fully_merged_item_cleanup_statements_like_cpp() -> [CharStatements; 7] {
-    [
-        CharStatements::DEL_ITEM_REFUND_INSTANCE,
-        CharStatements::DEL_ITEM_BOP_TRADE,
-        CharStatements::DEL_ITEM_INSTANCE_GEMS,
-        CharStatements::DEL_ITEM_INSTANCE_TRANSMOG,
-        CharStatements::DEL_GIFT,
-        CharStatements::DEL_ITEMCONTAINER_ITEMS,
-        CharStatements::DEL_ITEMCONTAINER_MONEY,
-    ]
-}
-
 fn item_storage_mutable_persistence_like_cpp(
     db_guid: u64,
     item: &wow_entities::Item,
@@ -2649,7 +2610,7 @@ fn item_storage_mutable_persistence_like_cpp(
 ) -> ItemStorageMutablePersistenceLikeCpp {
     let data = item.data();
     ItemStorageMutablePersistenceLikeCpp {
-        db_guid,
+        item_guid: db_guid,
         count,
         expiration: data.expiration,
         charges: item_spell_charges_db_string(&data.spell_charges, effect_count),
