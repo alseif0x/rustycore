@@ -300,6 +300,11 @@ async fn run_inner(
     // ─────────────────────────────────────────────────────────────────────
 
     let hotfix_db = Arc::new(hotfix_db);
+    let static_data_overlay_persistence =
+        wow_database::MariaDbStaticDataOverlayPersistenceAdapterLikeCpp::new(
+            Arc::clone(&hotfix_db),
+            Arc::clone(&world_db),
+        );
     let realm_id = realm_id_like_cpp()?;
     clear_online_accounts_like_cpp(&login_db, &char_db, realm_id).await?;
     update_world_db_core_version_like_cpp(world_db.as_ref()).await?;
@@ -642,14 +647,22 @@ async fn run_inner(
     );
     let world_safe_loc_store = Arc::new(world_safe_loc_store);
     let ui_map_x_map_art_store = Arc::new(
-        wow_data::UiMapXMapArtStore::load_with_hotfixes(&data_dir, &locale, &hotfix_db)
-            .await
-            .context("Failed to load UiMapXMapArt.db2 / hotfix rows")?,
+        crate::static_data_overlay::load_ui_map_x_map_art_store_like_cpp(
+            &data_dir,
+            &locale,
+            &static_data_overlay_persistence,
+        )
+        .await
+        .context("Failed to load UiMapXMapArt.db2 / hotfix rows")?,
     );
     let area_table_store = Arc::new(
-        wow_data::AreaTableStore::load_with_hotfixes(&data_dir, &locale, &hotfix_db)
-            .await
-            .context("Failed to load AreaTable.db2 / hotfix rows")?,
+        crate::static_data_overlay::load_area_table_store_like_cpp(
+            &data_dir,
+            &locale,
+            &static_data_overlay_persistence,
+        )
+        .await
+        .context("Failed to load AreaTable.db2 / hotfix rows")?,
     );
     let area_trigger_db2_store = Arc::new(
         wow_data::AreaTriggerDb2Store::load(&data_dir, &locale)
@@ -1132,8 +1145,10 @@ async fn run_inner(
             .context("Failed to load ChrClasses.db2")?,
     );
     let power_type_store = Arc::new(
-        wow_data::character_progression::PowerTypeStore::load_with_hotfixes(
-            &data_dir, &locale, &hotfix_db,
+        crate::static_data_overlay::load_power_type_store_like_cpp(
+            &data_dir,
+            &locale,
+            &static_data_overlay_persistence,
         )
         .await
         .context("Failed to load PowerType.db2 / hotfix rows")?,
@@ -2488,12 +2503,13 @@ async fn run_inner(
         "Loaded {} gem properties from GemProperties.db2",
         gem_properties_store.len()
     );
-    let spell_enchant_proc_outcome = wow_data::SpellEnchantProcStoreLikeCpp::load_like_cpp(
-        world_db.as_ref(),
-        spell_item_enchantment_store.as_ref(),
-    )
-    .await
-    .context("Failed to load C++ spell_enchant_proc_data rows")?;
+    let spell_enchant_proc_outcome =
+        crate::static_data_overlay::load_spell_enchant_proc_store_like_cpp(
+            &static_data_overlay_persistence,
+            spell_item_enchantment_store.as_ref(),
+        )
+        .await
+        .context("Failed to load C++ spell_enchant_proc_data rows")?;
     let spell_enchant_proc_store = Arc::new(spell_enchant_proc_outcome.store);
     info!(
         "Loaded {} C++ spell_enchant_proc_data rows ({} missing enchantments)",

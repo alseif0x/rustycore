@@ -53,6 +53,7 @@ mod spell_acquisition_startup;
 mod spell_core_db2_hotfix;
 mod spell_info_key_hotfix;
 mod spell_world_catalog;
+mod static_data_overlay;
 mod trainer_catalog;
 mod vehicle_catalog;
 
@@ -238,6 +239,11 @@ pub use spell_world_catalog::{
     SpellRequiredPersistenceRowLikeCpp, SpellTargetPositionPersistenceRowLikeCpp,
     SpellThreatPersistenceRowLikeCpp, SpellTotemModelPersistenceRowLikeCpp,
     SpellWorldCatalogLoadOutcomeLikeCpp, SpellWorldCatalogPersistencePortLikeCpp,
+};
+pub use static_data_overlay::{
+    AreaTableHotfixRowLikeCpp, PowerTypeHotfixRowLikeCpp, SpellEnchantProcPersistenceRowLikeCpp,
+    StaticDataOverlayPersistencePortLikeCpp, StaticDataRowsLoadOutcomeLikeCpp,
+    UiMapXMapArtHotfixRowLikeCpp,
 };
 pub use trainer_catalog::{
     CreatureTrainerPersistenceRowLikeCpp, TrainerCatalogLoadOutcomeLikeCpp,
