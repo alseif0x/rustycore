@@ -132,7 +132,10 @@ impl WorldSession {
             return;
         };
 
-        let next_slot = u32::from(self.player_bank_bag_slot_count_like_cpp()) + 1;
+        let Some(current_bank_slots) = self.resolved_player_bank_bag_slot_count_like_cpp() else {
+            return;
+        };
+        let next_slot = u32::from(current_bank_slots) + 1;
         let Some(price) = self.bank_bag_slot_price_like_cpp(next_slot) else {
             debug!(
                 next_slot,
@@ -219,12 +222,11 @@ impl WorldSession {
             self.kick("canonical Player money owner became unavailable after bank-slot COMMIT");
             return;
         }
-        // This helper builds a clean snapshot from current runtime and then
-        // marks the requested count dirty. Emit it while runtime still holds
-        // the old count, after the durable COMMIT but before storing the new
-        // count locally.
+        if !self.set_player_bank_bag_slot_count_like_cpp(new_count) {
+            self.kick("canonical Player bank-slot owner became unavailable after COMMIT");
+            return;
+        }
         self.send_player_bank_bag_slots_update_like_cpp(new_count);
-        self.set_player_bank_bag_slot_count_like_cpp(new_count);
         self.enqueue_represented_quest_objective_progress_like_cpp(
             RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
                 old_money,
@@ -276,16 +278,18 @@ impl WorldSession {
             return;
         }
 
-        let current = self
-            .represented_bank_bag_slot_flag_like_cpp(slot)
-            .unwrap_or(0);
+        let Some(current) = self.represented_bank_bag_slot_flag_like_cpp(slot) else {
+            return;
+        };
         let mask = 1u32 << packet.flag;
         let updated = if packet.enabled {
             current | mask
         } else {
             current & !mask
         };
-        self.set_represented_bank_bag_slot_flag_like_cpp(slot, updated);
+        if !self.set_represented_bank_bag_slot_flag_like_cpp(slot, updated) {
+            return;
+        }
         self.send_player_bank_bag_slot_flag_update_like_cpp(slot, updated);
     }
 }

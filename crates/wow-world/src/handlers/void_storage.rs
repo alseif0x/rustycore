@@ -709,7 +709,9 @@ impl WorldSession {
         // before deposits and before per-item `CanStoreNewItem`. It does not
         // admit a request merely because a later deposit may vacate a slot or
         // the withdrawn item could merge into an existing stack.
-        let empty_positions = self.represented_empty_inventory_positions_like_cpp();
+        let Some(empty_positions) = self.represented_empty_inventory_positions_like_cpp() else {
+            return;
+        };
         if transfer.withdrawals.len() > empty_positions.len() {
             self.send_void_storage_transfer_result_like_cpp(
                 VoidTransferErrorLikeCpp::InventoryFull,

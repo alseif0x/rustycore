@@ -1851,8 +1851,10 @@
           "name": "player_bank_bag_slot_count_like_cpp",
           "type": "u8",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_battleground_map_id_like_cpp",
@@ -2055,8 +2057,10 @@
           "name": "player_inventory_slot_count_like_cpp",
           "type": "u8",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_level",
@@ -2733,8 +2737,10 @@
           "name": "represented_bank_bag_slot_flags_like_cpp",
           "type": "[u32 ; 7]",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_bank_item_moves_like_cpp",
@@ -29024,8 +29030,10 @@
           "name": "player_bank_bag_slot_count_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_bank_bag_slot_count_like_cpp (& self) -> u8",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -29406,8 +29414,10 @@
           "name": "player_inventory_slot_count_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_inventory_slot_count_like_cpp (& self) -> u8",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -34077,7 +34087,7 @@
           "kind": "method",
           "name": "represented_empty_inventory_positions_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_empty_inventory_positions_like_cpp (& self) -> Vec < (u8 , u8) >",
+          "signature": "fn represented_empty_inventory_positions_like_cpp (& self) -> Option < Vec < (u8 , u8) > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -38103,9 +38113,35 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_player_bank_bag_slot_count_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_bank_bag_slot_count_like_cpp (& self) -> Option < u8 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_player_character_points_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_player_character_points_like_cpp (& self) -> Option < i32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_inventory_slot_count_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_inventory_slot_count_like_cpp (& self) -> Option < u8 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -42650,7 +42686,7 @@
           "kind": "method",
           "name": "set_player_bank_bag_slot_count_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_player_bank_bag_slot_count_like_cpp (& mut self , count : u8)",
+          "signature": "fn set_player_bank_bag_slot_count_like_cpp (& mut self , count : u8) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -42999,7 +43035,7 @@
           "kind": "method",
           "name": "set_player_inventory_slot_count_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_player_inventory_slot_count_like_cpp (& mut self , count : u8)",
+          "signature": "fn set_player_inventory_slot_count_like_cpp (& mut self , count : u8) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -70398,7 +70434,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:083a56a8013d293aac454b31db479829:len=4459|evidence=fnv1a64x2:da3a2201484f893be857e271e825236a:len=448",
+          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:b86da02d753f224761f66e778f6666da:len=4612|evidence=fnv1a64x2:da3a2201484f893be857e271e825236a:len=448",
           "cfg": [],
           "multiplicity": 1
         },
@@ -74136,7 +74172,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:652b0bd30ef675c983d9a0d4461b0912:len=91079|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:270b56af43dcbf60ba4d22b88b02b8e3:len=91195|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

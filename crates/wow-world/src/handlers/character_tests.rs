@@ -7710,7 +7710,7 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         "bank-slot purchase",
         "self.set_player_gold_like_cpp(new_money)",
         &[
-            "self.set_player_bank_bag_slot_count_like_cpp(new_count);",
+            "self.set_player_bank_bag_slot_count_like_cpp(new_count)",
             "self.sync_player_registry_state_like_cpp();",
         ],
     );

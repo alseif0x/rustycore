@@ -12,6 +12,20 @@ impl Player {
         &self.inventory
     }
 
+    /// C++ `Player::GetBankBagSlotCount` (`Player.h:1334`).
+    pub const fn bank_bag_slot_count(&self) -> u8 {
+        self.data.num_bank_slots
+    }
+
+    /// C++ `Player::GetInventorySlotCount` (`Player.h:1332`).
+    pub const fn inventory_slot_count(&self) -> u8 {
+        self.active_data.num_backpack_slots
+    }
+
+    pub fn bank_bag_slot_flag_value_like_cpp(&self, index: usize) -> Option<u32> {
+        self.active_data.bank_bag_slot_flags.get(index).copied()
+    }
+
     pub fn soulbound_tradeable_items(&self) -> &HashSet<ObjectGuid> {
         &self.soulbound_tradeable_items
     }
@@ -24,6 +38,10 @@ impl Player {
         self.set_player_u8(PLAYER_DATA_NUM_BANK_SLOTS_BIT, count, |data| {
             &mut data.num_bank_slots
         });
+    }
+
+    pub fn mark_bank_bag_slot_count_changed_like_cpp(&mut self) {
+        self.mark_player_data(PLAYER_DATA_NUM_BANK_SLOTS_BIT);
     }
 
     pub fn set_bank_bag_slot_flag_value_like_cpp(&mut self, index: usize, value: u32) -> bool {

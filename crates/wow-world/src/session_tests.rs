@@ -31066,6 +31066,104 @@ async fn canonical_player_money_follows_active_detached_and_stale_handle_ownersh
 }
 
 #[test]
+fn canonical_player_inventory_capacity_follows_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_561);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "InventoryCapacityOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_player_inventory_slot_count_like_cpp(24));
+    assert!(session.set_player_bank_bag_slot_count_like_cpp(3));
+    assert!(session.set_represented_bank_bag_slot_flag_like_cpp(2, 0x40));
+    assert_eq!(
+        session.resolved_player_inventory_slot_count_like_cpp(),
+        Some(24)
+    );
+    assert_eq!(
+        session.resolved_player_bank_bag_slot_count_like_cpp(),
+        Some(3)
+    );
+    assert_eq!(
+        session.represented_bank_bag_slot_flag_like_cpp(2),
+        Some(0x40)
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.resolved_player_inventory_slot_count_like_cpp(),
+        Some(24)
+    );
+    assert_eq!(
+        session.resolved_player_bank_bag_slot_count_like_cpp(),
+        Some(3)
+    );
+    assert_eq!(
+        session.represented_bank_bag_slot_flag_like_cpp(2),
+        Some(0x40)
+    );
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.set_inventory_slot_count(30);
+    replacement.set_bank_bag_slot_count(7);
+    assert!(replacement.set_bank_bag_slot_flag_value_like_cpp(2, 0x80));
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(
+        session.resolved_player_inventory_slot_count_like_cpp(),
+        None
+    );
+    assert_eq!(session.resolved_player_bank_bag_slot_count_like_cpp(), None);
+    assert_eq!(session.represented_bank_bag_slot_flag_like_cpp(2), None);
+    assert!(!session.set_player_inventory_slot_count_like_cpp(16));
+    assert!(!session.set_player_bank_bag_slot_count_like_cpp(1));
+    assert!(!session.set_represented_bank_bag_slot_flag_like_cpp(2, 0));
+    assert_eq!(session.current_player_save_to_db_snapshot_like_cpp(), None);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.inventory_slot_count(),
+                player.bank_bag_slot_count(),
+                player.bank_bag_slot_flag_value_like_cpp(2),
+            )),
+        Some((30, 7, Some(0x80)))
+    );
+}
+
+#[test]
 fn canonical_player_rejected_map_sync_does_not_remove_existing_map_player_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();

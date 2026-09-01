@@ -428,12 +428,15 @@ impl WorldSession {
             self.kick("WorldSession::HandlePlayerLogin canonical Player money hydration failed");
             return;
         }
-        self.set_player_inventory_slot_count_like_cpp(
+        if !self.set_player_inventory_slot_count_like_cpp(
             loaded_inventory_slot_count_with_legacy_rust_compat(
                 base_row.inventory_slots.unwrap_or(INVENTORY_DEFAULT_SIZE),
             ),
-        );
-        self.set_player_bank_bag_slot_count_like_cpp(base_row.bank_slots.unwrap_or(0));
+        ) || !self.set_player_bank_bag_slot_count_like_cpp(base_row.bank_slots.unwrap_or(0))
+        {
+            self.kick("WorldSession::HandlePlayerLogin canonical Player inventory capacity hydration failed");
+            return;
+        }
         self.set_player_xp_like_cpp(base_row.xp.unwrap_or(0));
         self.set_represented_talent_reset_state_like_cpp(
             base_row.talent_reset_cost.unwrap_or(0),

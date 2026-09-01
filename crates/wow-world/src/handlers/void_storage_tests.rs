@@ -1098,7 +1098,9 @@ fn empty_inventory_positions_use_active_backpack_slot_count_like_cpp() {
     let (mut session, _, _) = make_void_storage_session();
 
     session.set_player_inventory_slot_count_like_cpp(INVENTORY_DEFAULT_SIZE);
-    let default_positions = session.represented_empty_inventory_positions_like_cpp();
+    let default_positions = session
+        .represented_empty_inventory_positions_like_cpp()
+        .expect("test inventory owner resolves");
     assert_eq!(default_positions.len(), usize::from(INVENTORY_DEFAULT_SIZE));
     assert_eq!(
         default_positions.last(),
@@ -1106,7 +1108,9 @@ fn empty_inventory_positions_use_active_backpack_slot_count_like_cpp() {
     );
 
     session.set_player_inventory_slot_count_like_cpp(24);
-    let expanded_positions = session.represented_empty_inventory_positions_like_cpp();
+    let expanded_positions = session
+        .represented_empty_inventory_positions_like_cpp()
+        .expect("test inventory owner resolves");
     assert_eq!(expanded_positions.len(), 24);
     assert_eq!(
         expanded_positions.last(),

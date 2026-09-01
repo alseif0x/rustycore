@@ -5508,9 +5508,11 @@ pub struct WorldSession {
     represented_talent_reset_cost_like_cpp: u32,
     /// C++ `Player::m_resetTalentsTime`, represented as Unix seconds.
     represented_talent_reset_time_secs_like_cpp: u64,
-    /// C++ `Player::GetBankBagSlotCount`, loaded from `characters.bankSlots`.
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     player_bank_bag_slot_count_like_cpp: u8,
-    /// C++ `Player::GetInventorySlotCount`, loaded from `characters.inventorySlots`.
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     player_inventory_slot_count_like_cpp: u8,
     /// C++ `UF::ActivePlayerData::CharacterPoints`, recalculated by InitTalentForLevel/LearnTalent.
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
@@ -5525,6 +5527,8 @@ pub struct WorldSession {
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
     #[cfg(test)]
     represented_player_base_mana_like_cpp: i32,
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     represented_bank_bag_slot_flags_like_cpp: [u32; 7],
     represented_bank_item_moves_like_cpp: Vec<RepresentedBankItemMoveLikeCpp>,
     represented_guild_bank_inventory_moves_like_cpp: Vec<RepresentedGuildBankInventoryMoveLikeCpp>,
@@ -7710,7 +7714,9 @@ impl WorldSession {
             player_gold: 0,
             represented_talent_reset_cost_like_cpp: 0,
             represented_talent_reset_time_secs_like_cpp: 0,
+            #[cfg(test)]
             player_bank_bag_slot_count_like_cpp: 0,
+            #[cfg(test)]
             player_inventory_slot_count_like_cpp: INVENTORY_DEFAULT_SIZE,
             #[cfg(test)]
             player_character_points_like_cpp: 0,
@@ -7720,6 +7726,7 @@ impl WorldSession {
             represented_player_max_powers_like_cpp: empty_character_power_snapshot_like_cpp(),
             #[cfg(test)]
             represented_player_base_mana_like_cpp: 0,
+            #[cfg(test)]
             represented_bank_bag_slot_flags_like_cpp: [0; 7],
             represented_bank_item_moves_like_cpp: Vec::new(),
             represented_guild_bank_inventory_moves_like_cpp: Vec::new(),
@@ -8737,7 +8744,7 @@ impl WorldSession {
 
     fn find_free_backpack_slot_like_cpp(&self) -> Option<u8> {
         let inventory_end = INVENTORY_SLOT_ITEM_START
-            .saturating_add(self.player_inventory_slot_count_like_cpp())
+            .saturating_add(self.resolved_player_inventory_slot_count_like_cpp()?)
             .min(INVENTORY_SLOT_ITEM_END);
         (INVENTORY_SLOT_ITEM_START..inventory_end)
             .find(|slot| !self.inventory_items_like_cpp().contains_key(slot))
@@ -9474,8 +9481,18 @@ impl WorldSession {
         player.set_money(0);
         #[cfg(test)]
         player.set_money(self.player_gold_like_cpp());
-        player.set_inventory_slot_count(self.player_inventory_slot_count_like_cpp());
-        player.set_bank_bag_slot_count(self.player_bank_bag_slot_count_like_cpp());
+        #[cfg(not(test))]
+        {
+            // Pre-character-row bootstrap only. Login hydrates both values
+            // into this same owned Player before gameplay admission.
+            player.set_inventory_slot_count(INVENTORY_DEFAULT_SIZE);
+            player.set_bank_bag_slot_count(0);
+        }
+        #[cfg(test)]
+        {
+            player.set_inventory_slot_count(self.player_inventory_slot_count_like_cpp);
+            player.set_bank_bag_slot_count(self.player_bank_bag_slot_count_like_cpp);
+        }
         for (category, party_type) in self
             .party_member_party_type_like_cpp()
             .into_iter()
@@ -9483,6 +9500,7 @@ impl WorldSession {
         {
             let _ = player.set_party_type_like_cpp(category as u8, party_type);
         }
+        #[cfg(test)]
         for (index, value) in self
             .represented_bank_bag_slot_flags_like_cpp
             .iter()
@@ -21985,9 +22003,9 @@ impl WorldSession {
         })
     }
 
-    pub(crate) fn represented_empty_inventory_positions_like_cpp(&self) -> Vec<(u8, u8)> {
+    pub(crate) fn represented_empty_inventory_positions_like_cpp(&self) -> Option<Vec<(u8, u8)>> {
         let inventory_end = INVENTORY_SLOT_ITEM_START
-            .saturating_add(self.player_inventory_slot_count_like_cpp())
+            .saturating_add(self.resolved_player_inventory_slot_count_like_cpp()?)
             .min(INVENTORY_SLOT_ITEM_END);
         let mut positions = (INVENTORY_SLOT_ITEM_START..inventory_end)
             .filter(|slot| {
@@ -22010,7 +22028,7 @@ impl WorldSession {
                     .map(|slot| (bag, slot)),
             );
         }
-        positions
+        Some(positions)
     }
 
     /// Publish one new item whose CharacterDB rows already committed.
@@ -22687,8 +22705,8 @@ impl WorldSession {
             .world_mut()
             .object_mut()
             .create(player_guid);
-        player.set_inventory_slot_count(self.player_inventory_slot_count_like_cpp());
-        player.set_bank_bag_slot_count(self.player_bank_bag_slot_count_like_cpp());
+        player.set_inventory_slot_count(self.resolved_player_inventory_slot_count_like_cpp()?);
+        player.set_bank_bag_slot_count(self.resolved_player_bank_bag_slot_count_like_cpp()?);
 
         let item_objects = self.inventory_item_objects_like_cpp();
         for (&slot, item) in self.inventory_items_like_cpp() {
@@ -22710,13 +22728,9 @@ impl WorldSession {
     fn player_values_update_snapshot(&self) -> Option<Player> {
         let mut player = self.direct_inventory_player_snapshot()?;
         player.set_money(self.resolved_player_money_like_cpp()?);
-        player.set_bank_bag_slot_count(self.player_bank_bag_slot_count_like_cpp());
-        for (index, value) in self
-            .represented_bank_bag_slot_flags_like_cpp
-            .iter()
-            .copied()
-            .enumerate()
-        {
+        player.set_bank_bag_slot_count(self.resolved_player_bank_bag_slot_count_like_cpp()?);
+        for index in 0..7 {
+            let value = self.represented_bank_bag_slot_flag_like_cpp(index)?;
             player.set_bank_bag_slot_flag_value_like_cpp(index, value);
         }
         let inventory_items = self.inventory_items_like_cpp();
@@ -22767,6 +22781,7 @@ impl WorldSession {
         };
 
         player.set_bank_bag_slot_count(count);
+        player.mark_bank_bag_slot_count_changed_like_cpp();
         let update = player.values_update(true);
         if let Some(packet) =
             player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
@@ -37736,12 +37751,26 @@ impl WorldSession {
         self.represented_talent_reset_time_secs_like_cpp = reset_time_secs;
     }
 
-    pub(crate) fn set_player_bank_bag_slot_count_like_cpp(&mut self, count: u8) {
-        self.player_bank_bag_slot_count_like_cpp = count;
+    pub(crate) fn set_player_bank_bag_slot_count_like_cpp(&mut self, count: u8) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.set_bank_bag_slot_count(count))
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_bank_bag_slot_count_like_cpp = count;
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
     }
 
-    pub(crate) fn set_player_inventory_slot_count_like_cpp(&mut self, count: u8) {
-        self.player_inventory_slot_count_like_cpp = count;
+    pub(crate) fn set_player_inventory_slot_count_like_cpp(&mut self, count: u8) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.set_inventory_slot_count(count))
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_inventory_slot_count_like_cpp = count;
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
     }
 
     pub(crate) fn set_player_character_points_like_cpp(&mut self, points: i32) -> bool {
@@ -38126,9 +38155,17 @@ impl WorldSession {
     }
 
     pub(crate) fn represented_bank_bag_slot_flag_like_cpp(&self, slot: usize) -> Option<u32> {
-        self.represented_bank_bag_slot_flags_like_cpp
-            .get(slot)
-            .copied()
+        let canonical = self
+            .with_owned_player_like_cpp(|player| player.bank_bag_slot_flag_value_like_cpp(slot))
+            .flatten();
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return self
+                .represented_bank_bag_slot_flags_like_cpp
+                .get(slot)
+                .copied();
+        }
+        canonical
     }
 
     pub(crate) fn set_represented_bank_bag_slot_flag_like_cpp(
@@ -38136,11 +38173,19 @@ impl WorldSession {
         slot: usize,
         value: u32,
     ) -> bool {
-        let Some(flag) = self.represented_bank_bag_slot_flags_like_cpp.get_mut(slot) else {
-            return false;
-        };
-        *flag = value;
-        true
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_bank_bag_slot_flag_value_like_cpp(slot, value)
+            })
+            .unwrap_or(false);
+        #[cfg(test)]
+        if (canonical || self.player_handle_like_cpp.is_none())
+            && let Some(flag) = self.represented_bank_bag_slot_flags_like_cpp.get_mut(slot)
+        {
+            *flag = value;
+            return true;
+        }
+        canonical
     }
 
     pub(crate) fn set_player_xp_like_cpp(&mut self, xp: u32) -> bool {
@@ -40893,12 +40938,34 @@ impl WorldSession {
         self.represented_talent_reset_time_secs_like_cpp
     }
 
-    pub(crate) fn player_bank_bag_slot_count_like_cpp(&self) -> u8 {
-        self.player_bank_bag_slot_count_like_cpp
+    pub(crate) fn resolved_player_bank_bag_slot_count_like_cpp(&self) -> Option<u8> {
+        let canonical = self.with_owned_player_like_cpp(Player::bank_bag_slot_count);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.player_bank_bag_slot_count_like_cpp);
+        }
+        canonical
     }
 
+    #[cfg(test)]
+    pub(crate) fn player_bank_bag_slot_count_like_cpp(&self) -> u8 {
+        self.resolved_player_bank_bag_slot_count_like_cpp()
+            .expect("test Player bank-bag-slot owner must resolve")
+    }
+
+    pub(crate) fn resolved_player_inventory_slot_count_like_cpp(&self) -> Option<u8> {
+        let canonical = self.with_owned_player_like_cpp(Player::inventory_slot_count);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.player_inventory_slot_count_like_cpp);
+        }
+        canonical
+    }
+
+    #[cfg(test)]
     pub(crate) fn player_inventory_slot_count_like_cpp(&self) -> u8 {
-        self.player_inventory_slot_count_like_cpp
+        self.resolved_player_inventory_slot_count_like_cpp()
+            .expect("test Player inventory-slot owner must resolve")
     }
 
     pub(crate) fn resolved_player_character_points_like_cpp(&self) -> Option<i32> {
