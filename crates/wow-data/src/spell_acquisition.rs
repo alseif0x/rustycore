@@ -13,10 +13,11 @@
 //! record id and fails closed; it can only be repaired by a later overlay.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::future::Future;
 use std::path::Path;
+use std::pin::Pin;
 
 use anyhow::{Context, Result};
-use wow_database::{HotfixDatabase, HotfixStatements, SqlResult};
 
 use crate::{Db2HotfixRemovalStoreLikeCpp, wdc4::Wdc4Reader};
 
@@ -47,13 +48,6 @@ const SUMMON_FROM_BATTLE_PET_JOURNAL_LIKE_CPP: u32 = 0x0020_0000;
 // Do not confuse it with `world.serverside_spell_effect.EffectBasePoints`,
 // which is a float source outside this catalog: server-side spell keys are
 // explicitly seeded as `ServerSideMetadataUnavailable`.
-const SPELL_EFFECT_SQL: &str = concat!(
-    "SELECT ID, DifficultyID, EffectIndex, Effect, EffectBasePoints, EffectDieSides, ",
-    "EffectTriggerSpell, EffectMiscValue1, EffectMiscValue2, ImplicitTarget1, ",
-    "ImplicitTarget2, Coefficient, Variance, SpellID, EffectChainTargets, ",
-    "EffectPointsPerResource, EffectRealPointsPerLevel, EffectItemType, EffectAura, EffectMechanic, EffectAttributes FROM spell_effect ",
-    "WHERE (`VerifiedBuild` > 0) = ?"
-);
 const SPELL_EFFECT_WDC_CHAIN_TARGETS_FIELD: usize = 10;
 const SPELL_EFFECT_WDC_POINTS_PER_RESOURCE_FIELD: usize = 14;
 const SPELL_EFFECT_WDC_REAL_POINTS_PER_LEVEL_FIELD: usize = 16;
@@ -64,32 +58,6 @@ const SPELL_EFFECT_SQL_ITEM_TYPE_COLUMN: usize = 17;
 const SPELL_EFFECT_SQL_AURA_COLUMN: usize = 18;
 const SPELL_EFFECT_SQL_MECHANIC_COLUMN: usize = 19;
 const SPELL_EFFECT_SQL_ATTRIBUTES_COLUMN: usize = 20;
-const SPELL_LEARN_SPELL_SQL: &str = concat!(
-    "SELECT ID, SpellID, LearnSpellID, OverridesSpellID FROM spell_learn_spell ",
-    "WHERE (`VerifiedBuild` > 0) = ?"
-);
-const SPELL_MISC_SQL: &str = concat!(
-    "SELECT ID, Attributes1, Attributes2, DifficultyID, ",
-    "ShowFutureSpellPlayerConditionID, SpellID FROM spell_misc ",
-    "WHERE (`VerifiedBuild` > 0) = ?"
-);
-const SPELL_LEVELS_SQL: &str = concat!(
-    "SELECT ID, DifficultyID, BaseLevel, SpellLevel, SpellID FROM spell_levels ",
-    "WHERE (`VerifiedBuild` > 0) = ?"
-);
-const TALENT_SQL: &str = concat!(
-    "SELECT ID, SpellRank1, SpellRank2, SpellRank3, SpellRank4, SpellRank5, ",
-    "SpellRank6, SpellRank7, SpellRank8, SpellRank9 FROM talent ",
-    "WHERE (`VerifiedBuild` > 0) = ?"
-);
-const SUMMON_PROPERTIES_SQL: &str = concat!(
-    "SELECT ID, Slot, Flags1 FROM summon_properties ",
-    "WHERE (`VerifiedBuild` > 0) = ?"
-);
-const BATTLE_PET_SPECIES_SQL: &str = concat!(
-    "SELECT ID, CreatureID FROM battle_pet_species ",
-    "WHERE (`VerifiedBuild` > 0) = ?"
-);
 
 /// The source families retained by this specialized projection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -101,6 +69,26 @@ pub enum SpellAcquisitionTableLikeCpp {
     Talent,
     SummonProperties,
     BattlePetSpecies,
+}
+
+/// SQLx-free bridge row used only between the typed persistence adapter and
+/// this domain parser. Column positions remain private to the source family;
+/// the public persistence port exposes named DTO fields instead.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SpellAcquisitionSqlOverlayRowLikeCpp {
+    pub integer_columns: Vec<Option<i64>>,
+    pub float_columns_bits: Vec<Option<u32>>,
+}
+
+pub type SpellAcquisitionSqlOverlayFutureLikeCpp<'a> =
+    Pin<Box<dyn Future<Output = Result<Vec<SpellAcquisitionSqlOverlayRowLikeCpp>>> + Send + 'a>>;
+
+pub trait SpellAcquisitionSqlOverlaySourceLikeCpp: Send + Sync {
+    fn load_overlay_like_cpp(
+        &self,
+        table: SpellAcquisitionTableLikeCpp,
+        official: bool,
+    ) -> SpellAcquisitionSqlOverlayFutureLikeCpp<'_>;
 }
 
 impl SpellAcquisitionTableLikeCpp {
@@ -2119,13 +2107,13 @@ trait SpellEffectSqlFieldSourceLikeCpp {
     fn f32_bits(&mut self, column: usize, field: &'static str) -> u32;
 }
 
-struct SpellEffectSqlResultSourceLikeCpp<'a> {
-    result: &'a SqlResult,
+struct SpellEffectOverlayFieldSourceLikeCpp<'a> {
+    result: &'a SpellAcquisitionSqlOverlayRowLikeCpp,
     diagnostics: &'a mut Vec<SpellAcquisitionDiagnosticLikeCpp>,
     record_id: u32,
 }
 
-impl SpellEffectSqlFieldSourceLikeCpp for SpellEffectSqlResultSourceLikeCpp<'_> {
+impl SpellEffectSqlFieldSourceLikeCpp for SpellEffectOverlayFieldSourceLikeCpp<'_> {
     fn raw(&mut self, column: usize, field: &'static str) -> i64 {
         sql_raw_or_invalid(
             self.result,
@@ -2202,10 +2190,10 @@ fn spell_acquisition_effect_from_sql_source_like_cpp(
 
 fn spell_acquisition_effect_from_sql_like_cpp(
     record_id: u32,
-    result: &SqlResult,
+    result: &SpellAcquisitionSqlOverlayRowLikeCpp,
     diagnostics: &mut Vec<SpellAcquisitionDiagnosticLikeCpp>,
 ) -> SpellAcquisitionEffectLikeCpp {
-    let mut source = SpellEffectSqlResultSourceLikeCpp {
+    let mut source = SpellEffectOverlayFieldSourceLikeCpp {
         result,
         diagnostics,
         record_id,
@@ -2223,7 +2211,7 @@ impl SpellAcquisitionCatalogLikeCpp {
     pub async fn load_effective_like_cpp(
         data_dir: &str,
         locale: &str,
-        hotfix_db: &HotfixDatabase,
+        overlay_source: &dyn SpellAcquisitionSqlOverlaySourceLikeCpp,
         removed_records: &Db2HotfixRemovalStoreLikeCpp,
         coverage: impl IntoIterator<Item = SpellAcquisitionCoverageSeedLikeCpp>,
     ) -> Result<Self> {
@@ -2239,9 +2227,8 @@ impl SpellAcquisitionCatalogLikeCpp {
             spell_acquisition_effect_from_wdc_like_cpp,
         )?;
         let [spell_effect_official, spell_effect_custom] = load_sql_overlays_like_cpp(
-            hotfix_db,
+            overlay_source,
             SpellAcquisitionTableLikeCpp::SpellEffect,
-            SPELL_EFFECT_SQL,
             &mut diagnostics,
             spell_acquisition_effect_from_sql_like_cpp,
         )
@@ -2276,9 +2263,8 @@ impl SpellAcquisitionCatalogLikeCpp {
             },
         )?;
         let [spell_learn_spell_official, spell_learn_spell_custom] = load_sql_overlays_like_cpp(
-            hotfix_db,
+            overlay_source,
             SpellAcquisitionTableLikeCpp::SpellLearnSpell,
-            SPELL_LEARN_SPELL_SQL,
             &mut diagnostics,
             |record_id, result, diagnostics| SpellAcquisitionDependencyLikeCpp {
                 record_id,
@@ -2344,9 +2330,8 @@ impl SpellAcquisitionCatalogLikeCpp {
             },
         )?;
         let [spell_misc_official, spell_misc_custom] = load_sql_overlays_like_cpp(
-            hotfix_db,
+            overlay_source,
             SpellAcquisitionTableLikeCpp::SpellMisc,
-            SPELL_MISC_SQL,
             &mut diagnostics,
             |record_id, result, diagnostics| SpellAcquisitionMiscLikeCpp {
                 record_id,
@@ -2423,9 +2408,8 @@ impl SpellAcquisitionCatalogLikeCpp {
             },
         )?;
         let [spell_levels_official, spell_levels_custom] = load_sql_overlays_like_cpp(
-            hotfix_db,
+            overlay_source,
             SpellAcquisitionTableLikeCpp::SpellLevels,
-            SPELL_LEVELS_SQL,
             &mut diagnostics,
             |record_id, result, diagnostics| SpellAcquisitionLevelsLikeCpp {
                 record_id,
@@ -2491,9 +2475,8 @@ impl SpellAcquisitionCatalogLikeCpp {
             },
         )?;
         let [talent_official, talent_custom] = load_sql_overlays_like_cpp(
-            hotfix_db,
+            overlay_source,
             SpellAcquisitionTableLikeCpp::Talent,
-            TALENT_SQL,
             &mut diagnostics,
             |record_id, result, diagnostics| SpellAcquisitionTalentLikeCpp {
                 record_id,
@@ -2536,9 +2519,8 @@ impl SpellAcquisitionCatalogLikeCpp {
             },
         )?;
         let [summon_properties_official, summon_properties_custom] = load_sql_overlays_like_cpp(
-            hotfix_db,
+            overlay_source,
             SpellAcquisitionTableLikeCpp::SummonProperties,
-            SUMMON_PROPERTIES_SQL,
             &mut diagnostics,
             |record_id, result, diagnostics| SpellAcquisitionSummonPropertiesLikeCpp {
                 record_id,
@@ -2589,9 +2571,8 @@ impl SpellAcquisitionCatalogLikeCpp {
             },
         )?;
         let [battle_pet_species_official, battle_pet_species_custom] = load_sql_overlays_like_cpp(
-            hotfix_db,
+            overlay_source,
             SpellAcquisitionTableLikeCpp::BattlePetSpecies,
-            BATTLE_PET_SPECIES_SQL,
             &mut diagnostics,
             |record_id, result, diagnostics| SpellAcquisitionBattlePetSpeciesLikeCpp {
                 species_id: record_id,
@@ -2707,24 +2688,22 @@ fn load_wdc_rows_like_cpp<T>(
 }
 
 async fn load_sql_overlays_like_cpp<T>(
-    hotfix_db: &HotfixDatabase,
+    overlay_source: &dyn SpellAcquisitionSqlOverlaySourceLikeCpp,
     table: SpellAcquisitionTableLikeCpp,
-    sql: &'static str,
     diagnostics: &mut Vec<SpellAcquisitionDiagnosticLikeCpp>,
-    mut read: impl FnMut(u32, &SqlResult, &mut Vec<SpellAcquisitionDiagnosticLikeCpp>) -> T,
+    mut read: impl FnMut(
+        u32,
+        &SpellAcquisitionSqlOverlayRowLikeCpp,
+        &mut Vec<SpellAcquisitionDiagnosticLikeCpp>,
+    ) -> T,
 ) -> Result<[Vec<(u32, T)>; 2]> {
     let mut batches = [Vec::new(), Vec::new()];
     for (batch_index, official) in [true, false].into_iter().enumerate() {
-        let mut statement = hotfix_db.prepare(HotfixStatements::base(sql));
-        statement.set_bool(0, official);
-        let mut result = hotfix_db
-            .query(&statement)
+        let rows = overlay_source
+            .load_overlay_like_cpp(table, official)
             .await
             .with_context(|| format!("failed to load {} SQL overlay", table.file_name()))?;
-        if result.is_empty() {
-            continue;
-        }
-        loop {
+        for result in rows {
             match sql_raw_i64(&result, 0).and_then(|raw| u32::try_from(raw).ok()) {
                 Some(record_id) => {
                     let row = read(record_id, &result, diagnostics);
@@ -2737,9 +2716,6 @@ async fn load_sql_overlays_like_cpp<T>(
                     kind: SpellAcquisitionDiagnosticKindLikeCpp::UnreadableSqlField { field: "ID" },
                 }),
             }
-            if !result.next_row() {
-                break;
-            }
         }
     }
     Ok(batches)
@@ -2748,7 +2724,7 @@ async fn load_sql_overlays_like_cpp<T>(
 const UNREADABLE_SQL_RAW_LIKE_CPP: i64 = i64::MIN;
 
 fn sql_raw_or_invalid(
-    result: &SqlResult,
+    result: &SpellAcquisitionSqlOverlayRowLikeCpp,
     column: usize,
     field: &'static str,
     table: SpellAcquisitionTableLikeCpp,
@@ -2767,7 +2743,7 @@ fn sql_raw_or_invalid(
 }
 
 fn sql_f32_bits_or_invalid(
-    result: &SqlResult,
+    result: &SpellAcquisitionSqlOverlayRowLikeCpp,
     column: usize,
     field: &'static str,
     table: SpellAcquisitionTableLikeCpp,
@@ -2775,9 +2751,10 @@ fn sql_f32_bits_or_invalid(
     diagnostics: &mut Vec<SpellAcquisitionDiagnosticLikeCpp>,
 ) -> u32 {
     result
-        .try_read::<f32>(column)
-        .or_else(|| result.try_read::<f64>(column).map(|value| value as f32))
-        .map(f32::to_bits)
+        .float_columns_bits
+        .get(column)
+        .copied()
+        .flatten()
         .unwrap_or_else(|| {
             diagnostics.push(SpellAcquisitionDiagnosticLikeCpp {
                 severity: SpellAcquisitionDiagnosticSeverityLikeCpp::Indeterminate,
@@ -2789,20 +2766,8 @@ fn sql_f32_bits_or_invalid(
         })
 }
 
-fn sql_raw_i64(result: &SqlResult, column: usize) -> Option<i64> {
-    result
-        .try_read::<i64>(column)
-        .or_else(|| result.try_read::<i32>(column).map(i64::from))
-        .or_else(|| result.try_read::<i16>(column).map(i64::from))
-        .or_else(|| result.try_read::<i8>(column).map(i64::from))
-        .or_else(|| {
-            result
-                .try_read::<u64>(column)
-                .and_then(|value| i64::try_from(value).ok())
-        })
-        .or_else(|| result.try_read::<u32>(column).map(i64::from))
-        .or_else(|| result.try_read::<u16>(column).map(i64::from))
-        .or_else(|| result.try_read::<u8>(column).map(i64::from))
+fn sql_raw_i64(result: &SpellAcquisitionSqlOverlayRowLikeCpp, column: usize) -> Option<i64> {
+    result.integer_columns.get(column).copied().flatten()
 }
 
 const fn invalid(

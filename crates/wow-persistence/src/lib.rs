@@ -49,6 +49,7 @@ mod reputation_catalog;
 mod reserved_name_catalog;
 mod skill_catalog_hotfix;
 mod skill_world_rules;
+mod spell_acquisition_startup;
 mod spell_core_db2_hotfix;
 mod spell_info_key_hotfix;
 mod spell_world_catalog;
@@ -201,6 +202,17 @@ pub use skill_world_rules::{
     FishingBaseSkillPersistenceRowLikeCpp, SKILL_TIER_VALUE_COUNT_LIKE_CPP,
     SkillTierPersistenceRowLikeCpp, SkillWorldRulesLoadOutcomeLikeCpp,
     SkillWorldRulesPersistencePortLikeCpp,
+};
+pub use spell_acquisition_startup::{
+    BattlePetSpeciesHotfixPersistenceRowLikeCpp, ServersideSpellEffectPersistenceRowLikeCpp,
+    ServersideSpellPersistenceRowLikeCpp, SpellAcquisitionHotfixPersistenceRowLikeCpp,
+    SpellAcquisitionHotfixTablePersistenceLikeCpp, SpellAcquisitionStartupLoadOutcomeLikeCpp,
+    SpellAcquisitionStartupPersistencePortLikeCpp, SpellCustomAttributePersistenceRowLikeCpp,
+    SpellEffectHotfixPersistenceRowLikeCpp, SpellLearnSpellHotfixPersistenceRowLikeCpp,
+    SpellLearnSpellWorldPersistenceRowLikeCpp, SpellLevelsHotfixPersistenceRowLikeCpp,
+    SpellMiscHotfixPersistenceRowLikeCpp, SpellReagentsPersistenceRowLikeCpp,
+    SummonPropertiesHotfixPersistenceRowLikeCpp, TalentHotfixPersistenceRowLikeCpp,
+    TrainerSpellAuditPersistenceCatalogLikeCpp,
 };
 pub use spell_core_db2_hotfix::{
     SpellAuraRestrictionsHotfixRowLikeCpp, SpellCastTimesHotfixRowLikeCpp,

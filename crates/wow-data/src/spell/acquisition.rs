@@ -5,12 +5,6 @@
 
 //! Spell acquisition sources and skill-line abilities.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::{WorldDatabase, WorldStatements};
-
 use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -310,47 +304,6 @@ pub struct SpellLearnSpellStoreLikeCpp {
 }
 
 impl SpellLearnSpellStoreLikeCpp {
-    pub async fn load_like_cpp<SourceSpells, Db2Rows, SpellLookup, SpellExists>(
-        db: &WorldDatabase,
-        source_spells: SourceSpells,
-        db2_rows: Db2Rows,
-        mut spell_lookup: SpellLookup,
-        spell_exists: SpellExists,
-    ) -> Result<SpellLearnSpellLoadOutcomeLikeCpp>
-    where
-        SourceSpells: IntoIterator<Item = SpellLearnSourceSpellInfoLikeCpp>,
-        Db2Rows: IntoIterator<Item = crate::spell_db2::SpellLearnSpellEntry>,
-        SpellLookup: FnMut(u32) -> Option<SpellLearnSourceSpellInfoLikeCpp>,
-        SpellExists: FnMut(u32) -> bool,
-    {
-        let mut result = db
-            .direct_query(WorldStatements::SEL_SPELL_LEARN_SPELL.sql())
-            .await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(SpellLearnSpellSqlRowLikeCpp {
-                    entry: result.try_read::<u32>(0).unwrap_or(0),
-                    spell_id: result.try_read::<u32>(1).unwrap_or(0),
-                    active: result.try_read::<u8>(2).unwrap_or(0) != 0,
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_sources_like_cpp(
-            rows,
-            source_spells,
-            db2_rows,
-            &mut spell_lookup,
-            spell_exists,
-        ))
-    }
-
     /// Compose the represented C++ learning graph.
     ///
     /// This intentionally repairs the legacy `SpellMgr::LoadSpellLearnSpells`

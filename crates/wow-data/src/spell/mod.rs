@@ -28,8 +28,6 @@ use tracing::info;
 
 use wow_constants::{PowerType, SpellCastResult};
 
-use wow_database::StatementDef;
-
 use wow_entities::PetAuraLikeCpp;
 
 use crate::{

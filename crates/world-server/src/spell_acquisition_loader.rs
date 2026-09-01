@@ -20,6 +20,15 @@ use std::{
 
 use anyhow::{Context, Result};
 use tracing::info;
+use wow_data::spell::spell_effect_types::{
+    SPELL_EFFECT_DUAL_WIELD, SPELL_EFFECT_LEARN_SPELL, SPELL_EFFECT_SKILL, SPELL_EFFECT_SKILL_STEP,
+};
+use wow_data::spell_acquisition::{
+    SpellAcquisitionEffectLikeCpp, SpellAcquisitionMetadataLookupLikeCpp,
+    SpellAcquisitionResolvedEffectsLookupLikeCpp, SpellAcquisitionResolvedMetadataLookupLikeCpp,
+    SpellAcquisitionSqlOverlayFutureLikeCpp, SpellAcquisitionSqlOverlayRowLikeCpp,
+    SpellAcquisitionSqlOverlaySourceLikeCpp, SpellAcquisitionTableLikeCpp,
+};
 use wow_data::{
     Db2HotfixRemovalStoreLikeCpp, DifficultyStore, SPELL_ATTR0_CU_IS_TALENT_LIKE_CPP,
     ServersideSpellStoreLikeCpp, SkillStore, SpellAcquisitionCatalogLikeCpp,
@@ -36,15 +45,323 @@ use wow_data::{
     SpellLinkedTypeLikeCpp, SpellPetAuraStoreLikeCpp, SpellReagentsEntry, SpellReagentsStore,
     SpellStore, wdc4::Wdc4Reader,
 };
-use wow_database::{HotfixDatabase, HotfixStatements, WorldDatabase, WorldStatements};
+use wow_persistence::{
+    SpellAcquisitionHotfixPersistenceRowLikeCpp, SpellAcquisitionHotfixTablePersistenceLikeCpp,
+    SpellAcquisitionStartupLoadOutcomeLikeCpp, SpellAcquisitionStartupPersistencePortLikeCpp,
+};
 
-use wow_data::spell::spell_effect_types::{
-    SPELL_EFFECT_DUAL_WIELD, SPELL_EFFECT_LEARN_SPELL, SPELL_EFFECT_SKILL, SPELL_EFFECT_SKILL_STEP,
-};
-use wow_data::spell_acquisition::{
-    SpellAcquisitionEffectLikeCpp, SpellAcquisitionMetadataLookupLikeCpp,
-    SpellAcquisitionResolvedEffectsLookupLikeCpp, SpellAcquisitionResolvedMetadataLookupLikeCpp,
-};
+struct SpellAcquisitionSqlOverlaySourceBridgeLikeCpp<'a> {
+    persistence: &'a dyn SpellAcquisitionStartupPersistencePortLikeCpp,
+}
+
+fn persistence_table_like_cpp(
+    table: SpellAcquisitionTableLikeCpp,
+) -> SpellAcquisitionHotfixTablePersistenceLikeCpp {
+    match table {
+        SpellAcquisitionTableLikeCpp::SpellEffect => {
+            SpellAcquisitionHotfixTablePersistenceLikeCpp::SpellEffect
+        }
+        SpellAcquisitionTableLikeCpp::SpellLearnSpell => {
+            SpellAcquisitionHotfixTablePersistenceLikeCpp::SpellLearnSpell
+        }
+        SpellAcquisitionTableLikeCpp::SpellMisc => {
+            SpellAcquisitionHotfixTablePersistenceLikeCpp::SpellMisc
+        }
+        SpellAcquisitionTableLikeCpp::SpellLevels => {
+            SpellAcquisitionHotfixTablePersistenceLikeCpp::SpellLevels
+        }
+        SpellAcquisitionTableLikeCpp::Talent => {
+            SpellAcquisitionHotfixTablePersistenceLikeCpp::Talent
+        }
+        SpellAcquisitionTableLikeCpp::SummonProperties => {
+            SpellAcquisitionHotfixTablePersistenceLikeCpp::SummonProperties
+        }
+        SpellAcquisitionTableLikeCpp::BattlePetSpecies => {
+            SpellAcquisitionHotfixTablePersistenceLikeCpp::BattlePetSpecies
+        }
+    }
+}
+
+fn overlay_row_like_cpp(
+    table: SpellAcquisitionTableLikeCpp,
+    row: SpellAcquisitionHotfixPersistenceRowLikeCpp,
+) -> Result<SpellAcquisitionSqlOverlayRowLikeCpp> {
+    let (integer_columns, float_columns_bits) = match (table, row) {
+        (
+            SpellAcquisitionTableLikeCpp::SpellEffect,
+            SpellAcquisitionHotfixPersistenceRowLikeCpp::SpellEffect(row),
+        ) => {
+            let integers = vec![
+                row.record_id,
+                row.difficulty_id,
+                row.effect_index,
+                row.effect,
+                row.effect_base_points,
+                row.effect_die_sides,
+                row.effect_trigger_spell,
+                row.effect_misc_value[0],
+                row.effect_misc_value[1],
+                row.implicit_target[0],
+                row.implicit_target[1],
+                None,
+                None,
+                row.spell_id,
+                row.effect_chain_targets,
+                None,
+                None,
+                row.effect_item_type,
+                row.effect_aura,
+                row.effect_mechanic,
+                row.effect_attributes,
+            ];
+            let mut floats = vec![None; integers.len()];
+            floats[11] = row.coefficient_bits;
+            floats[12] = row.variance_bits;
+            floats[15] = row.effect_points_per_resource_bits;
+            floats[16] = row.effect_real_points_per_level_bits;
+            (integers, floats)
+        }
+        (
+            SpellAcquisitionTableLikeCpp::SpellLearnSpell,
+            SpellAcquisitionHotfixPersistenceRowLikeCpp::SpellLearnSpell(row),
+        ) => (
+            vec![
+                row.record_id,
+                row.spell_id,
+                row.learn_spell_id,
+                row.overrides_spell_id,
+            ],
+            vec![None; 4],
+        ),
+        (
+            SpellAcquisitionTableLikeCpp::SpellMisc,
+            SpellAcquisitionHotfixPersistenceRowLikeCpp::SpellMisc(row),
+        ) => (
+            vec![
+                row.record_id,
+                row.attributes[0],
+                row.attributes[1],
+                row.difficulty_id,
+                row.show_future_spell_player_condition_id,
+                row.spell_id,
+            ],
+            vec![None; 6],
+        ),
+        (
+            SpellAcquisitionTableLikeCpp::SpellLevels,
+            SpellAcquisitionHotfixPersistenceRowLikeCpp::SpellLevels(row),
+        ) => (
+            vec![
+                row.record_id,
+                row.difficulty_id,
+                row.base_level,
+                row.spell_level,
+                row.spell_id,
+            ],
+            vec![None; 5],
+        ),
+        (
+            SpellAcquisitionTableLikeCpp::Talent,
+            SpellAcquisitionHotfixPersistenceRowLikeCpp::Talent(row),
+        ) => {
+            let mut integers = Vec::with_capacity(10);
+            integers.push(row.record_id);
+            integers.extend(row.spell_rank);
+            (integers, vec![None; 10])
+        }
+        (
+            SpellAcquisitionTableLikeCpp::SummonProperties,
+            SpellAcquisitionHotfixPersistenceRowLikeCpp::SummonProperties(row),
+        ) => (vec![row.record_id, row.slot, row.flags_1], vec![None; 3]),
+        (
+            SpellAcquisitionTableLikeCpp::BattlePetSpecies,
+            SpellAcquisitionHotfixPersistenceRowLikeCpp::BattlePetSpecies(row),
+        ) => (vec![row.record_id, row.creature_id], vec![None; 2]),
+        _ => {
+            return Err(anyhow::anyhow!(
+                "spell-acquisition overlay returned the wrong typed row family"
+            ));
+        }
+    };
+    Ok(SpellAcquisitionSqlOverlayRowLikeCpp {
+        integer_columns,
+        float_columns_bits,
+    })
+}
+
+impl SpellAcquisitionSqlOverlaySourceLikeCpp for SpellAcquisitionSqlOverlaySourceBridgeLikeCpp<'_> {
+    fn load_overlay_like_cpp(
+        &self,
+        table: SpellAcquisitionTableLikeCpp,
+        official: bool,
+    ) -> SpellAcquisitionSqlOverlayFutureLikeCpp<'_> {
+        Box::pin(async move {
+            match self
+                .persistence
+                .load_hotfix_overlay_like_cpp(persistence_table_like_cpp(table), official)
+                .await
+            {
+                SpellAcquisitionStartupLoadOutcomeLikeCpp::Loaded(rows) => rows
+                    .into_iter()
+                    .map(|row| overlay_row_like_cpp(table, row))
+                    .collect(),
+                SpellAcquisitionStartupLoadOutcomeLikeCpp::Failed { reason } => {
+                    Err(anyhow::anyhow!(reason))
+                }
+            }
+        })
+    }
+}
+
+fn loaded_startup_like_cpp<T>(outcome: SpellAcquisitionStartupLoadOutcomeLikeCpp<T>) -> Result<T> {
+    match outcome {
+        SpellAcquisitionStartupLoadOutcomeLikeCpp::Loaded(value) => Ok(value),
+        SpellAcquisitionStartupLoadOutcomeLikeCpp::Failed { reason } => {
+            Err(anyhow::anyhow!(reason))
+        }
+    }
+}
+
+pub(crate) async fn load_serverside_spell_effects_like_cpp<
+    RegularSpellExists,
+    DifficultyExists,
+    RadiusExists,
+>(
+    persistence: &dyn SpellAcquisitionStartupPersistencePortLikeCpp,
+    regular_spell_exists: RegularSpellExists,
+    difficulty_exists: DifficultyExists,
+    radius_exists: RadiusExists,
+) -> Result<wow_data::ServersideSpellEffectLoadOutcomeLikeCpp>
+where
+    RegularSpellExists: FnMut(u32) -> bool,
+    DifficultyExists: FnMut(u32) -> bool,
+    RadiusExists: FnMut(u32) -> bool,
+{
+    let rows = loaded_startup_like_cpp(persistence.load_serverside_spell_effects_like_cpp().await)?
+        .into_iter()
+        .map(|row| wow_data::ServersideSpellEffectRowLikeCpp {
+            spell_id: row.spell_id,
+            effect_index: row.effect_index,
+            difficulty_id: row.difficulty_id,
+            effect: row.effect,
+            effect_aura: row.effect_aura,
+            effect_amplitude: row.effect_amplitude,
+            effect_attributes: row.effect_attributes,
+            effect_aura_period: row.effect_aura_period,
+            effect_bonus_coefficient: row.effect_bonus_coefficient,
+            effect_chain_amplitude: row.effect_chain_amplitude,
+            effect_chain_targets: row.effect_chain_targets,
+            effect_item_type: row.effect_item_type,
+            effect_mechanic: row.effect_mechanic,
+            effect_points_per_resource: row.effect_points_per_resource,
+            effect_pos_facing: row.effect_pos_facing,
+            effect_real_points_per_level: row.effect_real_points_per_level,
+            effect_trigger_spell: row.effect_trigger_spell,
+            bonus_coefficient_from_ap: row.bonus_coefficient_from_ap,
+            pvp_multiplier: row.pvp_multiplier,
+            coefficient: row.coefficient,
+            variance: row.variance,
+            resource_coefficient: row.resource_coefficient,
+            group_size_base_points_coefficient: row.group_size_base_points_coefficient,
+            effect_base_points: row.effect_base_points,
+            effect_misc_value_1: row.effect_misc_value[0],
+            effect_misc_value_2: row.effect_misc_value[1],
+            effect_radius_index_1: row.effect_radius_index[0],
+            effect_radius_index_2: row.effect_radius_index[1],
+            effect_spell_class_mask: row.effect_spell_class_mask,
+            implicit_target_1: row.implicit_target[0],
+            implicit_target_2: row.implicit_target[1],
+        });
+    Ok(
+        wow_data::ServersideSpellEffectStoreLikeCpp::from_rows_like_cpp(
+            rows,
+            regular_spell_exists,
+            difficulty_exists,
+            radius_exists,
+        ),
+    )
+}
+
+pub(crate) async fn load_serverside_spells_like_cpp<RegularSpellExists>(
+    persistence: &dyn SpellAcquisitionStartupPersistencePortLikeCpp,
+    effects: &wow_data::ServersideSpellEffectStoreLikeCpp,
+    regular_spell_exists: RegularSpellExists,
+) -> Result<wow_data::ServersideSpellLoadOutcomeLikeCpp>
+where
+    RegularSpellExists: FnMut(u32) -> bool,
+{
+    let rows = loaded_startup_like_cpp(persistence.load_serverside_spells_like_cpp().await)?
+        .into_iter()
+        .map(|row| wow_data::ServersideSpellRowLikeCpp {
+            spell_id: row.spell_id,
+            difficulty_id: row.difficulty_id,
+            category_id: row.category_id,
+            dispel: row.dispel,
+            mechanic: row.mechanic,
+            attributes: row.attributes,
+            attributes_ex: row.attributes_ex,
+            stances: row.stances,
+            stances_not: row.stances_not,
+            targets: row.targets,
+            target_creature_type: row.target_creature_type,
+            requires_spell_focus: row.requires_spell_focus,
+            facing_caster_flags: row.facing_caster_flags,
+            caster_aura_state: row.caster_aura_state,
+            target_aura_state: row.target_aura_state,
+            exclude_caster_aura_state: row.exclude_caster_aura_state,
+            exclude_target_aura_state: row.exclude_target_aura_state,
+            caster_aura_spell: row.caster_aura_spell,
+            target_aura_spell: row.target_aura_spell,
+            exclude_caster_aura_spell: row.exclude_caster_aura_spell,
+            exclude_target_aura_spell: row.exclude_target_aura_spell,
+            caster_aura_type: row.caster_aura_type,
+            target_aura_type: row.target_aura_type,
+            exclude_caster_aura_type: row.exclude_caster_aura_type,
+            exclude_target_aura_type: row.exclude_target_aura_type,
+            casting_time_index: row.casting_time_index,
+            recovery_time: row.recovery_time,
+            category_recovery_time: row.category_recovery_time,
+            start_recovery_category: row.start_recovery_category,
+            start_recovery_time: row.start_recovery_time,
+            interrupt_flags: row.interrupt_flags,
+            aura_interrupt_flags: row.aura_interrupt_flags,
+            channel_interrupt_flags: row.channel_interrupt_flags,
+            proc_flags: row.proc_flags,
+            proc_chance: row.proc_chance,
+            proc_charges: row.proc_charges,
+            proc_cooldown: row.proc_cooldown,
+            proc_base_ppm: row.proc_base_ppm,
+            max_level: row.max_level,
+            base_level: row.base_level,
+            spell_level: row.spell_level,
+            duration_index: row.duration_index,
+            range_index: row.range_index,
+            speed: row.speed,
+            launch_delay: row.launch_delay,
+            stack_amount: row.stack_amount,
+            equipped_item_class: row.equipped_item_class,
+            equipped_item_sub_class_mask: row.equipped_item_sub_class_mask,
+            equipped_item_inventory_type_mask: row.equipped_item_inventory_type_mask,
+            content_tuning_id: row.content_tuning_id,
+            spell_name: row.spell_name,
+            cone_angle: row.cone_angle,
+            cone_width: row.cone_width,
+            max_target_level: row.max_target_level,
+            max_affected_targets: row.max_affected_targets,
+            spell_family_name: row.spell_family_name,
+            spell_family_flags: row.spell_family_flags,
+            dmg_class: row.dmg_class,
+            prevention_type: row.prevention_type,
+            area_group_id: row.area_group_id,
+            school_mask: row.school_mask,
+            charge_category_id: row.charge_category_id,
+        });
+    Ok(wow_data::ServersideSpellStoreLikeCpp::from_rows_like_cpp(
+        rows,
+        effects,
+        regular_spell_exists,
+    ))
+}
 
 #[derive(Debug)]
 pub(crate) struct SpellAcquisitionBootstrapLikeCpp {
@@ -223,9 +540,8 @@ fn trainer_cast_effects_are_static_safe_like_cpp(
 pub(crate) async fn load_trainer_static_authority_like_cpp(
     data_dir: &str,
     locale: &str,
-    hotfix_db: &HotfixDatabase,
+    persistence: &dyn SpellAcquisitionStartupPersistencePortLikeCpp,
     removals: &Db2HotfixRemovalStoreLikeCpp,
-    world_db: &WorldDatabase,
     spell_store: &SpellStore,
     spell_chains: &SpellChainStoreLikeCpp,
     catalog: &SpellAcquisitionCatalogLikeCpp,
@@ -237,26 +553,26 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
     spell_areas: &SpellAreaStoreLikeCpp,
     item_exists: impl Fn(u32) -> bool,
 ) -> Result<TrainerSpellStaticAuthorityLikeCpp> {
-    let script_bindings = load_spell_script_bindings_like_cpp(
-        world_db,
-        WorldStatements::SEL_TRAINER_CAST_SCRIPT_BINDING_IDS,
-    )
-    .await
-    .context("Failed to audit spell_script_names for trainer casts")?;
-    let legacy_scripts = load_unsigned_spell_id_set_like_cpp(
-        world_db,
-        WorldStatements::SEL_TRAINER_CAST_LEGACY_SCRIPT_IDS,
-    )
-    .await
-    .context("Failed to audit spell_scripts for trainer casts")?;
-    let conditions = load_signed_spell_id_set_like_cpp(
-        world_db,
-        WorldStatements::SEL_TRAINER_CAST_CONDITION_IDS,
-    )
-    .await
-    .context("Failed to audit spell cast/implicit-target conditions")?;
+    let audit = loaded_startup_like_cpp(persistence.load_trainer_spell_audit_like_cpp().await)
+        .context("Failed to audit trainer spell World hooks")?;
+    let mut script_bindings = TrainerSpellScriptBindingsLikeCpp::default();
+    for id in audit.script_binding_ids {
+        if id > 0 {
+            script_bindings.exact_spell_ids.insert(id as u32);
+        } else if let Some(id) = id.checked_abs().and_then(|id| u32::try_from(id).ok())
+            && id != 0
+        {
+            script_bindings.all_rank_root_spell_ids.insert(id);
+        }
+    }
+    let legacy_scripts = audit.legacy_script_ids.into_iter().collect::<BTreeSet<_>>();
+    let conditions = audit
+        .condition_spell_ids
+        .into_iter()
+        .filter_map(|id| id.checked_abs().and_then(|id| u32::try_from(id).ok()))
+        .collect::<BTreeSet<_>>();
     let effective_reagents =
-        load_effective_spell_reagents_like_cpp(data_dir, locale, hotfix_db, removals)
+        load_effective_spell_reagents_like_cpp(data_dir, locale, persistence, removals)
             .await
             .context("Failed to compose effective trainer craft reagents")?;
 
@@ -388,18 +704,10 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
     })
 }
 
-const SPELL_REAGENTS_OVERLAY_SQL_LIKE_CPP: &str = concat!(
-    "SELECT ID, SpellID, Reagent1, Reagent2, Reagent3, Reagent4, ",
-    "Reagent5, Reagent6, Reagent7, Reagent8, ReagentCount1, ReagentCount2, ",
-    "ReagentCount3, ReagentCount4, ReagentCount5, ReagentCount6, ",
-    "ReagentCount7, ReagentCount8 FROM spell_reagents ",
-    "WHERE (`VerifiedBuild` > 0) = ?"
-);
-
 async fn load_effective_spell_reagents_like_cpp(
     data_dir: &str,
     locale: &str,
-    hotfix_db: &HotfixDatabase,
+    persistence: &dyn SpellAcquisitionStartupPersistencePortLikeCpp,
     removals: &Db2HotfixRemovalStoreLikeCpp,
 ) -> Result<BTreeMap<u32, [i32; 8]>> {
     let db2_path = Path::new(data_dir)
@@ -414,28 +722,19 @@ async fn load_effective_spell_reagents_like_cpp(
     let base_rows = store.entries_like_cpp().cloned().collect::<Vec<_>>();
     let mut overlay_batches = [Vec::new(), Vec::new()];
     for (batch_index, official) in [true, false].into_iter().enumerate() {
-        let mut statement =
-            hotfix_db.prepare(HotfixStatements::base(SPELL_REAGENTS_OVERLAY_SQL_LIKE_CPP));
-        statement.set_bool(0, official);
-        let mut result = hotfix_db.query(&statement).await?;
-        if result.is_empty() {
-            continue;
-        }
-        loop {
-            overlay_batches[batch_index].push(SpellReagentsEntry {
-                id: result.try_read::<u32>(0).unwrap_or(0),
-                spell_id: result.try_read::<i32>(1).unwrap_or(0),
-                reagent: std::array::from_fn(|index| {
-                    result.try_read::<i32>(2 + index).unwrap_or(0)
-                }),
-                reagent_count: std::array::from_fn(|index| {
-                    result.try_read::<i16>(10 + index).unwrap_or(0)
-                }),
-            });
-            if !result.next_row() {
-                break;
-            }
-        }
+        overlay_batches[batch_index] = loaded_startup_like_cpp(
+            persistence
+                .load_spell_reagents_overlay_like_cpp(official)
+                .await,
+        )?
+        .into_iter()
+        .map(|row| SpellReagentsEntry {
+            id: row.id,
+            spell_id: row.spell_id,
+            reagent: row.reagent,
+            reagent_count: row.reagent_count,
+        })
+        .collect();
     }
     let [official_rows, custom_rows] = overlay_batches;
     let removed_record_ids = removals
@@ -600,74 +899,6 @@ fn derive_valid_craft_spell_ids_like_cpp(
         .collect()
 }
 
-async fn load_unsigned_spell_id_set_like_cpp(
-    world_db: &WorldDatabase,
-    statement: WorldStatements,
-) -> Result<BTreeSet<u32>> {
-    let prepared = world_db.prepare(statement);
-    let mut result = world_db.query(&prepared).await?;
-    let mut ids = BTreeSet::new();
-    if !result.is_empty() {
-        loop {
-            if let Some(id) = result.try_read::<u32>(0) {
-                ids.insert(id);
-            }
-            if !result.next_row() {
-                break;
-            }
-        }
-    }
-    Ok(ids)
-}
-
-async fn load_signed_spell_id_set_like_cpp(
-    world_db: &WorldDatabase,
-    statement: WorldStatements,
-) -> Result<BTreeSet<u32>> {
-    let prepared = world_db.prepare(statement);
-    let mut result = world_db.query(&prepared).await?;
-    let mut ids = BTreeSet::new();
-    if !result.is_empty() {
-        loop {
-            if let Some(id) = result.try_read::<i32>(0)
-                && let Some(id) = id.checked_abs().and_then(|id| u32::try_from(id).ok())
-            {
-                ids.insert(id);
-            }
-            if !result.next_row() {
-                break;
-            }
-        }
-    }
-    Ok(ids)
-}
-
-async fn load_spell_script_bindings_like_cpp(
-    world_db: &WorldDatabase,
-    statement: WorldStatements,
-) -> Result<TrainerSpellScriptBindingsLikeCpp> {
-    let prepared = world_db.prepare(statement);
-    let mut result = world_db.query(&prepared).await?;
-    let mut bindings = TrainerSpellScriptBindingsLikeCpp::default();
-    if !result.is_empty() {
-        loop {
-            if let Some(id) = result.try_read::<i32>(0) {
-                if id > 0 {
-                    bindings.exact_spell_ids.insert(id as u32);
-                } else if let Some(id) = id.checked_abs().and_then(|id| u32::try_from(id).ok())
-                    && id != 0
-                {
-                    bindings.all_rank_root_spell_ids.insert(id);
-                }
-            }
-            if !result.next_row() {
-                break;
-            }
-        }
-    }
-    Ok(bindings)
-}
-
 #[derive(Debug, PartialEq, Eq)]
 enum LearnSkillProjectionLikeCpp {
     Covered(SpellLearnSkillSourceSpellInfoLikeCpp),
@@ -686,9 +917,8 @@ enum LearnSkillProjectionLikeCpp {
 pub(crate) async fn load_like_cpp(
     data_dir: &str,
     locale: &str,
-    hotfix_db: &HotfixDatabase,
+    persistence: &dyn SpellAcquisitionStartupPersistencePortLikeCpp,
     removals: &Db2HotfixRemovalStoreLikeCpp,
-    world_db: &WorldDatabase,
     spell_store: &SpellStore,
     serverside_spell_store: &ServersideSpellStoreLikeCpp,
     difficulty_store: &DifficultyStore,
@@ -714,9 +944,14 @@ pub(crate) async fn load_like_cpp(
     }));
     let indeterminate_seed_count = serverside_keys.len();
 
+    let overlay_source = SpellAcquisitionSqlOverlaySourceBridgeLikeCpp { persistence };
     let catalog = Arc::new(
         SpellAcquisitionCatalogLikeCpp::load_effective_like_cpp(
-            data_dir, locale, hotfix_db, removals, coverage,
+            data_dir,
+            locale,
+            &overlay_source,
+            removals,
+            coverage,
         )
         .await
         .context("Failed to load the effective spell-acquisition catalog")?,
@@ -746,12 +981,20 @@ pub(crate) async fn load_like_cpp(
         difficulty_store,
         &catalog,
     );
+    let custom_attribute_rows =
+        loaded_startup_like_cpp(persistence.load_spell_custom_attributes_like_cpp().await)
+            .context("Failed to load C++ spell_custom_attr rows")?
+            .into_iter()
+            .map(|row| wow_data::SpellCustomAttributeRowLikeCpp {
+                spell_id: row.spell_id,
+                attributes: row.attributes,
+            })
+            .collect::<Vec<_>>();
     let mut custom_attribute_outcome =
-        SpellCustomAttributeStoreLikeCpp::load_for_variants_like_cpp(world_db, |spell_id| {
-            custom_variants.get(&spell_id).cloned().unwrap_or_default()
-        })
-        .await
-        .context("Failed to load C++ spell_custom_attr rows")?;
+        SpellCustomAttributeStoreLikeCpp::from_sql_rows_for_variants_like_cpp(
+            custom_attribute_rows,
+            |spell_id| custom_variants.get(&spell_id).cloned().unwrap_or_default(),
+        );
     let custom_talent_unknown_keys =
         custom_talent_unknown_keys_like_cpp(&custom_attribute_outcome.errors);
     let mut derived_talent_variant_count = 0usize;
@@ -1005,15 +1248,23 @@ pub(crate) async fn load_like_cpp(
         .collect::<Vec<_>>();
 
     let sql_source_infos_for_lookup = sql_source_infos;
-    let learn_spell_outcome = SpellLearnSpellStoreLikeCpp::load_like_cpp(
-        world_db,
+    let sql_learn_spell_rows =
+        loaded_startup_like_cpp(persistence.load_spell_learn_spells_like_cpp().await)
+            .context("Failed to load C++ spell_learn_spell rows")?
+            .into_iter()
+            .map(|row| wow_data::SpellLearnSpellSqlRowLikeCpp {
+                entry: row.entry,
+                spell_id: row.spell_id,
+                active: row.active,
+            })
+            .collect::<Vec<_>>();
+    let learn_spell_outcome = SpellLearnSpellStoreLikeCpp::from_sources_like_cpp(
+        sql_learn_spell_rows,
         automatic_sources,
         dependency_rows,
         |spell_id| sql_source_infos_for_lookup.get(&spell_id).cloned(),
         spell_exists_at_difficulty_none,
-    )
-    .await
-    .context("Failed to load C++ spell_learn_spell rows")?;
+    );
     info!(
         sql_loaded_row_count = learn_spell_outcome.sql_loaded_row_count,
         canonical_loaded_edge_count = learn_spell_outcome.dbc_loaded_row_count,
@@ -1318,6 +1569,77 @@ mod tests {
     use super::*;
     use wow_data::DifficultyEntry;
 
+    #[test]
+    fn typed_spell_effect_overlay_preserves_raw_integer_and_float_domains() {
+        let row = wow_persistence::SpellEffectHotfixPersistenceRowLikeCpp {
+            record_id: Some(7),
+            difficulty_id: Some(-1),
+            effect_index: None,
+            effect: Some(36),
+            effect_base_points: Some(i64::MIN),
+            effect_die_sides: Some(1),
+            effect_trigger_spell: Some(42),
+            effect_misc_value: [Some(-9), None],
+            implicit_target: [Some(1), Some(21)],
+            coefficient_bits: Some(f32::NAN.to_bits()),
+            variance_bits: Some((-0.0_f32).to_bits()),
+            spell_id: Some(100),
+            effect_chain_targets: Some(3),
+            effect_points_per_resource_bits: Some(1.5_f32.to_bits()),
+            effect_real_points_per_level_bits: None,
+            effect_item_type: Some(-2),
+            effect_aura: Some(4),
+            effect_mechanic: Some(5),
+            effect_attributes: Some(-1),
+        };
+        let bridged = overlay_row_like_cpp(
+            SpellAcquisitionTableLikeCpp::SpellEffect,
+            SpellAcquisitionHotfixPersistenceRowLikeCpp::SpellEffect(row),
+        )
+        .unwrap();
+
+        assert_eq!(bridged.integer_columns[0], Some(7));
+        assert_eq!(bridged.integer_columns[2], None);
+        assert_eq!(bridged.integer_columns[17], Some(-2));
+        assert_eq!(bridged.float_columns_bits[11], Some(f32::NAN.to_bits()));
+        assert_eq!(bridged.float_columns_bits[12], Some((-0.0_f32).to_bits()));
+        assert_eq!(bridged.float_columns_bits[16], None);
+    }
+
+    #[test]
+    fn typed_overlay_rejects_a_row_from_the_wrong_source_family() {
+        let row = wow_persistence::SpellLearnSpellHotfixPersistenceRowLikeCpp {
+            record_id: Some(1),
+            spell_id: Some(2),
+            learn_spell_id: Some(3),
+            overrides_spell_id: Some(0),
+        };
+        assert!(
+            overlay_row_like_cpp(
+                SpellAcquisitionTableLikeCpp::SpellEffect,
+                SpellAcquisitionHotfixPersistenceRowLikeCpp::SpellLearnSpell(row),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn startup_outcome_keeps_empty_success_distinct_from_failure() {
+        let empty = loaded_startup_like_cpp::<Vec<u32>>(
+            SpellAcquisitionStartupLoadOutcomeLikeCpp::Loaded(Vec::new()),
+        )
+        .unwrap();
+        assert!(empty.is_empty());
+        assert!(
+            loaded_startup_like_cpp::<Vec<u32>>(
+                SpellAcquisitionStartupLoadOutcomeLikeCpp::Failed {
+                    reason: "world read failed".to_string(),
+                },
+            )
+            .is_err()
+        );
+    }
+
     fn difficulty(id: u32, fallback_difficulty_id: u8) -> DifficultyEntry {
         DifficultyEntry {
             id,
@@ -1457,20 +1779,6 @@ mod tests {
                 |item_id| item_id == 10_577,
             )
             .is_empty()
-        );
-    }
-
-    #[test]
-    fn trainer_craft_reagent_overlay_query_covers_all_cpp_reagent_slots() {
-        assert_eq!(
-            SPELL_REAGENTS_OVERLAY_SQL_LIKE_CPP,
-            concat!(
-                "SELECT ID, SpellID, Reagent1, Reagent2, Reagent3, Reagent4, ",
-                "Reagent5, Reagent6, Reagent7, Reagent8, ReagentCount1, ReagentCount2, ",
-                "ReagentCount3, ReagentCount4, ReagentCount5, ReagentCount6, ",
-                "ReagentCount7, ReagentCount8 FROM spell_reagents ",
-                "WHERE (`VerifiedBuild` > 0) = ?"
-            )
         );
     }
 

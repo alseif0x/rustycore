@@ -1087,128 +1087,6 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
     {
-      "package": "world-server",
-      "module": "crate::spell_acquisition_loader",
-      "source": "crates/world-server/src/spell_acquisition_loader.rs",
-      "enclosing": "fn load_effective_spell_reagents_like_cpp",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spell_acquisition_loader",
-      "source": "crates/world-server/src/spell_acquisition_loader.rs",
-      "enclosing": "fn load_like_cpp",
-      "logical_databases": [
-        "hotfix",
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow uses independent hotfix, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spell_acquisition_loader",
-      "source": "crates/world-server/src/spell_acquisition_loader.rs",
-      "enclosing": "fn load_signed_spell_id_set_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spell_acquisition_loader",
-      "source": "crates/world-server/src/spell_acquisition_loader.rs",
-      "enclosing": "fn load_spell_script_bindings_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spell_acquisition_loader",
-      "source": "crates/world-server/src/spell_acquisition_loader.rs",
-      "enclosing": "fn load_trainer_static_authority_like_cpp",
-      "logical_databases": [
-        "hotfix",
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow uses independent hotfix, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spell_acquisition_loader",
-      "source": "crates/world-server/src/spell_acquisition_loader.rs",
-      "enclosing": "fn load_unsigned_spell_id_set_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate::spell_acquisition_loader",
-      "source": "crates/world-server/src/spell_acquisition_loader.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "hotfix",
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for hotfix, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
       "package": "wow-data",
       "module": "crate::access_requirement",
       "source": "crates/wow-data/src/access_requirement.rs",
@@ -2114,315 +1992,6 @@
       "module": "crate::spawn_group",
       "source": "crates/wow-data/src/spawn_group.rs",
       "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell",
-      "source": "crates/wow-data/src/spell/mod.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "hotfix",
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for hotfix, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell::acquisition",
-      "source": "crates/wow-data/src/spell/acquisition.rs",
-      "enclosing": "impl SpellLearnSpellStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell::acquisition",
-      "source": "crates/wow-data/src/spell/acquisition.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "hotfix",
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for hotfix, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell::corrections",
-      "source": "crates/wow-data/src/spell/corrections.rs",
-      "enclosing": "impl ServersideSpellEffectStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell::corrections",
-      "source": "crates/wow-data/src/spell/corrections.rs",
-      "enclosing": "impl ServersideSpellStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell::corrections",
-      "source": "crates/wow-data/src/spell/corrections.rs",
-      "enclosing": "impl SpellCustomAttributeStoreLikeCpp::load_for_variants_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell::corrections",
-      "source": "crates/wow-data/src/spell/corrections.rs",
-      "enclosing": "impl SpellCustomAttributeStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell::corrections",
-      "source": "crates/wow-data/src/spell/corrections.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "hotfix",
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for hotfix, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_acquisition",
-      "source": "crates/wow-data/src/spell_acquisition.rs",
-      "enclosing": "fn load_sql_overlays_like_cpp",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_acquisition",
-      "source": "crates/wow-data/src/spell_acquisition.rs",
-      "enclosing": "fn spell_acquisition_effect_from_sql_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_acquisition",
-      "source": "crates/wow-data/src/spell_acquisition.rs",
-      "enclosing": "fn sql_f32_bits_or_invalid",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_acquisition",
-      "source": "crates/wow-data/src/spell_acquisition.rs",
-      "enclosing": "fn sql_raw_i64",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_acquisition",
-      "source": "crates/wow-data/src/spell_acquisition.rs",
-      "enclosing": "fn sql_raw_or_invalid",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_acquisition",
-      "source": "crates/wow-data/src/spell_acquisition.rs",
-      "enclosing": "impl SpellAcquisitionCatalogLikeCpp::load_effective_like_cpp",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_acquisition",
-      "source": "crates/wow-data/src/spell_acquisition.rs",
-      "enclosing": "impl spell_acquisition::SpellEffectSqlFieldSourceLikeCpp for SpellEffectSqlResultSourceLikeCpp < '_ >::f32_bits",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_acquisition",
-      "source": "crates/wow-data/src/spell_acquisition.rs",
-      "enclosing": "impl spell_acquisition::SpellEffectSqlFieldSourceLikeCpp for SpellEffectSqlResultSourceLikeCpp < '_ >::raw",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_acquisition",
-      "source": "crates/wow-data/src/spell_acquisition.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for hotfix; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_acquisition",
-      "source": "crates/wow-data/src/spell_acquisition.rs",
-      "enclosing": "struct SpellEffectSqlResultSourceLikeCpp",
       "logical_databases": [
         "world"
       ],
@@ -12188,6 +11757,279 @@
       "connection_affinity": "Every operation uses the one configured Characters adapter; no cross-database or distributed transaction is implied.",
       "current_order": "Candidate lookup remains before tolerant presence/count reads; mutations preserve upsert or clear-then-cleanup order and exact bind order.",
       "failure_and_unknown_commit": "Read failures stay typed; write failure suppresses Session publication, and these pooled operations do not claim an unknown-COMMIT reconciliation guarantee."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
+      "enclosing": "fn decode_hotfix_row_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns and reuses its HotfixDatabase handle for ordered official/custom overlay reads; no wider transaction is inferred.",
+      "current_order": "Each caller awaits the official overlay before the custom overlay and applies RecordRemoved only after both complete; helper decoding does not publish partial state.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
+      "enclosing": "fn decode_serverside_effect_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns and reuses its WorldDatabase handle for ordered catalog reads; no wider transaction is inferred.",
+      "current_order": "World rows are fully decoded before domain validation or publication; trainer audit preserves script bindings -> legacy scripts -> conditions and stops on the first failure.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
+      "enclosing": "fn decode_serverside_spell_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns and reuses its WorldDatabase handle for ordered catalog reads; no wider transaction is inferred.",
+      "current_order": "World rows are fully decoded before domain validation or publication; trainer audit preserves script bindings -> legacy scripts -> conditions and stops on the first failure.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
+      "enclosing": "fn f32_bits_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns and reuses its HotfixDatabase handle for ordered official/custom overlay reads; no wider transaction is inferred.",
+      "current_order": "Each caller awaits the official overlay before the custom overlay and applies RecordRemoved only after both complete; helper decoding does not publish partial state.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
+      "enclosing": "fn load_hotfix_overlay_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns and reuses its HotfixDatabase handle for ordered official/custom overlay reads; no wider transaction is inferred.",
+      "current_order": "Each caller awaits the official overlay before the custom overlay and applies RecordRemoved only after both complete; helper decoding does not publish partial state.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
+      "enclosing": "fn load_spell_reagents_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns and reuses its HotfixDatabase handle for ordered official/custom overlay reads; no wider transaction is inferred.",
+      "current_order": "Each caller awaits the official overlay before the custom overlay and applies RecordRemoved only after both complete; helper decoding does not publish partial state.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
+      "enclosing": "fn query_world_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns and reuses its WorldDatabase handle for ordered catalog reads; no wider transaction is inferred.",
+      "current_order": "World rows are fully decoded before domain validation or publication; trainer audit preserves script bindings -> legacy scripts -> conditions and stops on the first failure.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
+      "enclosing": "fn raw_i64_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns and reuses its HotfixDatabase handle for ordered official/custom overlay reads; no wider transaction is inferred.",
+      "current_order": "Each caller awaits the official overlay before the custom overlay and applies RecordRemoved only after both complete; helper decoding does not publish partial state.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
+      "enclosing": "impl MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "hotfix",
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns independent HotfixDatabase and WorldDatabase handles; ordered startup reads are not represented as one distributed transaction.",
+      "current_order": "The composition root preserves server-side effects -> server-side spells -> acquisition catalogs -> trainer audit, while each Hotfix family preserves WDC -> official -> custom -> RecordRemoved order.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
+      "enclosing": "impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_hotfix_overlay_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns and reuses its HotfixDatabase handle for ordered official/custom overlay reads; no wider transaction is inferred.",
+      "current_order": "Each caller awaits the official overlay before the custom overlay and applies RecordRemoved only after both complete; helper decoding does not publish partial state.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
+      "enclosing": "impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_serverside_spell_effects_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns and reuses its WorldDatabase handle for ordered catalog reads; no wider transaction is inferred.",
+      "current_order": "World rows are fully decoded before domain validation or publication; trainer audit preserves script bindings -> legacy scripts -> conditions and stops on the first failure.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
+      "enclosing": "impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_serverside_spells_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns and reuses its WorldDatabase handle for ordered catalog reads; no wider transaction is inferred.",
+      "current_order": "World rows are fully decoded before domain validation or publication; trainer audit preserves script bindings -> legacy scripts -> conditions and stops on the first failure.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
+      "enclosing": "impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_spell_custom_attributes_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns and reuses its WorldDatabase handle for ordered catalog reads; no wider transaction is inferred.",
+      "current_order": "World rows are fully decoded before domain validation or publication; trainer audit preserves script bindings -> legacy scripts -> conditions and stops on the first failure.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
+      "enclosing": "impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_spell_learn_spells_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns and reuses its WorldDatabase handle for ordered catalog reads; no wider transaction is inferred.",
+      "current_order": "World rows are fully decoded before domain validation or publication; trainer audit preserves script bindings -> legacy scripts -> conditions and stops on the first failure.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
+      "enclosing": "impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_spell_reagents_overlay_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns and reuses its HotfixDatabase handle for ordered official/custom overlay reads; no wider transaction is inferred.",
+      "current_order": "Each caller awaits the official overlay before the custom overlay and applies RecordRemoved only after both complete; helper decoding does not publish partial state.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
+      "enclosing": "impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_trainer_spell_audit_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The adapter owns and reuses its WorldDatabase handle for ordered catalog reads; no wider transaction is inferred.",
+      "current_order": "World rows are fully decoded before domain validation or publication; trainer audit preserves script bindings -> legacy scripts -> conditions and stops on the first failure.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "hotfix",
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns independent HotfixDatabase and WorldDatabase handles; ordered startup reads are not represented as one distributed transaction.",
+      "current_order": "The composition root preserves server-side effects -> server-side spells -> acquisition catalogs -> trainer audit, while each Hotfix family preserves WDC -> official -> custom -> RecordRemoved order.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::spell_acquisition_startup_adapter",
+      "source": "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
+      "enclosing": "struct MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "hotfix",
+        "world"
+      ],
+      "boundary": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "One adapter owns independent HotfixDatabase and WorldDatabase handles; ordered startup reads are not represented as one distributed transaction.",
+      "current_order": "The composition root preserves server-side effects -> server-side spells -> acquisition catalogs -> trainer audit, while each Hotfix family preserves WDC -> official -> custom -> RecordRemoved order.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented."
     },
     {
       "package": "wow-database",

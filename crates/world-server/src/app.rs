@@ -1173,6 +1173,11 @@ async fn run_inner(
         wow_database::MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp::new(Arc::clone(
             &hotfix_db,
         ));
+    let spell_acquisition_startup_persistence =
+        wow_database::MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::new(
+            Arc::clone(&hotfix_db),
+            Arc::clone(&world_db),
+        );
     let (spell_name_store, spell_name_load_report) =
         spell_core_db2_hotfix::load_spell_name_store_like_cpp(
             &data_dir,
@@ -2550,8 +2555,8 @@ async fn run_inner(
     );
     info!("Loaded {} spell range rows", spell_range_store.len());
     let serverside_spell_effect_outcome =
-        wow_data::ServersideSpellEffectStoreLikeCpp::load_like_cpp(
-            world_db.as_ref(),
+        spell_acquisition_loader::load_serverside_spell_effects_like_cpp(
+            &spell_acquisition_startup_persistence,
             |spell_id| spell_store.contains_spell_info_any_difficulty_like_cpp(spell_id),
             |difficulty_id| difficulty_store.get(difficulty_id).is_some(),
             |radius_id| spell_radius_store.get(radius_id).is_some(),
@@ -2565,8 +2570,8 @@ async fn run_inner(
         serverside_spell_effect_outcome.errors.len(),
         serverside_spell_effect_outcome.warnings.len()
     );
-    let serverside_spell_outcome = wow_data::ServersideSpellStoreLikeCpp::load_like_cpp(
-        world_db.as_ref(),
+    let serverside_spell_outcome = spell_acquisition_loader::load_serverside_spells_like_cpp(
+        &spell_acquisition_startup_persistence,
         &serverside_spell_effect_store,
         |spell_id| spell_name_store.get(spell_id).is_some(),
     )
@@ -2583,9 +2588,8 @@ async fn run_inner(
     let spell_acquisition_bootstrap = spell_acquisition_loader::load_like_cpp(
         &data_dir,
         &locale,
-        hotfix_db.as_ref(),
+        &spell_acquisition_startup_persistence,
         &db2_hotfix_removals,
-        world_db.as_ref(),
         &spell_store,
         serverside_spell_store.as_ref(),
         difficulty_store.as_ref(),
@@ -4110,9 +4114,8 @@ async fn run_inner(
         spell_acquisition_loader::load_trainer_static_authority_like_cpp(
             &data_dir,
             &locale,
-            hotfix_db.as_ref(),
+            &spell_acquisition_startup_persistence,
             &db2_hotfix_removals,
-            world_db.as_ref(),
             &spell_store,
             spell_chain_store.as_ref(),
             spell_acquisition_catalog.as_ref(),
