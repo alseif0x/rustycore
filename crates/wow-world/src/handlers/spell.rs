@@ -19,10 +19,7 @@
 //!
 //! Reference: C# Game/Handlers/SpellHandler.cs, Game/Spells/Spell.cs
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, OnceLock},
-};
+use std::{collections::HashMap, sync::OnceLock};
 
 use num_traits::FromPrimitive;
 use rand::Rng;
@@ -34,7 +31,6 @@ use wow_constants::{
 };
 use wow_core::ObjectGuid;
 use wow_data::{DISABLE_TYPE_SPELL, DisableWorldObjectRefLikeCpp};
-use wow_database::{CharStatements, SqlTransaction};
 use wow_entities::INVENTORY_SLOT_BAG_0;
 use wow_handler::{PacketProcessing, SessionStatus};
 
@@ -1045,20 +1041,22 @@ impl WorldSession {
     }
 
     async fn load_wrapped_gift_row_like_cpp(&self, item_guid: ObjectGuid) -> WrappedGiftLoad {
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let Some(port) = self.stored_item_persistence_port_like_cpp() else {
             return WrappedGiftLoad::Unavailable;
         };
-        let mut stmt = char_db.prepare(CharStatements::SEL_CHARACTER_GIFT_BY_ITEM);
-        stmt.set_u64(0, item_guid.counter() as u64);
-
-        match char_db.query(&stmt).await {
-            Ok(result) if !result.is_empty() => WrappedGiftLoad::Found(WrappedGiftRow {
-                entry: result.try_read::<u32>(0).unwrap_or(0),
-                flags: result.try_read::<u32>(1).unwrap_or(0),
-            }),
-            Ok(_) => WrappedGiftLoad::Missing,
-            Err(err) => {
-                warn!(item_guid = item_guid.counter(), error = %err, "failed to load wrapped gift row");
+        match port
+            .load_wrapped_gift_like_cpp(item_guid.counter() as u64)
+            .await
+        {
+            wow_persistence::StoredItemLoadOutcomeLikeCpp::Loaded(row) => {
+                WrappedGiftLoad::Found(WrappedGiftRow {
+                    entry: row.entry,
+                    flags: row.flags,
+                })
+            }
+            wow_persistence::StoredItemLoadOutcomeLikeCpp::Missing => WrappedGiftLoad::Missing,
+            wow_persistence::StoredItemLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!(item_guid = item_guid.counter(), error = %reason, "failed to load wrapped gift row");
                 WrappedGiftLoad::Unavailable
             }
         }
@@ -1079,7 +1077,7 @@ impl WorldSession {
         if item.guid != item_guid {
             return;
         }
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let Some(port) = self.stored_item_persistence_port_like_cpp() else {
             return;
         };
 
@@ -1091,29 +1089,22 @@ impl WorldSession {
             .as_ref()
             .is_some_and(|item_object| item_object.is_refundable());
 
-        let mut tx = SqlTransaction::new();
-        if should_expire_refund {
-            let mut del_refund = char_db.prepare(CharStatements::DEL_ITEM_REFUND_INSTANCE);
-            del_refund.set_u64(0, item.db_guid);
-            tx.append(del_refund);
-        }
-
-        let mut del_inv = char_db.prepare(CharStatements::DEL_CHAR_INVENTORY_ITEM);
-        del_inv.set_u64(0, player_guid.counter() as u64);
-        del_inv.set_u64(1, item.db_guid);
-        tx.append(del_inv);
-
-        let mut del_item = char_db.prepare(CharStatements::DEL_ITEM_INSTANCE);
-        del_item.set_u64(0, item.db_guid);
-        tx.append(del_item);
-
-        if let Err(err) = char_db.commit_transaction(tx).await {
-            warn!(
-                item_guid = item_guid.counter(),
-                error = %err,
-                "failed to destroy stale wrapped gift"
-            );
-            return;
+        match port
+            .destroy_inventory_item_like_cpp(
+                wow_persistence::InventoryItemDestroyPersistenceRequestLikeCpp {
+                    owner_guid: player_guid.counter() as u64,
+                    item_guid: item.db_guid,
+                    expire_refund: should_expire_refund,
+                },
+            )
+            .await
+        {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                warn!(item_guid = item_guid.counter(), error = %reason, "failed to destroy stale wrapped gift");
+                return;
+            }
         }
 
         self.remove_fully_looted_runtime_item(bag, slot, item.guid);
@@ -1155,24 +1146,21 @@ impl WorldSession {
         flags: u32,
         durability: u32,
     ) {
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let Some(port) = self.stored_item_persistence_port_like_cpp() else {
             return;
         };
-
-        let mut tx = SqlTransaction::new();
-        let mut upd_item = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_OPEN_GIFT);
-        upd_item.set_u32(0, entry);
-        upd_item.set_u32(1, flags);
-        upd_item.set_u32(2, durability);
-        upd_item.set_u64(3, item_guid.counter() as u64);
-        tx.append(upd_item);
-
-        let mut del_gift = char_db.prepare(CharStatements::DEL_GIFT);
-        del_gift.set_u64(0, item_guid.counter() as u64);
-        tx.append(del_gift);
-
-        if let Err(err) = char_db.commit_transaction(tx).await {
-            warn!(item_guid = item_guid.counter(), entry, error = %err, "failed to persist wrapped gift open");
+        let outcome = port
+            .open_wrapped_gift_like_cpp(wow_persistence::WrappedGiftOpenPersistenceRequestLikeCpp {
+                item_guid: item_guid.counter() as u64,
+                entry,
+                flags,
+                durability,
+            })
+            .await;
+        if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+        | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
+        {
+            warn!(item_guid = item_guid.counter(), entry, error = %reason, "failed to persist wrapped gift open");
         }
     }
 
@@ -1920,18 +1908,17 @@ impl WorldSession {
         &self,
         item_guid: wow_core::ObjectGuid,
     ) -> Option<u32> {
-        let char_db = self.char_db().map(Arc::clone)?;
-
-        let mut stmt = char_db.prepare(CharStatements::SEL_ITEMCONTAINER_MONEY);
-        stmt.set_u64(0, item_guid.counter() as u64);
-
-        match char_db.query(&stmt).await {
-            Ok(result) if !result.is_empty() => result.try_read::<u32>(0),
-            Ok(_) => None,
-            Err(err) => {
+        let port = self.stored_item_persistence_port_like_cpp()?;
+        match port
+            .load_stored_item_money_like_cpp(item_guid.counter() as u64)
+            .await
+        {
+            wow_persistence::StoredItemLoadOutcomeLikeCpp::Loaded(money) => Some(money),
+            wow_persistence::StoredItemLoadOutcomeLikeCpp::Missing => None,
+            wow_persistence::StoredItemLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     item_guid = item_guid.counter(),
-                    error = %err,
+                    error = %reason,
                     "failed to load stored item loot money"
                 );
                 None
@@ -1943,18 +1930,17 @@ impl WorldSession {
         &self,
         item_guid: wow_core::ObjectGuid,
     ) -> Option<Vec<LootEntry>> {
-        let char_db = self.char_db().map(Arc::clone)?;
-
-        let mut stmt = char_db.prepare(CharStatements::SEL_ITEMCONTAINER_ITEMS);
-        stmt.set_u64(0, item_guid.counter() as u64);
-
-        let mut result = match char_db.query(&stmt).await {
-            Ok(result) if !result.is_empty() => result,
-            Ok(_) => return None,
-            Err(err) => {
+        let port = self.stored_item_persistence_port_like_cpp()?;
+        let rows = match port
+            .load_stored_item_loot_like_cpp(item_guid.counter() as u64)
+            .await
+        {
+            wow_persistence::StoredItemLoadOutcomeLikeCpp::Loaded(rows) => rows,
+            wow_persistence::StoredItemLoadOutcomeLikeCpp::Missing => return None,
+            wow_persistence::StoredItemLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     item_guid = item_guid.counter(),
-                    error = %err,
+                    error = %reason,
                     "failed to load stored item loot rows"
                 );
                 return None;
@@ -1962,55 +1948,38 @@ impl WorldSession {
         };
 
         let mut items = Vec::new();
-        loop {
-            let item_id = result.try_read::<u32>(0).unwrap_or(0);
-            let count = result.try_read::<u32>(1).unwrap_or(0);
-            let item_index = result.try_read::<u32>(2).unwrap_or(u32::MAX);
-            let follow_loot_rules = result.try_read::<bool>(3).unwrap_or(false);
-            let freeforall = result.try_read::<bool>(4).unwrap_or(false);
-            let blocked = result.try_read::<bool>(5).unwrap_or(false);
-            let counted = result.try_read::<bool>(6).unwrap_or(false);
-            let under_threshold = result.try_read::<bool>(7).unwrap_or(false);
-            let needs_quest = result.try_read::<bool>(8).unwrap_or(false);
-            let random_properties_id = result.try_read::<i32>(9).unwrap_or(0);
-            let random_properties_seed = result.try_read::<i32>(10).unwrap_or(0);
-            let context = result.try_read::<u8>(11).unwrap_or(0);
-
+        for row in rows {
             if stored_item_row_can_load_like_cpp_representable(
-                item_id,
-                count,
-                item_index,
-                blocked,
-                needs_quest,
-                random_properties_id,
-                random_properties_seed,
-                context,
-                self.item_storage_template(item_id).is_some(),
+                row.item_id,
+                row.count,
+                row.item_index,
+                row.blocked,
+                row.needs_quest,
+                row.random_properties_id,
+                row.random_properties_seed,
+                row.context,
+                self.item_storage_template(row.item_id).is_some(),
             ) {
                 items.push(LootEntry {
-                    loot_list_id: item_index as u8,
-                    item_id,
-                    quantity: count,
-                    random_properties_id,
-                    random_properties_seed,
-                    item_context: context,
+                    loot_list_id: row.item_index as u8,
+                    item_id: row.item_id,
+                    quantity: row.count,
+                    random_properties_id: row.random_properties_id,
+                    random_properties_seed: row.random_properties_seed,
+                    item_context: row.context,
                     flags: LootEntryFlags {
-                        follow_loot_rules,
-                        freeforall,
-                        blocked,
-                        counted,
-                        under_threshold,
-                        needs_quest,
+                        follow_loot_rules: row.follow_loot_rules,
+                        freeforall: row.free_for_all,
+                        blocked: row.blocked,
+                        counted: row.counted,
+                        under_threshold: row.under_threshold,
+                        needs_quest: row.needs_quest,
                     },
                     allowed_looters: Vec::new(),
                     roll_winner: ObjectGuid::EMPTY,
                     ffa_looted_by: Vec::new(),
                     taken: false,
                 });
-            }
-
-            if !result.next_row() {
-                break;
             }
         }
 
@@ -2023,27 +1992,10 @@ impl WorldSession {
         money: u32,
         items: &[LootEntry],
     ) {
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let Some(port) = self.stored_item_persistence_port_like_cpp() else {
             return;
         };
-
-        let mut tx = SqlTransaction::new();
-
-        if money > 0 {
-            let mut del_money = char_db.prepare(CharStatements::DEL_ITEMCONTAINER_MONEY);
-            del_money.set_u64(0, item_guid.counter() as u64);
-            tx.append(del_money);
-
-            let mut ins_money = char_db.prepare(CharStatements::INS_ITEMCONTAINER_MONEY);
-            ins_money.set_u64(0, item_guid.counter() as u64);
-            ins_money.set_u32(1, money);
-            tx.append(ins_money);
-        }
-
-        let mut del_items = char_db.prepare(CharStatements::DEL_ITEMCONTAINER_ITEMS);
-        del_items.set_u64(0, item_guid.counter() as u64);
-        tx.append(del_items);
-
+        let mut rows = Vec::new();
         for item in items {
             let template = self.item_storage_template(item.item_id);
             if !stored_loot_item_should_persist_like_cpp(
@@ -2055,28 +2007,35 @@ impl WorldSession {
                 continue;
             }
 
-            let mut ins_item = char_db.prepare(CharStatements::INS_ITEMCONTAINER_ITEMS);
-            ins_item.set_u64(0, item_guid.counter() as u64);
-            ins_item.set_u32(1, item.item_id);
-            ins_item.set_u32(2, item.quantity);
-            ins_item.set_u32(3, u32::from(item.loot_list_id));
-            ins_item.set_bool(4, item.flags.follow_loot_rules);
-            ins_item.set_bool(5, item.flags.freeforall);
-            ins_item.set_bool(6, item.flags.blocked);
-            ins_item.set_bool(7, item.flags.counted);
-            ins_item.set_bool(8, item.flags.under_threshold);
-            ins_item.set_bool(9, item.flags.needs_quest);
-            ins_item.set_i32(10, item.random_properties_id);
-            ins_item.set_i32(11, item.random_properties_seed);
-            ins_item.set_u8(12, item.item_context);
-            tx.append(ins_item);
+            rows.push(wow_persistence::StoredItemLootPersistenceRowLikeCpp {
+                item_id: item.item_id,
+                count: item.quantity,
+                item_index: u32::from(item.loot_list_id),
+                follow_loot_rules: item.flags.follow_loot_rules,
+                free_for_all: item.flags.freeforall,
+                blocked: item.flags.blocked,
+                counted: item.flags.counted,
+                under_threshold: item.flags.under_threshold,
+                needs_quest: item.flags.needs_quest,
+                random_properties_id: item.random_properties_id,
+                random_properties_seed: item.random_properties_seed,
+                context: item.item_context,
+            });
         }
-
-        if let Err(err) = char_db.commit_transaction(tx).await {
+        let outcome = port
+            .save_stored_item_loot_like_cpp(wow_persistence::StoredItemLootSaveRequestLikeCpp {
+                item_guid: item_guid.counter() as u64,
+                money,
+                items: rows,
+            })
+            .await;
+        if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+        | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
+        {
             warn!(
                 item_guid = item_guid.counter(),
                 money,
-                error = %err,
+                error = %reason,
                 "failed to save stored item loot rows"
             );
         }

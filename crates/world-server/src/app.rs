@@ -3709,7 +3709,7 @@ async fn run_inner(
         format_ipv4(realm_local_address),
     );
 
-    // Wrap login_db in Arc for sharing between account lookup and sessions
+    // Share the Login DB only with account-owned composition adapters.
     let login_db = Arc::new(login_db);
     let battle_pet_account_registry = Arc::new(BattlePetAccountRegistryLikeCpp::new(
         Arc::new(LoginBattlePetPersistenceLikeCpp::new(Arc::clone(&login_db))),
@@ -4584,9 +4584,13 @@ async fn run_inner(
         )),
     );
     // Build session resources
+    let stored_item_persistence_port: Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp> =
+        Arc::new(
+            wow_database::MariaDbStoredItemPersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
+        );
     let session_resources = Arc::new(SessionResources {
         char_db: Some(Arc::clone(&char_db)),
-        login_db: Some(Arc::clone(&login_db)),
+        stored_item_persistence_port: Some(stored_item_persistence_port),
         character_administration_persistence_port: Some(character_administration_persistence_port),
         player_lifecycle_port: Some(Arc::clone(&player_lifecycle_port)),
         character_enumeration_persistence_port: Some(character_enumeration_persistence_port),

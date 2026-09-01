@@ -278,8 +278,8 @@ pub(super) async fn create_session(
     if let Some(ref db) = resources.char_db {
         session.set_char_db(Arc::clone(db));
     }
-    if let Some(ref db) = resources.login_db {
-        session.set_login_db(Arc::clone(db));
+    if let Some(ref port) = resources.stored_item_persistence_port {
+        session.set_stored_item_persistence_port_like_cpp(Arc::clone(port));
     }
     if let Some(ref port) = resources.player_lifecycle_port {
         session.set_player_lifecycle_port_like_cpp(Arc::clone(port));

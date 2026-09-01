@@ -175,7 +175,7 @@
       },
       {
         "id": "persistence_and_session_lifecycle",
-        "expected_field_count": 23,
+        "expected_field_count": 22,
         "field_names": [
           "account_data_like_cpp",
           "battle_pet_account_attachment_like_cpp",
@@ -185,7 +185,6 @@
           "durable_loot_money_persistence_like_cpp",
           "homebind_persistence_tx_like_cpp",
           "level_played_time",
-          "login_db",
           "login_time",
           "logout_time",
           "next_player_save_ms_like_cpp",
@@ -201,8 +200,8 @@
           "tutorials_loaded_coherently_like_cpp",
           "tutorials_loaded_from_db_like_cpp"
         ],
-        "current_storage": "Concrete Character/Login database handles remain on WorldSession for residual workflows; the concrete World database handle has been removed. Typed lifecycle, administration and catalog capabilities are grouped behind persistence_ports_like_cpp so each new workflow does not enlarge WorldSession. Lifecycle flags/timers, persistence trackers and durable snapshots remain Session-owned.",
-        "sole_writer": "The owning Session/lifecycle flow mutates session flags; concrete Character/Login adapters execute residual durable work, sometimes through detached workers or sagas, while World reads cross typed catalog ports.",
+        "current_storage": "A concrete Character database handle remains on WorldSession for residual workflows; the concrete World and Login database handles have been removed. Typed lifecycle, administration, durable Item and catalog capabilities are grouped behind persistence_ports_like_cpp so each new workflow does not enlarge WorldSession. Lifecycle flags/timers, persistence trackers and durable snapshots remain Session-owned.",
+        "sole_writer": "The owning Session/lifecycle flow mutates session flags; the concrete Character adapter executes residual durable work, sometimes through detached workers or sagas, while durable Item and World reads cross typed ports.",
         "readers": "Login/load, logout/save, periodic save, recovery, handlers, and post-commit publication paths.",
         "clock_lifetime": "Selected-character/session lifetime with periodic save and logout clocks; durable commands may outlive one handler call and must recover after restart.",
         "persistence_publication_order": "Preserve statement identity and parameters, connection affinity, commit/rollback/unknown-commit classification, fences, and publication strictly after the durable boundary.",
@@ -1043,9 +1042,9 @@
         "retirement_condition": "This residual is empty, or every remaining field has an explicit reviewed stable-Session justification and a dedicated exact-membership rule."
       }
     ],
-    "expected_field_count": 728,
-    "expected_unique_field_count": 728,
-    "expected_production_field_count": 716,
+    "expected_field_count": 727,
+    "expected_unique_field_count": 727,
+    "expected_production_field_count": 715,
     "expected_test_fixture_field_count": 12
   },
   "inventories": {
@@ -1073,10 +1072,9 @@
       "entries": [
         {
           "id": "session_resources_database_adapters",
-          "expected_field_count": 2,
+          "expected_field_count": 1,
           "field_names": [
-            "char_db",
-            "login_db"
+            "char_db"
           ],
           "owner": "world-server composition currently stores concrete adapters; wow-database owns their implementation.",
           "open_retirement_issues": [
@@ -1100,7 +1098,7 @@
         },
         {
           "id": "session_resources_runtime_handles",
-          "expected_field_count": 29,
+          "expected_field_count": 30,
           "field_names": [
             "battle_pet_purchase_persistence_port",
             "character_administration_persistence_port",
@@ -1127,6 +1125,7 @@
             "session_account_state_port",
             "social_persistence_port",
             "stored_item_money_persistence_port",
+            "stored_item_persistence_port",
             "support_bug_report_persistence_port",
             "vendor_catalog_persistence_port",
             "visibility_spawn_catalog_persistence_port",
@@ -1137,7 +1136,7 @@
             153,
             169
           ],
-          "retirement_condition": "Session receives only the minimal typed runtime ports/PlayerHandle and cannot select or tick duplicate map authorities. #169 adds character-administration, loot-template, vendor and visibility-spawn capabilities while removing the concrete World database handle; the remaining concrete Character/Login handles retire before #169 closes."
+          "retirement_condition": "Session receives only the minimal typed runtime ports/PlayerHandle and cannot select or tick duplicate map authorities. #169 adds character-administration, durable Item, loot-template, vendor and visibility-spawn capabilities while removing the concrete World and Login database handles; the remaining concrete Character handle retires before #169 closes."
         },
         {
           "id": "session_resources_catalogs_and_configuration",

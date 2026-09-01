@@ -5,6 +5,19 @@ use std::sync::Arc;
 use crate::session::WorldSession;
 
 impl WorldSession {
+    pub fn set_stored_item_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.stored_item = Some(port);
+    }
+
+    pub(crate) fn stored_item_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.stored_item.clone()
+    }
+
     pub fn set_character_administration_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>,

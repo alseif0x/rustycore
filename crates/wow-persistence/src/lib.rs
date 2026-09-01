@@ -59,6 +59,7 @@ mod spell_core_db2_hotfix;
 mod spell_info_key_hotfix;
 mod spell_world_catalog;
 mod static_data_overlay;
+mod stored_item;
 mod trainer_catalog;
 mod vehicle_catalog;
 mod vendor_catalog;
@@ -275,6 +276,12 @@ pub use static_data_overlay::{
     AreaTableHotfixRowLikeCpp, PowerTypeHotfixRowLikeCpp, SpellEnchantProcPersistenceRowLikeCpp,
     StaticDataOverlayPersistencePortLikeCpp, StaticDataRowsLoadOutcomeLikeCpp,
     UiMapXMapArtHotfixRowLikeCpp,
+};
+pub use stored_item::{
+    InventoryItemCountPersistenceRequestLikeCpp, InventoryItemDestroyPersistenceRequestLikeCpp,
+    StoredItemLoadOutcomeLikeCpp, StoredItemLootPersistenceRowLikeCpp,
+    StoredItemLootSaveRequestLikeCpp, StoredItemPersistencePortLikeCpp,
+    WrappedGiftOpenPersistenceRequestLikeCpp, WrappedGiftPersistenceRowLikeCpp,
 };
 pub use trainer_catalog::{
     CreatureTrainerPersistenceRowLikeCpp, TrainerCatalogLoadOutcomeLikeCpp,

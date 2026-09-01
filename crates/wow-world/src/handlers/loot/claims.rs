@@ -9,8 +9,6 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::{CharStatements, SqlTransaction};
-
 use super::*;
 
 impl WorldSession {
@@ -1119,8 +1117,8 @@ impl WorldSession {
             return;
         };
 
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.stored_item_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return,
         };
 
@@ -1128,12 +1126,21 @@ impl WorldSession {
         let new_count =
             direct_item_count_after_loot_release_like_cpp(current_count, maximum_destroy_count);
         if new_count != 0 {
-            let mut update_count = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_COUNT);
-            update_count.set_u32(0, new_count);
-            update_count.set_u64(1, item.db_guid);
-            if let Err(error) = char_db.execute(&update_count).await {
-                warn!(?error, "LootRelease: update partially consumed item failed");
-                return;
+            match port
+                .update_inventory_item_count_like_cpp(
+                    wow_persistence::InventoryItemCountPersistenceRequestLikeCpp {
+                        item_guid: item.db_guid,
+                        count: new_count,
+                    },
+                )
+                .await
+            {
+                wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+                wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+                | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                    warn!(error = %reason, "LootRelease: update partially consumed item failed");
+                    return;
+                }
             }
             self.update_inventory_item_object_like_cpp(item_guid, |item| {
                 item.set_count(new_count);
@@ -1148,28 +1155,25 @@ impl WorldSession {
             return;
         }
 
-        let mut tx = SqlTransaction::new();
         let should_expire_refund = runtime_item
             .as_ref()
             .is_some_and(|item_object| item_object.is_refundable());
-        if should_expire_refund {
-            let mut del_refund = char_db.prepare(CharStatements::DEL_ITEM_REFUND_INSTANCE);
-            del_refund.set_u64(0, item.db_guid);
-            tx.append(del_refund);
-        }
-
-        let mut del_inv = char_db.prepare(CharStatements::DEL_CHAR_INVENTORY_ITEM);
-        del_inv.set_u64(0, player_guid.counter() as u64);
-        del_inv.set_u64(1, item.db_guid);
-        tx.append(del_inv);
-
-        let mut del_item = char_db.prepare(CharStatements::DEL_ITEM_INSTANCE);
-        del_item.set_u64(0, item.db_guid);
-        tx.append(del_item);
-
-        if let Err(e) = char_db.commit_transaction(tx).await {
-            warn!("LootRelease: delete fully looted item failed: {e}");
-            return;
+        match port
+            .destroy_inventory_item_like_cpp(
+                wow_persistence::InventoryItemDestroyPersistenceRequestLikeCpp {
+                    owner_guid: player_guid.counter() as u64,
+                    item_guid: item.db_guid,
+                    expire_refund: should_expire_refund,
+                },
+            )
+            .await
+        {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                warn!(error = %reason, "LootRelease: delete fully looted item failed");
+                return;
+            }
         }
 
         self.remove_fully_looted_runtime_item(bag, slot, item.guid);

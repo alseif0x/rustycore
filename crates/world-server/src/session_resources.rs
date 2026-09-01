@@ -21,7 +21,8 @@ use wow_world::{
 /// neither receives it nor exposes any field through the `wow-network` API.
 pub(super) struct SessionResources {
     pub(super) char_db: Option<Arc<wow_database::CharacterDatabase>>,
-    pub(super) login_db: Option<Arc<wow_database::LoginDatabase>>,
+    pub(super) stored_item_persistence_port:
+        Option<Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>>,
     pub(super) character_administration_persistence_port:
         Option<Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>>,
     /// Player lifecycle capability (#200); Session never depends on its handles.

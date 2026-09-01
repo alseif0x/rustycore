@@ -162,9 +162,7 @@ use wow_data::{
     },
     spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
 };
-use wow_database::{
-    CharacterDatabase, LoginDatabase, SqlTransaction, retry_deadlocked_operation_like_cpp,
-};
+use wow_database::{CharacterDatabase, SqlTransaction, retry_deadlocked_operation_like_cpp};
 use wow_entities::{
     AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentDurationAction,
     ApplyEnchantmentEffectAction, ApplyEnchantmentEffectRef, ApplyEnchantmentGemRequirementRef,
@@ -5193,6 +5191,7 @@ pub(crate) struct SessionPersistencePortsLikeCpp {
     map_corpse: Option<Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>,
     quest_poi: Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>>,
     stored_item_money: Option<Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>>,
+    pub(crate) stored_item: Option<Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>>,
     group_loot_money: Option<Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>>,
     represented_group: Option<Arc<dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp>>,
     support_bug_report: Option<Arc<dyn wow_persistence::SupportBugReportPersistencePortLikeCpp>>,
@@ -5293,8 +5292,6 @@ pub struct WorldSession {
     homebind_persistence_tx_like_cpp:
         Option<tokio::sync::mpsc::UnboundedSender<HomebindPersistenceJobLikeCpp>>,
 
-    // Login database (for realmcharacters updates)
-    login_db: Option<Arc<LoginDatabase>>,
     /// Typed database capabilities live behind one indirection so adding a
     /// persistence workflow does not keep growing this already-large session;
     /// `wow-database` supplies the concrete adapters.
@@ -7659,7 +7656,6 @@ impl WorldSession {
             dispatch_table: build_dispatch_table(),
             char_db: None,
             homebind_persistence_tx_like_cpp: None,
-            login_db: None,
             persistence_ports_like_cpp: Box::default(),
             trainer_store_like_cpp: None,
             bank_bag_slot_prices_store: None,
@@ -16259,11 +16255,6 @@ impl WorldSession {
         self.void_storage_item_id_generator_like_cpp = Some(generator);
     }
 
-    /// Set the login database for this session.
-    pub fn set_login_db(&mut self, db: Arc<LoginDatabase>) {
-        self.login_db = Some(db);
-    }
-
     /// Install the Player lifecycle persistence port. Composition supplies the
     /// MariaDB adapter; unit sessions leave it empty and skip durable writes.
     pub fn set_player_lifecycle_port_like_cpp(
@@ -16696,11 +16687,6 @@ impl WorldSession {
     /// Get the character database reference.
     pub fn char_db(&self) -> Option<&Arc<CharacterDatabase>> {
         self.char_db.as_ref()
-    }
-
-    /// Get the login database reference.
-    pub fn login_db(&self) -> Option<&Arc<LoginDatabase>> {
-        self.login_db.as_ref()
     }
 
     pub fn set_trainer_store_like_cpp(&mut self, store: Arc<TrainerStoreLikeCpp>) {

@@ -1285,13 +1285,6 @@
           "source_class": "production"
         },
         {
-          "name": "login_db",
-          "type": "Option < Arc < LoginDatabase > >",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "login_time",
           "type": "Option < Instant >",
           "visibility": "pub (crate)",
@@ -27514,19 +27507,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "login_db",
-          "visibility": "pub",
-          "signature": "fn login_db (& self) -> Option < & Arc < LoginDatabase > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "lookup_represented_fishing_hole_around_like_cpp",
           "visibility": "private",
           "signature": "fn lookup_represented_fishing_hole_around_like_cpp (& self , gameobject_guid : ObjectGuid ,) -> Option < ObjectGuid >",
@@ -41841,20 +41821,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "set_login_db",
-          "visibility": "pub",
-          "signature": "fn set_login_db (& mut self , db : Arc < LoginDatabase >)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "set_loot_drop_rates_like_cpp",
           "visibility": "pub",
           "signature": "fn set_loot_drop_rates_like_cpp (& mut self , rates : LootDropRatesLikeCpp)",
@@ -48868,6 +48834,21 @@
           "module": "crate::session_persistence_capabilities",
           "trait_path": null,
           "kind": "method",
+          "name": "set_stored_item_persistence_port_like_cpp",
+          "visibility": "pub",
+          "signature": "fn set_stored_item_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: StoredItemPersistencePortLikeCpp > ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session_persistence_capabilities",
+          "trait_path": null,
+          "kind": "method",
           "name": "set_vendor_catalog_persistence_port_like_cpp",
           "visibility": "pub",
           "signature": "fn set_vendor_catalog_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: VendorCatalogPersistencePortLikeCpp > ,)",
@@ -48891,6 +48872,20 @@
           "guards": [
             "external_impl",
             "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session_persistence_capabilities",
+          "trait_path": null,
+          "kind": "method",
+          "name": "stored_item_persistence_port_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn stored_item_persistence_port_like_cpp (& self ,) -> Option < Arc < dyn wow_persistence :: StoredItemPersistencePortLikeCpp > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
             "visible"
           ]
         },
@@ -49860,13 +49855,6 @@
           "source_class": "production"
         },
         {
-          "name": "login_db",
-          "type": "Option < Arc < wow_database :: LoginDatabase > >",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "loot_drop_rates",
           "type": "LootDropRatesLikeCpp",
           "visibility": "pub (super)",
@@ -50763,6 +50751,13 @@
           "source_class": "production"
         },
         {
+          "name": "stored_item_persistence_port",
+          "type": "Option < Arc < dyn wow_persistence :: StoredItemPersistencePortLikeCpp > >",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "support_bug_report_persistence_port",
           "type": "Option < Arc < dyn wow_persistence :: SupportBugReportPersistencePortLikeCpp > >",
           "visibility": "pub (super)",
@@ -50972,7 +50967,7 @@
         "source_class": "production"
       },
       "signature": "async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , object_accessor : wow_world :: SharedObjectAccessor , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)",
-      "body_fingerprint": "fnv1a64x2:bfff8193c4ca9604c3a163254a8efa5f:len=37392",
+      "body_fingerprint": "fnv1a64x2:c7868fb66c16519c5f5408a4d3c6ad77:len=37445",
       "session_helper_bodies": [
         {
           "module": "crate::session_factory",
@@ -52146,14 +52141,6 @@
         },
         {
           "module": "crate::session_factory",
-          "callee": "session.set_login_db",
-          "argument_count": 1,
-          "cfg": [],
-          "source_class": "production",
-          "count": 1
-        },
-        {
-          "module": "crate::session_factory",
           "callee": "session.set_loot_drop_rates_like_cpp",
           "argument_count": 1,
           "cfg": [],
@@ -53203,6 +53190,14 @@
         {
           "module": "crate::session_factory",
           "callee": "session.set_stored_item_money_persistence_port_like_cpp",
+          "argument_count": 1,
+          "cfg": [],
+          "source_class": "production",
+          "count": 1
+        },
+        {
+          "module": "crate::session_factory",
+          "callee": "session.set_stored_item_persistence_port_like_cpp",
           "argument_count": 1,
           "cfg": [],
           "source_class": "production",
@@ -65535,7 +65530,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , object_accessor : wow_world :: SharedObjectAccessor , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)|body=fnv1a64x2:bfff8193c4ca9604c3a163254a8efa5f:len=37392|evidence=fnv1a64x2:dd605b9d3e8a9dcc82cdedbf620fbe8f:len=741",
+          "fingerprint": "signature=async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , object_accessor : wow_world :: SharedObjectAccessor , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)|body=fnv1a64x2:c7868fb66c16519c5f5408a4d3c6ad77:len=37445|evidence=fnv1a64x2:dd605b9d3e8a9dcc82cdedbf620fbe8f:len=741",
           "cfg": [],
           "multiplicity": 1
         },
@@ -73903,7 +73898,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:0cf4ad0fe157ffa514f25f0d24c2308c:len=90486|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:47c84eddf610946af2a9da0180c9bebd:len=90440|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
