@@ -822,8 +822,7 @@ impl WorldSession {
         };
 
         let is_wrapped = self
-            .inventory_item_objects_like_cpp()
-            .get(&item.guid)
+            .resolved_inventory_item_object_like_cpp(item.guid)
             .is_some_and(|runtime_item| runtime_item.is_wrapped());
 
         if !flags.contains(ItemFlags::HAS_LOOT) && !is_wrapped {
@@ -845,8 +844,7 @@ impl WorldSession {
             }
 
             let item_is_locked = self
-                .inventory_item_objects_like_cpp()
-                .get(&item.guid)
+                .resolved_inventory_item_object_like_cpp(item.guid)
                 .map_or(true, |item_object| item_object.is_locked());
             if item_is_locked {
                 self.send_equip_error(InventoryResult::ItemLocked, Some(item.guid), None, 0, 0);
@@ -1081,10 +1079,7 @@ impl WorldSession {
             return;
         };
 
-        let runtime_item = self
-            .inventory_item_objects_like_cpp()
-            .get(&item_guid)
-            .cloned();
+        let runtime_item = self.resolved_inventory_item_object_like_cpp(item_guid);
         let should_expire_refund = runtime_item
             .as_ref()
             .is_some_and(|item_object| item_object.is_refundable());
@@ -1771,21 +1766,22 @@ impl WorldSession {
                     }
 
                     self.direct_inventory_item_count_like_cpp_representable(item_id)
-                        < max_allowed_count
+                        .is_some_and(|count| count < max_allowed_count)
                 })
         })
     }
 
-    fn direct_inventory_item_count_like_cpp_representable(&self, item_id: u32) -> u32 {
-        self.inventory_items_like_cpp()
-            .values()
-            .filter(|inventory_item| inventory_item.entry_id == item_id)
-            .filter_map(|inventory_item| {
-                self.inventory_item_objects_like_cpp()
-                    .get(&inventory_item.guid)
-            })
-            .filter(|item| !item.is_in_trade())
-            .fold(0_u32, |total, item| total.saturating_add(item.count()))
+    fn direct_inventory_item_count_like_cpp_representable(&self, item_id: u32) -> Option<u32> {
+        Some(
+            self.resolved_inventory_items_like_cpp()?
+                .values()
+                .filter(|inventory_item| inventory_item.entry_id == item_id)
+                .filter_map(|inventory_item| {
+                    self.resolved_inventory_item_object_like_cpp(inventory_item.guid)
+                })
+                .filter(|item| !item.is_in_trade())
+                .fold(0_u32, |total, item| total.saturating_add(item.count())),
+        )
     }
 
     fn loot_conditions_allow_player_with_references_like_cpp_representable(
@@ -1811,7 +1807,7 @@ impl WorldSession {
                     return None;
                 }
                 Some(
-                    self.direct_inventory_item_count_like_cpp_representable(condition.value1)
+                    self.direct_inventory_item_count_like_cpp_representable(condition.value1)?
                         >= condition.value2,
                 )
             }

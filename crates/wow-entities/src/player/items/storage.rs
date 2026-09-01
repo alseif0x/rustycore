@@ -8,8 +8,16 @@
 use super::super::*;
 
 impl Player {
-    pub const fn inventory(&self) -> &PlayerInventoryStorage {
+    pub fn inventory(&self) -> &PlayerInventoryStorage {
         &self.inventory
+    }
+
+    pub fn inventory_runtime_like_cpp(&self) -> &PlayerInventoryRuntime {
+        &self.inventory_runtime
+    }
+
+    pub fn inventory_runtime_mut_like_cpp(&mut self) -> &mut PlayerInventoryRuntime {
+        &mut self.inventory_runtime
     }
 
     /// C++ `Player::GetBankBagSlotCount` (`Player.h:1334`).

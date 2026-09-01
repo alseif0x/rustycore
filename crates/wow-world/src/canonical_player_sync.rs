@@ -5,7 +5,7 @@ use crate::session::{SKILL_ENCHANTING_LIKE_CPP, WorldSession};
 pub(crate) fn hydrate_player_presentation_like_cpp(
     session: &WorldSession,
     player: &mut wow_entities::Player,
-) {
+) -> Option<()> {
     let (zone_id, area_id) = session.player_zone_area_like_cpp();
     player
         .unit_mut()
@@ -22,7 +22,7 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
         .collect();
     player.gameplay_state_mut().gray_level = session.gray_level(session.player_level_like_cpp());
     for (slot, values) in session
-        .loaded_player_visible_items_for_create_like_cpp()
+        .loaded_player_visible_items_for_create_like_cpp()?
         .into_iter()
         .enumerate()
     {
@@ -30,6 +30,7 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
             player, slot as u8, values,
         );
     }
+    Some(())
 }
 
 pub(crate) fn sync_player_zone_area_like_cpp(session: &WorldSession, zone_id: u32, area_id: u32) {
@@ -97,10 +98,10 @@ pub(crate) fn sync_player_directory_gameplay_to_canonical_like_cpp(session: &Wor
             completed_at: None,
         })
         .collect();
-    let inventory_item_counts = session
-        .represented_inventory_item_counts_like_cpp()
-        .into_iter()
-        .collect();
+    let Some(inventory_item_counts) = session.represented_inventory_item_counts_like_cpp() else {
+        return;
+    };
+    let inventory_item_counts = inventory_item_counts.into_iter().collect();
     let forced_reputation_ranks = session
         .player_forced_reputation_ranks_snapshot_like_cpp()
         .into_iter()

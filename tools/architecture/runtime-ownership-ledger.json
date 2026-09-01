@@ -22,7 +22,7 @@
       "a curated hotspot path must remain measurable until its ledger row is explicitly retired or replaced",
       "a removed source member must also disappear from this ledger or have its family retirement evidence updated"
     ],
-    "field_identity": "Rust named-field identifier. The baseline contains 726 distinct identifiers; source_class is retained by the syntax baseline and the 26 test_fixture members are listed in test_only_fixtures."
+    "field_identity": "Rust named-field identifier. The baseline contains 726 distinct identifiers; source_class is retained by the syntax baseline and the 32 test_fixture members are listed in test_only_fixtures."
   },
   "world_session_responsibility_families": {
     "coverage_source": {
@@ -44,11 +44,17 @@
     "families": [
       {
         "id": "test_only_fixtures",
-        "expected_field_count": 26,
+        "expected_field_count": 32,
         "field_names": [
           "battle_pet_purchase_selection_override_like_cpp",
+          "buyback_items",
+          "buyback_price",
+          "buyback_timestamp",
+          "current_buyback_slot",
           "driver_phase_trace_like_cpp",
           "give_player_xp_script_dispatcher_like_cpp",
+          "inventory_item_objects",
+          "inventory_items",
           "loot_item_store_test_commit_gate_like_cpp",
           "loot_item_store_test_grants_like_cpp",
           "loot_item_store_test_success_like_cpp",
@@ -73,7 +79,7 @@
           "represented_transmog_criteria_events",
           "vendor_buy_item_test_override_like_cpp"
         ],
-        "current_storage": "Fields compiled only under cfg(test) inside wow_world::session::WorldSession. #578 retains bootstrap values for fixtures that inject MapManager after attachment and moves the former health/death, power/base-mana, XP/next-level-XP/character-points, money, inventory/bank capacity and bank-bag flags here while production resolves them exclusively through PlayerHandle.",
+        "current_storage": "Fields compiled only under cfg(test) inside wow_world::session::WorldSession. #578 retains bootstrap values for fixtures that inject MapManager after attachment and moves the former health/death, power/base-mana, XP/next-level-XP/character-points, money, inventory/bank capacity, bank-bag flags, inventory objects and buyback state here while production resolves them exclusively through PlayerHandle.",
         "sole_writer": "Focused tests and their test-only setters; production has no writer.",
         "readers": "Focused tests in wow-world and handler test modules.",
         "clock_lifetime": "One test/session fixture; no production clock.",
@@ -472,19 +478,13 @@
       },
       {
         "id": "player_inventory_loot_and_economy",
-        "expected_field_count": 61,
+        "expected_field_count": 55,
         "field_names": [
           "active_loot_guid",
           "active_loot_view_authorities_like_cpp",
           "active_loot_view_generations_like_cpp",
           "active_loot_view_owners",
-          "buyback_items",
-          "buyback_price",
-          "buyback_timestamp",
-          "current_buyback_slot",
           "enable_ae_loot_like_cpp",
-          "inventory_item_objects",
-          "inventory_items",
           "item_template_addon_quest_log_item_ids_like_cpp",
           "loot_specialization_id",
           "loot_table",
@@ -536,8 +536,8 @@
           "represented_void_storage_loaded_like_cpp",
           "vendor_item_counts"
         ],
-        "current_storage": "Inventory items, buyback, loot views/rolls, equipment/appearance and trade state remain largely stored directly on WorldSession, with canonical Player copies and durable trackers where assigned. #578 moved money plus inventory/bank capacity and bank-bag flags to the generation-checked Player owner; their Session fields are test fixtures only.",
-        "sole_writer": "Canonical Player is the sole production writer for money, inventory/bank capacity and bank-bag flags. The owning Session task and handlers still mutate the residual represented inventory/loot/trade state; durable database work and loot authority have separate explicit coordinators.",
+        "current_storage": "Canonical wow-entities::Player owns money, inventory/bank capacity, bank-bag flags, top-level inventory and buyback metadata plus runtime Item objects behind its private inventory runtime. Loot views/rolls, equipment projections, appearance and trade state remain represented on WorldSession or their assigned coordinators. The six former Session inventory fields are test fixtures only.",
+        "sole_writer": "Canonical Player is the sole production writer for money, inventory/bank capacity, bank-bag flags, inventory objects and buyback state. The owning Session task resolves that owner through its generation-checked PlayerHandle and adapts handler outcomes; durable database work and loot authority have separate explicit coordinators.",
         "readers": "Item/loot/vendor/trade/quest handlers, packet builders, persistence, conditions, and cross-session directory consumers.",
         "clock_lifetime": "Selected-character lifetime; loot views/rolls and trades have bounded operation lifetimes; durable item/money outcomes survive until commit classification/publication.",
         "persistence_publication_order": "Validate and reserve, execute the existing ordered durable plan, classify commit, then update runtime/publication. Never publish spend/loot before durable success or reconciliation.",
@@ -1042,8 +1042,8 @@
     ],
     "expected_field_count": 726,
     "expected_unique_field_count": 726,
-    "expected_production_field_count": 700,
-    "expected_test_fixture_field_count": 26
+    "expected_production_field_count": 694,
+    "expected_test_fixture_field_count": 32
   },
   "inventories": {
     "session_resources": {
@@ -1668,11 +1668,11 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 73227,
-          "test_lines": 97149,
-          "total_lines": 170376,
+          "production_lines": 73339,
+          "test_lines": 97325,
+          "total_lines": 170664,
           "owner": "wow-world WorldSession/application monolith.",
-          "latest_growth_review": "#578 moves backpack capacity, purchased bank slots and bank-bag flags behind the generation-checked PlayerHandle. Explicit unknown/stale handling plus active, detached and replacement-owner coverage raises the reviewed ceilings while production WorldSession fields fall 703 -> 700.",
+          "latest_growth_review": "#578 moves inventory objects, top-level slots and buyback state behind the generation-checked PlayerHandle. Explicit unknown propagation across inventory, quest, condition, vendor, loot and persistence adapters plus active/detached/replacement-owner coverage raises the reviewed ceilings while production WorldSession fields fall 700 -> 694; a 14-line capability resolver keeps production fail-closed while allowing cfg(test) inventory fixtures to model the C++ false/false baseline, with no gameplay field or clock added.",
           "open_retirement_issues": [
             153
           ],
@@ -1691,11 +1691,11 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 19783,
-          "test_lines": 12886,
-          "total_lines": 32669,
+          "production_lines": 19786,
+          "test_lines": 12899,
+          "total_lines": 32685,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
-          "latest_growth_review": "#578 makes inventory-capacity hydration, bank purchase and bank-bag flag handlers resolve canonical Player and fail closed on stale generations; the seven production lines are explicit owner-unavailable branches, not new handler authority.",
+          "latest_growth_review": "#578 makes inventory and buyback handlers resolve canonical Player and fail closed on missing/stale generations; the production and fixture growth is explicit unknown propagation, not new handler authority.",
           "open_retirement_issues": [
             153
           ],
@@ -1703,9 +1703,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/loot/mod.rs",
-          "production_lines": 13410,
+          "production_lines": 13415,
           "test_lines": 16383,
-          "total_lines": 29793,
+          "total_lines": 29798,
           "owner": "wow-world loot handler plus transitional loot/map/persistence coordination.",
           "open_retirement_issues": [
             153
@@ -1727,11 +1727,11 @@
         },
         {
           "path": "crates/wow-world/src/handlers/quest/mod.rs",
-          "production_lines": 8320,
-          "test_lines": 10588,
-          "total_lines": 18908,
+          "production_lines": 8325,
+          "test_lines": 10591,
+          "total_lines": 18916,
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
-          "latest_growth_review": "#578 makes the quest eligibility adapter fail closed when the generation-checked canonical Player vital snapshot is unavailable. The explicit Option propagation adds one production line without adding quest state, persistence ownership or a clock.",
+          "latest_growth_review": "#578 makes quest eligibility, objective counts and item-removal updates fail closed when canonical Player inventory is unavailable. The explicit Option propagation adds no quest state, persistence ownership or clock.",
           "open_retirement_issues": [
             153
           ],
@@ -1739,11 +1739,11 @@
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",
-          "production_lines": 9434,
+          "production_lines": 9536,
           "test_lines": 8891,
-          "total_lines": 18325,
+          "total_lines": 18427,
           "owner": "wow-entities partial canonical Player model.",
-          "latest_growth_review": "#578 adds C++-named getters and explicit update-field marking for Player-owned backpack capacity, purchased bank slots and bank-bag flags.",
+          "latest_growth_review": "#578 adds the private Player inventory runtime for top-level slot metadata, runtime Item objects and buyback arrays/cursor, matching C++ Player::m_items and m_currentBuybackSlot ownership without adding a second lock or writer.",
           "open_retirement_issues": [
             153
           ],

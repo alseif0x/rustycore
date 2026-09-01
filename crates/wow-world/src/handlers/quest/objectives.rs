@@ -691,12 +691,12 @@ impl WorldSession {
     /// C++ `Player::ItemRemovedQuestCheck`: after the inventory mutation,
     /// recompute matching item objectives from carried (non-bank) contents and
     /// move completed quests back to incomplete when the requirement is lost.
-    pub(crate) fn apply_quest_item_removed_like_cpp(&mut self, entry_id: u32) -> Vec<u32> {
+    pub(crate) fn apply_quest_item_removed_like_cpp(&mut self, entry_id: u32) -> Option<Vec<u32>> {
         self.invalidate_player_quest_status_authority_like_cpp();
         let Some(quest_store) = self.quest_store.clone() else {
-            return Vec::new();
+            return Some(Vec::new());
         };
-        let new_non_bank_item_count = self.represented_non_bank_item_count_like_cpp(entry_id);
+        let new_non_bank_item_count = self.represented_non_bank_item_count_like_cpp(entry_id)?;
         let changed_quest_ids = Self::apply_quest_item_removed_to_statuses_like_cpp(
             quest_store.as_ref(),
             &mut self.player_quests,
@@ -712,7 +712,7 @@ impl WorldSession {
         }
         let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
         self.sync_player_registry_state_like_cpp();
-        changed_quest_ids
+        Some(changed_quest_ids)
     }
 
     pub(crate) fn apply_quest_item_added_non_bound_state_like_cpp(

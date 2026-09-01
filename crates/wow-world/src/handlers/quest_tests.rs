@@ -4808,6 +4808,7 @@ async fn quest_confirm_accept_source_item_start_quest_no_grant_adds_local_state_
     assert_eq!(
         session
             .represented_inventory_item_counts_like_cpp()
+            .expect("fixture canonical inventory owner")
             .get(&source_item_id)
             .copied()
             .unwrap_or(0),
@@ -5106,6 +5107,7 @@ async fn quest_confirm_accept_source_item_full_backpack_stores_in_represented_ba
     assert_eq!(
         session
             .represented_inventory_item_counts_like_cpp()
+            .expect("fixture canonical inventory owner")
             .get(&source_item_id)
             .copied(),
         Some(3)
@@ -5286,6 +5288,7 @@ async fn quest_confirm_accept_source_item_merges_existing_stack_inside_represent
     assert_eq!(
         session
             .represented_inventory_item_counts_like_cpp()
+            .expect("fixture canonical inventory owner")
             .get(&source_item_id)
             .copied(),
         Some(20)

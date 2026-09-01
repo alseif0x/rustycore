@@ -19,7 +19,7 @@ mod spellbook;
 mod visibility;
 mod vitals;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::PlayerGameplayState;
 use bitflags::bitflags;
@@ -3074,6 +3074,98 @@ pub enum PlayerStorageError {
     TopLevelBuybackHiddenFromGetItemByPos(u8),
 }
 
+/// Persistent identity and template metadata for one Player-owned item.
+///
+/// C++ stores the concrete `Item*` directly in `Player::m_items`
+/// (`Player.h:2935`). Rust keeps this small record alongside the concrete
+/// [`Item`] so database identity and the effective inventory type travel with
+/// the same canonical Player lifetime.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerInventoryItem {
+    pub guid: ObjectGuid,
+    pub entry_id: u32,
+    pub db_guid: u64,
+    pub inventory_type: Option<u8>,
+}
+
+/// Concrete item/object runtime owned by the canonical Player.
+///
+/// This is deliberately a private Player substate rather than a shared lock:
+/// MapManager's generation-checked Player handle remains the only route to a
+/// mutable owner, including while the Player is detached for a far teleport.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayerInventoryRuntime {
+    inventory_items: HashMap<u8, PlayerInventoryItem>,
+    buyback_items: HashMap<u8, PlayerInventoryItem>,
+    buyback_price: [u32; BUYBACK_SLOT_COUNT],
+    buyback_timestamp: [i64; BUYBACK_SLOT_COUNT],
+    current_buyback_slot: u8,
+    item_objects: HashMap<ObjectGuid, Item>,
+}
+
+impl PlayerInventoryRuntime {
+    pub fn inventory_items(&self) -> &HashMap<u8, PlayerInventoryItem> {
+        &self.inventory_items
+    }
+
+    pub fn inventory_items_mut(&mut self) -> &mut HashMap<u8, PlayerInventoryItem> {
+        &mut self.inventory_items
+    }
+
+    pub fn buyback_items(&self) -> &HashMap<u8, PlayerInventoryItem> {
+        &self.buyback_items
+    }
+
+    pub fn buyback_items_mut(&mut self) -> &mut HashMap<u8, PlayerInventoryItem> {
+        &mut self.buyback_items
+    }
+
+    pub const fn buyback_price(&self) -> &[u32; BUYBACK_SLOT_COUNT] {
+        &self.buyback_price
+    }
+
+    pub fn buyback_price_mut(&mut self) -> &mut [u32; BUYBACK_SLOT_COUNT] {
+        &mut self.buyback_price
+    }
+
+    pub const fn buyback_timestamp(&self) -> &[i64; BUYBACK_SLOT_COUNT] {
+        &self.buyback_timestamp
+    }
+
+    pub fn buyback_timestamp_mut(&mut self) -> &mut [i64; BUYBACK_SLOT_COUNT] {
+        &mut self.buyback_timestamp
+    }
+
+    pub const fn current_buyback_slot(&self) -> u8 {
+        self.current_buyback_slot
+    }
+
+    pub fn set_current_buyback_slot(&mut self, slot: u8) {
+        self.current_buyback_slot = slot;
+    }
+
+    pub fn item_objects(&self) -> &HashMap<ObjectGuid, Item> {
+        &self.item_objects
+    }
+
+    pub fn item_objects_mut(&mut self) -> &mut HashMap<ObjectGuid, Item> {
+        &mut self.item_objects
+    }
+}
+
+impl Default for PlayerInventoryRuntime {
+    fn default() -> Self {
+        Self {
+            inventory_items: HashMap::new(),
+            buyback_items: HashMap::new(),
+            buyback_price: [0; BUYBACK_SLOT_COUNT],
+            buyback_timestamp: [0; BUYBACK_SLOT_COUNT],
+            current_buyback_slot: BUYBACK_SLOT_START,
+            item_objects: HashMap::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlayerBagStorage {
     pub bag_guid: ObjectGuid,
@@ -3288,7 +3380,8 @@ pub struct Player {
     session_id: Option<u64>,
     data: PlayerDataValues,
     active_data: ActivePlayerDataValues,
-    inventory: PlayerInventoryStorage,
+    inventory: Box<PlayerInventoryStorage>,
+    inventory_runtime: Box<PlayerInventoryRuntime>,
     gameplay_state: PlayerGameplayState,
     player_data_changes: UpdateMask,
     active_player_data_changes: UpdateMask,
@@ -3326,7 +3419,8 @@ impl Player {
             session_id,
             data: PlayerDataValues::default(),
             active_data: ActivePlayerDataValues::default(),
-            inventory: PlayerInventoryStorage::default(),
+            inventory: Box::default(),
+            inventory_runtime: Box::default(),
             gameplay_state: PlayerGameplayState::default(),
             player_data_changes: UpdateMask::new(PLAYER_DATA_BITS),
             active_player_data_changes: UpdateMask::new(ACTIVE_PLAYER_DATA_BITS),

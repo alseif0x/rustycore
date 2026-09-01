@@ -260,7 +260,8 @@ impl WorldSession {
                         max_allowed_count = max_allowed_count.min(template.max_count as u32);
                     }
 
-                    self.direct_inventory_item_count_like_cpp(item_id) < max_allowed_count
+                    self.direct_inventory_item_count_like_cpp(item_id)
+                        .is_some_and(|count| count < max_allowed_count)
                 })
         })
     }

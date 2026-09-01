@@ -6749,7 +6749,9 @@ fn recursive_destroy_descendants_are_deepest_first_like_cpp() {
     leaf.set_container_guid_and_slot(child_bag_guid, 0);
     session.insert_inventory_item_object(leaf);
 
-    let descendants = session.represented_inventory_descendants_postorder_like_cpp(parent_guid);
+    let descendants = session
+        .represented_inventory_descendants_postorder_like_cpp(parent_guid)
+        .expect("fixture canonical inventory owner");
     assert_eq!(
         descendants
             .iter()
@@ -6797,20 +6799,22 @@ fn recursive_destroy_plans_child_and_parent_quest_removal_like_cpp() {
         },
     );
 
-    let planned = session.plan_destroyed_inventory_quest_persistence_like_cpp(&[
-        DestroyQuestItemLikeCpp {
-            bag: INVENTORY_SLOT_BAG_START,
-            slot: 0,
-            entry_id: child_entry,
-            count: 1,
-        },
-        DestroyQuestItemLikeCpp {
-            bag: INVENTORY_SLOT_BAG_0,
-            slot: INVENTORY_SLOT_BAG_START,
-            entry_id: parent_entry,
-            count: 1,
-        },
-    ]);
+    let planned = session
+        .plan_destroyed_inventory_quest_persistence_like_cpp(&[
+            DestroyQuestItemLikeCpp {
+                bag: INVENTORY_SLOT_BAG_START,
+                slot: 0,
+                entry_id: child_entry,
+                count: 1,
+            },
+            DestroyQuestItemLikeCpp {
+                bag: INVENTORY_SLOT_BAG_0,
+                slot: INVENTORY_SLOT_BAG_START,
+                entry_id: parent_entry,
+                count: 1,
+            },
+        ])
+        .expect("fixture canonical inventory owner");
 
     assert_eq!(planned.len(), 1);
     assert_eq!(planned[0].objective_counts, vec![0, 0]);
@@ -8286,7 +8290,10 @@ fn committed_bank_relocation_updates_runtime_only_after_explicit_apply() {
             .map(|item| item.guid),
         Some(source_guid)
     );
-    assert_eq!(session.represented_non_bank_item_count_like_cpp(703), 4);
+    assert_eq!(
+        session.represented_non_bank_item_count_like_cpp(703),
+        Some(4)
+    );
     assert!(session.apply_committed_inventory_item_relocation_like_cpp(
         INVENTORY_SLOT_BAG_0,
         INVENTORY_SLOT_ITEM_START,
@@ -8305,7 +8312,10 @@ fn committed_bank_relocation_updates_runtime_only_after_explicit_apply() {
             .map(|item| item.guid),
         Some(source_guid)
     );
-    assert_eq!(session.represented_non_bank_item_count_like_cpp(703), 0);
+    assert_eq!(
+        session.represented_non_bank_item_count_like_cpp(703),
+        Some(0)
+    );
 }
 
 #[tokio::test]
@@ -8818,7 +8828,10 @@ async fn autobank_item_commit_failure_keeps_runtime_unchanged_like_cpp() {
             .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, wow_entities::BANK_SLOT_ITEM_START,)
             .is_none()
     );
-    assert_eq!(session.represented_non_bank_item_count_like_cpp(708), 1);
+    assert_eq!(
+        session.represented_non_bank_item_count_like_cpp(708),
+        Some(1)
+    );
     assert!(session.represented_bank_item_moves_like_cpp().is_empty());
 
     let error = send_rx

@@ -1171,8 +1171,7 @@ impl WorldSession {
                                 );
                             if item_entry > 0 && is_represented_bag_slot(bag_slot) {
                                 if let Some(bag_item_guid) = self
-                                    .inventory_items_like_cpp()
-                                    .get(&bag_slot)
+                                    .resolved_inventory_item_like_cpp(bag_slot)
                                     .map(|bag_item| bag_item.guid)
                                 {
                                     let item_guid =
@@ -2536,7 +2535,7 @@ impl WorldSession {
         saved_health: Option<u32>,
         saved_power0: i32,
     ) -> Option<(PlayerCombatStats, i32, i32)> {
-        let gear = self.represented_player_gear_stats_like_cpp(true);
+        let gear = self.represented_player_gear_stats_like_cpp(true)?;
         let projection = self.player_stat_system_projection_like_cpp(race, class, level, &gear)?;
         let ap_f = projection.total_attack_power as f32;
         let base_dmg = ap_f / 14.0 * 2.0;

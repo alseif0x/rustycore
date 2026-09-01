@@ -894,9 +894,8 @@ impl WorldSession {
         if owner_guid.is_item() && !selected_pool_looted {
             self.clear_active_loot_guid_if(owner_guid);
             let item_has_loot_flag = self
-                .inventory_items_like_cpp()
-                .values()
-                .find(|item| item.guid == owner_guid)
+                .resolved_inventory_items_like_cpp()
+                .and_then(|items| items.values().find(|item| item.guid == owner_guid).cloned())
                 .and_then(|item| self.item_template_flags(item.entry_id))
                 .map(|flags| flags.contains(wow_constants::ItemFlags::HAS_LOOT));
             if item_has_loot_flag == Some(false) {
@@ -1104,10 +1103,7 @@ impl WorldSession {
             None => return,
         };
 
-        let runtime_item = self
-            .inventory_item_objects_like_cpp()
-            .get(&item_guid)
-            .cloned();
+        let runtime_item = self.resolved_inventory_item_object_like_cpp(item_guid);
         let (bag, slot) = match runtime_item.as_ref() {
             Some(item) => (item.bag_slot(), item.slot()),
             None => return,

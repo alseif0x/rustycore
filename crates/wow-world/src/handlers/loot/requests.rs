@@ -573,7 +573,7 @@ impl WorldSession {
                     .map(|(quest_id, status)| (*quest_id, status.objective_counts.clone()))
                     .collect(),
                 rewarded_quests: self.rewarded_quests.clone(),
-                inventory_item_counts: self.represented_inventory_item_counts_like_cpp(),
+                inventory_item_counts: self.represented_inventory_item_counts_like_cpp()?,
                 is_current: true,
             });
         }
@@ -734,11 +734,13 @@ impl WorldSession {
             })
     }
 
-    pub(super) fn direct_inventory_item_count_like_cpp(&self, item_id: u32) -> u32 {
-        self.represented_inventory_item_counts_like_cpp()
-            .get(&item_id)
-            .copied()
-            .unwrap_or(0)
+    pub(super) fn direct_inventory_item_count_like_cpp(&self, item_id: u32) -> Option<u32> {
+        Some(
+            self.represented_inventory_item_counts_like_cpp()?
+                .get(&item_id)
+                .copied()
+                .unwrap_or(0),
+        )
     }
 
     pub(super) fn player_quest_objective_progress_like_cpp(
@@ -1130,14 +1132,14 @@ impl WorldSession {
                 if remaining == 0 {
                     break;
                 }
-                let Some(existing) = self.inventory_items_like_cpp().get(&slot) else {
+                let Some(existing) = self.resolved_inventory_item_like_cpp(slot) else {
                     continue;
                 };
                 if existing.entry_id != loot_entry.item_id {
                     continue;
                 }
                 let Some(existing_object) =
-                    self.inventory_item_objects_like_cpp().get(&existing.guid)
+                    self.resolved_inventory_item_object_like_cpp(existing.guid)
                 else {
                     self.send_equip_error(InventoryResult::ItemNotFound, None, None, 0, 0);
                     return false;
@@ -1145,7 +1147,7 @@ impl WorldSession {
                 if !loot_store_data_can_stack_with_item(
                     loot_entry,
                     random_properties,
-                    existing_object,
+                    &existing_object,
                 ) {
                     continue;
                 }
@@ -1169,7 +1171,7 @@ impl WorldSession {
                     let dynamic_flags = self.stored_existing_item_dynamic_flags_like_cpp(
                         loot_entry.item_id,
                         slot,
-                        existing_object,
+                        &existing_object,
                     );
                     planned_existing_stacks.push(PlannedDisenchantExistingStack {
                         slot,
@@ -1217,7 +1219,8 @@ impl WorldSession {
 
             while remaining > 0 {
                 let Some(slot) = (INVENTORY_SLOT_ITEM_START..backpack_end).find(|slot| {
-                    !self.inventory_items_like_cpp().contains_key(slot)
+                    self.resolved_inventory_items_like_cpp()
+                        .is_some_and(|items| !items.contains_key(slot))
                         && !planned_new_stacks.iter().any(|stack| stack.slot == *slot)
                 }) else {
                     self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
@@ -1853,16 +1856,14 @@ impl WorldSession {
             let slot = (dest.pos & 0x00FF) as u8;
             bag == u8::from(INVENTORY_SLOT_BAG_0)
                 && self
-                    .inventory_items_like_cpp()
-                    .get(&slot)
+                    .resolved_inventory_item_like_cpp(slot)
                     .is_some_and(|existing| {
-                        self.inventory_item_objects_like_cpp()
-                            .get(&existing.guid)
+                        self.resolved_inventory_item_object_like_cpp(existing.guid)
                             .is_some_and(|item| {
                                 !loot_store_data_can_stack_with_item(
                                     loot_entry,
                                     store_random_properties,
-                                    item,
+                                    &item,
                                 )
                             })
                     })
@@ -1894,9 +1895,9 @@ impl WorldSession {
                 .unwrap_or(1)
                 .max(1);
 
-            if let Some(existing) = self.inventory_items_like_cpp().get(&slot) {
+            if let Some(existing) = self.resolved_inventory_item_like_cpp(slot) {
                 let Some(existing_object) =
-                    self.inventory_item_objects_like_cpp().get(&existing.guid)
+                    self.resolved_inventory_item_object_like_cpp(existing.guid)
                 else {
                     self.send_equip_error(InventoryResult::ItemNotFound, None, None, 0, 0);
                     return false;
@@ -1912,7 +1913,7 @@ impl WorldSession {
                     || !loot_store_data_can_stack_with_item(
                         loot_entry,
                         store_random_properties,
-                        existing_object,
+                        &existing_object,
                     )
                 {
                     self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
@@ -1929,7 +1930,7 @@ impl WorldSession {
                     let dynamic_flags = self.stored_existing_item_dynamic_flags_like_cpp(
                         item_id,
                         slot,
-                        existing_object,
+                        &existing_object,
                     );
                     planned_existing_counts.push(PlannedDirectLootExistingStack {
                         slot,
@@ -2290,16 +2291,20 @@ impl WorldSession {
         let mut remaining = loot_entry.quantity;
         let mut dest = Vec::new();
 
-        let mut existing_slots: Vec<u8> = self.inventory_items_like_cpp().keys().copied().collect();
+        let mut existing_slots: Vec<u8> = self
+            .resolved_inventory_items_like_cpp()?
+            .keys()
+            .copied()
+            .collect();
         existing_slots.sort_unstable();
         for slot in existing_slots {
             if remaining == 0 {
                 break;
             }
-            let Some(existing) = self.inventory_items_like_cpp().get(&slot) else {
+            let Some(existing) = self.resolved_inventory_item_like_cpp(slot) else {
                 continue;
             };
-            let Some(existing_object) = self.inventory_item_objects_like_cpp().get(&existing.guid)
+            let Some(existing_object) = self.resolved_inventory_item_object_like_cpp(existing.guid)
             else {
                 continue;
             };
@@ -2307,7 +2312,7 @@ impl WorldSession {
                 || !loot_store_data_can_stack_with_item(
                     loot_entry,
                     random_properties,
-                    existing_object,
+                    &existing_object,
                 )
                 || existing_object.count() >= max_stack
             {
@@ -2332,7 +2337,10 @@ impl WorldSession {
             if remaining == 0 {
                 break;
             }
-            if self.inventory_items_like_cpp().contains_key(&slot) {
+            if self
+                .resolved_inventory_items_like_cpp()
+                .is_none_or(|items| items.contains_key(&slot))
+            {
                 continue;
             }
             let quantity = max_stack.min(remaining);

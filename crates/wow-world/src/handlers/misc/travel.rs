@@ -134,9 +134,12 @@ impl crate::session::WorldSession {
 
         // Equipped items drive the visible model; bag slots / item objects are not re-sent here.
         let mut visible_items = [(0i32, 0u16, 0u16); 19];
-        for (slot, item) in self.inventory_items_like_cpp() {
-            if (*slot as usize) < 19 {
-                visible_items[*slot as usize] = (item.entry_id as i32, 0, 0);
+        let Some(inventory_items) = self.resolved_inventory_items_like_cpp() else {
+            return;
+        };
+        for (slot, item) in inventory_items {
+            if (slot as usize) < 19 {
+                visible_items[slot as usize] = (item.entry_id as i32, 0, 0);
             }
         }
 

@@ -98,7 +98,9 @@ impl crate::session::WorldSession {
         };
 
         if request.player {
-            self.send_packet(&self.lfg_player_lock_info_like_cpp());
+            if let Some(info) = self.lfg_player_lock_info_like_cpp() {
+                self.send_packet(&info);
+            }
         } else {
             // C++ `SendLfgPartyLockInfo` returns before sending when the player
             // is not in a group. Rust does not expose a live LFG group manager
@@ -106,14 +108,14 @@ impl crate::session::WorldSession {
         }
     }
 
-    fn lfg_player_lock_info_like_cpp(&self) -> LfgPlayerInfo {
+    fn lfg_player_lock_info_like_cpp(&self) -> Option<LfgPlayerInfo> {
         let Some(store) = self.lfg_dungeon_store_like_cpp() else {
-            return LfgPlayerInfo::empty();
+            return Some(LfgPlayerInfo::empty());
         };
 
         let level = self.player_level_like_cpp();
         let expansion = self.expansion;
-        let current_item_level = self.represented_average_item_level_like_cpp().max(0.0) as i32;
+        let current_item_level = self.represented_average_item_level_like_cpp()?.max(0.0) as i32;
 
         let mut info = LfgPlayerInfo {
             blacklist: LfgBlackList::default(),
@@ -158,7 +160,7 @@ impl crate::session::WorldSession {
             info.dungeons.push(dungeon_info);
         }
 
-        info
+        Some(info)
     }
 
     fn lfg_season_is_active_like_cpp(&self, _dungeon_id: u32) -> bool {
@@ -203,7 +205,10 @@ impl crate::session::WorldSession {
         if dungeon.seasonal && !self.lfg_season_is_active_like_cpp(dungeon.id) {
             return Some(LFG_LOCKSTATUS_NOT_IN_SEASON_LIKE_CPP);
         }
-        if f32::from(dungeon.required_item_level) > self.represented_average_item_level_like_cpp() {
+        let Some(current_item_level) = self.represented_average_item_level_like_cpp() else {
+            return Some(LFG_LOCKSTATUS_TOO_LOW_GEAR_SCORE_LIKE_CPP);
+        };
+        if f32::from(dungeon.required_item_level) > current_item_level {
             return Some(LFG_LOCKSTATUS_TOO_LOW_GEAR_SCORE_LIKE_CPP);
         }
         if let Some(requirement) = self

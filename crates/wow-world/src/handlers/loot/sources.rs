@@ -2638,8 +2638,8 @@ impl WorldSession {
                 let item_count = if player_context.is_current {
                     self.direct_inventory_item_count_like_cpp(condition.value1)
                 } else {
-                    player_context.inventory_item_count(condition.value1)
-                };
+                    Some(player_context.inventory_item_count(condition.value1))
+                }?;
                 Some(item_count >= condition.value2)
             }
             6 => Some(

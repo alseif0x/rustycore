@@ -187,7 +187,7 @@ impl WorldSession {
         target: InventoryStorageTargetLikeCpp,
     ) -> Option<Result<InventoryStorageMovePlanLikeCpp, InventoryResult>> {
         let source = self.get_inventory_item_by_pos(source_bag, source_slot)?;
-        let source_object = self.inventory_item_objects_like_cpp().get(&source.guid)?;
+        let source_object = self.resolved_inventory_item_object_like_cpp(source.guid)?;
         let source_count = source_object.count();
         let moving_to_bank = target == InventoryStorageTargetLikeCpp::Bank;
         let (result, destinations) = if moving_to_bank {
@@ -246,7 +246,7 @@ impl WorldSession {
                     return Some(Err(InventoryResult::CantStack));
                 }
                 let Some(existing_object) =
-                    self.inventory_item_objects_like_cpp().get(&existing.guid)
+                    self.resolved_inventory_item_object_like_cpp(existing.guid)
                 else {
                     return Some(Err(InventoryResult::ItemNotFound));
                 };
@@ -292,8 +292,7 @@ impl WorldSession {
         if bag == INVENTORY_SLOT_BAG_0 {
             Some(0)
         } else {
-            self.inventory_items_like_cpp()
-                .get(&bag)
+            self.resolved_inventory_item_like_cpp(bag)
                 .map(|item| item.db_guid)
         }
     }
@@ -367,8 +366,11 @@ impl WorldSession {
                         bank_store_destination_applies_obtain_spells_like_cpp(bag)
                     })
             });
-        let current_non_bank_count =
-            self.represented_non_bank_item_count_like_cpp(plan.source.entry_id);
+        let Some(current_non_bank_count) =
+            self.represented_non_bank_item_count_like_cpp(plan.source.entry_id)
+        else {
+            return;
+        };
         let post_move_non_bank_count = if quest_checks
             == InventoryStorageQuestChecksLikeCpp::AutoBankItemRemoved
             && moving_to_bank
@@ -408,11 +410,7 @@ impl WorldSession {
         });
         let mut binding_updates = Vec::new();
         for update in &plan.existing_updates {
-            if let Some(mut item) = self
-                .inventory_item_objects_like_cpp()
-                .get(&update.item.guid)
-                .cloned()
-            {
+            if let Some(mut item) = self.resolved_inventory_item_object_like_cpp(update.item.guid) {
                 let old_flags = item.item_flags_bits();
                 item.bind_if_stored(wow_entities::is_bag_pos(wow_entities::make_item_pos(
                     update.bag,
@@ -428,10 +426,7 @@ impl WorldSession {
             }
         }
         if let Some((destination_bag, destination_slot, _)) = plan.moved_destination
-            && let Some(mut item) = self
-                .inventory_item_objects_like_cpp()
-                .get(&plan.source.guid)
-                .cloned()
+            && let Some(mut item) = self.resolved_inventory_item_object_like_cpp(plan.source.guid)
         {
             let old_flags = item.item_flags_bits();
             item.bind_if_stored(wow_entities::is_bag_pos(wow_entities::make_item_pos(
@@ -455,10 +450,7 @@ impl WorldSession {
         };
         let mut mutable_persistence = Vec::new();
         for update in &plan.existing_updates {
-            let Some(item) = self
-                .inventory_item_objects_like_cpp()
-                .get(&update.item.guid)
-            else {
+            let Some(item) = self.resolved_inventory_item_object_like_cpp(update.item.guid) else {
                 self.send_equip_error(
                     InventoryResult::ItemNotFound,
                     Some(update.item.guid),
@@ -482,7 +474,7 @@ impl WorldSession {
             };
             mutable_persistence.push(item_storage_mutable_persistence_like_cpp(
                 update.item.db_guid,
-                item,
+                &item,
                 update.new_count,
                 planned_flags(update.item.guid, item.item_flags_bits()),
                 enchantments,
@@ -490,10 +482,7 @@ impl WorldSession {
             ));
         }
         if let Some((_, _, moved_count)) = plan.moved_destination {
-            let Some(item) = self
-                .inventory_item_objects_like_cpp()
-                .get(&plan.source.guid)
-            else {
+            let Some(item) = self.resolved_inventory_item_object_like_cpp(plan.source.guid) else {
                 self.send_equip_error(
                     InventoryResult::ItemNotFound,
                     Some(plan.source.guid),
@@ -515,7 +504,7 @@ impl WorldSession {
             };
             mutable_persistence.push(item_storage_mutable_persistence_like_cpp(
                 plan.source.db_guid,
-                item,
+                &item,
                 moved_count,
                 planned_flags(plan.source.guid, item.item_flags_bits()),
                 enchantments.clone(),
@@ -608,8 +597,7 @@ impl WorldSession {
             && plan.source_bag == INVENTORY_SLOT_BAG_0
             && plan.source_slot < INVENTORY_SLOT_BAG_END
             && self
-                .inventory_item_objects_like_cpp()
-                .get(&plan.source.guid)
+                .resolved_inventory_item_object_like_cpp(plan.source.guid)
                 .is_some_and(|item| item.has_item_flag2(wow_constants::ItemFieldFlags2::EQUIPPED));
         if source_stays_in_place {
             self.remove_inventory_item_duration_refs_like_cpp(plan.source.guid);
@@ -733,12 +721,16 @@ impl WorldSession {
                 .await;
         }
 
-        let mut changed_quest_ids =
-            if quest_checks == InventoryStorageQuestChecksLikeCpp::AutoBankItemRemoved {
-                self.apply_quest_item_removed_like_cpp(plan.source.entry_id)
-            } else {
-                Vec::new()
+        let mut changed_quest_ids = if quest_checks
+            == InventoryStorageQuestChecksLikeCpp::AutoBankItemRemoved
+        {
+            let Some(changed) = self.apply_quest_item_removed_like_cpp(plan.source.entry_id) else {
+                return;
             };
+            changed
+        } else {
+            Vec::new()
+        };
         if runs_added_quest_check {
             changed_quest_ids.extend(
                 self.apply_quest_item_added_objective_progress_like_cpp(
@@ -824,7 +816,10 @@ impl WorldSession {
         queue.push_back(entry);
         let condition_store = self.condition_store().cloned();
         let player_condition_store = self.player_condition_store().cloned();
-        let player_condition_context = self.represented_player_condition_context_like_cpp();
+        let Some(player_condition_context) = self.represented_player_condition_context_like_cpp()
+        else {
+            return;
+        };
         let player_condition_object = self.build_condition_player_object_like_cpp();
         let vendor_condition_object = self.build_condition_creature_object_like_cpp(vendor_guid);
         let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
@@ -1034,8 +1029,11 @@ impl WorldSession {
             return true;
         }
 
+        let Some(inventory_items) = self.resolved_inventory_items_like_cpp() else {
+            return false;
+        };
         let mut current_count = 0_u32;
-        let mut slots: Vec<_> = self.inventory_items_like_cpp().iter().collect();
+        let mut slots: Vec<_> = inventory_items.iter().collect();
         slots.sort_by_key(|&(slot, _)| {
             let slot = *slot;
             if slot >= 19 {
@@ -1049,9 +1047,7 @@ impl WorldSession {
             if inventory_item.entry_id != item_entry {
                 continue;
             }
-            let Some(item) = self
-                .inventory_item_objects_like_cpp()
-                .get(&inventory_item.guid)
+            let Some(item) = self.resolved_inventory_item_object_like_cpp(inventory_item.guid)
             else {
                 continue;
             };
@@ -1076,9 +1072,10 @@ impl WorldSession {
             return Some(Vec::new());
         }
 
+        let inventory_items = self.resolved_inventory_items_like_cpp()?;
         let mut remaining = count;
         let mut changes = Vec::new();
-        let mut slots: Vec<_> = self.inventory_items_like_cpp().iter().collect();
+        let mut slots: Vec<_> = inventory_items.iter().collect();
         slots.sort_by_key(|&(slot, _)| {
             let slot = *slot;
             if slot >= 19 {
@@ -1092,9 +1089,7 @@ impl WorldSession {
             if inventory_item.entry_id != item_entry {
                 continue;
             }
-            let Some(item) = self
-                .inventory_item_objects_like_cpp()
-                .get(&inventory_item.guid)
+            let Some(item) = self.resolved_inventory_item_object_like_cpp(inventory_item.guid)
             else {
                 continue;
             };
@@ -1195,8 +1190,7 @@ impl WorldSession {
     ) -> Option<(InventoryResult, InventorySwapTargetLikeCpp)> {
         let source = self.get_inventory_item_by_pos(source_bag, source_slot)?;
         let source_count = self
-            .inventory_item_objects_like_cpp()
-            .get(&source.guid)?
+            .resolved_inventory_item_object_like_cpp(source.guid)?
             .count();
         let destination_pos = wow_entities::make_item_pos(destination_bag, destination_slot);
 
@@ -1306,9 +1300,8 @@ impl WorldSession {
             .get_inventory_item_by_pos(src_bag, src_slot)
             .ok_or(InventoryResult::ItemNotFound)?;
         let count = self
-            .inventory_item_objects_like_cpp()
-            .get(&source.guid)
-            .map(wow_entities::Item::count)
+            .resolved_inventory_item_object_like_cpp(source.guid)
+            .map(|item| item.count())
             .ok_or(InventoryResult::ItemNotFound)?;
         let Some((result, target)) = self.validate_inventory_swap_target_like_cpp(
             src_bag, src_slot, dst_bag, dst_slot, false, true,
@@ -1468,7 +1461,7 @@ impl WorldSession {
         parent_slot: u8,
         parent_guid: ObjectGuid,
     ) -> Result<Option<InventoryEquipChildPlanLikeCpp>, InventoryResult> {
-        let Some(parent) = self.inventory_item_objects_like_cpp().get(&parent_guid) else {
+        let Some(parent) = self.resolved_inventory_item_object_like_cpp(parent_guid) else {
             return Ok(None);
         };
         let Some(child_equipment) =
@@ -1480,16 +1473,15 @@ impl WorldSession {
         if !is_equipment_pos(INVENTORY_SLOT_BAG_0, destination_slot) {
             return Err(InventoryResult::NotEquippable);
         }
-        let Some(child) = self
-            .inventory_item_objects_like_cpp()
-            .values()
-            .find(|item| {
-                item.has_item_flag(ItemFieldFlags::CHILD)
-                    && item.data().creator == parent_guid
-                    && (child_equipment.child_item_id <= 0
-                        || item.object().entry() == child_equipment.child_item_id as u32)
-            })
-        else {
+        let Some(item_objects) = self.resolved_inventory_item_objects_like_cpp() else {
+            return Err(InventoryResult::ItemNotFound);
+        };
+        let Some(child) = item_objects.values().find(|item| {
+            item.has_item_flag(ItemFieldFlags::CHILD)
+                && item.data().creator == parent_guid
+                && (child_equipment.child_item_id <= 0
+                    || item.object().entry() == child_equipment.child_item_id as u32)
+        }) else {
             return Ok(None);
         };
         let child_guid = child.object().guid();
@@ -1509,7 +1501,7 @@ impl WorldSession {
                 displaced_storage: None,
             }));
         };
-        let displaced_object = self.inventory_item_objects_like_cpp().get(&displaced.guid);
+        let displaced_object = self.resolved_inventory_item_object_like_cpp(displaced.guid);
         let displaced_proto = self.item_storage_template(displaced.entry_id);
         let child_is_bag = self
             .item_storage_template(child.object().entry())
@@ -1518,7 +1510,7 @@ impl WorldSession {
             INVENTORY_SLOT_BAG_0,
             destination_slot,
             !child_is_bag,
-            displaced_object,
+            displaced_object.as_ref(),
             displaced_proto.as_ref(),
             self.direct_item_contains_items(displaced.guid),
         );
@@ -1656,8 +1648,7 @@ impl WorldSession {
                     .filter(|item| {
                         is_equipment_pos(src_bag, src_slot)
                             && self
-                                .inventory_item_objects_like_cpp()
-                                .get(&item.guid)
+                                .resolved_inventory_item_object_like_cpp(item.guid)
                                 .is_some_and(|object| object.has_item_flag(ItemFieldFlags::CHILD))
                     })
                     .map(|item| (src_bag, src_slot, item.guid))
@@ -1667,8 +1658,7 @@ impl WorldSession {
                             .filter(|item| {
                                 is_equipment_pos(dst_bag, dst_slot)
                                     && self
-                                        .inventory_item_objects_like_cpp()
-                                        .get(&item.guid)
+                                        .resolved_inventory_item_object_like_cpp(item.guid)
                                         .is_some_and(|object| {
                                             object.has_item_flag(ItemFieldFlags::CHILD)
                                         })
@@ -1887,11 +1877,7 @@ impl WorldSession {
         let Some(source) = self.get_inventory_item_by_pos(source_bag, source_slot) else {
             return;
         };
-        let Some(runtime_item) = self
-            .inventory_item_objects_like_cpp()
-            .get(&source.guid)
-            .cloned()
-        else {
+        let Some(runtime_item) = self.resolved_inventory_item_object_like_cpp(source.guid) else {
             return;
         };
         let Some((enchantments, cleared_enchantments)) = self
@@ -2070,17 +2056,11 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        let Some(source_object) = self
-            .inventory_item_objects_like_cpp()
-            .get(&source.guid)
-            .cloned()
-        else {
+        let Some(source_object) = self.resolved_inventory_item_object_like_cpp(source.guid) else {
             return;
         };
-        let Some(destination_object) = self
-            .inventory_item_objects_like_cpp()
-            .get(&destination.guid)
-            .cloned()
+        let Some(destination_object) =
+            self.resolved_inventory_item_object_like_cpp(destination.guid)
         else {
             return;
         };
@@ -2267,17 +2247,11 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        let Some(source_object) = self
-            .inventory_item_objects_like_cpp()
-            .get(&source.guid)
-            .cloned()
-        else {
+        let Some(source_object) = self.resolved_inventory_item_object_like_cpp(source.guid) else {
             return;
         };
-        let Some(destination_object) = self
-            .inventory_item_objects_like_cpp()
-            .get(&destination.guid)
-            .cloned()
+        let Some(destination_object) =
+            self.resolved_inventory_item_object_like_cpp(destination.guid)
         else {
             return;
         };
@@ -2365,14 +2339,15 @@ impl WorldSession {
         // container changes in the same transaction as the two bag positions.
         let source_template = self.item_storage_template(source.entry_id);
         let destination_template = self.item_storage_template(destination.entry_id);
-        let source_children = self
-            .inventory_item_objects_like_cpp()
+        let Some(item_objects) = self.resolved_inventory_item_objects_like_cpp() else {
+            return;
+        };
+        let source_children = item_objects
             .values()
             .filter(|item| item.container_guid() == source.guid)
             .map(|item| (item.slot(), item.object().guid(), item.object().entry()))
             .collect::<Vec<_>>();
-        let destination_children = self
-            .inventory_item_objects_like_cpp()
+        let destination_children = item_objects
             .values()
             .filter(|item| item.container_guid() == destination.guid)
             .map(|item| (item.slot(), item.object().guid(), item.object().entry()))
@@ -2754,8 +2729,7 @@ impl WorldSession {
             return;
         };
         let displaced_is_child = self
-            .inventory_item_objects_like_cpp()
-            .get(&displaced.guid)
+            .resolved_inventory_item_object_like_cpp(displaced.guid)
             .is_some_and(|item| item.has_item_flag(ItemFieldFlags::CHILD));
         if displaced_is_child {
             self.execute_inventory_swap_positions_like_cpp(source_pos, destination)
@@ -2984,7 +2958,7 @@ impl WorldSession {
             return;
         }
 
-        let runtime_item = self.inventory_item_objects_like_cpp().get(&source.guid);
+        let runtime_item = self.resolved_inventory_item_object_like_cpp(source.guid);
         let proto = self.item_storage_template(source.entry_id);
         let source_pos = wow_entities::make_item_pos(store.container_slot_a, store.slot_a);
         if is_equipment_pos(store.container_slot_a, store.slot_a)
@@ -2994,7 +2968,7 @@ impl WorldSession {
                 store.container_slot_a,
                 store.slot_a,
                 !wow_entities::is_bag_pos(source_pos),
-                runtime_item,
+                runtime_item.as_ref(),
                 proto.as_ref(),
                 self.direct_item_contains_items(source.guid),
             );
@@ -3041,10 +3015,7 @@ impl WorldSession {
             }
         };
 
-        let runtime_item = self
-            .inventory_item_objects_like_cpp()
-            .get(&item.guid)
-            .cloned();
+        let runtime_item = self.resolved_inventory_item_object_like_cpp(item.guid);
         let item_proto = self.item_storage_template(item.entry_id);
         let unequip_result = self.can_unequip_inventory_item_at_like_cpp(
             bag,
@@ -3090,15 +3061,16 @@ impl WorldSession {
                 .as_ref()
                 .map(|item_object| item_object.count().saturating_sub(new_count))
                 .unwrap_or(0);
-            let planned_quest_statuses =
-                self.plan_destroyed_inventory_quest_persistence_like_cpp(&[
-                    DestroyQuestItemLikeCpp {
-                        bag,
-                        slot,
-                        entry_id: item.entry_id,
-                        count: removed_count,
-                    },
-                ]);
+            let Some(planned_quest_statuses) = self
+                .plan_destroyed_inventory_quest_persistence_like_cpp(&[DestroyQuestItemLikeCpp {
+                    bag,
+                    slot,
+                    entry_id: item.entry_id,
+                    count: removed_count,
+                }])
+            else {
+                return;
+            };
             let request = wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::PartialDestroy(
                 wow_persistence::InventoryPartialDestroyPersistenceLikeCpp {
                     owner_guid: player_guid.counter() as u64,
@@ -3125,7 +3097,10 @@ impl WorldSession {
             self.update_inventory_item_object_like_cpp(item.guid, |item_object| {
                 item_object.set_count(new_count);
             });
-            let changed_quest_ids = self.apply_quest_item_removed_like_cpp(item.entry_id);
+            let Some(changed_quest_ids) = self.apply_quest_item_removed_like_cpp(item.entry_id)
+            else {
+                return;
+            };
             debug_assert_eq!(
                 changed_quest_ids.len(),
                 planned_quest_statuses.len(),
@@ -3164,7 +3139,7 @@ impl WorldSession {
     pub(super) fn plan_destroyed_inventory_quest_persistence_like_cpp(
         &self,
         destroyed_items: &[DestroyQuestItemLikeCpp],
-    ) -> Vec<crate::handlers::quest::PlayerQuestStatus> {
+    ) -> Option<Vec<crate::handlers::quest::PlayerQuestStatus>> {
         let removed_entries_in_order = destroyed_items
             .iter()
             .map(|item| item.entry_id)
@@ -3184,16 +3159,16 @@ impl WorldSession {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .map(|entry_id| {
-                let current = self.represented_non_bank_item_count_like_cpp(entry_id);
+                let current = self.represented_non_bank_item_count_like_cpp(entry_id)?;
                 let removed = removed_non_bank_counts.get(&entry_id).copied().unwrap_or(0);
-                (entry_id, current.saturating_sub(removed))
+                Some((entry_id, current.saturating_sub(removed)))
             })
-            .collect::<Vec<_>>();
-        self.plan_item_transfer_quest_persistence_like_cpp(
+            .collect::<Option<Vec<_>>>()?;
+        Some(self.plan_item_transfer_quest_persistence_like_cpp(
             &removed_entries_in_order,
             &post_removal_non_bank_counts,
             &[],
-        )
+        ))
     }
 
     /// Handle CMSG_CANCEL_TEMP_ENCHANTMENT.
@@ -3210,7 +3185,7 @@ impl WorldSession {
         let Some(item) = self.get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, slot) else {
             return;
         };
-        let Some(runtime_item) = self.inventory_item_objects_like_cpp().get(&item.guid) else {
+        let Some(runtime_item) = self.resolved_inventory_item_object_like_cpp(item.guid) else {
             return;
         };
         if runtime_item.data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].id == 0
@@ -3270,7 +3245,11 @@ impl WorldSession {
         // deleting the bag itself. Keep all corresponding character rows in a
         // single transaction so a persistence failure cannot orphan children
         // or expose a partially destroyed runtime graph.
-        let descendants = self.represented_inventory_descendants_postorder_like_cpp(item.guid);
+        let Some(descendants) =
+            self.represented_inventory_descendants_postorder_like_cpp(item.guid)
+        else {
+            return false;
+        };
         let descendant_runtime = descendants
             .iter()
             .map(|(child_bag, child_slot, child)| {
@@ -3278,9 +3257,7 @@ impl WorldSession {
                     *child_bag,
                     *child_slot,
                     child.clone(),
-                    self.inventory_item_objects_like_cpp()
-                        .get(&child.guid)
-                        .cloned(),
+                    self.resolved_inventory_item_object_like_cpp(child.guid),
                 )
             })
             .collect::<Vec<_>>();
@@ -3308,8 +3285,11 @@ impl WorldSession {
                 .map(wow_entities::Item::count)
                 .unwrap_or(1),
         });
-        let planned_quest_statuses =
-            self.plan_destroyed_inventory_quest_persistence_like_cpp(&destroyed_quest_items);
+        let Some(planned_quest_statuses) =
+            self.plan_destroyed_inventory_quest_persistence_like_cpp(&destroyed_quest_items)
+        else {
+            return false;
+        };
 
         let should_expire_refund = runtime_item
             .as_ref()
@@ -3397,7 +3377,10 @@ impl WorldSession {
                 });
             }
             destroyed_guids.push(child.guid);
-            changed_quest_ids.extend(self.apply_quest_item_removed_like_cpp(child.entry_id));
+            let Some(changed) = self.apply_quest_item_removed_like_cpp(child.entry_id) else {
+                return false;
+            };
+            changed_quest_ids.extend(changed);
         }
 
         let represented_item_mods_changed =
@@ -3406,7 +3389,10 @@ impl WorldSession {
         let removed = self.apply_committed_inventory_item_removal_like_cpp(bag, slot, item.guid);
         debug_assert!(removed);
         destroyed_guids.push(item.guid);
-        changed_quest_ids.extend(self.apply_quest_item_removed_like_cpp(item.entry_id));
+        let Some(changed) = self.apply_quest_item_removed_like_cpp(item.entry_id) else {
+            return false;
+        };
+        changed_quest_ids.extend(changed);
         changed_quest_ids.sort_unstable();
         changed_quest_ids.dedup();
         debug_assert_eq!(
@@ -3477,7 +3463,7 @@ impl WorldSession {
             return None; // Not fully logged in yet
         }
 
-        let gear = self.represented_player_gear_stats_like_cpp(include_represented_item_bonuses);
+        let gear = self.represented_player_gear_stats_like_cpp(include_represented_item_bonuses)?;
         let projection = self.player_stat_system_projection_like_cpp(race, class, level, &gear)?;
 
         let computed_max_health_u32 = max_health_u32_like_cpp(projection.max_health);

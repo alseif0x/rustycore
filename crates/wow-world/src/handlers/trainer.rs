@@ -260,7 +260,10 @@ impl WorldSession {
             return TrainerAdmissionProofLikeCpp::Indeterminate;
         };
         let player_condition_store = self.player_condition_store();
-        let player_condition_context = self.represented_player_condition_context_like_cpp();
+        let Some(player_condition_context) = self.represented_player_condition_context_like_cpp()
+        else {
+            return TrainerAdmissionProofLikeCpp::Indeterminate;
+        };
         let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
             return TrainerAdmissionProofLikeCpp::Indeterminate;
         };

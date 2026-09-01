@@ -1059,10 +1059,10 @@ impl WorldSession {
     pub(super) fn represented_player_gear_stats_like_cpp(
         &self,
         include_represented_item_bonuses: bool,
-    ) -> RepresentedPlayerGearStatsLikeCpp {
+    ) -> Option<RepresentedPlayerGearStatsLikeCpp> {
         let mut gear = RepresentedPlayerGearStatsLikeCpp::default();
         if let Some(item_stats_store) = self.item_stats_store() {
-            for (&slot, inventory_item) in self.inventory_items_like_cpp() {
+            for (slot, inventory_item) in self.resolved_inventory_items_like_cpp()? {
                 if slot >= 19 {
                     continue;
                 }
@@ -1116,7 +1116,7 @@ impl WorldSession {
             gear.shield_block_value = bonuses.shield_block_value;
         }
 
-        gear
+        Some(gear)
     }
 
     pub(super) fn player_stat_system_projection_like_cpp(

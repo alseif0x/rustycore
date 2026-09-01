@@ -105,7 +105,7 @@ impl WorldSession {
 
             if let Some(inv_item) = self.get_inventory_item_by_pos(bag, slot) {
                 let Some(existing_item) =
-                    self.inventory_item_objects_like_cpp().get(&inv_item.guid)
+                    self.resolved_inventory_item_object_like_cpp(inv_item.guid)
                 else {
                     warn!(
                         account = self.account_id,
@@ -145,7 +145,8 @@ impl WorldSession {
                     == u8::from(wow_entities::INVENTORY_SLOT_BAG_0)
                 {
                     (0, player_guid)
-                } else if let Some(bag_inventory_item) = self.inventory_items_like_cpp().get(&bag) {
+                } else if let Some(bag_inventory_item) = self.resolved_inventory_item_like_cpp(bag)
+                {
                     (bag_inventory_item.db_guid, bag_inventory_item.guid)
                 } else {
                     warn!(
@@ -332,7 +333,7 @@ impl WorldSession {
         }
 
         let quantity_in_inventory = self
-            .represented_inventory_item_counts_like_cpp()
+            .represented_inventory_item_counts_like_cpp()?
             .get(&entry_id)
             .copied()
             .unwrap_or(0);
@@ -454,7 +455,7 @@ impl WorldSession {
 
             if let Some(inv_item) = self.get_inventory_item_by_pos(bag, slot) {
                 let Some(existing_item) =
-                    self.inventory_item_objects_like_cpp().get(&inv_item.guid)
+                    self.resolved_inventory_item_object_like_cpp(inv_item.guid)
                 else {
                     warn!(
                         account = self.account_id,
@@ -494,7 +495,8 @@ impl WorldSession {
                     == u8::from(wow_entities::INVENTORY_SLOT_BAG_0)
                 {
                     (0, player_guid)
-                } else if let Some(bag_inventory_item) = self.inventory_items_like_cpp().get(&bag) {
+                } else if let Some(bag_inventory_item) = self.resolved_inventory_item_like_cpp(bag)
+                {
                     (bag_inventory_item.db_guid, bag_inventory_item.guid)
                 } else {
                     warn!(
@@ -680,11 +682,10 @@ impl WorldSession {
             }
         }
 
-        let quantity_in_inventory = self
-            .represented_inventory_item_counts_like_cpp()
-            .get(&entry_id)
-            .copied()
-            .unwrap_or(0);
+        let Some(inventory_item_counts) = self.represented_inventory_item_counts_like_cpp() else {
+            return false;
+        };
+        let quantity_in_inventory = inventory_item_counts.get(&entry_id).copied().unwrap_or(0);
         self.send_new_item_plan(&SendNewItemPlan {
             player_guid,
             item_guid: last_item_guid,
@@ -1024,17 +1025,18 @@ impl WorldSession {
         true
     }
 
-    fn represented_direct_inventory_count_like_cpp(&self, item_entry: u32) -> u32 {
-        self.inventory_items_like_cpp()
-            .values()
-            .filter(|item| item.entry_id == item_entry)
-            .filter_map(|inventory_item| {
-                self.inventory_item_objects_like_cpp()
-                    .get(&inventory_item.guid)
-                    .filter(|item| !item.is_in_trade())
-                    .map(|item| item.count())
-            })
-            .fold(0u32, u32::saturating_add)
+    fn represented_direct_inventory_count_like_cpp(&self, item_entry: u32) -> Option<u32> {
+        Some(
+            self.resolved_inventory_items_like_cpp()?
+                .values()
+                .filter(|item| item.entry_id == item_entry)
+                .filter_map(|inventory_item| {
+                    self.resolved_inventory_item_object_like_cpp(inventory_item.guid)
+                        .filter(|item| !item.is_in_trade())
+                        .map(|item| item.count())
+                })
+                .fold(0u32, u32::saturating_add),
+        )
     }
 
     fn plan_quest_destroy_item_count_direct_like_cpp(
@@ -1043,7 +1045,7 @@ impl WorldSession {
         count: u32,
     ) -> Option<Vec<ExtendedCostItemTurninChange>> {
         let effective_count = if count == u32::MAX {
-            self.represented_direct_inventory_count_like_cpp(item_entry)
+            self.represented_direct_inventory_count_like_cpp(item_entry)?
         } else {
             count
         };

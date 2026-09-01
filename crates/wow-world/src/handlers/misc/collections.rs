@@ -475,9 +475,8 @@ impl crate::session::WorldSession {
         }
 
         let runtime_item = self
-            .inventory_item_objects_like_cpp()
-            .get(&item.guid)
-            .cloned();
+            .resolved_inventory_item_objects_like_cpp()
+            .and_then(|items| items.get(&item.guid).cloned());
         let can_use_result =
             self.can_use_inventory_item_represented_like_cpp(&item, runtime_item.as_ref());
         if can_use_result != InventoryResult::Ok {

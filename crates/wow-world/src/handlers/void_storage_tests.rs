@@ -1325,12 +1325,14 @@ fn withdrawal_planner_excludes_slots_from_a_deposited_equipped_bag_like_cpp() {
         "the adversarial fixture must expose the orphan-container risk"
     );
 
-    let destroyed = session.plan_void_storage_destroyed_items_like_cpp(
-        INVENTORY_SLOT_BAG_0,
-        bag_slot,
-        bag_inventory,
-        Vec::new(),
-    );
+    let destroyed = session
+        .plan_void_storage_destroyed_items_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            bag_slot,
+            bag_inventory,
+            Vec::new(),
+        )
+        .expect("fixture canonical inventory owner");
     let vacated_positions = destroyed
         .iter()
         .map(|destroyed| (destroyed.bag, destroyed.slot))
@@ -1394,12 +1396,14 @@ async fn nonempty_bag_deposit_plan_destroys_children_before_parent_atomically() 
     child_item.set_container_guid_and_slot(bag_guid, bag_slot);
     session.insert_inventory_item_object(child_item);
 
-    let destroyed = session.plan_void_storage_destroyed_items_like_cpp(
-        INVENTORY_SLOT_BAG_0,
-        bag_slot,
-        bag_inventory,
-        Vec::new(),
-    );
+    let destroyed = session
+        .plan_void_storage_destroyed_items_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            bag_slot,
+            bag_inventory,
+            Vec::new(),
+        )
+        .expect("fixture canonical inventory owner");
     assert_eq!(
         destroyed
             .iter()
@@ -1416,8 +1420,9 @@ async fn nonempty_bag_deposit_plan_destroys_children_before_parent_atomically() 
         vec![502, 501]
     );
 
-    let (destroyed_guids, changed_quest_ids) =
-        session.apply_committed_void_storage_destroyed_items_like_cpp(&destroyed);
+    let (destroyed_guids, changed_quest_ids) = session
+        .apply_committed_void_storage_destroyed_items_like_cpp(&destroyed)
+        .expect("fixture canonical inventory owner");
     assert_eq!(destroyed_guids, vec![child_guid, bag_guid]);
     assert!(changed_quest_ids.is_empty());
     assert!(session.get_inventory_item_by_pos(bag_slot, 5).is_none());

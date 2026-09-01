@@ -190,7 +190,10 @@ impl WorldSession {
             rewarded_quest_ids: &rewarded_quest_ids,
             daily_quest_ids: &daily_quest_ids,
         };
-        let player_condition_context = self.represented_player_condition_context_like_cpp();
+        let Some(player_condition_context) = self.represented_player_condition_context_like_cpp()
+        else {
+            return false;
+        };
         let area_table_store = self.area_table_store().cloned();
 
         let mut source_info =

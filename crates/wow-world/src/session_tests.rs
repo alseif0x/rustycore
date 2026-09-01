@@ -4180,7 +4180,9 @@ fn auto_unequip_offhand_records_average_equipped_item_level_like_cpp() {
         &[25.0],
         "C++ UpdateAverageItemLevelEquipped divides equipped item-level sum by 16 and counts a remaining main-hand 2H twice without Titan Grip"
     );
-    let owned = session.represented_player_condition_context_like_cpp();
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
     let context = owned.as_context(&session);
     assert_eq!(
         context.avg_equipped_item_level, 25.0,
@@ -4248,7 +4250,9 @@ fn represented_condition_total_avg_item_level_uses_cpp_slot_formula_like_cpp() {
         InventoryType::Weapon2Hand,
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
     let context = owned.as_context(&session);
 
     assert_eq!(
@@ -4344,7 +4348,9 @@ fn represented_condition_total_avg_item_level_uses_best_represented_slot_candida
         InventoryType::Chest,
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
     let context = owned.as_context(&session);
 
     assert_eq!(
@@ -4467,7 +4473,9 @@ fn represented_condition_avg_item_level_uses_runtime_item_level_like_cpp() {
         },
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
     let context = owned.as_context(&session);
 
     assert_eq!(
@@ -4565,7 +4573,9 @@ fn represented_condition_avg_item_level_applies_item_bonus_level_like_cpp() {
         },
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
     let context = owned.as_context(&session);
 
     assert_eq!(
@@ -5369,7 +5379,9 @@ fn represented_condition_total_avg_item_level_skips_can_use_rejected_candidates_
         InventoryType::Chest,
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
     let context = owned.as_context(&session);
 
     assert_eq!(
@@ -5507,7 +5519,9 @@ fn represented_condition_total_avg_item_level_skips_unique_limit_candidates_like
         InventoryType::Chest,
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
     let context = owned.as_context(&session);
 
     assert_eq!(
@@ -5705,7 +5719,9 @@ fn represented_condition_total_avg_item_level_skips_socketed_gem_limit_candidate
         },
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
     let context = owned.as_context(&session);
 
     assert_eq!(
@@ -5882,7 +5898,9 @@ fn represented_condition_total_avg_item_level_rejects_twohand_candidate_with_off
         InventoryType::Weapon2Hand,
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
     let context = owned.as_context(&session);
 
     assert_eq!(
@@ -6047,7 +6065,9 @@ fn represented_condition_total_avg_item_level_counts_contained_items_for_max_cou
     second_contained_chest.set_container_guid_and_slot(bag_guid, 1);
     session.insert_inventory_item_object(second_contained_chest);
 
-    let owned = session.represented_player_condition_context_like_cpp();
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
     let context = owned.as_context(&session);
 
     assert_eq!(
@@ -6167,7 +6187,9 @@ fn represented_condition_total_avg_item_level_uses_represented_bag_contents_like
     contained_chest.set_container_guid_and_slot(bag_guid, INVENTORY_SLOT_BAG_START);
     session.insert_inventory_item_object(contained_chest);
 
-    let owned = session.represented_player_condition_context_like_cpp();
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
     let context = owned.as_context(&session);
 
     assert_eq!(
@@ -6263,7 +6285,9 @@ fn represented_condition_total_avg_item_level_uses_represented_bank_item_like_cp
         InventoryType::Chest,
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
     let context = owned.as_context(&session);
 
     assert_eq!(
@@ -6383,7 +6407,9 @@ fn represented_condition_total_avg_item_level_uses_represented_bank_bag_contents
     contained_chest.set_container_guid_and_slot(bank_bag_guid, BANK_SLOT_BAG_START);
     session.insert_inventory_item_object(contained_chest);
 
-    let owned = session.represented_player_condition_context_like_cpp();
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
     let context = owned.as_context(&session);
 
     assert_eq!(
@@ -6503,7 +6529,9 @@ fn represented_condition_total_avg_item_level_uses_represented_reagent_bank_cont
     contained_chest.set_container_guid_and_slot(reagent_bag_guid, REAGENT_BAG_SLOT_START);
     session.insert_inventory_item_object(contained_chest);
 
-    let owned = session.represented_player_condition_context_like_cpp();
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
     let context = owned.as_context(&session);
 
     assert_eq!(
@@ -6568,7 +6596,9 @@ fn represented_condition_total_avg_item_level_does_not_count_same_ring_twice_lik
         InventoryType::Finger,
     );
 
-    let owned = session.represented_player_condition_context_like_cpp();
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
     let context = owned.as_context(&session);
 
     assert_eq!(
@@ -14290,7 +14320,9 @@ fn represented_player_condition_context_uses_live_session_state_like_cpp() {
     session.rewarded_quests.insert(200);
     session.set_player_zone_area_like_cpp(12, 34);
 
-    let owned = session.represented_player_condition_context_like_cpp();
+    let owned = session
+        .represented_player_condition_context_like_cpp()
+        .expect("fixture canonical inventory owner");
     let context = owned.as_context(&session);
 
     assert_eq!(context.race, 1);
@@ -31164,6 +31196,148 @@ fn canonical_player_inventory_capacity_follows_detached_and_stale_ownership_like
 }
 
 #[test]
+fn canonical_player_inventory_runtime_follows_active_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_562);
+    let item_guid = ObjectGuid::create_item(1, 8_001);
+    let replacement_item_guid = ObjectGuid::create_item(1, 8_002);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "InventoryRuntimeOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    let inventory_item = InventoryItem {
+        guid: item_guid,
+        entry_id: 12_345,
+        db_guid: 8_001,
+        inventory_type: Some(1),
+    };
+    let mut item_object = Item::default();
+    item_object.object_mut().create(item_guid);
+    item_object.object_mut().set_entry(inventory_item.entry_id);
+    item_object.set_count(5);
+    assert_eq!(
+        session.insert_inventory_item_like_cpp(INVENTORY_SLOT_ITEM_START, inventory_item.clone()),
+        None
+    );
+    assert_eq!(session.insert_inventory_item_object(item_object), None);
+    session.insert_buyback_item_like_cpp(BUYBACK_SLOT_START, inventory_item.clone());
+    session.set_buyback_slot_metadata_like_cpp(BUYBACK_SLOT_START, 77, 88);
+
+    assert_eq!(
+        session
+            .resolved_inventory_item_like_cpp(INVENTORY_SLOT_ITEM_START)
+            .as_ref()
+            .map(|item| (item.guid, item.entry_id)),
+        Some((item_guid, 12_345))
+    );
+    assert_eq!(
+        session
+            .resolved_inventory_item_object_like_cpp(item_guid)
+            .map(|item| item.count()),
+        Some(5)
+    );
+    assert_eq!(
+        session
+            .resolved_buyback_price_like_cpp()
+            .map(|prices| prices[0]),
+        Some(77)
+    );
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session
+            .resolved_inventory_item_object_like_cpp(item_guid)
+            .map(|item| item.count()),
+        Some(5)
+    );
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    let replacement_inventory_item = InventoryItem {
+        guid: replacement_item_guid,
+        entry_id: 54_321,
+        db_guid: 8_002,
+        inventory_type: Some(2),
+    };
+    let mut replacement_item_object = Item::default();
+    replacement_item_object
+        .object_mut()
+        .create(replacement_item_guid);
+    replacement_item_object
+        .object_mut()
+        .set_entry(replacement_inventory_item.entry_id);
+    replacement_item_object.set_count(9);
+    replacement
+        .inventory_runtime_mut_like_cpp()
+        .inventory_items_mut()
+        .insert(INVENTORY_SLOT_ITEM_START, replacement_inventory_item);
+    replacement
+        .inventory_runtime_mut_like_cpp()
+        .item_objects_mut()
+        .insert(replacement_item_guid, replacement_item_object);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_inventory_items_like_cpp(), None);
+    assert_eq!(session.resolved_inventory_item_objects_like_cpp(), None);
+    assert_eq!(
+        session.mutate_player_inventory_runtime_like_cpp(|inventory| {
+            inventory.inventory_items_mut().clear();
+        }),
+        None
+    );
+    assert_eq!(session.current_player_save_to_db_snapshot_like_cpp(), None);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                let inventory = player.inventory_runtime_like_cpp();
+                (
+                    inventory
+                        .inventory_items()
+                        .get(&INVENTORY_SLOT_ITEM_START)
+                        .map(|item| item.guid),
+                    inventory
+                        .item_objects()
+                        .get(&replacement_item_guid)
+                        .map(|item| item.count()),
+                )
+            }),
+        Some((Some(replacement_item_guid), Some(9)))
+    );
+}
+
+#[test]
 fn canonical_player_rejected_map_sync_does_not_remove_existing_map_player_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -33247,7 +33421,7 @@ fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
         },
     );
     let item_guid = ObjectGuid::create_item(1, 500);
-    session.inventory_items.insert(
+    session.insert_inventory_item_like_cpp(
         23,
         InventoryItem {
             guid: item_guid,
@@ -36165,7 +36339,9 @@ fn loaded_player_visible_items_for_create_includes_loaded_enchant_visual_like_cp
     item.set_enchantment(EnchantmentSlot::EnhancementPermanent, 908, 0, 0);
     session.insert_inventory_item_object(item);
 
-    let visible_items = session.loaded_player_visible_items_for_create_like_cpp();
+    let visible_items = session
+        .loaded_player_visible_items_for_create_like_cpp()
+        .expect("fixture canonical inventory owner");
 
     assert_eq!(
         visible_items[EQUIPMENT_SLOT_MAINHAND as usize],
@@ -66955,7 +67131,7 @@ fn initial_equipped_item_equip_auras_apply_on_equip_effects_like_cpp() {
 
     assert_eq!(
         session.apply_initial_equipped_item_equip_auras_like_cpp(),
-        2
+        Some(2)
     );
     assert!(session.visible_auras.values().any(|aura| {
         aura.spell_id == 30_100

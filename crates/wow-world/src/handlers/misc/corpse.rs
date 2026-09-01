@@ -171,7 +171,8 @@ impl crate::session::WorldSession {
             .then(|| self.player_condition_store().cloned())
             .flatten();
         let player_condition_context = needs_player_condition_context
-            .then(|| self.represented_player_condition_context_like_cpp());
+            .then(|| self.represented_player_condition_context_like_cpp())
+            .flatten();
 
         let mut source_info =
             crate::conditions::ConditionSourceInfo::from_targets(Some(&player_object), None, None);

@@ -5438,7 +5438,7 @@ fn banked_quest_item_recomputes_objective_and_reopens_quest_like_cpp() {
     );
     assert_eq!(
         session.apply_quest_item_removed_like_cpp(item_id),
-        vec![quest_id]
+        Some(vec![quest_id])
     );
     let status = session.player_quests.get(&quest_id).expect("active quest");
     assert_eq!(

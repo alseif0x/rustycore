@@ -320,8 +320,7 @@ impl WorldSession {
 
     pub async fn handle_item_text_query(&mut self, query: ItemTextQuery) {
         let response = self
-            .inventory_item_objects_like_cpp()
-            .get(&query.id)
+            .resolved_inventory_item_object_like_cpp(query.id)
             .map(|item| QueryItemTextResponse::valid_like_cpp(query.id, item.text().to_string()))
             .unwrap_or_else(|| QueryItemTextResponse::invalid_like_cpp(query.id));
 

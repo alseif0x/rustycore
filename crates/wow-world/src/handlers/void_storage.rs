@@ -383,9 +383,9 @@ impl WorldSession {
         slot: u8,
         inventory_item: InventoryItem,
         cleared_mainhand_enchantments: Vec<wow_constants::EnchantmentSlot>,
-    ) -> Vec<PlannedVoidDestroyedInventoryItemLikeCpp> {
+    ) -> Option<Vec<PlannedVoidDestroyedInventoryItemLikeCpp>> {
         let mut destroyed_items = self
-            .represented_inventory_descendants_postorder_like_cpp(inventory_item.guid)
+            .represented_inventory_descendants_postorder_like_cpp(inventory_item.guid)?
             .into_iter()
             .map(
                 |(bag, slot, inventory_item)| PlannedVoidDestroyedInventoryItemLikeCpp {
@@ -402,7 +402,7 @@ impl WorldSession {
             inventory_item,
             cleared_mainhand_enchantments,
         });
-        destroyed_items
+        Some(destroyed_items)
     }
 
     fn void_storage_withdrawal_container_db_guid_like_cpp(
@@ -426,8 +426,7 @@ impl WorldSession {
         }
 
         planned_container_item_guids.get(&bag).copied().or_else(|| {
-            self.inventory_items_like_cpp()
-                .get(&bag)
+            self.resolved_inventory_item_like_cpp(bag)
                 .map(|item| item.guid)
         })
     }
@@ -505,7 +504,7 @@ impl WorldSession {
     fn apply_committed_void_storage_destroyed_items_like_cpp(
         &mut self,
         destroyed_items: &[PlannedVoidDestroyedInventoryItemLikeCpp],
-    ) -> (Vec<wow_core::ObjectGuid>, Vec<u32>) {
+    ) -> Option<(Vec<wow_core::ObjectGuid>, Vec<u32>)> {
         let mut destroyed_guids = Vec::with_capacity(destroyed_items.len());
         let mut changed_quest_ids = Vec::new();
         for destroyed in destroyed_items {
@@ -525,11 +524,11 @@ impl WorldSession {
             // C++ recursive DestroyItem runs ItemRemovedQuestCheck after each
             // child/parent removal, preserving intermediate objective updates.
             changed_quest_ids
-                .extend(self.apply_quest_item_removed_like_cpp(destroyed.inventory_item.entry_id));
+                .extend(self.apply_quest_item_removed_like_cpp(destroyed.inventory_item.entry_id)?);
         }
         changed_quest_ids.sort_unstable();
         changed_quest_ids.dedup();
-        (destroyed_guids, changed_quest_ids)
+        Some((destroyed_guids, changed_quest_ids))
     }
 
     fn send_void_storage_transfer_result_like_cpp(&self, result: VoidTransferErrorLikeCpp) {
@@ -757,10 +756,8 @@ impl WorldSession {
             // unique, quest, bag, or `ITEM_FLAG3_NO_VOID_STORAGE` metadata.
             // Preserve that server behavior here. Issue #114 explicitly keeps
             // broader inventory validation in #52.
-            let Some(runtime_item) = self
-                .inventory_item_objects_like_cpp()
-                .get(&inventory_item.guid)
-                .cloned()
+            let Some(runtime_item) =
+                self.resolved_inventory_item_object_like_cpp(inventory_item.guid)
             else {
                 continue;
             };
@@ -792,12 +789,17 @@ impl WorldSession {
                 continue;
             };
             let data = runtime_item.data();
-            let mut destroyed_items = self.plan_void_storage_destroyed_items_like_cpp(
+            let Some(mut destroyed_items) = self.plan_void_storage_destroyed_items_like_cpp(
                 bag,
                 slot,
                 inventory_item,
                 cleared_mainhand_enchantments,
-            );
+            ) else {
+                self.send_void_storage_transfer_result_like_cpp(
+                    VoidTransferErrorLikeCpp::InternalError1,
+                );
+                return;
+            };
             // Planning is detached from runtime publication, so emulate C++'s
             // request-order destruction when a bag and one of its children are
             // both listed: a child already claimed by an earlier deposit is no
@@ -845,28 +847,30 @@ impl WorldSession {
                 continue;
             }
             let count = self
-                .inventory_item_objects_like_cpp()
-                .get(&destroyed.inventory_item.guid)
-                .map_or(0, wow_entities::Item::count);
+                .resolved_inventory_item_object_like_cpp(destroyed.inventory_item.guid)
+                .map_or(0, |item| item.count());
             removed_non_bank_counts
                 .entry(destroyed.inventory_item.entry_id)
                 .and_modify(|removed| *removed = removed.saturating_add(count))
                 .or_insert(count);
         }
-        let mut post_removal_non_bank_counts = removed_entry_order
+        let post_removal_non_bank_counts = removed_entry_order
             .iter()
             .copied()
             .collect::<HashSet<_>>()
             .into_iter()
             .map(|entry_id| {
                 let removed = removed_non_bank_counts.get(&entry_id).copied().unwrap_or(0);
-                (
-                    entry_id,
-                    self.represented_non_bank_item_count_like_cpp(entry_id)
-                        .saturating_sub(removed),
-                )
+                self.represented_non_bank_item_count_like_cpp(entry_id)
+                    .map(|count| (entry_id, count.saturating_sub(removed)))
             })
-            .collect::<Vec<_>>();
+            .collect::<Option<Vec<_>>>();
+        let Some(mut post_removal_non_bank_counts) = post_removal_non_bank_counts else {
+            self.send_void_storage_transfer_result_like_cpp(
+                VoidTransferErrorLikeCpp::InternalError1,
+            );
+            return;
+        };
         post_removal_non_bank_counts.sort_unstable_by_key(|(entry_id, _)| *entry_id);
         let mut quest_persistence_plan = self.begin_item_transfer_quest_persistence_like_cpp(
             &removed_entry_order,
@@ -957,10 +961,8 @@ impl WorldSession {
             let (target, mut item_object, base_enchantments) = if let Some(state) = previous_state {
                 (state.target, state.item_object, state.enchantments)
             } else if let Some(inventory_item) = existing_inventory_item {
-                let Some(item_object) = self
-                    .inventory_item_objects_like_cpp()
-                    .get(&inventory_item.guid)
-                    .cloned()
+                let Some(item_object) =
+                    self.resolved_inventory_item_object_like_cpp(inventory_item.guid)
                 else {
                     self.send_void_storage_transfer_result_like_cpp(
                         VoidTransferErrorLikeCpp::InventoryFull,
@@ -1350,8 +1352,14 @@ impl WorldSession {
                     player_guid,
                 );
             }
-            let (destroyed_guids, deposit_changed_quest_ids) = self
-                .apply_committed_void_storage_destroyed_items_like_cpp(&deposit.destroyed_items);
+            let Some((destroyed_guids, deposit_changed_quest_ids)) = self
+                .apply_committed_void_storage_destroyed_items_like_cpp(&deposit.destroyed_items)
+            else {
+                self.send_void_storage_transfer_result_like_cpp(
+                    VoidTransferErrorLikeCpp::InternalError1,
+                );
+                return;
+            };
             changed_quest_ids.extend(deposit_changed_quest_ids);
             destroyed_deposit_items.push((parent_position, destroyed_guids));
             let inserted_slot =

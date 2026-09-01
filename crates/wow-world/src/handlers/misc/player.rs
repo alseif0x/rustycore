@@ -482,8 +482,8 @@ impl crate::session::WorldSession {
 
         let Some(packet) = (|| {
             let item = self
-                .inventory_item_objects_like_cpp()
-                .get(&request.item_guid)?;
+                .resolved_inventory_item_objects_like_cpp()
+                .and_then(|items| items.get(&request.item_guid).cloned())?;
             if !item.is_refundable() || item.refund_recipient() != player_guid {
                 return None;
             }

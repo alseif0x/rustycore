@@ -290,22 +290,28 @@
           "name": "buyback_items",
           "type": "HashMap < u8 , InventoryItem >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "buyback_price",
           "type": "[u32 ; BUYBACK_SLOT_COUNT]",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "buyback_timestamp",
           "type": "[i64 ; BUYBACK_SLOT_COUNT]",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "canonical_map_manager",
@@ -584,8 +590,10 @@
           "name": "current_buyback_slot",
           "type": "u8",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "current_map_id",
@@ -959,15 +967,19 @@
           "name": "inventory_item_objects",
           "type": "HashMap < ObjectGuid , Item >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "inventory_items",
           "type": "HashMap < u8 , InventoryItem >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "is_a_recruiter_like_cpp",
@@ -6407,7 +6419,7 @@
           "kind": "method",
           "name": "plan_destroyed_inventory_quest_persistence_like_cpp",
           "visibility": "pub (super)",
-          "signature": "fn plan_destroyed_inventory_quest_persistence_like_cpp (& self , destroyed_items : & [DestroyQuestItemLikeCpp] ,) -> Vec < crate :: handlers :: quest :: PlayerQuestStatus >",
+          "signature": "fn plan_destroyed_inventory_quest_persistence_like_cpp (& self , destroyed_items : & [DestroyQuestItemLikeCpp] ,) -> Option < Vec < crate :: handlers :: quest :: PlayerQuestStatus > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -7377,7 +7389,7 @@
           "kind": "method",
           "name": "represented_player_gear_stats_like_cpp",
           "visibility": "pub (super)",
-          "signature": "fn represented_player_gear_stats_like_cpp (& self , include_represented_item_bonuses : bool ,) -> RepresentedPlayerGearStatsLikeCpp",
+          "signature": "fn represented_player_gear_stats_like_cpp (& self , include_represented_item_bonuses : bool ,) -> Option < RepresentedPlayerGearStatsLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -10338,7 +10350,7 @@
           "kind": "method",
           "name": "direct_inventory_item_count_like_cpp",
           "visibility": "pub (super)",
-          "signature": "fn direct_inventory_item_count_like_cpp (& self , item_id : u32) -> u32",
+          "signature": "fn direct_inventory_item_count_like_cpp (& self , item_id : u32) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -14786,7 +14798,7 @@
           "kind": "method",
           "name": "lfg_player_lock_info_like_cpp",
           "visibility": "private",
-          "signature": "fn lfg_player_lock_info_like_cpp (& self) -> LfgPlayerInfo",
+          "signature": "fn lfg_player_lock_info_like_cpp (& self) -> Option < LfgPlayerInfo >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -15744,7 +15756,7 @@
           "kind": "method",
           "name": "apply_quest_item_removed_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn apply_quest_item_removed_like_cpp (& mut self , entry_id : u32) -> Vec < u32 >",
+          "signature": "fn apply_quest_item_removed_like_cpp (& mut self , entry_id : u32) -> Option < Vec < u32 > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -16320,7 +16332,7 @@
           "kind": "method",
           "name": "represented_direct_inventory_count_like_cpp",
           "visibility": "private",
-          "signature": "fn represented_direct_inventory_count_like_cpp (& self , item_entry : u32) -> u32",
+          "signature": "fn represented_direct_inventory_count_like_cpp (& self , item_entry : u32) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -16937,7 +16949,7 @@
           "kind": "method",
           "name": "direct_inventory_item_count_like_cpp_representable",
           "visibility": "private",
-          "signature": "fn direct_inventory_item_count_like_cpp_representable (& self , item_id : u32) -> u32",
+          "signature": "fn direct_inventory_item_count_like_cpp_representable (& self , item_id : u32) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -17760,7 +17772,7 @@
           "kind": "method",
           "name": "apply_committed_void_storage_destroyed_items_like_cpp",
           "visibility": "private",
-          "signature": "fn apply_committed_void_storage_destroyed_items_like_cpp (& mut self , destroyed_items : & [PlannedVoidDestroyedInventoryItemLikeCpp] ,) -> (Vec < wow_core :: ObjectGuid > , Vec < u32 >)",
+          "signature": "fn apply_committed_void_storage_destroyed_items_like_cpp (& mut self , destroyed_items : & [PlannedVoidDestroyedInventoryItemLikeCpp] ,) -> Option < (Vec < wow_core :: ObjectGuid > , Vec < u32 >) >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -17920,7 +17932,7 @@
           "kind": "method",
           "name": "plan_void_storage_destroyed_items_like_cpp",
           "visibility": "private",
-          "signature": "fn plan_void_storage_destroyed_items_like_cpp (& self , bag : u8 , slot : u8 , inventory_item : InventoryItem , cleared_mainhand_enchantments : Vec < wow_constants :: EnchantmentSlot > ,) -> Vec < PlannedVoidDestroyedInventoryItemLikeCpp >",
+          "signature": "fn plan_void_storage_destroyed_items_like_cpp (& self , bag : u8 , slot : u8 , inventory_item : InventoryItem , cleared_mainhand_enchantments : Vec < wow_constants :: EnchantmentSlot > ,) -> Option < Vec < PlannedVoidDestroyedInventoryItemLikeCpp > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -19521,7 +19533,7 @@
           "kind": "method",
           "name": "apply_initial_equipped_item_equip_auras_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn apply_initial_equipped_item_equip_auras_like_cpp (& mut self) -> usize",
+          "signature": "fn apply_initial_equipped_item_equip_auras_like_cpp (& mut self) -> Option < usize >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -19534,7 +19546,7 @@
           "kind": "method",
           "name": "apply_initial_equipped_item_set_auras_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn apply_initial_equipped_item_set_auras_like_cpp (& mut self) -> usize",
+          "signature": "fn apply_initial_equipped_item_set_auras_like_cpp (& mut self) -> Option < usize >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -21705,8 +21717,10 @@
           "name": "buyback_items_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn buyback_items_like_cpp (& self) -> & HashMap < u8 , InventoryItem >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -21718,8 +21732,10 @@
           "name": "buyback_price_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn buyback_price_like_cpp (& self) -> & [u32 ; BUYBACK_SLOT_COUNT]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -21731,8 +21747,10 @@
           "name": "buyback_timestamp_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn buyback_timestamp_like_cpp (& self) -> & [i64 ; BUYBACK_SLOT_COUNT]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -23543,8 +23561,10 @@
           "name": "current_buyback_slot_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn current_buyback_slot_like_cpp (& self) -> u8",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -25787,11 +25807,24 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "inventory_equip_capabilities_like_cpp",
+          "visibility": "private",
+          "signature": "fn inventory_equip_capabilities_like_cpp (& self) -> Option < (bool , bool) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "inventory_item_objects_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn inventory_item_objects_like_cpp (& self) -> & HashMap < ObjectGuid , Item >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -25803,8 +25836,10 @@
           "name": "inventory_items_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn inventory_items_like_cpp (& self) -> & HashMap < u8 , InventoryItem >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -27477,7 +27512,7 @@
           "kind": "method",
           "name": "loaded_player_visible_items_for_create_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn loaded_player_visible_items_for_create_like_cpp (& self) -> [(i32 , u16 , u16) ; 19]",
+          "signature": "fn loaded_player_visible_items_for_create_like_cpp (& self ,) -> Option < [(i32 , u16 , u16) ; 19] >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -27910,9 +27945,11 @@
           "kind": "method",
           "name": "mirror_player_inventory_runtime_to_legacy_like_cpp",
           "visibility": "private",
-          "signature": "fn mirror_player_inventory_runtime_to_legacy_like_cpp (& mut self , inventory : & SessionPlayerInventoryRuntime ,)",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "fn mirror_player_inventory_runtime_to_legacy_like_cpp (& mut self , inventory : & PlayerInventoryRuntime ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -28256,7 +28293,7 @@
           "kind": "method",
           "name": "mutate_player_inventory_runtime_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn mutate_player_inventory_runtime_like_cpp < R > (& mut self , update : impl FnOnce (& mut SessionPlayerInventoryRuntime) -> R ,) -> R",
+          "signature": "fn mutate_player_inventory_runtime_like_cpp < R > (& mut self , update : impl FnOnce (& mut PlayerInventoryRuntime) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -32504,7 +32541,7 @@
           "kind": "method",
           "name": "repairable_inventory_item_costs_like_cpp",
           "visibility": "private",
-          "signature": "fn repairable_inventory_item_costs_like_cpp (& self , discount : f32 , repair_cost_rate : f32 ,) -> Vec < (ObjectGuid , u64) >",
+          "signature": "fn repairable_inventory_item_costs_like_cpp (& self , discount : f32 , repair_cost_rate : f32 ,) -> Option < Vec < (ObjectGuid , u64) > >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -32913,7 +32950,7 @@
           "kind": "method",
           "name": "represented_average_item_level_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_average_item_level_like_cpp (& self) -> f32",
+          "signature": "fn represented_average_item_level_like_cpp (& self) -> Option < f32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -32926,7 +32963,7 @@
           "kind": "method",
           "name": "represented_avg_equipped_item_level_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_avg_equipped_item_level_like_cpp (& self) -> f32",
+          "signature": "fn represented_avg_equipped_item_level_like_cpp (& self) -> Option < f32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -32976,7 +33013,7 @@
           "kind": "method",
           "name": "represented_avg_total_item_level_like_cpp",
           "visibility": "private",
-          "signature": "fn represented_avg_total_item_level_like_cpp (& self) -> f32",
+          "signature": "fn represented_avg_total_item_level_like_cpp (& self) -> Option < f32 >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -34806,7 +34843,7 @@
           "kind": "method",
           "name": "represented_inventory_descendants_postorder_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_inventory_descendants_postorder_like_cpp (& self , container_guid : ObjectGuid ,) -> Vec < (u8 , u8 , InventoryItem) >",
+          "signature": "fn represented_inventory_descendants_postorder_like_cpp (& self , container_guid : ObjectGuid ,) -> Option < Vec < (u8 , u8 , InventoryItem) > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -34819,7 +34856,7 @@
           "kind": "method",
           "name": "represented_inventory_item_counts_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_inventory_item_counts_like_cpp (& self) -> HashMap < u32 , u32 >",
+          "signature": "fn represented_inventory_item_counts_like_cpp (& self) -> Option < HashMap < u32 , u32 > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -35366,7 +35403,7 @@
           "kind": "method",
           "name": "represented_non_bank_item_count_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_non_bank_item_count_like_cpp (& self , entry_id : u32) -> u32",
+          "signature": "fn represented_non_bank_item_count_like_cpp (& self , entry_id : u32) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -35570,7 +35607,7 @@
           "kind": "method",
           "name": "represented_player_condition_context_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_player_condition_context_like_cpp (& self ,) -> RepresentedPlayerConditionContextLikeCpp",
+          "signature": "fn represented_player_condition_context_like_cpp (& self ,) -> Option < RepresentedPlayerConditionContextLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -37006,7 +37043,7 @@
           "kind": "method",
           "name": "represented_top_level_item_mod_targets_like_cpp",
           "visibility": "private",
-          "signature": "fn represented_top_level_item_mod_targets_like_cpp (& self) -> Vec < (u8 , ObjectGuid) >",
+          "signature": "fn represented_top_level_item_mod_targets_like_cpp (& self) -> Option < Vec < (u8 , ObjectGuid) > >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -38102,12 +38139,116 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_buyback_items_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_buyback_items_like_cpp (& self) -> Option < HashMap < u8 , InventoryItem > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_buyback_price_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_buyback_price_like_cpp (& self) -> Option < [u32 ; BUYBACK_SLOT_COUNT] >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_buyback_timestamp_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_buyback_timestamp_like_cpp (& self) -> Option < [i64 ; BUYBACK_SLOT_COUNT] >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_current_buyback_slot_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_current_buyback_slot_like_cpp (& self) -> Option < u8 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_current_player_xp_persistence_request_like_cpp",
           "visibility": "private",
           "signature": "fn resolved_current_player_xp_persistence_request_like_cpp (& self , level_changed : bool , rest_info_changed : bool , guid_counter : u64 ,) -> Option < wow_persistence :: PlayerXpPersistenceRequestLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_inventory_item_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_inventory_item_like_cpp (& self , slot : u8) -> Option < InventoryItem >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_inventory_item_object_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_inventory_item_object_like_cpp (& self , guid : ObjectGuid) -> Option < Item >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_inventory_item_objects_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_inventory_item_objects_like_cpp (& self ,) -> Option < HashMap < ObjectGuid , Item > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_inventory_items_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_inventory_items_like_cpp (& self) -> Option < HashMap < u8 , InventoryItem > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -38134,6 +38275,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_inventory_runtime_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_player_inventory_runtime_like_cpp (& self) -> Option < PlayerInventoryRuntime >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -38649,7 +38801,7 @@
           "kind": "method",
           "name": "select_buyback_slot_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn select_buyback_slot_cpp (& self) -> u8",
+          "signature": "fn select_buyback_slot_cpp (& self) -> Option < u8 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -39732,19 +39884,6 @@
           "name": "session_mgr",
           "visibility": "pub",
           "signature": "fn session_mgr (& self) -> Option < & Arc < SessionManager > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "session_player_inventory_runtime_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn session_player_inventory_runtime_like_cpp (& self ,) -> SessionPlayerInventoryRuntime",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -46012,7 +46151,7 @@
           "kind": "method",
           "name": "setup_currencies_packet_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn setup_currencies_packet_like_cpp (& self) -> SetupCurrency",
+          "signature": "fn setup_currencies_packet_like_cpp (& self) -> Option < SetupCurrency >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -70434,7 +70573,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:b86da02d753f224761f66e778f6666da:len=4612|evidence=fnv1a64x2:da3a2201484f893be857e271e825236a:len=448",
+          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:6622b7cd44ee947c10edf11f45380adf:len=4614|evidence=fnv1a64x2:da3a2201484f893be857e271e825236a:len=448",
           "cfg": [],
           "multiplicity": 1
         },
@@ -74172,7 +74311,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:270b56af43dcbf60ba4d22b88b02b8e3:len=91195|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:d036f477460379c865b9fb90bf6c663b:len=91285|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
