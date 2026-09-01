@@ -7,11 +7,8 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
-use tracing::info;
 use wow_constants::shared::Locale;
 use wow_core::Position;
-use wow_database::{WorldDatabase, WorldStatements};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PointOfInterestLikeCpp {
@@ -96,40 +93,6 @@ impl PointOfInterestStoreLikeCpp {
         }
     }
 
-    /// C++ `ObjectMgr::LoadPointsOfInterest`.
-    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<PointOfInterestLoadOutcomeLikeCpp> {
-        let stmt = db.prepare(WorldStatements::SEL_POINTS_OF_INTEREST);
-        let mut result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(PointOfInterestRowLikeCpp {
-                    id: result.read(0),
-                    position_x: result.read(1),
-                    position_y: result.read(2),
-                    position_z: result.read(3),
-                    icon: result.read(4),
-                    flags: result.read(5),
-                    importance: result.read(6),
-                    name: result.read(7),
-                    wmo_group_id: result.read(8),
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        let outcome = Self::from_rows_like_cpp(rows);
-        info!(
-            "Loaded {} Points of Interest definitions",
-            outcome.report.loaded_rows
-        );
-        Ok(outcome)
-    }
-
     /// C++ `ObjectMgr::GetPointOfInterest`.
     pub fn get_point_of_interest_like_cpp(&self, id: u32) -> Option<&PointOfInterestLikeCpp> {
         self.entries.get(&id)
@@ -197,31 +160,6 @@ impl PointOfInterestLocaleStoreLikeCpp {
         }
 
         Self { entries }
-    }
-
-    /// C++ `ObjectMgr::LoadPointOfInterestLocales`.
-    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<Self> {
-        let stmt = db.prepare(WorldStatements::SEL_POINTS_OF_INTEREST_LOCALES);
-        let mut result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(PointOfInterestLocaleRowLikeCpp {
-                    id: result.read(0),
-                    locale: result.read(1),
-                    name: result.read(2),
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        let store = Self::from_rows_like_cpp(rows);
-        info!("Loaded {} points_of_interest locale strings", store.len());
-        Ok(store)
     }
 
     /// C++ `ObjectMgr::GetPointOfInterestLocale`.

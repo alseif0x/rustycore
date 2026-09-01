@@ -6,9 +6,7 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::Result;
 use wow_constants::InventoryType;
-use wow_database::WorldDatabase;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct CreatureEquipmentItemLikeCpp {
@@ -19,6 +17,13 @@ pub struct CreatureEquipmentItemLikeCpp {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct CreatureEquipmentInfoLikeCpp {
+    pub items: [CreatureEquipmentItemLikeCpp; 3],
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CreatureEquipmentRowLikeCpp {
+    pub creature_id: u32,
+    pub id: u8,
     pub items: [CreatureEquipmentItemLikeCpp; 3],
 }
 
@@ -56,49 +61,23 @@ impl CreatureEquipmentStoreLikeCpp {
         store
     }
 
-    /// Mirrors C++ `ObjectMgr::LoadEquipmentTemplates`.
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
+    /// Pure C++ `ObjectMgr::LoadEquipmentTemplates` validation/composition.
+    pub fn from_rows_like_cpp(
+        rows: impl IntoIterator<Item = CreatureEquipmentRowLikeCpp>,
         mut creature_template_exists: impl FnMut(u32) -> bool,
         mut item_inventory_type: impl FnMut(u32) -> Option<u8>,
         mut item_modified_appearance_exists: impl FnMut(u32, u32) -> bool,
         mut default_item_appearance_mod_id: impl FnMut(u32) -> Option<u16>,
-    ) -> Result<Self> {
-        let mut result = db
-            .direct_query(
-                "SELECT CreatureID, ID, ItemID1, AppearanceModID1, ItemVisual1, \
-                 ItemID2, AppearanceModID2, ItemVisual2, \
-                 ItemID3, AppearanceModID3, ItemVisual3 \
-                 FROM creature_equip_template",
-            )
-            .await?;
-
-        if result.is_empty() {
-            return Ok(Self::default());
-        }
-
+    ) -> Self {
         let mut entries = Vec::new();
-        loop {
-            let creature_id = result.try_read::<u32>(0).unwrap_or(0);
-            if !creature_template_exists(creature_id) {
-                if !result.next_row() {
-                    break;
-                }
+        for row in rows {
+            if !creature_template_exists(row.creature_id) || row.id == 0 {
                 continue;
             }
-
-            let id = result.try_read::<u8>(1).unwrap_or(0);
-            if id == 0 {
-                if !result.next_row() {
-                    break;
-                }
-                continue;
-            }
-
             let mut info = CreatureEquipmentInfoLikeCpp::default();
             for slot in 0..3 {
-                let base = 2 + slot * 3;
-                let item_id = result.try_read::<u32>(base).unwrap_or(0);
+                let item = row.items[slot];
+                let item_id = item.item_id;
                 if item_id == 0 {
                     continue;
                 }
@@ -108,8 +87,8 @@ impl CreatureEquipmentStoreLikeCpp {
                     continue;
                 };
 
-                let mut appearance_mod_id = result.try_read::<u16>(base + 1).unwrap_or(0);
-                let item_visual = result.try_read::<u16>(base + 2).unwrap_or(0);
+                let mut appearance_mod_id = item.appearance_mod_id;
+                let item_visual = item.item_visual;
 
                 if !item_modified_appearance_exists(item_id, u32::from(appearance_mod_id)) {
                     appearance_mod_id = default_item_appearance_mod_id(item_id).unwrap_or(0);
@@ -127,14 +106,9 @@ impl CreatureEquipmentStoreLikeCpp {
                 };
             }
 
-            entries.push((creature_id, id, info));
-
-            if !result.next_row() {
-                break;
-            }
+            entries.push((row.creature_id, row.id, info));
         }
-
-        Ok(Self::from_entries(entries))
+        Self::from_entries(entries)
     }
 
     pub fn get(&self, entry: u32, id: u8) -> Option<&CreatureEquipmentInfoLikeCpp> {

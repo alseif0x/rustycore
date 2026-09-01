@@ -289,7 +289,7 @@ pub(crate) fn mmap_runtime_config_like_cpp(
 }
 
 pub(crate) async fn load_disable_mgr_like_cpp(
-    world_db: &WorldDatabase,
+    persistence: &dyn wow_persistence::ConditionDisableCatalogPersistencePortLikeCpp,
     map_store: &wow_data::MapStore,
     map_difficulty_store: &wow_data::MapDifficultyStore,
     spell_store: &wow_data::SpellStore,
@@ -297,8 +297,8 @@ pub(crate) async fn load_disable_mgr_like_cpp(
     criteria_store: &wow_data::Db2IdStore,
     battlemaster_list_store: &wow_data::Db2IdStore,
 ) -> Result<wow_data::DisableMgrLikeCpp> {
-    let (disable_mgr, _) = wow_data::DisableMgrLikeCpp::load_like_cpp(
-        world_db,
+    let disable_mgr = crate::condition_disable_catalog::load_disable_mgr_like_cpp(
+        persistence,
         wow_data::DisableMgrRefsLikeCpp {
             map_store: Some(map_store),
             map_difficulty_store: Some(map_difficulty_store),

@@ -6,9 +6,6 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
-use wow_database::WorldDatabase;
-
 use crate::CreatureDisplayInfoStore;
 
 const DEFAULT_PLAYER_COMBAT_REACH_LIKE_CPP: f32 = 1.5;
@@ -30,6 +27,14 @@ pub struct CreatureModelInfoLikeCpp {
     pub is_trigger: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CreatureModelInfoRowLikeCpp {
+    pub display_id: u32,
+    pub bounding_radius: f32,
+    pub combat_reach: f32,
+    pub display_id_other_gender: u32,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct CreatureModelInfoStoreLikeCpp {
     entries: HashMap<u32, CreatureModelInfoLikeCpp>,
@@ -49,39 +54,24 @@ impl CreatureModelInfoStoreLikeCpp {
     ///
     /// C++ validates `DisplayID` against `CreatureDisplayInfo` and clears
     /// `DisplayID_Other_Gender` when that display id does not exist.
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
+    pub fn from_rows_like_cpp(
+        rows: impl IntoIterator<Item = CreatureModelInfoRowLikeCpp>,
         display_store: &CreatureDisplayInfoStore,
         model_data_store: &crate::CreatureModelDataStore,
-    ) -> Result<Self> {
-        let mut result = db
-            .direct_query(
-                "SELECT DisplayID, BoundingRadius, CombatReach, DisplayID_Other_Gender FROM creature_model_info",
-            )
-            .await?;
-
-        if result.is_empty() {
-            return Ok(Self::default());
-        }
-
+    ) -> Self {
         let mut entries = Vec::new();
-        loop {
-            let display_id = result.try_read::<u32>(0).unwrap_or(0);
+        for row in rows {
+            let display_id = row.display_id;
             if display_store.get(display_id).is_none() {
-                if !result.next_row() {
-                    break;
-                }
                 continue;
             }
-
-            let mut display_id_other_gender = result.try_read::<u32>(3).unwrap_or(0);
+            let mut display_id_other_gender = row.display_id_other_gender;
             if display_id_other_gender != 0 && display_store.get(display_id_other_gender).is_none()
             {
                 display_id_other_gender = 0;
             }
 
-            let combat_reach =
-                normalize_combat_reach_like_cpp(result.try_read::<f32>(2).unwrap_or(0.0));
+            let combat_reach = normalize_combat_reach_like_cpp(row.combat_reach);
             let is_trigger = display_store
                 .get(display_id)
                 .and_then(|display| model_data_store.get(u32::from(display.model_id)))
@@ -94,18 +84,13 @@ impl CreatureModelInfoStoreLikeCpp {
 
             entries.push(CreatureModelInfoLikeCpp {
                 display_id,
-                bounding_radius: result.try_read::<f32>(1).unwrap_or(0.0),
+                bounding_radius: row.bounding_radius,
                 combat_reach,
                 display_id_other_gender,
                 is_trigger,
             });
-
-            if !result.next_row() {
-                break;
-            }
         }
-
-        Ok(Self::from_entries(entries))
+        Self::from_entries(entries)
     }
 
     pub fn get(&self, display_id: u32) -> Option<&CreatureModelInfoLikeCpp> {

@@ -7,9 +7,7 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
 use wow_core::Position;
-use wow_database::{WorldDatabase, WorldStatements};
 
 use crate::MapStore;
 
@@ -117,35 +115,6 @@ impl WorldSafeLocStore {
         }
 
         report.loaded = self.by_id.len();
-    }
-
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        map_store: &MapStore,
-    ) -> Result<(Self, WorldSafeLocLoadReport)> {
-        let stmt = db.prepare(WorldStatements::SEL_WORLD_SAFE_LOCS);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok((Self::default(), WorldSafeLocLoadReport::default()));
-        }
-
-        let mut rows = Vec::new();
-        loop {
-            rows.push(WorldSafeLocRow {
-                id: result.read(0),
-                map_id: result.read(1),
-                x: result.read(2),
-                y: result.read(3),
-                z: result.read(4),
-                facing_degrees: result.read(5),
-            });
-
-            if !result.next_row() {
-                break;
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(rows, map_store))
     }
 }
 

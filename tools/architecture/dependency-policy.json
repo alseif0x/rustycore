@@ -114,12 +114,6 @@
     },
     {
       "from": "wow-data",
-      "to": "wow-database",
-      "tracking_issue": 153,
-      "reason": "Static-data loaders still own concrete world/hotfix/characters access. The #186 exact inventory assigns these sites to #153, which must materialize typed data-source children before this edge can be removed. Closed since this was written: #186 \u2014 the residue is owned by #153."
-    },
-    {
-      "from": "wow-data",
       "to": "wow-entities",
       "tracking_issue": 133,
       "reason": "Static-data rows still reuse mutable entity-domain types."

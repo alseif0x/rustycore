@@ -1087,1247 +1087,6 @@
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
     {
-      "package": "wow-data",
-      "module": "crate::access_requirement",
-      "source": "crates/wow-data/src/access_requirement.rs",
-      "enclosing": "impl AccessRequirementStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::access_requirement",
-      "source": "crates/wow-data/src/access_requirement.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::area",
-      "source": "crates/wow-data/src/area.rs",
-      "enclosing": "impl AreaTableStore::load_hotfix_rows",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::area",
-      "source": "crates/wow-data/src/area.rs",
-      "enclosing": "impl AreaTableStore::load_with_hotfixes",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::area",
-      "source": "crates/wow-data/src/area.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for hotfix; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::character_progression",
-      "source": "crates/wow-data/src/character_progression.rs",
-      "enclosing": "impl PowerTypeStore::apply_hotfix_overlays_like_cpp",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::character_progression",
-      "source": "crates/wow-data/src/character_progression.rs",
-      "enclosing": "impl PowerTypeStore::load_with_hotfixes",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::character_progression",
-      "source": "crates/wow-data/src/character_progression.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for hotfix; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::conditions",
-      "source": "crates/wow-data/src/conditions.rs",
-      "enclosing": "fn load_condition_rows_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::conditions",
-      "source": "crates/wow-data/src/conditions.rs",
-      "enclosing": "fn read_db_bool_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::conditions",
-      "source": "crates/wow-data/src/conditions.rs",
-      "enclosing": "fn read_db_i32_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::conditions",
-      "source": "crates/wow-data/src/conditions.rs",
-      "enclosing": "fn read_db_u32_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::conditions",
-      "source": "crates/wow-data/src/conditions.rs",
-      "enclosing": "fn read_db_u8_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::conditions",
-      "source": "crates/wow-data/src/conditions.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::creature_equipment",
-      "source": "crates/wow-data/src/creature_equipment.rs",
-      "enclosing": "impl CreatureEquipmentStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::creature_equipment",
-      "source": "crates/wow-data/src/creature_equipment.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::creature_model_info",
-      "source": "crates/wow-data/src/creature_model_info.rs",
-      "enclosing": "impl CreatureModelInfoStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::creature_model_info",
-      "source": "crates/wow-data/src/creature_model_info.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::creature_template",
-      "source": "crates/wow-data/src/creature_template.rs",
-      "enclosing": "fn db_u8_from_signed_or_unsigned_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::creature_template",
-      "source": "crates/wow-data/src/creature_template.rs",
-      "enclosing": "fn load_creature_addon_rows_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::creature_template",
-      "source": "crates/wow-data/src/creature_template.rs",
-      "enclosing": "impl CreatureAddonStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::creature_template",
-      "source": "crates/wow-data/src/creature_template.rs",
-      "enclosing": "impl CreatureBaseStatsStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::creature_template",
-      "source": "crates/wow-data/src/creature_template.rs",
-      "enclosing": "impl CreatureDifficultyStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::creature_template",
-      "source": "crates/wow-data/src/creature_template.rs",
-      "enclosing": "impl CreatureTemplateClassificationStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::creature_template",
-      "source": "crates/wow-data/src/creature_template.rs",
-      "enclosing": "impl CreatureTemplateLifecycleStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::creature_template",
-      "source": "crates/wow-data/src/creature_template.rs",
-      "enclosing": "impl CreatureTemplateMountStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::creature_template",
-      "source": "crates/wow-data/src/creature_template.rs",
-      "enclosing": "impl CreatureTemplateSparringStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::creature_template",
-      "source": "crates/wow-data/src/creature_template.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::disable_mgr",
-      "source": "crates/wow-data/src/disable_mgr.rs",
-      "enclosing": "fn read_db_u16_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::disable_mgr",
-      "source": "crates/wow-data/src/disable_mgr.rs",
-      "enclosing": "fn read_db_u32_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::disable_mgr",
-      "source": "crates/wow-data/src/disable_mgr.rs",
-      "enclosing": "impl DisableMgrLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::disable_mgr",
-      "source": "crates/wow-data/src/disable_mgr.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::faction_change",
-      "source": "crates/wow-data/src/faction_change.rs",
-      "enclosing": "fn load_pair_rows_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::faction_change",
-      "source": "crates/wow-data/src/faction_change.rs",
-      "enclosing": "fn read_faction_change_id_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::faction_change",
-      "source": "crates/wow-data/src/faction_change.rs",
-      "enclosing": "impl FactionChangeStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::faction_change",
-      "source": "crates/wow-data/src/faction_change.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::gameobject_template",
-      "source": "crates/wow-data/src/gameobject_template.rs",
-      "enclosing": "impl GameObjectOverrideLifecycleStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::gameobject_template",
-      "source": "crates/wow-data/src/gameobject_template.rs",
-      "enclosing": "impl GameObjectTemplateLifecycleStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::gameobject_template",
-      "source": "crates/wow-data/src/gameobject_template.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::graveyard",
-      "source": "crates/wow-data/src/graveyard.rs",
-      "enclosing": "impl GraveyardStore::load_graveyard_zones_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::graveyard",
-      "source": "crates/wow-data/src/graveyard.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::mail",
-      "source": "crates/wow-data/src/mail.rs",
-      "enclosing": "impl MailLevelRewardStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::mail",
-      "source": "crates/wow-data/src/mail.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::poi",
-      "source": "crates/wow-data/src/poi.rs",
-      "enclosing": "impl PointOfInterestLocaleStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::poi",
-      "source": "crates/wow-data/src/poi.rs",
-      "enclosing": "impl PointOfInterestStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::poi",
-      "source": "crates/wow-data/src/poi.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::quest",
-      "source": "crates/wow-data/src/quest.rs",
-      "enclosing": "fn load_quests",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::quest",
-      "source": "crates/wow-data/src/quest.rs",
-      "enclosing": "fn read_quest_u32_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::quest",
-      "source": "crates/wow-data/src/quest.rs",
-      "enclosing": "fn read_quest_u64_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::quest",
-      "source": "crates/wow-data/src/quest.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::scene_template",
-      "source": "crates/wow-data/src/scene_template.rs",
-      "enclosing": "impl SceneTemplateStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::scene_template",
-      "source": "crates/wow-data/src/scene_template.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spawn_group",
-      "source": "crates/wow-data/src/spawn_group.rs",
-      "enclosing": "impl SpawnGroupTemplateStore::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spawn_group",
-      "source": "crates/wow-data/src/spawn_group.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_click",
-      "source": "crates/wow-data/src/spell_click.rs",
-      "enclosing": "impl NpcSpellClickStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_click",
-      "source": "crates/wow-data/src/spell_click.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_item_enchantment",
-      "source": "crates/wow-data/src/spell_item_enchantment.rs",
-      "enclosing": "impl SpellEnchantProcStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::spell_item_enchantment",
-      "source": "crates/wow-data/src/spell_item_enchantment.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::trinity_string",
-      "source": "crates/wow-data/src/trinity_string.rs",
-      "enclosing": "impl TrinityStringStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::trinity_string",
-      "source": "crates/wow-data/src/trinity_string.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::ui_map",
-      "source": "crates/wow-data/src/ui_map.rs",
-      "enclosing": "impl UiMapXMapArtStore::load_hotfix_rows",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::ui_map",
-      "source": "crates/wow-data/src/ui_map.rs",
-      "enclosing": "impl UiMapXMapArtStore::load_with_hotfixes",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::ui_map",
-      "source": "crates/wow-data/src/ui_map.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "hotfix"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for hotfix; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::vendor",
-      "source": "crates/wow-data/src/vendor.rs",
-      "enclosing": "impl NpcVendorStoreLikeCpp::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::vendor",
-      "source": "crates/wow-data/src/vendor.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::world_id_store",
-      "source": "crates/wow-data/src/world_id_store.rs",
-      "enclosing": "fn read_world_id_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::world_id_store",
-      "source": "crates/wow-data/src/world_id_store.rs",
-      "enclosing": "impl WorldIdStore::load_filtering_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::world_id_store",
-      "source": "crates/wow-data/src/world_id_store.rs",
-      "enclosing": "impl WorldIdStore::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::world_id_store",
-      "source": "crates/wow-data/src/world_id_store.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::world_safe_locs",
-      "source": "crates/wow-data/src/world_safe_locs.rs",
-      "enclosing": "impl WorldSafeLocStore::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::world_safe_locs",
-      "source": "crates/wow-data/src/world_safe_locs.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::world_spawn_id_store",
-      "source": "crates/wow-data/src/world_spawn_id_store.rs",
-      "enclosing": "impl WorldSpawnIdStore::load_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-data",
-      "module": "crate::world_spawn_id_store",
-      "source": "crates/wow-data/src/world_spawn_id_store.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "wow-data catalog/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
       "package": "wow-database",
       "module": "crate",
       "source": "crates/wow-database/src/lib.rs",
@@ -4012,6 +2771,141 @@
     },
     {
       "package": "wow-database",
+      "module": "crate::condition_disable_catalog_adapter",
+      "source": "crates/wow-database/src/condition_disable_catalog_adapter.rs",
+      "enclosing": "fn read_i32",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free condition disable catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::condition_disable_catalog_adapter",
+      "source": "crates/wow-database/src/condition_disable_catalog_adapter.rs",
+      "enclosing": "fn read_u16",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free condition disable catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::condition_disable_catalog_adapter",
+      "source": "crates/wow-database/src/condition_disable_catalog_adapter.rs",
+      "enclosing": "fn read_u32",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free condition disable catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::condition_disable_catalog_adapter",
+      "source": "crates/wow-database/src/condition_disable_catalog_adapter.rs",
+      "enclosing": "fn read_u8",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free condition disable catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::condition_disable_catalog_adapter",
+      "source": "crates/wow-database/src/condition_disable_catalog_adapter.rs",
+      "enclosing": "impl MariaDbConditionDisableCatalogPersistenceAdapterLikeCpp::condition_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free condition disable catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::condition_disable_catalog_adapter",
+      "source": "crates/wow-database/src/condition_disable_catalog_adapter.rs",
+      "enclosing": "impl MariaDbConditionDisableCatalogPersistenceAdapterLikeCpp::disable_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free condition disable catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::condition_disable_catalog_adapter",
+      "source": "crates/wow-database/src/condition_disable_catalog_adapter.rs",
+      "enclosing": "impl MariaDbConditionDisableCatalogPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free condition disable catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::condition_disable_catalog_adapter",
+      "source": "crates/wow-database/src/condition_disable_catalog_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free condition disable catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::condition_disable_catalog_adapter",
+      "source": "crates/wow-database/src/condition_disable_catalog_adapter.rs",
+      "enclosing": "struct MariaDbConditionDisableCatalogPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free condition disable catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
       "module": "crate::creature_display_hotfix_adapter",
       "source": "crates/wow-database/src/creature_display_hotfix_adapter.rs",
       "enclosing": "fn display_row_like_cpp",
@@ -5620,6 +4514,126 @@
       "connection_affinity": "The adapter stores exactly one World-database handle.",
       "current_order": "Construction stores the handle only; the typed method owns statement execution and row projection.",
       "failure_and_unknown_commit": "No I/O occurs while storing the adapter."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gameplay_rule_catalog_adapter",
+      "source": "crates/wow-database/src/gameplay_rule_catalog_adapter.rs",
+      "enclosing": "fn read_id",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free gameplay rule catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gameplay_rule_catalog_adapter",
+      "source": "crates/wow-database/src/gameplay_rule_catalog_adapter.rs",
+      "enclosing": "impl MariaDbGameplayRuleCatalogPersistenceAdapterLikeCpp::faction_change_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free gameplay rule catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gameplay_rule_catalog_adapter",
+      "source": "crates/wow-database/src/gameplay_rule_catalog_adapter.rs",
+      "enclosing": "impl MariaDbGameplayRuleCatalogPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free gameplay rule catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gameplay_rule_catalog_adapter",
+      "source": "crates/wow-database/src/gameplay_rule_catalog_adapter.rs",
+      "enclosing": "impl MariaDbGameplayRuleCatalogPersistenceAdapterLikeCpp::pair_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free gameplay rule catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gameplay_rule_catalog_adapter",
+      "source": "crates/wow-database/src/gameplay_rule_catalog_adapter.rs",
+      "enclosing": "impl MariaDbGameplayRuleCatalogPersistenceAdapterLikeCpp::spell_click_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free gameplay rule catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gameplay_rule_catalog_adapter",
+      "source": "crates/wow-database/src/gameplay_rule_catalog_adapter.rs",
+      "enclosing": "impl MariaDbGameplayRuleCatalogPersistenceAdapterLikeCpp::vendor_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free gameplay rule catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gameplay_rule_catalog_adapter",
+      "source": "crates/wow-database/src/gameplay_rule_catalog_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free gameplay rule catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::gameplay_rule_catalog_adapter",
+      "source": "crates/wow-database/src/gameplay_rule_catalog_adapter.rs",
+      "enclosing": "struct MariaDbGameplayRuleCatalogPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free gameplay rule catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
     },
     {
       "package": "wow-database",
@@ -10068,6 +9082,216 @@
     },
     {
       "package": "wow-database",
+      "module": "crate::quest_catalog_adapter",
+      "source": "crates/wow-database/src/quest_catalog_adapter.rs",
+      "enclosing": "fn read_u32",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free quest catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_catalog_adapter",
+      "source": "crates/wow-database/src/quest_catalog_adapter.rs",
+      "enclosing": "fn read_u64",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free quest catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_catalog_adapter",
+      "source": "crates/wow-database/src/quest_catalog_adapter.rs",
+      "enclosing": "impl MariaDbQuestCatalogPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free quest catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_catalog_adapter",
+      "source": "crates/wow-database/src/quest_catalog_adapter.rs",
+      "enclosing": "impl MariaDbQuestCatalogPersistenceAdapterLikeCpp::objective_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free quest catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_catalog_adapter",
+      "source": "crates/wow-database/src/quest_catalog_adapter.rs",
+      "enclosing": "impl MariaDbQuestCatalogPersistenceAdapterLikeCpp::pairs",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free quest catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_catalog_adapter",
+      "source": "crates/wow-database/src/quest_catalog_adapter.rs",
+      "enclosing": "impl MariaDbQuestCatalogPersistenceAdapterLikeCpp::special_flag_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free quest catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_catalog_adapter",
+      "source": "crates/wow-database/src/quest_catalog_adapter.rs",
+      "enclosing": "impl MariaDbQuestCatalogPersistenceAdapterLikeCpp::template_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free quest catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_catalog_adapter",
+      "source": "crates/wow-database/src/quest_catalog_adapter.rs",
+      "enclosing": "impl quest_catalog_adapter::QuestCatalogPersistencePortLikeCpp for MariaDbQuestCatalogPersistenceAdapterLikeCpp::load_creature_quest_ender_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free quest catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_catalog_adapter",
+      "source": "crates/wow-database/src/quest_catalog_adapter.rs",
+      "enclosing": "impl quest_catalog_adapter::QuestCatalogPersistencePortLikeCpp for MariaDbQuestCatalogPersistenceAdapterLikeCpp::load_creature_quest_starter_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free quest catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_catalog_adapter",
+      "source": "crates/wow-database/src/quest_catalog_adapter.rs",
+      "enclosing": "impl quest_catalog_adapter::QuestCatalogPersistencePortLikeCpp for MariaDbQuestCatalogPersistenceAdapterLikeCpp::load_gameobject_quest_ender_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free quest catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_catalog_adapter",
+      "source": "crates/wow-database/src/quest_catalog_adapter.rs",
+      "enclosing": "impl quest_catalog_adapter::QuestCatalogPersistencePortLikeCpp for MariaDbQuestCatalogPersistenceAdapterLikeCpp::load_gameobject_quest_starter_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free quest catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_catalog_adapter",
+      "source": "crates/wow-database/src/quest_catalog_adapter.rs",
+      "enclosing": "impl quest_catalog_adapter::QuestCatalogPersistencePortLikeCpp for MariaDbQuestCatalogPersistenceAdapterLikeCpp::load_seasonal_quest_relation_rows_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free quest catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_catalog_adapter",
+      "source": "crates/wow-database/src/quest_catalog_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free quest catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::quest_catalog_adapter",
+      "source": "crates/wow-database/src/quest_catalog_adapter.rs",
+      "enclosing": "struct MariaDbQuestCatalogPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free quest catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
       "module": "crate::quest_item_catalog_adapter",
       "source": "crates/wow-database/src/quest_item_catalog_adapter.rs",
       "enclosing": "const CREATURE_QUEST_ITEM_STATEMENT_LIKE_CPP",
@@ -12954,6 +12178,114 @@
     },
     {
       "package": "wow-database",
+      "module": "crate::static_data_overlay_adapter",
+      "source": "crates/wow-database/src/static_data_overlay_adapter.rs",
+      "enclosing": "impl MariaDbStaticDataOverlayPersistenceAdapterLikeCpp::area_rows",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free static data overlay capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing Hotfix adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::static_data_overlay_adapter",
+      "source": "crates/wow-database/src/static_data_overlay_adapter.rs",
+      "enclosing": "impl MariaDbStaticDataOverlayPersistenceAdapterLikeCpp::enchant_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free static data overlay capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::static_data_overlay_adapter",
+      "source": "crates/wow-database/src/static_data_overlay_adapter.rs",
+      "enclosing": "impl MariaDbStaticDataOverlayPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "hotfix",
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free static data overlay capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Hotfix and World reads use their existing independent handles in source order; no distributed transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::static_data_overlay_adapter",
+      "source": "crates/wow-database/src/static_data_overlay_adapter.rs",
+      "enclosing": "impl MariaDbStaticDataOverlayPersistenceAdapterLikeCpp::power_rows",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free static data overlay capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing Hotfix adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::static_data_overlay_adapter",
+      "source": "crates/wow-database/src/static_data_overlay_adapter.rs",
+      "enclosing": "impl MariaDbStaticDataOverlayPersistenceAdapterLikeCpp::ui_map_rows",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free static data overlay capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing Hotfix adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::static_data_overlay_adapter",
+      "source": "crates/wow-database/src/static_data_overlay_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "hotfix",
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free static data overlay capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Hotfix and World reads use their existing independent handles in source order; no distributed transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::static_data_overlay_adapter",
+      "source": "crates/wow-database/src/static_data_overlay_adapter.rs",
+      "enclosing": "struct MariaDbStaticDataOverlayPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "hotfix",
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free static data overlay capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Hotfix and World reads use their existing independent handles in source order; no distributed transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
       "module": "crate::stored_item_money_adapter",
       "source": "crates/wow-database/src/stored_item_money_adapter.rs",
       "logical_databases": [
@@ -14497,6 +13829,456 @@
       "connection_affinity": "The adapter stores one configured Characters handle.",
       "current_order": "Storage construction performs no query, write or transaction.",
       "failure_and_unknown_commit": "No I/O occurs while storing the adapter."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_auxiliary_catalog_adapter",
+      "source": "crates/wow-database/src/world_auxiliary_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldAuxiliaryCatalogPersistenceAdapterLikeCpp::access_requirement_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world auxiliary catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_auxiliary_catalog_adapter",
+      "source": "crates/wow-database/src/world_auxiliary_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldAuxiliaryCatalogPersistenceAdapterLikeCpp::graveyard_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world auxiliary catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_auxiliary_catalog_adapter",
+      "source": "crates/wow-database/src/world_auxiliary_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldAuxiliaryCatalogPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world auxiliary catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_auxiliary_catalog_adapter",
+      "source": "crates/wow-database/src/world_auxiliary_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldAuxiliaryCatalogPersistenceAdapterLikeCpp::scene_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world auxiliary catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_auxiliary_catalog_adapter",
+      "source": "crates/wow-database/src/world_auxiliary_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldAuxiliaryCatalogPersistenceAdapterLikeCpp::spawn_group_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world auxiliary catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_auxiliary_catalog_adapter",
+      "source": "crates/wow-database/src/world_auxiliary_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldAuxiliaryCatalogPersistenceAdapterLikeCpp::trinity_string_rows",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world auxiliary catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_auxiliary_catalog_adapter",
+      "source": "crates/wow-database/src/world_auxiliary_catalog_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world auxiliary catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_auxiliary_catalog_adapter",
+      "source": "crates/wow-database/src/world_auxiliary_catalog_adapter.rs",
+      "enclosing": "struct MariaDbWorldAuxiliaryCatalogPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world auxiliary catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_object_catalog_adapter",
+      "source": "crates/wow-database/src/world_object_catalog_adapter.rs",
+      "enclosing": "fn read_u8",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world object catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_object_catalog_adapter",
+      "source": "crates/wow-database/src/world_object_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp::addon_query",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world object catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_object_catalog_adapter",
+      "source": "crates/wow-database/src/world_object_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp::base_stats",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world object catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_object_catalog_adapter",
+      "source": "crates/wow-database/src/world_object_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp::classifications",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world object catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_object_catalog_adapter",
+      "source": "crates/wow-database/src/world_object_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp::creature_templates",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world object catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_object_catalog_adapter",
+      "source": "crates/wow-database/src/world_object_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp::difficulty",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world object catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_object_catalog_adapter",
+      "source": "crates/wow-database/src/world_object_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp::equipment",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world object catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_object_catalog_adapter",
+      "source": "crates/wow-database/src/world_object_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp::gameobject_overrides",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world object catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_object_catalog_adapter",
+      "source": "crates/wow-database/src/world_object_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp::gameobject_templates",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world object catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_object_catalog_adapter",
+      "source": "crates/wow-database/src/world_object_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp::model_info",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world object catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_object_catalog_adapter",
+      "source": "crates/wow-database/src/world_object_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp::mounts",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world object catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_object_catalog_adapter",
+      "source": "crates/wow-database/src/world_object_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world object catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_object_catalog_adapter",
+      "source": "crates/wow-database/src/world_object_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp::sparring",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world object catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_object_catalog_adapter",
+      "source": "crates/wow-database/src/world_object_catalog_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world object catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_object_catalog_adapter",
+      "source": "crates/wow-database/src/world_object_catalog_adapter.rs",
+      "enclosing": "struct MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world object catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_reference_catalog_adapter",
+      "source": "crates/wow-database/src/world_reference_catalog_adapter.rs",
+      "enclosing": "fn read_world_id_like_cpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world reference catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_reference_catalog_adapter",
+      "source": "crates/wow-database/src/world_reference_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldReferenceCatalogPersistenceAdapterLikeCpp::new",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world reference catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_reference_catalog_adapter",
+      "source": "crates/wow-database/src/world_reference_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldReferenceCatalogPersistenceAdapterLikeCpp::object_ids",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world reference catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_reference_catalog_adapter",
+      "source": "crates/wow-database/src/world_reference_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldReferenceCatalogPersistenceAdapterLikeCpp::safe_locs",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world reference catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_reference_catalog_adapter",
+      "source": "crates/wow-database/src/world_reference_catalog_adapter.rs",
+      "enclosing": "impl MariaDbWorldReferenceCatalogPersistenceAdapterLikeCpp::spawn_ids",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world reference catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_reference_catalog_adapter",
+      "source": "crates/wow-database/src/world_reference_catalog_adapter.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world reference catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::world_reference_catalog_adapter",
+      "source": "crates/wow-database/src/world_reference_catalog_adapter.rs",
+      "enclosing": "struct MariaDbWorldReferenceCatalogPersistenceAdapterLikeCpp",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "MariaDB adapter for the complete SQLx-free world reference catalog capability (#574)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The workflow uses the existing World adapter handle; no wider transaction is inferred.",
+      "current_order": "Preserve the adapter workflow source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Each read returns a complete decoded batch or an explicit failure before publication; unknown COMMIT does not apply to this read-only startup capability."
     },
     {
       "package": "wow-database",

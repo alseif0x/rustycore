@@ -26,11 +26,13 @@ mod area_trigger_world_catalog;
 mod battle_pet_selection_catalog;
 mod canonical_spawn_catalog;
 mod chr_specialization_hotfix;
+mod condition_disable_catalog;
 mod creature_display_hotfix;
 mod difficulty_hotfix;
 mod exploration_base_xp_catalog;
 mod game_event_world_catalog;
 mod game_tele_catalog;
+mod gameplay_rule_catalog;
 mod gossip_startup_catalog;
 mod hotfix_delivery_metadata;
 mod instance_lock;
@@ -44,6 +46,7 @@ mod phase_world_catalog;
 mod player_base_stats;
 mod player_choice;
 mod player_creation_catalog;
+mod quest_catalog;
 mod quest_item_catalog;
 mod reputation_catalog;
 mod reserved_name_catalog;
@@ -53,8 +56,12 @@ mod spell_acquisition_startup;
 mod spell_core_db2_hotfix;
 mod spell_info_key_hotfix;
 mod spell_world_catalog;
+mod static_data_overlay;
 mod trainer_catalog;
 mod vehicle_catalog;
+mod world_auxiliary_catalog;
+mod world_object_catalog;
+mod world_reference_catalog;
 
 pub use area_trigger_template_catalog::{
     AREA_TRIGGER_SHAPE_DATA_COUNT_LIKE_CPP, AreaTriggerCreatePropertiesOrbitPersistenceRowLikeCpp,
@@ -90,6 +97,10 @@ pub use chr_specialization_hotfix::{
     ChrSpecializationHotfixLoadOutcomeLikeCpp, ChrSpecializationHotfixPersistencePortLikeCpp,
     ChrSpecializationHotfixRowLikeCpp, ChrSpecializationHotfixRowsLikeCpp,
 };
+pub use condition_disable_catalog::{
+    ConditionDisableCatalogPersistencePortLikeCpp, ConditionDisableRowsLoadOutcomeLikeCpp,
+    ConditionPersistenceRowLikeCpp, DisablePersistenceRowLikeCpp,
+};
 pub use creature_display_hotfix::{
     CreatureDisplayHotfixLoadOutcomeLikeCpp, CreatureDisplayHotfixPersistencePortLikeCpp,
     CreatureDisplayInfoHotfixRowLikeCpp, CreatureModelDataHotfixRowLikeCpp,
@@ -115,6 +126,11 @@ pub use game_event_world_catalog::{
 pub use game_tele_catalog::{
     GameTeleCatalogLoadOutcomeLikeCpp, GameTeleCatalogPersistencePortLikeCpp,
     GameTelePersistenceRowLikeCpp,
+};
+pub use gameplay_rule_catalog::{
+    FactionChangePairPersistenceRowLikeCpp, FactionChangePersistenceRowsLikeCpp,
+    GameplayRuleCatalogPersistencePortLikeCpp, GameplayRuleRowsLoadOutcomeLikeCpp,
+    NpcSpellClickPersistenceRowLikeCpp, NpcVendorPersistenceRowLikeCpp,
 };
 pub use gossip_startup_catalog::{
     GossipMenuAddonPersistenceRowLikeCpp, GossipMenuOptionLocalePersistenceRowLikeCpp,
@@ -180,6 +196,7 @@ pub use player_creation_catalog::{
     PlayerCreateInfoPersistenceRowLikeCpp, PlayerCreationCatalogLoadOutcomeLikeCpp,
     PlayerCreationCatalogPersistencePortLikeCpp,
 };
+pub use quest_catalog::*;
 pub use quest_item_catalog::{
     CreatureQuestItemPersistenceRowLikeCpp, GameObjectQuestItemPersistenceRowLikeCpp,
     QuestItemCatalogLoadOutcomeLikeCpp, QuestItemCatalogPersistencePortLikeCpp,
@@ -239,6 +256,11 @@ pub use spell_world_catalog::{
     SpellThreatPersistenceRowLikeCpp, SpellTotemModelPersistenceRowLikeCpp,
     SpellWorldCatalogLoadOutcomeLikeCpp, SpellWorldCatalogPersistencePortLikeCpp,
 };
+pub use static_data_overlay::{
+    AreaTableHotfixRowLikeCpp, PowerTypeHotfixRowLikeCpp, SpellEnchantProcPersistenceRowLikeCpp,
+    StaticDataOverlayPersistencePortLikeCpp, StaticDataRowsLoadOutcomeLikeCpp,
+    UiMapXMapArtHotfixRowLikeCpp,
+};
 pub use trainer_catalog::{
     CreatureTrainerPersistenceRowLikeCpp, TrainerCatalogLoadOutcomeLikeCpp,
     TrainerCatalogPersistencePortLikeCpp, TrainerCatalogPersistenceRowsLikeCpp,
@@ -251,6 +273,18 @@ pub use vehicle_catalog::{
     VehicleSeatHotfixPersistenceRowLikeCpp, VehicleSpawnAccessoryPersistenceRowLikeCpp,
     VehicleTemplateAccessoryPersistenceRowLikeCpp, VehicleTemplatePersistenceRowLikeCpp,
     VehicleWorldCatalogLoadOutcomeLikeCpp, VehicleWorldCatalogPersistencePortLikeCpp,
+};
+pub use world_auxiliary_catalog::{
+    AccessRequirementPersistenceRowLikeCpp, GraveyardZonePersistenceRowLikeCpp,
+    SceneTemplatePersistenceRowLikeCpp, SpawnGroupTemplatePersistenceRowLikeCpp,
+    TrinityStringPersistenceRowLikeCpp, WorldAuxiliaryCatalogPersistencePortLikeCpp,
+    WorldAuxiliaryRowsLoadOutcomeLikeCpp,
+};
+pub use world_object_catalog::*;
+pub use world_reference_catalog::{
+    WorldObjectIdCatalogKindLikeCpp, WorldReferenceCatalogPersistencePortLikeCpp,
+    WorldReferenceRowsLoadOutcomeLikeCpp, WorldSafeLocPersistenceRowLikeCpp,
+    WorldSpawnCatalogKindLikeCpp,
 };
 
 /// A future returned by a port method.

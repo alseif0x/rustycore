@@ -10,7 +10,6 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::info;
-use wow_database::{HotfixDatabase, HotfixStatements};
 
 use crate::wdc4::Wdc4Reader;
 
@@ -100,48 +99,17 @@ impl UiMapXMapArtStore {
         })
     }
 
-    /// Load DB2 rows plus C++ hotfix table overlays.
-    pub async fn load_with_hotfixes(
-        data_dir: &str,
-        locale: &str,
-        hotfix_db: &HotfixDatabase,
-    ) -> Result<Self> {
-        let mut store = Self::load(data_dir, locale)?;
-        let hotfix_rows = store.load_hotfix_rows(hotfix_db).await?;
-        if hotfix_rows != 0 {
-            info!("Loaded {hotfix_rows} UiMapXMapArt hotfix rows");
-        }
-        Ok(store)
-    }
-
-    async fn load_hotfix_rows(&mut self, db: &HotfixDatabase) -> Result<usize> {
-        let stmt = db.prepare(HotfixStatements::SEL_UI_MAP_X_MAP_ART);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(0);
-        }
-
+    pub fn apply_hotfix_rows_like_cpp(
+        &mut self,
+        rows: impl IntoIterator<Item = UiMapXMapArtEntry>,
+    ) -> usize {
         let mut count = 0usize;
-        loop {
-            let id: u32 = result.read(0);
-            self.entries.insert(
-                id,
-                UiMapXMapArtEntry {
-                    id,
-                    phase_id: result.read(1),
-                    ui_map_art_id: result.read(2),
-                    ui_map_id: result.read(3),
-                },
-            );
+        for entry in rows {
+            self.entries.insert(entry.id, entry);
             count += 1;
-
-            if !result.next_row() {
-                break;
-            }
         }
-
         self.rebuild_ui_map_phases();
-        Ok(count)
+        count
     }
 
     fn rebuild_ui_map_phases(&mut self) {

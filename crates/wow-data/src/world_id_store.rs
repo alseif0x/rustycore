@@ -7,9 +7,6 @@
 
 use std::collections::HashSet;
 
-use anyhow::{Result, bail};
-use wow_database::{SqlResult, WorldDatabase, WorldStatements};
-
 #[derive(Debug, Clone)]
 pub struct WorldIdStore {
     name: &'static str,
@@ -22,45 +19,6 @@ impl WorldIdStore {
             name,
             ids: ids.into_iter().collect(),
         }
-    }
-
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        name: &'static str,
-        statement: WorldStatements,
-    ) -> Result<Self> {
-        Self::load_filtering_like_cpp(db, name, statement, |_| true).await
-    }
-
-    pub async fn load_filtering_like_cpp(
-        db: &WorldDatabase,
-        name: &'static str,
-        statement: WorldStatements,
-        mut keep_id: impl FnMut(u32) -> bool,
-    ) -> Result<Self> {
-        let stmt = db.prepare(statement);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(Self::from_ids(name, []));
-        }
-
-        let mut ids = HashSet::new();
-        loop {
-            let Some(id) = read_world_id_like_cpp(&result, 0, name)? else {
-                if !result.next_row() {
-                    break;
-                }
-                continue;
-            };
-            if keep_id(id) {
-                ids.insert(id);
-            }
-            if !result.next_row() {
-                break;
-            }
-        }
-
-        Ok(Self { name, ids })
     }
 
     pub fn contains(&self, id: u32) -> bool {
@@ -86,39 +44,6 @@ impl WorldIdStore {
             ids: self.ids.into_iter().filter(|id| keep_id(*id)).collect(),
         }
     }
-}
-
-fn read_world_id_like_cpp(
-    result: &SqlResult,
-    column: usize,
-    store_name: &'static str,
-) -> Result<Option<u32>> {
-    if let Some(value) = result.try_read::<u32>(column) {
-        return Ok(Some(value));
-    }
-    if let Some(value) = result.try_read::<u64>(column) {
-        return Ok(u32::try_from(value).ok());
-    }
-    if let Some(value) = result.try_read::<u16>(column) {
-        return Ok(Some(u32::from(value)));
-    }
-    if let Some(value) = result.try_read::<u8>(column) {
-        return Ok(Some(u32::from(value)));
-    }
-    if let Some(value) = result.try_read::<i32>(column) {
-        return Ok(u32::try_from(value).ok());
-    }
-    if let Some(value) = result.try_read::<i64>(column) {
-        return Ok(u32::try_from(value).ok());
-    }
-    if let Some(value) = result.try_read::<i16>(column) {
-        return Ok(u32::try_from(value).ok());
-    }
-    if let Some(value) = result.try_read::<i8>(column) {
-        return Ok(u32::try_from(value).ok());
-    }
-
-    bail!("unsupported ID column type while loading world id store `{store_name}`")
 }
 
 #[cfg(test)]

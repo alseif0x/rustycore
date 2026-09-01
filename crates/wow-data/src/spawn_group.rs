@@ -7,9 +7,6 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
-use wow_database::{WorldDatabase, WorldStatements};
-
 pub const SPAWN_GROUP_FLAG_SYSTEM_LIKE_CPP: u32 = 0x01;
 pub const SPAWN_GROUP_FLAG_COMPATIBILITY_MODE_LIKE_CPP: u32 = 0x02;
 pub const SPAWN_GROUP_FLAG_MANUAL_SPAWN_LIKE_CPP: u32 = 0x04;
@@ -126,29 +123,6 @@ impl SpawnGroupTemplateStore {
 
         report.loaded = store.templates.len();
         (store, report)
-    }
-
-    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<(Self, SpawnGroupTemplateLoadReport)> {
-        let stmt = db.prepare(WorldStatements::SEL_SPAWN_GROUP_TEMPLATES);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(Self::from_rows_like_cpp([]));
-        }
-
-        let mut rows = Vec::new();
-        loop {
-            rows.push(SpawnGroupTemplateRow {
-                group_id: result.read(0),
-                name: result.read(1),
-                flags: result.read(2),
-            });
-
-            if !result.next_row() {
-                break;
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(rows))
     }
 }
 

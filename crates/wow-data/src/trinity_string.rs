@@ -7,9 +7,7 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
 use tracing::warn;
-use wow_database::WorldDatabase;
 
 pub const LANG_LEVEL_MINREQUIRED_LIKE_CPP: u32 = 49;
 pub const LANG_LEVEL_MINREQUIRED_AND_ITEM_LIKE_CPP: u32 = 50;
@@ -38,35 +36,6 @@ impl TrinityStringStoreLikeCpp {
                 .map(|entry| (entry.entry, entry))
                 .collect(),
         }
-    }
-
-    /// Load `trinity_string` using the exact C++ selected columns.
-    ///
-    /// C++ anchor:
-    /// `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:8833-8859`.
-    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<Self> {
-        let mut result = db
-            .direct_query(
-                "SELECT entry, content_default, content_loc1, content_loc2, content_loc3, content_loc4, content_loc5, content_loc6, content_loc7, content_loc8 FROM trinity_string",
-            )
-            .await?;
-        if result.is_empty() {
-            return Ok(Self::default());
-        }
-
-        let mut entries = Vec::with_capacity(result.row_count_like_cpp());
-        loop {
-            let fields = result.fields();
-            let entry = fields.try_read::<u32>(0).unwrap_or(0);
-            let content = std::array::from_fn(|idx| fields.read_string(idx + 1));
-            entries.push(TrinityStringEntryLikeCpp { entry, content });
-
-            if !result.next_row() {
-                break;
-            }
-        }
-
-        Ok(Self::from_entries_like_cpp(entries))
     }
 
     pub fn get_like_cpp(&self, entry: u32, locale: &str) -> &str {

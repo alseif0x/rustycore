@@ -1,13 +1,11 @@
 use std::collections::HashMap;
 
-use anyhow::Result;
 use rand::Rng;
 use wow_constants::{
     CreatureChaseMovementType, CreatureFlagsExtra, CreatureFlightMovementType,
     CreatureGroundMovementType, CreatureRandomMovementType, SheathState, UnitPvpFlags,
     UnitStandStateType,
 };
-use wow_database::{SqlResult, WorldDatabase};
 use wow_entities::{
     CreatureAddonAuraApplicationLikeCpp, CreatureAddonLifecycleRecordLikeCpp,
     VisibilityDistanceTypeLikeCpp,
@@ -36,46 +34,6 @@ const AFLAG_PASSIVE_LIKE_CPP: u32 = 0x0200;
 const MAX_ANIM_TIER_LIKE_CPP: u8 = 5;
 const MAX_SHEATH_STATE_LIKE_CPP: u8 = 3;
 const MAX_EXPANSIONS_LIKE_CPP: u8 = 10;
-
-fn db_u8_from_signed_or_unsigned_like_cpp(result: &SqlResult, column: usize) -> u8 {
-    db_u8_from_candidates_like_cpp(
-        result.try_read::<u8>(column),
-        result.try_read::<i8>(column),
-        result.try_read::<u16>(column),
-        result.try_read::<i16>(column),
-        result.try_read::<u32>(column),
-        result.try_read::<i32>(column),
-    )
-}
-
-fn db_u8_from_candidates_like_cpp(
-    u8_value: Option<u8>,
-    i8_value: Option<i8>,
-    u16_value: Option<u16>,
-    i16_value: Option<i16>,
-    u32_value: Option<u32>,
-    i32_value: Option<i32>,
-) -> u8 {
-    if let Some(value) = u8_value {
-        return value;
-    }
-    if let Some(value) = i8_value.and_then(|value| u8::try_from(value).ok()) {
-        return value;
-    }
-    if let Some(value) = u16_value.and_then(|value| u8::try_from(value).ok()) {
-        return value;
-    }
-    if let Some(value) = i16_value.and_then(|value| u8::try_from(value).ok()) {
-        return value;
-    }
-    if let Some(value) = u32_value.and_then(|value| u8::try_from(value).ok()) {
-        return value;
-    }
-    if let Some(value) = i32_value.and_then(|value| u8::try_from(value).ok()) {
-        return value;
-    }
-    0
-}
 
 fn normalize_creature_ground_movement_type_like_cpp(ground_movement_type: u8) -> u8 {
     if ground_movement_type < CREATURE_GROUND_MOVEMENT_TYPE_MAX_LIKE_CPP {
@@ -154,38 +112,6 @@ impl CreatureTemplateClassificationStoreLikeCpp {
         Self {
             classifications: entries.into_iter().collect(),
         }
-    }
-
-    /// Loads the minimal `creature_template` classification dependency in the same
-    /// order shape as C++ `ObjectMgr::LoadCreatureTemplates`/`LoadCreatureTemplate`.
-    ///
-    /// C++ anchors:
-    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:349-400`
-    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:403-482`
-    ///
-    /// The full template is intentionally not materialized in this data-only store;
-    /// C++ field[0] is `entry` and field[15] is `Classification`.
-    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<Self> {
-        let mut result = db
-            .direct_query("SELECT entry, Classification FROM creature_template")
-            .await?;
-
-        if result.is_empty() {
-            return Ok(Self::default());
-        }
-
-        let mut classifications = HashMap::new();
-        loop {
-            let entry = result.try_read::<u32>(0).unwrap_or(0);
-            let classification = result.try_read::<u32>(1).unwrap_or(0);
-            classifications.insert(entry, classification);
-
-            if !result.next_row() {
-                break;
-            }
-        }
-
-        Ok(Self { classifications })
     }
 
     pub fn classification_for_entry(&self, entry: u32) -> Option<u32> {
@@ -364,14 +290,9 @@ impl CreatureAddonStoreLikeCpp {
         }
     }
 
-    /// Loads the represented subset of C++ `ObjectMgr::LoadCreatureAddons` and
-    /// `ObjectMgr::LoadCreatureTemplateAddons`.
-    ///
-    /// C++ anchors:
-    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:766-897`
-    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:1224-1367`
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
+    pub fn from_catalog_rows_with_stores_like_cpp(
+        spawn_rows: impl IntoIterator<Item = CreatureAddonRowLikeCpp>,
+        template_rows: impl IntoIterator<Item = CreatureAddonRowLikeCpp>,
         template_store: &CreatureTemplateLifecycleStoreLikeCpp,
         creature_spawn_store: &crate::WorldSpawnIdStore,
         display_store: &CreatureDisplayInfoStore,
@@ -380,19 +301,8 @@ impl CreatureAddonStoreLikeCpp {
         spell_store: &SpellStore,
         spell_misc_store: &SpellMiscStore,
         spell_duration_store: &SpellDurationStore,
-    ) -> Result<Self> {
-        let spawn_rows = load_creature_addon_rows_like_cpp(
-            db,
-            "SELECT guid, PathId, mount, StandState, AnimTier, VisFlags, SheathState, PvPFlags, emote, aiAnimKit, movementAnimKit, meleeAnimKit, visibilityDistanceType, auras FROM creature_addon",
-        )
-        .await?;
-        let template_rows = load_creature_addon_rows_like_cpp(
-            db,
-            "SELECT entry, PathId, mount, StandState, AnimTier, VisFlags, SheathState, PvPFlags, emote, aiAnimKit, movementAnimKit, meleeAnimKit, visibilityDistanceType, auras FROM creature_template_addon",
-        )
-        .await?;
-
-        Ok(Self::from_rows_like_cpp(
+    ) -> Self {
+        Self::from_rows_like_cpp(
             spawn_rows,
             template_rows,
             |spawn_id| {
@@ -428,7 +338,7 @@ impl CreatureAddonStoreLikeCpp {
             },
             |spell_id| creature_addon_aura_effect_mask_like_cpp(spell_store, spell_id),
             |spell_id| creature_addon_aura_flags_like_cpp(spell_store, spell_id),
-        ))
+        )
     }
 
     /// Mirrors C++ `Creature::GetCreatureAddon`: spawn-specific addon wins over template addon.
@@ -474,41 +384,6 @@ impl CreatureAddonStoreLikeCpp {
     pub fn is_empty(&self) -> bool {
         self.spawn_addons.is_empty() && self.template_addons.is_empty()
     }
-}
-
-async fn load_creature_addon_rows_like_cpp(
-    db: &WorldDatabase,
-    query: &str,
-) -> Result<Vec<CreatureAddonRowLikeCpp>> {
-    let mut result = db.direct_query(query).await?;
-    if result.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let mut rows = Vec::new();
-    loop {
-        rows.push(CreatureAddonRowLikeCpp {
-            owner_id: result.try_read::<u64>(0).unwrap_or(0),
-            path_id: result.try_read::<u32>(1).unwrap_or(0),
-            mount: result.try_read::<u32>(2).unwrap_or(0),
-            stand_state: result.try_read::<u8>(3).unwrap_or(0),
-            anim_tier: result.try_read::<u8>(4).unwrap_or(0),
-            vis_flags: result.try_read::<u8>(5).unwrap_or(0),
-            sheath_state: result.try_read::<u8>(6).unwrap_or(0),
-            pvp_flags: result.try_read::<u8>(7).unwrap_or(0),
-            emote: result.try_read::<u32>(8).unwrap_or(0),
-            ai_anim_kit: result.try_read::<u16>(9).unwrap_or(0),
-            movement_anim_kit: result.try_read::<u16>(10).unwrap_or(0),
-            melee_anim_kit: result.try_read::<u16>(11).unwrap_or(0),
-            visibility_distance_type: result.try_read::<u8>(12).unwrap_or(0),
-            auras: result.try_read::<String>(13).unwrap_or_default(),
-        });
-        if !result.next_row() {
-            break;
-        }
-    }
-
-    Ok(rows)
 }
 
 fn addon_record_from_row_like_cpp(
@@ -691,40 +566,6 @@ impl CreatureTemplateSparringStoreLikeCpp {
         Self { values }
     }
 
-    /// Loads C++ `ObjectMgr::LoadCreatureTemplateSparring`.
-    ///
-    /// C++ anchors:
-    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:899-937`
-    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:1468-1471`
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        template_store: &CreatureTemplateLifecycleStoreLikeCpp,
-    ) -> Result<Self> {
-        let mut result = db
-            .direct_query("SELECT Entry, NoNPCDamageBelowHealthPct FROM creature_template_sparring")
-            .await?;
-
-        if result.is_empty() {
-            return Ok(Self::default());
-        }
-
-        let mut rows = Vec::new();
-        loop {
-            rows.push((
-                result.try_read::<u32>(0).unwrap_or(0),
-                result.try_read::<f32>(1).unwrap_or(0.0),
-            ));
-
-            if !result.next_row() {
-                break;
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(rows, |entry| {
-            template_store.get(entry).is_some()
-        }))
-    }
-
     pub fn values_for_entry_like_cpp(&self, entry: u32) -> Option<&[f32]> {
         self.values.get(&entry).map(Vec::as_slice)
     }
@@ -776,119 +617,31 @@ impl CreatureTemplateLifecycleStoreLikeCpp {
         }
     }
 
-    /// Loads C++ `ObjectMgr::LoadCreatureTemplates` input rows for future
-    /// `Creature::InitEntry`/`Creature::LoadFromDB` wiring.
-    ///
-    /// C++ anchors:
-    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:349-400`
-    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:403-482`
-    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:575-617`
-    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:620+`
-    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<Self> {
-        let mut templates = HashMap::new();
-        let mut result = db
-            .direct_query(
-                "SELECT ct.entry, ct.name, ct.AIName, ct.ScriptName, ct.RequiredExpansion, ct.faction, ct.npcflag, ct.speed_walk, ct.speed_run, ct.scale, ct.Classification, ct.dmgschool, ct.unit_flags, ct.unit_flags2, ct.unit_flags3, ct.`type`, ct.family, ct.trainer_class, ct.unit_class, ct.VehicleId, ct.MovementType, COALESCE(ctm.Ground, 1), COALESCE(ctm.Swim, 1), COALESCE(ctm.Flight, 0), COALESCE(ctm.Rooted, 0), COALESCE(ctm.Chase, 0), COALESCE(ctm.Random, 0), COALESCE(ctm.InteractionPauseTimer, 180000), ct.flags_extra, ct.StringId, ct.RegenHealth FROM creature_template ct LEFT JOIN creature_template_movement ctm ON ct.entry = ctm.CreatureId",
-            )
-            .await?;
-        if !result.is_empty() {
-            loop {
-                let record = CreatureTemplateLifecycleRecordLikeCpp {
-                    entry: result.try_read::<u32>(0).unwrap_or(0),
-                    name: result.try_read::<String>(1).unwrap_or_default(),
-                    ai_name: result.try_read::<String>(2).unwrap_or_default(),
-                    script_name: result.try_read::<String>(3).unwrap_or_default(),
-                    required_expansion: result.try_read::<u8>(4).unwrap_or(0),
-                    faction: result.try_read::<u32>(5).unwrap_or(0),
-                    npc_flags: result.try_read::<u64>(6).unwrap_or(0),
-                    speed_walk: result.try_read::<f32>(7).unwrap_or(0.0),
-                    speed_run: result.try_read::<f32>(8).unwrap_or(0.0),
-                    scale: result.try_read::<f32>(9).unwrap_or(1.0),
-                    classification: result.try_read::<u32>(10).unwrap_or(0),
-                    damage_school: result.try_read::<u8>(11).unwrap_or(0),
-                    unit_flags: result.try_read::<u32>(12).unwrap_or(0),
-                    unit_flags2: result.try_read::<u32>(13).unwrap_or(0),
-                    unit_flags3: result.try_read::<u32>(14).unwrap_or(0),
-                    creature_type: result.try_read::<u32>(15).unwrap_or(0),
-                    family: result.try_read::<u32>(16).unwrap_or(0),
-                    trainer_class: result.try_read::<u8>(17).unwrap_or(0),
-                    unit_class: result.try_read::<u8>(18).unwrap_or(0),
-                    vehicle_id: result.try_read::<u32>(19).unwrap_or(0),
-                    movement_type: result.try_read::<u8>(20).unwrap_or(0),
-                    ground_movement_type: result
-                        .try_read::<Option<u8>>(21)
-                        .flatten()
-                        .unwrap_or(CreatureGroundMovementType::Run as u8),
-                    swim_allowed: result.try_read::<Option<u8>>(22).flatten().unwrap_or(1) != 0,
-                    flight_movement_type: result.try_read::<Option<u8>>(23).flatten().unwrap_or(0),
-                    rooted: result.try_read::<Option<u8>>(24).flatten().unwrap_or(0) != 0,
-                    chase_movement_type: result.try_read::<Option<u8>>(25).flatten().unwrap_or(0),
-                    random_movement_type: result.try_read::<Option<u8>>(26).flatten().unwrap_or(0),
-                    interaction_pause_timer_ms: result
-                        .try_read::<Option<u32>>(27)
-                        .flatten()
-                        .unwrap_or(DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP),
-                    flags_extra: result.try_read::<u32>(28).unwrap_or(0),
-                    string_id: result.try_read::<String>(29).unwrap_or_default(),
-                    regen_health: result.try_read::<u8>(30).unwrap_or(0) != 0,
-                    spells: [0; MAX_CREATURE_SPELLS_LIKE_CPP],
-                    models: Vec::new(),
-                };
-                templates.insert(record.entry, record);
-                if !result.next_row() {
-                    break;
-                }
+    pub fn from_catalog_rows_like_cpp(
+        templates: impl IntoIterator<Item = CreatureTemplateLifecycleRecordLikeCpp>,
+        spells: impl IntoIterator<Item = (u32, u8, u32)>,
+        models: impl IntoIterator<Item = (u32, CreatureTemplateLifecycleModelLikeCpp)>,
+    ) -> Self {
+        let mut templates: HashMap<_, _> = templates
+            .into_iter()
+            .map(|template| (template.entry, template))
+            .collect();
+        for (creature_id, index, spell_id) in spells {
+            if let Some(template) = templates.get_mut(&creature_id)
+                && usize::from(index) < MAX_CREATURE_SPELLS_LIKE_CPP
+            {
+                template.spells[usize::from(index)] = spell_id;
             }
         }
-
-        let mut spell_result = db
-            .direct_query("SELECT CreatureID, `Index`, Spell FROM creature_template_spell")
-            .await?;
-        if !spell_result.is_empty() {
-            loop {
-                let creature_id = spell_result.try_read::<u32>(0).unwrap_or(0);
-                let index = spell_result
-                    .try_read::<u8>(1)
-                    .map(usize::from)
-                    .unwrap_or(MAX_CREATURE_SPELLS_LIKE_CPP);
-                let spell = spell_result.try_read::<u32>(2).unwrap_or(0);
-                if index < MAX_CREATURE_SPELLS_LIKE_CPP {
-                    if let Some(template) = templates.get_mut(&creature_id) {
-                        template.spells[index] = spell;
-                    }
-                }
-                if !spell_result.next_row() {
-                    break;
-                }
+        for (creature_id, model) in models {
+            let model = model.normalize_like_cpp();
+            if model.creature_display_id != 0
+                && let Some(template) = templates.get_mut(&creature_id)
+            {
+                template.models.push(model);
             }
         }
-
-        let mut model_result = db
-            .direct_query(
-                "SELECT CreatureID, CreatureDisplayID, DisplayScale, Probability FROM creature_template_model ORDER BY Idx ASC",
-            )
-            .await?;
-        if !model_result.is_empty() {
-            loop {
-                let creature_id = model_result.try_read::<u32>(0).unwrap_or(0);
-                let model = CreatureTemplateLifecycleModelLikeCpp {
-                    creature_display_id: model_result.try_read::<u32>(1).unwrap_or(0),
-                    display_scale: model_result.try_read::<f32>(2).unwrap_or(0.0),
-                    probability: model_result.try_read::<f32>(3).unwrap_or(0.0),
-                }
-                .normalize_like_cpp();
-                if model.creature_display_id != 0 {
-                    if let Some(template) = templates.get_mut(&creature_id) {
-                        template.models.push(model);
-                    }
-                }
-                if !model_result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_templates(templates.into_values()))
+        Self::from_templates(templates.into_values())
     }
 
     pub fn get(&self, entry: u32) -> Option<&CreatureTemplateLifecycleRecordLikeCpp> {
@@ -1209,28 +962,9 @@ impl CreatureTemplateMountStoreLikeCpp {
         }
     }
 
-    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<Self> {
-        let mut result = db
-            .direct_query(
-                "SELECT ct.entry, ct.VehicleId, ctm.CreatureDisplayID, ctm.DisplayScale, ctm.Probability \
-                 FROM creature_template ct \
-                 LEFT JOIN creature_template_model ctm ON ct.entry = ctm.CreatureID \
-                 ORDER BY ct.entry, ctm.Idx",
-            )
-            .await?;
-
-        if result.is_empty() {
-            return Ok(Self::default());
-        }
-
+    pub fn from_rows_like_cpp(rows: impl IntoIterator<Item = (u32, u32, u32, f32, f32)>) -> Self {
         let mut entries = HashMap::new();
-        loop {
-            let entry_id = result.read::<u32>(0);
-            let vehicle_id = result.try_read::<u32>(1).unwrap_or(0);
-            let display_id = result.try_read::<u32>(2).unwrap_or(0);
-            let display_scale = result.try_read::<f32>(3).unwrap_or(0.0);
-            let probability = result.try_read::<f32>(4).unwrap_or(0.0);
-
+        for (entry_id, vehicle_id, display_id, display_scale, probability) in rows {
             let entry =
                 entries
                     .entry(entry_id)
@@ -1247,13 +981,8 @@ impl CreatureTemplateMountStoreLikeCpp {
                     probability,
                 });
             }
-
-            if !result.next_row() {
-                break;
-            }
         }
-
-        Ok(Self { entries })
+        Self { entries }
     }
 
     pub fn get(&self, entry: u32) -> Option<&CreatureTemplateMountEntryLikeCpp> {
@@ -1456,47 +1185,6 @@ impl CreatureBaseStatsStoreLikeCpp {
         }
     }
 
-    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<Self> {
-        let mut result = db
-            .direct_query(
-                "SELECT level, class, basehp0, basehp1, basehp2, basemana, basearmor, attackpower, rangedattackpower, damage_base, damage_exp1, damage_exp2 FROM creature_classlevelstats",
-            )
-            .await?;
-
-        if result.is_empty() {
-            return Ok(Self::default());
-        }
-
-        let mut records = Vec::new();
-        loop {
-            let level = result.try_read::<u8>(0).unwrap_or(0);
-            let unit_class = result.try_read::<u8>(1).unwrap_or(0);
-            let record = CreatureBaseStatsRecordLikeCpp {
-                base_health: [
-                    result.try_read::<u16>(2).map(u32::from).unwrap_or(0),
-                    result.try_read::<u16>(3).map(u32::from).unwrap_or(0),
-                    result.try_read::<u16>(4).map(u32::from).unwrap_or(0),
-                ],
-                base_mana: result.try_read::<u16>(5).map(u32::from).unwrap_or(0),
-                base_armor: result.try_read::<u16>(6).map(u32::from).unwrap_or(0),
-                attack_power: result.try_read::<u16>(7).map(u32::from).unwrap_or(0),
-                ranged_attack_power: result.try_read::<u16>(8).map(u32::from).unwrap_or(0),
-                base_damage: [
-                    result.try_read::<f32>(9).unwrap_or(0.0),
-                    result.try_read::<f32>(10).unwrap_or(0.0),
-                    result.try_read::<f32>(11).unwrap_or(0.0),
-                ],
-            };
-            records.push((level, unit_class, record));
-
-            if !result.next_row() {
-                break;
-            }
-        }
-
-        Ok(Self::from_records(records))
-    }
-
     pub fn get_like_cpp(&self, level: u8, unit_class: u8) -> &CreatureBaseStatsRecordLikeCpp {
         self.records
             .get(&(level, unit_class))
@@ -1562,70 +1250,16 @@ impl CreatureDifficultyStoreLikeCpp {
         }
     }
 
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
+    pub fn from_records_and_difficulty_store_like_cpp(
+        records: impl IntoIterator<Item = CreatureDifficultyRecordLikeCpp>,
         difficulty_store: &crate::DifficultyStore,
         classification_damage_modifier_for_entry: impl Fn(u32) -> f32,
-    ) -> Result<Self> {
-        let mut result = db
-            .direct_query(
-                "SELECT Entry, DifficultyID, MinLevel, MaxLevel, HealthScalingExpansion, HealthModifier, ManaModifier, ArmorModifier, DamageModifier, CreatureDifficultyID, TypeFlags, TypeFlags2, LootID, PickPocketLootID, SkinLootID, GoldMin, GoldMax, StaticFlags1, StaticFlags2, StaticFlags3, StaticFlags4, StaticFlags5, StaticFlags6, StaticFlags7, StaticFlags8 FROM creature_template_difficulty ORDER BY Entry",
-            )
-            .await?;
-
-        if result.is_empty() {
-            return Ok(Self::from_records_with_difficulty_fallbacks(
-                std::iter::empty(),
-                classification_damage_modifier_for_entry,
-                difficulty_fallback_pairs_like_cpp(difficulty_store),
-            ));
-        }
-
-        let mut records = Vec::new();
-        loop {
-            records.push(CreatureDifficultyRecordLikeCpp {
-                entry: result.try_read::<u32>(0).unwrap_or(0),
-                // C++ `ObjectMgr::LoadCreatureTemplateDifficulty` reads these
-                // with `Field::GetUInt8()` even when MariaDB reports signed
-                // `tinyint(4)` for MinLevel/MaxLevel.
-                difficulty_id: db_u8_from_signed_or_unsigned_like_cpp(&result, 1),
-                min_level: db_u8_from_signed_or_unsigned_like_cpp(&result, 2),
-                max_level: db_u8_from_signed_or_unsigned_like_cpp(&result, 3),
-                health_scaling_expansion: result.try_read::<i32>(4).unwrap_or(0),
-                health_modifier: result.try_read::<f32>(5).unwrap_or(0.0),
-                mana_modifier: result.try_read::<f32>(6).unwrap_or(0.0),
-                armor_modifier: result.try_read::<f32>(7).unwrap_or(0.0),
-                damage_modifier: result.try_read::<f32>(8).unwrap_or(0.0),
-                creature_difficulty_id: result.try_read::<i32>(9).unwrap_or(0),
-                type_flags: result.try_read::<u32>(10).unwrap_or(0),
-                type_flags2: result.try_read::<u32>(11).unwrap_or(0),
-                loot_id: result.try_read::<u32>(12).unwrap_or(0),
-                pickpocket_loot_id: result.try_read::<u32>(13).unwrap_or(0),
-                skin_loot_id: result.try_read::<u32>(14).unwrap_or(0),
-                gold_min: result.try_read::<u32>(15).unwrap_or(0),
-                gold_max: result.try_read::<u32>(16).unwrap_or(0),
-                static_flags: [
-                    result.try_read::<u32>(17).unwrap_or(0),
-                    result.try_read::<u32>(18).unwrap_or(0),
-                    result.try_read::<u32>(19).unwrap_or(0),
-                    result.try_read::<u32>(20).unwrap_or(0),
-                    result.try_read::<u32>(21).unwrap_or(0),
-                    result.try_read::<u32>(22).unwrap_or(0),
-                    result.try_read::<u32>(23).unwrap_or(0),
-                    result.try_read::<u32>(24).unwrap_or(0),
-                ],
-            });
-
-            if !result.next_row() {
-                break;
-            }
-        }
-
-        Ok(Self::from_records_with_difficulty_fallbacks(
+    ) -> Self {
+        Self::from_records_with_difficulty_fallbacks(
             records,
             classification_damage_modifier_for_entry,
             difficulty_fallback_pairs_like_cpp(difficulty_store),
-        ))
+        )
     }
 
     pub fn get_like_cpp(&self, entry: u32, difficulty_id: u8) -> &CreatureDifficultyRecordLikeCpp {
@@ -2437,26 +2071,6 @@ pub(crate) mod tests {
         .normalize_like_cpp(1.0);
         assert_eq!(inverted.min_level, 55);
         assert_eq!(inverted.max_level, 55);
-    }
-
-    #[test]
-    fn creature_difficulty_signed_tinyint_levels_decode_like_cpp_get_uint8() {
-        assert_eq!(
-            db_u8_from_candidates_like_cpp(None, Some(75), None, None, None, None),
-            75
-        );
-        assert_eq!(
-            db_u8_from_candidates_like_cpp(None, Some(-1), None, None, None, None),
-            0
-        );
-        assert_eq!(
-            db_u8_from_candidates_like_cpp(None, None, Some(75), None, None, None),
-            75
-        );
-        assert_eq!(
-            db_u8_from_candidates_like_cpp(None, None, Some(300), None, None, None),
-            0
-        );
     }
 
     #[test]
