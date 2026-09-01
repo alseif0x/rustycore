@@ -7,12 +7,6 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
-use tracing::warn;
-use wow_database::WorldDatabase;
-
-use crate::{Db2IdStore, ItemStore, MapDifficultyStore, MapStore, quest::QuestStore};
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccessRequirementLikeCpp {
     pub map_id: u32,
@@ -161,105 +155,6 @@ impl AccessRequirementStoreLikeCpp {
             store: Self::from_entries_like_cpp(entries),
             report,
         }
-    }
-
-    /// Load `access_requirement` using the exact C++ selected columns.
-    ///
-    /// C++ anchor:
-    /// `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:7180-7270`.
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        map_store: &MapStore,
-        map_difficulty_store: &MapDifficultyStore,
-        item_store: &ItemStore,
-        quest_store: &QuestStore,
-        achievement_store: &Db2IdStore,
-    ) -> Result<AccessRequirementLoadOutcomeLikeCpp> {
-        let mut result = db
-            .direct_query(
-                "SELECT mapid, difficulty, level_min, level_max, item, item2, quest_done_A, quest_done_H, completed_achievement, quest_failed_text FROM access_requirement",
-            )
-            .await?;
-        if result.is_empty() {
-            return Ok(AccessRequirementLoadOutcomeLikeCpp {
-                store: Self::default(),
-                report: AccessRequirementLoadReportLikeCpp::default(),
-            });
-        }
-
-        let mut rows = Vec::with_capacity(result.row_count_like_cpp());
-        loop {
-            let fields = result.fields();
-            rows.push(AccessRequirementRowLikeCpp {
-                map_id: fields.try_read::<u32>(0).unwrap_or(0),
-                difficulty: fields.try_read::<u8>(1).unwrap_or(0),
-                level_min: fields.try_read::<u8>(2).unwrap_or(0),
-                level_max: fields.try_read::<u8>(3).unwrap_or(0),
-                item: fields.try_read::<u32>(4).unwrap_or(0),
-                item2: fields.try_read::<u32>(5).unwrap_or(0),
-                quest_done_a: fields.try_read::<u32>(6).unwrap_or(0),
-                quest_done_h: fields.try_read::<u32>(7).unwrap_or(0),
-                completed_achievement: fields.try_read::<u32>(8).unwrap_or(0),
-                quest_failed_text: fields.read_string(9),
-            });
-            if !result.next_row() {
-                break;
-            }
-        }
-
-        let outcome = Self::from_rows_like_cpp(
-            rows,
-            |map_id| map_store.get(map_id).is_some(),
-            |map_id, difficulty| map_difficulty_store.get(map_id, difficulty).is_some(),
-            |item_id| item_store.get(item_id).is_some(),
-            |quest_id| quest_store.get(quest_id).is_some(),
-            |achievement_id| achievement_store.contains(achievement_id),
-        );
-
-        for map_id in &outcome.report.skipped_missing_map {
-            warn!(
-                target: "sql.sql",
-                "Map {map_id} referenced in `access_requirement` does not exist, skipped."
-            );
-        }
-        for (map_id, difficulty) in &outcome.report.skipped_missing_difficulty {
-            warn!(
-                target: "sql.sql",
-                "Map {map_id} referenced in `access_requirement` does not have difficulty {difficulty}, skipped"
-            );
-        }
-        for (map_id, difficulty, item) in &outcome.report.cleared_missing_item {
-            warn!(
-                target: "sql.sql",
-                "Key item {item} does not exist for map {map_id} difficulty {difficulty}, removing key requirement."
-            );
-        }
-        for (map_id, difficulty, item2) in &outcome.report.cleared_missing_item2 {
-            warn!(
-                target: "sql.sql",
-                "Second item {item2} does not exist for map {map_id} difficulty {difficulty}, removing key requirement."
-            );
-        }
-        for (map_id, difficulty, quest) in &outcome.report.cleared_missing_quest_a {
-            warn!(
-                target: "sql.sql",
-                "Required Alliance Quest {quest} not exist for map {map_id} difficulty {difficulty}, remove quest done requirement."
-            );
-        }
-        for (map_id, difficulty, quest) in &outcome.report.cleared_missing_quest_h {
-            warn!(
-                target: "sql.sql",
-                "Required Horde Quest {quest} not exist for map {map_id} difficulty {difficulty}, remove quest done requirement."
-            );
-        }
-        for (map_id, difficulty, achievement) in &outcome.report.cleared_missing_achievement {
-            warn!(
-                target: "sql.sql",
-                "Required Achievement {achievement} not exist for map {map_id} difficulty {difficulty}, remove quest done requirement."
-            );
-        }
-
-        Ok(outcome)
     }
 
     pub fn get(&self, map_id: u32, difficulty: u8) -> Option<&AccessRequirementLikeCpp> {

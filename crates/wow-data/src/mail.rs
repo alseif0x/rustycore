@@ -7,10 +7,6 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
-use tracing::info;
-use wow_database::{WorldDatabase, WorldStatements};
-
 use crate::conditions::RACEMASK_ALL_PLAYABLE_LIKE_CPP;
 pub use crate::progression_rewards::MAX_LEVEL_LIKE_CPP;
 
@@ -102,43 +98,6 @@ impl MailLevelRewardStoreLikeCpp {
             store: Self { rewards_by_level },
             report,
         }
-    }
-
-    /// C++ `ObjectMgr::LoadMailLevelRewards`.
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        mut mail_template_exists: impl FnMut(u32) -> bool,
-        mut creature_template_exists: impl FnMut(u32) -> bool,
-    ) -> Result<MailLevelRewardLoadOutcomeLikeCpp> {
-        let stmt = db.prepare(WorldStatements::SEL_MAIL_LEVEL_REWARDS);
-        let mut result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(MailLevelRewardRowLikeCpp {
-                    level: result.read(0),
-                    race_mask: result.read(1),
-                    mail_template_id: result.read(2),
-                    sender_entry: result.read(3),
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        let outcome = Self::from_rows_like_cpp(
-            rows,
-            &mut mail_template_exists,
-            &mut creature_template_exists,
-        );
-        info!(
-            "Loaded {} level dependent mail rewards",
-            outcome.report.loaded_rows
-        );
-        Ok(outcome)
     }
 
     /// C++ `ObjectMgr::GetMailLevelReward`.

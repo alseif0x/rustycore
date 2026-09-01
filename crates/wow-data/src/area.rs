@@ -10,7 +10,6 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::info;
-use wow_database::{HotfixDatabase, HotfixStatements};
 
 use crate::wdc4::Wdc4Reader;
 
@@ -145,49 +144,18 @@ impl AreaTableStore {
         })
     }
 
-    pub async fn load_with_hotfixes(
-        data_dir: &str,
-        locale: &str,
-        hotfix_db: &HotfixDatabase,
-    ) -> Result<Self> {
-        let mut store = Self::load(data_dir, locale)?;
-        let hotfix_rows = store.load_hotfix_rows(hotfix_db).await?;
-        if hotfix_rows != 0 {
-            info!("Loaded {hotfix_rows} AreaTable hotfix rows");
-        }
-        Ok(store)
-    }
-
-    async fn load_hotfix_rows(&mut self, db: &HotfixDatabase) -> Result<usize> {
-        let stmt = db.prepare(HotfixStatements::SEL_AREA_TABLE);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(0);
-        }
-
+    pub fn apply_hotfix_rows_like_cpp(
+        &mut self,
+        rows: impl IntoIterator<Item = (AreaTableEntry, u8)>,
+    ) -> usize {
         let mut count = 0usize;
-        loop {
-            let id: u32 = result.read(0);
-            self.faction_group_masks.insert(id, result.read(15));
-            self.entries.insert(
-                id,
-                AreaTableEntry {
-                    id,
-                    continent_id: result.read(3),
-                    parent_area_id: result.read(4),
-                    area_bit: result.read(5),
-                    exploration_level: result.read(12),
-                    mount_flags: result.read(17),
-                    flags: result.read(22),
-                },
-            );
+        for (entry, faction_group_mask) in rows {
+            self.faction_group_masks
+                .insert(entry.id, faction_group_mask);
+            self.entries.insert(entry.id, entry);
             count += 1;
-
-            if !result.next_row() {
-                break;
-            }
         }
-        Ok(count)
+        count
     }
 
     pub fn get(&self, id: u32) -> Option<&AreaTableEntry> {

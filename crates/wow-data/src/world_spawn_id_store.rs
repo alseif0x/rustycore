@@ -7,9 +7,6 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
-use wow_database::{WorldDatabase, WorldStatements};
-
 #[derive(Debug, Clone, Default)]
 pub struct WorldSpawnIdStore {
     name: &'static str,
@@ -22,34 +19,6 @@ impl WorldSpawnIdStore {
             name,
             entries_by_guid: entries.into_iter().collect(),
         }
-    }
-
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        name: &'static str,
-        statement: WorldStatements,
-    ) -> Result<Self> {
-        let stmt = db.prepare(statement);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            return Ok(Self::from_entries(name, []));
-        }
-
-        let mut entries_by_guid = HashMap::new();
-        loop {
-            let guid = result.read::<u64>(0);
-            if let Ok(guid) = u32::try_from(guid) {
-                entries_by_guid.insert(guid, result.read(1));
-            }
-            if !result.next_row() {
-                break;
-            }
-        }
-
-        Ok(Self {
-            name,
-            entries_by_guid,
-        })
     }
 
     pub fn entry_for_guid(&self, guid: u32) -> Option<u32> {

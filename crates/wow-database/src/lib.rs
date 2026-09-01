@@ -41,6 +41,7 @@ pub mod battle_pet_selection_catalog_adapter;
 pub mod canonical_spawn_catalog_adapter;
 pub mod character_enumeration_adapter;
 pub mod chr_specialization_hotfix_adapter;
+pub mod condition_disable_catalog_adapter;
 pub mod creature_display_hotfix_adapter;
 pub mod creature_query_catalog_adapter;
 pub mod database;
@@ -52,6 +53,7 @@ pub mod game_event_world_catalog_adapter;
 pub mod game_tele_catalog_adapter;
 pub mod gameobject_query_catalog_adapter;
 pub mod gameobject_use_template_adapter;
+pub mod gameplay_rule_catalog_adapter;
 pub mod gossip_catalog_adapter;
 pub mod group_loot_money_adapter;
 pub mod hotfix_delivery_metadata_adapter;
@@ -79,6 +81,7 @@ pub mod player_money_transaction_adapter;
 pub mod player_name_query_adapter;
 pub mod player_spell_acquisition_adapter;
 pub mod query_holder;
+pub mod quest_catalog_adapter;
 pub mod quest_item_catalog_adapter;
 pub mod quest_poi_adapter;
 pub mod represented_group_persistence_adapter;
@@ -95,6 +98,7 @@ pub mod spell_core_db2_hotfix_adapter;
 pub mod spell_info_key_hotfix_adapter;
 pub mod spell_world_catalog_adapter;
 pub mod statements;
+pub mod static_data_overlay_adapter;
 pub mod stored_item_money_adapter;
 pub mod support_bug_report_adapter;
 pub mod trainer_catalog_adapter;
@@ -102,6 +106,9 @@ pub mod transaction;
 pub mod updater;
 pub mod vehicle_catalog_adapter;
 pub mod void_storage_adapter;
+pub mod world_auxiliary_catalog_adapter;
+pub mod world_object_catalog_adapter;
+pub mod world_reference_catalog_adapter;
 pub mod world_state_startup_adapter;
 
 // Re-export primary types at crate root for convenience.
@@ -113,6 +120,7 @@ pub use battle_pet_selection_catalog_adapter::MariaDbBattlePetSelectionCatalogPe
 pub use canonical_spawn_catalog_adapter::MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp;
 pub use character_enumeration_adapter::MariaDbCharacterEnumerationPersistenceAdapterLikeCpp;
 pub use chr_specialization_hotfix_adapter::MariaDbChrSpecializationHotfixPersistenceAdapterLikeCpp;
+pub use condition_disable_catalog_adapter::MariaDbConditionDisableCatalogPersistenceAdapterLikeCpp;
 pub use creature_display_hotfix_adapter::MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp;
 pub use creature_query_catalog_adapter::MariaDbCreatureQueryCatalogPersistenceAdapterLikeCpp;
 pub use database::{
@@ -127,6 +135,7 @@ pub use game_event_persistence_adapter::MariaDbGameEventPersistenceAdapterLikeCp
 pub use game_event_world_catalog_adapter::MariaDbGameEventWorldCatalogPersistenceAdapterLikeCpp;
 pub use game_tele_catalog_adapter::MariaDbGameTeleCatalogPersistenceAdapterLikeCpp;
 pub use gameobject_query_catalog_adapter::MariaDbGameObjectQueryCatalogPersistenceAdapterLikeCpp;
+pub use gameplay_rule_catalog_adapter::MariaDbGameplayRuleCatalogPersistenceAdapterLikeCpp;
 pub use gossip_catalog_adapter::MariaDbGossipCatalogPersistenceAdapterLikeCpp;
 pub use hotfix_delivery_metadata_adapter::MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp;
 pub use instance_lock_persistence_adapter::MariaDbInstanceLockPersistenceAdapterLikeCpp;
@@ -150,6 +159,7 @@ pub use player_choice_catalog_adapter::MariaDbPlayerChoiceCatalogPersistenceAdap
 pub use player_creation_catalog_adapter::MariaDbPlayerCreationCatalogPersistenceAdapterLikeCpp;
 pub use player_name_query_adapter::MariaDbPlayerNameQueryPersistenceAdapterLikeCpp;
 pub use query_holder::{SqlQueryHolder, SqlQueryHolderResult};
+pub use quest_catalog_adapter::MariaDbQuestCatalogPersistenceAdapterLikeCpp;
 pub use quest_item_catalog_adapter::MariaDbQuestItemCatalogPersistenceAdapterLikeCpp;
 pub use reputation_catalog_adapter::MariaDbReputationCatalogPersistenceAdapterLikeCpp;
 pub use reserved_name_catalog_adapter::MariaDbReservedNameCatalogPersistenceAdapterLikeCpp;
@@ -168,6 +178,7 @@ pub use statements::{
     CharStatements, HOTFIX_STATEMENT_STRATEGY_LIKE_CPP, HotfixStatementStrategyLikeCpp,
     HotfixStatements, LoginStatements, StatementDef, WorldStatements,
 };
+pub use static_data_overlay_adapter::MariaDbStaticDataOverlayPersistenceAdapterLikeCpp;
 pub use trainer_catalog_adapter::MariaDbTrainerCatalogPersistenceAdapterLikeCpp;
 pub use transaction::{
     ItemGuidAllocatorAdvisoryLockLikeCpp, SqlTransaction, SqlTransactionCommitError,
@@ -177,6 +188,9 @@ pub use vehicle_catalog_adapter::{
     MariaDbVehicleHotfixPersistenceAdapterLikeCpp,
     MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp,
 };
+pub use world_auxiliary_catalog_adapter::MariaDbWorldAuxiliaryCatalogPersistenceAdapterLikeCpp;
+pub use world_object_catalog_adapter::MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp;
+pub use world_reference_catalog_adapter::MariaDbWorldReferenceCatalogPersistenceAdapterLikeCpp;
 pub use world_state_startup_adapter::MariaDbWorldStateStartupPersistenceAdapterLikeCpp;
 
 /// Type aliases for each database connection.

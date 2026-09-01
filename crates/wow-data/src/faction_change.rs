@@ -7,9 +7,6 @@
 
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
-use wow_database::{SqlResult, WorldDatabase, WorldStatements};
-
 const ITEM_FLAG2_FACTION_HORDE_LIKE_CPP: u32 = 0x0000_0001;
 const ITEM_FLAG2_FACTION_ALLIANCE_LIKE_CPP: u32 = 0x0000_0002;
 
@@ -215,55 +212,6 @@ impl FactionChangeStoreLikeCpp {
         self
     }
 
-    /// C++ `ObjectMgr::LoadFactionChangeAchievements`, `LoadFactionChangeQuests`,
-    /// `LoadFactionChangeReputations`, `LoadFactionChangeSpells`, and
-    /// `LoadFactionChangeTitles`.
-    pub async fn load_like_cpp<
-        AchievementExists,
-        QuestExists,
-        ReputationExists,
-        SpellExists,
-        TitleExists,
-    >(
-        db: &WorldDatabase,
-        achievement_exists: AchievementExists,
-        quest_exists: QuestExists,
-        reputation_exists: ReputationExists,
-        spell_exists: SpellExists,
-        title_exists: TitleExists,
-    ) -> Result<FactionChangeLoadOutcomeLikeCpp>
-    where
-        AchievementExists: FnMut(u32) -> bool,
-        QuestExists: FnMut(u32) -> bool,
-        ReputationExists: FnMut(u32) -> bool,
-        SpellExists: FnMut(u32) -> bool,
-        TitleExists: FnMut(u32) -> bool,
-    {
-        let achievements =
-            load_pair_rows_like_cpp(db, WorldStatements::SEL_FACTION_CHANGE_ACHIEVEMENTS).await?;
-        let quests =
-            load_pair_rows_like_cpp(db, WorldStatements::SEL_FACTION_CHANGE_QUESTS).await?;
-        let reputations =
-            load_pair_rows_like_cpp(db, WorldStatements::SEL_FACTION_CHANGE_REPUTATIONS).await?;
-        let spells =
-            load_pair_rows_like_cpp(db, WorldStatements::SEL_FACTION_CHANGE_SPELLS).await?;
-        let titles =
-            load_pair_rows_like_cpp(db, WorldStatements::SEL_FACTION_CHANGE_TITLES).await?;
-
-        Ok(Self::from_validated_rows_like_cpp(
-            achievements,
-            quests,
-            reputations,
-            spells,
-            titles,
-            achievement_exists,
-            quest_exists,
-            reputation_exists,
-            spell_exists,
-            title_exists,
-        ))
-    }
-
     pub fn achievement_pair_like_cpp(&self, alliance_id: u32) -> Option<u32> {
         self.achievements.get(&alliance_id).copied()
     }
@@ -381,48 +329,6 @@ where
     }
 
     count
-}
-
-async fn load_pair_rows_like_cpp(
-    db: &WorldDatabase,
-    statement: WorldStatements,
-) -> Result<Vec<FactionChangePairRowLikeCpp>> {
-    let stmt = db.prepare(statement);
-    let mut result = db.query(&stmt).await?;
-    let mut rows = Vec::new();
-
-    if !result.is_empty() {
-        loop {
-            rows.push(FactionChangePairRowLikeCpp {
-                alliance_id: read_faction_change_id_like_cpp(&result, 0, statement)
-                    .context("failed to read faction-change alliance id")?,
-                horde_id: read_faction_change_id_like_cpp(&result, 1, statement)
-                    .context("failed to read faction-change horde id")?,
-            });
-
-            if !result.next_row() {
-                break;
-            }
-        }
-    }
-
-    Ok(rows)
-}
-
-fn read_faction_change_id_like_cpp(
-    result: &SqlResult,
-    column: usize,
-    statement: WorldStatements,
-) -> Result<u32> {
-    if let Some(value) = result.try_read::<u32>(column) {
-        return Ok(value);
-    }
-
-    let value = result
-        .try_read::<i32>(column)
-        .with_context(|| format!("column {column} in {statement:?} is not an integer id"))?;
-    u32::try_from(value)
-        .with_context(|| format!("column {column} in {statement:?} is negative: {value}"))
 }
 
 #[cfg(test)]

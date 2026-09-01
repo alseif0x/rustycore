@@ -7,10 +7,8 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
 use wow_constants::ConditionSourceType;
 use wow_constants::ConditionType;
-use wow_database::{WorldDatabase, WorldStatements};
 
 use crate::{ConditionEntriesByTypeStore, ConditionId, ConditionsReference, WorldSafeLocStore};
 
@@ -137,33 +135,6 @@ impl GraveyardStore {
         }
 
         report
-    }
-
-    pub async fn load_graveyard_zones_like_cpp(
-        &mut self,
-        db: &WorldDatabase,
-        world_safe_loc_exists: impl FnMut(u32) -> bool,
-        area_exists: impl FnMut(u32) -> bool,
-    ) -> Result<GraveyardLoadReport> {
-        let stmt = db.prepare(WorldStatements::SEL_GRAVEYARD_ZONE);
-        let mut result = db.query(&stmt).await?;
-        if result.is_empty() {
-            self.by_zone.clear();
-            return Ok(GraveyardLoadReport::default());
-        }
-
-        let mut rows = Vec::new();
-        loop {
-            rows.push(GraveyardZoneRow {
-                safe_loc_id: result.read(0),
-                ghost_zone_id: result.read(1),
-            });
-            if !result.next_row() {
-                break;
-            }
-        }
-
-        Ok(self.load_graveyard_zones_from_rows_like_cpp(rows, world_safe_loc_exists, area_exists))
     }
 
     /// C++ `ConditionMgr::addToGraveyardData`.

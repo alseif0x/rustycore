@@ -3177,7 +3177,6 @@ dependencies = [
  "tracing",
  "wow-constants",
  "wow-core",
- "wow-database",
  "wow-entities",
  "wow-movement",
 ]

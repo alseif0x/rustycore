@@ -7,9 +7,6 @@
 
 use std::collections::{HashMap, HashSet};
 
-use anyhow::Result;
-use wow_database::{WorldDatabase, WorldStatements};
-
 pub const ITEM_VENDOR_TYPE_ITEM_LIKE_CPP: u8 = 1;
 pub const ITEM_VENDOR_TYPE_CURRENCY_LIKE_CPP: u8 = 2;
 
@@ -147,35 +144,6 @@ impl NpcVendorStoreLikeCpp {
         }
 
         NpcVendorLoadOutcomeLikeCpp { store, report }
-    }
-
-    /// C++ `ObjectMgr::LoadVendors`.
-    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<NpcVendorLoadOutcomeLikeCpp> {
-        let stmt = db.prepare(WorldStatements::SEL_NPC_VENDORS_ALL);
-        let mut result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(NpcVendorRowLikeCpp {
-                    entry: result.read(0),
-                    item: result.read(1),
-                    maxcount: result.read(2),
-                    incrtime: result.read(3),
-                    extended_cost: result.read(4),
-                    vendor_type: result.read(5),
-                    bonus_list_ids_raw: result.read_string(6),
-                    player_condition_id: result.read(7),
-                    ignore_filtering: result.try_read::<u8>(8).unwrap_or(0) != 0,
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(rows))
     }
 
     /// C++ `ObjectMgr::GetNpcVendorItemList`.

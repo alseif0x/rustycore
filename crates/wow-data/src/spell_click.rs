@@ -7,11 +7,6 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
-use wow_database::{WorldDatabase, WorldStatements};
-
-use crate::{CreatureTemplateLifecycleStoreLikeCpp, SpellStore};
-
 pub const UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP: u64 = 0x01000000;
 
 pub const SPELL_CLICK_USER_ANY_LIKE_CPP: u8 = 0;
@@ -88,36 +83,6 @@ impl NpcSpellClickStoreLikeCpp {
             entries,
             load_report,
         }
-    }
-
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        creature_templates: &CreatureTemplateLifecycleStoreLikeCpp,
-        spells: &SpellStore,
-    ) -> Result<Self> {
-        let stmt = db.prepare(WorldStatements::SEL_NPC_SPELLCLICK_SPELLS);
-        let mut result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(NpcSpellClickRowLikeCpp {
-                    npc_entry: result.try_read::<u32>(0).unwrap_or(0),
-                    spell_id: result.try_read::<u32>(1).unwrap_or(0),
-                    cast_flags: result.try_read::<u8>(2).unwrap_or(0),
-                    user_type: result.try_read::<u8>(3).unwrap_or(0),
-                });
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(
-            rows,
-            |npc_entry| creature_templates.get(npc_entry).is_some(),
-            |spell_id| spells.get(spell_id as i32).is_some(),
-        ))
     }
 
     pub fn spell_click_info_map_bounds_like_cpp(&self, npc_entry: u32) -> &[SpellClickInfoLikeCpp] {

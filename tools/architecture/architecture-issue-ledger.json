@@ -143,6 +143,7 @@
     568,
     570,
     572,
+    574,
     189,
     192,
     193,
@@ -2230,7 +2231,7 @@
   },
   {
     "number": 572,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.93] Move the complete spell-acquisition startup source family behind typed capabilities",
     "kind": "slice",
     "parents": [
@@ -2239,6 +2240,19 @@
     ],
     "depends_on": [
       570
+    ]
+  },
+  {
+    "number": 574,
+    "state": "open",
+    "title": "[ARCH.DB.94] Make wow-data persistence-independent",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      572
     ]
   }
 ]
