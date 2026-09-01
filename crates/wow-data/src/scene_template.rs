@@ -7,9 +7,6 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
-use wow_database::{WorldDatabase, WorldStatements};
-
 use crate::{ScriptIdLikeCpp, ScriptNameInternerLikeCpp};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,34 +72,6 @@ impl SceneTemplateStoreLikeCpp {
             store: Self { templates },
             report,
         }
-    }
-
-    /// C++ `ObjectMgr::LoadSceneTemplates`.
-    pub async fn load_like_cpp(
-        db: &WorldDatabase,
-        script_names: &mut ScriptNameInternerLikeCpp,
-    ) -> Result<SceneTemplateLoadOutcomeLikeCpp> {
-        let stmt = db.prepare(WorldStatements::SEL_SCENE_TEMPLATES);
-        let mut result = db.query(&stmt).await?;
-        let mut rows = Vec::new();
-
-        if !result.is_empty() {
-            loop {
-                rows.push(SceneTemplateRowLikeCpp {
-                    scene_id: result.read(0),
-                    flags: result.read(1),
-                    script_package_id: result.read(2),
-                    encrypted: result.read(3),
-                    script_name: result.read(4),
-                });
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        Ok(Self::from_rows_like_cpp(rows, script_names))
     }
 
     /// C++ `ObjectMgr::GetSceneTemplate`.

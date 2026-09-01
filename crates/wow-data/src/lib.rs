@@ -145,7 +145,7 @@ pub use condition_attachments::{
 };
 pub use conditions::{
     Condition, ConditionContainer, ConditionEntriesByTypeStore, ConditionId, ConditionLoadReport,
-    ConditionsByEntryMap, ConditionsReference, load_condition_rows_like_cpp,
+    ConditionsByEntryMap, ConditionsReference,
 };
 pub use creature_display::{
     CreatureDisplayInfoEntry, CreatureDisplayInfoStore, CreatureModelDataEntry,
