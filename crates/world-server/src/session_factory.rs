@@ -299,6 +299,15 @@ pub(super) async fn create_session(
     if let Some(ref port) = resources.item_template_addon_catalog_persistence_port {
         session.set_item_template_addon_catalog_persistence_port_like_cpp(Arc::clone(port));
     }
+    if let Some(ref port) = resources.loot_template_catalog_persistence_port {
+        session.set_loot_template_catalog_persistence_port_like_cpp(Arc::clone(port));
+    }
+    if let Some(ref port) = resources.vendor_catalog_persistence_port {
+        session.set_vendor_catalog_persistence_port_like_cpp(Arc::clone(port));
+    }
+    if let Some(ref port) = resources.visibility_spawn_catalog_persistence_port {
+        session.set_visibility_spawn_catalog_persistence_port_like_cpp(Arc::clone(port));
+    }
     if let Some(ref port) = resources.gossip_catalog_persistence_port {
         session.set_gossip_catalog_persistence_port_like_cpp(Arc::clone(port));
     }
@@ -372,9 +381,6 @@ pub(super) async fn create_session(
     }
     if let Some(ref mgr) = resources.instance_lock_mgr {
         session.set_instance_lock_mgr(Arc::clone(mgr));
-    }
-    if let Some(ref db) = resources.world_db {
-        session.set_world_db(Arc::clone(db));
     }
     if let Some(ref store) = resources.trainer_store {
         session.set_trainer_store_like_cpp(Arc::clone(store));

@@ -47,21 +47,17 @@ use wow_persistence::{
     AccountCollectionLoadOutcomeLikeCpp, AccountCollectionLoadRequestLikeCpp,
     AccountCollectionLoadedLikeCpp, AccountCollectionRowsLikeCpp, AccountCollectionSaveLikeCpp,
     AccountHeirloomLoadRowLikeCpp, AccountMaskBlockLikeCpp, AccountMountLoadRowLikeCpp,
-    AccountToyLoadRowLikeCpp, CharacterAdministrationLoadOutcomeLikeCpp,
-    CharacterAdministrationMutationOutcomeLikeCpp, CharacterAdministrationPersistencePortLikeCpp,
-    CharacterCreatePersistenceRequestLikeCpp, CharacterCustomizationPersistenceLikeCpp,
-    CharacterCustomizeCandidateLikeCpp, CharacterEnumerationLoadOutcomeLikeCpp,
+    AccountToyLoadRowLikeCpp, CharacterEnumerationLoadOutcomeLikeCpp,
     CharacterEnumerationPersistencePortLikeCpp, CharacterEnumerationRequestLikeCpp,
-    CharacterEnumerationRowLikeCpp, CharacterRenameCandidateLikeCpp,
-    CreatureQueryCatalogOutcomeLikeCpp, CreatureQueryCatalogPersistencePortLikeCpp,
-    CreatureQueryCatalogRequestLikeCpp, CreatureQueryCatalogRowLikeCpp,
-    CreatureQueryDisplayRowLikeCpp, GameObjectQueryCatalogOutcomeLikeCpp,
-    GameObjectQueryCatalogPersistencePortLikeCpp, GameObjectQueryCatalogRequestLikeCpp,
-    GameObjectQueryCatalogRowLikeCpp, GossipBroadcastTextLocaleRequestLikeCpp,
-    GossipCatalogPersistencePortLikeCpp, GossipCatalogReadOutcomeLikeCpp,
-    GossipCreatureMenuRequestLikeCpp, GossipMenuCatalogRequestLikeCpp,
-    GossipMenuOptionCatalogRowLikeCpp, GossipNpcTextCatalogRequestLikeCpp,
-    MapCorpseAuxiliaryLoadOutcomeLikeCpp,
+    CharacterEnumerationRowLikeCpp, CreatureQueryCatalogOutcomeLikeCpp,
+    CreatureQueryCatalogPersistencePortLikeCpp, CreatureQueryCatalogRequestLikeCpp,
+    CreatureQueryCatalogRowLikeCpp, CreatureQueryDisplayRowLikeCpp,
+    GameObjectQueryCatalogOutcomeLikeCpp, GameObjectQueryCatalogPersistencePortLikeCpp,
+    GameObjectQueryCatalogRequestLikeCpp, GameObjectQueryCatalogRowLikeCpp,
+    GossipBroadcastTextLocaleRequestLikeCpp, GossipCatalogPersistencePortLikeCpp,
+    GossipCatalogReadOutcomeLikeCpp, GossipCreatureMenuRequestLikeCpp,
+    GossipMenuCatalogRequestLikeCpp, GossipMenuOptionCatalogRowLikeCpp,
+    GossipNpcTextCatalogRequestLikeCpp, MapCorpseAuxiliaryLoadOutcomeLikeCpp,
     MapCorpseLoadOutcomeLikeCpp as PersistedMapCorpseLoadOutcomeLikeCpp,
     MapCorpseLoadRequestLikeCpp, MapCorpseLoadRowLikeCpp, MapCorpsePersistencePortLikeCpp,
     PageTextCatalogDiagnosticLikeCpp, PageTextCatalogOutcomeLikeCpp,
@@ -78,207 +74,6 @@ use wow_persistence::{
     PlayerNameQueryRequestLikeCpp, PlayerNameQueryRowLikeCpp, PlayerOfflineMarkLikeCpp,
     PlayerOnlineMarkRequestLikeCpp,
 };
-
-#[derive(Debug, Clone, PartialEq)]
-enum CharacterAdministrationTraceLikeCpp {
-    FindName(String),
-    Count(u32),
-    Create(CharacterCreatePersistenceRequestLikeCpp),
-    Delete {
-        guid: u64,
-        account_id: u32,
-    },
-    LoadRename {
-        guid: u64,
-        name: String,
-    },
-    CommitRename {
-        guid: u64,
-        name: String,
-        flags: u16,
-    },
-    LoadCustomize(u64),
-    CommitCustomize {
-        guid: u64,
-        name: String,
-        flags: u16,
-        customizations: Vec<CharacterCustomizationPersistenceLikeCpp>,
-    },
-}
-
-struct CharacterAdministrationPortFixtureLikeCpp {
-    trace: std::sync::Mutex<Vec<CharacterAdministrationTraceLikeCpp>>,
-    loads: std::sync::Mutex<std::collections::VecDeque<CharacterAdministrationFixtureLoadLikeCpp>>,
-    mutations:
-        std::sync::Mutex<std::collections::VecDeque<CharacterAdministrationMutationOutcomeLikeCpp>>,
-}
-
-enum CharacterAdministrationFixtureLoadLikeCpp {
-    Unit(CharacterAdministrationLoadOutcomeLikeCpp<()>),
-    Count(CharacterAdministrationLoadOutcomeLikeCpp<u64>),
-    Rename(CharacterAdministrationLoadOutcomeLikeCpp<CharacterRenameCandidateLikeCpp>),
-    Customize(CharacterAdministrationLoadOutcomeLikeCpp<CharacterCustomizeCandidateLikeCpp>),
-}
-
-impl CharacterAdministrationPortFixtureLikeCpp {
-    fn new(
-        loads: impl IntoIterator<Item = CharacterAdministrationFixtureLoadLikeCpp>,
-        mutations: impl IntoIterator<Item = CharacterAdministrationMutationOutcomeLikeCpp>,
-    ) -> Arc<Self> {
-        Arc::new(Self {
-            trace: std::sync::Mutex::new(Vec::new()),
-            loads: std::sync::Mutex::new(loads.into_iter().collect()),
-            mutations: std::sync::Mutex::new(mutations.into_iter().collect()),
-        })
-    }
-
-    fn next_load(&self) -> CharacterAdministrationFixtureLoadLikeCpp {
-        self.loads
-            .lock()
-            .unwrap()
-            .pop_front()
-            .expect("load outcome")
-    }
-
-    fn next_mutation(&self) -> CharacterAdministrationMutationOutcomeLikeCpp {
-        self.mutations
-            .lock()
-            .unwrap()
-            .pop_front()
-            .expect("mutation outcome")
-    }
-}
-
-impl CharacterAdministrationPersistencePortLikeCpp for CharacterAdministrationPortFixtureLikeCpp {
-    fn find_character_name_like_cpp(
-        &self,
-        name: &str,
-    ) -> PersistenceFutureLikeCpp<'_, CharacterAdministrationLoadOutcomeLikeCpp<()>> {
-        self.trace
-            .lock()
-            .unwrap()
-            .push(CharacterAdministrationTraceLikeCpp::FindName(name.into()));
-        let CharacterAdministrationFixtureLoadLikeCpp::Unit(outcome) = self.next_load() else {
-            panic!("unit load outcome")
-        };
-        Box::pin(async move { outcome })
-    }
-
-    fn load_account_character_count_like_cpp(
-        &self,
-        account_id: u32,
-    ) -> PersistenceFutureLikeCpp<'_, CharacterAdministrationLoadOutcomeLikeCpp<u64>> {
-        self.trace
-            .lock()
-            .unwrap()
-            .push(CharacterAdministrationTraceLikeCpp::Count(account_id));
-        let CharacterAdministrationFixtureLoadLikeCpp::Count(outcome) = self.next_load() else {
-            panic!("count load outcome")
-        };
-        Box::pin(async move { outcome })
-    }
-
-    fn create_character_like_cpp(
-        &self,
-        request: CharacterCreatePersistenceRequestLikeCpp,
-    ) -> PersistenceFutureLikeCpp<'_, CharacterAdministrationMutationOutcomeLikeCpp> {
-        self.trace
-            .lock()
-            .unwrap()
-            .push(CharacterAdministrationTraceLikeCpp::Create(request));
-        let outcome = self.next_mutation();
-        Box::pin(async move { outcome })
-    }
-
-    fn delete_owned_character_like_cpp(
-        &self,
-        guid: u64,
-        account_id: u32,
-    ) -> PersistenceFutureLikeCpp<'_, CharacterAdministrationMutationOutcomeLikeCpp> {
-        self.trace
-            .lock()
-            .unwrap()
-            .push(CharacterAdministrationTraceLikeCpp::Delete { guid, account_id });
-        let outcome = self.next_mutation();
-        Box::pin(async move { outcome })
-    }
-
-    fn load_rename_candidate_like_cpp(
-        &self,
-        guid: u64,
-        new_name: &str,
-    ) -> PersistenceFutureLikeCpp<
-        '_,
-        CharacterAdministrationLoadOutcomeLikeCpp<CharacterRenameCandidateLikeCpp>,
-    > {
-        self.trace
-            .lock()
-            .unwrap()
-            .push(CharacterAdministrationTraceLikeCpp::LoadRename {
-                guid,
-                name: new_name.into(),
-            });
-        let CharacterAdministrationFixtureLoadLikeCpp::Rename(outcome) = self.next_load() else {
-            panic!("rename load outcome")
-        };
-        Box::pin(async move { outcome })
-    }
-
-    fn commit_rename_like_cpp(
-        &self,
-        guid: u64,
-        new_name: &str,
-        at_login_flags: u16,
-    ) -> PersistenceFutureLikeCpp<'_, CharacterAdministrationMutationOutcomeLikeCpp> {
-        self.trace
-            .lock()
-            .unwrap()
-            .push(CharacterAdministrationTraceLikeCpp::CommitRename {
-                guid,
-                name: new_name.into(),
-                flags: at_login_flags,
-            });
-        let outcome = self.next_mutation();
-        Box::pin(async move { outcome })
-    }
-
-    fn load_customize_candidate_like_cpp(
-        &self,
-        guid: u64,
-    ) -> PersistenceFutureLikeCpp<
-        '_,
-        CharacterAdministrationLoadOutcomeLikeCpp<CharacterCustomizeCandidateLikeCpp>,
-    > {
-        self.trace
-            .lock()
-            .unwrap()
-            .push(CharacterAdministrationTraceLikeCpp::LoadCustomize(guid));
-        let CharacterAdministrationFixtureLoadLikeCpp::Customize(outcome) = self.next_load() else {
-            panic!("customize load outcome")
-        };
-        Box::pin(async move { outcome })
-    }
-
-    fn commit_customize_like_cpp(
-        &self,
-        guid: u64,
-        name: &str,
-        at_login_flags: u16,
-        customizations: Vec<CharacterCustomizationPersistenceLikeCpp>,
-    ) -> PersistenceFutureLikeCpp<'_, CharacterAdministrationMutationOutcomeLikeCpp> {
-        self.trace
-            .lock()
-            .unwrap()
-            .push(CharacterAdministrationTraceLikeCpp::CommitCustomize {
-                guid,
-                name: name.into(),
-                flags: at_login_flags,
-                customizations,
-            });
-        let outcome = self.next_mutation();
-        Box::pin(async move { outcome })
-    }
-}
 
 struct CreatureQueryCatalogPortFixtureLikeCpp {
     requests: std::sync::Mutex<Vec<CreatureQueryCatalogRequestLikeCpp>>,
@@ -2627,7 +2422,9 @@ fn sql_creature_movement_type_random_requires_wander_distance_like_cpp() {
     );
 }
 
-fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {
+pub(crate) fn make_session_with_send_capacity(
+    capacity: usize,
+) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
     let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(capacity);
     let mut session = WorldSession::new(
@@ -4977,54 +4774,6 @@ async fn character_rename_non_owned_guid_kicks_like_cpp() {
 
     assert_eq!(session.state(), crate::session::SessionState::Disconnecting);
     assert!(send_rx.try_recv().is_err());
-}
-
-#[tokio::test]
-async fn character_rename_uses_typed_administration_port_in_cpp_order() {
-    let (mut session, send_rx) = make_session_with_send_capacity(2);
-    let guid = ObjectGuid::create_player(1, 42);
-    session.set_legit_characters(vec![guid]);
-    let port = CharacterAdministrationPortFixtureLikeCpp::new(
-        [CharacterAdministrationFixtureLoadLikeCpp::Rename(
-            CharacterAdministrationLoadOutcomeLikeCpp::Loaded(CharacterRenameCandidateLikeCpp {
-                old_name: "Oldname".into(),
-                at_login_flags: AT_LOGIN_RENAME_LIKE_CPP | AT_LOGIN_CUSTOMIZE_LIKE_CPP,
-            }),
-        )],
-        [CharacterAdministrationMutationOutcomeLikeCpp::Applied],
-    );
-    session.set_character_administration_persistence_port_like_cpp(port.clone());
-
-    session
-        .handle_character_rename_request(CharacterRenameRequest {
-            guid,
-            new_name: "Newname".into(),
-        })
-        .await;
-
-    assert_eq!(
-        *port.trace.lock().unwrap(),
-        vec![
-            CharacterAdministrationTraceLikeCpp::LoadRename {
-                guid: 42,
-                name: "Newname".into(),
-            },
-            CharacterAdministrationTraceLikeCpp::CommitRename {
-                guid: 42,
-                name: "Newname".into(),
-                flags: AT_LOGIN_CUSTOMIZE_LIKE_CPP,
-            },
-        ]
-    );
-    let sent = send_rx.try_recv().expect("rename success");
-    let mut packet = WorldPacket::from_bytes(&sent);
-    assert_eq!(
-        packet.server_opcode(),
-        Some(ServerOpcodes::CharacterRenameResult)
-    );
-    packet.skip_opcode();
-    assert_eq!(packet.read_uint8().unwrap(), RESPONSE_SUCCESS_LIKE_CPP);
-    assert!(packet.read_bit().unwrap());
 }
 
 #[tokio::test]

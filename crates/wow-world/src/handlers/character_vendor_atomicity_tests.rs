@@ -130,14 +130,6 @@ async fn vendor_currency_purchase_definite_rollback_keeps_runtime_unchanged_like
         buy_count: 1,
     });
 
-    let failing_world_pool = sqlx::mysql::MySqlPoolOptions::new()
-        .max_connections(1)
-        .acquire_timeout(Duration::from_millis(100))
-        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/world")
-        .expect("syntactically valid lazy WorldDB pool");
-    session.set_world_db(Arc::new(wow_database::WorldDatabase::from_pool(
-        failing_world_pool,
-    )));
     let failing_character_pool = sqlx::mysql::MySqlPoolOptions::new()
         .max_connections(1)
         .acquire_timeout(Duration::from_millis(100))

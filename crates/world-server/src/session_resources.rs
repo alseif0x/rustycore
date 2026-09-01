@@ -34,6 +34,12 @@ pub(super) struct SessionResources {
         Option<Arc<dyn wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp>>,
     pub(super) item_template_addon_catalog_persistence_port:
         Option<Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>>,
+    pub(super) loot_template_catalog_persistence_port:
+        Option<Arc<dyn wow_persistence::LootTemplateCatalogPersistencePortLikeCpp>>,
+    pub(super) vendor_catalog_persistence_port:
+        Option<Arc<dyn wow_persistence::VendorCatalogPersistencePortLikeCpp>>,
+    pub(super) visibility_spawn_catalog_persistence_port:
+        Option<Arc<dyn wow_persistence::VisibilitySpawnCatalogPersistencePortLikeCpp>>,
     pub(super) gossip_catalog_persistence_port:
         Option<Arc<dyn wow_persistence::GossipCatalogPersistencePortLikeCpp>>,
     pub(super) page_text_catalog_persistence_port:
@@ -83,7 +89,6 @@ pub(super) struct SessionResources {
     /// Characters-database durability for the recoverable battle-pet purchase saga.
     pub(super) battle_pet_purchase_persistence_port:
         Option<Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>>,
-    pub(super) world_db: Option<Arc<wow_database::WorldDatabase>>,
     /// Process-wide C++ trainer/default-trainer snapshot.
     pub(super) trainer_store: Option<Arc<wow_data::TrainerStoreLikeCpp>>,
     pub(super) guid_generator: Option<Arc<wow_core::ObjectGuidGenerator>>,

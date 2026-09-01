@@ -9,8 +9,6 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::WorldStatements;
-
 use super::*;
 
 impl WorldSession {
@@ -247,31 +245,27 @@ impl WorldSession {
         &self,
         gameobject_entry: u32,
     ) -> (u32, u32) {
-        let Some(world_db) = self.world_db() else {
+        let Some(port) = self.gameobject_use_template_persistence_port_like_cpp() else {
             return (0, 0);
         };
 
-        let mut stmt = world_db.prepare(WorldStatements::SEL_GAMEOBJECT_TEMPLATE_ADDON_MONEY_LOOT);
-        stmt.set_u32(0, gameobject_entry);
-
-        match world_db.query(&stmt).await {
-            Ok(result) if !result.is_empty() => {
-                match (result.try_read::<u32>(0), result.try_read::<u32>(1)) {
-                    (Some(min_money), Some(max_money)) => (min_money, max_money),
-                    _ => {
-                        warn!(
-                            gameobject_entry,
-                            "failed to decode gameobject_template_addon money loot as C++ uint32 columns"
-                        );
-                        (0, 0)
-                    }
-                }
-            }
-            Ok(_) => (0, 0),
-            Err(err) => {
+        match port
+            .load_gameobject_money_loot_like_cpp(
+                wow_persistence::GameObjectMoneyLootCatalogRequestLikeCpp {
+                    entry: gameobject_entry,
+                },
+            )
+            .await
+        {
+            wow_persistence::GameObjectMoneyLootCatalogOutcomeLikeCpp::Found {
+                min_money,
+                max_money,
+            } => (min_money, max_money),
+            wow_persistence::GameObjectMoneyLootCatalogOutcomeLikeCpp::Missing => (0, 0),
+            wow_persistence::GameObjectMoneyLootCatalogOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     gameobject_entry,
-                    "failed to load gameobject_template_addon money loot: {err}"
+                    "failed to load gameobject_template_addon money loot: {reason}"
                 );
                 (0, 0)
             }

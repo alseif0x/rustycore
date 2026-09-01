@@ -23,12 +23,15 @@ pub(crate) mod profession;
 pub mod reputation;
 pub mod session;
 mod session_commands;
+mod session_persistence_capabilities;
 mod session_policy;
 #[allow(dead_code)] // Private prerequisite seam consumed by trainer issue #157.
 pub(crate) mod spell_acquisition;
 #[allow(dead_code)] // Private decision seam introduced by trainer issue #157.
 pub(crate) mod trainer_offer;
 
+#[cfg(test)]
+mod character_administration_persistence_tests;
 #[cfg(test)]
 mod handler_contract_tests;
 #[cfg(any(test, feature = "test-fixtures"))]

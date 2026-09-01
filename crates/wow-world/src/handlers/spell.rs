@@ -34,7 +34,7 @@ use wow_constants::{
 };
 use wow_core::ObjectGuid;
 use wow_data::{DISABLE_TYPE_SPELL, DisableWorldObjectRefLikeCpp};
-use wow_database::{CharStatements, SqlTransaction, WorldStatements};
+use wow_database::{CharStatements, SqlTransaction};
 use wow_entities::INVENTORY_SLOT_BAG_0;
 use wow_handler::{PacketProcessing, SessionStatus};
 
@@ -1493,52 +1493,46 @@ impl WorldSession {
         table: LootTemplateTable,
         entry: u32,
     ) -> Vec<LootTemplateRow> {
-        let Some(world_db) = self.world_db() else {
+        let Some(port) = self.loot_template_catalog_persistence_port_like_cpp() else {
             return Vec::new();
         };
 
-        let statement = match table {
-            LootTemplateTable::Item => WorldStatements::SEL_ITEM_LOOT_TEMPLATE_ROWS,
-            LootTemplateTable::Reference => WorldStatements::SEL_REFERENCE_LOOT_TEMPLATE_ROWS,
+        let persistence_table = match table {
+            LootTemplateTable::Item => wow_persistence::LootTemplateTablePersistenceLikeCpp::Item,
+            LootTemplateTable::Reference => {
+                wow_persistence::LootTemplateTablePersistenceLikeCpp::Reference
+            }
         };
-        let mut stmt = world_db.prepare(statement);
-        stmt.set_u32(0, entry);
-
-        let mut result = match world_db.query(&stmt).await {
-            Ok(result) => result,
-            Err(err) => {
+        let persistence_rows = match port
+            .load_loot_template_rows_like_cpp(persistence_table, entry)
+            .await
+        {
+            wow_persistence::LootTemplateCatalogOutcomeLikeCpp::Loaded(rows) => rows,
+            wow_persistence::LootTemplateCatalogOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     entry,
                     table = table.name(),
-                    error = %err,
+                    error = %reason,
                     "failed to load loot template rows"
                 );
                 return Vec::new();
             }
         };
 
-        let mut rows = Vec::new();
-        if result.is_empty() {
-            return rows;
-        }
-
-        loop {
-            rows.push(LootTemplateRow {
-                item_id: result.try_read::<u32>(0).unwrap_or(0),
-                reference: result.try_read::<u32>(1).unwrap_or(0),
-                chance: result.try_read::<f32>(2).unwrap_or(0.0),
-                needs_quest: result.try_read::<bool>(3).unwrap_or(false),
-                loot_mode: result.try_read::<u16>(4).unwrap_or(0),
-                group_id: result.try_read::<u8>(5).unwrap_or(0),
-                min_count: result.try_read::<u8>(6).unwrap_or(0),
-                max_count: result.try_read::<u8>(7).unwrap_or(0),
+        let mut rows = persistence_rows
+            .into_iter()
+            .map(|row| LootTemplateRow {
+                item_id: row.item_id,
+                reference: row.reference,
+                chance: row.chance,
+                needs_quest: row.needs_quest,
+                loot_mode: row.loot_mode,
+                group_id: row.group_id,
+                min_count: row.min_count,
+                max_count: row.max_count,
                 conditions: Vec::new(),
-            });
-
-            if !result.next_row() {
-                break;
-            }
-        }
+            })
+            .collect::<Vec<_>>();
 
         let condition_source_type = table.condition_source_type_like_cpp();
         for row in &mut rows {
@@ -1560,23 +1554,21 @@ impl WorldSession {
         source_group: u32,
         source_entry: u32,
     ) -> Vec<LootConditionRowLikeCpp> {
-        let Some(world_db) = self.world_db() else {
+        let Some(port) = self.loot_template_catalog_persistence_port_like_cpp() else {
             return Vec::new();
         };
 
-        let mut stmt = world_db.prepare(WorldStatements::SEL_LOOT_TEMPLATE_CONDITION_ROWS);
-        stmt.set_i32(0, source_type);
-        stmt.set_u32(1, source_group);
-        stmt.set_u32(2, source_entry);
-
-        let mut result = match world_db.query(&stmt).await {
-            Ok(result) => result,
-            Err(err) => {
+        let rows = match port
+            .load_loot_condition_rows_like_cpp(source_type, source_group, source_entry)
+            .await
+        {
+            wow_persistence::LootTemplateCatalogOutcomeLikeCpp::Loaded(rows) => rows,
+            wow_persistence::LootTemplateCatalogOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     source_type,
                     source_group,
                     source_entry,
-                    error = %err,
+                    error = %reason,
                     "failed to load loot template condition rows"
                 );
                 return Vec::new();
@@ -1584,21 +1576,17 @@ impl WorldSession {
         };
 
         let mut conditions = Vec::new();
-        if result.is_empty() {
-            return conditions;
-        }
-
-        loop {
+        for row in rows {
             let condition = LootConditionRowLikeCpp {
-                else_group: result.try_read::<u32>(0).unwrap_or(0),
-                condition_type_or_reference: result.try_read::<i32>(1).unwrap_or(0),
-                condition_target: result.try_read::<u8>(2).unwrap_or(0),
-                value1: result.try_read::<u32>(3).unwrap_or(0),
-                value2: result.try_read::<u32>(4).unwrap_or(0),
-                value3: result.try_read::<u32>(5).unwrap_or(0),
-                string_value1: result.try_read::<String>(6).unwrap_or_default(),
-                negative: result.try_read::<bool>(7).unwrap_or(false),
-                script_name: result.try_read::<String>(8).unwrap_or_default(),
+                else_group: row.else_group,
+                condition_type_or_reference: row.condition_type_or_reference,
+                condition_target: row.condition_target,
+                value1: row.value1,
+                value2: row.value2,
+                value3: row.value3,
+                string_value1: row.string_value1,
+                negative: row.negative,
+                script_name: row.script_name,
             };
             if !loot_condition_reference_self_references_like_cpp(
                 source_type,
@@ -1609,10 +1597,6 @@ impl WorldSession {
                 {
                     conditions.push(condition);
                 }
-            }
-
-            if !result.next_row() {
-                break;
             }
         }
 

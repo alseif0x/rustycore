@@ -65,6 +65,7 @@ pub mod jump_charge_catalog_adapter;
 pub mod lfg_dungeons_hotfix_adapter;
 pub mod lfg_world_catalog_adapter;
 pub mod loader;
+pub mod loot_template_catalog_adapter;
 pub mod map_corpse_adapter;
 pub mod migration;
 pub mod mount_catalog_adapter;
@@ -106,6 +107,8 @@ pub mod support_bug_report_adapter;
 pub mod trainer_catalog_adapter;
 pub mod transaction;
 pub mod vehicle_catalog_adapter;
+pub mod vendor_catalog_adapter;
+pub mod visibility_spawn_catalog_adapter;
 pub mod void_storage_adapter;
 pub mod world_auxiliary_catalog_adapter;
 pub mod world_object_catalog_adapter;
@@ -151,6 +154,7 @@ pub use loader::{
     DATABASE_MASK_ALL_LIKE_CPP, DATABASE_NONE_LIKE_CPP, DATABASE_WORLD_LIKE_CPP,
     DatabaseLoaderLikeCpp,
 };
+pub use loot_template_catalog_adapter::MariaDbLootTemplateCatalogPersistenceAdapterLikeCpp;
 pub use mount_catalog_adapter::MariaDbMountCatalogPersistenceAdapterLikeCpp;
 pub use page_text_catalog_adapter::MariaDbPageTextCatalogPersistenceAdapterLikeCpp;
 pub use params::{PreparedStatement, SqlParam};
@@ -190,6 +194,8 @@ pub use vehicle_catalog_adapter::{
     MariaDbVehicleHotfixPersistenceAdapterLikeCpp,
     MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp,
 };
+pub use vendor_catalog_adapter::MariaDbVendorCatalogPersistenceAdapterLikeCpp;
+pub use visibility_spawn_catalog_adapter::MariaDbVisibilitySpawnCatalogPersistenceAdapterLikeCpp;
 pub use world_auxiliary_catalog_adapter::MariaDbWorldAuxiliaryCatalogPersistenceAdapterLikeCpp;
 pub use world_object_catalog_adapter::MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp;
 pub use world_reference_catalog_adapter::MariaDbWorldReferenceCatalogPersistenceAdapterLikeCpp;

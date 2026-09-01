@@ -9,7 +9,7 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::{CharStatements, SqlTransaction, WorldDatabase, WorldStatements};
+use wow_database::{CharStatements, SqlTransaction};
 
 use super::*;
 
@@ -86,7 +86,7 @@ impl WorldSession {
 
     async fn resolve_vendor_buy_item_by_cpp_slot(
         &self,
-        world_db: &WorldDatabase,
+        port: Option<&dyn wow_persistence::VendorCatalogPersistencePortLikeCpp>,
         root_entry: u32,
         vendor_slot: u32,
         expected_item_id: u32,
@@ -110,6 +110,8 @@ impl WorldSession {
             });
         }
 
+        let port = port?;
+
         let mut raw_slot = 0u32;
         let mut expanded = std::collections::HashSet::<u32>::new();
         let mut queue = std::collections::VecDeque::new();
@@ -120,26 +122,24 @@ impl WorldSession {
                 continue;
             }
 
-            let mut stmt = world_db.prepare(WorldStatements::SEL_VENDOR_ITEMS);
-            stmt.set_u32(0, root_entry);
-            stmt.set_u32(1, vendor_entry);
-            let mut result = match world_db.query(&stmt).await {
-                Ok(result) => result,
-                Err(e) => {
-                    warn!("BuyItem: vendor item query failed for entry {vendor_entry}: {e}");
+            let rows = match port
+                .load_vendor_rows_like_cpp(root_entry, vendor_entry)
+                .await
+            {
+                wow_persistence::VendorCatalogOutcomeLikeCpp::Loaded(rows) => rows,
+                wow_persistence::VendorCatalogOutcomeLikeCpp::Missing => Vec::new(),
+                wow_persistence::VendorCatalogOutcomeLikeCpp::Failed { reason } => {
+                    warn!("BuyItem: vendor item query failed for entry {vendor_entry}: {reason}");
                     continue;
                 }
             };
 
-            loop {
-                let item_id: i32 = result.try_read(0).unwrap_or(0);
+            for row in rows {
+                let item_id = row.item_id;
                 if item_id > 0 {
                     let current_slot = raw_slot;
                     raw_slot = raw_slot.saturating_add(1);
-                    let item_type = result
-                        .try_read::<u8>(3)
-                        .unwrap_or(ItemVendorType::Item as u8)
-                        as i32;
+                    let item_type = i32::from(row.item_type);
                     let item_known = self
                         .item_store()
                         .map_or(true, |store| store.get(item_id as u32).is_some());
@@ -157,29 +157,18 @@ impl WorldSession {
                         return Some(VendorBuyItem {
                             item_id: row_item_id,
                             item_type,
-                            max_count: result.try_read::<u32>(1).unwrap_or(0),
-                            incr_time: result.try_read::<u32>(10).unwrap_or(0),
-                            player_condition_id: result.try_read::<u32>(11).unwrap_or(0),
-                            has_vendor_conditions: result
-                                .try_read::<u8>(12)
-                                .map(|value| value != 0)
-                                .unwrap_or(false),
-                            extended_cost: result.try_read::<u32>(2).unwrap_or(0),
-                            buy_price: result
-                                .try_read::<i64>(5)
-                                .map(|v| v as u64)
-                                .or_else(|| result.try_read::<u64>(5))
-                                .unwrap_or(0),
-                            max_durability: result.try_read::<u32>(7).unwrap_or(0),
-                            buy_count: result.try_read::<u32>(8).unwrap_or(1),
+                            max_count: row.max_count.max(0) as u32,
+                            incr_time: row.incr_time,
+                            player_condition_id: row.player_condition_id,
+                            has_vendor_conditions: row.has_vendor_conditions,
+                            extended_cost: row.extended_cost,
+                            buy_price: row.buy_price,
+                            max_durability: row.max_durability,
+                            buy_count: row.buy_count,
                         });
                     }
                 } else if item_id < 0 {
                     queue.push_back((-item_id) as u32);
-                }
-
-                if !result.next_row() {
-                    break;
                 }
             }
         }
@@ -435,10 +424,7 @@ impl WorldSession {
             }
         };
 
-        let world_db = match self.world_db() {
-            Some(db) => Arc::clone(db),
-            None => return,
-        };
+        let vendor_catalog = self.vendor_catalog_persistence_port_like_cpp();
 
         let condition_store = self.condition_store().cloned();
         let player_condition_store = self.player_condition_store().cloned();
@@ -488,7 +474,7 @@ impl WorldSession {
             let quantity = vendor_buy_currency_packet_quantity_to_cpp_count(buy.quantity);
             let vendor_item = match self
                 .resolve_vendor_buy_item_by_cpp_slot(
-                    world_db.as_ref(),
+                    vendor_catalog.as_deref(),
                     vendor_entry,
                     vendor_slot,
                     buy.item_id as u32,
@@ -721,7 +707,7 @@ impl WorldSession {
 
         let vendor_item = match self
             .resolve_vendor_buy_item_by_cpp_slot(
-                world_db.as_ref(),
+                vendor_catalog.as_deref(),
                 vendor_entry,
                 vendor_slot,
                 buy.item_id as u32,
@@ -1646,14 +1632,12 @@ impl WorldSession {
 
         // ── Get sell price from item_sparse directly ──
         let sell_price: u64 = {
-            let world_db = match self.world_db() {
-                Some(db) => Arc::clone(db),
+            let port = match self.vendor_catalog_persistence_port_like_cpp() {
+                Some(port) => port,
                 None => return,
             };
-            let mut stmt = world_db.prepare(WorldStatements::SEL_ITEM_SELL_PRICE);
-            stmt.set_u32(0, item.entry_id);
-            match world_db.query(&stmt).await {
-                Ok(r) if !r.is_empty() => r.try_read::<u64>(0).unwrap_or(0),
+            match port.load_item_sell_price_like_cpp(item.entry_id).await {
+                wow_persistence::VendorCatalogOutcomeLikeCpp::Loaded(price) => price,
                 _ => 0,
             }
         };

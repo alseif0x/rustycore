@@ -38,7 +38,7 @@
       "member_key": "name",
       "zero_gaps": true,
       "zero_overlap": true,
-      "expected_field_count": 729,
+      "expected_field_count": 728,
       "validation": "Compare the sorted AST names with the sorted concatenation of every family.field_names; reject a missing name, duplicate name, stale name, family count mismatch, or total count mismatch."
     },
     "families": [
@@ -175,7 +175,7 @@
       },
       {
         "id": "persistence_and_session_lifecycle",
-        "expected_field_count": 24,
+        "expected_field_count": 23,
         "field_names": [
           "account_data_like_cpp",
           "battle_pet_account_attachment_like_cpp",
@@ -199,11 +199,10 @@
           "tutorials_changed_like_cpp",
           "tutorials_like_cpp",
           "tutorials_loaded_coherently_like_cpp",
-          "tutorials_loaded_from_db_like_cpp",
-          "world_db"
+          "tutorials_loaded_from_db_like_cpp"
         ],
-        "current_storage": "Concrete database handles remain on WorldSession for residual workflows. Typed lifecycle, account-state, PacketSpoof-ban, map-corpse and bounded void-storage capabilities are grouped behind persistence_ports_like_cpp so each new workflow does not enlarge WorldSession. Lifecycle flags/timers, persistence trackers and durable snapshots remain Session-owned.",
-        "sole_writer": "The owning Session/lifecycle flow mutates session flags; concrete Character/Login/World database adapters execute durable work, sometimes through detached workers or sagas.",
+        "current_storage": "Concrete Character/Login database handles remain on WorldSession for residual workflows; the concrete World database handle has been removed. Typed lifecycle, administration and catalog capabilities are grouped behind persistence_ports_like_cpp so each new workflow does not enlarge WorldSession. Lifecycle flags/timers, persistence trackers and durable snapshots remain Session-owned.",
+        "sole_writer": "The owning Session/lifecycle flow mutates session flags; concrete Character/Login adapters execute residual durable work, sometimes through detached workers or sagas, while World reads cross typed catalog ports.",
         "readers": "Login/load, logout/save, periodic save, recovery, handlers, and post-commit publication paths.",
         "clock_lifetime": "Selected-character/session lifetime with periodic save and logout clocks; durable commands may outlive one handler call and must recover after restart.",
         "persistence_publication_order": "Preserve statement identity and parameters, connection affinity, commit/rollback/unknown-commit classification, fences, and publication strictly after the durable boundary.",
@@ -1044,9 +1043,9 @@
         "retirement_condition": "This residual is empty, or every remaining field has an explicit reviewed stable-Session justification and a dedicated exact-membership rule."
       }
     ],
-    "expected_field_count": 729,
-    "expected_unique_field_count": 729,
-    "expected_production_field_count": 717,
+    "expected_field_count": 728,
+    "expected_unique_field_count": 728,
+    "expected_production_field_count": 716,
     "expected_test_fixture_field_count": 12
   },
   "inventories": {
@@ -1059,8 +1058,8 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.session_resources.fields"
       },
       "audited_summary": {
-        "field_count": 268,
-        "option_field_count": 210,
+        "field_count": 271,
+        "option_field_count": 213,
         "count_kind": "baseline observation; AST is authoritative"
       },
       "coverage_rule": {
@@ -1068,17 +1067,16 @@
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_field_count": 268,
+        "expected_field_count": 271,
         "validation": "Compare sorted AST field names with the sorted concatenation of every entry.field_names; reject gaps, duplicates, stale names, entry count drift, or total count drift."
       },
       "entries": [
         {
           "id": "session_resources_database_adapters",
-          "expected_field_count": 3,
+          "expected_field_count": 2,
           "field_names": [
             "char_db",
-            "login_db",
-            "world_db"
+            "login_db"
           ],
           "owner": "world-server composition currently stores concrete adapters; wow-database owns their implementation.",
           "open_retirement_issues": [
@@ -1102,9 +1100,10 @@
         },
         {
           "id": "session_resources_runtime_handles",
-          "expected_field_count": 25,
+          "expected_field_count": 29,
           "field_names": [
             "battle_pet_purchase_persistence_port",
+            "character_administration_persistence_port",
             "character_enumeration_persistence_port",
             "creature_query_catalog_persistence_port",
             "gameobject_query_catalog_persistence_port",
@@ -1114,6 +1113,7 @@
             "instance_lock_persistence_port",
             "instance_lock_mgr",
             "item_template_addon_catalog_persistence_port",
+            "loot_template_catalog_persistence_port",
             "map_corpse_persistence_port",
             "module_registry",
             "next_mail_time_persistence_port",
@@ -1128,13 +1128,16 @@
             "social_persistence_port",
             "stored_item_money_persistence_port",
             "support_bug_report_persistence_port",
+            "vendor_catalog_persistence_port",
+            "visibility_spawn_catalog_persistence_port",
             "void_storage_persistence_port"
           ],
           "owner": "world-server composition stores narrow runtime and persistence capability handles; legacy and canonical runtime owners remain distinct and audited by #188.",
           "open_retirement_issues": [
-            153
+            153,
+            169
           ],
-          "retirement_condition": "Session receives only the minimal typed runtime ports/PlayerHandle and cannot select or tick duplicate map authorities. #452 adds the narrow stored Item money capability, #454 adds the distinct multi-recipient payout capability, #458 adds the dedicated support bug-report capability, #460 adds the transitional next-mail read capability, #472 adds the atomic trainer fee plus spell-acquisition capability, #476 adds the recoverable battle-pet purchase durability capability, #478 adds the character-enumeration read capability, #480 adds the transitional creature-query catalog capability, #482 adds the transitional gameobject-query catalog capability, #484 adds the transitional page-text catalog capability, #487 adds the transitional player-name query capability, #489 adds the transitional item-template-addon catalog capability, #491 adds the transitional gossip catalog capability, and #497 adds the instance-lock mutation/load capability without exposing a pool, row, transaction or generic query API."
+          "retirement_condition": "Session receives only the minimal typed runtime ports/PlayerHandle and cannot select or tick duplicate map authorities. #169 adds character-administration, loot-template, vendor and visibility-spawn capabilities while removing the concrete World database handle; the remaining concrete Character/Login handles retire before #169 closes."
         },
         {
           "id": "session_resources_catalogs_and_configuration",
@@ -1396,7 +1399,7 @@
           "retirement_condition": "Every remaining field has an exact capability bundle/consumer owner or is removed from Session construction."
         }
       ],
-      "expected_field_count": 268
+      "expected_field_count": 271
     },
     "session_command": {
       "coverage_source": {

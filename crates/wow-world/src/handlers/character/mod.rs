@@ -33,10 +33,10 @@ use wow_constants::unit::{
     UNIT_FLAGS3_ALLOWED_LIKE_CPP, UnitFlags,
 };
 use wow_constants::{
-    ClientOpcodes, ConditionSourceType, CreatureFlagsExtra, CreatureRandomMovementType,
-    EnchantmentSlot, InventoryResult, InventoryType, ItemBondingType, ItemContext,
-    ItemExtendedCostFlags, ItemFieldFlags, ItemFlags, ItemFlags2, ItemModifier, ItemUpdateState,
-    ItemVendorType, PowerType, Team, TypeId, TypeMask, UnitStandStateType,
+    ClientOpcodes, ConditionSourceType, CreatureFlagsExtra, EnchantmentSlot, InventoryResult,
+    InventoryType, ItemBondingType, ItemContext, ItemExtendedCostFlags, ItemFieldFlags, ItemFlags,
+    ItemFlags2, ItemModifier, ItemUpdateState, ItemVendorType, PowerType, Team, TypeId, TypeMask,
+    UnitStandStateType,
 };
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
@@ -50,20 +50,17 @@ use wow_data::{
     TaxiPathNodeEntry, TaxiPathNodeStore, calculate_player_stat_system_like_cpp,
     hotfix_locale_mask, is_player_meeting_condition_like_cpp,
 };
-use wow_database::{
-    CharStatements, CharacterDatabase, PreparedStatement, SqlResult, SqlTransaction,
-};
+use wow_database::{CharStatements, CharacterDatabase, PreparedStatement, SqlTransaction};
 use wow_entities::{
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, Corpse, CorpseCustomizationChoice,
     CorpseType, CreatureAddonLifecycleRecordLikeCpp, GAMEOBJECT_TYPE_FISHING_HOLE,
     GAMEOBJECT_TYPE_QUESTGIVER, GameObjectTemplateData, INVENTORY_DEFAULT_SIZE,
     INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA, MovementGeneratorType, NULL_BAG,
-    NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery,
-    SendNewItemDisplayText, SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan,
-    SocketedGem, SwapItemPreflightResult, WorldObject, is_bank_pos, is_child_equipment_pos,
-    is_equipment_pos, is_inventory_pos, item_can_go_into_bag,
-    normalize_creature_chase_movement_type_like_cpp,
+    INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MovementGeneratorType, NULL_BAG, NULL_SLOT,
+    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText,
+    SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan, SocketedGem,
+    SwapItemPreflightResult, WorldObject, is_bank_pos, is_child_equipment_pos, is_equipment_pos,
+    is_inventory_pos, item_can_go_into_bag, normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
 };
 use wow_handler::{PacketProcessing, SessionStatus};
@@ -108,13 +105,6 @@ use wow_entities::GAMEOBJECT_TYPE_GOOBER;
 
 // ── Handler registration ────────────────────────────────────────────
 
-const GO_SPAWN_TEMPLATE_DATA_START: usize = 16;
-const GO_SPAWN_PHASE_USE_FLAGS_COLUMN: usize = GO_SPAWN_TEMPLATE_DATA_START + MAX_GAMEOBJECT_DATA;
-const GO_SPAWN_PHASE_ID_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 1;
-const GO_SPAWN_PHASE_GROUP_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 2;
-const GO_SPAWN_TERRAIN_SWAP_MAP_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 3;
-const GO_SPAWN_EFFECTIVE_FLAGS_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 4;
-const GO_SPAWN_EFFECTIVE_FACTION_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 5;
 const DEFAULT_MOTD_LIKE_CPP: &str = "Welcome to a Trinity Core Server.";
 const DIRECT_VENDOR_MASK_LIKE_CPP: u32 = 0x80 | 0x100 | 0x200 | 0x400 | 0x800;
 const DIRECT_TRAINER_MASK_LIKE_CPP: u32 = 0x10 | 0x20 | 0x40;
@@ -136,7 +126,6 @@ const DIRECT_INTERACTION_MASK_LIKE_CPP: u32 = DIRECT_VENDOR_MASK_LIKE_CPP
 fn npc_has_direct_interaction_like_cpp(npc_flags: u32) -> bool {
     npc_flags & DIRECT_INTERACTION_MASK_LIKE_CPP != 0
 }
-const GO_SPAWN_OVERRIDE_SOURCE_KNOWN_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 6;
 const WORLDSTATE_ANY_MAP_LIKE_CPP: i32 = -1;
 const DEFAULT_GOSSIP_MESSAGE_LIKE_CPP: i32 = 0x00FF_FFFF;
 const TRAINER_NPC_FLAGS_MASK_LIKE_CPP: u32 = 0x10 | 0x20 | 0x40;
@@ -1020,26 +1009,6 @@ fn apply_pvp_season_world_states_like_cpp(
         }
     }
 }
-const CREATURE_SPAWN_ROOTED_COLUMN: usize = 35;
-const CREATURE_SPAWN_CHASE_MOVEMENT_TYPE_COLUMN: usize = 36;
-const CREATURE_SPAWN_RANDOM_MOVEMENT_TYPE_COLUMN: usize = 37;
-const CREATURE_SPAWN_INTERACTION_PAUSE_TIMER_COLUMN: usize = 38;
-const CREATURE_SPAWN_WANDER_DISTANCE_COLUMN: usize = 39;
-const CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN: usize = 40;
-const CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN: usize = 41;
-const CREATURE_SPAWN_DISPLAY_SCALE_COLUMN: usize = 42;
-const CREATURE_SPAWN_CLASSIFICATION_COLUMN: usize = 43;
-const CREATURE_SPAWN_REGEN_HEALTH_COLUMN: usize = 44;
-const CREATURE_SPAWN_NPC_FLAGS_OVERRIDE_COLUMN: usize = 45;
-const CREATURE_SPAWN_UNIT_FLAGS_OVERRIDE_COLUMN: usize = 46;
-const CREATURE_SPAWN_UNIT_FLAGS2_OVERRIDE_COLUMN: usize = 47;
-const CREATURE_SPAWN_UNIT_FLAGS3_OVERRIDE_COLUMN: usize = 48;
-const CREATURE_SPAWN_EQUIPMENT_ID_COLUMN: usize = 49;
-const CREATURE_SPAWN_RESPAWN_DELAY_SECS_COLUMN: usize = 50;
-const CREATURE_SPAWN_DIFFICULTIES_COLUMN: usize = 51;
-const CREATURE_SPAWN_SCRIPT_NAME_COLUMN: usize = 52;
-const CREATURE_SPAWN_STRING_ID_COLUMN: usize = 53;
-const CREATURE_SPAWN_VEHICLE_ID_COLUMN: usize = 54;
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xDF2F_53CF;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
@@ -1561,18 +1530,18 @@ fn transport_position_for_login_like_cpp(
     None
 }
 
-fn bind_create_character_difficulties_like_cpp(stmt: &mut PreparedStatement) {
-    stmt.set_u8(16, DIFFICULTY_NORMAL_LIKE_CPP);
-    stmt.set_u8(17, DIFFICULTY_NORMAL_RAID_LIKE_CPP);
-    stmt.set_u8(18, DIFFICULTY_10_N_LIKE_CPP);
-}
-
 fn initial_character_rest_state_like_cpp(is_a_recruiter: bool, recruiter_id: u32) -> u8 {
     if is_a_recruiter || recruiter_id != 0 {
         REST_STATE_RAF_LINKED_LIKE_CPP
     } else {
         REST_STATE_NORMAL_LIKE_CPP
     }
+}
+
+fn bind_create_character_difficulties_like_cpp(stmt: &mut PreparedStatement) {
+    stmt.set_u8(16, DIFFICULTY_NORMAL_LIKE_CPP);
+    stmt.set_u8(17, DIFFICULTY_NORMAL_RAID_LIKE_CPP);
+    stmt.set_u8(18, DIFFICULTY_10_N_LIKE_CPP);
 }
 
 fn creature_movement_generator_type_from_db_like_cpp(
@@ -1605,27 +1574,6 @@ fn normalize_creature_template_speed_walk_like_cpp(speed_walk: f32) -> f32 {
 
 fn normalize_creature_template_speed_run_like_cpp(speed_run: f32) -> f32 {
     if speed_run == 0.0 { 1.14286 } else { speed_run }
-}
-
-fn optional_u64_column_like_cpp(row: &SqlResult, column: usize) -> Option<u64> {
-    row.try_read::<Option<i64>>(column)
-        .flatten()
-        .map(|value| value as u64)
-        .or_else(|| row.try_read::<Option<u64>>(column).flatten())
-        .or_else(|| row.try_read::<i64>(column).map(|value| value as u64))
-        .or_else(|| row.try_read::<u64>(column))
-}
-
-fn optional_u32_column_like_cpp(row: &SqlResult, column: usize) -> Option<u32> {
-    row.try_read::<Option<u32>>(column)
-        .flatten()
-        .or_else(|| {
-            row.try_read::<Option<i64>>(column)
-                .flatten()
-                .map(|value| value.max(0) as u32)
-        })
-        .or_else(|| row.try_read::<u32>(column))
-        .or_else(|| row.try_read::<i64>(column).map(|value| value.max(0) as u32))
 }
 
 fn spawn_difficulties_contains_spawn_mode_like_cpp(
@@ -2862,4 +2810,4 @@ mod vendor_atomicity_tests;
 
 #[cfg(test)]
 #[path = "../character_tests.rs"]
-mod tests;
+pub(crate) mod tests;

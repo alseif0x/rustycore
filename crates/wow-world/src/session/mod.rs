@@ -163,8 +163,7 @@ use wow_data::{
     spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
 };
 use wow_database::{
-    CharacterDatabase, LoginDatabase, SqlTransaction, WorldDatabase,
-    retry_deadlocked_operation_like_cpp,
+    CharacterDatabase, LoginDatabase, SqlTransaction, retry_deadlocked_operation_like_cpp,
 };
 use wow_entities::{
     AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentDurationAction,
@@ -5181,8 +5180,8 @@ struct PlayerTransportLoginStateLikeCpp {
 /// Receives deserialized packets from the socket layer via a channel,
 /// dispatches them to registered handlers, and sends responses back.
 #[derive(Default)]
-struct SessionPersistencePortsLikeCpp {
-    character_administration:
+pub(crate) struct SessionPersistencePortsLikeCpp {
+    pub(crate) character_administration:
         Option<Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>>,
     player_lifecycle: Option<Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>>,
     character_enumeration:
@@ -5202,6 +5201,12 @@ struct SessionPersistencePortsLikeCpp {
         Option<Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>>,
     item_template_addon_catalog:
         Option<Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>>,
+    pub(crate) loot_template_catalog:
+        Option<Arc<dyn wow_persistence::LootTemplateCatalogPersistencePortLikeCpp>>,
+    pub(crate) vendor_catalog:
+        Option<Arc<dyn wow_persistence::VendorCatalogPersistencePortLikeCpp>>,
+    pub(crate) visibility_spawn_catalog:
+        Option<Arc<dyn wow_persistence::VisibilitySpawnCatalogPersistencePortLikeCpp>>,
     gossip_catalog: Option<Arc<dyn wow_persistence::GossipCatalogPersistencePortLikeCpp>>,
     creature_query_catalog:
         Option<Arc<dyn wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp>>,
@@ -5293,10 +5298,7 @@ pub struct WorldSession {
     /// Typed database capabilities live behind one indirection so adding a
     /// persistence workflow does not keep growing this already-large session;
     /// `wow-database` supplies the concrete adapters.
-    persistence_ports_like_cpp: Box<SessionPersistencePortsLikeCpp>,
-
-    // World database (for creature templates, spawns, etc.)
-    world_db: Option<Arc<WorldDatabase>>,
+    pub(crate) persistence_ports_like_cpp: Box<SessionPersistencePortsLikeCpp>,
 
     // C++ ObjectMgr trainer definitions and creature bindings.
     trainer_store_like_cpp: Option<Arc<TrainerStoreLikeCpp>>,
@@ -7659,7 +7661,6 @@ impl WorldSession {
             homebind_persistence_tx_like_cpp: None,
             login_db: None,
             persistence_ports_like_cpp: Box::default(),
-            world_db: None,
             trainer_store_like_cpp: None,
             bank_bag_slot_prices_store: None,
             currency_types_store: None,
@@ -16272,21 +16273,6 @@ impl WorldSession {
         self.persistence_ports_like_cpp.player_lifecycle = Some(port);
     }
 
-    pub fn set_character_administration_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>,
-    ) {
-        self.persistence_ports_like_cpp.character_administration = Some(port);
-    }
-
-    pub(crate) fn character_administration_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>> {
-        self.persistence_ports_like_cpp
-            .character_administration
-            .clone()
-    }
-
     pub(crate) fn player_lifecycle_port_like_cpp(
         &self,
     ) -> Option<&Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>> {
@@ -16715,16 +16701,6 @@ impl WorldSession {
     /// Get the login database reference.
     pub fn login_db(&self) -> Option<&Arc<LoginDatabase>> {
         self.login_db.as_ref()
-    }
-
-    /// Set the world database for this session.
-    pub fn set_world_db(&mut self, db: Arc<WorldDatabase>) {
-        self.world_db = Some(db);
-    }
-
-    /// Get the world database reference.
-    pub fn world_db(&self) -> Option<&Arc<WorldDatabase>> {
-        self.world_db.as_ref()
     }
 
     pub fn set_trainer_store_like_cpp(&mut self, store: Arc<TrainerStoreLikeCpp>) {

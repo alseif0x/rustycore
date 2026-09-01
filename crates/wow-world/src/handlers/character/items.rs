@@ -9,7 +9,7 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::{CharStatements, SqlResult, SqlTransaction, WorldStatements};
+use wow_database::{CharStatements, SqlTransaction};
 
 use super::*;
 
@@ -17,13 +17,9 @@ impl WorldSession {
     pub(super) fn creature_virtual_items_from_row_like_cpp(
         &mut self,
         entry: u32,
-        row: &SqlResult,
+        persisted_equipment_id: i16,
     ) -> CreatureEquipmentCreateFieldsLikeCpp {
-        let mut equipment_id = row
-            .try_read::<i8>(CREATURE_SPAWN_EQUIPMENT_ID_COLUMN)
-            .map(i16::from)
-            .or_else(|| row.try_read::<i16>(CREATURE_SPAWN_EQUIPMENT_ID_COLUMN))
-            .unwrap_or(0);
+        let mut equipment_id = persisted_equipment_id;
         let original_equipment_id = i8::try_from(equipment_id).unwrap_or(0);
         if equipment_id == 0 {
             return CreatureEquipmentCreateFieldsLikeCpp {
@@ -774,8 +770,8 @@ impl WorldSession {
             vendor_guid, self.account_id
         );
 
-        let world_db = match self.world_db() {
-            Some(db) => Arc::clone(db),
+        let vendor_catalog = match self.vendor_catalog_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return,
         };
 
@@ -786,15 +782,14 @@ impl WorldSession {
         }) {
             Some(entry) => entry,
             None => {
-                let mut stmt = world_db.prepare(WorldStatements::SEL_CREATURE_ENTRY_BY_GUID);
-                stmt.set_u64(0, vendor_guid.low_value() as u64);
                 let fallback = match tokio::time::timeout(
                     std::time::Duration::from_secs(2),
-                    world_db.query(&stmt),
+                    vendor_catalog
+                        .load_creature_entry_by_spawn_like_cpp(vendor_guid.low_value() as u64),
                 )
                 .await
                 {
-                    Ok(Ok(r)) if !r.is_empty() => r.try_read::<u32>(0),
+                    Ok(wow_persistence::VendorCatalogOutcomeLikeCpp::Loaded(entry)) => Some(entry),
                     _ => None,
                 };
                 match fallback {
@@ -836,19 +831,16 @@ impl WorldSession {
             if !expanded.insert(vendor_entry) {
                 continue; // already expanded (avoid cycles)
             }
-            let mut stmt = world_db.prepare(WorldStatements::SEL_VENDOR_ITEMS);
-            stmt.set_u32(0, entry);
-            stmt.set_u32(1, vendor_entry);
-
-            let mut result = match tokio::time::timeout(
+            let rows = match tokio::time::timeout(
                 std::time::Duration::from_secs(5),
-                world_db.query(&stmt),
+                vendor_catalog.load_vendor_rows_like_cpp(entry, vendor_entry),
             )
             .await
             {
-                Ok(Ok(r)) => r,
-                Ok(Err(e)) => {
-                    warn!("Vendor query failed for entry {vendor_entry}: {e}");
+                Ok(wow_persistence::VendorCatalogOutcomeLikeCpp::Loaded(rows)) => rows,
+                Ok(wow_persistence::VendorCatalogOutcomeLikeCpp::Missing) => Vec::new(),
+                Ok(wow_persistence::VendorCatalogOutcomeLikeCpp::Failed { reason }) => {
+                    warn!("Vendor query failed for entry {vendor_entry}: {reason}");
                     continue;
                 }
                 Err(_) => {
@@ -857,25 +849,18 @@ impl WorldSession {
                 }
             };
 
-            loop {
-                let item_id: i32 = result.try_read(0).unwrap_or(0);
-                let maxcount: i32 = result.try_read(1).unwrap_or(0);
-                let extended_cost: i32 = result.try_read::<u32>(2).unwrap_or(0) as i32;
-                let item_type: i32 = result.try_read::<u8>(3).unwrap_or(1) as i32;
-                let buy_price: u64 = result
-                    .try_read::<i64>(5)
-                    .map(|v| v as u64)
-                    .or_else(|| result.try_read::<u64>(5))
-                    .unwrap_or(0);
-                let durability: i32 = result.try_read::<i64>(7).map(|v| v as i32).unwrap_or(0);
-                let stack_count: i32 = result.try_read::<i64>(8).map(|v| v as i32).unwrap_or(1);
-                let do_not_filter: bool = result.try_read::<u8>(9).map(|v| v != 0).unwrap_or(false);
-                let incr_time: u32 = result.try_read::<u32>(10).unwrap_or(0);
-                let player_condition_id: u32 = result.try_read::<u32>(11).unwrap_or(0);
-                let has_vendor_conditions: bool = result
-                    .try_read::<u8>(12)
-                    .map(|value| value != 0)
-                    .unwrap_or(false);
+            for row in rows {
+                let item_id = row.item_id;
+                let maxcount = row.max_count;
+                let extended_cost = row.extended_cost as i32;
+                let item_type = i32::from(row.item_type);
+                let buy_price = row.buy_price;
+                let durability = row.max_durability as i32;
+                let stack_count = row.buy_count as i32;
+                let do_not_filter = row.do_not_filter;
+                let incr_time = row.incr_time;
+                let player_condition_id = row.player_condition_id;
+                let has_vendor_conditions = row.has_vendor_conditions;
 
                 // Solo enviar items con ID válido; 0 o negativo el cliente lo muestra como ? y nombre vacío
                 // Ademas filtrar items que no existen en Item.db2, matching
@@ -891,9 +876,6 @@ impl WorldSession {
                             item_id,
                             extended_cost,
                         ) {
-                            if !result.next_row() {
-                                break;
-                            }
                             continue;
                         }
                         items.push(VendorItem {
@@ -917,9 +899,6 @@ impl WorldSession {
                         if vendor_list_reaches_cpp_item_limit(items.len()) {
                             break 'vendor_expansion;
                         }
-                        if !result.next_row() {
-                            break;
-                        }
                         continue;
                     }
                     let item_known = self
@@ -930,9 +909,6 @@ impl WorldSession {
                             "Vendor item {} not in Item.db2 (entry {}), skipping",
                             item_id, vendor_entry
                         );
-                        if !result.next_row() {
-                            break;
-                        }
                         continue;
                     }
                     let current_count = self.vendor_item_current_count(
@@ -944,9 +920,6 @@ impl WorldSession {
                     );
                     if vendor_list_should_skip_sold_out(maxcount, current_count, self.security > 0)
                     {
-                        if !result.next_row() {
-                            break;
-                        }
                         continue;
                     }
                     let template = self.item_storage_template(item_id as u32);
@@ -959,9 +932,6 @@ impl WorldSession {
                         self.player_class_like_cpp(),
                         self.security > 0,
                     ) {
-                        if !result.next_row() {
-                            break;
-                        }
                         continue;
                     }
                     if vendor_list_should_skip_faction_flags(
@@ -969,16 +939,10 @@ impl WorldSession {
                         player_team_for_race_cpp(self.player_race_like_cpp()),
                         self.security > 0,
                     ) {
-                        if !result.next_row() {
-                            break;
-                        }
                         continue;
                     }
                     if has_vendor_conditions {
                         let Some(store) = condition_store.as_ref() else {
-                            if !result.next_row() {
-                                break;
-                            }
                             continue;
                         };
                         let (vendor_object, vendor_unit_snapshot) = vendor_condition_object
@@ -1001,9 +965,6 @@ impl WorldSession {
                                 "Vendor item condition not met for creature entry {} item {}",
                                 entry, item_id
                             );
-                            if !result.next_row() {
-                                break;
-                            }
                             continue;
                         }
                     }
@@ -1040,10 +1001,6 @@ impl WorldSession {
                 } else if item_id < 0 {
                     let ref_entry = (-item_id) as u32;
                     queue.push_back(ref_entry);
-                }
-
-                if !result.next_row() {
-                    break;
                 }
             }
         }

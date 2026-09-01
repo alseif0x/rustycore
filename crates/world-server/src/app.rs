@@ -4469,6 +4469,25 @@ async fn run_inner(
             &world_db,
         )),
     );
+    let loot_template_catalog_persistence_port: Arc<
+        dyn wow_persistence::LootTemplateCatalogPersistencePortLikeCpp,
+    > = Arc::new(
+        wow_database::MariaDbLootTemplateCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
+            &world_db,
+        )),
+    );
+    let vendor_catalog_persistence_port: Arc<
+        dyn wow_persistence::VendorCatalogPersistencePortLikeCpp,
+    > = Arc::new(
+        wow_database::MariaDbVendorCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db)),
+    );
+    let visibility_spawn_catalog_persistence_port: Arc<
+        dyn wow_persistence::VisibilitySpawnCatalogPersistencePortLikeCpp,
+    > = Arc::new(
+        wow_database::MariaDbVisibilitySpawnCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
+            &world_db,
+        )),
+    );
     let gossip_catalog_persistence_port: Arc<
         dyn wow_persistence::GossipCatalogPersistencePortLikeCpp,
     > = gossip_catalog_adapter.clone();
@@ -4576,6 +4595,9 @@ async fn run_inner(
         item_template_addon_catalog_persistence_port: Some(
             item_template_addon_catalog_persistence_port,
         ),
+        loot_template_catalog_persistence_port: Some(loot_template_catalog_persistence_port),
+        vendor_catalog_persistence_port: Some(vendor_catalog_persistence_port),
+        visibility_spawn_catalog_persistence_port: Some(visibility_spawn_catalog_persistence_port),
         gossip_catalog_persistence_port: Some(gossip_catalog_persistence_port),
         page_text_catalog_persistence_port: Some(page_text_catalog_persistence_port),
         player_name_query_persistence_port: Some(player_name_query_persistence_port),
@@ -4596,7 +4618,6 @@ async fn run_inner(
         player_spell_acquisition_persistence_port: Some(spell_acquisition_port),
         battle_pet_purchase_persistence_port: Some(battle_pet_purchase_persistence_port),
         instance_lock_persistence_port: Some(instance_lock_persistence_port),
-        world_db: Some(Arc::clone(&world_db)),
         trainer_store: Some(Arc::clone(&trainer_data_store)),
         guid_generator: Some(Arc::clone(&guid_generator)),
         item_guid_generator: Some(Arc::clone(&item_guid_generator)),
