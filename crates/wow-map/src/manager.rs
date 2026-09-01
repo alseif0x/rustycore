@@ -28,6 +28,9 @@ use crate::spawn::{Difficulty, SpawnId, SpawnObjectType, SpawnStore};
 use wow_core::{GameTime, ObjectGuid};
 use wow_entities::CreatureRuntimeUpdateContext;
 
+mod player_owner;
+pub use player_owner::{PlayerHandle, PlayerOwnerError, PlayerResidenceLikeCpp};
+
 pub const MIN_GRID_DELAY_MS: u32 = 60_000;
 pub const MIN_MAP_UPDATE_DELAY_MS: u32 = 1;
 
@@ -810,6 +813,9 @@ pub struct MapManager {
     updater: MapUpdater,
     scheduled_scripts: usize,
     spawn_group_initializer_like_cpp: Option<SpawnGroupInitializerLikeCpp>,
+    player_owners_like_cpp: BTreeMap<ObjectGuid, player_owner::PlayerOwnershipLikeCpp>,
+    detached_players_like_cpp: BTreeMap<ObjectGuid, Box<wow_entities::Player>>,
+    next_player_generation_like_cpp: u64,
 }
 
 impl fmt::Debug for MapManager {
@@ -848,6 +854,9 @@ impl MapManager {
             updater: MapUpdater::default(),
             scheduled_scripts: 0,
             spawn_group_initializer_like_cpp: None,
+            player_owners_like_cpp: BTreeMap::new(),
+            detached_players_like_cpp: BTreeMap::new(),
+            next_player_generation_like_cpp: 1,
         };
         manager.set_grid_cleanup_delay(grid_cleanup_delay_ms);
         manager.set_map_update_interval(map_update_interval_ms);

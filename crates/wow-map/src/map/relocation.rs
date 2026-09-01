@@ -1096,15 +1096,14 @@ where
             // the protected durable boundary.
             detach_typed_loot_authority_like_cpp(&mut record);
             let was_world_object_like_cpp = map_record_is_world_object_like_cpp(&record);
-            let mut object = record.into_object();
             let was_in_world = remove_from_map_was_in_world;
             let cxx_in_world =
                 was_in_world && remove_from_map_in_world_eligible_type_like_cpp(kind);
-            let personal_phase_owner = object.phase_shift().personal_guid_like_cpp();
-            let cell = Cell::from_world(object.position().x, object.position().y);
+            let personal_phase_owner = record.object().phase_shift().personal_guid_like_cpp();
+            let cell = Cell::from_world(record.object().position().x, record.object().position().y);
             let grid = GridCoord::new(cell.grid_x(), cell.grid_y());
 
-            object.object_mut().remove_from_world();
+            record.object_mut().object_mut().remove_from_world();
             let personal_phase_unregister = self
                 .personal_phase_tracker
                 .unregister_tracked_object_for_phase_owner_like_cpp(personal_phase_owner, guid);
@@ -1123,8 +1122,21 @@ where
                 guid,
             );
 
-            object.clear_current_cell();
-            object.reset_map().map_err(RemoveFromMapError::ResetMap)?;
+            record.object_mut().clear_current_cell();
+            record
+                .object_mut()
+                .reset_map()
+                .map_err(RemoveFromMapError::ResetMap)?;
+
+            // Preserve the typed Player for MapManager's detached/far-teleport
+            // owner. The `WorldObject` is only an immutable compatibility
+            // projection in the outcome; no second mutable Player is created.
+            let object = record.object().clone();
+            let player = if !delete_from_world && kind == AccessorObjectKind::Player {
+                record.into_player().ok()
+            } else {
+                None
+            };
 
             Ok(RemoveFromMapOutcome {
                 guid,
@@ -1149,6 +1161,7 @@ where
                 creature_remove_formation,
                 personal_phase_unregister,
                 visibility_on_destroy,
+                player,
                 object: if delete_from_world {
                     None
                 } else {

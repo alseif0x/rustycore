@@ -4147,6 +4147,9 @@ pub struct RemoveFromMapOutcome {
     pub creature_remove_formation: Option<CreatureRemoveFormationOutcomeLikeCpp>,
     pub personal_phase_unregister: PersonalPhaseUnregisterTrackedObjectOutcomeLikeCpp,
     pub visibility_on_destroy: RemoveFromMapVisibilityOnDestroyOutcomeLikeCpp,
+    /// The exact canonical Player value retained by a non-delete Map transfer.
+    /// Other object families remain represented by `object` below.
+    pub player: Option<Box<Player>>,
     pub object: Option<WorldObject>,
 }
 
