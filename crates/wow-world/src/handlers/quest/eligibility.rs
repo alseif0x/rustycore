@@ -195,7 +195,10 @@ impl WorldSession {
 
         let mut source_info =
             crate::conditions::ConditionSourceInfo::from_targets(Some(&player_object), None, None);
-        source_info.set_unit_target_snapshot(0, self.condition_player_unit_snapshot_like_cpp());
+        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+            return false;
+        };
+        source_info.set_unit_target_snapshot(0, player_unit_snapshot);
         source_info.set_player_target_snapshot(0, self.condition_player_snapshot_like_cpp());
         source_info.set_player_quest_target_snapshot(0, quest_snapshot);
         if let Some(store) = self.player_condition_store() {

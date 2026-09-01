@@ -5759,7 +5759,8 @@ pub struct WorldSession {
 
     /// True when the player is engaged in combat.
     pub(crate) in_combat: bool,
-    /// Represented `Player::IsAlive()` state for handler guards that need C++ ordering.
+    /// Test-only legacy fixture for sessions without an installed Player owner.
+    #[cfg(test)]
     player_alive_like_cpp: bool,
     /// Represented `Player::IsGameMaster()` movement/fall guard.
     player_game_master_like_cpp: bool,
@@ -5769,9 +5770,11 @@ pub struct WorldSession {
     player_normal_damage_immune_like_cpp: bool,
     /// Represented `IsImmuneToEnvironmentalDamage()` guard inside EnvironmentalDamage.
     player_environmental_damage_immune_like_cpp: bool,
-    /// Represented player health used by movement/environmental side effects.
+    /// Test-only legacy health fixture for sessions without a Player handle.
+    #[cfg(test)]
     player_health_like_cpp: u32,
-    /// Represented player max health used by movement/environmental side effects.
+    /// Test-only legacy max-health fixture for sessions without a Player handle.
+    #[cfg(test)]
     player_max_health_like_cpp: u32,
     /// High-water mark for map-owned creature-melee presentation commands.
     /// Canonical health/death authority lives on `wow-map`; this suppresses
@@ -7830,12 +7833,15 @@ impl WorldSession {
             combat_tick_last_at_like_cpp: Instant::now(),
             player_swing_error_msg_like_cpp: None,
             in_combat: false,
+            #[cfg(test)]
             player_alive_like_cpp: true,
             player_game_master_like_cpp: false,
             player_cheat_god_like_cpp: false,
             player_normal_damage_immune_like_cpp: false,
             player_environmental_damage_immune_like_cpp: false,
+            #[cfg(test)]
             player_health_like_cpp: 100,
+            #[cfg(test)]
             player_max_health_like_cpp: 100,
             last_presented_creature_melee_health_state_revision_like_cpp: 0,
             player_movement_time_like_cpp: 0,
@@ -9389,12 +9395,35 @@ impl WorldSession {
             player.unit_mut().set_faction(faction_template);
         }
         player.unit_mut().set_level(self.player_level_like_cpp());
-        player
-            .unit_mut()
-            .set_max_health(u64::from(self.player_max_health_like_cpp));
-        player
-            .unit_mut()
-            .set_health(u64::from(self.player_health_like_cpp));
+        // Preserve the pre-load Rust bootstrap shape. The Character row later
+        // hydrates these values directly into the generation-checked Player;
+        // Session no longer stores a second production vital-state authority.
+        #[cfg(not(test))]
+        {
+            player.unit_mut().set_max_health(100);
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Alive);
+            player.unit_mut().set_health(100);
+        }
+        #[cfg(test)]
+        {
+            player
+                .unit_mut()
+                .set_max_health(u64::from(self.player_max_health_like_cpp.max(1)));
+            if !self.player_alive_like_cpp || self.player_health_like_cpp == 0 {
+                player
+                    .unit_mut()
+                    .set_death_state(wow_constants::DeathState::Corpse);
+            } else {
+                player
+                    .unit_mut()
+                    .set_death_state(wow_constants::DeathState::Alive);
+            }
+            player
+                .unit_mut()
+                .set_health(u64::from(self.player_health_like_cpp));
+        }
         self.apply_represented_player_powers_to_canonical_like_cpp(&mut player);
         player.set_xp(self.player_xp_like_cpp() as i32);
         player.set_next_level_xp(self.player_next_level_xp_like_cpp() as i32);
@@ -9568,10 +9597,10 @@ impl WorldSession {
                     .max(1)
                     .min(u64::from(u32::MAX)) as u32;
                 let canonical_health = player.unit().data().health.min(u64::from(u32::MAX)) as u32;
-                let health = if !self.player_alive_like_cpp || self.player_health_like_cpp == 0 {
-                    0
-                } else {
+                let health = if player.unit().is_alive() && canonical_health > 0 {
                     canonical_health
+                } else {
+                    0
                 };
 
                 snapshot = Some(PlayerSaveToDbSnapshotLikeCpp {
@@ -9605,6 +9634,7 @@ impl WorldSession {
                 )
             };
 
+        let (health, max_health, _) = self.resolved_player_vitals_like_cpp()?;
         Some(PlayerSaveToDbSnapshotLikeCpp {
             guid,
             map_id,
@@ -9613,8 +9643,8 @@ impl WorldSession {
             level: self.player_level_like_cpp(),
             xp: self.player_xp_like_cpp(),
             money: self.player_gold_like_cpp(),
-            health: self.player_health_like_cpp,
-            max_health: self.player_max_health_like_cpp.max(1),
+            health,
+            max_health,
             powers: self.represented_player_powers_like_cpp,
         })
     }
@@ -9787,6 +9817,24 @@ impl WorldSession {
         self.mutate_canonical_player_by_guid_like_cpp(guid, f)
     }
 
+    /// Resolve this session incarnation's canonical `Player` exclusively
+    /// through its generation-checked handle.
+    ///
+    /// Unlike the transitional GUID/map lookup helpers, this deliberately has
+    /// no fallback: a stale or missing handle means that the owner is unknown.
+    fn with_owned_player_like_cpp<R>(&self, f: impl FnOnce(&Player) -> R) -> Option<R> {
+        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let handle = self.player_handle_like_cpp?;
+        manager.lock().ok()?.with_player_like_cpp(handle, f)
+    }
+
+    /// Mutating counterpart to `with_owned_player_like_cpp`.
+    fn with_owned_player_mut_like_cpp<R>(&self, f: impl FnOnce(&mut Player) -> R) -> Option<R> {
+        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let handle = self.player_handle_like_cpp?;
+        manager.lock().ok()?.with_player_mut_like_cpp(handle, f)
+    }
+
     pub(crate) fn sync_canonical_player_primary_power_like_cpp(
         &mut self,
         power_type: PowerType,
@@ -9844,7 +9892,7 @@ impl WorldSession {
         max_health: u32,
     ) -> Option<(u32, u32)> {
         let max_health = max_health.max(1);
-        let result = self.mutate_canonical_player_like_cpp(|player| {
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
             // C++ `Unit::SetMaxHealth` updates max and clamps current only if needed.
             player.unit_mut().set_max_health(u64::from(max_health));
             (
@@ -9852,8 +9900,27 @@ impl WorldSession {
                 player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
             )
         });
+        #[cfg(test)]
+        let result = canonical.or_else(|| {
+            if self.player_handle_like_cpp.is_some() {
+                return None;
+            }
+            self.mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().set_max_health(u64::from(max_health));
+                (
+                    player.unit().data().health.min(u64::from(u32::MAX)) as u32,
+                    player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
+                )
+            })
+            .or_else(|| Some((self.player_health_like_cpp.min(max_health), max_health)))
+        });
+        #[cfg(not(test))]
+        let result = canonical;
+        #[cfg(test)]
         if let Some((current, max)) = result {
-            self.set_player_health_like_cpp(current, max);
+            self.player_health_like_cpp = current;
+            self.player_max_health_like_cpp = max;
+            self.player_alive_like_cpp = current > 0;
         }
         result
     }
@@ -9865,7 +9932,7 @@ impl WorldSession {
     ) -> Option<(u32, u32)> {
         let max_health = max_health.max(1);
         let health = health.min(max_health);
-        let result = self.mutate_canonical_player_like_cpp(|player| {
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
             if health == 0 {
                 player
                     .unit_mut()
@@ -9885,10 +9952,33 @@ impl WorldSession {
                 player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
             )
         });
-        if let Some((current, max)) = result {
-            self.set_player_health_like_cpp(current, max);
-        } else {
-            self.set_player_health_like_cpp(health, max_health);
+        #[cfg(test)]
+        let result = canonical.or_else(|| {
+            if self.player_handle_like_cpp.is_some() {
+                return None;
+            }
+            self.mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().set_death_state(if health == 0 {
+                    wow_constants::DeathState::Corpse
+                } else {
+                    wow_constants::DeathState::Alive
+                });
+                player.unit_mut().set_max_health(u64::from(max_health));
+                player.unit_mut().set_health(u64::from(health));
+                (
+                    player.unit().data().health.min(u64::from(u32::MAX)) as u32,
+                    player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
+                )
+            })
+        });
+        #[cfg(not(test))]
+        let result = canonical;
+        #[cfg(test)]
+        {
+            let (current, max) = result.unwrap_or((health, max_health));
+            self.player_health_like_cpp = current;
+            self.player_max_health_like_cpp = max;
+            self.player_alive_like_cpp = current > 0;
         }
         result
     }
@@ -11549,7 +11639,7 @@ impl WorldSession {
             && !map_entry.ignores_instance_farm_limit_like_cpp()
             && let Some(key) = key
             && !self.check_instance_count_like_cpp(key.instance_id)
-            && self.player_is_alive_like_cpp()
+            && self.resolved_player_is_alive_like_cpp() == Some(true)
         {
             self.send_transfer_aborted_like_cpp(
                 key.map_id,
@@ -13244,7 +13334,9 @@ impl WorldSession {
         target_object.relocate(creature.position);
         *target_object.phase_shift_mut() = creature.phase_shift.clone();
 
-        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
+        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+            return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
+        };
         let player_snapshot = self.condition_player_snapshot_like_cpp();
         let creature_unit_snapshot = crate::conditions::ConditionUnitSnapshot {
             level: creature.level,
@@ -13395,7 +13487,10 @@ impl WorldSession {
         target_object.relocate(creature.position);
         *target_object.phase_shift_mut() = creature.phase_shift.clone();
 
-        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
+        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+            plan.exact_context_unrepresented = true;
+            return plan;
+        };
         let player_snapshot = self.condition_player_snapshot_like_cpp();
         let creature_unit_snapshot = crate::conditions::ConditionUnitSnapshot {
             level: creature.level,
@@ -13789,7 +13884,12 @@ impl WorldSession {
         if self.player_guid() != Some(player_guid) {
             return Err("Target player not current session");
         }
-        if !self.player_alive_like_cpp {
+        let Some((original_health, health_after, _, applied_damage, _)) = self
+            .apply_owned_player_damage_like_cpp(damage_amount, wow_constants::DeathState::Corpse)
+        else {
+            return Err("Target player owner not available");
+        };
+        if damage_amount > 0 && applied_damage == 0 {
             debug!(
                 account = self.account_id,
                 player = ?player_guid,
@@ -13799,22 +13899,9 @@ impl WorldSession {
             );
             return Ok(());
         }
-
-        let original_health = self.player_health_like_cpp;
-        let final_damage = damage_amount.min(original_health);
-        self.player_health_like_cpp = self.player_health_like_cpp.saturating_sub(final_damage);
-        if self.player_health_like_cpp == 0 {
-            self.player_alive_like_cpp = false;
-        }
-        let health_after = self.player_health_like_cpp;
-        let _ = self
-            .sync_canonical_player_health_like_cpp(health_after, self.player_max_health_like_cpp);
         self.sync_player_registry_state_like_cpp();
-        if self.player_health_like_cpp != original_health {
-            self.send_player_health_update_like_cpp(
-                player_guid,
-                u64::from(self.player_health_like_cpp),
-            );
+        if health_after != original_health {
+            self.send_player_health_update_like_cpp(player_guid, u64::from(health_after));
         }
 
         Ok(())
@@ -14433,14 +14520,40 @@ impl WorldSession {
                 return None;
             };
             let map = manager.find_map(player_map_key.map_id, player_map_key.instance_id)?;
-            if map
-                .map()
-                .get_typed_player(player_guid)
-                .is_some_and(|player| !player.unit().world().object().is_in_world())
+            let player_is_alive = if let Some(canonical_player) =
+                map.map().get_typed_player(player_guid)
             {
-                canonical_fail_closed_like_cpp = true;
-                return None;
-            }
+                if !canonical_player.unit().world().object().is_in_world() {
+                    canonical_fail_closed_like_cpp = true;
+                    return None;
+                }
+                #[cfg(test)]
+                let is_alive = if canonical_player.unit().data().max_health == 0
+                    && self.player_handle_like_cpp.is_none()
+                {
+                    self.player_alive_like_cpp && self.player_health_like_cpp > 0
+                } else {
+                    canonical_player.unit().is_alive() && canonical_player.unit().data().health > 0
+                };
+                #[cfg(not(test))]
+                let is_alive =
+                    canonical_player.unit().is_alive() && canonical_player.unit().data().health > 0;
+                is_alive
+            } else {
+                #[cfg(test)]
+                {
+                    if self.player_handle_like_cpp.is_some() {
+                        canonical_fail_closed_like_cpp = true;
+                        return None;
+                    }
+                    self.player_alive_like_cpp && self.player_health_like_cpp > 0
+                }
+                #[cfg(not(test))]
+                {
+                    canonical_fail_closed_like_cpp = true;
+                    return None;
+                }
+            };
             let record = map.map().map_object_record(guid)?;
             canonical_record_found_like_cpp = true;
             let creature = if guid.is_pet() {
@@ -14451,9 +14564,7 @@ impl WorldSession {
 
             let type_flags =
                 CreatureTypeFlags::from_bits_retain(creature.lifecycle_metadata().type_flags);
-            if !self.player_is_alive_like_cpp()
-                && !type_flags.contains(CreatureTypeFlags::VISIBLE_TO_GHOSTS)
-            {
+            if !player_is_alive && !type_flags.contains(CreatureTypeFlags::VISIBLE_TO_GHOSTS) {
                 return None;
             }
             if !creature.is_alive() && !type_flags.contains(CreatureTypeFlags::INTERACT_WHILE_DEAD)
@@ -14568,7 +14679,7 @@ impl WorldSession {
             manager.find_creature(self.player_map_id_like_cpp(), player_instance_id, guid)?;
         let type_flags =
             CreatureTypeFlags::from_bits_retain(creature.creature.lifecycle_metadata().type_flags);
-        if !self.player_is_alive_like_cpp()
+        if self.resolved_player_is_alive_like_cpp() != Some(true)
             && !type_flags.contains(CreatureTypeFlags::VISIBLE_TO_GHOSTS)
         {
             return None;
@@ -19242,8 +19353,10 @@ impl WorldSession {
             return false;
         }
 
-        let health_before = self.player_health_like_cpp;
-        let max_health_before = self.player_max_health_like_cpp.max(1);
+        let Some((health_before, max_health_before, _)) = self.resolved_player_vitals_like_cpp()
+        else {
+            return false;
+        };
         let item_mod_targets = self.represented_top_level_item_mod_targets_like_cpp();
         self.record_represented_all_item_mods_like_cpp(&item_mod_targets, false);
         self.represented_using_pvp_item_levels_like_cpp = pvp_activity;
@@ -20367,7 +20480,9 @@ impl WorldSession {
         health_before: u32,
         max_health_before: u32,
     ) {
-        let max_health_after = self.player_max_health_like_cpp.max(1);
+        let Some((_, max_health_after, _)) = self.resolved_player_vitals_like_cpp() else {
+            return;
+        };
         let restored = (u64::from(max_health_after) * u64::from(health_before)
             / u64::from(max_health_before.max(1))) as u32;
         self.set_player_health_like_cpp(restored, max_health_after);
@@ -22989,10 +23104,11 @@ impl WorldSession {
             .map(|item| preflight_item(item, dst_bag, dst_slot, destination_swap));
 
         let player = self.direct_inventory_player_snapshot()?;
+        let player_is_alive = self.resolved_player_is_alive_like_cpp()?;
         Some(player.swap_item_preflight_plan(
             src,
             dst,
-            self.player_is_alive_like_cpp(),
+            player_is_alive,
             source_preflight,
             destination_preflight,
         ))
@@ -29504,7 +29620,7 @@ impl WorldSession {
         &mut self,
         area_id: u32,
     ) -> bool {
-        if !self.player_is_alive_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return false;
         }
 
@@ -30512,7 +30628,10 @@ impl WorldSession {
         if xp == 0 {
             return false;
         }
-        if !self.player_is_alive_like_cpp() && !self.player_in_represented_battleground_like_cpp() {
+        let Some(player_is_alive) = self.resolved_player_is_alive_like_cpp() else {
+            return false;
+        };
+        if !player_is_alive && !self.player_in_represented_battleground_like_cpp() {
             return false;
         }
         if self.represented_player_has_flag_like_cpp(PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP) {
@@ -31080,7 +31199,7 @@ impl WorldSession {
                 self.player_level_like_cpp(),
                 self.player_map_id_like_cpp(),
                 self.player_position_like_cpp().unwrap_or(Position::ZERO),
-                self.player_alive_like_cpp,
+                self.resolved_player_is_alive_like_cpp()?,
             ));
         }
         self.player_registry.as_ref().and_then(|registry| {
@@ -32932,6 +33051,9 @@ impl WorldSession {
         let class = self.player_class_like_cpp();
         let gender = self.player_gender_like_cpp();
         let level = self.player_level_like_cpp();
+        let Some(is_alive) = self.resolved_player_is_alive_like_cpp() else {
+            return;
+        };
         // Fallback to 0 (world/default instance) when no canonical map key is
         // available — mirrors C++ world-map phase where instance_id == 0.
         let instance_id = self
@@ -32961,7 +33083,7 @@ impl WorldSession {
                     position: pos,
                     is_in_world: self.player_is_in_world_for_registry_like_cpp(),
                     level,
-                    is_alive: self.player_alive_like_cpp,
+                    is_alive,
                 },
                 active_loot_rolls,
                 send_tx: self.send_tx().clone(),
@@ -33019,6 +33141,9 @@ impl WorldSession {
             return;
         };
         let map_id = self.player_map_id_like_cpp();
+        let Some(is_alive) = self.resolved_player_is_alive_like_cpp() else {
+            return;
+        };
         // Fallback to 0 (world/default instance) when no canonical map key is
         // available — mirrors C++ world-map phase where instance_id == 0.
         let instance_id = self
@@ -33034,7 +33159,7 @@ impl WorldSession {
                 instance_id,
                 is_in_world: self.player_is_in_world_for_registry_like_cpp(),
                 level: self.player_level_like_cpp(),
-                is_alive: self.player_alive_like_cpp,
+                is_alive,
                 transport: self.player_transport_info_like_cpp(),
             },
         );
@@ -35753,7 +35878,9 @@ impl WorldSession {
             options,
         );
 
-        if !self.player_is_alive_like_cpp() && options & TELE_REVIVE_AT_TELEPORT_LIKE_CPP != 0 {
+        if self.resolved_player_is_alive_like_cpp() == Some(false)
+            && options & TELE_REVIVE_AT_TELEPORT_LIKE_CPP != 0
+        {
             self.resurrect_player_percent_for_teleport_like_cpp(0.5);
         }
 
@@ -35797,7 +35924,9 @@ impl WorldSession {
     }
 
     fn process_represented_delayed_teleport_after_update_like_cpp(&mut self) -> bool {
-        if !self.represented_has_delayed_teleport_like_cpp || !self.player_is_alive_like_cpp() {
+        if !self.represented_has_delayed_teleport_like_cpp
+            || self.resolved_player_is_alive_like_cpp() != Some(true)
+        {
             return false;
         }
 
@@ -35916,14 +36045,18 @@ impl WorldSession {
     }
 
     fn resurrect_player_percent_for_teleport_like_cpp(&mut self, restore_percent: f32) {
-        let max_health = self.player_max_health_like_cpp.max(1);
-        let health = ((max_health as f32) * restore_percent)
-            .max(0.0)
-            .min(max_health as f32) as u32;
-        self.player_health_like_cpp = health;
-        self.player_alive_like_cpp = true;
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
-            player.unit_mut().set_max_health(u64::from(max_health));
+        let restored = self.with_owned_player_mut_like_cpp(|player| {
+            let max_health = player
+                .unit()
+                .data()
+                .max_health
+                .clamp(1, u64::from(u32::MAX)) as u32;
+            let health = ((max_health as f32) * restore_percent)
+                .max(0.0)
+                .min(max_health as f32) as u32;
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Alive);
             player.unit_mut().set_health(u64::from(health));
             let mana = ((player.get_max_power(PowerType::Mana).max(0) as f32) * restore_percent)
                 .max(0.0) as i32;
@@ -35935,7 +36068,11 @@ impl WorldSession {
             player.unit_mut().set_power(PowerType::Rage, 0);
             player.unit_mut().set_power(PowerType::Energy, energy);
             player.unit_mut().set_power(PowerType::Focus, focus);
+            health
         });
+        if restored.is_none() {
+            return;
+        }
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -36131,7 +36268,7 @@ impl WorldSession {
         if !map_entry.ignores_instance_farm_limit_like_cpp()
             && let Some(key) = decision_key
             && !self.check_instance_count_probe_like_cpp(key.instance_id)
-            && self.player_is_alive_like_cpp()
+            && self.resolved_player_is_alive_like_cpp() == Some(true)
         {
             return Some((TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP, 0, 0));
         }
@@ -41743,23 +41880,157 @@ impl WorldSession {
     }
 
     pub fn set_player_alive_like_cpp(&mut self, alive: bool) {
-        self.player_alive_like_cpp = alive;
-        if !alive {
-            self.player_health_like_cpp = 0;
-            let _ = self.mutate_canonical_player_like_cpp(|player| {
+        let resolved = self.with_owned_player_mut_like_cpp(|player| {
+            if !alive {
                 player
                     .unit_mut()
                     .set_death_state(wow_constants::DeathState::Corpse);
                 player.unit_mut().set_health(0);
+            } else {
+                let max_health = player.unit().data().max_health.max(1);
+                player
+                    .unit_mut()
+                    .set_death_state(wow_constants::DeathState::Alive);
+                if player.unit().data().health == 0 {
+                    player.unit_mut().set_health(max_health);
+                }
+            }
+            (
+                player.unit().data().health.min(u64::from(u32::MAX)) as u32,
+                player
+                    .unit()
+                    .data()
+                    .max_health
+                    .clamp(1, u64::from(u32::MAX)) as u32,
+                player.unit().is_alive(),
+            )
+        });
+        #[cfg(test)]
+        {
+            let (health, max_health, is_alive) = resolved.unwrap_or_else(|| {
+                let max_health = self.player_max_health_like_cpp.max(1);
+                let health = if alive {
+                    self.player_health_like_cpp.max(1).min(max_health)
+                } else {
+                    0
+                };
+                (health, max_health, alive)
             });
-        } else if self.player_health_like_cpp == 0 {
-            self.player_health_like_cpp = self.player_max_health_like_cpp.max(1);
+            self.player_health_like_cpp = health;
+            self.player_max_health_like_cpp = max_health;
+            self.player_alive_like_cpp = is_alive;
         }
-        self.sync_player_registry_state_like_cpp();
+        if resolved.is_some() || cfg!(test) && self.player_handle_like_cpp.is_none() {
+            self.sync_player_registry_state_like_cpp();
+        }
     }
 
+    pub(crate) fn resolved_player_vitals_like_cpp(&self) -> Option<(u32, u32, bool)> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            let max_health = player
+                .unit()
+                .data()
+                .max_health
+                .clamp(1, u64::from(u32::MAX)) as u32;
+            let health = player.unit().data().health.min(u64::from(max_health)) as u32;
+            (health, max_health, player.unit().is_alive() && health > 0)
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some((
+                self.player_health_like_cpp,
+                self.player_max_health_like_cpp.max(1),
+                self.player_alive_like_cpp && self.player_health_like_cpp > 0,
+            ));
+        }
+        canonical
+    }
+
+    pub(crate) fn resolved_player_is_alive_like_cpp(&self) -> Option<bool> {
+        self.resolved_player_vitals_like_cpp()
+            .map(|(_, _, alive)| alive)
+    }
+
+    /// Apply damage to the canonical Player owner and return
+    /// `(before, after, max, applied, killed)`.
+    fn apply_owned_player_damage_like_cpp(
+        &mut self,
+        requested_damage: u32,
+        lethal_death_state: wow_constants::DeathState,
+    ) -> Option<(u32, u32, u32, u32, bool)> {
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            let max_health = player
+                .unit()
+                .data()
+                .max_health
+                .clamp(1, u64::from(u32::MAX)) as u32;
+            let before = player.unit().data().health.min(u64::from(max_health)) as u32;
+            if !player.unit().is_alive() || before == 0 {
+                return (before, before, max_health, 0, false);
+            }
+            let applied = requested_damage.min(before);
+            let after = before.saturating_sub(applied);
+            let killed = applied > 0 && after == 0;
+            if killed {
+                player.unit_mut().set_death_state(lethal_death_state);
+            }
+            player.unit_mut().set_health(u64::from(after));
+            (before, after, max_health, applied, killed)
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            let max_health = self.player_max_health_like_cpp.max(1);
+            let before = self.player_health_like_cpp.min(max_health);
+            if !self.player_alive_like_cpp || before == 0 {
+                return Some((before, before, max_health, 0, false));
+            }
+            let applied = requested_damage.min(before);
+            let after = before.saturating_sub(applied);
+            let killed = applied > 0 && after == 0;
+            self.player_health_like_cpp = after;
+            self.player_alive_like_cpp = !killed;
+            return Some((before, after, max_health, applied, killed));
+        }
+        canonical
+    }
+
+    /// Apply a heal to the canonical Player owner and return
+    /// `(before, after, max, effective)`.
+    fn apply_owned_player_heal_like_cpp(
+        &mut self,
+        requested_heal: u32,
+    ) -> Option<(u32, u32, u32, u32)> {
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            let max_health = player
+                .unit()
+                .data()
+                .max_health
+                .clamp(1, u64::from(u32::MAX)) as u32;
+            let before = player.unit().data().health.min(u64::from(max_health)) as u32;
+            if !player.unit().is_alive() || before == 0 {
+                return (before, before, max_health, 0);
+            }
+            let after = before.saturating_add(requested_heal).min(max_health);
+            player.unit_mut().set_health(u64::from(after));
+            (before, after, max_health, after.saturating_sub(before))
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            let max_health = self.player_max_health_like_cpp.max(1);
+            let before = self.player_health_like_cpp.min(max_health);
+            if !self.player_alive_like_cpp || before == 0 {
+                return Some((before, before, max_health, 0));
+            }
+            let after = before.saturating_add(requested_heal).min(max_health);
+            self.player_health_like_cpp = after;
+            return Some((before, after, max_health, after.saturating_sub(before)));
+        }
+        canonical
+    }
+
+    #[cfg(test)]
     pub(crate) fn player_is_alive_like_cpp(&self) -> bool {
-        self.player_alive_like_cpp
+        self.resolved_player_is_alive_like_cpp().unwrap()
     }
 
     pub(crate) fn player_has_ghost_flag_like_cpp(&self) -> bool {
@@ -41920,7 +42191,7 @@ impl WorldSession {
 
     fn is_pet_need_be_temporary_unsummoned_like_cpp(&self) -> bool {
         !self.player_is_in_world_for_registry_like_cpp()
-            || !self.player_alive_like_cpp
+            || self.resolved_player_is_alive_like_cpp() != Some(true)
             || self
                 .player_movement_flags_like_cpp
                 .contains(MovementFlag::FLYING)
@@ -42719,19 +42990,17 @@ impl WorldSession {
     }
 
     pub(crate) fn set_player_health_like_cpp(&mut self, health: u32, max_health: u32) {
-        self.player_max_health_like_cpp = max_health.max(1);
-        self.player_health_like_cpp = health.min(self.player_max_health_like_cpp);
-        self.player_alive_like_cpp = self.player_health_like_cpp > 0;
+        let _ = self.sync_canonical_player_health_like_cpp(health, max_health);
         self.sync_player_registry_state_like_cpp();
     }
 
     pub(crate) fn set_player_health_after_runtime_damage_like_cpp(&mut self, health_after: u64) {
-        self.player_health_like_cpp =
-            health_after.min(u64::from(self.player_max_health_like_cpp)) as u32;
-        self.player_alive_like_cpp = self.player_health_like_cpp > 0;
+        let Some((_, max_health, _)) = self.resolved_player_vitals_like_cpp() else {
+            return;
+        };
         let _ = self.sync_canonical_player_health_like_cpp(
-            self.player_health_like_cpp,
-            self.player_max_health_like_cpp,
+            health_after.min(u64::from(max_health)) as u32,
+            max_health,
         );
         self.sync_player_registry_state_like_cpp();
     }
@@ -42754,23 +43023,42 @@ impl WorldSession {
             return None;
         }
 
-        let (canonical_revision, canonical_health, canonical_max_health, canonical_alive) = self
-            .mutate_canonical_player_like_cpp(|player| {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            (
+                player.unit().health_state_revision_like_cpp(),
+                player.unit().data().health,
+                player.unit().data().max_health,
+                player.unit().is_alive(),
+            )
+        });
+        #[cfg(test)]
+        let canonical = canonical.or_else(|| {
+            if self.player_handle_like_cpp.is_some() {
+                return None;
+            }
+            self.mutate_canonical_player_like_cpp(|player| {
                 (
                     player.unit().health_state_revision_like_cpp(),
                     player.unit().data().health,
                     player.unit().data().max_health,
                     player.unit().is_alive(),
                 )
-            })?;
+            })
+        });
+        let (canonical_revision, canonical_health, _canonical_max_health, _canonical_alive) =
+            canonical?;
         if canonical_revision < committed_revision {
             return None;
         }
 
-        self.player_max_health_like_cpp = canonical_max_health.clamp(1, u64::from(u32::MAX)) as u32;
-        self.player_health_like_cpp =
-            canonical_health.min(u64::from(self.player_max_health_like_cpp)) as u32;
-        self.player_alive_like_cpp = canonical_alive && self.player_health_like_cpp > 0;
+        #[cfg(test)]
+        {
+            self.player_max_health_like_cpp =
+                _canonical_max_health.clamp(1, u64::from(u32::MAX)) as u32;
+            self.player_health_like_cpp =
+                canonical_health.min(u64::from(self.player_max_health_like_cpp)) as u32;
+            self.player_alive_like_cpp = _canonical_alive && self.player_health_like_cpp > 0;
+        }
         self.last_presented_creature_melee_health_state_revision_like_cpp = committed_revision;
         self.sync_player_registry_state_like_cpp();
         Some(canonical_health)
@@ -42780,23 +43068,28 @@ impl WorldSession {
         // C++ `Player::EnvironmentalDamage` routes lethal damage through
         // `Unit::Kill` -> `Player::setDeathState(JUST_DIED)` before the client
         // proceeds into release/cemetery flows.
-        self.player_health_like_cpp = 0;
-        self.player_alive_like_cpp = false;
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
+        let _ = self.with_owned_player_mut_like_cpp(|player| {
             player
                 .unit_mut()
                 .set_death_state(wow_constants::DeathState::JustDied);
             player.unit_mut().set_health(0);
         });
+        #[cfg(test)]
+        {
+            self.player_health_like_cpp = 0;
+            self.player_alive_like_cpp = false;
+        }
         self.sync_player_registry_state_like_cpp();
     }
 
+    #[cfg(test)]
     pub(crate) fn player_health_like_cpp(&self) -> u32 {
-        self.player_health_like_cpp
+        self.resolved_player_vitals_like_cpp().unwrap().0
     }
 
+    #[cfg(test)]
     pub(crate) fn player_max_health_like_cpp(&self) -> u32 {
-        self.player_max_health_like_cpp
+        self.resolved_player_vitals_like_cpp().unwrap().1
     }
 
     pub(crate) fn set_represented_resurrection_request_like_cpp(
@@ -42832,11 +43125,16 @@ impl WorldSession {
     }
 
     pub(crate) fn apply_represented_resurrection_health_like_cpp(&mut self, health: u32) {
-        let _ = self.sync_canonical_player_health_like_cpp(health, self.player_max_health_like_cpp);
+        let Some((_, max_health, _)) = self.resolved_player_vitals_like_cpp() else {
+            return;
+        };
+        let _ = self.sync_canonical_player_health_like_cpp(health, max_health);
     }
 
     pub(crate) fn apply_represented_resurrection_percent_like_cpp(&mut self, restore_percent: f32) {
-        let max_health = self.player_max_health_like_cpp.max(1);
+        let Some((_, max_health, _)) = self.resolved_player_vitals_like_cpp() else {
+            return;
+        };
         let health =
             ((f64::from(max_health) * f64::from(restore_percent)).floor() as u32).min(max_health);
         self.apply_represented_resurrection_health_like_cpp(health);
@@ -42915,8 +43213,9 @@ impl WorldSession {
         movement_info: &wow_packet::packets::movement::MovementInfo,
     ) -> Option<MovementFallDamageEvent> {
         let z_diff = self.last_fall_z_like_cpp - movement_info.position.z;
+        let (_, max_health, player_is_alive) = self.resolved_player_vitals_like_cpp()?;
         if z_diff < 14.57
-            || !self.player_alive_like_cpp
+            || !player_is_alive
             || self.player_game_master_like_cpp
             || self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Hover)
             || self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::FeatherFall)
@@ -42933,7 +43232,7 @@ impl WorldSession {
             return None;
         }
 
-        let mut damage = (damage_percent * self.player_max_health_like_cpp as f32) as u32;
+        let mut damage = (damage_percent * max_health as f32) as u32;
         if self.player_cheat_god_like_cpp {
             damage = 0;
         }
@@ -42946,36 +43245,28 @@ impl WorldSession {
             .values()
             .any(|aura| aura.spell_id == 43_621)
         {
-            damage = self.player_max_health_like_cpp / 2;
+            damage = max_health / 2;
         }
-        damage = damage.min(self.player_max_health_like_cpp);
+        damage = damage.min(max_health);
         if damage == 0 {
             return None;
         }
 
-        let original_health = self.player_health_like_cpp;
-        let final_damage = if self.player_environmental_damage_immune_like_cpp {
+        let requested_damage = if self.player_environmental_damage_immune_like_cpp {
             0
         } else {
-            damage.min(original_health)
+            damage
         };
-        self.player_health_like_cpp = self.player_health_like_cpp.saturating_sub(final_damage);
-        let killed_player = final_damage > 0 && self.player_health_like_cpp == 0;
-        if killed_player {
-            self.apply_represented_player_environmental_death_like_cpp();
-        } else {
-            let _ = self.sync_canonical_player_health_like_cpp(
-                self.player_health_like_cpp,
-                self.player_max_health_like_cpp,
-            );
-        }
+        let (_original_health, health_after, _, final_damage, killed_player) = self
+            .apply_owned_player_damage_like_cpp(
+                requested_damage,
+                wow_constants::DeathState::JustDied,
+            )?;
+        self.sync_player_registry_state_like_cpp();
         if final_damage > 0
             && let Some(player_guid) = self.player_guid()
         {
-            self.send_player_health_update_like_cpp(
-                player_guid,
-                u64::from(self.player_health_like_cpp),
-            );
+            self.send_player_health_update_like_cpp(player_guid, u64::from(health_after));
             self.send_environmental_damage_log_like_cpp(
                 player_guid,
                 DAMAGE_FALL_LIKE_CPP,
@@ -43196,30 +43487,20 @@ impl WorldSession {
             return None;
         }
 
-        if !self.player_alive_like_cpp {
+        let (original_health, max_health, player_is_alive) =
+            self.resolved_player_vitals_like_cpp()?;
+        if !player_is_alive {
             return None;
         }
 
         self.player_out_of_bounds_like_cpp = true;
-        let original_health = self.player_health_like_cpp;
-        let damage = self.player_max_health_like_cpp;
-        self.player_health_like_cpp = self.player_health_like_cpp.saturating_sub(damage);
-        let killed_player = self.player_health_like_cpp == 0;
-        if killed_player {
-            self.apply_represented_player_environmental_death_like_cpp();
-        } else {
-            let _ = self.sync_canonical_player_health_like_cpp(
-                self.player_health_like_cpp,
-                self.player_max_health_like_cpp,
-            );
-        }
-        if self.player_health_like_cpp != original_health
+        let damage = max_health;
+        let (_, health_after, _, _, killed_player) =
+            self.apply_owned_player_damage_like_cpp(damage, wow_constants::DeathState::JustDied)?;
+        if health_after != original_health
             && let Some(player_guid) = self.player_guid()
         {
-            self.send_player_health_update_like_cpp(
-                player_guid,
-                u64::from(self.player_health_like_cpp),
-            );
+            self.send_player_health_update_like_cpp(player_guid, u64::from(health_after));
             self.send_environmental_damage_log_like_cpp(
                 player_guid,
                 DAMAGE_FALL_TO_VOID_LIKE_CPP,
@@ -43233,7 +43514,7 @@ impl WorldSession {
         }
 
         // C++ calls KillPlayer if EnvironmentalDamage did not kill due to GM/immunity.
-        if self.player_alive_like_cpp {
+        if self.resolved_player_is_alive_like_cpp() == Some(true) {
             self.set_player_alive_like_cpp(false);
         } else {
             self.sync_player_registry_state_like_cpp();
@@ -45280,7 +45561,10 @@ impl WorldSession {
             return false;
         }
 
-        if !self.player_alive_like_cpp {
+        let Some(player_is_alive) = self.resolved_player_is_alive_like_cpp() else {
+            return false;
+        };
+        if !player_is_alive {
             self.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                     gameobject_guid,
@@ -63304,7 +63588,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if target_guid != player_guid || !self.player_alive_like_cpp {
+        if target_guid != player_guid || self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
         if self.player_environmental_damage_immune_like_cpp {
@@ -63312,22 +63596,14 @@ impl WorldSession {
         }
 
         let damage = u32::try_from(effect.effect_base_points.max(0)).unwrap_or(0);
-        let original_health = self.player_health_like_cpp;
-        let final_damage = damage.min(original_health);
-        self.player_health_like_cpp = self.player_health_like_cpp.saturating_sub(final_damage);
-        if self.player_health_like_cpp == 0 {
-            self.apply_represented_player_environmental_death_like_cpp();
-        } else {
-            let _ = self.sync_canonical_player_health_like_cpp(
-                self.player_health_like_cpp,
-                self.player_max_health_like_cpp,
-            );
-        }
-        if self.player_health_like_cpp != original_health {
-            self.send_player_health_update_like_cpp(
-                player_guid,
-                u64::from(self.player_health_like_cpp),
-            );
+        let Some((original_health, health_after, _, _, _)) =
+            self.apply_owned_player_damage_like_cpp(damage, wow_constants::DeathState::JustDied)
+        else {
+            return;
+        };
+        self.sync_player_registry_state_like_cpp();
+        if health_after != original_health {
+            self.send_player_health_update_like_cpp(player_guid, u64::from(health_after));
         }
         self.send_environmental_damage_log_like_cpp(
             player_guid,
@@ -63789,7 +64065,7 @@ impl WorldSession {
         } else {
             None
         };
-        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
+        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp()?;
         let player_snapshot = self.condition_player_snapshot_like_cpp();
         let player_condition_context = if has_implicit_conditions {
             Some(self.represented_player_condition_context_like_cpp())
@@ -64518,7 +64794,12 @@ impl WorldSession {
         let player_guid = self.player_guid().ok_or("No player GUID")?;
         // Si target es el mismo jugador
         if target_guid == player_guid {
-            if !self.player_alive_like_cpp {
+            let Some((current, healed, _, effective_heal)) =
+                self.apply_owned_player_heal_like_cpp(heal_amount)
+            else {
+                return Err("Target player owner not available");
+            };
+            if effective_heal == 0 && self.resolved_player_is_alive_like_cpp() != Some(true) {
                 debug!(
                     account = self.account_id,
                     heal = heal_amount,
@@ -64527,19 +64808,7 @@ impl WorldSession {
                 return Ok(());
             }
             info!(account = self.account_id, heal = heal_amount, "Healed self");
-            let current = self.player_health_like_cpp;
-            let healed = current
-                .saturating_add(heal_amount)
-                .min(self.player_max_health_like_cpp);
-            let effective_heal = healed.saturating_sub(current);
             if healed != current {
-                self.player_health_like_cpp = healed;
-                self.player_alive_like_cpp = healed > 0;
-                let max_health = self.player_max_health_like_cpp;
-                let _ = self.mutate_canonical_player_like_cpp(|player| {
-                    player.unit_mut().set_max_health(u64::from(max_health));
-                    player.unit_mut().set_health(u64::from(healed));
-                });
                 self.sync_player_registry_state_like_cpp();
                 self.send_player_health_values_update_like_cpp(player_guid, u64::from(healed));
             }
@@ -64732,12 +65001,14 @@ impl WorldSession {
     ) -> Result<(), &'static str> {
         let player_guid = self.player_guid().ok_or("No player GUID")?;
 
+        let player_vitals = self
+            .resolved_player_vitals_like_cpp()
+            .ok_or("Target player owner not available")?;
         let target_missing_health = if target_guid == player_guid {
-            if !self.player_alive_like_cpp {
+            if !player_vitals.2 {
                 return Ok(());
             }
-            self.player_max_health_like_cpp
-                .saturating_sub(self.player_health_like_cpp)
+            player_vitals.1.saturating_sub(player_vitals.0)
         } else {
             let Some(target_missing_health) = self
                 .mutate_world_creature(target_guid, |creature| {
@@ -64753,7 +65024,7 @@ impl WorldSession {
         };
 
         let heal_amount = if damage == 0 {
-            self.player_max_health_like_cpp
+            player_vitals.1
         } else {
             target_missing_health
         };
@@ -64783,10 +65054,13 @@ impl WorldSession {
 
         let player_guid = self.player_guid().ok_or("No player GUID")?;
         let target_max_health = if target_guid == player_guid {
-            if !self.player_alive_like_cpp {
+            let Some((_, max_health, is_alive)) = self.resolved_player_vitals_like_cpp() else {
+                return Err("Target player owner not available");
+            };
+            if !is_alive {
                 return Ok(());
             }
-            self.player_max_health_like_cpp
+            max_health
         } else {
             let Some(max_health) = self
                 .mutate_world_creature(target_guid, |creature| {
@@ -64823,7 +65097,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        if target_guid != player_guid || !self.player_alive_like_cpp {
+        if target_guid != player_guid || self.resolved_player_is_alive_like_cpp() != Some(true) {
             return false;
         }
         if misc_value < 0 || misc_value >= MAX_POWERS as i32 {
@@ -64872,7 +65146,10 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        if target_guid != player_guid || !self.player_alive_like_cpp || damage < 0 {
+        if target_guid != player_guid
+            || self.resolved_player_is_alive_like_cpp() != Some(true)
+            || damage < 0
+        {
             return false;
         }
         if misc_value < 0 || misc_value >= MAX_POWERS as i32 {
@@ -64898,9 +65175,11 @@ impl WorldSession {
             .unwrap_or(0);
 
         if burn_damage && drained > 0 {
-            let health_after = u64::from(self.player_health_like_cpp)
-                .saturating_sub(u64::try_from(drained).unwrap_or(0));
-            self.set_player_health_after_runtime_damage_like_cpp(health_after);
+            let _ = self.apply_owned_player_damage_like_cpp(
+                u32::try_from(drained).unwrap_or(u32::MAX),
+                wow_constants::DeathState::Corpse,
+            );
+            self.sync_player_registry_state_like_cpp();
         }
 
         drained > 0
@@ -64920,7 +65199,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        if target_guid != player_guid || !self.player_alive_like_cpp {
+        if target_guid != player_guid || self.resolved_player_is_alive_like_cpp() != Some(true) {
             return false;
         }
         let count = damage as u32;
@@ -65640,7 +65919,7 @@ impl WorldSession {
             self.apply_damage(Some(spell_id), target_guid, damage_amount)
                 .await?;
         }
-        if effective_damage > 0 && self.player_alive_like_cpp {
+        if effective_damage > 0 && self.resolved_player_is_alive_like_cpp() == Some(true) {
             self.apply_heal(Some(spell_id), player_guid, effective_damage)
                 .await?;
         }
@@ -65879,7 +66158,7 @@ impl WorldSession {
         target_guid: ObjectGuid,
     ) -> Result<(), &'static str> {
         let player_guid = self.player_guid().ok_or("No player GUID")?;
-        if !self.player_alive_like_cpp {
+        if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return Ok(());
         }
 
@@ -66445,43 +66724,71 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if self.player_alive_like_cpp || !self.player_is_in_world_for_registry_like_cpp() {
+        if !self.player_is_in_world_for_registry_like_cpp() {
             return;
         }
 
-        let max_health = self.player_max_health_like_cpp.max(1);
-        let (health, mana) = if damage < 0 {
-            (damage.saturating_abs() as u32, misc_value.max(0))
-        } else {
-            let pct = damage.max(0);
-            (
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                if player.unit().is_alive() {
+                    return None;
+                }
+                let max_health = player
+                    .unit()
+                    .data()
+                    .max_health
+                    .clamp(1, u64::from(u32::MAX)) as u32;
+                let (health, mana) = if damage < 0 {
+                    (damage.saturating_abs() as u32, misc_value.max(0))
+                } else {
+                    let pct = damage.max(0);
+                    (
+                        max_health
+                            .saturating_mul(u32::try_from(pct).unwrap_or(u32::MAX))
+                            .saturating_div(100),
+                        player
+                            .get_max_power(PowerType::Mana)
+                            .max(0)
+                            .saturating_mul(pct)
+                            / 100,
+                    )
+                };
+                let health = health.min(max_health);
+                player
+                    .unit_mut()
+                    .set_death_state(wow_constants::DeathState::Alive);
+                player.unit_mut().set_health(u64::from(health));
+                player.unit_mut().set_power(PowerType::Mana, mana);
+                player.unit_mut().set_power(PowerType::Rage, 0);
+                let max_energy = player.get_max_power(PowerType::Energy);
+                player.unit_mut().set_power(PowerType::Energy, max_energy);
+                player.unit_mut().set_power(PowerType::Focus, 0);
+                Some((health, Some(player.values_update(true))))
+            })
+            .flatten();
+        #[cfg(test)]
+        let outcome = canonical.or_else(|| {
+            if self.player_handle_like_cpp.is_some() || self.player_alive_like_cpp {
+                return None;
+            }
+            let max_health = self.player_max_health_like_cpp.max(1);
+            let health = if damage < 0 {
+                damage.saturating_abs() as u32
+            } else {
                 max_health
-                    .saturating_mul(u32::try_from(pct).unwrap_or(u32::MAX))
-                    .saturating_div(100),
-                self.mutate_canonical_player_like_cpp(|player| {
-                    player
-                        .get_max_power(PowerType::Mana)
-                        .max(0)
-                        .saturating_mul(pct)
-                        / 100
-                })
-                .unwrap_or(0),
-            )
-        };
-        let health = health.min(max_health);
-
-        self.player_health_like_cpp = health;
-        self.player_alive_like_cpp = true;
-        let values_update = self.mutate_canonical_player_like_cpp(|player| {
-            player.unit_mut().set_max_health(u64::from(max_health));
-            player.unit_mut().set_health(u64::from(health));
-            player.unit_mut().set_power(PowerType::Mana, mana);
-            player.unit_mut().set_power(PowerType::Rage, 0);
-            let max_energy = player.get_max_power(PowerType::Energy);
-            player.unit_mut().set_power(PowerType::Energy, max_energy);
-            player.unit_mut().set_power(PowerType::Focus, 0);
-            player.values_update(true)
+                    .saturating_mul(u32::try_from(damage.max(0)).unwrap_or(u32::MAX))
+                    .saturating_div(100)
+            }
+            .min(max_health);
+            self.player_health_like_cpp = health;
+            self.player_alive_like_cpp = true;
+            Some((health, None))
         });
+        #[cfg(not(test))]
+        let outcome = canonical;
+        let Some((health, values_update)) = outcome else {
+            return;
+        };
         self.sync_player_registry_state_like_cpp();
         if let Some(values_update) = values_update {
             self.send_player_values_update_like_cpp(&values_update);
@@ -66504,13 +66811,17 @@ impl WorldSession {
             return;
         }
 
-        if !self.player_alive_like_cpp {
-            if !self.represented_death_timer_active_like_cpp {
-                self.set_player_ghost_flag_like_cpp(true);
-                self.represented_repop_at_graveyard_count =
-                    self.represented_repop_at_graveyard_count.saturating_add(1);
+        match self.resolved_player_is_alive_like_cpp() {
+            None => return,
+            Some(false) => {
+                if !self.represented_death_timer_active_like_cpp {
+                    self.set_player_ghost_flag_like_cpp(true);
+                    self.represented_repop_at_graveyard_count =
+                        self.represented_repop_at_graveyard_count.saturating_add(1);
+                }
+                return;
             }
-            return;
+            Some(true) => {}
         }
 
         if self

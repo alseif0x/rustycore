@@ -716,20 +716,21 @@ impl WorldSession {
 
     pub(crate) fn condition_player_unit_snapshot_like_cpp(
         &self,
-    ) -> crate::conditions::ConditionUnitSnapshot {
-        crate::conditions::ConditionUnitSnapshot {
+    ) -> Option<crate::conditions::ConditionUnitSnapshot> {
+        let (health, max_health, is_alive) = self.resolved_player_vitals_like_cpp()?;
+        Some(crate::conditions::ConditionUnitSnapshot {
             level: u32::from(self.player_level_like_cpp()),
-            health: u64::from(self.player_health_like_cpp()),
-            max_health: u64::from(self.player_max_health_like_cpp()),
+            health: u64::from(health),
+            max_health: u64::from(max_health),
             class_mask: player_class_mask(self.player_class_like_cpp()),
             race: self.player_race_like_cpp(),
             creature_type: None,
-            is_alive: self.player_is_alive_like_cpp(),
+            is_alive,
             is_charmed: false,
             in_water: false,
             unit_state: 0,
             stand_state: UnitStandStateType::Stand as u32,
-        }
+        })
     }
 
     pub(crate) fn condition_player_snapshot_like_cpp(
@@ -808,7 +809,9 @@ impl WorldSession {
             "BinderActivate {:?} account {}",
             hello.unit, self.account_id
         );
-        if !self.player_is_strictly_in_world_like_cpp() || !self.player_is_alive_like_cpp() {
+        if !self.player_is_strictly_in_world_like_cpp()
+            || self.resolved_player_is_alive_like_cpp() != Some(true)
+        {
             return;
         }
         let Some(_innkeeper) = self.represented_npc_can_interact_with_like_cpp(
@@ -1203,14 +1206,10 @@ impl WorldSession {
     /// percentage after max health is recalculated. Other total-stat auras use
     /// ordinary `SetMaxHealth` clamping.
     pub(crate) fn send_total_stat_percentage_update_like_cpp(&mut self, preserve_health_pct: bool) {
-        let (health_before, max_health_before) = self
-            .canonical_player_health_snapshot_like_cpp()
-            .unwrap_or_else(|| {
-                (
-                    self.player_health_like_cpp(),
-                    self.player_max_health_like_cpp(),
-                )
-            });
+        let Some((health_before, max_health_before, _)) = self.resolved_player_vitals_like_cpp()
+        else {
+            return;
+        };
         let max_health_before = max_health_before.max(1);
         let zero_health = health_before == 0;
         let Some((player_guid, mut changes)) =

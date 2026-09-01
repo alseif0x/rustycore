@@ -159,7 +159,9 @@ impl crate::session::WorldSession {
             return false;
         };
 
-        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
+        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+            return false;
+        };
         let player_snapshot = self.condition_player_snapshot_like_cpp();
         let needs_player_condition_context = conditions.iter().any(|condition| {
             condition.reference_id != 0
@@ -219,7 +221,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        if self.player_is_alive_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(false) {
             return;
         }
 
@@ -260,7 +262,9 @@ impl crate::session::WorldSession {
             }
         };
 
-        if self.player_is_alive_like_cpp() || self.player_has_ghost_flag_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(false)
+            || self.player_has_ghost_flag_like_cpp()
+        {
             return;
         }
 
@@ -284,7 +288,9 @@ impl crate::session::WorldSession {
             return false;
         }
 
-        if self.player_is_alive_like_cpp() || !self.player_has_ghost_flag_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(false)
+            || !self.player_has_ghost_flag_like_cpp()
+        {
             return true;
         }
 
@@ -311,7 +317,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        if self.player_is_alive_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(false) {
             return;
         }
 

@@ -827,7 +827,14 @@ impl WorldSession {
         let player_condition_context = self.represented_player_condition_context_like_cpp();
         let player_condition_object = self.build_condition_player_object_like_cpp();
         let vendor_condition_object = self.build_condition_creature_object_like_cpp(vendor_guid);
-        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
+        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+            self.send_packet(&VendorInventory {
+                vendor_guid,
+                reason: 0,
+                items: vec![],
+            });
+            return;
+        };
         let player_snapshot = self.condition_player_snapshot_like_cpp();
 
         'vendor_expansion: while let Some(vendor_entry) = queue.pop_front() {
@@ -3474,13 +3481,8 @@ impl WorldSession {
         let projection = self.player_stat_system_projection_like_cpp(race, class, level, &gear)?;
 
         let computed_max_health_u32 = max_health_u32_like_cpp(projection.max_health);
-        let (health, max_health_for_update) = self
-            .sync_canonical_player_max_health_like_cpp(computed_max_health_u32)
-            .unwrap_or_else(|| {
-                let current = self.player_health_like_cpp().min(computed_max_health_u32);
-                self.set_player_health_like_cpp(current, computed_max_health_u32);
-                (current, computed_max_health_u32)
-            });
+        let (health, max_health_for_update) =
+            self.sync_canonical_player_max_health_like_cpp(computed_max_health_u32)?;
         let health = i64::from(health);
         let max_health = i64::from(max_health_for_update);
 

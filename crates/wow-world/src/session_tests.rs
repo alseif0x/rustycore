@@ -29249,6 +29249,10 @@ async fn represented_spellclick_executes_clickee_caster_damage_to_clicker_like_c
         UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
     );
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+    assert!(session.ensure_canonical_player_owner_for_map_like_cpp(
+        wow_map::MapKey::new(571, 0),
+        Position::new(10.0, 0.0, 0.0, 0.0),
+    ));
     session.mutate_canonical_player_like_cpp(|player| {
         player.unit_mut().set_max_health(100);
         player.unit_mut().set_health(50);
@@ -29953,6 +29957,13 @@ fn npc_interaction_resolves_canonical_trainer_like_cpp() {
             .unwrap()
             .unit_mut()
             .set_unit_flags2_like_cpp(wow_constants::unit::UnitFlags2::INTERACT_WHILE_HOSTILE);
+        let player = managed
+            .map()
+            .get_typed_player(player_guid)
+            .expect("canonical Player owner remains active");
+        assert!(player.unit().world().object().is_in_world());
+        assert!(player.unit().is_alive());
+        assert_eq!(player.unit().data().health, 100);
     }
     assert_eq!(
         session.represented_npc_can_interact_with_like_cpp(
@@ -30753,6 +30764,80 @@ fn canonical_player_far_teleport_keeps_one_detached_identity_like_cpp() {
             player.has_player_flag(PLAYER_FLAGS_UBER_LIKE_CPP),
         )),
         Some((target_position, Some(target_guid), true))
+    );
+}
+
+#[test]
+fn canonical_player_vitals_follow_active_detached_and_stale_handle_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_557);
+    let position = Position::new(3700.0, 1500.0, 120.0, 0.0);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "VitalOwner".to_string(),
+        position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    session
+        .with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().set_max_health(321);
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Alive);
+            player.unit_mut().set_health(123);
+        })
+        .expect("active canonical Player");
+
+    assert_eq!(
+        session.resolved_player_vitals_like_cpp(),
+        Some((123, 321, true))
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.resolved_player_vitals_like_cpp(),
+        Some((123, 321, true))
+    );
+
+    let mut replacement = Box::new(Player::new(Some(1), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.unit_mut().set_max_health(999);
+    replacement.unit_mut().set_health(999);
+    canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_player_vitals_like_cpp(), None);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        None
     );
 }
 
@@ -44414,9 +44499,16 @@ async fn teleport_to_same_map_revive_at_teleport_restores_half_health_and_powers
     ));
     session.set_player_health_like_cpp(0, 400);
     add_canonical_test_player_on_map(&canonical, player_guid, source, 571, 0);
+    assert!(
+        session
+            .ensure_canonical_player_owner_for_map_like_cpp(wow_map::MapKey::new(571, 0), source,)
+    );
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_max_health(400);
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::Corpse);
             player.unit_mut().set_health(0);
             player.unit_mut().set_power_index(PowerType::Mana, Some(0));
             player.unit_mut().set_power_index(PowerType::Rage, Some(1));
@@ -52709,7 +52801,7 @@ fn logout_save_snapshot_uses_canonical_health_when_session_mirror_is_stale_like_
 }
 
 #[test]
-fn logout_save_snapshot_keeps_session_death_when_canonical_health_is_stale_like_cpp() {
+fn logout_save_snapshot_ignores_stale_test_fixture_death_and_reads_canonical_player_like_cpp() {
     let (mut session, _, _) = make_session();
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 76);
@@ -52747,9 +52839,8 @@ fn logout_save_snapshot_keeps_session_death_when_canonical_health_is_stale_like_
         })
         .unwrap();
 
-    // Some represented death seams still live on the session side while the
-    // canonical player is being phased in. C++ has a single Player object,
-    // so SaveToDB must not resurrect the session by reading stale canonical HP.
+    // C++ has a single Player object. Deliberately poison the test-only legacy
+    // fixture and prove SaveToDB still reads the canonical owner.
     session.player_health_like_cpp = 0;
     session.player_alive_like_cpp = false;
 
@@ -52757,9 +52848,9 @@ fn logout_save_snapshot_keeps_session_death_when_canonical_health_is_stale_like_
         .sync_session_from_save_to_db_snapshot_like_cpp()
         .expect("snapshot should exist");
 
-    assert_eq!(snapshot.health, 0);
+    assert_eq!(snapshot.health, 100);
     assert_eq!(snapshot.max_health, 100);
-    assert_eq!(session.player_health_like_cpp(), 0);
+    assert_eq!(session.player_health_like_cpp(), 100);
 }
 
 #[test]

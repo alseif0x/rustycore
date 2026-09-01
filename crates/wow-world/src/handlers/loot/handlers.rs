@@ -155,7 +155,7 @@ impl WorldSession {
 
         debug!(account = self.account_id, target = ?req.unit, "CMSG_LOOT_UNIT");
 
-        if !self.player_is_alive_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
 
@@ -1665,7 +1665,7 @@ impl WorldSession {
         if self.player_guid() != Some(command.victim_guid) {
             return;
         }
-        if !self.player_is_alive_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
         if self.player_map_id_like_cpp() != command.map_id {

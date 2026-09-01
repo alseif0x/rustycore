@@ -20,7 +20,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if !self.player_is_alive_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
         if !self.represented_gameobject_exists_for_loot_like_cpp(gameobject_guid) {
@@ -153,7 +153,7 @@ impl WorldSession {
         let player_guid = self.player_guid();
         let should_update_criteria = player_guid.is_some()
             && loot_id != 0
-            && self.player_is_alive_like_cpp()
+            && self.resolved_player_is_alive_like_cpp() == Some(true)
             && self.represented_gameobject_exists_for_loot_like_cpp(gameobject_guid);
         self.open_represented_gameobject_personal_loot_like_cpp(
             gameobject_guid,
@@ -183,7 +183,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if !self.player_is_alive_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
         if !self.represented_gameobject_exists_for_loot_like_cpp(gameobject_guid) {
@@ -305,7 +305,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if !self.player_is_alive_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
         if !self.represented_gameobject_exists_for_loot_like_cpp(gameobject_guid) {
@@ -748,7 +748,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if loot_id == 0 || !self.player_is_alive_like_cpp() {
+        if loot_id == 0 || self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
         if !self.represented_gameobject_exists_for_loot_like_cpp(gameobject_guid) {

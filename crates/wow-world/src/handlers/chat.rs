@@ -393,7 +393,9 @@ impl WorldSession {
             self.send_gm_silence_notification_like_cpp();
             return;
         }
-        if matches!(msg_type, ChatMsg::Say | ChatMsg::Yell) && !self.player_is_alive_like_cpp() {
+        if matches!(msg_type, ChatMsg::Say | ChatMsg::Yell)
+            && self.resolved_player_is_alive_like_cpp() != Some(true)
+        {
             return;
         }
         if !self.meets_chat_level_req_like_cpp(msg_type) {
@@ -832,7 +834,7 @@ impl WorldSession {
             self.send_gm_silence_notification_like_cpp();
             return;
         }
-        if !self.player_is_alive_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
         if self.player_level_like_cpp() < self.chat_level_requirements_like_cpp().emote {
@@ -873,7 +875,8 @@ impl WorldSession {
     pub async fn handle_emote(&mut self, mut pkt: wow_packet::WorldPacket) {
         // EmoteClient has no body — read returns Ok(()) immediately.
         let _ = EmoteClient::read(&mut pkt);
-        if !self.player_is_alive_like_cpp() || self.player_has_unit_state_like_cpp(UnitState::DIED)
+        if self.resolved_player_is_alive_like_cpp() != Some(true)
+            || self.player_has_unit_state_like_cpp(UnitState::DIED)
         {
             return;
         }
@@ -894,7 +897,7 @@ impl WorldSession {
             }
         };
 
-        if !self.player_is_alive_like_cpp() {
+        if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
         if self.send_wait_before_speaking_notification_if_muted_like_cpp() {

@@ -1828,8 +1828,10 @@
           "name": "player_alive_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_area_id_like_cpp",
@@ -2026,8 +2028,10 @@
           "name": "player_health_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_in_pvp_flag_like_cpp",
@@ -2082,8 +2086,10 @@
           "name": "player_max_health_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_mount_display_id_like_cpp",
@@ -7019,7 +7025,7 @@
           "kind": "method",
           "name": "condition_player_unit_snapshot_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn condition_player_unit_snapshot_like_cpp (& self ,) -> crate :: conditions :: ConditionUnitSnapshot",
+          "signature": "fn condition_player_unit_snapshot_like_cpp (& self ,) -> Option < crate :: conditions :: ConditionUnitSnapshot >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -19911,6 +19917,28 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "apply_owned_player_damage_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_owned_player_damage_like_cpp (& mut self , requested_damage : u32 , lethal_death_state : wow_constants :: DeathState ,) -> Option < (u32 , u32 , u32 , u32 , bool) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "apply_owned_player_heal_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_owned_player_heal_like_cpp (& mut self , requested_heal : u32 ,) -> Option < (u32 , u32 , u32 , u32) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "apply_parry_effect_like_cpp",
           "visibility": "private",
           "signature": "fn apply_parry_effect_like_cpp (& mut self) -> Result < () , & 'static str >",
@@ -29269,8 +29297,10 @@
           "name": "player_health_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_health_like_cpp (& self) -> u32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -29356,8 +29386,10 @@
           "name": "player_is_alive_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_is_alive_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -29571,8 +29603,10 @@
           "name": "player_max_health_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_max_health_like_cpp (& self) -> u32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -38007,6 +38041,32 @@
           "name": "reset_timeout_time_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn reset_timeout_time_like_cpp (& mut self , only_active : bool)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_is_alive_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_is_alive_like_cpp (& self) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_vitals_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_vitals_like_cpp (& self) -> Option < (u32 , u32 , bool) >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -48569,6 +48629,28 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "with_owned_player_like_cpp",
+          "visibility": "private",
+          "signature": "fn with_owned_player_like_cpp < R > (& self , f : impl FnOnce (& Player) -> R) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "with_owned_player_mut_like_cpp",
+          "visibility": "private",
+          "signature": "fn with_owned_player_mut_like_cpp < R > (& self , f : impl FnOnce (& mut Player) -> R) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -70151,7 +70233,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:aa648b87caf975a10717e1fb8a4b4bdc:len=3494|evidence=fnv1a64x2:da3a2201484f893be857e271e825236a:len=448",
+          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:32929da3cdaa56801ea5df861f5fedfb:len=3962|evidence=fnv1a64x2:da3a2201484f893be857e271e825236a:len=448",
           "cfg": [],
           "multiplicity": 1
         },
@@ -73889,7 +73971,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:418a43de1b086b28f528c548dbea948b:len=90690|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:6de16396de7ebb8942390838466c58de:len=90725|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

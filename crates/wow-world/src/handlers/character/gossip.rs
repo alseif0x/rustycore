@@ -159,7 +159,9 @@ impl WorldSession {
             return false;
         };
 
-        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
+        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+            return false;
+        };
         let player_snapshot = self.condition_player_snapshot_like_cpp();
         let player_condition_store = self.player_condition_store().cloned();
         let player_condition_context = self.represented_player_condition_context_like_cpp();

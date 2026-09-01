@@ -423,6 +423,14 @@ impl WorldSession {
         let player_condition_store = self.player_condition_store().cloned();
         let player_condition_context = self.represented_player_condition_context_like_cpp();
         if let Some(store) = condition_store.as_ref() {
+            let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+                self.send_buy_error(
+                    BuyResult::CantFindItem,
+                    Some(buy.vendor_guid),
+                    buy.item_id as u32,
+                );
+                return;
+            };
             let player_condition_object = self.build_condition_player_object_like_cpp();
             let vendor_condition_object =
                 self.build_condition_creature_object_like_cpp(buy.vendor_guid);
@@ -436,7 +444,7 @@ impl WorldSession {
                 buy.item_id as u32,
                 player_condition_object.as_ref(),
                 vendor_object,
-                self.condition_player_unit_snapshot_like_cpp(),
+                player_unit_snapshot,
                 self.condition_player_snapshot_like_cpp(),
                 vendor_unit_snapshot,
                 player_condition_store.as_deref(),

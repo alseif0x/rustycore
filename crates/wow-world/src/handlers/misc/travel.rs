@@ -130,7 +130,10 @@ impl crate::session::WorldSession {
             }
         }
 
-        let health = self.player_health_like_cpp().max(1);
+        let Some((health, _, _)) = self.resolved_player_vitals_like_cpp() else {
+            return;
+        };
+        let health = health.max(1);
         let combat = PlayerCombatStats {
             health: i64::from(health),
             max_health: i64::from(health),
@@ -512,7 +515,9 @@ impl crate::session::WorldSession {
             return false;
         };
 
-        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
+        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+            return false;
+        };
         let player_snapshot = self.condition_player_snapshot_like_cpp();
         let area_table_store = self.area_table_store().cloned();
 
