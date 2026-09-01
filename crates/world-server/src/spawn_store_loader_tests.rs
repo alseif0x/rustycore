@@ -45,6 +45,182 @@ struct RecordingGameEventWorldCatalogLikeCpp {
     fail_suffix: bool,
 }
 
+struct RecordingCanonicalSpawnCatalogLikeCpp {
+    calls: Arc<Mutex<Vec<&'static str>>>,
+    fail_on: Option<&'static str>,
+}
+
+impl RecordingCanonicalSpawnCatalogLikeCpp {
+    fn rows<T>(&self, name: &'static str, rows: T) -> CanonicalSpawnCatalogLoadOutcomeLikeCpp<T> {
+        self.calls.lock().unwrap().push(name);
+        if self.fail_on == Some(name) {
+            CanonicalSpawnCatalogLoadOutcomeLikeCpp::Failed {
+                reason: format!("{name} failed"),
+            }
+        } else {
+            CanonicalSpawnCatalogLoadOutcomeLikeCpp::Loaded(rows)
+        }
+    }
+}
+
+impl CanonicalSpawnCatalogPersistencePortLikeCpp for RecordingCanonicalSpawnCatalogLikeCpp {
+    fn load_creature_spawns_like_cpp(
+        &self,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        '_,
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp<
+            Vec<wow_persistence::CreatureSpawnPersistenceRowLikeCpp>,
+        >,
+    > {
+        Box::pin(async move { self.rows("creature-spawns", Vec::new()) })
+    }
+
+    fn load_waypoint_paths_like_cpp(
+        &self,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        '_,
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp<wow_persistence::WaypointPathCatalogLikeCpp>,
+    > {
+        Box::pin(async move {
+            self.rows(
+                "waypoints",
+                wow_persistence::WaypointPathCatalogLikeCpp {
+                    paths: Vec::new(),
+                    nodes: Vec::new(),
+                },
+            )
+        })
+    }
+
+    fn load_creature_formations_like_cpp(
+        &self,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        '_,
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp<
+            Vec<wow_persistence::CreatureFormationPersistenceRowLikeCpp>,
+        >,
+    > {
+        Box::pin(async move { self.rows("formations", Vec::new()) })
+    }
+
+    fn load_gameobject_spawns_like_cpp(
+        &self,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        '_,
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp<
+            Vec<wow_persistence::GameObjectSpawnPersistenceRowLikeCpp>,
+        >,
+    > {
+        Box::pin(async move { self.rows("gameobject-spawns", Vec::new()) })
+    }
+
+    fn load_area_trigger_spawns_like_cpp(
+        &self,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        '_,
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp<
+            Vec<wow_persistence::AreaTriggerSpawnPersistenceRowLikeCpp>,
+        >,
+    > {
+        Box::pin(async move { self.rows("area-trigger-spawns", Vec::new()) })
+    }
+
+    fn load_linked_respawns_like_cpp(
+        &self,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        '_,
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp<
+            Vec<wow_persistence::LinkedRespawnPersistenceRowLikeCpp>,
+        >,
+    > {
+        Box::pin(async move { self.rows("linked-respawns", Vec::new()) })
+    }
+
+    fn load_pool_templates_like_cpp(
+        &self,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        '_,
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp<Vec<PoolTemplateRowLikeCpp>>,
+    > {
+        Box::pin(async move {
+            self.rows(
+                "pool-templates",
+                vec![PoolTemplateRowLikeCpp {
+                    entry: 42,
+                    max_limit: 1,
+                }],
+            )
+        })
+    }
+
+    fn load_pool_members_like_cpp(
+        &self,
+        kind: PoolMemberKindPersistenceLikeCpp,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        '_,
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp<Vec<PoolMemberRowLikeCpp>>,
+    > {
+        let name = match kind {
+            PoolMemberKindPersistenceLikeCpp::Creature => "pool-creatures",
+            PoolMemberKindPersistenceLikeCpp::GameObject => "pool-gameobjects",
+            PoolMemberKindPersistenceLikeCpp::Pool => "pool-pools",
+        };
+        Box::pin(async move { self.rows(name, Vec::new()) })
+    }
+
+    fn load_pool_autospawn_candidates_like_cpp(
+        &self,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        '_,
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp<
+            Vec<wow_persistence::PoolAutospawnCandidatePersistenceRowLikeCpp>,
+        >,
+    > {
+        Box::pin(async move { self.rows("pool-autospawn", Vec::new()) })
+    }
+
+    fn load_spawn_group_members_like_cpp(
+        &self,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        '_,
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp<
+            Vec<wow_persistence::SpawnGroupMemberPersistenceRowLikeCpp>,
+        >,
+    > {
+        Box::pin(async move { self.rows("spawn-groups", Vec::new()) })
+    }
+}
+
+struct RecordingWorldStateStartupLikeCpp {
+    calls: Arc<Mutex<Vec<&'static str>>>,
+    fail: bool,
+}
+
+impl WorldStateStartupPersistencePortLikeCpp for RecordingWorldStateStartupLikeCpp {
+    fn load_world_then_character_like_cpp(
+        &self,
+    ) -> wow_persistence::PersistenceFutureLikeCpp<
+        '_,
+        wow_persistence::WorldStateStartupLoadOutcomeLikeCpp,
+    > {
+        Box::pin(async move {
+            self.calls.lock().unwrap().push("world-then-characters");
+            if self.fail {
+                wow_persistence::WorldStateStartupLoadOutcomeLikeCpp::Failed {
+                    reason: "world-state failed".to_owned(),
+                }
+            } else {
+                wow_persistence::WorldStateStartupLoadOutcomeLikeCpp::Loaded(
+                    wow_persistence::WorldStateStartupCatalogLikeCpp {
+                        templates: Vec::new(),
+                        saved_values: Vec::new(),
+                    },
+                )
+            }
+        })
+    }
+}
+
 impl GameEventWorldCatalogPersistencePortLikeCpp for RecordingGameEventWorldCatalogLikeCpp {
     fn load_prefix_like_cpp(
         &self,
@@ -200,6 +376,127 @@ async fn game_event_character_failure_stops_before_world_suffix() {
 
     assert!(error.to_string().contains("condition-save"));
     assert_eq!(*calls.lock().unwrap(), ["world-prefix", "character-saves"]);
+}
+
+async fn run_empty_canonical_spawn_pipeline_like_cpp(
+    spawn: &RecordingCanonicalSpawnCatalogLikeCpp,
+    character: &RecordingGameEventConditionSaveLikeCpp,
+    game_event_world: &RecordingGameEventWorldCatalogLikeCpp,
+) -> Result<(CanonicalSpawnMetadataLikeCpp, CanonicalSpawnStoreLoadReport)> {
+    let maps = map_store(&[]);
+    let difficulties = map_difficulty_store(&[]);
+    let spawn_groups = wow_data::SpawnGroupTemplateStore::default();
+    let equipment = wow_data::CreatureEquipmentStoreLikeCpp::default();
+    let area_triggers = wow_data::AreaTriggerTemplateStore::default();
+
+    load_canonical_spawn_store_like_cpp(
+        spawn,
+        character,
+        game_event_world,
+        &maps,
+        &difficulties,
+        &spawn_groups,
+        &equipment,
+        &area_triggers,
+        |_| false,
+        |_| wow_data::ScriptIdLikeCpp(0),
+    )
+    .await
+}
+
+#[tokio::test]
+async fn canonical_spawn_capability_keeps_the_complete_staged_order() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let spawn = RecordingCanonicalSpawnCatalogLikeCpp {
+        calls: Arc::clone(&calls),
+        fail_on: None,
+    };
+    let character = RecordingGameEventConditionSaveLikeCpp {
+        calls: Arc::clone(&calls),
+        fail: false,
+    };
+    let game_event_world = RecordingGameEventWorldCatalogLikeCpp {
+        calls: Arc::clone(&calls),
+        fail_prefix: false,
+        fail_suffix: false,
+    };
+
+    run_empty_canonical_spawn_pipeline_like_cpp(&spawn, &character, &game_event_world)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        *calls.lock().unwrap(),
+        [
+            "creature-spawns",
+            "waypoints",
+            "formations",
+            "gameobject-spawns",
+            "area-trigger-spawns",
+            "linked-respawns",
+            "pool-templates",
+            "pool-creatures",
+            "pool-gameobjects",
+            "pool-pools",
+            "pool-autospawn",
+            "world-prefix",
+            "character-saves",
+            "world-suffix",
+            "spawn-groups",
+        ]
+    );
+}
+
+#[tokio::test]
+async fn canonical_spawn_failure_stops_every_later_stage() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let spawn = RecordingCanonicalSpawnCatalogLikeCpp {
+        calls: Arc::clone(&calls),
+        fail_on: Some("waypoints"),
+    };
+    let character = RecordingGameEventConditionSaveLikeCpp {
+        calls: Arc::clone(&calls),
+        fail: false,
+    };
+    let game_event_world = RecordingGameEventWorldCatalogLikeCpp {
+        calls: Arc::clone(&calls),
+        fail_prefix: false,
+        fail_suffix: false,
+    };
+
+    let error = run_empty_canonical_spawn_pipeline_like_cpp(&spawn, &character, &game_event_world)
+        .await
+        .unwrap_err();
+
+    assert!(error.to_string().contains("waypoint"));
+    assert_eq!(*calls.lock().unwrap(), ["creature-spawns", "waypoints"]);
+}
+
+#[tokio::test]
+async fn world_state_startup_capability_keeps_success_and_failure_distinct() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let success = RecordingWorldStateStartupLikeCpp {
+        calls: Arc::clone(&calls),
+        fail: false,
+    };
+    let maps = map_store(&[]);
+    let areas = wow_data::AreaTableStore::default();
+
+    load_world_state_mgr_like_cpp(&success, &maps, &areas)
+        .await
+        .unwrap();
+    assert_eq!(*calls.lock().unwrap(), ["world-then-characters"]);
+
+    calls.lock().unwrap().clear();
+    let failure = RecordingWorldStateStartupLikeCpp {
+        calls: Arc::clone(&calls),
+        fail: true,
+    };
+    let error = load_world_state_mgr_like_cpp(&failure, &maps, &areas)
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("WorldState"));
+    assert_eq!(*calls.lock().unwrap(), ["world-then-characters"]);
 }
 
 fn map_store(ids: &[u32]) -> wow_data::MapStore {
@@ -400,61 +697,6 @@ fn waypoint_path_store_initializes_world_creature_default_waypoint_like_cpp() {
                 && launch.node_id == 7
                 && launch.destination == Position::new(11.0, 12.0, 13.0, 0.0)
     ));
-}
-
-#[test]
-fn creature_spawntimesecs_uses_unsigned_db_domain_like_cpp() {
-    assert_eq!(creature_spawntimesecs_to_i32_like_cpp(0).unwrap(), 0);
-    assert_eq!(creature_spawntimesecs_to_i32_like_cpp(300).unwrap(), 300);
-    assert_eq!(
-        creature_spawntimesecs_to_i32_like_cpp(i32::MAX as u32).unwrap(),
-        i32::MAX
-    );
-    assert!(creature_spawntimesecs_to_i32_like_cpp(i32::MAX as u32 + 1).is_err());
-}
-
-#[test]
-fn signed_phase_ids_are_normalized_to_unsigned_domain_like_cpp_getuint32() {
-    assert_eq!(
-        normalize_signed_db_u32_like_cpp(0, "creature.phaseid").unwrap(),
-        0
-    );
-    assert_eq!(
-        normalize_signed_db_u32_like_cpp(123, "creature.phaseid").unwrap(),
-        123
-    );
-    assert_eq!(
-        normalize_signed_db_u32_like_cpp(i64::from(u32::MAX), "creature.phaseid").unwrap(),
-        u32::MAX
-    );
-    assert!(normalize_signed_db_u32_like_cpp(-1, "creature.phaseid").is_err());
-    assert!(normalize_signed_db_u32_like_cpp(i64::from(u32::MAX) + 1, "creature.phaseid").is_err());
-}
-
-#[test]
-fn signed_linked_respawn_guids_are_normalized_like_cpp_getuint64() {
-    assert_eq!(
-        normalize_signed_db_u64_like_cpp(0, "linked_respawn.linkedGuid").unwrap(),
-        0
-    );
-    assert_eq!(
-        normalize_signed_db_u64_like_cpp(123_456, "linked_respawn.linkedGuid").unwrap(),
-        123_456
-    );
-    assert!(normalize_signed_db_u64_like_cpp(-1, "linked_respawn.linkedGuid").is_err());
-}
-
-#[test]
-fn signed_game_event_times_are_normalized_like_cpp_getuint64() {
-    assert_eq!(
-        normalize_signed_db_u64_like_cpp(0, "game_event.start_time").unwrap(),
-        0
-    );
-    assert_eq!(
-        normalize_signed_db_u64_like_cpp(1_893_456_000, "game_event.end_time").unwrap(),
-        1_893_456_000
-    );
-    assert!(normalize_signed_db_u64_like_cpp(-1, "game_event.start_time").is_err());
 }
 
 #[test]

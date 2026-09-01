@@ -38,6 +38,7 @@ pub mod area_trigger_world_catalog_adapter;
 pub mod battle_pet_account_adapter;
 pub mod battle_pet_purchase_adapter;
 pub mod battle_pet_selection_catalog_adapter;
+pub mod canonical_spawn_catalog_adapter;
 pub mod character_enumeration_adapter;
 pub mod chr_specialization_hotfix_adapter;
 pub mod creature_display_hotfix_adapter;
@@ -100,6 +101,7 @@ pub mod transaction;
 pub mod updater;
 pub mod vehicle_catalog_adapter;
 pub mod void_storage_adapter;
+pub mod world_state_startup_adapter;
 
 // Re-export primary types at crate root for convenience.
 pub use area_trigger_template_catalog_adapter::MariaDbAreaTriggerTemplateCatalogPersistenceAdapterLikeCpp;
@@ -107,6 +109,7 @@ pub use area_trigger_world_catalog_adapter::MariaDbAreaTriggerWorldCatalogPersis
 pub use battle_pet_account_adapter::LoginBattlePetPersistenceLikeCpp;
 pub use battle_pet_purchase_adapter::CharacterBattlePetPurchasePersistenceAdapterLikeCpp;
 pub use battle_pet_selection_catalog_adapter::MariaDbBattlePetSelectionCatalogPersistenceAdapterLikeCpp;
+pub use canonical_spawn_catalog_adapter::MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp;
 pub use character_enumeration_adapter::MariaDbCharacterEnumerationPersistenceAdapterLikeCpp;
 pub use chr_specialization_hotfix_adapter::MariaDbChrSpecializationHotfixPersistenceAdapterLikeCpp;
 pub use creature_display_hotfix_adapter::MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp;
@@ -172,6 +175,7 @@ pub use vehicle_catalog_adapter::{
     MariaDbVehicleHotfixPersistenceAdapterLikeCpp,
     MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp,
 };
+pub use world_state_startup_adapter::MariaDbWorldStateStartupPersistenceAdapterLikeCpp;
 
 /// Type aliases for each database connection.
 pub type LoginDatabase = Database<LoginStatements>;

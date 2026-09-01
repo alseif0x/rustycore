@@ -82,7 +82,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Result, bail};
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
-use wow_database::{CharStatements, CharacterDatabase, SqlResult, WorldDatabase, WorldStatements};
 use wow_entities::CreatureFormationInfoLikeCpp;
 use wow_map::pool::{
     PoolGroupLikeCpp, PoolMemberKindLikeCpp, PoolMgrLikeCpp, PoolObjectLikeCpp,
@@ -98,7 +97,11 @@ use wow_map::{
     SpawnId, SpawnObjectType, SpawnPosition, SpawnStore,
 };
 use wow_persistence::{
+    AreaTriggerSpawnPersistenceRowLikeCpp as AreaTriggerSpawnRow,
+    CanonicalSpawnCatalogLoadOutcomeLikeCpp, CanonicalSpawnCatalogPersistencePortLikeCpp,
     CreatureEquipmentIdPersistenceRowLikeCpp,
+    CreatureFormationPersistenceRowLikeCpp as CreatureFormationRowLikeCpp,
+    CreatureSpawnPersistenceRowLikeCpp as CreatureSpawnRow,
     GameEventConditionPersistenceRowLikeCpp as GameEventConditionRowLikeCpp,
     GameEventDataPersistenceRowLikeCpp as GameEventDataRowLikeCpp,
     GameEventModelEquipPersistenceRowLikeCpp as GameEventModelEquipRowLikeCpp,
@@ -111,6 +114,16 @@ use wow_persistence::{
     GameEventQuestRelationPersistenceRowLikeCpp as GameEventQuestRelationRowLikeCpp,
     GameEventWorldCatalogLoadOutcomeLikeCpp, GameEventWorldCatalogPersistencePortLikeCpp,
     GameEventWorldCatalogPrefixLikeCpp, GameEventWorldCatalogSuffixLikeCpp,
+    GameObjectSpawnPersistenceRowLikeCpp as GameObjectSpawnRow,
+    LinkedRespawnPersistenceRowLikeCpp as LinkedRespawnDbRow,
+    PoolAutospawnCandidatePersistenceRowLikeCpp as PoolAutospawnCandidateRowLikeCpp,
+    PoolMemberKindPersistenceLikeCpp, PoolMemberPersistenceRowLikeCpp as PoolMemberRowLikeCpp,
+    PoolTemplatePersistenceRowLikeCpp as PoolTemplateRowLikeCpp,
+    SpawnGroupMemberPersistenceRowLikeCpp,
+    WaypointPathNodePersistenceRowLikeCpp as WaypointPathNodeRowLikeCpp,
+    WaypointPathPersistenceRowLikeCpp as WaypointPathRowLikeCpp,
+    WorldStateStartupLoadOutcomeLikeCpp, WorldStateStartupPersistencePortLikeCpp,
+    WorldStateTemplatePersistenceRowLikeCpp as WorldStateDbTemplateRowLikeCpp,
 };
 
 const DIFFICULTY_NONE_LIKE_CPP: Difficulty = 0;
@@ -174,24 +187,6 @@ pub struct WaypointPathLoadReportLikeCpp {
     pub empty_paths: usize,
     pub backwards_too_short: usize,
     pub clamped_delay: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct WaypointPathRowLikeCpp {
-    pub path_id: u32,
-    pub move_type: u8,
-    pub flags: u8,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct WaypointPathNodeRowLikeCpp {
-    pub path_id: u32,
-    pub node_id: u32,
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-    pub orientation: Option<f32>,
-    pub delay: u32,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -729,15 +724,6 @@ pub enum WorldStateSetValueOutcomeLikeCpp {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WorldStateDbTemplateRowLikeCpp {
-    pub id: i32,
-    pub default_value: i32,
-    pub map_ids_csv: String,
-    pub area_ids_csv: String,
-    pub script_name: String,
-}
-
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WorldStateMgrLoadReportLikeCpp {
     pub template_rows: u32,
@@ -984,43 +970,24 @@ fn parse_world_state_area_ids_like_cpp(
 }
 
 pub async fn load_world_state_mgr_like_cpp(
-    world_db: &WorldDatabase,
-    character_db: &CharacterDatabase,
+    persistence: &dyn WorldStateStartupPersistencePortLikeCpp,
     map_store: &wow_data::MapStore,
     area_table_store: &wow_data::AreaTableStore,
 ) -> Result<(WorldStateMgrLikeCpp, WorldStateMgrLoadReportLikeCpp)> {
-    let mut template_rows = Vec::new();
-    let stmt = world_db.prepare(WorldStatements::SEL_WORLD_STATES);
-    let mut result = world_db.query(&stmt).await?;
-    if !result.is_empty() {
-        loop {
-            template_rows.push(WorldStateDbTemplateRowLikeCpp {
-                id: result.read(0),
-                default_value: result.read(1),
-                map_ids_csv: result.try_read(2).unwrap_or_default(),
-                area_ids_csv: result.try_read(3).unwrap_or_default(),
-                script_name: result.try_read(4).unwrap_or_default(),
-            });
-            if !result.next_row() {
-                break;
-            }
+    let catalog = match persistence.load_world_then_character_like_cpp().await {
+        WorldStateStartupLoadOutcomeLikeCpp::Loaded(catalog) => catalog,
+        WorldStateStartupLoadOutcomeLikeCpp::Failed { reason } => {
+            bail!("WorldState startup catalog failed: {reason}")
         }
-    }
-
-    let mut saved_values = Vec::new();
-    let stmt = character_db.prepare(CharStatements::SEL_WORLD_STATE_VALUES);
-    let mut result = character_db.query(&stmt).await?;
-    if !result.is_empty() {
-        loop {
-            saved_values.push((result.read(0), result.read(1)));
-            if !result.next_row() {
-                break;
-            }
-        }
-    }
+    };
+    let saved_values = catalog
+        .saved_values
+        .into_iter()
+        .map(|row| (row.id, row.value))
+        .collect::<Vec<_>>();
 
     Ok(WorldStateMgrLikeCpp::from_db_rows_like_cpp(
-        template_rows,
+        catalog.templates,
         saved_values,
         |map_id| {
             u32::try_from(map_id)
@@ -3186,132 +3153,12 @@ pub struct AreaTriggerSpawnRuntimeRowLikeCpp {
     pub spell_for_visuals: Option<i32>,
 }
 
-#[derive(Debug, Clone)]
-struct CreatureSpawnRow {
-    spawn_id: SpawnId,
-    entry: u32,
-    map_id: u32,
-    x: f32,
-    y: f32,
-    z: f32,
-    orientation: f32,
-    model_id: u32,
-    equipment_id: i8,
-    spawn_time_secs: i32,
-    wander_distance: f32,
-    curhealth: u32,
-    curmana: u32,
-    movement_type: u8,
-    npc_flags: Option<u64>,
-    unit_flags: Option<u32>,
-    unit_flags2: Option<u32>,
-    unit_flags3: Option<u32>,
-    ground_movement_type: u8,
-    swim_allowed: bool,
-    flight_movement_type: u8,
-    rooted: bool,
-    chase_movement_type: u8,
-    random_movement_type: u8,
-    interaction_pause_timer_ms: u32,
-    spawn_difficulties: String,
-    event_entry: i16,
-    pool_id: u32,
-    phase_use_flags: u8,
-    phase_id: u32,
-    phase_group: u32,
-    terrain_swap_map: i32,
-    script_name: String,
-    string_id: String,
-}
-
-#[derive(Debug, Clone)]
-struct GameObjectSpawnRow {
-    spawn_id: SpawnId,
-    entry: u32,
-    map_id: u32,
-    x: f32,
-    y: f32,
-    z: f32,
-    orientation: f32,
-    rotation: [f32; 4],
-    spawn_time_secs: i32,
-    anim_progress: u8,
-    state: u8,
-    spawn_difficulties: String,
-    event_entry: i16,
-    pool_id: u32,
-    phase_use_flags: u8,
-    phase_id: u32,
-    phase_group: u32,
-    terrain_swap_map: i32,
-    script_name: String,
-    string_id: String,
-}
-
-#[derive(Debug, Clone)]
-struct AreaTriggerSpawnRow {
-    spawn_id: SpawnId,
-    create_properties_id: u32,
-    is_custom: bool,
-    map_id: u32,
-    spawn_difficulties: String,
-    x: f32,
-    y: f32,
-    z: f32,
-    orientation: f32,
-    phase_use_flags: u8,
-    phase_id: u32,
-    phase_group: u32,
-    spell_for_visuals: Option<i32>,
-    script_name: String,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct LinkedRespawnDbRow {
-    guid: SpawnId,
-    linked_guid: SpawnId,
-    link_type: u8,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct PoolTemplateRowLikeCpp {
-    entry: u32,
-    max_limit: u32,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct PoolMemberRowLikeCpp {
-    spawn_id: u64,
-    pool_spawn_id: u32,
-    chance: f32,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct PoolAutospawnCandidateRowLikeCpp {
-    pool_entry: u32,
-    child_pool_id: u64,
-    mother_pool_id: u32,
-}
-
-impl From<LinkedRespawnDbRow> for LinkedRespawnRowLikeCpp {
-    fn from(row: LinkedRespawnDbRow) -> Self {
-        Self {
-            guid: row.guid,
-            linked_guid: row.linked_guid,
-            link_type: row.link_type,
-        }
+fn linked_respawn_row_like_cpp(row: LinkedRespawnDbRow) -> LinkedRespawnRowLikeCpp {
+    LinkedRespawnRowLikeCpp {
+        guid: row.guid,
+        linked_guid: row.linked_guid,
+        link_type: row.link_type,
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CreatureFormationRowLikeCpp {
-    pub leader_spawn_id: SpawnId,
-    pub member_spawn_id: SpawnId,
-    pub dist: f32,
-    pub angle_degrees: f32,
-    pub group_ai: u32,
-    pub point_1: u32,
-    pub point_2: u32,
 }
 
 pub fn apply_creature_formation_rows_like_cpp(
@@ -3375,47 +3222,16 @@ pub fn apply_creature_formation_rows_like_cpp(
 }
 
 async fn load_creature_formations_like_cpp(
-    db: &WorldDatabase,
+    persistence: &dyn CanonicalSpawnCatalogPersistencePortLikeCpp,
     store: &SpawnStore,
     report: &mut CanonicalSpawnStoreLoadReport,
 ) -> Result<BTreeMap<SpawnId, CreatureFormationInfoLikeCpp>> {
-    let stmt = db.prepare(WorldStatements::SEL_CREATURE_FORMATIONS);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(BTreeMap::new());
-    }
-
-    let mut rows = Vec::new();
-    loop {
-        rows.push(CreatureFormationRowLikeCpp {
-            leader_spawn_id: read_unsigned_db_u64_like_cpp(
-                &result,
-                0,
-                "creature_formations.leaderGUID",
-            )?,
-            member_spawn_id: read_unsigned_db_u64_like_cpp(
-                &result,
-                1,
-                "creature_formations.memberGUID",
-            )?,
-            dist: result.read(2),
-            angle_degrees: result.read(3),
-            group_ai: read_unsigned_db_u32_like_cpp(&result, 4, "creature_formations.groupAI")?,
-            point_1: u32::from(read_unsigned_db_u16_like_cpp(
-                &result,
-                5,
-                "creature_formations.point_1",
-            )?),
-            point_2: u32::from(read_unsigned_db_u16_like_cpp(
-                &result,
-                6,
-                "creature_formations.point_2",
-            )?),
-        });
-        if !result.next_row() {
-            break;
+    let rows = match persistence.load_creature_formations_like_cpp().await {
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Loaded(rows) => rows,
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Failed { reason } => {
+            bail!("canonical creature formation catalog failed: {reason}")
         }
-    }
+    };
 
     Ok(apply_creature_formation_rows_like_cpp(
         rows,
@@ -3425,54 +3241,18 @@ async fn load_creature_formations_like_cpp(
 }
 
 async fn load_waypoint_paths_like_cpp(
-    db: &WorldDatabase,
+    persistence: &dyn CanonicalSpawnCatalogPersistencePortLikeCpp,
     report: &mut CanonicalSpawnStoreLoadReport,
 ) -> Result<WaypointPathStoreLikeCpp> {
-    let path_stmt = db.prepare(WorldStatements::SEL_WAYPOINT_PATHS);
-    let mut path_result = db.query(&path_stmt).await?;
-    let mut path_rows = Vec::new();
-    if !path_result.is_empty() {
-        loop {
-            path_rows.push(WaypointPathRowLikeCpp {
-                path_id: read_unsigned_db_u32_like_cpp(&path_result, 0, "waypoint_path.PathId")?,
-                move_type: path_result.try_read(1).unwrap_or(0),
-                flags: path_result.try_read(2).unwrap_or(0),
-            });
-            if !path_result.next_row() {
-                break;
-            }
+    let catalog = match persistence.load_waypoint_paths_like_cpp().await {
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Loaded(catalog) => catalog,
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Failed { reason } => {
+            bail!("canonical waypoint catalog failed: {reason}")
         }
-    }
+    };
 
-    let node_stmt = db.prepare(WorldStatements::SEL_WAYPOINT_PATH_NODES);
-    let mut node_result = db.query(&node_stmt).await?;
-    let mut node_rows = Vec::new();
-    if !node_result.is_empty() {
-        loop {
-            node_rows.push(WaypointPathNodeRowLikeCpp {
-                path_id: read_unsigned_db_u32_like_cpp(
-                    &node_result,
-                    0,
-                    "waypoint_path_node.PathId",
-                )?,
-                node_id: read_unsigned_db_u32_like_cpp(
-                    &node_result,
-                    1,
-                    "waypoint_path_node.NodeId",
-                )?,
-                x: node_result.read(2),
-                y: node_result.read(3),
-                z: node_result.read(4),
-                orientation: node_result.try_read::<Option<f32>>(5).unwrap_or(None),
-                delay: read_unsigned_db_u32_like_cpp(&node_result, 6, "waypoint_path_node.Delay")?,
-            });
-            if !node_result.next_row() {
-                break;
-            }
-        }
-    }
-
-    let (store, load_report) = WaypointPathStoreLikeCpp::from_rows_like_cpp(path_rows, node_rows);
+    let (store, load_report) =
+        WaypointPathStoreLikeCpp::from_rows_like_cpp(catalog.paths, catalog.nodes);
     report.waypoint_paths = load_report;
     Ok(store)
 }
@@ -3504,7 +3284,7 @@ async fn load_game_event_condition_saves_then_world_suffix_like_cpp(
 }
 
 pub async fn load_canonical_spawn_store_like_cpp(
-    db: &WorldDatabase,
+    spawn_persistence: &dyn CanonicalSpawnCatalogPersistencePortLikeCpp,
     game_event_persistence: &dyn wow_persistence::GameEventPersistencePortLikeCpp,
     game_event_world_catalog: &dyn GameEventWorldCatalogPersistencePortLikeCpp,
     map_store: &wow_data::MapStore,
@@ -3522,7 +3302,7 @@ pub async fn load_canonical_spawn_store_like_cpp(
     let mut report = CanonicalSpawnStoreLoadReport::default();
 
     load_creature_spawns_like_cpp(
-        db,
+        spawn_persistence,
         map_store,
         map_difficulty_store,
         creature_equipment_store,
@@ -3534,10 +3314,11 @@ pub async fn load_canonical_spawn_store_like_cpp(
     // C++ `World::SetInitialWorldSettings` loads waypoint paths before
     // `FormationMgr::LoadCreatureFormations`; this stores metadata only and does not
     // launch waypoint movement.
-    let waypoint_paths = load_waypoint_paths_like_cpp(db, &mut report).await?;
-    let creature_formations = load_creature_formations_like_cpp(db, &store, &mut report).await?;
+    let waypoint_paths = load_waypoint_paths_like_cpp(spawn_persistence, &mut report).await?;
+    let creature_formations =
+        load_creature_formations_like_cpp(spawn_persistence, &store, &mut report).await?;
     load_gameobject_spawns_like_cpp(
-        db,
+        spawn_persistence,
         map_store,
         map_difficulty_store,
         &mut store,
@@ -3546,7 +3327,7 @@ pub async fn load_canonical_spawn_store_like_cpp(
     )
     .await?;
     load_area_trigger_spawns_like_cpp(
-        db,
+        spawn_persistence,
         map_store,
         map_difficulty_store,
         area_trigger_template_store,
@@ -3559,11 +3340,12 @@ pub async fn load_canonical_spawn_store_like_cpp(
     .await?;
 
     // C++ `ObjectMgr::LoadLinkedRespawn` runs after creature/gameobject data is canonical.
-    let linked_respawns = load_linked_respawns_like_cpp(db, &store, map_store, &mut report).await?;
+    let linked_respawns =
+        load_linked_respawns_like_cpp(spawn_persistence, &store, map_store, &mut report).await?;
 
     // C++ `PoolMgr::LoadFromDB` uses ObjectMgr creature/gameobject spawn data as
     // existence/map truth. This builds only PoolMgr metadata/plans; no live spawn.
-    let pool_mgr = load_pool_mgr_like_cpp(db, &store, &mut report).await?;
+    let pool_mgr = load_pool_mgr_like_cpp(spawn_persistence, &store, &mut report).await?;
     let game_event_prefix = load_game_event_world_prefix_like_cpp(game_event_world_catalog).await?;
     let game_event_sizing =
         GameEventSizingLikeCpp::from_max_event_entry_like_cpp(game_event_prefix.max_event_entry);
@@ -3658,7 +3440,7 @@ pub async fn load_canonical_spawn_store_like_cpp(
     );
 
     let mut templates = spawn_group_templates_for_spawn_store(spawn_group_store);
-    let members = load_spawn_group_members_like_cpp(db).await?;
+    let members = load_spawn_group_members_like_cpp(spawn_persistence).await?;
     report.spawn_group_rows = members.len();
     report.spawn_group_apply = store.apply_spawn_groups_like_cpp(&mut templates, members);
 
@@ -3684,71 +3466,85 @@ pub async fn load_canonical_spawn_store_like_cpp(
 }
 
 async fn load_pool_mgr_like_cpp(
-    db: &WorldDatabase,
+    persistence: &dyn CanonicalSpawnCatalogPersistencePortLikeCpp,
     store: &SpawnStore,
     report: &mut CanonicalSpawnStoreLoadReport,
 ) -> Result<PoolMgrLikeCpp> {
     let mut mgr = PoolMgrLikeCpp::new();
-
-    let stmt = db.prepare(WorldStatements::SEL_POOL_TEMPLATES);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
+    let templates = match persistence.load_pool_templates_like_cpp().await {
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Loaded(templates) => templates,
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Failed { reason } => {
+            bail!("canonical pool template catalog failed: {reason}")
+        }
+    };
+    if templates.is_empty() {
         return Ok(mgr);
     }
-    loop {
-        apply_pool_template_row_like_cpp(
-            PoolTemplateRowLikeCpp {
-                entry: result.read(0),
-                max_limit: result.read(1),
-            },
-            &mut mgr,
-            &mut report.pool_mgr,
-        );
-        if !result.next_row() {
-            break;
-        }
+    for row in templates {
+        apply_pool_template_row_like_cpp(row, &mut mgr, &mut report.pool_mgr);
     }
 
-    load_pool_member_rows_like_cpp(db, store, PoolMemberKindLikeCpp::Creature, &mut mgr, report)
-        .await?;
     load_pool_member_rows_like_cpp(
-        db,
+        load_pool_members_from_persistence_like_cpp(
+            persistence,
+            PoolMemberKindPersistenceLikeCpp::Creature,
+        )
+        .await?,
+        store,
+        PoolMemberKindLikeCpp::Creature,
+        &mut mgr,
+        report,
+    );
+    load_pool_member_rows_like_cpp(
+        load_pool_members_from_persistence_like_cpp(
+            persistence,
+            PoolMemberKindPersistenceLikeCpp::GameObject,
+        )
+        .await?,
         store,
         PoolMemberKindLikeCpp::GameObject,
         &mut mgr,
         report,
-    )
-    .await?;
-    load_pool_member_rows_like_cpp(db, store, PoolMemberKindLikeCpp::Pool, &mut mgr, report)
-        .await?;
+    );
+    load_pool_member_rows_like_cpp(
+        load_pool_members_from_persistence_like_cpp(
+            persistence,
+            PoolMemberKindPersistenceLikeCpp::Pool,
+        )
+        .await?,
+        store,
+        PoolMemberKindLikeCpp::Pool,
+        &mut mgr,
+        report,
+    );
 
     apply_pool_map_propagation_like_cpp(&mut mgr, &mut report.pool_mgr);
     apply_pool_final_validation_like_cpp(&mgr, &mut report.pool_mgr);
-    load_pool_autospawn_candidates_like_cpp(db, &mut mgr, report).await?;
+    load_pool_autospawn_candidates_like_cpp(persistence, &mut mgr, report).await?;
 
     Ok(mgr)
 }
 
-async fn load_pool_member_rows_like_cpp(
-    db: &WorldDatabase,
+async fn load_pool_members_from_persistence_like_cpp(
+    persistence: &dyn CanonicalSpawnCatalogPersistencePortLikeCpp,
+    kind: PoolMemberKindPersistenceLikeCpp,
+) -> Result<Vec<PoolMemberRowLikeCpp>> {
+    match persistence.load_pool_members_like_cpp(kind).await {
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Loaded(rows) => Ok(rows),
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Failed { reason } => {
+            bail!("canonical pool member catalog failed: {reason}")
+        }
+    }
+}
+
+fn load_pool_member_rows_like_cpp(
+    rows: Vec<PoolMemberRowLikeCpp>,
     store: &SpawnStore,
     kind: PoolMemberKindLikeCpp,
     mgr: &mut PoolMgrLikeCpp,
     report: &mut CanonicalSpawnStoreLoadReport,
-) -> Result<()> {
-    let mut stmt = db.prepare(WorldStatements::SEL_POOL_MEMBERS_BY_TYPE);
-    stmt.set_u8(0, kind as u8);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(());
-    }
-
-    loop {
-        let row = PoolMemberRowLikeCpp {
-            spawn_id: result.read(0),
-            pool_spawn_id: result.read(1),
-            chance: result.read(2),
-        };
+) {
+    for row in rows {
         match kind {
             PoolMemberKindLikeCpp::Creature | PoolMemberKindLikeCpp::GameObject => {
                 apply_pool_spawn_member_row_like_cpp(row, store, kind, mgr, &mut report.pool_mgr);
@@ -3757,38 +3553,22 @@ async fn load_pool_member_rows_like_cpp(
                 apply_pool_pool_member_row_like_cpp(row, mgr, &mut report.pool_mgr);
             }
         }
-        if !result.next_row() {
-            break;
-        }
     }
-
-    Ok(())
 }
 
 async fn load_pool_autospawn_candidates_like_cpp(
-    db: &WorldDatabase,
+    persistence: &dyn CanonicalSpawnCatalogPersistencePortLikeCpp,
     mgr: &mut PoolMgrLikeCpp,
     report: &mut CanonicalSpawnStoreLoadReport,
 ) -> Result<()> {
-    let stmt = db.prepare(WorldStatements::SEL_POOL_AUTOSPAWN_CANDIDATES);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(());
-    }
-
-    loop {
-        apply_pool_autospawn_candidate_row_like_cpp(
-            PoolAutospawnCandidateRowLikeCpp {
-                pool_entry: result.read(0),
-                child_pool_id: result.try_read(1).unwrap_or(0),
-                mother_pool_id: result.try_read(2).unwrap_or(0),
-            },
-            mgr,
-            &mut report.pool_mgr,
-        );
-        if !result.next_row() {
-            break;
+    let rows = match persistence.load_pool_autospawn_candidates_like_cpp().await {
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Loaded(rows) => rows,
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Failed { reason } => {
+            bail!("canonical pool autospawn catalog failed: {reason}")
         }
+    };
+    for row in rows {
+        apply_pool_autospawn_candidate_row_like_cpp(row, mgr, &mut report.pool_mgr);
     }
 
     Ok(())
@@ -4666,7 +4446,7 @@ pub fn spawn_group_templates_for_spawn_store(
 }
 
 async fn load_creature_spawns_like_cpp(
-    db: &WorldDatabase,
+    persistence: &dyn CanonicalSpawnCatalogPersistencePortLikeCpp,
     map_store: &wow_data::MapStore,
     map_difficulty_store: &wow_data::MapDifficultyStore,
     creature_equipment_store: &wow_data::CreatureEquipmentStoreLikeCpp,
@@ -4674,55 +4454,13 @@ async fn load_creature_spawns_like_cpp(
     creature_runtime_rows: &mut BTreeMap<SpawnId, CreatureSpawnRuntimeRowLikeCpp>,
     report: &mut CanonicalSpawnStoreLoadReport,
 ) -> Result<()> {
-    let stmt = db.prepare(WorldStatements::SEL_CREATURE_SPAWNS);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(());
-    }
-
-    loop {
-        let mut row = CreatureSpawnRow {
-            spawn_id: result.read(0),
-            entry: result.read(1),
-            map_id: result.read(2),
-            x: result.read(3),
-            y: result.read(4),
-            z: result.read(5),
-            orientation: result.read(6),
-            model_id: result.try_read(7).unwrap_or(0),
-            equipment_id: result.try_read(8).unwrap_or(0),
-            spawn_time_secs: creature_spawntimesecs_to_i32_like_cpp(result.read(9))?,
-            wander_distance: result.try_read(10).unwrap_or(0.0),
-            curhealth: result.try_read(12).unwrap_or(0),
-            curmana: result.try_read(13).unwrap_or(0),
-            movement_type: result.try_read(14).unwrap_or(0),
-            npc_flags: result.try_read::<Option<u64>>(18).unwrap_or(None),
-            unit_flags: result.try_read::<Option<u32>>(19).unwrap_or(None),
-            unit_flags2: result.try_read::<Option<u32>>(20).unwrap_or(None),
-            unit_flags3: result.try_read::<Option<u32>>(21).unwrap_or(None),
-            spawn_difficulties: result.read(15),
-            event_entry: result.try_read(16).unwrap_or(0),
-            pool_id: result.try_read(17).unwrap_or(0),
-            phase_use_flags: result.read(22),
-            phase_id: read_unsigned_db_u32_like_cpp(&result, 23, "creature.phaseid")?,
-            phase_group: read_unsigned_db_u32_like_cpp(&result, 24, "creature.phasegroup")?,
-            terrain_swap_map: result.read(25),
-            script_name: result.try_read(26).unwrap_or_default(),
-            string_id: result.try_read(27).unwrap_or_default(),
-            ground_movement_type: result
-                .try_read::<Option<u8>>(28)
-                .flatten()
-                .unwrap_or(wow_constants::CreatureGroundMovementType::Run as u8),
-            swim_allowed: result.try_read::<Option<u8>>(29).flatten().unwrap_or(1) != 0,
-            flight_movement_type: result.try_read::<Option<u8>>(30).flatten().unwrap_or(0),
-            rooted: result.try_read::<Option<u8>>(31).flatten().unwrap_or(0) != 0,
-            chase_movement_type: result.try_read::<Option<u8>>(32).flatten().unwrap_or(0),
-            random_movement_type: result.try_read::<Option<u8>>(33).flatten().unwrap_or(0),
-            interaction_pause_timer_ms: result
-                .try_read::<Option<u32>>(34)
-                .flatten()
-                .unwrap_or(wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP),
-        };
+    let rows = match persistence.load_creature_spawns_like_cpp().await {
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Loaded(rows) => rows,
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Failed { reason } => {
+            bail!("canonical creature spawn catalog failed: {reason}")
+        }
+    };
+    for mut row in rows {
         normalize_creature_spawn_equipment_id_like_cpp(&mut row, creature_equipment_store);
         let runtime_row = creature_row_to_runtime_row_like_cpp(&row);
         report.creature.rows += 1;
@@ -4742,57 +4480,26 @@ async fn load_creature_spawns_like_cpp(
                 report.creature.indexed += 1;
             }
         }
-
-        if !result.next_row() {
-            break;
-        }
     }
 
     Ok(())
 }
 
 async fn load_gameobject_spawns_like_cpp(
-    db: &WorldDatabase,
+    persistence: &dyn CanonicalSpawnCatalogPersistencePortLikeCpp,
     map_store: &wow_data::MapStore,
     map_difficulty_store: &wow_data::MapDifficultyStore,
     store: &mut SpawnStore,
     gameobject_runtime_rows: &mut BTreeMap<SpawnId, GameObjectSpawnRuntimeRowLikeCpp>,
     report: &mut CanonicalSpawnStoreLoadReport,
 ) -> Result<()> {
-    let stmt = db.prepare(WorldStatements::SEL_GAMEOBJECT_SPAWNS);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(());
-    }
-
-    loop {
-        let row = GameObjectSpawnRow {
-            spawn_id: result.read(0),
-            entry: result.read(1),
-            map_id: result.read(2),
-            x: result.read(3),
-            y: result.read(4),
-            z: result.read(5),
-            orientation: result.read(6),
-            rotation: [
-                result.read(7),
-                result.read(8),
-                result.read(9),
-                result.read(10),
-            ],
-            spawn_time_secs: result.read(11),
-            anim_progress: result.read(12),
-            state: result.read(13),
-            spawn_difficulties: result.read(14),
-            event_entry: result.try_read(15).unwrap_or(0),
-            pool_id: result.try_read(16).unwrap_or(0),
-            phase_use_flags: result.read(17),
-            phase_id: read_unsigned_db_u32_like_cpp(&result, 18, "gameobject.phaseid")?,
-            phase_group: read_unsigned_db_u32_like_cpp(&result, 19, "gameobject.phasegroup")?,
-            terrain_swap_map: result.read(20),
-            script_name: result.try_read(21).unwrap_or_default(),
-            string_id: result.try_read(22).unwrap_or_default(),
-        };
+    let rows = match persistence.load_gameobject_spawns_like_cpp().await {
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Loaded(rows) => rows,
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Failed { reason } => {
+            bail!("canonical gameobject spawn catalog failed: {reason}")
+        }
+    };
+    for row in rows {
         report.gameobject.rows += 1;
         let runtime_row = gameobject_row_to_runtime_row_like_cpp(&row);
         if let Some(spawn) = gameobject_row_to_spawn_data_like_cpp(
@@ -4811,17 +4518,13 @@ async fn load_gameobject_spawns_like_cpp(
                 report.gameobject.indexed += 1;
             }
         }
-
-        if !result.next_row() {
-            break;
-        }
     }
 
     Ok(())
 }
 
 async fn load_area_trigger_spawns_like_cpp(
-    db: &WorldDatabase,
+    persistence: &dyn CanonicalSpawnCatalogPersistencePortLikeCpp,
     map_store: &wow_data::MapStore,
     map_difficulty_store: &wow_data::MapDifficultyStore,
     area_trigger_template_store: &wow_data::AreaTriggerTemplateStore,
@@ -4831,29 +4534,13 @@ async fn load_area_trigger_spawns_like_cpp(
     area_trigger_runtime_rows: &mut BTreeMap<SpawnId, AreaTriggerSpawnRuntimeRowLikeCpp>,
     report: &mut CanonicalSpawnStoreLoadReport,
 ) -> Result<()> {
-    let stmt = db.prepare(WorldStatements::SEL_AREATRIGGER_SPAWNS);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(());
-    }
-
-    loop {
-        let row = AreaTriggerSpawnRow {
-            spawn_id: result.read(0),
-            create_properties_id: result.read(1),
-            is_custom: result.read(2),
-            map_id: result.read(3),
-            spawn_difficulties: result.read(4),
-            x: result.read(5),
-            y: result.read(6),
-            z: result.read(7),
-            orientation: result.read(8),
-            phase_use_flags: result.read(9),
-            phase_id: read_unsigned_db_u32_like_cpp(&result, 10, "areatrigger.phaseid")?,
-            phase_group: read_unsigned_db_u32_like_cpp(&result, 11, "areatrigger.phasegroup")?,
-            spell_for_visuals: result.try_read(12).unwrap_or(None),
-            script_name: result.try_read(13).unwrap_or_default(),
-        };
+    let rows = match persistence.load_area_trigger_spawns_like_cpp().await {
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Loaded(rows) => rows,
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Failed { reason } => {
+            bail!("canonical area-trigger spawn catalog failed: {reason}")
+        }
+    };
+    for row in rows {
         report.area_trigger.rows += 1;
         if let Some(spawn) = area_trigger_row_to_spawn_data_like_cpp(
             &row,
@@ -4868,45 +4555,32 @@ async fn load_area_trigger_spawns_like_cpp(
             store.add_area_trigger_spawn(&spawn);
             report.area_trigger.indexed += 1;
         }
-
-        if !result.next_row() {
-            break;
-        }
     }
 
     Ok(())
 }
 
 async fn load_linked_respawns_like_cpp(
-    db: &WorldDatabase,
+    persistence: &dyn CanonicalSpawnCatalogPersistencePortLikeCpp,
     store: &SpawnStore,
     map_store: &wow_data::MapStore,
     report: &mut CanonicalSpawnStoreLoadReport,
 ) -> Result<LinkedRespawnStoreLikeCpp> {
-    let stmt = db.prepare(WorldStatements::SEL_LINKED_RESPAWNS);
-    let mut result = db.query(&stmt).await?;
     let mut linked_store = LinkedRespawnStoreLikeCpp::new();
-    if result.is_empty() {
-        return Ok(linked_store);
-    }
-
-    loop {
-        let row = LinkedRespawnDbRow {
-            guid: read_unsigned_db_u64_like_cpp(&result, 0, "linked_respawn.guid")?,
-            linked_guid: read_unsigned_db_u64_like_cpp(&result, 1, "linked_respawn.linkedGuid")?,
-            link_type: read_unsigned_db_u8_like_cpp(&result, 2, "linked_respawn.linkType")?,
-        };
+    let rows = match persistence.load_linked_respawns_like_cpp().await {
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Loaded(rows) => rows,
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Failed { reason } => {
+            bail!("canonical linked-respawn catalog failed: {reason}")
+        }
+    };
+    for row in rows {
         apply_linked_respawn_row_like_cpp(
-            row.into(),
+            linked_respawn_row_like_cpp(row),
             store,
             map_store,
             &mut linked_store,
             &mut report.linked_respawn,
         );
-
-        if !result.next_row() {
-            break;
-        }
     }
 
     Ok(linked_store)
@@ -5036,26 +4710,24 @@ fn map_entry_instanceable_like_cpp(map: wow_data::MapEntry) -> bool {
     )
 }
 
-async fn load_spawn_group_members_like_cpp(db: &WorldDatabase) -> Result<Vec<SpawnGroupMemberRow>> {
-    let stmt = db.prepare(WorldStatements::SEL_SPAWN_GROUP_MEMBERS);
-    let mut result = db.query(&stmt).await?;
-    if result.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let mut rows = Vec::new();
-    loop {
-        rows.push(SpawnGroupMemberRow {
-            group_id: result.read(0),
-            spawn_type: result.read(1),
-            spawn_id: result.read(2),
-        });
-        if !result.next_row() {
-            break;
+async fn load_spawn_group_members_like_cpp(
+    persistence: &dyn CanonicalSpawnCatalogPersistencePortLikeCpp,
+) -> Result<Vec<SpawnGroupMemberRow>> {
+    match persistence.load_spawn_group_members_like_cpp().await {
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Loaded(rows) => Ok(rows
+            .into_iter()
+            .map(
+                |row: SpawnGroupMemberPersistenceRowLikeCpp| SpawnGroupMemberRow {
+                    group_id: row.group_id,
+                    spawn_type: row.spawn_type,
+                    spawn_id: row.spawn_id,
+                },
+            )
+            .collect()),
+        CanonicalSpawnCatalogLoadOutcomeLikeCpp::Failed { reason } => {
+            bail!("canonical spawn-group member catalog failed: {reason}")
         }
     }
-
-    Ok(rows)
 }
 
 fn creature_row_to_spawn_data_like_cpp(
@@ -5086,138 +4758,6 @@ fn creature_row_to_spawn_data_like_cpp(
         map_difficulty_store,
         report,
     )
-}
-
-fn creature_spawntimesecs_to_i32_like_cpp(value: u32) -> Result<i32> {
-    // C++ `ObjectMgr::LoadCreatures` reads `creature.spawntimesecs` with
-    // `Field::GetUInt32()` and stores it in `SpawnData::spawntimesecs` (int32).
-    // Creature DB rows are unsigned; reject impossible values instead of
-    // silently wrapping them into negative respawn delays.
-    if value > i32::MAX as u32 {
-        bail!(
-            "creature.spawntimesecs value {value} exceeds the represented int32 SpawnData domain"
-        );
-    }
-
-    Ok(value as i32)
-}
-
-fn read_unsigned_db_u32_like_cpp(
-    result: &SqlResult,
-    column: usize,
-    field_name: &str,
-) -> Result<u32> {
-    if result.is_null(column) {
-        return Ok(0);
-    }
-    if let Some(value) = result.try_read::<u32>(column) {
-        return Ok(value);
-    }
-    if let Some(value) = result.try_read::<u64>(column) {
-        return normalize_u64_db_u32_like_cpp(value, field_name);
-    }
-    if let Some(value) = result.try_read::<u16>(column) {
-        return Ok(u32::from(value));
-    }
-    if let Some(value) = result.try_read::<u8>(column) {
-        return Ok(u32::from(value));
-    }
-    if let Some(value) = result.try_read::<i32>(column) {
-        return normalize_signed_db_u32_like_cpp(i64::from(value), field_name);
-    }
-    if let Some(value) = result.try_read::<i64>(column) {
-        return normalize_signed_db_u32_like_cpp(value, field_name);
-    }
-    if let Some(value) = result.try_read::<i16>(column) {
-        return normalize_signed_db_u32_like_cpp(i64::from(value), field_name);
-    }
-    if let Some(value) = result.try_read::<i8>(column) {
-        return normalize_signed_db_u32_like_cpp(i64::from(value), field_name);
-    }
-
-    bail!("could not decode {field_name} at column {column} as a C++ unsigned DB field")
-}
-
-fn read_unsigned_db_u64_like_cpp(
-    result: &SqlResult,
-    column: usize,
-    field_name: &str,
-) -> Result<u64> {
-    if result.is_null(column) {
-        return Ok(0);
-    }
-    if let Some(value) = result.try_read::<u64>(column) {
-        return Ok(value);
-    }
-    if let Some(value) = result.try_read::<u32>(column) {
-        return Ok(u64::from(value));
-    }
-    if let Some(value) = result.try_read::<u16>(column) {
-        return Ok(u64::from(value));
-    }
-    if let Some(value) = result.try_read::<u8>(column) {
-        return Ok(u64::from(value));
-    }
-    if let Some(value) = result.try_read::<i64>(column) {
-        return normalize_signed_db_u64_like_cpp(value, field_name);
-    }
-    if let Some(value) = result.try_read::<i32>(column) {
-        return normalize_signed_db_u64_like_cpp(i64::from(value), field_name);
-    }
-    if let Some(value) = result.try_read::<i16>(column) {
-        return normalize_signed_db_u64_like_cpp(i64::from(value), field_name);
-    }
-    if let Some(value) = result.try_read::<i8>(column) {
-        return normalize_signed_db_u64_like_cpp(i64::from(value), field_name);
-    }
-
-    bail!("could not decode {field_name} at column {column} as a C++ unsigned 64-bit DB field")
-}
-
-fn read_unsigned_db_u8_like_cpp(result: &SqlResult, column: usize, field_name: &str) -> Result<u8> {
-    let value = read_unsigned_db_u32_like_cpp(result, column, field_name)?;
-    if value > u32::from(u8::MAX) {
-        bail!("{field_name} value {value} exceeds the represented u8 domain");
-    }
-
-    Ok(value as u8)
-}
-
-fn read_unsigned_db_u16_like_cpp(
-    result: &SqlResult,
-    column: usize,
-    field_name: &str,
-) -> Result<u16> {
-    let value = read_unsigned_db_u32_like_cpp(result, column, field_name)?;
-    if value > u32::from(u16::MAX) {
-        bail!("{field_name} value {value} exceeds the represented u16 domain");
-    }
-
-    Ok(value as u16)
-}
-
-fn normalize_u64_db_u32_like_cpp(value: u64, field_name: &str) -> Result<u32> {
-    if value > u64::from(u32::MAX) {
-        bail!("{field_name} value {value} exceeds the represented u32 domain");
-    }
-
-    Ok(value as u32)
-}
-
-fn normalize_signed_db_u64_like_cpp(value: i64, field_name: &str) -> Result<u64> {
-    if value < 0 {
-        bail!("{field_name} value {value} is negative but C++ reads this field as unsigned");
-    }
-
-    Ok(value as u64)
-}
-
-fn normalize_signed_db_u32_like_cpp(value: i64, field_name: &str) -> Result<u32> {
-    if value < 0 {
-        bail!("{field_name} value {value} is negative but C++ reads this field as unsigned");
-    }
-
-    normalize_u64_db_u32_like_cpp(value as u64, field_name)
 }
 
 fn creature_row_to_runtime_row_like_cpp(row: &CreatureSpawnRow) -> CreatureSpawnRuntimeRowLikeCpp {

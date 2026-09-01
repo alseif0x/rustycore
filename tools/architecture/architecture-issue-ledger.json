@@ -141,6 +141,7 @@
     564,
     566,
     568,
+    570,
     189,
     192,
     193,
@@ -2202,7 +2203,7 @@
   },
   {
     "number": 568,
-    "state": "open",
+    "state": "closed",
     "title": "[ARCH.DB.91] Move GameEvent startup World catalogs behind one staged persistence capability",
     "kind": "slice",
     "parents": [
@@ -2211,6 +2212,19 @@
     ],
     "depends_on": [
       566
+    ]
+  },
+  {
+    "number": 570,
+    "state": "open",
+    "title": "[ARCH.DB.92] Move the remaining canonical spawn loader reads behind typed capabilities",
+    "kind": "slice",
+    "parents": [
+      133,
+      169
+    ],
+    "depends_on": [
+      568
     ]
   }
 ]

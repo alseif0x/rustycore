@@ -1817,9 +1817,16 @@ async fn run_inner(
             &world_db,
         )),
     );
+    let canonical_spawn_catalog: Arc<
+        dyn wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp,
+    > = Arc::new(
+        wow_database::MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
+            &world_db,
+        )),
+    );
     let (canonical_spawn_metadata, canonical_spawn_report) =
         spawn_store_loader::load_canonical_spawn_store_like_cpp(
-            world_db.as_ref(),
+            canonical_spawn_catalog.as_ref(),
             game_event_persistence.as_ref(),
             game_event_world_catalog.as_ref(),
             &map_store,
@@ -1952,10 +1959,16 @@ async fn run_inner(
     );
     let canonical_spawn_metadata: SharedCanonicalSpawnMetadataLikeCpp =
         Arc::new(Mutex::new(canonical_spawn_metadata));
+    let world_state_startup: Arc<dyn wow_persistence::WorldStateStartupPersistencePortLikeCpp> =
+        Arc::new(
+            wow_database::MariaDbWorldStateStartupPersistenceAdapterLikeCpp::new(
+                Arc::clone(&world_db),
+                Arc::clone(&char_db),
+            ),
+        );
     let (world_state_mgr, world_state_mgr_report) =
         spawn_store_loader::load_world_state_mgr_like_cpp(
-            world_db.as_ref(),
-            char_db.as_ref(),
+            world_state_startup.as_ref(),
             &map_store,
             &area_table_store,
         )
