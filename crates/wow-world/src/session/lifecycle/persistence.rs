@@ -344,13 +344,14 @@ impl WorldSession {
             None
         };
 
-        let action_buttons = if self.represented_action_buttons_loaded_like_cpp {
+        let action_buttons = if let Some(action_buttons) =
+            self.loaded_action_buttons_snapshot_like_cpp()
+        {
             let (spec, trait_config_id) = self.represented_action_button_db_context_like_cpp();
             Some(PlayerActionButtonsSaveLikeCpp {
                 spec,
                 trait_config_id,
-                rows: self
-                    .represented_action_buttons_like_cpp
+                rows: action_buttons
                     .iter()
                     .copied()
                     .enumerate()

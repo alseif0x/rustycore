@@ -2646,15 +2646,19 @@
           "name": "represented_action_buttons_like_cpp",
           "type": "[u32 ; wow_packet :: packets :: misc :: MAX_ACTION_BUTTONS]",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_action_buttons_loaded_like_cpp",
           "type": "bool",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_activate_taxi_requests_like_cpp",
@@ -27505,6 +27509,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "loaded_action_buttons_snapshot_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn loaded_action_buttons_snapshot_like_cpp (& self ,) -> Option < [u32 ; wow_packet :: packets :: misc :: MAX_ACTION_BUTTONS] >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "loaded_enchantment_effect_action_is_unrepresented_like_cpp",
           "visibility": "private",
           "signature": "fn loaded_enchantment_effect_action_is_unrepresented_like_cpp (action : ApplyEnchantmentEffectAction ,) -> bool",
@@ -32692,7 +32709,7 @@
           "kind": "method",
           "name": "represented_action_buttons_snapshot_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_action_buttons_snapshot_like_cpp (& self ,) -> [u32 ; wow_packet :: packets :: misc :: MAX_ACTION_BUTTONS]",
+          "signature": "fn represented_action_buttons_snapshot_like_cpp (& self ,) -> Option < [u32 ; wow_packet :: packets :: misc :: MAX_ACTION_BUTTONS] >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -74430,7 +74447,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:6b4849ac6158ea76c3a1420bdb2f981d:len=92493|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:3bfd79c656b3eaf36fd4e9d0af99e30a:len=92522|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

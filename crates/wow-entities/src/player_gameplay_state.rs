@@ -16,6 +16,10 @@ pub struct PlayerGameplayState {
     pub spells: Vec<PlayerKnownSpellRecord>,
     pub talents: Vec<PlayerTalentRecord>,
     pub action_buttons: Vec<PlayerActionButtonRecord>,
+    /// C++ `Player::m_actionButtons` has been hydrated from its authoritative
+    /// Character DB query. An empty button list is valid and must remain
+    /// distinguishable from an unavailable load.
+    pub action_buttons_loaded: bool,
     pub taxi: PlayerTaxiState,
     pub social: PlayerSocialState,
     pub customizations: Vec<PlayerCustomizationChoice>,

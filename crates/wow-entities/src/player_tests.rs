@@ -413,6 +413,46 @@ fn player_gameplay_sample_state() -> PlayerGameplayState {
 }
 
 #[test]
+fn action_buttons_are_sorted_player_owned_state_like_cpp() {
+    let mut player = Player::new(None, false);
+
+    assert!(player.set_action_button_like_cpp(7, 12_345, 0x80));
+    assert!(player.set_action_button_like_cpp(2, 635, 0));
+    assert_eq!(
+        player.action_button_like_cpp(7),
+        Some(12_345 | (0x80 << 24))
+    );
+    assert_eq!(
+        player
+            .gameplay_state()
+            .action_buttons
+            .iter()
+            .map(|button| button.button)
+            .collect::<Vec<_>>(),
+        vec![2, 7]
+    );
+
+    assert!(player.set_action_button_like_cpp(7, 0, 0));
+    assert_eq!(player.action_button_like_cpp(7), Some(0));
+    assert_eq!(player.action_buttons_snapshot_like_cpp()[2], 635);
+}
+
+#[test]
+fn action_button_load_authority_distinguishes_empty_from_unavailable_like_cpp() {
+    let mut player = Player::new(None, false);
+
+    assert!(!player.action_buttons_loaded_like_cpp());
+    player.mark_action_buttons_loaded_like_cpp();
+    assert!(player.action_buttons_loaded_like_cpp());
+    assert_eq!(player.action_buttons_snapshot_like_cpp(), [0; 180]);
+
+    assert!(player.set_action_button_like_cpp(1, 635, 0));
+    player.reset_action_buttons_for_load_like_cpp();
+    assert!(!player.action_buttons_loaded_like_cpp());
+    assert_eq!(player.action_button_like_cpp(1), Some(0));
+}
+
+#[test]
 fn player_gameplay_default_state_is_empty_and_attached_to_new_player() {
     let player = Player::new(None, false);
 

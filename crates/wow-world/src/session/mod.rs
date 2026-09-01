@@ -5834,8 +5834,10 @@ pub struct WorldSession {
     active_player_transport_server_time_like_cpp: i32,
     /// Represented `ActivePlayerData::MultiActionBars`.
     active_player_multi_action_bars_like_cpp: u8,
-    /// C++ `Player::m_actionButtons` represented as packed action-button data.
+    /// Test-only action-button owner for fixtures without a canonical Player.
+    #[cfg(test)]
     represented_action_buttons_like_cpp: [u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS],
+    #[cfg(test)]
     represented_action_buttons_loaded_like_cpp: bool,
     /// C++ `Player::_advancedCombatLoggingEnabled`; consumed when combat-log fanout selects full/basic payloads.
     /// C++ `WorldSession::_filterAddonMessages`' sibling for
@@ -7908,7 +7910,9 @@ impl WorldSession {
             active_player_local_flags_like_cpp: 0,
             active_player_transport_server_time_like_cpp: 0,
             active_player_multi_action_bars_like_cpp: 0,
+            #[cfg(test)]
             represented_action_buttons_like_cpp: [0; wow_packet::packets::misc::MAX_ACTION_BUTTONS],
+            #[cfg(test)]
             represented_action_buttons_loaded_like_cpp: false,
             advanced_combat_logging_enabled_like_cpp: Arc::new(AtomicBool::new(false)),
             player_moved_unit_guid_like_cpp: ObjectGuid::EMPTY,
@@ -51632,16 +51636,6 @@ impl WorldSession {
         index: u8,
         packed_action: u32,
     ) -> bool {
-        let button = index as usize;
-        if button >= self.represented_action_buttons_like_cpp.len() {
-            return false;
-        }
-
-        if packed_action == 0 {
-            self.represented_action_buttons_like_cpp[button] = 0;
-            return true;
-        }
-
         let action = action_button_action_like_cpp(packed_action);
         let action_type = action_button_type_like_cpp(packed_action);
 
@@ -51650,25 +51644,76 @@ impl WorldSession {
         // not unified here yet, so this represented path preserves the exact
         // packed action/type split and slot bounds while leaving store-backed
         // validation explicit.
-        self.represented_action_buttons_like_cpp[button] =
-            make_action_button_like_cpp(action, action_type);
-        true
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_action_button_like_cpp(index, action, action_type)
+            })
+            .unwrap_or(false);
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            let Some(button) = self
+                .represented_action_buttons_like_cpp
+                .get_mut(usize::from(index))
+            else {
+                return false;
+            };
+            *button = make_action_button_like_cpp(action, action_type);
+            return true;
+        }
+        canonical
     }
 
     pub(crate) fn reset_represented_action_buttons_like_cpp(&mut self) {
-        self.represented_action_buttons_like_cpp =
-            [0; wow_packet::packets::misc::MAX_ACTION_BUTTONS];
-        self.represented_action_buttons_loaded_like_cpp = false;
+        let _canonical = self
+            .with_owned_player_mut_like_cpp(Player::reset_action_buttons_for_load_like_cpp)
+            .is_some();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_action_buttons_like_cpp =
+                [0; wow_packet::packets::misc::MAX_ACTION_BUTTONS];
+            self.represented_action_buttons_loaded_like_cpp = false;
+        }
     }
 
     pub(crate) fn mark_represented_action_buttons_loaded_like_cpp(&mut self) {
-        self.represented_action_buttons_loaded_like_cpp = true;
+        let _canonical = self
+            .with_owned_player_mut_like_cpp(Player::mark_action_buttons_loaded_like_cpp)
+            .is_some();
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_action_buttons_loaded_like_cpp = true;
+        }
     }
 
     pub(crate) fn represented_action_buttons_snapshot_like_cpp(
         &self,
-    ) -> [u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS] {
-        self.represented_action_buttons_like_cpp
+    ) -> Option<[u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS]> {
+        let canonical = self.with_owned_player_like_cpp(Player::action_buttons_snapshot_like_cpp);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.represented_action_buttons_like_cpp);
+        }
+        canonical
+    }
+
+    pub(crate) fn loaded_action_buttons_snapshot_like_cpp(
+        &self,
+    ) -> Option<[u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS]> {
+        let canonical = self
+            .with_owned_player_like_cpp(|player| {
+                player
+                    .action_buttons_loaded_like_cpp()
+                    .then(|| player.action_buttons_snapshot_like_cpp())
+            })
+            .flatten();
+        #[cfg(test)]
+        if canonical.is_none()
+            && self.player_handle_like_cpp.is_none()
+            && self.represented_action_buttons_loaded_like_cpp
+        {
+            return Some(self.represented_action_buttons_like_cpp);
+        }
+        canonical
     }
 
     pub(crate) fn record_loaded_action_button_like_cpp(
@@ -51685,9 +51730,19 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn represented_action_button_like_cpp(&self, index: u8) -> Option<u32> {
-        self.represented_action_buttons_like_cpp
-            .get(index as usize)
-            .copied()
+        if let Some(canonical) =
+            self.with_owned_player_like_cpp(|player| player.action_button_like_cpp(index))
+        {
+            return canonical;
+        }
+        self.player_handle_like_cpp
+            .is_none()
+            .then(|| {
+                self.represented_action_buttons_like_cpp
+                    .get(usize::from(index))
+                    .copied()
+            })
+            .flatten()
     }
 
     pub(crate) fn represented_set_taxi_benchmark_mode_like_cpp(&mut self, enable: bool) -> bool {

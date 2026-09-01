@@ -2444,9 +2444,10 @@ impl WorldSession {
                 account_transmog,
                 trait_configs,
             );
-            player_pkt.set_player_action_buttons_like_cpp(
-                self.represented_action_buttons_snapshot_like_cpp(),
-            );
+            let Some(action_buttons) = self.represented_action_buttons_snapshot_like_cpp() else {
+                return false;
+            };
+            player_pkt.set_player_action_buttons_like_cpp(action_buttons);
             player_pkt.set_player_customizations_like_cpp(player_customizations);
 
             if let (Some((transport_guid, _)), Some(transport_position)) = (
