@@ -2340,8 +2340,8 @@ impl WorldSession {
         // equivalent, before C++ would build `Map::SendInitSelf`.
         self.loot_table.clear();
         self.set_active_loot_guid(ObjectGuid::EMPTY);
-        self.combat_target = None;
-        self.in_combat = false;
+        self.set_combat_target_like_cpp(None);
+        self.set_in_combat_like_cpp(false);
         info!(
             guid = ?guid,
             map_id,

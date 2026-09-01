@@ -325,7 +325,7 @@ impl crate::session::WorldSession {
             return;
         }
 
-        if self.in_combat
+        if self.resolved_in_combat_like_cpp() != Some(false)
             && self.player_in_represented_battleground_like_cpp()
             && !self.represented_battleground_status_is_wait_leave_like_cpp()
         {

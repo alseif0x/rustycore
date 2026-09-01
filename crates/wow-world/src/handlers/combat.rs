@@ -158,7 +158,7 @@ impl WorldSession {
         }
 
         if let Some(combat_target) = command.combat_target_after {
-            self.combat_target = combat_target;
+            self.set_combat_target_like_cpp(combat_target);
         }
         if let Some(in_combat) = command.in_combat_after {
             self.set_in_combat_like_cpp(in_combat);

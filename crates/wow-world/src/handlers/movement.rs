@@ -697,7 +697,10 @@ impl WorldSession {
         );
         if self.apply_knock_back_ack_like_cpp(ClientOpcodes::MoveKnockBackAck, &mut pkt.ack) {
             let mut status = pkt.ack.status.clone();
-            status.time = self.player_movement_time_like_cpp();
+            let Some(adjusted_time) = self.resolved_player_movement_time_like_cpp() else {
+                return;
+            };
+            status.time = adjusted_time;
             self.broadcast_to_movement_set_like_cpp(
                 MoveUpdateKnockBack { status }.to_bytes(),
                 false,
@@ -735,13 +738,9 @@ impl WorldSession {
             "MoveApplyMovementForceAck"
         );
         if self.record_apply_movement_force_ack_like_cpp(&mut pkt.ack, &pkt.force) {
-            let mut status = pkt.ack.status.clone();
-            if let Some(adjusted_time) = self.latest_movement_ack_adjusted_time_like_cpp() {
-                status.time = adjusted_time;
-            }
             self.broadcast_to_movement_set_like_cpp(
                 MoveUpdateApplyMovementForce {
-                    status,
+                    status: pkt.ack.status,
                     force: pkt.force,
                 }
                 .to_bytes(),
@@ -761,13 +760,9 @@ impl WorldSession {
             "MoveRemoveMovementForceAck"
         );
         if self.record_remove_movement_force_ack_like_cpp(&mut pkt.ack, pkt.id) {
-            let mut status = pkt.ack.status.clone();
-            if let Some(adjusted_time) = self.latest_movement_ack_adjusted_time_like_cpp() {
-                status.time = adjusted_time;
-            }
             self.broadcast_to_movement_set_like_cpp(
                 MoveUpdateRemoveMovementForce {
-                    status,
+                    status: pkt.ack.status,
                     trigger_guid: pkt.id,
                 }
                 .to_bytes(),

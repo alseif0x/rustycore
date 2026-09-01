@@ -2970,6 +2970,7 @@ pub(crate) struct RepresentedTaxiFlightNodeLikeCpp {
     pub teleport_flag: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct MoveSplineDoneTaxiEventLikeCpp {
     pub spline_id: i32,
@@ -2988,6 +2989,7 @@ pub(crate) enum MoveTeleportAckActionLikeCpp {
     Accepted,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct MoveTeleportAckEventLikeCpp {
     pub mover_guid: ObjectGuid,
@@ -5525,6 +5527,8 @@ pub struct WorldSession {
     #[cfg(test)]
     player_next_level_xp: u32,
     /// Currently selected target GUID (SetSelection).
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     selection_guid: Option<wow_core::ObjectGuid>,
 
     /// GUID of the character currently logged in (set after login completes).
@@ -5704,8 +5708,12 @@ pub struct WorldSession {
 
     // ── Movement & World position ─────────────────────────────────
     /// Server-side position of the player (updated from CMSG_MOVE_*).
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     player_position: Option<wow_core::Position>,
     /// Last accepted player movement flags, mirroring C++ `Unit::m_movementInfo`.
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     player_movement_flags_like_cpp: MovementFlag,
     /// Represented C++ `MOVEMENTFLAG2_CAN_SWIM_TO_FLY_TRANS` server-controlled state.
     represented_can_swim_to_fly_transition_like_cpp: bool,
@@ -5749,6 +5757,8 @@ pub struct WorldSession {
 
     // ── Combat state ─────────────────────────────────────────────
     /// Current auto-attack target (None if not in combat).
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     pub(crate) combat_target: Option<wow_core::ObjectGuid>,
     /// Last represented player melee tick used to decrement C++ `m_attackTimer`.
     combat_tick_last_at_like_cpp: Instant,
@@ -5757,6 +5767,8 @@ pub struct WorldSession {
     player_swing_error_msg_like_cpp: Option<u8>,
 
     /// True when the player is engaged in combat.
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     pub(crate) in_combat: bool,
     /// Test-only legacy fixture for sessions without an installed Player owner.
     #[cfg(test)]
@@ -5780,20 +5792,28 @@ pub struct WorldSession {
     /// durable FIFO replay without writing delayed values back to that owner.
     last_presented_creature_melee_health_state_revision_like_cpp: u64,
     /// Represented `Unit::m_movementInfo.time` for client movement ACK side effects.
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     player_movement_time_like_cpp: u32,
     /// Represented `Unit::m_movementInfo.jump`, reset by `Player::TeleportTo`.
+    /// Test-only evidence: production consumes the typed movement status and
+    /// does not retain a second packet-shaped jump mirror.
+    #[cfg(test)]
     player_movement_jump_like_cpp: wow_packet::packets::movement::JumpInfo,
     /// C++ `Player::m_lastFallTime`.
     last_fall_time_like_cpp: u32,
     /// C++ `Player::m_lastFallZ`.
     last_fall_z_like_cpp: f32,
     /// Recorded fall damage events until combat log/update packet runtime is complete.
+    #[cfg(test)]
     fall_damage_events_like_cpp: Vec<MovementFallDamageEvent>,
     /// C++ `PLAYER_FLAGS_IS_OUT_OF_BOUNDS` represented state.
     player_out_of_bounds_like_cpp: bool,
     /// Recorded `DAMAGE_FALL_TO_VOID` events until environmental damage packets are complete.
     under_map_damage_events_like_cpp: Vec<MovementUnderMapDamageEvent>,
     /// Represented stand state used by movement side effects until UnitData owns it.
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     player_stand_state_like_cpp: UnitStandStateType,
     /// Test-only successful represented->live evidence. Production emits
     /// bounded structured telemetry instead of retaining client-controlled
@@ -5801,6 +5821,8 @@ pub struct WorldSession {
     #[cfg(test)]
     represented_live_applications_like_cpp: Vec<RepresentedLiveApplicationLikeCpp>,
     /// Represented `UnitData::EmoteState`, used to clear stateful emotes on movement like C++.
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     player_emote_state_like_cpp: u32,
     /// Count of C++ temporary pet unsummon side effects requested by movement.
     temporary_pet_unsummon_requests_like_cpp: u32,
@@ -5826,6 +5848,7 @@ pub struct WorldSession {
     /// Count of visibility refreshes requested by movement initialization.
     movement_visibility_refresh_requests_like_cpp: u32,
     /// ACKs accepted by represented movement handling until full Unit movement runtime/broadcasts exist.
+    #[cfg(test)]
     movement_ack_events_like_cpp: Vec<MovementAckEventLikeCpp>,
     /// Represented `PlayerTaxi::m_TaxiDestinations` until PlayerTaxi/MotionMaster runtime is canonical.
     taxi_destinations_like_cpp: Vec<u32>,
@@ -5974,6 +5997,8 @@ pub struct WorldSession {
     /// `send_initial_packets_before_add_to_map` (non-seamless). #NEXT.R8.ENTITIES.1229.
     movement_counter_like_cpp: u32,
     /// Represented `Unit::GetCollisionHeight()` until model-display collision data owns it.
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     player_collision_height_like_cpp: f32,
     /// Represented `Object::GetObjectScale()` for movement collision-height packets.
     player_object_scale_like_cpp: f32,
@@ -5981,6 +6006,8 @@ pub struct WorldSession {
     player_scale_duration_like_cpp: i32,
     /// Represented `UnitData::Flags` for player deltas not yet backed by canonical Unit.
     player_unit_flags_like_cpp: UnitFlags,
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     player_faction_template_like_cpp: Option<u32>,
     /// Represented `UNIT_FLAG_MOUNT` state until UnitData owns live player flags.
     player_mounted_like_cpp: bool,
@@ -6004,6 +6031,7 @@ pub struct WorldSession {
     /// cast closure that Rust did not retain losslessly (currently FIRST).
     player_spell_hit_aura_authority_tombstoned_like_cpp: bool,
     /// `MoveSplineDone` taxi decisions recorded until full Taxi/MotionMaster runtime exists.
+    #[cfg(test)]
     move_spline_done_taxi_events_like_cpp: Vec<MoveSplineDoneTaxiEventLikeCpp>,
     /// C++ `Player::m_bCanDelayTeleport`, represented around update-owned work.
     represented_can_delay_teleport_like_cpp: bool,
@@ -6044,6 +6072,7 @@ pub struct WorldSession {
     /// C++ `Player::GetDeathTimer()` represented for `Spell::EffectStuck`.
     represented_death_timer_active_like_cpp: bool,
     /// Near teleport ACK side-effect audit events.
+    #[cfg(test)]
     move_teleport_ack_events_like_cpp: Vec<MoveTeleportAckEventLikeCpp>,
     /// Count of C++ `ResummonPetTemporaryUnSummonedIfAny` calls after near teleport ACK.
     temporary_pet_resummon_requests_like_cpp: u32,
@@ -6064,6 +6093,7 @@ pub struct WorldSession {
     /// C++ `MovementForces::GetModMagnitude()` represented value; default is 1.0 when no force container exists.
     movement_force_mod_magnitude_like_cpp: f32,
     /// Speed ACK outcomes recorded until full Unit speed runtime owns this state.
+    #[cfg(test)]
     movement_speed_ack_events_like_cpp: Vec<MovementSpeedAckEventLikeCpp>,
 
     // ── Aura system ───────────────────────────────────────────────
@@ -7723,6 +7753,7 @@ impl WorldSession {
             exploration_xp_rate_like_cpp: 1.0,
             min_quest_scaled_xp_ratio_like_cpp: 0,
             min_discovered_scaled_xp_ratio_like_cpp: 0,
+            #[cfg(test)]
             selection_guid: None,
             player_guid: None,
             recent_player_guid_low_like_cpp: 0,
@@ -7822,7 +7853,9 @@ impl WorldSession {
             represented_spell_history_packets_like_cpp: (Vec::new(), Vec::new()),
             cuf_profiles_like_cpp: vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP],
             cuf_profiles_loaded_like_cpp: false,
+            #[cfg(test)]
             player_position: None,
+            #[cfg(test)]
             player_movement_flags_like_cpp: MovementFlag::NONE,
             represented_can_swim_to_fly_transition_like_cpp: false,
             represented_mover_fixed_position_vehicle_like_cpp: false,
@@ -7837,9 +7870,11 @@ impl WorldSession {
             canonical_map_manager: None,
             player_handle_like_cpp: None,
             mmap_pathfinder_like_cpp: None,
+            #[cfg(test)]
             combat_target: None,
             combat_tick_last_at_like_cpp: Instant::now(),
             player_swing_error_msg_like_cpp: None,
+            #[cfg(test)]
             in_combat: false,
             #[cfg(test)]
             player_alive_like_cpp: true,
@@ -7852,16 +7887,21 @@ impl WorldSession {
             #[cfg(test)]
             player_max_health_like_cpp: 100,
             last_presented_creature_melee_health_state_revision_like_cpp: 0,
+            #[cfg(test)]
             player_movement_time_like_cpp: 0,
+            #[cfg(test)]
             player_movement_jump_like_cpp: wow_packet::packets::movement::JumpInfo::default(),
             last_fall_time_like_cpp: 0,
             last_fall_z_like_cpp: 0.0,
+            #[cfg(test)]
             fall_damage_events_like_cpp: Vec::new(),
             player_out_of_bounds_like_cpp: false,
             under_map_damage_events_like_cpp: Vec::new(),
+            #[cfg(test)]
             player_stand_state_like_cpp: UnitStandStateType::Stand,
             #[cfg(test)]
             represented_live_applications_like_cpp: Vec::new(),
+            #[cfg(test)]
             player_emote_state_like_cpp: 0,
             temporary_pet_unsummon_requests_like_cpp: 0,
             movement_jump_proc_requests_like_cpp: 0,
@@ -7873,6 +7913,7 @@ impl WorldSession {
             advanced_combat_logging_enabled_like_cpp: Arc::new(AtomicBool::new(false)),
             player_moved_unit_guid_like_cpp: ObjectGuid::EMPTY,
             movement_visibility_refresh_requests_like_cpp: 0,
+            #[cfg(test)]
             movement_ack_events_like_cpp: Vec::new(),
             taxi_destinations_like_cpp: Vec::new(),
             represented_activate_taxi_requests_like_cpp: Vec::new(),
@@ -7943,10 +7984,12 @@ impl WorldSession {
             mount_pet_resummon_requests_like_cpp: 0,
             mount_collision_height_update_requests_like_cpp: 0,
             movement_counter_like_cpp: 0,
+            #[cfg(test)]
             player_collision_height_like_cpp: 1.0,
             player_object_scale_like_cpp: 1.0,
             player_scale_duration_like_cpp: 0,
             player_unit_flags_like_cpp: UnitFlags::PLAYER_CONTROLLED,
+            #[cfg(test)]
             player_faction_template_like_cpp: None,
             player_mounted_like_cpp: false,
             player_pvp_hostile_like_cpp: false,
@@ -7958,6 +8001,7 @@ impl WorldSession {
             player_area_id_like_cpp: 0,
             player_zone_area_authority_complete_like_cpp: false,
             player_spell_hit_aura_authority_tombstoned_like_cpp: false,
+            #[cfg(test)]
             move_spline_done_taxi_events_like_cpp: Vec::new(),
             represented_can_delay_teleport_like_cpp: false,
             represented_has_delayed_teleport_like_cpp: false,
@@ -7974,6 +8018,7 @@ impl WorldSession {
             represented_override_spells_complete_like_cpp: false,
             represented_cast_unstuck_enabled_like_cpp: true,
             represented_death_timer_active_like_cpp: false,
+            #[cfg(test)]
             move_teleport_ack_events_like_cpp: Vec::new(),
             temporary_pet_resummon_requests_like_cpp: 0,
             delayed_operations_processed_like_cpp: 0,
@@ -7984,6 +8029,7 @@ impl WorldSession {
             player_on_transport_like_cpp: false,
             movement_force_mod_magnitude_changes_like_cpp: 0,
             movement_force_mod_magnitude_like_cpp: 1.0,
+            #[cfg(test)]
             movement_speed_ack_events_like_cpp: Vec::new(),
             visible_auras: HashMap::new(),
             player_aura_authority_complete_like_cpp: false,
@@ -9224,7 +9270,10 @@ impl WorldSession {
                 continue;
             }
 
-            if self.in_combat && dst != EQUIPMENT_SLOT_MAINHAND && dst != EQUIPMENT_SLOT_OFFHAND {
+            if self.resolved_in_combat_like_cpp() != Some(false)
+                && dst != EQUIPMENT_SLOT_MAINHAND
+                && dst != EQUIPMENT_SLOT_OFFHAND
+            {
                 continue;
             }
 
@@ -9361,6 +9410,14 @@ impl WorldSession {
         &self,
         key: wow_map::MapKey,
     ) -> Option<Player> {
+        self.canonical_player_entity_snapshot_for_map_with_bootstrap_like_cpp(key, None)
+    }
+
+    fn canonical_player_entity_snapshot_for_map_with_bootstrap_like_cpp(
+        &self,
+        key: wow_map::MapKey,
+        bootstrap_position: Option<Position>,
+    ) -> Option<Player> {
         if let (Some(manager), Some(handle)) = (
             self.canonical_map_manager.as_ref(),
             self.player_handle_like_cpp,
@@ -9375,7 +9432,7 @@ impl WorldSession {
         }
 
         let guid = self.player_guid()?;
-        let position = self.player_position_like_cpp()?;
+        let position = bootstrap_position.or_else(|| self.player_position_like_cpp())?;
         let name = self.player_name_like_cpp()?;
         let mut player = Player::new(Some(u64::from(self.account_id)), false);
         player.unit_mut().world_mut().object_mut().create(guid);
@@ -9394,7 +9451,7 @@ impl WorldSession {
             self.player_class_like_cpp(),
             gender_from_u8(self.player_gender_like_cpp()),
         );
-        if let Some(faction_template) = self.player_faction_template_like_cpp {
+        if let Some(faction_template) = self.player_faction_template_id_like_cpp() {
             player.unit_mut().set_faction(faction_template);
         }
         player.unit_mut().set_level(self.player_level_like_cpp());
@@ -9552,6 +9609,9 @@ impl WorldSession {
         let unit = player.unit_mut();
         unit.set_display_id(display_id, true);
         unit.set_mount_display_id(mount_display_id);
+        #[cfg(not(test))]
+        unit.set_collision_height_like_cpp(1.0);
+        #[cfg(test)]
         unit.set_collision_height_like_cpp(self.player_collision_height_like_cpp);
         unit.world_mut()
             .object_mut()
@@ -9620,12 +9680,9 @@ impl WorldSession {
                     return;
                 };
                 // C++ has one live Player object, and Player::SaveToDB reads a
-                // coherent snapshot from that object. Rust still has split
-                // session/canonical state: accepted client movement updates the
-                // session immediately, while gameplay fields may be fresher on
-                // the canonical typed Player. Keep canonical gameplay fields,
-                // but prefer the latest accepted session map/position for
-                // logout/disconnect persistence.
+                // coherent snapshot from that object. Accepted movement now
+                // relocates this canonical Player before persistence, so do not
+                // recursively resolve a Session mirror while MapManager is held.
                 let (map_id, instance_id, position) =
                     if let Some((map_id, position)) = pending_teleport_destination {
                         (map_id, 0, position)
@@ -9633,8 +9690,7 @@ impl WorldSession {
                         (
                             self.player_map_id_like_cpp(),
                             managed.instance_id(),
-                            self.player_position_like_cpp()
-                                .unwrap_or_else(|| player.unit().world().position()),
+                            player.unit().world().position(),
                         )
                     };
 
@@ -10137,7 +10193,7 @@ impl WorldSession {
         mode: PlayerAwayModeLikeCpp,
         text: String,
     ) -> bool {
-        if self.in_combat || text.len() > 511 {
+        if self.resolved_in_combat_like_cpp() != Some(false) || text.len() > 511 {
             return false;
         }
 
@@ -11266,7 +11322,7 @@ impl WorldSession {
         let (victim_alive, victim_in_world, mut attack_context) =
             self.canonical_unit_attack_target_state_like_cpp(victim);
         if !self.player_vehicle_seat_allows_attack_like_cpp() {
-            self.combat_target = None;
+            self.set_combat_target_like_cpp(None);
             self.set_in_combat_like_cpp(false);
             if self.selection_guid_like_cpp() == Some(victim) {
                 self.set_selection_guid_like_cpp(None);
@@ -11297,8 +11353,6 @@ impl WorldSession {
         let combat_relation_represented = attack_context.relation_represented;
         let combat_attacker_is_friendly_to_victim = attack_context.attacker_is_friendly_to_victim;
         let combat_victim_is_friendly_to_attacker = attack_context.victim_is_friendly_to_attacker;
-        self.combat_target = Some(victim);
-        self.set_in_combat_like_cpp(true);
         self.set_selection_guid_like_cpp(Some(victim));
         let outcome = self.mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().attack_with_context_like_cpp(
@@ -11328,7 +11382,7 @@ impl WorldSession {
                 | wow_entities::UnitAttackStartOutcome::InvalidAttackTarget,
             )
             | None => {
-                self.combat_target = None;
+                self.set_combat_target_like_cpp(None);
                 self.set_in_combat_like_cpp(false);
                 if self.selection_guid_like_cpp() == Some(victim) {
                     self.set_selection_guid_like_cpp(None);
@@ -11355,6 +11409,7 @@ impl WorldSession {
                 combat_victim_is_friendly_to_attacker,
             );
         }
+        self.set_in_combat_like_cpp(true);
         let send_attack_start = matches!(
             outcome,
             Some(
@@ -11378,13 +11433,13 @@ impl WorldSession {
             // stale session mirror must not invent a victim when canonical
             // player state exists and says there is none.
             Some(None) => {
-                self.combat_target = None;
+                self.set_combat_target_like_cpp(None);
                 self.set_in_combat_like_cpp(false);
                 return None;
             }
-            None => self.combat_target.take()?,
+            None => self.resolved_combat_target_like_cpp().flatten()?,
         };
-        self.combat_target = None;
+        self.set_combat_target_like_cpp(None);
         self.set_in_combat_like_cpp(false);
         if self.selection_guid_like_cpp() == Some(target) {
             self.set_selection_guid_like_cpp(None);
@@ -11401,7 +11456,7 @@ impl WorldSession {
 
     fn combat_stop_like_cpp(&mut self) {
         let Some(player_guid) = self.player_guid() else {
-            self.combat_target = None;
+            self.set_combat_target_like_cpp(None);
             self.set_in_combat_like_cpp(false);
             return;
         };
@@ -11475,7 +11530,7 @@ impl WorldSession {
         stopped_target: Option<ObjectGuid>,
         owner_guids: Vec<ObjectGuid>,
     ) {
-        self.combat_target = None;
+        self.set_combat_target_like_cpp(None);
         self.set_in_combat_like_cpp(false);
         for owner_guid in owner_guids {
             let _ = self.mutate_world_creature(owner_guid, |owner| {
@@ -13439,17 +13494,16 @@ impl WorldSession {
         for click_info in click_bounds {
             match click_info.user_type {
                 SPELL_CLICK_USER_FRIEND_LIKE_CPP => {
+                    let player_faction_template = self.player_faction_template_id_like_cpp();
                     if creature.is_summon
                         || self.faction_template_store.is_none()
-                        || self.player_faction_template_like_cpp.is_none()
+                        || player_faction_template.is_none()
                     {
                         return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
                     }
                     let reaction = self.represented_get_reaction_to_like_cpp(
                         RepresentedGetReactionInputLikeCpp {
-                            self_faction_template_id: self
-                                .player_faction_template_like_cpp
-                                .unwrap_or(0),
+                            self_faction_template_id: player_faction_template.unwrap_or(0),
                             target_faction_template_id: creature.faction_template_id,
                             same_object: false,
                             attackable_by_summoner: false,
@@ -13597,18 +13651,17 @@ impl WorldSession {
         for click_info in click_bounds {
             let requirements_fit = match click_info.user_type {
                 SPELL_CLICK_USER_FRIEND_LIKE_CPP => {
+                    let player_faction_template = self.player_faction_template_id_like_cpp();
                     if creature.is_summon
                         || self.faction_template_store.is_none()
-                        || self.player_faction_template_like_cpp.is_none()
+                        || player_faction_template.is_none()
                     {
                         plan.exact_context_unrepresented = true;
                         continue;
                     }
                     let reaction = self.represented_get_reaction_to_like_cpp(
                         RepresentedGetReactionInputLikeCpp {
-                            self_faction_template_id: self
-                                .player_faction_template_like_cpp
-                                .unwrap_or(0),
+                            self_faction_template_id: player_faction_template.unwrap_or(0),
                             target_faction_template_id: creature.faction_template_id,
                             same_object: false,
                             attackable_by_summoner: false,
@@ -14671,7 +14724,7 @@ impl WorldSession {
                         self_faction_template_id: creature.unit().data().faction_template.max(0)
                             as u32,
                         target_faction_template_id: self
-                            .player_faction_template_like_cpp
+                            .player_faction_template_id_like_cpp()
                             .unwrap_or(0),
                         same_object: false,
                         attackable_by_summoner: false,
@@ -14794,7 +14847,9 @@ impl WorldSession {
             let reaction =
                 self.represented_get_reaction_to_like_cpp(RepresentedGetReactionInputLikeCpp {
                     self_faction_template_id: creature.faction(),
-                    target_faction_template_id: self.player_faction_template_like_cpp.unwrap_or(0),
+                    target_faction_template_id: self
+                        .player_faction_template_id_like_cpp()
+                        .unwrap_or(0),
                     same_object: false,
                     attackable_by_summoner: false,
                     same_charmer_or_owner_or_self: false,
@@ -23170,6 +23225,10 @@ impl WorldSession {
                 .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
                 .is_some_and(|entry| entry.instance_type == wow_data::map::MAP_ARENA);
 
+        let Some(is_in_combat) = self.resolved_in_combat_like_cpp() else {
+            return InventoryResult::CantDoThatRightNow;
+        };
+
         player.can_unequip_item(CanUnequipItemArgs {
             pos,
             source_item,
@@ -23177,7 +23236,7 @@ impl WorldSession {
             swap,
             source_is_not_empty_bag,
             is_charmed,
-            is_in_combat: self.in_combat,
+            is_in_combat,
             is_in_progress_arena,
         })
     }
@@ -29158,7 +29217,7 @@ impl WorldSession {
                     .as_ref()
                     .map(|store| store.faction_group_mask_like_cpp(zone.id))
                     .unwrap_or(0);
-                self.player_faction_template_like_cpp
+                self.player_faction_template_id_like_cpp()
                     .and_then(|id| {
                         self.faction_template_store
                             .as_ref()
@@ -31462,7 +31521,7 @@ impl WorldSession {
             return Some((
                 self.player_level_like_cpp(),
                 self.player_map_id_like_cpp(),
-                self.player_position_like_cpp().unwrap_or(Position::ZERO),
+                self.player_position_like_cpp()?,
                 self.resolved_player_is_alive_like_cpp()?,
             ));
         }
@@ -33249,42 +33308,50 @@ impl WorldSession {
         &mut self,
         emote_state: u32,
     ) -> Option<wow_packet::packets::update::UpdateObject> {
-        if self.player_emote_state_like_cpp() == emote_state {
+        if self.resolved_player_emote_state_like_cpp() == Some(emote_state) {
             return None;
         }
 
-        self.player_emote_state_like_cpp = emote_state;
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
-            player.unit_mut().set_emote_state_like_cpp(emote_state);
-        });
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.unit_mut().set_emote_state_like_cpp(emote_state);
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_emote_state_like_cpp = emote_state;
+            if !canonical {
+                let _ = self.mutate_canonical_player_like_cpp(|player| {
+                    player.unit_mut().set_emote_state_like_cpp(emote_state);
+                });
+            }
+        }
+        if !canonical && !(cfg!(test) && self.player_handle_like_cpp.is_none()) {
+            return None;
+        }
         self.player_emote_state_update_packet_like_cpp(emote_state)
     }
 
-    pub(crate) fn player_emote_state_like_cpp(&self) -> u32 {
-        if let Some(guid) = self.player_guid()
-            && let Some(manager) = &self.canonical_map_manager
-            && let Ok(manager) = manager.lock()
-        {
-            let mut emote_state = None;
-            manager.do_for_all_maps(|managed| {
-                if emote_state.is_none()
-                    && let Some(player) = managed.map().get_typed_player(guid)
-                {
-                    emote_state = Some(player.unit().emote_state_like_cpp());
-                }
-            });
-            if let Some(emote_state) = emote_state {
-                return emote_state;
-            }
+    fn resolved_player_emote_state_like_cpp(&self) -> Option<u32> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.unit().emote_state_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.player_emote_state_like_cpp);
         }
+        canonical
+    }
 
-        self.player_emote_state_like_cpp
+    #[cfg(test)]
+    pub(crate) fn player_emote_state_like_cpp(&self) -> u32 {
+        self.resolved_player_emote_state_like_cpp()
+            .expect("test Player emote-state owner must resolve")
     }
 
     pub(crate) fn clear_player_emote_state_on_movement_like_cpp(
         &mut self,
     ) -> Option<wow_packet::packets::update::UpdateObject> {
-        if self.player_emote_state_like_cpp() == 0 {
+        if self.resolved_player_emote_state_like_cpp() == Some(0) {
             return None;
         }
 
@@ -34979,11 +35046,13 @@ impl WorldSession {
             .as_ref()
             .map(|store| store.seat_defs_for_vehicle_like_cpp(vehicle))
             .unwrap_or_default();
+        let Some(player_position) = self.player_position_like_cpp() else {
+            return false;
+        };
         let mut vehicle_kit = Vehicle::new(
             player_guid,
             TypeId::Player,
-            self.player_position_like_cpp()
-                .unwrap_or(wow_core::Position::ZERO),
+            player_position,
             vehicle_id,
             creature_entry,
             seat_defs,
@@ -35077,7 +35146,7 @@ impl WorldSession {
     }
 
     fn update_player_collision_height_like_cpp(&mut self) {
-        if let (Some(display_store), Some(model_store)) = (
+        let computed_height = if let (Some(display_store), Some(model_store)) = (
             self.creature_display_info_store.as_ref(),
             self.creature_model_data_store.as_ref(),
         ) {
@@ -35088,28 +35157,54 @@ impl WorldSession {
             let mount_display_id = u32::try_from(self.player_mount_display_id_like_cpp)
                 .ok()
                 .filter(|id| *id != 0);
-            if let Some(height) = wow_data::unit_collision_height_like_cpp(
+            wow_data::unit_collision_height_like_cpp(
                 self.player_object_scale_like_cpp,
                 native_display_id,
                 mount_display_id,
                 display_store,
                 model_store,
-            ) {
-                self.player_collision_height_like_cpp = height;
-            }
-        }
+            )
+        } else {
+            None
+        };
 
         let mount_display_id = u32::try_from(self.player_mount_display_id_like_cpp).unwrap_or(0);
-        let collision_height = self.player_collision_height_like_cpp;
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
+        let _canonical_height = self.with_owned_player_mut_like_cpp(|player| {
             let unit = player.unit_mut();
             unit.set_mount_display_id(mount_display_id);
-            unit.set_collision_height_like_cpp(collision_height);
+            if let Some(height) = computed_height {
+                unit.set_collision_height_like_cpp(height);
+            }
+            unit.collision_height_like_cpp()
         });
+        #[cfg(test)]
+        if let Some(height) = _canonical_height.or(computed_height)
+            && (_canonical_height.is_some() || self.player_handle_like_cpp.is_none())
+        {
+            self.player_collision_height_like_cpp = height;
+        }
     }
 
     fn send_movement_set_collision_height_like_cpp(&mut self, reason: u8) {
         let Some(player_guid) = self.player_guid() else {
+            return;
+        };
+        let Some(collision_height) = self
+            .with_owned_player_like_cpp(|player| player.unit().collision_height_like_cpp())
+            .or_else(|| {
+                #[cfg(test)]
+                {
+                    return self
+                        .player_handle_like_cpp
+                        .is_none()
+                        .then_some(self.player_collision_height_like_cpp);
+                }
+                #[cfg(not(test))]
+                {
+                    None
+                }
+            })
+        else {
             return;
         };
         let sequence_index = self.next_movement_counter_like_cpp();
@@ -35117,7 +35212,7 @@ impl WorldSession {
         self.send_packet(&wow_packet::packets::movement::MoveSetCollisionHeight {
             mover_guid: player_guid,
             sequence_index,
-            height: self.player_collision_height_like_cpp,
+            height: collision_height,
             scale: self.player_object_scale_like_cpp,
             reason,
             mount_display_id: u32::try_from(self.player_mount_display_id_like_cpp).unwrap_or(0),
@@ -35125,12 +35220,13 @@ impl WorldSession {
         });
 
         use wow_packet::ServerPacket;
-        let mut status = self.current_player_movement_info_like_cpp(player_guid);
-        status.time = self.player_movement_time_like_cpp();
+        let Some(status) = self.current_player_movement_info_like_cpp(player_guid) else {
+            return;
+        };
         self.broadcast_to_movement_set_like_cpp(
             wow_packet::packets::movement::MoveUpdateCollisionHeight {
                 status,
-                height: self.player_collision_height_like_cpp,
+                height: collision_height,
                 scale: self.player_object_scale_like_cpp,
             }
             .to_bytes(),
@@ -35141,21 +35237,19 @@ impl WorldSession {
     fn current_player_movement_info_like_cpp(
         &self,
         player_guid: ObjectGuid,
-    ) -> wow_packet::packets::movement::MovementInfo {
-        wow_packet::packets::movement::MovementInfo {
+    ) -> Option<wow_packet::packets::movement::MovementInfo> {
+        Some(wow_packet::packets::movement::MovementInfo {
             guid: player_guid,
-            position: self
-                .player_position_like_cpp()
-                .unwrap_or(wow_core::Position::ZERO),
-            flags: self.player_movement_flags_like_cpp,
+            position: self.player_position_like_cpp()?,
+            flags: self.resolved_player_movement_flags_like_cpp()?,
             flags2: if self.represented_can_swim_to_fly_transition_like_cpp {
                 wow_constants::movement::MovementFlag2::CAN_SWIM_TO_FLY_TRANS
             } else {
                 wow_constants::movement::MovementFlag2::NONE
             },
-            time: self.player_movement_time_like_cpp(),
+            time: self.resolved_player_movement_time_like_cpp()?,
             ..wow_packet::packets::movement::MovementInfo::default()
-        }
+        })
     }
 
     fn send_represented_mount_unit_update_like_cpp(&mut self, display_id: i32) {
@@ -36111,10 +36205,15 @@ impl WorldSession {
     }
 
     fn reset_teleport_movement_state_like_cpp(&mut self) {
-        let movement_flags =
-            self.player_movement_flags_like_cpp & MovementFlag::MASK_HAS_PLAYER_STATUS_OPCODE;
+        let Some(movement_flags) = self.resolved_player_movement_flags_like_cpp() else {
+            return;
+        };
+        let movement_flags = movement_flags & MovementFlag::MASK_HAS_PLAYER_STATUS_OPCODE;
         self.set_player_movement_flags_like_cpp(movement_flags);
-        self.player_movement_jump_like_cpp = wow_packet::packets::movement::JumpInfo::default();
+        #[cfg(test)]
+        {
+            self.player_movement_jump_like_cpp = wow_packet::packets::movement::JumpInfo::default();
+        }
         let _ = self.mutate_canonical_player_like_cpp(|player| {
             let motion = &mut player.unit_mut().subsystems_mut().motion;
             motion.interrupt_spline();
@@ -36393,8 +36492,9 @@ impl WorldSession {
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
-        let mut status = self.current_player_movement_info_like_cpp(source_guid);
-        status.time = self.player_movement_time_like_cpp();
+        let Some(status) = self.current_player_movement_info_like_cpp(source_guid) else {
+            return;
+        };
         let packet_bytes = wow_packet::packets::movement::MoveUpdateTeleport { status }.to_bytes();
 
         for registration in registry.movement_recipients_within_range(
@@ -37475,12 +37575,15 @@ impl WorldSession {
             .get(u32::from(race))
             .and_then(|entry| u32::try_from(entry.faction_id).ok())
             .filter(|faction_template| *faction_template != 0);
-        self.player_faction_template_like_cpp = faction_template;
-
         let faction_template = faction_template.unwrap_or(0);
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
+        let _canonical = self.with_owned_player_mut_like_cpp(|player| {
             player.unit_mut().set_faction(faction_template);
         });
+        #[cfg(test)]
+        if _canonical.is_some() || self.player_handle_like_cpp.is_none() {
+            self.player_faction_template_like_cpp =
+                (faction_template != 0).then_some(faction_template);
+        }
     }
 
     pub(crate) fn set_loaded_player_flags_like_cpp(&mut self, player_flags: u32) {
@@ -37590,7 +37693,10 @@ impl WorldSession {
         let controller_position = controller.position();
         self.set_player_guid(Some(controller.guid()));
         self.player_name = Some(controller.name().to_string());
-        self.player_position = Some(controller_position);
+        #[cfg(test)]
+        {
+            self.player_position = Some(controller_position);
+        }
         self.current_map_id = controller.map_id();
         self.player_race = controller.race();
         self.player_class = controller.class();
@@ -37610,7 +37716,7 @@ impl WorldSession {
         // the same ownership transition through
         // `ensure_canonical_player_owner_for_map_like_cpp` instead.
         #[cfg(not(test))]
-        let _ = self.install_detached_canonical_player_from_session_like_cpp();
+        let _ = self.install_detached_canonical_player_from_session_like_cpp(controller_position);
     }
 
     fn player_bootstrap_attached_for_test_like_cpp(&self) -> bool {
@@ -37628,7 +37734,10 @@ impl WorldSession {
     /// once, install the Player under MapManager, then let every later load
     /// step mutate that generation-checked canonical value. The retained
     /// Session fields are retired family-by-family in this issue.
-    fn install_detached_canonical_player_from_session_like_cpp(&mut self) -> bool {
+    fn install_detached_canonical_player_from_session_like_cpp(
+        &mut self,
+        bootstrap_position: Position,
+    ) -> bool {
         if self.player_handle_like_cpp.is_some() {
             return true;
         }
@@ -37639,7 +37748,13 @@ impl WorldSession {
             return false;
         };
         let key = wow_map::MapKey::new(u32::from(self.current_map_id), 0);
-        let Some(player) = self.transitional_initial_player_box_like_cpp(key) else {
+        let Some(player) = self
+            .canonical_player_entity_snapshot_for_map_with_bootstrap_like_cpp(
+                key,
+                Some(bootstrap_position),
+            )
+            .map(Box::new)
+        else {
             return false;
         };
         let Ok(mut manager) = manager.lock() else {
@@ -37696,8 +37811,13 @@ impl WorldSession {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         self.current_map_id = map_id;
-        self.player_position = Some(position);
         self.sync_canonical_player_position_if_same_or_detached_like_cpp(map_id, position);
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none()
+            || self.player_position_like_cpp() == Some(position)
+        {
+            self.player_position = Some(position);
+        }
     }
 
     fn sync_canonical_player_position_if_same_or_detached_like_cpp(
@@ -37731,24 +37851,39 @@ impl WorldSession {
     }
 
     pub(crate) fn set_player_movement_time_like_cpp(&mut self, time: u32) {
-        self.player_movement_time_like_cpp = time;
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
-            player.unit_mut().set_movement_time_like_cpp(time);
-        });
+        let _canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.unit_mut().set_movement_time_like_cpp(time);
+            })
+            .is_some();
+        #[cfg(test)]
+        if _canonical || self.player_handle_like_cpp.is_none() {
+            self.player_movement_time_like_cpp = time;
+        }
     }
 
     pub(crate) fn set_player_movement_flags_like_cpp(&mut self, flags: MovementFlag) {
-        self.player_movement_flags_like_cpp = flags;
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
-            player.unit_mut().set_movement_flags_like_cpp(flags);
-        });
+        let _canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.unit_mut().set_movement_flags_like_cpp(flags);
+            })
+            .is_some();
+        #[cfg(test)]
+        if _canonical || self.player_handle_like_cpp.is_none() {
+            self.player_movement_flags_like_cpp = flags;
+        }
     }
 
     pub(crate) fn set_player_movement_jump_like_cpp(
         &mut self,
         jump: wow_packet::packets::movement::JumpInfo,
     ) {
-        self.player_movement_jump_like_cpp = jump;
+        #[cfg(test)]
+        {
+            self.player_movement_jump_like_cpp = jump;
+        }
+        #[cfg(not(test))]
+        let _ = jump;
     }
 
     pub(crate) fn set_represented_mover_fixed_position_vehicle_like_cpp(&mut self, fixed: bool) {
@@ -38289,7 +38424,13 @@ impl WorldSession {
     }
 
     pub(crate) fn set_selection_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
-        self.selection_guid = guid;
+        let _canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.set_selection(guid.unwrap_or_default()))
+            .is_some();
+        #[cfg(test)]
+        if _canonical || self.player_handle_like_cpp.is_none() {
+            self.selection_guid = guid;
+        }
     }
 
     pub(crate) fn set_known_spells_like_cpp(&mut self, spells: Vec<i32>) {
@@ -40874,7 +41015,12 @@ impl WorldSession {
     }
 
     pub(crate) fn player_position_like_cpp(&self) -> Option<wow_core::Position> {
-        self.player_position
+        let canonical = self.with_owned_player_like_cpp(|player| player.unit().world().position());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return self.player_position;
+        }
+        canonical
     }
 
     pub(crate) fn player_map_id_like_cpp(&self) -> u16 {
@@ -40882,11 +41028,32 @@ impl WorldSession {
     }
 
     pub(crate) fn player_faction_template_id_like_cpp(&self) -> Option<u32> {
-        self.player_faction_template_like_cpp
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            u32::try_from(player.unit().data().faction_template)
+                .ok()
+                .filter(|faction| *faction != 0)
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return self.player_faction_template_like_cpp;
+        }
+        canonical.flatten()
     }
 
+    fn resolved_player_movement_flags_like_cpp(&self) -> Option<MovementFlag> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.unit().movement_flags_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.player_movement_flags_like_cpp);
+        }
+        canonical
+    }
+
+    #[cfg(test)]
     pub(crate) fn player_movement_flags_like_cpp(&self) -> MovementFlag {
-        self.player_movement_flags_like_cpp
+        self.resolved_player_movement_flags_like_cpp()
+            .expect("test Player movement owner must resolve")
     }
 
     #[cfg(test)]
@@ -41066,7 +41233,12 @@ impl WorldSession {
 
     #[allow(dead_code)]
     pub(crate) fn selection_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        self.selection_guid
+        let canonical = self.with_owned_player_like_cpp(|player| player.unit().data().target);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return self.selection_guid;
+        }
+        canonical.filter(|guid| !guid.is_empty())
     }
 
     pub(crate) fn known_spells_like_cpp(&self) -> &[i32] {
@@ -41596,13 +41768,14 @@ impl WorldSession {
         let inventory_item = self.get_inventory_item_by_pos(source_bag, source_slot)?;
         let runtime_item = self.resolved_inventory_item_object_like_cpp(inventory_item.guid)?;
         let (can_dual_wield, can_titan_grip) = self.inventory_equip_capabilities_like_cpp()?;
+        let is_in_combat = self.resolved_in_combat_like_cpp()?;
         let outcome = self.can_equip_inventory_item_like_cpp(
             &inventory_item,
             &runtime_item,
             requested_slot,
             swap,
             true,
-            self.in_combat,
+            is_in_combat,
             can_dual_wield,
             can_titan_grip,
         );
@@ -42347,7 +42520,7 @@ impl WorldSession {
         let liquid_status = self.player_liquid_status_like_cpp()?;
         let is_submerged = liquid_status & LIQUID_MAP_UNDER_WATER_LIKE_CPP != 0
             || self
-                .player_movement_flags_like_cpp()
+                .resolved_player_movement_flags_like_cpp()?
                 .contains(MovementFlag::SWIMMING);
         let is_in_water =
             liquid_status & (LIQUID_MAP_IN_WATER_LIKE_CPP | LIQUID_MAP_UNDER_WATER_LIKE_CPP) != 0;
@@ -42647,6 +42820,9 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn set_player_faction_template_like_cpp(&mut self, faction_template: u32) {
         self.player_faction_template_like_cpp = (faction_template != 0).then_some(faction_template);
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_faction(faction_template);
+        });
     }
 
     #[cfg(test)]
@@ -42672,11 +42848,59 @@ impl WorldSession {
         self.player_battleground_type_id_like_cpp.is_some()
     }
 
-    /// C++ `Player::SetInCombatState`: the session mirror and the broadcast
-    /// registry member view always move together so group-level combat gates
-    /// (like the LFG boot combat check) read live per-member state.
+    pub(crate) fn resolved_combat_target_like_cpp(&self) -> Option<Option<ObjectGuid>> {
+        let canonical = self.with_owned_player_like_cpp(|player| player.unit().attacking());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.combat_target);
+        }
+        canonical
+    }
+
+    pub(crate) fn set_combat_target_like_cpp(&mut self, target: Option<ObjectGuid>) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.unit_mut().set_attacking(target))
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.combat_target = target;
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+    }
+
+    pub(crate) fn resolved_in_combat_like_cpp(&self) -> Option<bool> {
+        let canonical = self
+            .with_owned_player_like_cpp(|player| player.unit().subsystems().combat.has_combat());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.in_combat);
+        }
+        canonical
+    }
+
+    /// Publish C++ `CombatManager::HasCombat` from the canonical Player to the
+    /// bounded directory view. The argument remains only for pre-owner tests;
+    /// production never manufactures combat state outside `CombatSubsystem`.
     pub(crate) fn set_in_combat_like_cpp(&mut self, in_combat: bool) {
-        self.in_combat = in_combat;
+        let canonical = self.resolved_in_combat_like_cpp();
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            self.in_combat = in_combat;
+        }
+        #[cfg(not(test))]
+        let _ = in_combat;
+        let Some(in_combat) = canonical.or_else(|| {
+            #[cfg(test)]
+            {
+                return self.player_handle_like_cpp.is_none().then_some(in_combat);
+            }
+            #[cfg(not(test))]
+            {
+                None
+            }
+        }) else {
+            return;
+        };
         if let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry) {
             registry.publish_in_combat_for_control_channel(
                 guid,
@@ -42783,8 +43007,8 @@ impl WorldSession {
         !self.player_is_in_world_for_registry_like_cpp()
             || self.resolved_player_is_alive_like_cpp() != Some(true)
             || self
-                .player_movement_flags_like_cpp
-                .contains(MovementFlag::FLYING)
+                .resolved_player_movement_flags_like_cpp()
+                .is_none_or(|flags| flags.contains(MovementFlag::FLYING))
     }
 
     fn validate_represented_pet_action_bar_like_cpp(
@@ -42860,11 +43084,8 @@ impl WorldSession {
             let map_id = u32::from(self.player_map_id_like_cpp());
             let instance_id = self
                 .current_canonical_player_map_key_like_cpp()
-                .map(|key| key.instance_id)
-                .unwrap_or(0);
-            let position = self
-                .player_position_like_cpp()
-                .unwrap_or_else(|| Position::new(0.0, 0.0, 0.0, 0.0));
+                .map(|key| key.instance_id)?;
+            let position = self.player_position_like_cpp()?;
             let creature_id = info.creature_id;
             let pet_guid = ObjectGuid::create_world_object(
                 HighGuid::Pet,
@@ -43874,6 +44095,7 @@ impl WorldSession {
             damage,
             final_damage,
         };
+        #[cfg(test)]
         self.fall_damage_events_like_cpp.push(event);
         Some(event)
     }
@@ -44130,7 +44352,15 @@ impl WorldSession {
     }
 
     pub(crate) fn set_player_stand_state_like_cpp(&mut self, state: UnitStandStateType) {
-        self.player_stand_state_like_cpp = state;
+        let _canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.unit_mut().set_stand_state_like_cpp(state)
+            })
+            .is_some();
+        #[cfg(test)]
+        if _canonical || self.player_handle_like_cpp.is_none() {
+            self.player_stand_state_like_cpp = state;
+        }
     }
 
     /// Session-owned represented->live boundary.
@@ -44435,28 +44665,43 @@ impl WorldSession {
             .unwrap_or(UnitStandStateType::Stand)
     }
 
+    fn resolved_player_stand_state_like_cpp(&self) -> Option<UnitStandStateType> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.unit().stand_state_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.player_stand_state_like_cpp);
+        }
+        canonical
+    }
+
     #[cfg(test)]
     pub(crate) fn player_stand_state_like_cpp(&self) -> UnitStandStateType {
-        self.player_stand_state_like_cpp
+        self.resolved_player_stand_state_like_cpp()
+            .expect("test Player stand-state owner must resolve")
     }
 
     pub(crate) fn player_is_sit_state_like_cpp(&self) -> bool {
-        matches!(
-            self.player_stand_state_like_cpp,
-            UnitStandStateType::Sit
-                | UnitStandStateType::SitChair
-                | UnitStandStateType::SitLowChair
-                | UnitStandStateType::SitMediumChair
-                | UnitStandStateType::SitHighChair
-        )
+        self.resolved_player_stand_state_like_cpp()
+            .is_some_and(|state| {
+                matches!(
+                    state,
+                    UnitStandStateType::Sit
+                        | UnitStandStateType::SitChair
+                        | UnitStandStateType::SitLowChair
+                        | UnitStandStateType::SitMediumChair
+                        | UnitStandStateType::SitHighChair
+                )
+            })
     }
 
     pub(crate) fn represented_is_on_barber_chair_like_cpp(&self) -> bool {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        let Some(current_stand_state) =
-            num_traits::ToPrimitive::to_u32(&self.player_stand_state_like_cpp)
+        let Some(current_stand_state) = self
+            .resolved_player_stand_state_like_cpp()
+            .and_then(|state| num_traits::ToPrimitive::to_u32(&state))
         else {
             return false;
         };
@@ -44507,12 +44752,13 @@ impl WorldSession {
             .mutate_world_creature(creature_guid, |creature| {
                 (creature.map_id() as u16, creature.position())
             })
-            .unwrap_or_else(|| {
-                (
-                    self.player_map_id_like_cpp(),
-                    self.player_position_like_cpp().unwrap_or(Position::ZERO),
-                )
+            .or_else(|| {
+                self.player_position_like_cpp()
+                    .map(|position| (self.player_map_id_like_cpp(), position))
             });
+        let Some(reward_source) = reward_source else {
+            return;
+        };
         let mut tappers = self
             .mutate_world_creature(creature_guid, |creature| {
                 creature.creature.tap_list().to_vec()
@@ -46115,7 +46361,7 @@ impl WorldSession {
             .get(&gameobject_guid)
             .and_then(|state| state.faction_template);
         if let (Some(player_faction), Some(gameobject_faction), Some(store)) = (
-            self.player_faction_template_like_cpp,
+            self.player_faction_template_id_like_cpp(),
             gameobject_faction,
             self.faction_template_store.as_ref(),
         ) && let (Some(player_entry), Some(gameobject_entry)) =
@@ -47747,7 +47993,7 @@ impl WorldSession {
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .and_then(|state| state.faction_template)?;
-        let player_faction = self.player_faction_template_like_cpp?;
+        let player_faction = self.player_faction_template_id_like_cpp()?;
         let store = self.faction_template_store.as_ref()?;
         let gameobject_entry = store.get(gameobject_faction)?;
         let player_entry = store.get(player_faction)?;
@@ -51678,7 +51924,10 @@ impl WorldSession {
     }
 
     pub(crate) fn record_movement_ack_event_like_cpp(&mut self, event: MovementAckEventLikeCpp) {
+        #[cfg(test)]
         self.movement_ack_events_like_cpp.push(event);
+        #[cfg(not(test))]
+        let _ = event;
     }
 
     pub(crate) fn apply_knock_back_ack_like_cpp(
@@ -51727,13 +51976,16 @@ impl WorldSession {
         mover_guid: ObjectGuid,
         time_skipped: u32,
     ) -> bool {
-        let accepted = self.player_guid() == Some(mover_guid);
-        if accepted {
-            self.set_player_movement_time_like_cpp(
-                self.player_movement_time_like_cpp
-                    .saturating_add(time_skipped),
-            );
+        let adjusted_time = (self.player_guid() == Some(mover_guid))
+            .then(|| {
+                self.resolved_player_movement_time_like_cpp()
+                    .map(|time| time.saturating_add(time_skipped))
+            })
+            .flatten();
+        if let Some(adjusted_time) = adjusted_time {
+            self.set_player_movement_time_like_cpp(adjusted_time);
         }
+        let accepted = adjusted_time.is_some();
 
         self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
             opcode: ClientOpcodes::MoveTimeSkipped,
@@ -51741,7 +51993,7 @@ impl WorldSession {
             ack_index: None,
             movement_force_id: None,
             movement_force_type: None,
-            adjusted_time: accepted.then_some(self.player_movement_time_like_cpp),
+            adjusted_time,
             speed: None,
             time_skipped: Some(time_skipped),
             spline_id: None,
@@ -51802,6 +52054,7 @@ impl WorldSession {
         }
 
         let adjusted_time = self.adjust_client_movement_time_like_cpp(ack.status.time);
+        ack.status.time = adjusted_time;
         self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
             opcode: ClientOpcodes::MoveApplyMovementForceAck,
             mover_guid: ack.status.guid,
@@ -51839,6 +52092,7 @@ impl WorldSession {
         }
 
         let adjusted_time = self.adjust_client_movement_time_like_cpp(ack.status.time);
+        ack.status.time = adjusted_time;
         self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
             opcode: ClientOpcodes::MoveRemoveMovementForceAck,
             mover_guid: ack.status.guid,
@@ -51984,6 +52238,7 @@ impl WorldSession {
         teleport_position: Option<wow_core::Position>,
         honorless_target_cast: bool,
     ) -> MoveSplineDoneTaxiActionLikeCpp {
+        #[cfg(test)]
         self.move_spline_done_taxi_events_like_cpp
             .push(MoveSplineDoneTaxiEventLikeCpp {
                 spline_id,
@@ -51993,6 +52248,14 @@ impl WorldSession {
                 teleport_position,
                 honorless_target_cast,
             });
+        #[cfg(not(test))]
+        let _ = (
+            spline_id,
+            destination_node_id,
+            teleport_map_id,
+            teleport_position,
+            honorless_target_cast,
+        );
         action
     }
 
@@ -52139,6 +52402,7 @@ impl WorldSession {
         pet_resummon_requested: bool,
         delayed_operations_processed: bool,
     ) -> MoveTeleportAckActionLikeCpp {
+        #[cfg(test)]
         self.move_teleport_ack_events_like_cpp
             .push(MoveTeleportAckEventLikeCpp {
                 mover_guid,
@@ -52155,6 +52419,21 @@ impl WorldSession {
                 pet_resummon_requested,
                 delayed_operations_processed,
             });
+        #[cfg(not(test))]
+        let _ = (
+            mover_guid,
+            ack_index,
+            move_time,
+            destination_map_id,
+            destination_position,
+            old_zone_id,
+            new_zone_id,
+            new_area_id,
+            honorless_target_cast,
+            pvp_disabled,
+            pet_resummon_requested,
+            delayed_operations_processed,
+        );
         action
     }
 
@@ -52465,19 +52744,25 @@ impl WorldSession {
         self.delayed_operations_processed_like_cpp
     }
 
+    pub(crate) fn resolved_player_movement_time_like_cpp(&self) -> Option<u32> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.unit().movement_time_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.player_movement_time_like_cpp);
+        }
+        canonical
+    }
+
+    #[cfg(test)]
     pub(crate) fn player_movement_time_like_cpp(&self) -> u32 {
-        self.player_movement_time_like_cpp
+        self.resolved_player_movement_time_like_cpp()
+            .expect("test Player movement-time owner must resolve")
     }
 
     #[cfg(test)]
     pub(crate) fn player_movement_jump_like_cpp(&self) -> &wow_packet::packets::movement::JumpInfo {
         &self.player_movement_jump_like_cpp
-    }
-
-    pub(crate) fn latest_movement_ack_adjusted_time_like_cpp(&self) -> Option<u32> {
-        self.movement_ack_events_like_cpp
-            .last()
-            .and_then(|event| event.adjusted_time)
     }
 
     pub(crate) fn movement_speed_ack_move_type_like_cpp(
@@ -52860,8 +53145,9 @@ impl WorldSession {
             warn!("Send channel closed for account {}", self.account_id);
         }
 
-        let mut status = self.current_player_movement_info_like_cpp(player_guid);
-        status.time = self.player_movement_time_like_cpp();
+        let Some(status) = self.current_player_movement_info_like_cpp(player_guid) else {
+            return;
+        };
         self.broadcast_to_movement_set_like_cpp(
             wow_packet::packets::movement::MoveUpdate { info: status }.to_bytes(),
             false,
@@ -52869,25 +53155,24 @@ impl WorldSession {
     }
 
     fn set_represented_can_fly_like_cpp(&mut self, enable: bool) -> bool {
-        let currently_enabled = self
-            .player_movement_flags_like_cpp
-            .contains(MovementFlag::CAN_FLY);
+        let Some(mut movement_flags) = self.resolved_player_movement_flags_like_cpp() else {
+            return false;
+        };
+        let currently_enabled = movement_flags.contains(MovementFlag::CAN_FLY);
         if enable == currently_enabled {
             return false;
         }
 
         if enable {
-            self.player_movement_flags_like_cpp
-                .insert(MovementFlag::CAN_FLY);
-            self.player_movement_flags_like_cpp
-                .remove(MovementFlag::SWIMMING | MovementFlag::SPLINE_ELEVATION);
+            movement_flags.insert(MovementFlag::CAN_FLY);
+            movement_flags.remove(MovementFlag::SWIMMING | MovementFlag::SPLINE_ELEVATION);
         } else {
-            self.player_movement_flags_like_cpp
-                .remove(MovementFlag::CAN_FLY | MovementFlag::MASK_MOVING_FLY);
+            movement_flags.remove(MovementFlag::CAN_FLY | MovementFlag::MASK_MOVING_FLY);
             if let Some(position) = self.player_position_like_cpp() {
                 self.set_fall_information_like_cpp(0, position.z);
             }
         }
+        self.set_player_movement_flags_like_cpp(movement_flags);
 
         self.send_player_move_set_flag_like_cpp(if enable {
             ServerOpcodes::MoveSetCanFly
@@ -52898,15 +53183,15 @@ impl WorldSession {
     }
 
     fn move_represented_player_fall_like_cpp(&mut self) -> bool {
-        if self
-            .player_movement_flags_like_cpp
-            .contains(MovementFlag::DISABLE_GRAVITY)
-        {
+        let Some(mut movement_flags) = self.resolved_player_movement_flags_like_cpp() else {
+            return false;
+        };
+        if movement_flags.contains(MovementFlag::DISABLE_GRAVITY) {
             return false;
         }
 
-        self.player_movement_flags_like_cpp
-            .insert(MovementFlag::FALLING);
+        movement_flags.insert(MovementFlag::FALLING);
+        self.set_player_movement_flags_like_cpp(movement_flags);
         if let Some(position) = self.player_position_like_cpp() {
             self.set_fall_information_like_cpp(0, position.z);
         }
@@ -52948,7 +53233,7 @@ impl WorldSession {
         let Some(pet_guid) = self.represented_pet_guid_like_cpp else {
             return;
         };
-        if self.in_combat {
+        if self.resolved_in_combat_like_cpp() != Some(false) {
             return;
         }
 
@@ -53005,8 +53290,9 @@ impl WorldSession {
             warn!("Send channel closed for account {}", self.account_id);
         }
 
-        let mut status = self.current_player_movement_info_like_cpp(player_guid);
-        status.time = self.player_movement_time_like_cpp();
+        let Some(status) = self.current_player_movement_info_like_cpp(player_guid) else {
+            return;
+        };
         self.broadcast_to_movement_set_like_cpp(
             wow_packet::packets::movement::MoveUpdateSpeed {
                 opcode: update_opcode,
@@ -53047,15 +53333,14 @@ impl WorldSession {
                 Some(opcode),
                 "kick",
             );
-            self.movement_speed_ack_events_like_cpp
-                .push(MovementSpeedAckEventLikeCpp {
-                    opcode,
-                    move_type: None,
-                    ack_speed: speed,
-                    expected_speed: None,
-                    remaining_forced_changes: None,
-                    action: MovementSpeedAckActionLikeCpp::Kicked,
-                });
+            self.record_movement_speed_ack_event_like_cpp(MovementSpeedAckEventLikeCpp {
+                opcode,
+                move_type: None,
+                ack_speed: speed,
+                expected_speed: None,
+                remaining_forced_changes: None,
+                action: MovementSpeedAckActionLikeCpp::Kicked,
+            });
             return false;
         };
 
@@ -53065,15 +53350,14 @@ impl WorldSession {
                 Some(opcode),
                 "kick",
             );
-            self.movement_speed_ack_events_like_cpp
-                .push(MovementSpeedAckEventLikeCpp {
-                    opcode,
-                    move_type: Some(move_type),
-                    ack_speed: speed,
-                    expected_speed: None,
-                    remaining_forced_changes: None,
-                    action: MovementSpeedAckActionLikeCpp::Kicked,
-                });
+            self.record_movement_speed_ack_event_like_cpp(MovementSpeedAckEventLikeCpp {
+                opcode,
+                move_type: Some(move_type),
+                ack_speed: speed,
+                expected_speed: None,
+                remaining_forced_changes: None,
+                action: MovementSpeedAckActionLikeCpp::Kicked,
+            });
             return false;
         }
 
@@ -53082,15 +53366,14 @@ impl WorldSession {
             self.forced_speed_changes_like_cpp[index] =
                 self.forced_speed_changes_like_cpp[index].saturating_sub(1);
             if self.forced_speed_changes_like_cpp[index] > 0 {
-                self.movement_speed_ack_events_like_cpp
-                    .push(MovementSpeedAckEventLikeCpp {
-                        opcode,
-                        move_type: Some(move_type),
-                        ack_speed: speed,
-                        expected_speed: Some(self.player_movement_speed_like_cpp(move_type)),
-                        remaining_forced_changes: Some(self.forced_speed_changes_like_cpp[index]),
-                        action: MovementSpeedAckActionLikeCpp::SkippedPending,
-                    });
+                self.record_movement_speed_ack_event_like_cpp(MovementSpeedAckEventLikeCpp {
+                    opcode,
+                    move_type: Some(move_type),
+                    ack_speed: speed,
+                    expected_speed: Some(self.player_movement_speed_like_cpp(move_type)),
+                    remaining_forced_changes: Some(self.forced_speed_changes_like_cpp[index]),
+                    action: MovementSpeedAckActionLikeCpp::SkippedPending,
+                });
                 return true;
             }
         }
@@ -53119,15 +53402,14 @@ impl WorldSession {
             MovementSpeedAckActionLikeCpp::Accepted
         };
 
-        self.movement_speed_ack_events_like_cpp
-            .push(MovementSpeedAckEventLikeCpp {
-                opcode,
-                move_type: Some(move_type),
-                ack_speed: speed,
-                expected_speed: Some(expected_speed),
-                remaining_forced_changes: Some(self.forced_speed_changes_like_cpp[index]),
-                action,
-            });
+        self.record_movement_speed_ack_event_like_cpp(MovementSpeedAckEventLikeCpp {
+            opcode,
+            move_type: Some(move_type),
+            ack_speed: speed,
+            expected_speed: Some(expected_speed),
+            remaining_forced_changes: Some(self.forced_speed_changes_like_cpp[index]),
+            action,
+        });
         !matches!(action, MovementSpeedAckActionLikeCpp::Kicked)
     }
 
@@ -53143,15 +53425,14 @@ impl WorldSession {
                 Some(opcode),
                 "kick",
             );
-            self.movement_speed_ack_events_like_cpp
-                .push(MovementSpeedAckEventLikeCpp {
-                    opcode,
-                    move_type: None,
-                    ack_speed: speed,
-                    expected_speed: None,
-                    remaining_forced_changes: None,
-                    action: MovementSpeedAckActionLikeCpp::Kicked,
-                });
+            self.record_movement_speed_ack_event_like_cpp(MovementSpeedAckEventLikeCpp {
+                opcode,
+                move_type: None,
+                ack_speed: speed,
+                expected_speed: None,
+                remaining_forced_changes: None,
+                action: MovementSpeedAckActionLikeCpp::Kicked,
+            });
             return false;
         }
 
@@ -53175,16 +53456,22 @@ impl WorldSession {
             }
         }
 
-        self.movement_speed_ack_events_like_cpp
-            .push(MovementSpeedAckEventLikeCpp {
-                opcode,
-                move_type: None,
-                ack_speed: speed,
-                expected_speed: Some(self.movement_force_mod_magnitude_like_cpp),
-                remaining_forced_changes: Some(self.movement_force_mod_magnitude_changes_like_cpp),
-                action,
-            });
+        self.record_movement_speed_ack_event_like_cpp(MovementSpeedAckEventLikeCpp {
+            opcode,
+            move_type: None,
+            ack_speed: speed,
+            expected_speed: Some(self.movement_force_mod_magnitude_like_cpp),
+            remaining_forced_changes: Some(self.movement_force_mod_magnitude_changes_like_cpp),
+            action,
+        });
         !matches!(action, MovementSpeedAckActionLikeCpp::Kicked)
+    }
+
+    fn record_movement_speed_ack_event_like_cpp(&mut self, event: MovementSpeedAckEventLikeCpp) {
+        #[cfg(test)]
+        self.movement_speed_ack_events_like_cpp.push(event);
+        #[cfg(not(test))]
+        let _ = event;
     }
 
     #[cfg(test)]
@@ -61739,18 +62026,13 @@ impl WorldSession {
             // C++: Unit::GetVictim() is authoritative. If the canonical Player
             // exists but has no victim, do not resurrect stale session mirrors.
             Some(None) => None,
-            None => self.combat_target,
+            None => self.resolved_combat_target_like_cpp().flatten(),
         }) else {
-            self.combat_target = None;
-            let has_combat = self
-                .mutate_canonical_player_like_cpp(|player| {
-                    player.unit().subsystems().combat.has_combat()
-                })
-                .unwrap_or(false);
-            self.set_in_combat_like_cpp(has_combat);
+            self.set_combat_target_like_cpp(None);
+            self.set_in_combat_like_cpp(false);
             return output;
         };
-        self.combat_target = Some(combat_target);
+        self.set_combat_target_like_cpp(Some(combat_target));
         let canonical_threat_before = self
             .canonical_creature_threat_value_like_cpp(combat_target, player_guid)
             .unwrap_or(0.0);
@@ -61804,7 +62086,7 @@ impl WorldSession {
                     .combat
                     .purge_combat_ref_like_cpp(combat_target);
             });
-            self.combat_target = None;
+            self.set_combat_target_like_cpp(None);
             self.set_in_combat_like_cpp(false);
             return output;
         };
@@ -61878,7 +62160,7 @@ impl WorldSession {
                 let _ = self.mutate_canonical_player_like_cpp(|player| {
                     player.unit_mut().attack_stop_like_cpp()
                 });
-                self.combat_target = None;
+                self.set_combat_target_like_cpp(None);
                 self.set_in_combat_like_cpp(false);
                 return output;
             };
@@ -62004,7 +62286,7 @@ impl WorldSession {
                     .purge_combat_ref_like_cpp(combat_target);
             });
             self.revalidate_canonical_player_combat_refs_like_cpp(player_guid);
-            self.combat_target = None;
+            self.set_combat_target_like_cpp(None);
             self.set_in_combat_like_cpp(false);
         }
         output
@@ -62123,7 +62405,7 @@ impl WorldSession {
         use wow_packet::ServerPacket;
         use wow_packet::packets::combat::AttackStart;
 
-        if self.in_combat {
+        if self.resolved_in_combat_like_cpp() != Some(false) {
             return;
         }
 
@@ -62194,7 +62476,7 @@ impl WorldSession {
                 victim: player_guid,
             };
             let _ = self.send_tx().send(start.to_bytes());
-            self.combat_target = Some(guid);
+            self.set_combat_target_like_cpp(Some(guid));
             self.set_in_combat_like_cpp(true);
         }
     }
@@ -63619,10 +63901,12 @@ impl WorldSession {
             });
             return;
         }
-        if let Some(player_guid) = self.player_guid() {
+        if let (Some(player_guid), Some(player_position)) =
+            (self.player_guid(), self.player_position_like_cpp())
+        {
             self.send_packet(&wow_packet::packets::spell::PlaySpellVisual::self_target(
                 player_guid,
-                self.player_position_like_cpp().unwrap_or(Position::ZERO),
+                player_position,
                 BATTLE_PET_SPELL_VISUAL_UNCAGE_PET_LIKE_CPP,
             ));
         }
@@ -67193,10 +67477,10 @@ impl WorldSession {
 
     fn stop_represented_player_pve_combat_like_cpp(&mut self, target_guid: ObjectGuid) {
         if self.player_guid() == Some(target_guid) {
-            if self.combat_target.is_some() {
+            if self.resolved_combat_target_like_cpp().flatten().is_some() {
                 let _ = self.stop_player_attack_like_cpp();
             }
-            self.combat_target = None;
+            self.set_combat_target_like_cpp(None);
             self.set_in_combat_like_cpp(false);
         }
 

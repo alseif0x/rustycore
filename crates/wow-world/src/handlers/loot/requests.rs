@@ -459,12 +459,16 @@ impl WorldSession {
         let Some(group) = group_registry.get(&group_guid) else {
             return vec![player_guid];
         };
-        let source_position = self.player_position_like_cpp().unwrap_or_default();
+        let Some(source_position) = self.player_position_like_cpp() else {
+            return vec![player_guid];
+        };
         let map_id = self.player_map_id_like_cpp();
-        let instance_id = self
+        let Some(instance_id) = self
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
-            .unwrap_or(0);
+        else {
+            return vec![player_guid];
+        };
         let registry = self.player_registry();
         let mut looters = Vec::new();
 

@@ -1563,7 +1563,7 @@ impl WorldSession {
             .unwrap_or(0);
         let any_member_in_combat = group_snapshot.members.iter().any(|member_guid| {
             if *member_guid == sender_guid {
-                self.in_combat
+                self.resolved_in_combat_like_cpp() != Some(false)
             } else {
                 registry.group_presence(*member_guid).is_some_and(|member| {
                     member.in_combat

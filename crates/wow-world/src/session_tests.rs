@@ -51148,8 +51148,8 @@ fn combat_tick_canonical_player_without_victim_does_not_use_stale_session_target
             .current_hp(),
         40
     );
-    assert_eq!(session.combat_target, None);
-    assert!(!session.in_combat);
+    assert_eq!(session.resolved_combat_target_like_cpp(), Some(None));
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(false));
 }
 
 #[test]
@@ -52050,8 +52050,9 @@ fn combat_tick_clears_canonical_player_attack_when_target_dies_like_cpp() {
             .threat_value(player),
         None
     );
-    assert_eq!(session.combat_target, None);
-    assert!(!session.in_combat);
+    drop(guard);
+    assert_eq!(session.resolved_combat_target_like_cpp(), Some(None));
+    assert_eq!(session.resolved_in_combat_like_cpp(), Some(false));
 }
 
 #[test]

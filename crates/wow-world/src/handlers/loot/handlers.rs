@@ -1806,8 +1806,8 @@ impl WorldSession {
                 .unit_mut()
                 .remove_attacker_like_cpp(command.victim_guid);
         }
-        if self.combat_target == Some(command.attacker_guid) {
-            self.combat_target = None;
+        if self.resolved_combat_target_like_cpp().flatten() == Some(command.attacker_guid) {
+            self.set_combat_target_like_cpp(None);
         }
         self.set_in_combat_like_cpp(still_in_combat);
     }

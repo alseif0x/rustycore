@@ -436,8 +436,10 @@
           "name": "combat_target",
           "type": "Option < wow_core :: ObjectGuid >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "combat_tick_last_at_like_cpp",
@@ -783,8 +785,10 @@
           "name": "fall_damage_events_like_cpp",
           "type": "Vec < MovementFallDamageEvent >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "feature_system_bpay_store_enabled_like_cpp",
@@ -939,8 +943,10 @@
           "name": "in_combat",
           "type": "bool",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "instance_ignore_level_like_cpp",
@@ -1560,22 +1566,28 @@
           "name": "move_spline_done_taxi_events_like_cpp",
           "type": "Vec < MoveSplineDoneTaxiEventLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "move_teleport_ack_events_like_cpp",
           "type": "Vec < MoveTeleportAckEventLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "movement_ack_events_like_cpp",
           "type": "Vec < MovementAckEventLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "movement_counter_like_cpp",
@@ -1609,8 +1621,10 @@
           "name": "movement_speed_ack_events_like_cpp",
           "type": "Vec < MovementSpeedAckEventLikeCpp >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "movement_speed_rates_like_cpp",
@@ -1918,8 +1932,10 @@
           "name": "player_collision_height_like_cpp",
           "type": "f32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_condition_store",
@@ -1974,8 +1990,10 @@
           "name": "player_emote_state_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_environmental_damage_immune_like_cpp",
@@ -1995,8 +2013,10 @@
           "name": "player_faction_template_like_cpp",
           "type": "Option < u32 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_game_master_like_cpp",
@@ -2171,22 +2191,28 @@
           "name": "player_movement_flags_like_cpp",
           "type": "MovementFlag",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_movement_jump_like_cpp",
           "type": "wow_packet :: packets :: movement :: JumpInfo",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_movement_time_like_cpp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_name",
@@ -2236,8 +2262,10 @@
           "name": "player_position",
           "type": "Option < wow_core :: Position >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_pvp_enabled_like_cpp",
@@ -2355,8 +2383,10 @@
           "name": "player_stand_state_like_cpp",
           "type": "UnitStandStateType",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_stats",
@@ -4480,8 +4510,10 @@
           "name": "selection_guid",
           "type": "Option < wow_core :: ObjectGuid >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "server_expansion_like_cpp",
@@ -22238,6 +22270,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "canonical_player_entity_snapshot_for_map_with_bootstrap_like_cpp",
+          "visibility": "private",
+          "signature": "fn canonical_player_entity_snapshot_for_map_with_bootstrap_like_cpp (& self , key : wow_map :: MapKey , bootstrap_position : Option < Position > ,) -> Option < Player >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "canonical_player_entity_snapshot_like_cpp",
           "visibility": "private",
           "signature": "fn canonical_player_entity_snapshot_like_cpp (& self) -> Option < Player >",
@@ -23780,7 +23823,7 @@
           "kind": "method",
           "name": "current_player_movement_info_like_cpp",
           "visibility": "private",
-          "signature": "fn current_player_movement_info_like_cpp (& self , player_guid : ObjectGuid ,) -> wow_packet :: packets :: movement :: MovementInfo",
+          "signature": "fn current_player_movement_info_like_cpp (& self , player_guid : ObjectGuid ,) -> Option < wow_packet :: packets :: movement :: MovementInfo >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -25618,7 +25661,7 @@
           "kind": "method",
           "name": "install_detached_canonical_player_from_session_like_cpp",
           "visibility": "private",
-          "signature": "fn install_detached_canonical_player_from_session_like_cpp (& mut self) -> bool",
+          "signature": "fn install_detached_canonical_player_from_session_like_cpp (& mut self , bootstrap_position : Position ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -26871,19 +26914,6 @@
           "name": "known_spells_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn known_spells_like_cpp (& self) -> & [i32]",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "latest_movement_ack_adjusted_time_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn latest_movement_ack_adjusted_time_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -29234,8 +29264,10 @@
           "name": "player_emote_state_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_emote_state_like_cpp (& self) -> u32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -29750,8 +29782,10 @@
           "name": "player_movement_flags_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_movement_flags_like_cpp (& self) -> MovementFlag",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -29802,8 +29836,10 @@
           "name": "player_movement_time_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_movement_time_like_cpp (& self) -> u32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -31044,6 +31080,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "record_movement_speed_ack_event_like_cpp",
+          "visibility": "private",
+          "signature": "fn record_movement_speed_ack_event_like_cpp (& mut self , event : MovementSpeedAckEventLikeCpp)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -38178,6 +38225,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_combat_target_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_combat_target_like_cpp (& self) -> Option < Option < ObjectGuid > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_current_buyback_slot_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_current_buyback_slot_like_cpp (& self) -> Option < u8 >",
@@ -38197,6 +38257,19 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_in_combat_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_in_combat_like_cpp (& self) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -38280,6 +38353,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_player_emote_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_player_emote_state_like_cpp (& self) -> Option < u32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_player_inventory_runtime_like_cpp",
           "visibility": "private",
           "signature": "fn resolved_player_inventory_runtime_like_cpp (& self) -> Option < PlayerInventoryRuntime >",
@@ -38320,6 +38404,30 @@
           "name": "resolved_player_money_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_player_money_like_cpp (& self) -> Option < u64 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_movement_flags_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_player_movement_flags_like_cpp (& self) -> Option < MovementFlag >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_movement_time_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_movement_time_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -38373,6 +38481,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_stand_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_player_stand_state_like_cpp (& self) -> Option < UnitStandStateType >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -40599,6 +40718,20 @@
           "name": "set_combat_ratings_game_table",
           "visibility": "pub",
           "signature": "fn set_combat_ratings_game_table (& mut self , table : Arc < CombatRatingsGameTableLikeCpp >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_combat_target_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn set_combat_target_like_cpp (& mut self , target : Option < ObjectGuid >) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -70546,20 +70679,6 @@
           "evidence": [
             {
               "side": "canonical",
-              "kind": "field_access",
-              "symbol": "canonical_map_manager",
-              "fingerprint": "fnv1a64x2:976fdd57813a0bc03c64590226493073:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:4f38ab4a5f6b8f1cf5382133eb76baff:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
               "kind": "curated_anchor_definition",
               "symbol": "canonical_player_entity_snapshot_for_map_like_cpp",
               "fingerprint": "fnv1a64x2:238a4e7073f264a0f43ad76fcbb235a3:len=49",
@@ -70573,7 +70692,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:6622b7cd44ee947c10edf11f45380adf:len=4614|evidence=fnv1a64x2:da3a2201484f893be857e271e825236a:len=448",
+          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:e433846d710f95b36e908287da82f316:len=88|evidence=fnv1a64x2:fd1c66c6ca8702bf6ce0c877be67e40a:len=276",
           "cfg": [],
           "multiplicity": 1
         },
@@ -74311,7 +74430,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:d036f477460379c865b9fb90bf6c663b:len=91285|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:6b4849ac6158ea76c3a1420bdb2f981d:len=92493|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

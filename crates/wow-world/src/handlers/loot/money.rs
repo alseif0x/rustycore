@@ -42,11 +42,15 @@ impl WorldSession {
             return vec![player_guid];
         };
 
-        let source_position = self.player_position_like_cpp().unwrap_or_default();
-        let source_instance_id = self
+        let Some(source_position) = self.player_position_like_cpp() else {
+            return vec![player_guid];
+        };
+        let Some(source_instance_id) = self
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
-            .unwrap_or(0);
+        else {
+            return vec![player_guid];
+        };
         let mut recipients = Vec::new();
 
         for member_guid in &group.members {
