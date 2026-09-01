@@ -598,9 +598,6 @@ impl WorldSession {
             .filter(|spell| !spell.disabled)
             .map(|spell| spell.spell_id)
             .collect();
-        if let Some(controller) = &mut self.player_controller {
-            controller.set_known_spells(self.known_spells.clone());
-        }
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -611,9 +608,6 @@ impl WorldSession {
                     .insert(skill.skill_id);
             }
             skill.state = RepresentedPlayerSkillStateLikeCpp::Unchanged;
-        }
-        if let Some(controller) = &mut self.player_controller {
-            controller.set_skill_records(self.player_skill_records_like_cpp.clone());
         }
         self.sync_player_registry_state_like_cpp();
     }

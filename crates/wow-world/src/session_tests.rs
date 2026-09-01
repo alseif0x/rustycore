@@ -32968,7 +32968,7 @@ fn canonical_world_map_login_binding_rejects_dungeon_missing_difficulty_like_cpp
 }
 
 #[test]
-fn session_player_controller_tracks_cpp_attached_player_identity() {
+fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let guid = ObjectGuid::create_player(1, 42);
     let start = Position::new(1.0, 2.0, 3.0, 4.0);
@@ -33049,8 +33049,6 @@ fn session_player_controller_tracks_cpp_attached_player_identity() {
     session.set_player_gold_like_cpp(2000);
     session.set_player_xp_like_cpp(66);
     session.learn_known_spell_like_cpp(116);
-    session.inventory_items.remove(&23);
-    assert!(session.inventory_items_like_cpp().contains_key(&23));
     session.remove_inventory_item_like_cpp(23);
 
     assert_eq!(session.player_position_like_cpp(), Some(moved));
@@ -33066,7 +33064,7 @@ fn session_player_controller_tracks_cpp_attached_player_identity() {
 
     session.set_player_guid(None);
     assert_eq!(session.player_guid(), None);
-    assert!(session.player_controller.is_none());
+    assert!(!session.player_bootstrap_attached_like_cpp);
 }
 
 #[test]
@@ -55530,14 +55528,7 @@ fn sync_canonical_player_health_sets_current_and_max_like_cpp() {
         80,
         0,
     );
-    let player = session
-        .canonical_player_entity_snapshot_like_cpp()
-        .expect("canonical player snapshot");
-    {
-        let mut manager = canonical.lock().expect("canonical map manager");
-        let managed = manager.create_world_map(1, 0);
-        session.sync_canonical_player_entity_like_cpp(managed, player);
-    }
+    insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
 
     assert_eq!(
         session.sync_canonical_player_health_like_cpp(42, 120),
@@ -55567,14 +55558,7 @@ fn sync_canonical_player_health_zero_sets_corpse_like_cpp() {
         80,
         0,
     );
-    let player = session
-        .canonical_player_entity_snapshot_like_cpp()
-        .expect("canonical player snapshot");
-    {
-        let mut manager = canonical.lock().expect("canonical map manager");
-        let managed = manager.create_world_map(1, 0);
-        session.sync_canonical_player_entity_like_cpp(managed, player);
-    }
+    insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
 
     assert_eq!(
         session.sync_canonical_player_health_like_cpp(0, 120),
@@ -55608,14 +55592,7 @@ fn runtime_damage_zero_health_marks_canonical_player_dead_like_cpp() {
         80,
         0,
     );
-    let player = session
-        .canonical_player_entity_snapshot_like_cpp()
-        .expect("canonical player snapshot");
-    {
-        let mut manager = canonical.lock().expect("canonical map manager");
-        let managed = manager.create_world_map(1, 0);
-        session.sync_canonical_player_entity_like_cpp(managed, player);
-    }
+    insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
     let _ = session.sync_canonical_player_health_like_cpp(42, 120);
 
     session.set_player_health_after_runtime_damage_like_cpp(0);
@@ -55648,14 +55625,7 @@ fn represented_resurrection_health_syncs_canonical_before_save_like_cpp() {
         80,
         0,
     );
-    let player = session
-        .canonical_player_entity_snapshot_like_cpp()
-        .expect("canonical player snapshot");
-    {
-        let mut manager = canonical.lock().expect("canonical map manager");
-        let managed = manager.create_world_map(1, 0);
-        session.sync_canonical_player_entity_like_cpp(managed, player);
-    }
+    insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
     let _ = session.sync_canonical_player_health_like_cpp(0, 120);
 
     session.apply_represented_resurrection_health_like_cpp(42);
@@ -55692,14 +55662,7 @@ fn sync_canonical_player_primary_power_sets_create_mana_like_cpp() {
         80,
         0,
     );
-    let player = session
-        .canonical_player_entity_snapshot_like_cpp()
-        .expect("canonical player snapshot");
-    {
-        let mut manager = canonical.lock().expect("canonical map manager");
-        let managed = manager.create_world_map(1, 0);
-        session.sync_canonical_player_entity_like_cpp(managed, player);
-    }
+    insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
 
     assert!(session.sync_canonical_player_primary_power_like_cpp(
         PowerType::Mana,
@@ -55742,14 +55705,7 @@ fn sync_canonical_player_primary_power_clears_stale_mana_index_like_cpp() {
         80,
         0,
     );
-    let player = session
-        .canonical_player_entity_snapshot_like_cpp()
-        .expect("canonical player snapshot");
-    {
-        let mut manager = canonical.lock().expect("canonical map manager");
-        let managed = manager.create_world_map(1, 0);
-        session.sync_canonical_player_entity_like_cpp(managed, player);
-    }
+    insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
 
     assert!(session.sync_canonical_player_primary_power_like_cpp(PowerType::Rage, 500, 1_000, 0,));
 
@@ -70572,6 +70528,31 @@ fn insert_session_player_into_canonical_map_like_cpp(
     map_id: u32,
     instance_id: u32,
 ) {
+    if let Some(handle) = session.player_handle_like_cpp {
+        let position = session
+            .player_position_like_cpp()
+            .expect("canonical Player fixture position");
+        let key = wow_map::MapKey::new(map_id, instance_id);
+        let mut manager = canonical.lock().unwrap();
+        manager.create_world_map(map_id, instance_id);
+        match manager.player_residence_like_cpp(handle) {
+            Some(wow_map::PlayerResidenceLikeCpp::Detached) => manager
+                .attach_player_like_cpp(handle, key, position)
+                .expect("attach detached canonical Player fixture"),
+            Some(wow_map::PlayerResidenceLikeCpp::Active(current)) if current == key => {}
+            Some(wow_map::PlayerResidenceLikeCpp::Active(_)) => {
+                manager
+                    .detach_player_like_cpp(handle)
+                    .expect("detach canonical Player fixture");
+                manager
+                    .attach_player_like_cpp(handle, key, position)
+                    .expect("reattach canonical Player fixture");
+            }
+            None => panic!("stale canonical Player fixture handle"),
+        }
+        return;
+    }
+
     let player = session
         .canonical_player_entity_snapshot_for_map_like_cpp(wow_map::MapKey::new(
             map_id,

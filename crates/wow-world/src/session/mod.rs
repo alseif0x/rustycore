@@ -4748,17 +4748,6 @@ pub(crate) struct SessionPlayerController {
     class: u8,
     level: u8,
     gender: u8,
-    gold: u64,
-    bank_bag_slot_count: u8,
-    character_points: i32,
-    xp: u32,
-    next_level_xp: u32,
-    selection_guid: Option<ObjectGuid>,
-    known_spells: Vec<i32>,
-    skill_values: HashMap<u16, u16>,
-    skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
-    currencies: HashMap<u32, PlayerCurrency>,
-    inventory: SessionPlayerInventoryRuntime,
 }
 
 #[derive(Debug, Clone)]
@@ -4804,17 +4793,6 @@ impl SessionPlayerController {
             class,
             level,
             gender,
-            gold: 0,
-            bank_bag_slot_count: 0,
-            character_points: 0,
-            xp: 0,
-            next_level_xp: 400,
-            selection_guid: None,
-            known_spells: Vec::new(),
-            skill_values: HashMap::new(),
-            skill_records: HashMap::new(),
-            currencies: HashMap::new(),
-            inventory: SessionPlayerInventoryRuntime::default(),
         }
     }
 
@@ -4824,10 +4802,6 @@ impl SessionPlayerController {
 
     pub(crate) fn name(&self) -> &str {
         &self.name
-    }
-
-    pub(crate) fn set_name(&mut self, name: String) {
-        self.name = name;
     }
 
     pub(crate) fn position(&self) -> wow_core::Position {
@@ -4852,141 +4826,6 @@ impl SessionPlayerController {
 
     pub(crate) fn gender(&self) -> u8 {
         self.gender
-    }
-
-    pub(crate) fn gold(&self) -> u64 {
-        self.gold
-    }
-
-    pub(crate) fn bank_bag_slot_count(&self) -> u8 {
-        self.bank_bag_slot_count
-    }
-
-    pub(crate) fn character_points(&self) -> i32 {
-        self.character_points
-    }
-
-    pub(crate) fn xp(&self) -> u32 {
-        self.xp
-    }
-
-    pub(crate) fn next_level_xp(&self) -> u32 {
-        self.next_level_xp
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn selection_guid(&self) -> Option<ObjectGuid> {
-        self.selection_guid
-    }
-
-    pub(crate) fn known_spells(&self) -> &[i32] {
-        &self.known_spells
-    }
-
-    pub(crate) fn skill_values(&self) -> &HashMap<u16, u16> {
-        &self.skill_values
-    }
-
-    pub(crate) fn skill_records(&self) -> &HashMap<u16, RepresentedPlayerSkillLikeCpp> {
-        &self.skill_records
-    }
-
-    pub(crate) fn currencies(&self) -> &HashMap<u32, PlayerCurrency> {
-        &self.currencies
-    }
-
-    pub(crate) fn inventory(&self) -> &SessionPlayerInventoryRuntime {
-        &self.inventory
-    }
-
-    fn inventory_mut(&mut self) -> &mut SessionPlayerInventoryRuntime {
-        &mut self.inventory
-    }
-
-    fn set_map_position(&mut self, map_id: u16, position: wow_core::Position) {
-        self.map_id = map_id;
-        self.position = position;
-    }
-
-    fn set_level(&mut self, level: u8) {
-        self.level = level;
-    }
-
-    fn set_gold(&mut self, gold: u64) {
-        self.gold = gold;
-    }
-
-    fn set_bank_bag_slot_count(&mut self, count: u8) {
-        self.bank_bag_slot_count = count;
-    }
-
-    fn set_character_points(&mut self, points: i32) {
-        self.character_points = points;
-    }
-
-    fn set_xp(&mut self, xp: u32) {
-        self.xp = xp;
-    }
-
-    fn set_next_level_xp(&mut self, xp: u32) {
-        self.next_level_xp = xp;
-    }
-
-    fn set_selection_guid(&mut self, guid: Option<ObjectGuid>) {
-        self.selection_guid = guid;
-    }
-
-    fn set_known_spells(&mut self, spells: Vec<i32>) {
-        self.known_spells = spells;
-    }
-
-    fn set_skill_records(&mut self, skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>) {
-        self.skill_values = represented_skill_values_from_records_like_cpp(&skill_records);
-        self.skill_records = skill_records;
-    }
-
-    fn learn_spell(&mut self, spell_id: i32) {
-        if !self.known_spells.contains(&spell_id) {
-            self.known_spells.push(spell_id);
-        }
-    }
-
-    fn remove_spell(&mut self, spell_id: i32) {
-        self.known_spells.retain(|known| *known != spell_id);
-    }
-
-    fn set_currencies(&mut self, currencies: HashMap<u32, PlayerCurrency>) {
-        self.currencies = currencies;
-    }
-
-    fn set_inventory(&mut self, inventory: SessionPlayerInventoryRuntime) {
-        self.inventory = inventory;
-    }
-}
-
-impl SessionPlayerInventoryRuntime {
-    pub(crate) fn inventory_items(&self) -> &HashMap<u8, InventoryItem> {
-        &self.inventory_items
-    }
-
-    pub(crate) fn buyback_items(&self) -> &HashMap<u8, InventoryItem> {
-        &self.buyback_items
-    }
-
-    pub(crate) fn buyback_price(&self) -> &[u32; BUYBACK_SLOT_COUNT] {
-        &self.buyback_price
-    }
-
-    pub(crate) fn buyback_timestamp(&self) -> &[i64; BUYBACK_SLOT_COUNT] {
-        &self.buyback_timestamp
-    }
-
-    pub(crate) fn current_buyback_slot(&self) -> u8 {
-        self.current_buyback_slot
-    }
-
-    pub(crate) fn item_objects(&self) -> &HashMap<ObjectGuid, Item> {
-        &self.item_objects
     }
 }
 
@@ -5708,8 +5547,11 @@ pub struct WorldSession {
     player_guid: Option<ObjectGuid>,
     /// C++ `WorldSession::m_GUIDLow`: last logged-in character low GUID kept after logout.
     recent_player_guid_low_like_cpp: u64,
-    /// Attached player controller, mirroring C++ `WorldSession::_player` ownership.
-    player_controller: Option<SessionPlayerController>,
+    /// Test fixtures may attach a Player bootstrap before injecting the
+    /// production MapManager. Production attachment is represented solely by
+    /// the generation-checked PlayerHandle.
+    #[cfg(test)]
+    player_bootstrap_attached_like_cpp: bool,
     /// C++ `WorldSession::_accountData`, represented in-memory until DB load/save is wired.
     account_data_like_cpp: [AccountDataLikeCpp; NUM_ACCOUNT_DATA_TYPES],
     /// C++ `WorldSession::_tutorials`, account-scoped tutorial completion flags.
@@ -7889,7 +7731,8 @@ impl WorldSession {
             selection_guid: None,
             player_guid: None,
             recent_player_guid_low_like_cpp: 0,
-            player_controller: None,
+            #[cfg(test)]
+            player_bootstrap_attached_like_cpp: false,
             account_data_like_cpp: default_account_data_like_cpp(),
             tutorials_like_cpp: [0; 8],
             tutorials_loaded_from_db_like_cpp: false,
@@ -26331,9 +26174,9 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid else {
             return false;
         };
-        self.player_controller
-            .as_ref()
-            .is_some_and(|controller| controller.guid() == player_guid)
+        self.player_handle_like_cpp
+            .is_some_and(|handle| handle.guid() == player_guid)
+            || cfg!(test) && self.player_bootstrap_attached_for_test_like_cpp()
     }
 
     pub(crate) fn represented_quest_can_increase_rewarded_counters_like_cpp(
@@ -36945,7 +36788,10 @@ impl WorldSession {
             self.represented_seer_guid_like_cpp = Some(guid);
         }
         if guid.is_none() {
-            self.player_controller = None;
+            #[cfg(test)]
+            {
+                self.player_bootstrap_attached_like_cpp = false;
+            }
             self.represented_seer_guid_like_cpp = None;
             // Old registry clones remain permanently closed; a later character
             // selected on this authenticated session receives a fresh fence.
@@ -37220,9 +37066,6 @@ impl WorldSession {
     }
 
     pub(crate) fn set_loaded_player_name_like_cpp(&mut self, name: String) {
-        if let Some(controller) = &mut self.player_controller {
-            controller.set_name(name.clone());
-        }
         self.player_name = Some(name);
     }
 
@@ -37246,13 +37089,6 @@ impl WorldSession {
         self.player_class = class;
         self.player_level = level;
         self.player_gender = gender;
-        if let Some(controller) = &mut self.player_controller {
-            controller.map_id = map_id;
-            controller.race = race;
-            controller.class = class;
-            controller.set_level(level);
-            controller.gender = gender;
-        }
         self.set_player_faction_for_race_like_cpp(race);
         self.initialize_reputation_mgr_like_cpp();
         self.refresh_represented_talent_points_like_cpp();
@@ -37341,18 +37177,9 @@ impl WorldSession {
 
     pub(crate) fn attach_player_controller_like_cpp(
         &mut self,
-        mut controller: SessionPlayerController,
+        controller: SessionPlayerController,
     ) {
         let controller_position = controller.position();
-        controller.set_gold(self.player_gold);
-        controller.set_character_points(self.player_character_points_like_cpp);
-        controller.set_xp(self.player_xp);
-        controller.set_next_level_xp(self.player_next_level_xp);
-        controller.set_selection_guid(self.selection_guid);
-        controller.set_known_spells(self.known_spells.clone());
-        controller.set_skill_records(self.player_skill_records_like_cpp.clone());
-        controller.set_currencies(self.player_currencies.clone());
-        controller.set_inventory(self.session_player_inventory_runtime_like_cpp());
         self.set_player_guid(Some(controller.guid()));
         self.player_name = Some(controller.name().to_string());
         self.player_position = Some(controller_position);
@@ -37363,9 +37190,65 @@ impl WorldSession {
         self.player_gender = controller.gender();
         self.player_moved_unit_guid_like_cpp = controller.guid();
         self.represented_seer_guid_like_cpp = Some(controller.guid());
-        self.player_controller = Some(controller);
+        #[cfg(test)]
+        {
+            self.player_bootstrap_attached_like_cpp = true;
+        }
         self.initialize_reputation_mgr_like_cpp();
         self.set_fall_information_like_cpp(0, controller_position.z);
+        // Production receives MapManager at session construction, so consume
+        // the login bootstrap immediately. Unit fixtures historically inject
+        // or replace their synthetic manager after attachment; they exercise
+        // the same ownership transition through
+        // `ensure_canonical_player_owner_for_map_like_cpp` instead.
+        #[cfg(not(test))]
+        let _ = self.install_detached_canonical_player_from_session_like_cpp();
+    }
+
+    fn player_bootstrap_attached_for_test_like_cpp(&self) -> bool {
+        #[cfg(test)]
+        {
+            return self.player_bootstrap_attached_like_cpp;
+        }
+        #[cfg(not(test))]
+        {
+            false
+        }
+    }
+
+    /// Transitional login seam: consume the already loaded Session values
+    /// once, install the Player under MapManager, then let every later load
+    /// step mutate that generation-checked canonical value. The retained
+    /// Session fields are retired family-by-family in this issue.
+    fn install_detached_canonical_player_from_session_like_cpp(&mut self) -> bool {
+        if self.player_handle_like_cpp.is_some() {
+            return true;
+        }
+        let Some(guid) = self.player_guid else {
+            return false;
+        };
+        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
+            return false;
+        };
+        let key = wow_map::MapKey::new(u32::from(self.current_map_id), 0);
+        let Some(player) = self.transitional_initial_player_box_like_cpp(key) else {
+            return false;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return false;
+        };
+        let handle = match manager.adopt_active_player_like_cpp(guid) {
+            Ok(handle) => handle,
+            Err(wow_map::PlayerOwnerError::ActivePlayerMissing { .. }) => {
+                let Ok(handle) = manager.install_detached_player_like_cpp(player) else {
+                    return false;
+                };
+                handle
+            }
+            Err(_) => return false,
+        };
+        self.player_handle_like_cpp = Some(handle);
+        true
     }
 
     pub(crate) fn ensure_login_player_controller_like_cpp(
@@ -37379,7 +37262,9 @@ impl WorldSession {
         level: u8,
         gender: u8,
     ) -> bool {
-        if self.player_controller.is_none() {
+        if self.player_handle_like_cpp.is_none()
+            && !self.player_bootstrap_attached_for_test_like_cpp()
+        {
             self.attach_player_controller_like_cpp(SessionPlayerController::new(
                 guid, name, position, map_id, race, class, level, gender,
             ));
@@ -37404,8 +37289,32 @@ impl WorldSession {
         }
         self.current_map_id = map_id;
         self.player_position = Some(position);
-        if let Some(controller) = &mut self.player_controller {
-            controller.set_map_position(map_id, position);
+        self.sync_canonical_player_position_if_same_or_detached_like_cpp(map_id, position);
+    }
+
+    fn sync_canonical_player_position_if_same_or_detached_like_cpp(
+        &mut self,
+        map_id: u16,
+        position: Position,
+    ) {
+        let (Some(manager), Some(handle)) = (
+            self.canonical_map_manager.as_ref().map(Arc::clone),
+            self.player_handle_like_cpp,
+        ) else {
+            return;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return;
+        };
+        let should_relocate = match manager.player_residence_like_cpp(handle) {
+            Some(wow_map::PlayerResidenceLikeCpp::Detached) => true,
+            Some(wow_map::PlayerResidenceLikeCpp::Active(key)) => key.map_id == u32::from(map_id),
+            None => false,
+        };
+        if should_relocate {
+            let _ = manager.with_player_mut_like_cpp(handle, |player| {
+                player.unit_mut().world_mut().relocate(position);
+            });
         }
     }
 
@@ -37444,9 +37353,6 @@ impl WorldSession {
 
     pub(crate) fn set_player_level_like_cpp(&mut self, level: u8) {
         self.player_level = level;
-        if let Some(controller) = &mut self.player_controller {
-            controller.set_level(level);
-        }
         let gray_level = self.gray_level(level);
         crate::canonical_player_sync::sync_player_level_like_cpp(self, level, gray_level);
         self.refresh_represented_talent_points_like_cpp();
@@ -37458,9 +37364,6 @@ impl WorldSession {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         self.player_class = class;
-        if let Some(controller) = &mut self.player_controller {
-            controller.class = class;
-        }
         self.refresh_represented_talent_points_like_cpp();
     }
 
@@ -37470,9 +37373,6 @@ impl WorldSession {
 
     pub(crate) fn set_player_gold_like_cpp(&mut self, gold: u64) {
         self.player_gold = gold;
-        if let Some(controller) = &mut self.player_controller {
-            controller.set_gold(gold);
-        }
     }
 
     pub(crate) fn set_represented_talent_reset_state_like_cpp(
@@ -37486,9 +37386,6 @@ impl WorldSession {
 
     pub(crate) fn set_player_bank_bag_slot_count_like_cpp(&mut self, count: u8) {
         self.player_bank_bag_slot_count_like_cpp = count;
-        if let Some(controller) = &mut self.player_controller {
-            controller.set_bank_bag_slot_count(count);
-        }
     }
 
     pub(crate) fn set_player_inventory_slot_count_like_cpp(&mut self, count: u8) {
@@ -37497,9 +37394,6 @@ impl WorldSession {
 
     pub(crate) fn set_player_character_points_like_cpp(&mut self, points: i32) {
         self.player_character_points_like_cpp = points;
-        if let Some(controller) = &mut self.player_controller {
-            controller.set_character_points(points);
-        }
     }
 
     pub(crate) fn reset_player_interaction_data_like_cpp(&mut self) {
@@ -37886,23 +37780,14 @@ impl WorldSession {
 
     pub(crate) fn set_player_xp_like_cpp(&mut self, xp: u32) {
         self.player_xp = xp;
-        if let Some(controller) = &mut self.player_controller {
-            controller.set_xp(xp);
-        }
     }
 
     pub(crate) fn set_player_next_level_xp_like_cpp(&mut self, xp: u32) {
         self.player_next_level_xp = xp;
-        if let Some(controller) = &mut self.player_controller {
-            controller.set_next_level_xp(xp);
-        }
     }
 
     pub(crate) fn set_selection_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
         self.selection_guid = guid;
-        if let Some(controller) = &mut self.player_controller {
-            controller.set_selection_guid(guid);
-        }
     }
 
     pub(crate) fn set_known_spells_like_cpp(&mut self, spells: Vec<i32>) {
@@ -37917,9 +37802,6 @@ impl WorldSession {
         self.represented_spell_trait_definition_ids_like_cpp
             .retain(|spell_id, _| self.known_spells.contains(spell_id));
         self.learn_account_mount_spells_like_cpp();
-        if let Some(controller) = &mut self.player_controller {
-            controller.set_known_spells(self.known_spells.clone());
-        }
     }
 
     fn invalidate_represented_player_spell_rows_like_cpp(&mut self) {
@@ -38834,9 +38716,6 @@ impl WorldSession {
         self.player_skill_records_complete_like_cpp =
             loaded && complete && rows_are_structurally_complete;
         self.player_skill_occupied_slots_like_cpp = None;
-        if let Some(controller) = &mut self.player_controller {
-            controller.set_skill_records(skill_records);
-        }
     }
 
     pub(crate) fn player_skill_records_loaded_like_cpp(&self) -> bool {
@@ -39139,9 +39018,6 @@ impl WorldSession {
         }
         self.represented_removed_known_spells_like_cpp
             .remove(&spell_id);
-        if let Some(controller) = &mut self.player_controller {
-            controller.learn_spell(spell_id);
-        }
     }
 
     pub(crate) fn learn_dependent_known_spell_like_cpp(&mut self, spell_id: i32) {
@@ -39367,10 +39243,6 @@ impl WorldSession {
         self.cleanup_removed_spell_dual_wield_like_cpp(spell_id);
         if self.represented_offhand_check_at_spell_unlearn_like_cpp {
             self.represented_auto_unequip_offhand_if_need_like_cpp(false);
-        }
-
-        if let Some(controller) = &mut self.player_controller {
-            controller.remove_spell(spell_id);
         }
 
         if let Some((spell_id, suppress_messaging)) = unlearned_spells_packet_like_cpp {
@@ -40413,10 +40285,6 @@ impl WorldSession {
         self.player_skill_records_loaded_like_cpp = true;
         self.player_skill_records_complete_like_cpp = true;
         self.player_skill_occupied_slots_like_cpp = Some(occupied_skill_slots);
-        if let Some(controller) = &mut self.player_controller {
-            controller.set_known_spells(known_spells);
-            controller.set_skill_records(skill_records);
-        }
         // Cross-session consumers (notably disenchant roll eligibility) read
         // known spells and enchanting rank from the player registry. Publish
         // the committed snapshot there before any acquisition action packet.
@@ -40467,20 +40335,11 @@ impl WorldSession {
         self.canonical_player_snapshot_like_cpp(|_| ()).is_some()
     }
 
-    pub(crate) fn sync_player_currencies_like_cpp(&mut self) {
-        if let Some(controller) = &mut self.player_controller {
-            controller.set_currencies(self.player_currencies.clone());
-        }
-    }
-
     pub(crate) fn set_player_currencies_like_cpp(
         &mut self,
         currencies: HashMap<u32, PlayerCurrency>,
     ) {
-        self.player_currencies = currencies.clone();
-        if let Some(controller) = &mut self.player_controller {
-            controller.set_currencies(currencies);
-        }
+        self.player_currencies = currencies;
     }
 
     pub(crate) fn clear_player_currencies_like_cpp(&mut self) {
@@ -40497,13 +40356,6 @@ impl WorldSession {
             buyback_timestamp: self.buyback_timestamp,
             current_buyback_slot: self.current_buyback_slot,
             item_objects: self.inventory_item_objects.clone(),
-        }
-    }
-
-    pub(crate) fn sync_player_inventory_like_cpp(&mut self) {
-        let inventory = self.session_player_inventory_runtime_like_cpp();
-        if let Some(controller) = &mut self.player_controller {
-            controller.set_inventory(inventory);
         }
     }
 
@@ -40524,41 +40376,22 @@ impl WorldSession {
         update: impl FnOnce(&mut SessionPlayerInventoryRuntime) -> R,
     ) -> R {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        if self.player_controller.is_some() {
-            let (result, inventory) = {
-                let controller = self.player_controller.as_mut().expect("checked above");
-                let result = update(controller.inventory_mut());
-                (result, controller.inventory().clone())
-            };
-            self.mirror_player_inventory_runtime_to_legacy_like_cpp(&inventory);
-            result
-        } else {
-            let mut inventory = self.session_player_inventory_runtime_like_cpp();
-            let result = update(&mut inventory);
-            self.mirror_player_inventory_runtime_to_legacy_like_cpp(&inventory);
-            result
-        }
+        let mut inventory = self.session_player_inventory_runtime_like_cpp();
+        let result = update(&mut inventory);
+        self.mirror_player_inventory_runtime_to_legacy_like_cpp(&inventory);
+        result
     }
 
     pub(crate) fn player_name_like_cpp(&self) -> Option<&str> {
-        self.player_controller
-            .as_ref()
-            .map(SessionPlayerController::name)
-            .or(self.player_name.as_deref())
+        self.player_name.as_deref()
     }
 
     pub(crate) fn player_position_like_cpp(&self) -> Option<wow_core::Position> {
-        self.player_controller
-            .as_ref()
-            .map(SessionPlayerController::position)
-            .or(self.player_position)
+        self.player_position
     }
 
     pub(crate) fn player_map_id_like_cpp(&self) -> u16 {
-        self.player_controller
-            .as_ref()
-            .map(SessionPlayerController::map_id)
-            .unwrap_or(self.current_map_id)
+        self.current_map_id
     }
 
     pub(crate) fn player_faction_template_id_like_cpp(&self) -> Option<u32> {
@@ -40579,17 +40412,11 @@ impl WorldSession {
     }
 
     pub(crate) fn player_race_like_cpp(&self) -> u8 {
-        self.player_controller
-            .as_ref()
-            .map(SessionPlayerController::race)
-            .unwrap_or(self.player_race)
+        self.player_race
     }
 
     pub(crate) fn player_class_like_cpp(&self) -> u8 {
-        self.player_controller
-            .as_ref()
-            .map(SessionPlayerController::class)
-            .unwrap_or(self.player_class)
+        self.player_class
     }
 
     pub(crate) fn player_create_mode_like_cpp(&self) -> u8 {
@@ -40597,17 +40424,11 @@ impl WorldSession {
     }
 
     pub(crate) fn player_level_like_cpp(&self) -> u8 {
-        self.player_controller
-            .as_ref()
-            .map(SessionPlayerController::level)
-            .unwrap_or(self.player_level)
+        self.player_level
     }
 
     pub(crate) fn player_gender_like_cpp(&self) -> u8 {
-        self.player_controller
-            .as_ref()
-            .map(SessionPlayerController::gender)
-            .unwrap_or(self.player_gender)
+        self.player_gender
     }
 
     pub(crate) fn loot_specialization_id_like_cpp(&self) -> u32 {
@@ -40636,10 +40457,7 @@ impl WorldSession {
     }
 
     pub(crate) fn player_gold_like_cpp(&self) -> u64 {
-        self.player_controller
-            .as_ref()
-            .map(SessionPlayerController::gold)
-            .unwrap_or(self.player_gold)
+        self.player_gold
     }
 
     pub(crate) fn represented_talent_reset_cost_like_cpp(&self) -> u32 {
@@ -40651,10 +40469,7 @@ impl WorldSession {
     }
 
     pub(crate) fn player_bank_bag_slot_count_like_cpp(&self) -> u8 {
-        self.player_controller
-            .as_ref()
-            .map(SessionPlayerController::bank_bag_slot_count)
-            .unwrap_or(self.player_bank_bag_slot_count_like_cpp)
+        self.player_bank_bag_slot_count_like_cpp
     }
 
     pub(crate) fn player_inventory_slot_count_like_cpp(&self) -> u8 {
@@ -40662,39 +40477,24 @@ impl WorldSession {
     }
 
     pub(crate) fn player_character_points_like_cpp(&self) -> i32 {
-        self.player_controller
-            .as_ref()
-            .map(SessionPlayerController::character_points)
-            .unwrap_or(self.player_character_points_like_cpp)
+        self.player_character_points_like_cpp
     }
 
     pub(crate) fn player_xp_like_cpp(&self) -> u32 {
-        self.player_controller
-            .as_ref()
-            .map(SessionPlayerController::xp)
-            .unwrap_or(self.player_xp)
+        self.player_xp
     }
 
     pub(crate) fn player_next_level_xp_like_cpp(&self) -> u32 {
-        self.player_controller
-            .as_ref()
-            .map(SessionPlayerController::next_level_xp)
-            .unwrap_or(self.player_next_level_xp)
+        self.player_next_level_xp
     }
 
     #[allow(dead_code)]
     pub(crate) fn selection_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        self.player_controller
-            .as_ref()
-            .and_then(SessionPlayerController::selection_guid)
-            .or(self.selection_guid)
+        self.selection_guid
     }
 
     pub(crate) fn known_spells_like_cpp(&self) -> &[i32] {
-        self.player_controller
-            .as_ref()
-            .map(SessionPlayerController::known_spells)
-            .unwrap_or(&self.known_spells)
+        &self.known_spells
     }
 
     pub(crate) fn represented_dependent_known_spells_like_cpp(&self) -> &HashSet<i32> {
@@ -40779,19 +40579,13 @@ impl WorldSession {
     }
 
     pub(crate) fn player_skill_values_like_cpp(&self) -> &HashMap<u16, u16> {
-        self.player_controller
-            .as_ref()
-            .map(SessionPlayerController::skill_values)
-            .unwrap_or(&self.player_skill_values_like_cpp)
+        &self.player_skill_values_like_cpp
     }
 
     pub(crate) fn player_skill_records_like_cpp(
         &self,
     ) -> &HashMap<u16, RepresentedPlayerSkillLikeCpp> {
-        self.player_controller
-            .as_ref()
-            .map(SessionPlayerController::skill_records)
-            .unwrap_or(&self.player_skill_records_like_cpp)
+        &self.player_skill_records_like_cpp
     }
 
     pub(crate) fn player_skill_non_durable_tombstones_like_cpp(&self) -> &BTreeSet<u16> {
@@ -40806,10 +40600,7 @@ impl WorldSession {
     }
 
     pub(crate) fn player_currencies_like_cpp(&self) -> &HashMap<u32, PlayerCurrency> {
-        self.player_controller
-            .as_ref()
-            .map(SessionPlayerController::currencies)
-            .unwrap_or(&self.player_currencies)
+        &self.player_currencies
     }
 
     pub(crate) fn represented_player_condition_context_like_cpp(
@@ -41997,46 +41788,28 @@ impl WorldSession {
         })
     }
 
-    pub(crate) fn player_inventory_like_cpp(&self) -> Option<&SessionPlayerInventoryRuntime> {
-        self.player_controller
-            .as_ref()
-            .map(SessionPlayerController::inventory)
-    }
-
     pub(crate) fn inventory_items_like_cpp(&self) -> &HashMap<u8, InventoryItem> {
-        self.player_inventory_like_cpp()
-            .map(SessionPlayerInventoryRuntime::inventory_items)
-            .unwrap_or(&self.inventory_items)
+        &self.inventory_items
     }
 
     pub(crate) fn buyback_items_like_cpp(&self) -> &HashMap<u8, InventoryItem> {
-        self.player_inventory_like_cpp()
-            .map(SessionPlayerInventoryRuntime::buyback_items)
-            .unwrap_or(&self.buyback_items)
+        &self.buyback_items
     }
 
     pub(crate) fn buyback_price_like_cpp(&self) -> &[u32; BUYBACK_SLOT_COUNT] {
-        self.player_inventory_like_cpp()
-            .map(SessionPlayerInventoryRuntime::buyback_price)
-            .unwrap_or(&self.buyback_price)
+        &self.buyback_price
     }
 
     pub(crate) fn buyback_timestamp_like_cpp(&self) -> &[i64; BUYBACK_SLOT_COUNT] {
-        self.player_inventory_like_cpp()
-            .map(SessionPlayerInventoryRuntime::buyback_timestamp)
-            .unwrap_or(&self.buyback_timestamp)
+        &self.buyback_timestamp
     }
 
     pub(crate) fn current_buyback_slot_like_cpp(&self) -> u8 {
-        self.player_inventory_like_cpp()
-            .map(SessionPlayerInventoryRuntime::current_buyback_slot)
-            .unwrap_or(self.current_buyback_slot)
+        self.current_buyback_slot
     }
 
     pub(crate) fn inventory_item_objects_like_cpp(&self) -> &HashMap<ObjectGuid, Item> {
-        self.player_inventory_like_cpp()
-            .map(SessionPlayerInventoryRuntime::item_objects)
-            .unwrap_or(&self.inventory_item_objects)
+        &self.inventory_item_objects
     }
 
     pub fn set_player_alive_like_cpp(&mut self, alive: bool) {
@@ -53297,10 +53070,7 @@ impl WorldSession {
 
     /// Get the logged-in player GUID.
     pub fn player_guid(&self) -> Option<ObjectGuid> {
-        self.player_controller
-            .as_ref()
-            .map(SessionPlayerController::guid)
-            .or(self.player_guid)
+        self.player_guid
     }
 
     #[cfg(test)]

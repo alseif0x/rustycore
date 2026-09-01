@@ -1874,6 +1874,15 @@
           "source_class": "production"
         },
         {
+          "name": "player_bootstrap_attached_like_cpp",
+          "type": "bool",
+          "visibility": "private",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "name": "player_character_points_like_cpp",
           "type": "i32",
           "visibility": "private",
@@ -1911,13 +1920,6 @@
         {
           "name": "player_contested_pvp_timer_like_cpp",
           "type": "u32",
-          "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "player_controller",
-          "type": "Option < SessionPlayerController >",
           "visibility": "private",
           "cfg": [],
           "source_class": "production"
@@ -2016,6 +2018,13 @@
         {
           "name": "player_guid",
           "type": "Option < ObjectGuid >",
+          "visibility": "private",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "name": "player_handle_like_cpp",
+          "type": "Option < wow_map :: PlayerHandle >",
           "visibility": "private",
           "cfg": [],
           "source_class": "production"
@@ -20738,7 +20747,7 @@
           "kind": "method",
           "name": "attach_player_controller_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn attach_player_controller_like_cpp (& mut self , mut controller : SessionPlayerController ,)",
+          "signature": "fn attach_player_controller_like_cpp (& mut self , controller : SessionPlayerController ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -24160,6 +24169,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "ensure_canonical_player_owner_for_map_like_cpp",
+          "visibility": "private",
+          "signature": "fn ensure_canonical_player_owner_for_map_like_cpp (& mut self , key : wow_map :: MapKey , position : Position ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "ensure_canonical_world_map_for_current_player_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn ensure_canonical_world_map_for_current_player_like_cpp (& mut self ,) -> Option < wow_map :: CreateMapDecision >",
@@ -25515,6 +25535,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "install_detached_canonical_player_from_session_like_cpp",
+          "visibility": "private",
+          "signature": "fn install_detached_canonical_player_from_session_like_cpp (& mut self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -28977,6 +29008,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "player_bootstrap_attached_for_test_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_bootstrap_attached_for_test_like_cpp (& self) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "player_can_never_see_target_like_cpp",
           "visibility": "private",
           "signature": "fn player_can_never_see_target_like_cpp (& self) -> bool",
@@ -29319,19 +29361,6 @@
           "name": "player_interaction_trainer_id_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_interaction_trainer_id_like_cpp (& self) -> u32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "player_inventory_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn player_inventory_like_cpp (& self) -> Option < & SessionPlayerInventoryRuntime >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -46627,6 +46656,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "sync_canonical_player_position_if_same_or_detached_like_cpp",
+          "visibility": "private",
+          "signature": "fn sync_canonical_player_position_if_same_or_detached_like_cpp (& mut self , map_id : u16 , position : Position ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "sync_canonical_player_primary_power_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn sync_canonical_player_primary_power_like_cpp (& mut self , power_type : PowerType , current : i32 , max : i32 , base_mana : i32 ,) -> bool",
@@ -46696,32 +46736,6 @@
           "cfg": [],
           "source_class": "production",
           "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "sync_player_currencies_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn sync_player_currencies_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "sync_player_inventory_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn sync_player_inventory_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
         },
         {
           "module": "crate::session",
@@ -47407,6 +47421,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "transitional_initial_player_box_like_cpp",
+          "visibility": "private",
+          "signature": "fn transitional_initial_player_box_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Box < Player > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "transmog_set_item_modified_appearances_like_cpp",
           "visibility": "pub",
           "signature": "fn transmog_set_item_modified_appearances_like_cpp (& self , transmog_set_id : u32 ,) -> Vec < & wow_data :: ItemModifiedAppearanceEntry >",
@@ -47598,7 +47623,7 @@
           "kind": "method",
           "name": "unregister_canonical_player_from_map_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn unregister_canonical_player_from_map_like_cpp (& self)",
+          "signature": "fn unregister_canonical_player_from_map_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -56119,6 +56144,14 @@
         "target": "WorldSession::record_driver_phase_like_cpp",
         "kind": "attribute",
         "fingerprint": "inline",
+        "cfg": [],
+        "source_class": "production"
+      },
+      {
+        "module": "crate::session",
+        "target": "WorldSession::transitional_initial_player_box_like_cpp",
+        "kind": "attribute",
+        "fingerprint": "inline (never)",
         "cfg": [],
         "source_class": "production"
       },
@@ -70181,6 +70214,20 @@
           "evidence": [
             {
               "side": "canonical",
+              "kind": "field_access",
+              "symbol": "canonical_map_manager",
+              "fingerprint": "fnv1a64x2:976fdd57813a0bc03c64590226493073:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "as_ref",
+              "fingerprint": "fnv1a64x2:4f38ab4a5f6b8f1cf5382133eb76baff:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
               "kind": "curated_anchor_definition",
               "symbol": "canonical_player_entity_snapshot_for_map_like_cpp",
               "fingerprint": "fnv1a64x2:238a4e7073f264a0f43ad76fcbb235a3:len=49",
@@ -70194,7 +70241,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:1cb373d801ad54957a099741a3b58ab6:len=3135|evidence=fnv1a64x2:fd1c66c6ca8702bf6ce0c877be67e40a:len=276",
+          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:aa648b87caf975a10717e1fb8a4b4bdc:len=3494|evidence=fnv1a64x2:da3a2201484f893be857e271e825236a:len=448",
           "cfg": [],
           "multiplicity": 1
         },
@@ -73932,7 +73979,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:52e902f6509fa030f4a79ec895cd91d3:len=90391|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:145a971bbad7dd13160776a490af2e66:len=90742|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

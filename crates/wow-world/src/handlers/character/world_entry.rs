@@ -1292,7 +1292,6 @@ impl WorldSession {
             // inventory_type is now loaded from the canonical ItemTemplate bridge.
             // No SQL cache needed.
         }
-        self.sync_player_inventory_like_cpp();
         let (loaded_item_time_updates, loaded_non_equipped_enchantment_updates) = self
             .register_loaded_inventory_item_duration_refs_like_cpp(
                 &loaded_inventory_item_guids,
@@ -1530,7 +1529,6 @@ impl WorldSession {
                     self.player_currencies_like_cpp().len(),
                     guid
                 );
-                self.sync_player_currencies_like_cpp();
             }
             wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!("Failed to load currencies for {:?}: {}", guid, reason);
