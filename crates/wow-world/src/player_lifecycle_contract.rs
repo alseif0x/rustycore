@@ -7,7 +7,28 @@
 //! `WorldSession::LogoutPlayer`.
 
 use serde::{Deserialize, Serialize};
-use wow_database::persistence_trace::{CommitOutcome, ConnectionAffinity, LogicalDatabase};
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum LogicalDatabase {
+    Login,
+    Character,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum ConnectionAffinity {
+    Pooled,
+    Transaction,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum CommitOutcome {
+    Committed,
+    RolledBack,
+    Unknown,
+}
 
 const GOLDEN: &str = include_str!("../tests/fixtures/player-lifecycle-contract.json");
 
