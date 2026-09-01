@@ -164,6 +164,8 @@ async fn run_inner(
         wow_database::MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
             &world_db,
         ));
+    let quest_catalog_persistence =
+        wow_database::MariaDbQuestCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
     let gameplay_rule_catalog_persistence =
         wow_database::MariaDbGameplayRuleCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
             &world_db,
@@ -2687,7 +2689,7 @@ async fn run_inner(
 
     // Load quest store (templates + objectives + NPC relations)
     let quest_store = Arc::new(
-        wow_data::quest::load_quests(&world_db)
+        crate::quest_catalog::load_quests_like_cpp(&quest_catalog_persistence)
             .await
             .context("Failed to load quest store")?,
     );

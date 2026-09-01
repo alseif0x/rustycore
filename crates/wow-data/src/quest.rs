@@ -8,10 +8,8 @@
 //! Loads `quest_template`, `quest_objectives`, creature quest relations,
 //! and GameObject quest relations from the world database at startup.
 
-use anyhow::Result;
 use std::collections::{HashMap, HashSet};
 use tracing::{info, warn};
-use wow_database::{SqlResult, WorldDatabase, WorldStatements};
 
 // ── Constants (matching C# SharedConst) ──────────────────────────────────────
 pub const QUEST_REWARD_ITEM_COUNT: usize = 4;
@@ -253,7 +251,7 @@ impl QuestTemplate {
     /// C++ `ObjectMgr::LoadQuests` source-item/source-spell metadata normalization.
     ///
     /// The caller owns item/spell stores and passes real predicates. `load_quests` keeps raw DB
-    /// values until world-server composition can provide those predicates without making
+    /// values until composition can provide those predicates without making
     /// `wow-data` depend on runtime stores.
     pub fn normalize_source_item_spell_like_cpp(
         &mut self,
@@ -371,6 +369,105 @@ pub struct QuestStore {
 }
 
 impl QuestStore {
+    pub fn from_template_rows_like_cpp(templates: Vec<QuestTemplate>) -> Self {
+        let mut store = Self::new();
+        for mut quest in templates {
+            (quest.flags, quest.special_flags) =
+                normalize_quest_flags_like_cpp(quest.flags, quest.special_flags);
+            store.quests.insert(quest.id, quest);
+        }
+        store.normalize_dependent_quest_metadata_like_cpp();
+        info!("Loaded {} quest templates", store.quests.len());
+        store
+    }
+
+    pub fn apply_special_flag_rows_like_cpp(&mut self, rows: Vec<(u32, u32)>) {
+        let mut special_count = 0;
+        for (id, special_flags) in rows {
+            if let Some(quest) = self.quests.get_mut(&id) {
+                (quest.flags, quest.special_flags) =
+                    normalize_quest_flags_like_cpp(quest.flags, special_flags);
+                special_count += 1;
+            }
+        }
+        info!("Applied {special_count} quest_template_addon SpecialFlags rows like C++");
+    }
+
+    pub fn apply_seasonal_relation_rows_like_cpp(&mut self, rows: Vec<(u32, u32)>) {
+        let mut seasonal_count = 0;
+        for (quest_id, event_entry) in rows {
+            if let Some(quest) = self.quests.get_mut(&quest_id) {
+                if let Ok(event_id) = u16::try_from(event_entry) {
+                    quest.event_id_for_quest = event_id;
+                    seasonal_count += 1;
+                } else {
+                    warn!(
+                        quest_id,
+                        event_entry,
+                        "Skipping seasonal quest relation with event id outside u16 range"
+                    );
+                }
+            } else {
+                warn!(
+                    quest_id,
+                    event_entry, "Skipping seasonal quest relation for missing quest template"
+                );
+            }
+        }
+        info!(
+            "Loaded {seasonal_count} seasonal quest event relations (GameEvent max range guard remains with GameEvent metadata owner)"
+        );
+    }
+
+    pub fn apply_objective_rows_like_cpp(&mut self, rows: Vec<QuestObjective>) {
+        let mut objective_count = 0;
+        for objective in rows {
+            if let Some(quest) = self.quests.get_mut(&objective.quest_id) {
+                quest.objectives.push(objective);
+                objective_count += 1;
+            }
+        }
+        info!("Loaded {objective_count} quest objectives");
+    }
+
+    pub fn apply_creature_starter_rows_like_cpp(&mut self, rows: Vec<(u32, u32)>) {
+        for (npc, quest) in rows {
+            if self.quests.contains_key(&quest) {
+                self.starter_quests.entry(npc).or_default().push(quest);
+            }
+        }
+    }
+
+    pub fn apply_creature_ender_rows_like_cpp(&mut self, rows: Vec<(u32, u32)>) {
+        for (npc, quest) in rows {
+            if self.quests.contains_key(&quest) {
+                self.ender_quests.entry(npc).or_default().push(quest);
+            }
+        }
+    }
+
+    pub fn apply_gameobject_starter_rows_like_cpp(&mut self, rows: Vec<(u32, u32)>) {
+        for (entry, quest) in rows {
+            self.insert_gameobject_starter_relation_like_cpp(entry, quest);
+        }
+    }
+
+    pub fn apply_gameobject_ender_rows_like_cpp(&mut self, rows: Vec<(u32, u32)>) {
+        for (entry, quest) in rows {
+            self.insert_gameobject_ender_relation_like_cpp(entry, quest);
+        }
+    }
+
+    pub fn log_relation_counts_like_cpp(&self) {
+        info!(
+            "Quest relations: NPC {} starters / {} enders, GameObject {} starters / {} enders",
+            self.starter_quests.len(),
+            self.ender_quests.len(),
+            self.gameobject_starter_quests.len(),
+            self.gameobject_ender_quests.len()
+        );
+    }
+
     pub fn new() -> Self {
         Self {
             quests: HashMap::new(),
@@ -835,437 +932,9 @@ impl QuestPoolKindLikeCpp {
     }
 }
 
-// ── DB loading ────────────────────────────────────────────────────────────────
-
-/// Load all quest data from the world database into a QuestStore.
-pub async fn load_quests(db: &WorldDatabase) -> Result<QuestStore> {
-    let mut store = QuestStore::new();
-
-    // ── Load quest templates ──────────────────────────────────────────────
-    let stmt = db.prepare(WorldStatements::SEL_QUEST_TEMPLATE);
-    let result = db.query(&stmt).await?;
-
-    if !result.is_empty() {
-        let mut result = result;
-        loop {
-            let id: u32 = result.read(0);
-            let (flags, special_flags) = normalize_quest_flags_like_cpp(
-                result.try_read::<u32>(20).unwrap_or(0),
-                read_quest_u32_like_cpp(&result, 67).unwrap_or(0),
-            );
-            let quest = QuestTemplate {
-                id,
-                quest_type: result.try_read::<u8>(1).unwrap_or(2),
-                quest_level: result.try_read::<i32>(2).unwrap_or(0),
-                quest_max_scaling_level: result.try_read::<i32>(3).unwrap_or(0),
-                quest_package_id: result.try_read::<u32>(4).unwrap_or(0),
-                min_level: result.try_read::<i32>(5).unwrap_or(0),
-                quest_sort_id: result.try_read::<i32>(6).unwrap_or(0),
-                quest_info_id: result.try_read::<u16>(7).unwrap_or(0),
-                suggested_group_num: result.try_read::<u8>(8).unwrap_or(0),
-                reward_next_quest: result.try_read::<u32>(9).unwrap_or(0),
-                reward_xp_difficulty: result.try_read::<u32>(10).unwrap_or(0),
-                reward_xp_multiplier: result.try_read::<f32>(11).unwrap_or(1.0),
-                reward_money_difficulty: result.try_read::<u32>(12).unwrap_or(0),
-                reward_money_multiplier: result.try_read::<f32>(13).unwrap_or(1.0),
-                reward_bonus_money: result.try_read::<u32>(14).unwrap_or(0),
-                reward_display_spell: [
-                    result.try_read::<u32>(15).unwrap_or(0),
-                    result.try_read::<u32>(16).unwrap_or(0),
-                    result.try_read::<u32>(17).unwrap_or(0),
-                ],
-                reward_spell: result.try_read::<u32>(18).unwrap_or(0),
-                reward_honor: result.try_read::<u32>(19).unwrap_or(0),
-                reward_title_id: result.try_read::<u32>(89).unwrap_or(0),
-                reward_skill_line_id: result.try_read::<u32>(87).unwrap_or(0),
-                reward_skill_points: result.try_read::<u32>(88).unwrap_or(0),
-                reward_mail_template_id: read_quest_u32_like_cpp(&result, 90).unwrap_or(0),
-                reward_mail_delay_secs: read_quest_u32_like_cpp(&result, 91).unwrap_or(0),
-                reward_mail_sender_entry: read_quest_u32_like_cpp(&result, 92).unwrap_or(0),
-                reward_faction_ids: [
-                    result.try_read::<u32>(93).unwrap_or(0),
-                    result.try_read::<u32>(97).unwrap_or(0),
-                    result.try_read::<u32>(101).unwrap_or(0),
-                    result.try_read::<u32>(105).unwrap_or(0),
-                    result.try_read::<u32>(109).unwrap_or(0),
-                ],
-                reward_faction_values: [
-                    result.try_read::<i32>(94).unwrap_or(0),
-                    result.try_read::<i32>(98).unwrap_or(0),
-                    result.try_read::<i32>(102).unwrap_or(0),
-                    result.try_read::<i32>(106).unwrap_or(0),
-                    result.try_read::<i32>(110).unwrap_or(0),
-                ],
-                reward_faction_overrides: [
-                    result.try_read::<i32>(95).unwrap_or(0),
-                    result.try_read::<i32>(99).unwrap_or(0),
-                    result.try_read::<i32>(103).unwrap_or(0),
-                    result.try_read::<i32>(107).unwrap_or(0),
-                    result.try_read::<i32>(111).unwrap_or(0),
-                ],
-                reward_faction_cap_in: [
-                    result.try_read::<i32>(96).unwrap_or(0),
-                    result.try_read::<i32>(100).unwrap_or(0),
-                    result.try_read::<i32>(104).unwrap_or(0),
-                    result.try_read::<i32>(108).unwrap_or(0),
-                    result.try_read::<i32>(112).unwrap_or(0),
-                ],
-                reward_faction_flags: result.try_read::<u32>(113).unwrap_or(0),
-                source_item_id: result.try_read::<u32>(69).unwrap_or(0),
-                source_item_count: read_quest_u32_like_cpp(&result, 71).unwrap_or(0),
-                source_spell_id: read_quest_u32_like_cpp(&result, 70).unwrap_or(0),
-                limit_time_secs: result.try_read::<i64>(72).unwrap_or(0),
-                expansion: result.try_read::<i32>(68).unwrap_or(0),
-                flags,
-                flags_ex: result.try_read::<u32>(21).unwrap_or(0),
-                flags_ex2: result.try_read::<u32>(22).unwrap_or(0),
-                special_flags,
-                event_id_for_quest: 0,
-                reward_items: [
-                    result.try_read::<u32>(23).unwrap_or(0),
-                    result.try_read::<u32>(27).unwrap_or(0),
-                    result.try_read::<u32>(31).unwrap_or(0),
-                    result.try_read::<u32>(35).unwrap_or(0),
-                ],
-                reward_amounts: [
-                    result.try_read::<u32>(24).unwrap_or(0),
-                    result.try_read::<u32>(28).unwrap_or(0),
-                    result.try_read::<u32>(32).unwrap_or(0),
-                    result.try_read::<u32>(36).unwrap_or(0),
-                ],
-                reward_currencies: [
-                    result.try_read::<u32>(79).unwrap_or(0),
-                    result.try_read::<u32>(81).unwrap_or(0),
-                    result.try_read::<u32>(83).unwrap_or(0),
-                    result.try_read::<u32>(85).unwrap_or(0),
-                ],
-                reward_currency_amounts: [
-                    result.try_read::<u32>(80).unwrap_or(0),
-                    result.try_read::<u32>(82).unwrap_or(0),
-                    result.try_read::<u32>(84).unwrap_or(0),
-                    result.try_read::<u32>(86).unwrap_or(0),
-                ],
-                item_drop: [
-                    result.try_read::<u32>(25).unwrap_or(0),
-                    result.try_read::<u32>(29).unwrap_or(0),
-                    result.try_read::<u32>(33).unwrap_or(0),
-                    result.try_read::<u32>(37).unwrap_or(0),
-                ],
-                item_drop_quantity: [
-                    result.try_read::<u32>(26).unwrap_or(0),
-                    result.try_read::<u32>(30).unwrap_or(0),
-                    result.try_read::<u32>(34).unwrap_or(0),
-                    result.try_read::<u32>(38).unwrap_or(0),
-                ],
-                log_title: result.try_read::<String>(39).unwrap_or_default(),
-                log_description: result.try_read::<String>(40).unwrap_or_default(),
-                quest_description: result.try_read::<String>(41).unwrap_or_default(),
-                area_description: result.try_read::<String>(42).unwrap_or_default(),
-                quest_completion_log: result.try_read::<String>(43).unwrap_or_default(),
-                allowable_races: read_quest_u64_like_cpp(&result, 44).unwrap_or(0),
-                allowable_classes: read_quest_u32_like_cpp(&result, 45).unwrap_or(0),
-                max_level: read_quest_u32_like_cpp(&result, 46)
-                    .and_then(|value| u8::try_from(value).ok())
-                    .unwrap_or(0),
-                prev_quest_id: result.try_read::<i32>(47).unwrap_or(0),
-                next_quest_id: read_quest_u32_like_cpp(&result, 64).unwrap_or(0),
-                exclusive_group: result.try_read::<i32>(65).unwrap_or(0),
-                breadcrumb_for_quest_id: result.try_read::<i32>(66).unwrap_or(0),
-                dependent_previous_quests: Vec::new(),
-                dependent_breadcrumb_quests: Vec::new(),
-                required_min_rep_faction: read_quest_u32_like_cpp(&result, 48).unwrap_or(0),
-                required_min_rep_value: result.try_read::<i32>(49).unwrap_or(0),
-                required_max_rep_faction: read_quest_u32_like_cpp(&result, 50).unwrap_or(0),
-                required_max_rep_value: result.try_read::<i32>(51).unwrap_or(0),
-                required_skill_id: read_quest_u32_like_cpp(&result, 114).unwrap_or(0),
-                required_skill_points: read_quest_u32_like_cpp(&result, 115).unwrap_or(0),
-                reward_choice_items: [
-                    (
-                        result.try_read::<u32>(52).unwrap_or(0),
-                        result.try_read::<u32>(53).unwrap_or(0),
-                    ),
-                    (
-                        result.try_read::<u32>(54).unwrap_or(0),
-                        result.try_read::<u32>(55).unwrap_or(0),
-                    ),
-                    (
-                        result.try_read::<u32>(56).unwrap_or(0),
-                        result.try_read::<u32>(57).unwrap_or(0),
-                    ),
-                    (
-                        result.try_read::<u32>(58).unwrap_or(0),
-                        result.try_read::<u32>(59).unwrap_or(0),
-                    ),
-                    (
-                        result.try_read::<u32>(60).unwrap_or(0),
-                        result.try_read::<u32>(61).unwrap_or(0),
-                    ),
-                    (
-                        result.try_read::<u32>(62).unwrap_or(0),
-                        result.try_read::<u32>(63).unwrap_or(0),
-                    ),
-                ],
-                reward_choice_item_types: [
-                    result.try_read::<u8>(73).unwrap_or(0),
-                    result.try_read::<u8>(74).unwrap_or(0),
-                    result.try_read::<u8>(75).unwrap_or(0),
-                    result.try_read::<u8>(76).unwrap_or(0),
-                    result.try_read::<u8>(77).unwrap_or(0),
-                    result.try_read::<u8>(78).unwrap_or(0),
-                ],
-                objectives: Vec::new(), // filled next
-            };
-            store.quests.insert(id, quest);
-            if !result.next_row() {
-                break;
-            }
-        }
-    }
-    store.normalize_dependent_quest_metadata_like_cpp();
-    info!("Loaded {} quest templates", store.quests.len());
-
-    let special_flags_result = db
-        .direct_query("SELECT ID, SpecialFlags FROM quest_template_addon")
-        .await?;
-    if !special_flags_result.is_empty() {
-        let mut special_flags_result = special_flags_result;
-        let mut count = 0u32;
-        loop {
-            let id: u32 = special_flags_result.try_read::<u32>(0).unwrap_or(0);
-            let special_flags = read_quest_u32_like_cpp(&special_flags_result, 1).unwrap_or(0);
-            if let Some(quest) = store.quests.get_mut(&id) {
-                let (flags, special_flags) =
-                    normalize_quest_flags_like_cpp(quest.flags, special_flags);
-                quest.flags = flags;
-                quest.special_flags = special_flags;
-                count += 1;
-            }
-
-            if !special_flags_result.next_row() {
-                break;
-            }
-        }
-        info!(
-            "Applied {} quest_template_addon SpecialFlags rows like C++",
-            count
-        );
-    }
-
-    // ── Load game_event seasonal quest relations ──────────────────────────
-    let stmt = db.prepare(WorldStatements::SEL_GAME_EVENT_SEASONAL_QUEST_RELATIONS);
-    let result = db.query(&stmt).await?;
-    if !result.is_empty() {
-        let mut result = result;
-        let mut count = 0u32;
-        loop {
-            let quest_id: u32 = result.try_read::<u32>(0).unwrap_or(0);
-            let event_entry: u32 = result.try_read::<u32>(1).unwrap_or(u32::MAX);
-
-            if let Some(quest) = store.quests.get_mut(&quest_id) {
-                if let Ok(event_id) = u16::try_from(event_entry) {
-                    quest.event_id_for_quest = event_id;
-                    count += 1;
-                } else {
-                    warn!(
-                        quest_id,
-                        event_entry,
-                        "Skipping seasonal quest relation with event id outside u16 range"
-                    );
-                }
-            } else {
-                warn!(
-                    quest_id,
-                    event_entry, "Skipping seasonal quest relation for missing quest template"
-                );
-            }
-
-            if !result.next_row() {
-                break;
-            }
-        }
-        info!(
-            "Loaded {} seasonal quest event relations (GameEvent max range guard remains with GameEvent metadata owner)",
-            count
-        );
-    }
-
-    // ── Load quest objectives ─────────────────────────────────────────────
-    let stmt = db.prepare(WorldStatements::SEL_QUEST_OBJECTIVES);
-    let result = db.query(&stmt).await?;
-    if !result.is_empty() {
-        let mut result = result;
-        let mut count = 0u32;
-        loop {
-            let obj = QuestObjective {
-                id: result.try_read::<u32>(0).unwrap_or(0),
-                quest_id: result.try_read::<u32>(1).unwrap_or(0),
-                obj_type: result.try_read::<u8>(2).unwrap_or(0),
-                order: result.try_read::<u8>(3).unwrap_or(0),
-                storage_index: result.try_read::<i8>(4).unwrap_or(0),
-                object_id: result.try_read::<i32>(5).unwrap_or(0),
-                amount: result.try_read::<i32>(6).unwrap_or(0),
-                flags: result.try_read::<u32>(7).unwrap_or(0),
-                flags2: result.try_read::<u32>(8).unwrap_or(0),
-                progress_bar_weight: result.try_read::<f32>(9).unwrap_or(0.0),
-                description: result.try_read::<String>(10).unwrap_or_default(),
-            };
-            if let Some(quest) = store.quests.get_mut(&obj.quest_id) {
-                quest.objectives.push(obj);
-                count += 1;
-            }
-            if !result.next_row() {
-                break;
-            }
-        }
-        info!("Loaded {} quest objectives", count);
-    }
-
-    // ── Load creature quest starters ──────────────────────────────────────
-    let stmt = db.prepare(WorldStatements::SEL_QUEST_STARTERS);
-    let result = db.query(&stmt).await?;
-    if !result.is_empty() {
-        let mut result = result;
-        loop {
-            let npc: u32 = result.try_read::<u32>(0).unwrap_or(0);
-            let quest: u32 = result.try_read::<u32>(1).unwrap_or(0);
-            if store.quests.contains_key(&quest) {
-                store.starter_quests.entry(npc).or_default().push(quest);
-            }
-            if !result.next_row() {
-                break;
-            }
-        }
-    }
-
-    // ── Load creature quest enders ────────────────────────────────────────
-    let stmt = db.prepare(WorldStatements::SEL_QUEST_ENDERS);
-    let result = db.query(&stmt).await?;
-    if !result.is_empty() {
-        let mut result = result;
-        loop {
-            let npc: u32 = result.try_read::<u32>(0).unwrap_or(0);
-            let quest: u32 = result.try_read::<u32>(1).unwrap_or(0);
-            if store.quests.contains_key(&quest) {
-                store.ender_quests.entry(npc).or_default().push(quest);
-            }
-            if !result.next_row() {
-                break;
-            }
-        }
-    }
-
-    // ── Load gameobject quest starters ────────────────────────────────────
-    // C++ validates missing/non-questgiver GameObject templates only as a post-insert log pass;
-    // QuestStore owns quest metadata only, so that GO template/type validation remains pending.
-    let stmt = db.prepare(WorldStatements::SEL_GAMEOBJECT_QUEST_STARTERS);
-    let result = db.query(&stmt).await?;
-    if !result.is_empty() {
-        let mut result = result;
-        loop {
-            let go_entry: u32 = result.try_read::<u32>(0).unwrap_or(0);
-            let quest: u32 = result.try_read::<u32>(1).unwrap_or(0);
-            store.insert_gameobject_starter_relation_like_cpp(go_entry, quest);
-            if !result.next_row() {
-                break;
-            }
-        }
-    }
-
-    // ── Load gameobject quest enders ──────────────────────────────────────
-    // C++ also maintains a quest->GO reverse map for enders; no Rust consumer owns it yet.
-    let stmt = db.prepare(WorldStatements::SEL_GAMEOBJECT_QUEST_ENDERS);
-    let result = db.query(&stmt).await?;
-    if !result.is_empty() {
-        let mut result = result;
-        loop {
-            let go_entry: u32 = result.try_read::<u32>(0).unwrap_or(0);
-            let quest: u32 = result.try_read::<u32>(1).unwrap_or(0);
-            store.insert_gameobject_ender_relation_like_cpp(go_entry, quest);
-            if !result.next_row() {
-                break;
-            }
-        }
-    }
-
-    info!(
-        "Quest relations: NPC {} starters / {} enders, GameObject {} starters / {} enders",
-        store.starter_quests.len(),
-        store.ender_quests.len(),
-        store.gameobject_starter_quests.len(),
-        store.gameobject_ender_quests.len()
-    );
-    Ok(store)
-}
-
-fn read_quest_u32_like_cpp(result: &SqlResult, column: usize) -> Option<u32> {
-    if let Some(value) = result.try_read::<u32>(column) {
-        return Some(value);
-    }
-    if let Some(value) = result.try_read::<u64>(column) {
-        return u32::try_from(value).ok();
-    }
-    if let Some(value) = result.try_read::<u16>(column) {
-        return Some(u32::from(value));
-    }
-    if let Some(value) = result.try_read::<u8>(column) {
-        return Some(u32::from(value));
-    }
-    if let Some(value) = result.try_read::<i32>(column) {
-        return u32::try_from(value).ok();
-    }
-    if let Some(value) = result.try_read::<i64>(column) {
-        return u32::try_from(value).ok();
-    }
-    if let Some(value) = result.try_read::<i16>(column) {
-        return u32::try_from(value).ok();
-    }
-    result
-        .try_read::<i8>(column)
-        .and_then(|value| u32::try_from(value).ok())
-}
-
-fn read_quest_u64_like_cpp(result: &SqlResult, column: usize) -> Option<u64> {
-    if let Some(value) = result.try_read::<u64>(column) {
-        return Some(value);
-    }
-    if let Some(value) = result.try_read::<u32>(column) {
-        return Some(u64::from(value));
-    }
-    if let Some(value) = result.try_read::<u16>(column) {
-        return Some(u64::from(value));
-    }
-    if let Some(value) = result.try_read::<u8>(column) {
-        return Some(u64::from(value));
-    }
-    if let Some(value) = result.try_read::<i64>(column) {
-        return Some(value as u64);
-    }
-    if let Some(value) = result.try_read::<i32>(column) {
-        return Some(value as u64);
-    }
-    if let Some(value) = result.try_read::<i16>(column) {
-        return Some(value as u64);
-    }
-    result.try_read::<i8>(column).map(|value| value as u64)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn quest_template_loader_reads_addon_unsigned_fields_tolerantly_like_cpp() {
-        let source = include_str!("quest.rs");
-
-        assert!(source.contains("allowable_races: read_quest_u64_like_cpp(&result, 44)"));
-        assert!(source.contains("allowable_classes: read_quest_u32_like_cpp(&result, 45)"));
-        assert!(source.contains("max_level: read_quest_u32_like_cpp(&result, 46)"));
-        assert!(source.contains("next_quest_id: read_quest_u32_like_cpp(&result, 64)"));
-        assert!(source.contains("source_spell_id: read_quest_u32_like_cpp(&result, 70)"));
-        assert!(source.contains("source_item_count: read_quest_u32_like_cpp(&result, 71)"));
-        assert!(source.contains("required_skill_id: read_quest_u32_like_cpp(&result, 114)"));
-        assert!(source.contains("required_skill_points: read_quest_u32_like_cpp(&result, 115)"));
-    }
 
     fn quest_with_sort_and_flags(
         quest_sort_id: i32,
@@ -1349,6 +1018,42 @@ mod tests {
         let mut quest = quest_with_sort_and_flags(0, 0, 0);
         quest.id = id;
         quest
+    }
+
+    #[test]
+    fn decoded_catalog_rows_apply_flags_objectives_and_relations_like_cpp() {
+        let quest = quest_with_id(42);
+        let objective = QuestObjective {
+            id: 7,
+            quest_id: 42,
+            obj_type: QUEST_OBJECTIVE_AREATRIGGER_LIKE_CPP,
+            order: 0,
+            storage_index: 0,
+            object_id: 99,
+            amount: 1,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        };
+        let mut store = QuestStore::from_template_rows_like_cpp(vec![quest]);
+        store.apply_special_flag_rows_like_cpp(vec![(42, QUEST_SPECIAL_FLAGS_MONTHLY_LIKE_CPP)]);
+        store.apply_seasonal_relation_rows_like_cpp(vec![(42, 9)]);
+        store.apply_objective_rows_like_cpp(vec![objective]);
+        store.apply_creature_starter_rows_like_cpp(vec![(100, 42), (100, 404)]);
+        store.apply_creature_ender_rows_like_cpp(vec![(101, 42)]);
+        store.apply_gameobject_starter_rows_like_cpp(vec![(200, 42)]);
+        store.apply_gameobject_ender_rows_like_cpp(vec![(201, 42)]);
+
+        let quest = store.get(42).unwrap();
+        assert!(quest.is_monthly_like_cpp());
+        assert!(quest.is_repeatable());
+        assert_eq!(quest.event_id_for_quest_like_cpp(), 9);
+        assert_eq!(quest.objectives.len(), 1);
+        assert_eq!(store.starter_quests.get(&100).unwrap(), &[42]);
+        assert_eq!(store.ender_quests.get(&101).unwrap(), &[42]);
+        assert_eq!(store.gameobject_starter_quests.get(&200).unwrap(), &[42]);
+        assert_eq!(store.gameobject_ender_quests.get(&201).unwrap(), &[42]);
     }
 
     #[test]

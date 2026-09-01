@@ -104,6 +104,7 @@ mod phase_hotfix_catalog;
 mod phase_world_catalog;
 mod player_choice_catalog;
 mod player_creation_catalog;
+mod quest_catalog;
 mod quest_item_catalog;
 mod reputation_catalog;
 mod reserved_name_catalog;

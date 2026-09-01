@@ -46,6 +46,7 @@ mod phase_world_catalog;
 mod player_base_stats;
 mod player_choice;
 mod player_creation_catalog;
+mod quest_catalog;
 mod quest_item_catalog;
 mod reputation_catalog;
 mod reserved_name_catalog;
@@ -195,6 +196,7 @@ pub use player_creation_catalog::{
     PlayerCreateInfoPersistenceRowLikeCpp, PlayerCreationCatalogLoadOutcomeLikeCpp,
     PlayerCreationCatalogPersistencePortLikeCpp,
 };
+pub use quest_catalog::*;
 pub use quest_item_catalog::{
     CreatureQuestItemPersistenceRowLikeCpp, GameObjectQuestItemPersistenceRowLikeCpp,
     QuestItemCatalogLoadOutcomeLikeCpp, QuestItemCatalogPersistencePortLikeCpp,
