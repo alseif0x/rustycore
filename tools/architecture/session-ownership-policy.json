@@ -3725,15 +3725,19 @@
           "name": "represented_player_base_mana_like_cpp",
           "type": "i32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_player_max_powers_like_cpp",
           "type": "CharacterPowerSnapshotLikeCpp",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_player_phase_shift",
@@ -3746,8 +3750,10 @@
           "name": "represented_player_powers_like_cpp",
           "type": "CharacterPowerSnapshotLikeCpp",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_player_recent_instances_like_cpp",
@@ -20378,8 +20384,10 @@
           "name": "apply_represented_player_powers_to_canonical_like_cpp",
           "visibility": "private",
           "signature": "fn apply_represented_player_powers_to_canonical_like_cpp (& self , player : & mut Player)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -38064,6 +38072,28 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_player_power_snapshot_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_player_power_snapshot_like_cpp (& self) -> Option < CharacterPowerSnapshotLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_power_values_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_player_power_values_like_cpp (& self) -> Option < [i32 ; MAX_POWERS_PER_CLASS] >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_player_vitals_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_player_vitals_like_cpp (& self) -> Option < (u32 , u32 , bool) >",
@@ -44240,8 +44270,10 @@
           "name": "set_represented_player_power_slot_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_represented_player_power_slot_like_cpp (& mut self , slot : usize , current : i32 , max : Option < i32 > ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -48637,6 +48669,17 @@
           "name": "with_owned_player_like_cpp",
           "visibility": "private",
           "signature": "fn with_owned_player_like_cpp < R > (& self , f : impl FnOnce (& Player) -> R) -> Option < R >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "with_owned_player_mut_for_power_like_cpp",
+          "visibility": "private",
+          "signature": "fn with_owned_player_mut_for_power_like_cpp < R > (& self , f : impl FnOnce (& mut Player) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -70233,7 +70276,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:32929da3cdaa56801ea5df861f5fedfb:len=3962|evidence=fnv1a64x2:da3a2201484f893be857e271e825236a:len=448",
+          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:daacc07375488e46c27cff4188203561:len=3977|evidence=fnv1a64x2:da3a2201484f893be857e271e825236a:len=448",
           "cfg": [],
           "multiplicity": 1
         },
@@ -73971,7 +74014,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:6de16396de7ebb8942390838466c58de:len=90725|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:6c7927bfb628527e00cf6f2f8224bdd5:len=90757|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

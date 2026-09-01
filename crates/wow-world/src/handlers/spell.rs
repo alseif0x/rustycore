@@ -444,6 +444,7 @@ impl WorldSession {
             (player.values_update(true), after_power)
         });
         if let Some((update, after_power)) = update {
+            #[cfg(test)]
             for (_, slot, current, max) in &after_power {
                 if let Some(slot) = slot {
                     self.set_represented_player_power_slot_like_cpp(*slot, *current, Some(*max));
@@ -4921,6 +4922,10 @@ mod tests {
         ])));
         session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
         session.set_loaded_player_powers_like_cpp([500, 222, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(
+            session.represented_player_power_values_like_cpp().unwrap()[1],
+            222
+        );
         assert!(session.sync_canonical_player_primary_power_like_cpp(
             PowerType::Mana,
             500,
@@ -4942,11 +4947,19 @@ mod tests {
             350,
             "represented session power must mirror Spell::TakePower before later AddToMap-style resync"
         );
+        assert_eq!(
+            session.represented_player_power_values_like_cpp().unwrap()[1],
+            222
+        );
         let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
         assert_eq!(
             canonical_player_mana_like_cpp(&mut session),
             350,
             "resync from the session snapshot must not resurrect pre-cast mana"
+        );
+        assert_eq!(
+            session.represented_player_power_values_like_cpp().unwrap()[1],
+            222
         );
         let snapshot = session
             .current_player_save_to_db_snapshot_like_cpp()

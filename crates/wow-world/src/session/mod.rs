@@ -972,6 +972,7 @@ const fn power_type_from_u8_like_cpp(power: u8) -> PowerType {
     }
 }
 
+#[cfg(test)]
 const fn primary_power_type_for_player_class_like_cpp(class_id: u8) -> PowerType {
     match class_id {
         1 => PowerType::Rage,
@@ -1709,6 +1710,7 @@ pub(crate) struct RepresentedLootRollState {
 
 pub(crate) type CharacterPowerSnapshotLikeCpp = [Option<i32>; MAX_POWERS_PER_CLASS];
 
+#[cfg(test)]
 fn empty_character_power_snapshot_like_cpp() -> CharacterPowerSnapshotLikeCpp {
     [None; MAX_POWERS_PER_CLASS]
 }
@@ -5511,11 +5513,14 @@ pub struct WorldSession {
     player_inventory_slot_count_like_cpp: u8,
     /// C++ `UF::ActivePlayerData::CharacterPoints`, recalculated by InitTalentForLevel/LearnTalent.
     player_character_points_like_cpp: i32,
-    /// Current `characters.power1..power10` values loaded from DB or mutated by represented runtime.
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     represented_player_powers_like_cpp: CharacterPowerSnapshotLikeCpp,
-    /// Max powers known by represented runtime for canonical player rebuilds.
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     represented_player_max_powers_like_cpp: CharacterPowerSnapshotLikeCpp,
-    /// C++ `UnitData::BaseMana` known by represented runtime.
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     represented_player_base_mana_like_cpp: i32,
     represented_bank_bag_slot_flags_like_cpp: [u32; 7],
     represented_bank_item_moves_like_cpp: Vec<RepresentedBankItemMoveLikeCpp>,
@@ -7700,8 +7705,11 @@ impl WorldSession {
             player_bank_bag_slot_count_like_cpp: 0,
             player_inventory_slot_count_like_cpp: INVENTORY_DEFAULT_SIZE,
             player_character_points_like_cpp: 0,
+            #[cfg(test)]
             represented_player_powers_like_cpp: empty_character_power_snapshot_like_cpp(),
+            #[cfg(test)]
             represented_player_max_powers_like_cpp: empty_character_power_snapshot_like_cpp(),
+            #[cfg(test)]
             represented_player_base_mana_like_cpp: 0,
             represented_bank_bag_slot_flags_like_cpp: [0; 7],
             represented_bank_item_moves_like_cpp: Vec::new(),
@@ -9424,6 +9432,7 @@ impl WorldSession {
                 .unit_mut()
                 .set_health(u64::from(self.player_health_like_cpp));
         }
+        #[cfg(test)]
         self.apply_represented_player_powers_to_canonical_like_cpp(&mut player);
         player.set_xp(self.player_xp_like_cpp() as i32);
         player.set_next_level_xp(self.player_next_level_xp_like_cpp() as i32);
@@ -9473,7 +9482,17 @@ impl WorldSession {
         Some(player)
     }
 
+    #[cfg(test)]
     fn apply_represented_player_powers_to_canonical_like_cpp(&self, player: &mut Player) {
+        let powers = self
+            .represented_player_powers_like_cpp
+            .map(|value| value.unwrap_or(0));
+        let max_powers = self
+            .represented_player_max_powers_like_cpp
+            .map(|value| value.unwrap_or(0));
+        player
+            .unit_mut()
+            .replace_create_power_arrays_like_cpp(powers, max_powers);
         let Some(current) = self.represented_player_powers_like_cpp[0] else {
             return;
         };
@@ -9550,6 +9569,11 @@ impl WorldSession {
         &self,
     ) -> Option<PlayerSaveToDbSnapshotLikeCpp> {
         let guid = self.player_guid()?;
+        // C++ saves through this session's exact `Player*`. Resolve the raw
+        // power array through the generation-checked owner before any spatial
+        // lookup so a replacement with the same GUID cannot be persisted by a
+        // stale session incarnation.
+        let powers = self.resolved_player_power_snapshot_like_cpp()?;
         let pending_teleport_destination = self.pending_teleport_save_destination_like_cpp();
         if let Some(manager) = self.canonical_map_manager.as_ref()
             && let Ok(manager) = manager.lock()
@@ -9580,15 +9604,6 @@ impl WorldSession {
                                 .unwrap_or_else(|| player.unit().world().position()),
                         )
                     };
-
-                let mut powers = self.represented_player_powers_like_cpp;
-                let primary_power_type =
-                    primary_power_type_for_player_class_like_cpp(self.player_class_like_cpp());
-                if let Some(primary_slot) = player.unit().get_power_index(primary_power_type)
-                    && primary_slot < MAX_POWERS_PER_CLASS
-                {
-                    powers[primary_slot] = Some(player.unit().get_power(primary_power_type).max(0));
-                }
 
                 let canonical_max_health = player
                     .unit()
@@ -9645,7 +9660,7 @@ impl WorldSession {
             money: self.player_gold_like_cpp(),
             health,
             max_health,
-            powers: self.represented_player_powers_like_cpp,
+            powers,
         })
     }
 
@@ -9668,7 +9683,10 @@ impl WorldSession {
         self.set_player_xp_like_cpp(snapshot.xp);
         self.set_player_gold_like_cpp(snapshot.money);
         self.set_player_health_like_cpp(snapshot.health, snapshot.max_health);
-        self.represented_player_powers_like_cpp = snapshot.powers;
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.represented_player_powers_like_cpp = snapshot.powers;
+        }
         Some(snapshot)
     }
 
@@ -9835,6 +9853,21 @@ impl WorldSession {
         manager.lock().ok()?.with_player_mut_like_cpp(handle, f)
     }
 
+    /// Test fixtures created before #578 may inject a typed Player directly
+    /// into a synthetic MapManager without installing its owner handle. Keep
+    /// that compatibility outside production; an existing stale handle never
+    /// falls back to GUID lookup.
+    fn with_owned_player_mut_for_power_like_cpp<R>(
+        &self,
+        f: impl FnOnce(&mut Player) -> R,
+    ) -> Option<R> {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            return self.mutate_canonical_player_like_cpp(f);
+        }
+        self.with_owned_player_mut_like_cpp(f)
+    }
+
     pub(crate) fn sync_canonical_player_primary_power_like_cpp(
         &mut self,
         power_type: PowerType,
@@ -9843,7 +9876,7 @@ impl WorldSession {
         base_mana: i32,
     ) -> bool {
         let synced = self
-            .mutate_canonical_player_like_cpp(|player| {
+            .with_owned_player_mut_for_power_like_cpp(|player| {
                 for raw_power in 0..=25 {
                     player.set_power_index(power_type_from_u8_like_cpp(raw_power), None);
                 }
@@ -9854,7 +9887,8 @@ impl WorldSession {
                 player.unit_mut().set_power(power_type, current.max(0));
             })
             .is_some();
-        if synced {
+        #[cfg(test)]
+        if synced || self.player_handle_like_cpp.is_none() {
             self.represented_player_base_mana_like_cpp = base_mana.max(0);
             self.set_represented_player_power_slot_like_cpp(0, current, Some(max));
         }
@@ -9867,7 +9901,7 @@ impl WorldSession {
         max: i32,
         base_mana: i32,
     ) -> Option<(i32, i32)> {
-        let result = self.mutate_canonical_player_like_cpp(|player| {
+        let result = self.with_owned_player_mut_for_power_like_cpp(|player| {
             if player.unit().get_power_index(power_type).is_none() {
                 player.set_power_index(power_type, Some(0));
             }
@@ -9880,7 +9914,13 @@ impl WorldSession {
                 player.unit().get_max_power(power_type),
             )
         });
-        if let Some((current, max)) = result {
+        #[cfg(test)]
+        if let Some((current, max)) = result.or_else(|| {
+            (self.player_handle_like_cpp.is_none()).then_some((
+                self.represented_player_powers_like_cpp[0].unwrap_or(0),
+                max.max(0),
+            ))
+        }) {
             self.represented_player_base_mana_like_cpp = base_mana.max(0);
             self.set_represented_player_power_slot_like_cpp(0, current, Some(max));
         }
@@ -37218,9 +37258,20 @@ impl WorldSession {
         &mut self,
         powers: [i32; MAX_POWERS_PER_CLASS],
     ) {
-        self.represented_player_powers_like_cpp = loaded_character_power_snapshot_like_cpp(powers);
+        let _canonical = self.with_owned_player_mut_for_power_like_cpp(|player| {
+            let max_power = player.unit().data().max_power;
+            player
+                .unit_mut()
+                .replace_create_power_arrays_like_cpp(powers.map(|value| value.max(0)), max_power);
+        });
+        #[cfg(test)]
+        if _canonical.is_some() || self.player_handle_like_cpp.is_none() {
+            self.represented_player_powers_like_cpp =
+                loaded_character_power_snapshot_like_cpp(powers);
+        }
     }
 
+    #[cfg(test)]
     pub(crate) fn set_represented_player_power_slot_like_cpp(
         &mut self,
         slot: usize,
@@ -37239,7 +37290,34 @@ impl WorldSession {
     pub(crate) fn represented_player_power_values_like_cpp(
         &self,
     ) -> Option<[i32; MAX_POWERS_PER_CLASS]> {
-        character_power_snapshot_values_like_cpp(&self.represented_player_powers_like_cpp)
+        let canonical = self.resolved_player_power_values_like_cpp();
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return character_power_snapshot_values_like_cpp(
+                &self.represented_player_powers_like_cpp,
+            );
+        }
+        canonical
+    }
+
+    fn resolved_player_power_values_like_cpp(&self) -> Option<[i32; MAX_POWERS_PER_CLASS]> {
+        let canonical = self.with_owned_player_like_cpp(|player| player.unit().data().power);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return self.mutate_canonical_player_like_cpp(|player| player.unit().data().power);
+        }
+        canonical
+    }
+
+    fn resolved_player_power_snapshot_like_cpp(&self) -> Option<CharacterPowerSnapshotLikeCpp> {
+        let canonical = self
+            .resolved_player_power_values_like_cpp()
+            .map(loaded_character_power_snapshot_like_cpp);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.represented_player_powers_like_cpp);
+        }
+        canonical
     }
 
     pub(crate) fn attach_player_controller_like_cpp(

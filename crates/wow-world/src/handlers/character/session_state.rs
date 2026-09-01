@@ -1255,11 +1255,6 @@ impl WorldSession {
                 changes.max_power0,
                 changes.base_mana,
             );
-            self.set_represented_player_power_slot_like_cpp(
-                0,
-                changes.power0,
-                Some(changes.max_power0),
-            );
         }
 
         let update =

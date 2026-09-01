@@ -30842,6 +30842,82 @@ fn canonical_player_vitals_follow_active_detached_and_stale_handle_ownership_lik
 }
 
 #[test]
+fn canonical_player_powers_follow_active_detached_and_stale_handle_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_558);
+    let position = Position::new(3700.0, 1500.0, 120.0, 0.0);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "PowerOwner".to_string(),
+        position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    session.set_loaded_player_powers_like_cpp([123, 45, 0, 0, 0, 0, 0, 0, 0, 0]);
+    assert!(session.sync_canonical_player_primary_power_like_cpp(PowerType::Mana, 123, 321, 222,));
+
+    assert_eq!(
+        session.represented_player_power_values_like_cpp(),
+        Some([123, 45, 0, 0, 0, 0, 0, 0, 0, 0])
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.represented_player_power_values_like_cpp(),
+        Some([123, 45, 0, 0, 0, 0, 0, 0, 0, 0])
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(old_handle, |player| (
+                player.unit().get_max_power(PowerType::Mana),
+                player.unit().get_create_mana_like_cpp(),
+            )),
+        Some((321, 222))
+    );
+
+    let mut replacement = Box::new(Player::new(Some(1), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.represented_player_power_values_like_cpp(), None);
+    assert_eq!(session.current_player_save_to_db_snapshot_like_cpp(), None);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        None
+    );
+}
+
+#[test]
 fn canonical_player_rejected_map_sync_does_not_remove_existing_map_player_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
