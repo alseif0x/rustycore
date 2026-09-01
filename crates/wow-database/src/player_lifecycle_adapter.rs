@@ -117,7 +117,7 @@ fn player_uncage_item_state_statement_like_cpp(
     statement
 }
 
-fn player_currency_save_statements_like_cpp(
+pub(crate) fn player_currency_save_statements_like_cpp(
     request: &PlayerCurrencySaveRequestLikeCpp,
 ) -> Vec<PreparedStatement> {
     request

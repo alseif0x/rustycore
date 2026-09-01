@@ -5,16 +5,15 @@
 
 use super::*;
 use crate::session::{SessionPlayerController, VendorBuyItemTestOverrideLikeCpp};
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use crate::vendor_trade_persistence_test_fixture::{
+    VendorTradePersistencePortFixtureLikeCpp, register_vendor_for_trade_test_like_cpp,
+};
+use std::sync::Arc;
 use wow_constants::ServerOpcodes;
 use wow_core::ObjectGuidGenerator;
+use wow_persistence::VendorTradePersistenceRequestLikeCpp;
 
-fn make_vendor_session() -> (
-    WorldSession,
-    flume::Receiver<Vec<u8>>,
-    Arc<Mutex<wow_map::MapManager>>,
-) {
+fn make_vendor_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_packet_tx, packet_rx) = flume::bounded::<WorldPacket>(1);
     let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(4);
     let mut session = WorldSession::new(
@@ -41,37 +40,10 @@ fn make_vendor_session() -> (
         80,
         0,
     ));
-    let canonical = Arc::new(Mutex::new(wow_map::MapManager::new(60_000, 10)));
-    session.set_canonical_map_manager(Arc::clone(&canonical));
-    (session, send_rx, canonical)
-}
-
-fn insert_vendor(manager: &Arc<Mutex<wow_map::MapManager>>, guid: ObjectGuid, entry: u32) {
-    let mut creature = wow_entities::Creature::new(false);
-    creature.unit_mut().world_mut().object_mut().create(guid);
-    creature
-        .unit_mut()
-        .world_mut()
-        .object_mut()
-        .set_entry(entry);
-    creature.unit_mut().world_mut().set_map(571, 0).unwrap();
-    creature
-        .unit_mut()
-        .world_mut()
-        .relocate(Position::new(5.0, 0.0, 0.0, 0.0));
-    creature.unit_mut().world_mut().set_combat_reach(1.0);
-    creature.unit_mut().set_level(80);
-    creature.unit_mut().set_max_health(100);
-    creature.unit_mut().set_health(100);
-    creature.set_ai_identity_runtime(1, 35, NPCFlags1::VENDOR.bits(), 0);
-    creature.unit_mut().world_mut().object_mut().add_to_world();
-    manager
-        .lock()
-        .unwrap()
-        .create_world_map(571, 0)
-        .map_mut()
-        .insert_map_object_record(wow_entities::MapObjectRecord::new_creature(creature).unwrap())
-        .unwrap();
+    session.set_map_manager(Arc::new(std::sync::RwLock::new(
+        crate::map_manager::MapManager::new(),
+    )));
+    (session, send_rx)
 }
 
 fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
@@ -83,9 +55,9 @@ fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes
 
 #[tokio::test]
 async fn vendor_currency_purchase_definite_rollback_keeps_runtime_unchanged_like_cpp() {
-    let (mut session, send_rx, canonical) = make_vendor_session();
+    let (mut session, send_rx) = make_vendor_session();
     let vendor = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 43);
-    insert_vendor(&canonical, vendor, 2456);
+    register_vendor_for_trade_test_like_cpp(&mut session, vendor, 2456);
     session.set_currency_types_store(Arc::new(CurrencyTypesStore::from_entries([
         wow_data::CurrencyTypesEntry {
             id: 395,
@@ -120,7 +92,7 @@ async fn vendor_currency_purchase_definite_rollback_keeps_runtime_unchanged_like
     session.set_vendor_buy_item_test_override_like_cpp(VendorBuyItemTestOverrideLikeCpp {
         item_id: 395,
         item_type: ItemVendorType::Currency as i32,
-        max_count: 0,
+        max_count: 1,
         incr_time: 0,
         player_condition_id: 0,
         has_vendor_conditions: false,
@@ -130,14 +102,9 @@ async fn vendor_currency_purchase_definite_rollback_keeps_runtime_unchanged_like
         buy_count: 1,
     });
 
-    let failing_character_pool = sqlx::mysql::MySqlPoolOptions::new()
-        .max_connections(1)
-        .acquire_timeout(Duration::from_millis(100))
-        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
-        .expect("syntactically valid lazy CharacterDB pool");
-    session.set_char_db(Arc::new(wow_database::CharacterDatabase::from_pool(
-        failing_character_pool,
-    )));
+    let (port, requests) =
+        VendorTradePersistencePortFixtureLikeCpp::definitely_rolled_back_like_cpp();
+    session.set_vendor_trade_persistence_port_like_cpp(Arc::new(port));
 
     session
         .handle_buy_item(BuyItem {
@@ -152,10 +119,20 @@ async fn vendor_currency_purchase_definite_rollback_keeps_runtime_unchanged_like
         .await;
 
     assert_eq!(session.player_currency_quantity(395), 0);
+    let opcodes = drain_server_opcodes(&send_rx);
+    let requests = requests.lock().unwrap();
     assert_eq!(
-        drain_server_opcodes(&send_rx),
-        vec![ServerOpcodes::BuyFailed]
+        requests.len(),
+        1,
+        "server opcodes before persistence: {opcodes:?}"
     );
+    let VendorTradePersistenceRequestLikeCpp::CurrencyPurchase(request) = &requests[0] else {
+        panic!("currency purchase must use its semantic persistence variant");
+    };
+    assert_eq!(request.player_guid, 42);
+    assert_eq!(request.money_before, request.money_after);
+    assert!(request.item_turnins.is_empty());
+    assert_eq!(opcodes, vec![ServerOpcodes::BuyFailed]);
     assert!(
         session
             .durable_loot_money_persistence_tracker_like_cpp()

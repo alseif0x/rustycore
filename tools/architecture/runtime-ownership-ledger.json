@@ -1057,8 +1057,8 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.session_resources.fields"
       },
       "audited_summary": {
-        "field_count": 272,
-        "option_field_count": 214,
+        "field_count": 273,
+        "option_field_count": 215,
         "count_kind": "baseline observation; AST is authoritative"
       },
       "coverage_rule": {
@@ -1066,7 +1066,7 @@
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_field_count": 272,
+        "expected_field_count": 273,
         "validation": "Compare sorted AST field names with the sorted concatenation of every entry.field_names; reject gaps, duplicates, stale names, entry count drift, or total count drift."
       },
       "entries": [
@@ -1098,7 +1098,7 @@
         },
         {
           "id": "session_resources_runtime_handles",
-          "expected_field_count": 31,
+          "expected_field_count": 32,
           "field_names": [
             "battle_pet_purchase_persistence_port",
             "character_administration_persistence_port",
@@ -1129,6 +1129,7 @@
             "stored_item_persistence_port",
             "support_bug_report_persistence_port",
             "vendor_catalog_persistence_port",
+            "vendor_trade_persistence_port",
             "visibility_spawn_catalog_persistence_port",
             "void_storage_persistence_port"
           ],
@@ -1137,7 +1138,7 @@
             153,
             169
           ],
-          "retirement_condition": "Session receives only the minimal typed runtime ports/PlayerHandle and cannot select or tick duplicate map authorities. #169 adds character-administration, durable Item/inventory, loot-template, vendor and visibility-spawn capabilities while removing the concrete World and Login database handles; the remaining concrete Character handle retires before #169 closes."
+          "retirement_condition": "Session receives only the minimal typed runtime ports/PlayerHandle and cannot select or tick duplicate map authorities. #169 adds character-administration, durable Item/inventory, loot-template, vendor catalog/trade and visibility-spawn capabilities while removing the concrete World and Login database handles; the remaining concrete Character handle retires before #169 closes."
         },
         {
           "id": "session_resources_catalogs_and_configuration",
@@ -1399,7 +1400,7 @@
           "retirement_condition": "Every remaining field has an exact capability bundle/consumer owner or is removed from Session construction."
         }
       ],
-      "expected_field_count": 272
+      "expected_field_count": 273
     },
     "session_command": {
       "coverage_source": {

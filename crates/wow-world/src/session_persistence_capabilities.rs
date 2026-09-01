@@ -5,6 +5,19 @@ use std::sync::Arc;
 use crate::session::WorldSession;
 
 impl WorldSession {
+    pub fn set_vendor_trade_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.vendor_trade = Some(port);
+    }
+
+    pub(crate) fn vendor_trade_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.vendor_trade.clone()
+    }
+
     pub fn set_player_inventory_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>,

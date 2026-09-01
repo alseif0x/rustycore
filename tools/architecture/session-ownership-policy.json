@@ -23024,19 +23024,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "commit_exclusive_player_money_transaction_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn commit_exclusive_player_money_transaction_like_cpp (& mut self , money_persistence : ExclusivePlayerMoneyPersistenceLikeCpp , char_db : & CharacterDatabase , transaction : SqlTransaction , money_before : u64 , money_after : u64 , operation : & 'static str ,) -> Option < ExclusivePlayerMoneyPersistenceLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "commit_exclusive_trainer_money_only_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn commit_exclusive_trainer_money_only_like_cpp (& mut self , money_persistence : ExclusivePlayerMoneyPersistenceLikeCpp , money_before : u64 , money_after : u64 ,) -> Option < ExclusivePlayerMoneyPersistenceLikeCpp >",
@@ -48927,6 +48914,21 @@
           "module": "crate::session_persistence_capabilities",
           "trait_path": null,
           "kind": "method",
+          "name": "set_vendor_trade_persistence_port_like_cpp",
+          "visibility": "pub",
+          "signature": "fn set_vendor_trade_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: VendorTradePersistencePortLikeCpp > ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session_persistence_capabilities",
+          "trait_path": null,
+          "kind": "method",
           "name": "set_visibility_spawn_catalog_persistence_port_like_cpp",
           "visibility": "pub",
           "signature": "fn set_visibility_spawn_catalog_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: VisibilitySpawnCatalogPersistencePortLikeCpp > ,)",
@@ -48959,6 +48961,20 @@
           "name": "vendor_catalog_persistence_port_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn vendor_catalog_persistence_port_like_cpp (& self ,) -> Option < Arc < dyn wow_persistence :: VendorCatalogPersistencePortLikeCpp > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session_persistence_capabilities",
+          "trait_path": null,
+          "kind": "method",
+          "name": "vendor_trade_persistence_port_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn vendor_trade_persistence_port_like_cpp (& self ,) -> Option < Arc < dyn wow_persistence :: VendorTradePersistencePortLikeCpp > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -50982,6 +50998,13 @@
           "source_class": "production"
         },
         {
+          "name": "vendor_trade_persistence_port",
+          "type": "Option < Arc < dyn wow_persistence :: VendorTradePersistencePortLikeCpp > >",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "visibility_spawn_catalog_persistence_port",
           "type": "Option < Arc < dyn wow_persistence :: VisibilitySpawnCatalogPersistencePortLikeCpp > >",
           "visibility": "pub (super)",
@@ -51021,7 +51044,7 @@
         {
           "module": "crate::app",
           "callee": "SessionResources",
-          "argument_count": 272,
+          "argument_count": 273,
           "cfg": [],
           "source_class": "production",
           "count": 1
@@ -51037,7 +51060,7 @@
         "source_class": "production"
       },
       "signature": "async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , object_accessor : wow_world :: SharedObjectAccessor , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)",
-      "body_fingerprint": "fnv1a64x2:80bbe04b282c957d707af2c7467ea6e6:len=37601",
+      "body_fingerprint": "fnv1a64x2:82ae9573a85c28788cdf8eb63cb0c9e3:len=37749",
       "session_helper_bodies": [
         {
           "module": "crate::session_factory",
@@ -53412,6 +53435,14 @@
         {
           "module": "crate::session_factory",
           "callee": "session.set_vendor_catalog_persistence_port_like_cpp",
+          "argument_count": 1,
+          "cfg": [],
+          "source_class": "production",
+          "count": 1
+        },
+        {
+          "module": "crate::session_factory",
+          "callee": "session.set_vendor_trade_persistence_port_like_cpp",
           "argument_count": 1,
           "cfg": [],
           "source_class": "production",
@@ -65608,7 +65639,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , object_accessor : wow_world :: SharedObjectAccessor , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)|body=fnv1a64x2:80bbe04b282c957d707af2c7467ea6e6:len=37601|evidence=fnv1a64x2:dd605b9d3e8a9dcc82cdedbf620fbe8f:len=741",
+          "fingerprint": "signature=async fn create_session (account : AccountInfo , pkt_rx : flume :: Receiver < wow_packet :: WorldPacket > , send_tx : flume :: Sender < Vec < u8 > > , send_write_fence_like_cpp : wow_network :: SocketWriteFenceLikeCpp , socket_timeouts : SocketTimeoutsLikeCpp , resources : Arc < SessionResources > , session_mgr : Arc < SessionManager > , shared_map : SharedMapManager , canonical_map_manager : SharedCanonicalMapManager , canonical_spawn_metadata : SharedCanonicalSpawnMetadataLikeCpp , loaded_grid_creature_respawn_caches : LoadedGridCreatureRespawnCachesLikeCpp , object_accessor : wow_world :: SharedObjectAccessor , instance_port : u16 , max_expansion : u8 , mmap_runtime_config : MMapRuntimeConfigLikeCpp , mmap_pathfinder : Option < Arc < WorldMMapPathfinderWorkerLikeCpp > > , active_session_registry : Arc < ActiveWorldSessionRegistryLikeCpp > , legacy_creature_aggro_config : wow_world :: session :: LegacyCreatureAggroConfigLikeCpp , world_runtime_state : Arc < WorldRuntimeStateLikeCpp > , battle_pet_account_registry : Arc < BattlePetAccountRegistryLikeCpp > ,)|body=fnv1a64x2:82ae9573a85c28788cdf8eb63cb0c9e3:len=37749|evidence=fnv1a64x2:dd605b9d3e8a9dcc82cdedbf620fbe8f:len=741",
           "cfg": [],
           "multiplicity": 1
         },

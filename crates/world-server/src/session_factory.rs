@@ -284,6 +284,9 @@ pub(super) async fn create_session(
     if let Some(ref port) = resources.player_inventory_persistence_port {
         session.set_player_inventory_persistence_port_like_cpp(Arc::clone(port));
     }
+    if let Some(ref port) = resources.vendor_trade_persistence_port {
+        session.set_vendor_trade_persistence_port_like_cpp(Arc::clone(port));
+    }
     if let Some(ref port) = resources.player_lifecycle_port {
         session.set_player_lifecycle_port_like_cpp(Arc::clone(port));
     }

@@ -50,7 +50,7 @@ use wow_data::{
     TaxiPathNodeEntry, TaxiPathNodeStore, calculate_player_stat_system_like_cpp,
     hotfix_locale_mask, is_player_meeting_condition_like_cpp,
 };
-use wow_database::{CharStatements, CharacterDatabase, PreparedStatement, SqlTransaction};
+use wow_database::PreparedStatement;
 use wow_entities::{
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, Corpse, CorpseCustomizationChoice,
     CorpseType, CreatureAddonLifecycleRecordLikeCpp, GAMEOBJECT_TYPE_FISHING_HOLE,
@@ -2630,42 +2630,6 @@ fn item_is_not_empty_bag_like_cpp(
     contains_items: bool,
 ) -> bool {
     matches!(inventory_type, Some(InventoryType::Bag)) && contains_items
-}
-
-fn append_item_refund_clear_statements(
-    char_db: &CharacterDatabase,
-    tx: &mut SqlTransaction,
-    item_db_guid: u64,
-    new_flags: u32,
-) {
-    let mut del_refund = char_db.prepare(CharStatements::DEL_ITEM_REFUND_INSTANCE);
-    del_refund.set_u64(0, item_db_guid);
-    tx.append(del_refund);
-
-    let mut upd_flags = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_FLAGS);
-    upd_flags.set_u32(0, new_flags);
-    upd_flags.set_u64(1, item_db_guid);
-    tx.append(upd_flags);
-}
-
-fn append_item_refund_insert_statements(
-    char_db: &CharacterDatabase,
-    tx: &mut SqlTransaction,
-    item_db_guid: u64,
-    player_db_guid: u64,
-    paid_money: u64,
-    paid_extended_cost: u16,
-) {
-    let mut del_refund = char_db.prepare(CharStatements::DEL_ITEM_REFUND_INSTANCE);
-    del_refund.set_u64(0, item_db_guid);
-    tx.append(del_refund);
-
-    let mut ins_refund = char_db.prepare(CharStatements::INS_ITEM_REFUND_INSTANCE);
-    ins_refund.set_u64(0, item_db_guid);
-    ins_refund.set_u64(1, player_db_guid);
-    ins_refund.set_u64(2, paid_money);
-    ins_refund.set_u16(3, paid_extended_cost);
-    tx.append(ins_refund);
 }
 
 fn player_class_mask(player_class: u8) -> u32 {

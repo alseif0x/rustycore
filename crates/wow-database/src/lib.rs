@@ -110,6 +110,7 @@ pub mod trainer_catalog_adapter;
 pub mod transaction;
 pub mod vehicle_catalog_adapter;
 pub mod vendor_catalog_adapter;
+pub mod vendor_trade_adapter;
 pub mod visibility_spawn_catalog_adapter;
 pub mod void_storage_adapter;
 pub mod world_auxiliary_catalog_adapter;
@@ -199,6 +200,7 @@ pub use vehicle_catalog_adapter::{
     MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp,
 };
 pub use vendor_catalog_adapter::MariaDbVendorCatalogPersistenceAdapterLikeCpp;
+pub use vendor_trade_adapter::MariaDbVendorTradePersistenceAdapterLikeCpp;
 pub use visibility_spawn_catalog_adapter::MariaDbVisibilitySpawnCatalogPersistenceAdapterLikeCpp;
 pub use world_auxiliary_catalog_adapter::MariaDbWorldAuxiliaryCatalogPersistenceAdapterLikeCpp;
 pub use world_object_catalog_adapter::MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp;

@@ -13,6 +13,29 @@ use wow_database::{CharStatements, SqlTransaction};
 
 use super::*;
 
+pub(crate) fn item_turnin_persistence_rows_like_cpp(
+    player_guid: ObjectGuid,
+    changes: &[ExtendedCostItemTurninChange],
+) -> Vec<wow_persistence::VendorItemTurninPersistenceLikeCpp> {
+    changes
+        .iter()
+        .map(|change| match *change {
+            ExtendedCostItemTurninChange::Update {
+                db_guid, new_count, ..
+            } => wow_persistence::VendorItemTurninPersistenceLikeCpp::Update {
+                item_guid: db_guid,
+                new_count,
+            },
+            ExtendedCostItemTurninChange::Delete { db_guid, .. } => {
+                wow_persistence::VendorItemTurninPersistenceLikeCpp::Delete {
+                    owner_guid: player_guid.counter() as u64,
+                    item_guid: db_guid,
+                }
+            }
+        })
+        .collect()
+}
+
 impl WorldSession {
     pub(super) fn creature_virtual_items_from_row_like_cpp(
         &mut self,

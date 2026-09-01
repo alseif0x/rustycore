@@ -39,6 +39,8 @@ mod handler_contract_tests;
 mod player_directory_test_fixtures;
 #[cfg(test)]
 mod player_lifecycle_contract;
+#[cfg(test)]
+mod vendor_trade_persistence_test_fixture;
 
 pub use map_manager::{
     ChaseTargetSnapshotLikeCpp, GridCoord, MapManager, SharedMapManager, WorldCreature,

@@ -4593,10 +4593,15 @@ async fn run_inner(
     > = Arc::new(
         wow_database::MariaDbPlayerInventoryPersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
     );
+    let vendor_trade_persistence_port: Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp> =
+        Arc::new(
+            wow_database::MariaDbVendorTradePersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
+        );
     let session_resources = Arc::new(SessionResources {
         char_db: Some(Arc::clone(&char_db)),
         stored_item_persistence_port: Some(stored_item_persistence_port),
         player_inventory_persistence_port: Some(player_inventory_persistence_port),
+        vendor_trade_persistence_port: Some(vendor_trade_persistence_port),
         character_administration_persistence_port: Some(character_administration_persistence_port),
         player_lifecycle_port: Some(Arc::clone(&player_lifecycle_port)),
         character_enumeration_persistence_port: Some(character_enumeration_persistence_port),

@@ -64,6 +64,7 @@ mod stored_item;
 mod trainer_catalog;
 mod vehicle_catalog;
 mod vendor_catalog;
+mod vendor_trade;
 mod visibility_spawn_catalog;
 mod world_auxiliary_catalog;
 mod world_object_catalog;
@@ -309,6 +310,7 @@ pub use vehicle_catalog::{
 pub use vendor_catalog::{
     VendorCatalogOutcomeLikeCpp, VendorCatalogPersistencePortLikeCpp, VendorCatalogRowLikeCpp,
 };
+pub use vendor_trade::*;
 pub use visibility_spawn_catalog::{
     CreatureVisibilityPersistenceRowLikeCpp, GameObjectVisibilityPersistenceRowLikeCpp,
     VisibilitySpawnCatalogOutcomeLikeCpp, VisibilitySpawnCatalogPersistencePortLikeCpp,

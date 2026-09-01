@@ -25,6 +25,8 @@ pub(super) struct SessionResources {
         Option<Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>>,
     pub(super) player_inventory_persistence_port:
         Option<Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>>,
+    pub(super) vendor_trade_persistence_port:
+        Option<Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>>,
     pub(super) character_administration_persistence_port:
         Option<Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>>,
     /// Player lifecycle capability (#200); Session never depends on its handles.

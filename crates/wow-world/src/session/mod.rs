@@ -162,7 +162,7 @@ use wow_data::{
     },
     spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
 };
-use wow_database::{CharacterDatabase, SqlTransaction, retry_deadlocked_operation_like_cpp};
+use wow_database::{CharacterDatabase, retry_deadlocked_operation_like_cpp};
 use wow_entities::{
     AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentDurationAction,
     ApplyEnchantmentEffectAction, ApplyEnchantmentEffectRef, ApplyEnchantmentGemRequirementRef,
@@ -5194,6 +5194,7 @@ pub(crate) struct SessionPersistencePortsLikeCpp {
     pub(crate) stored_item: Option<Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>>,
     pub(crate) player_inventory:
         Option<Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>>,
+    pub(crate) vendor_trade: Option<Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>>,
     group_loot_money: Option<Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>>,
     represented_group: Option<Arc<dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp>>,
     support_bug_report: Option<Arc<dyn wow_persistence::SupportBugReportPersistencePortLikeCpp>>,
@@ -27991,34 +27992,6 @@ impl WorldSession {
         self.set_player_gold_like_cpp(new_money);
         drop(money_persistence);
         Some((old_money, new_money))
-    }
-
-    /// Concrete compatibility wrapper retained for persistence workflows that
-    /// have not yet moved behind typed capability ports.
-    pub(crate) async fn commit_exclusive_player_money_transaction_like_cpp(
-        &mut self,
-        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
-        char_db: &CharacterDatabase,
-        transaction: SqlTransaction,
-        money_before: u64,
-        money_after: u64,
-        operation: &'static str,
-    ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
-        let player_guid = self.player_guid().map(|guid| guid.counter() as u64);
-        let outcome_future = wow_database::player_money_transaction_adapter::
-            commit_player_money_transaction_and_observe_like_cpp(
-                char_db,
-                transaction,
-                player_guid,
-            );
-        self.await_exclusive_player_money_transaction_outcome_like_cpp(
-            money_persistence,
-            outcome_future,
-            money_before,
-            money_after,
-            operation,
-        )
-        .await
     }
 
     /// Commit a trainer fee when the represented cast has no durable
