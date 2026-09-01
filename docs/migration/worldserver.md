@@ -1,5 +1,10 @@
 # Migration: worldserver (game server binary)
 
+> Operational update (issue #256): `--update-databases-only` and startup schema
+> mutation were removed. `rustycore-db` is the explicit migration boundary;
+> world-server validates all four schemas read-only before runtime writes or
+> listeners. Older updater statements below describe superseded history.
+
 > **C++ canonical path:** `src/server/worldserver/`
 > **Rust target crate(s):** `crates/world-server/`
 > **Layer:** binary (executable entry point)

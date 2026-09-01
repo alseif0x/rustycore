@@ -1,0 +1,21 @@
+[package]
+name = "rustycore-db"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "rustycore-db"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+wow-config = { workspace = true }
+wow-database = { workspace = true }
+
+[lints]
+workspace = true

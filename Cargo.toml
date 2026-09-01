@@ -40,6 +40,7 @@ members = [
     "crates/wow-recastdetour",
     # Executables
     "crates/bnet-server",
+    "crates/rustycore-db",
     "crates/world-modules",
     "crates/world-server",
     # Tooling

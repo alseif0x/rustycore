@@ -12,8 +12,8 @@ ports, and realm metadata that a TrinityCore worldserver would use.
 ## Preconditions
 
 - MariaDB 10.6+ or MySQL 8.x.
-- `mysql` CLI available in `PATH`; RustyCore's updater uses the CLI for
-  multi-statement dumps, matching TrinityCore's operational model.
+- `mysql` or `mariadb` CLI available for the operator-controlled base imports
+  below. Runtime servers never invoke it.
 - Canonical SQL tree present:
   - `/home/server/woltk-trinity-legacy/sql/create/create_mysql.sql`
   - `/home/server/woltk-trinity-legacy/sql/base/auth_database.sql`
@@ -70,25 +70,33 @@ Important: `world_database.sql` only creates the schema. Import the matching TDB
 world content dump after this step. Without it, the server may connect to DBs,
 but gameplay content is effectively missing.
 
-## 4. Apply Updates
+## 4. Apply and Validate RustyCore Migrations
 
-RustyCore can run the updater during startup when `Updates.EnableDatabases` is
-non-zero. The bitmask matches TrinityCore:
+Normal server startup has no schema-write authority. Use the explicit
+administrative tool from the repository root after taking a backup:
 
-| Bit | DB |
-|---:|---|
-| 1 | login/auth |
-| 2 | characters |
-| 4 | world |
-| 8 | hotfixes |
-| 15 | all |
+```bash
+cargo run -p rustycore-db -- status --config worldserver.conf
+cargo run -p rustycore-db -- migrate --dry-run --config worldserver.conf
+cargo run -p rustycore-db -- migrate --config worldserver.conf
+cargo run -p rustycore-db -- validate --config worldserver.conf
+```
 
-For a controlled bootstrap, either:
+Add `--json` for stable automation output. Exit codes are `0` for compatible
+or successful, `2` for invalid arguments, `3` for an incompatible/pending
+schema, and `4` for an operational, lock, or migration failure. The command
+contacts only the four configured MariaDB databases. It reads the local
+`database/migrations/manifest.toml`; it neither scans `sql/old` nor downloads
+artifacts.
 
-- let RustyCore apply updates by setting `Updates.SourcePath` to
-  `/home/server/woltk-trinity-legacy` and `Updates.EnableDatabases = 15`, or
-- apply the canonical SQL updates manually using the same lexicographic order
-  as TrinityCore's updater.
+The first `migrate` on an installation previously maintained by TrinityCore's
+`updates` table imports exact filename plus normalized SHA-1 matches into the
+new immutable SHA-256 history. For RustyCore migrations that predate this
+manifest, source-controlled read-only schema fingerprints can prove the same
+final columns and key invariants and import them without reapplying DDL. An
+empty/different legacy hash or a partial fingerprint is not evidence and never
+gets rehashed. This is the supported in-place transition from a correctly
+imported `TDB343.24081` installation.
 
 Do not mark the DB ready until `world.version` reports the current content
 version:
@@ -119,10 +127,12 @@ RealmID = 1
 WorldServerPort = 8085
 InstanceServerPort = 8086
 
-Updates.SourcePath = "/home/server/woltk-trinity-legacy"
-Updates.EnableDatabases = 15
-Updates.AutoSetup = 1
 ```
+
+`Updates.*` keys are no longer consumed by RustyCore daemons. Missing databases
+must be created/imported explicitly; `world-server` and `bnet-server` connect,
+perform bounded read-only compatibility queries, and refuse to open listeners
+when migration state is pending, changed, missing, or incomplete.
 
 For `bnet-server`, also configure TLS material with the same keys/certs used by
 the C++ deployment:
@@ -206,6 +216,27 @@ current DB/config pair.
 | BNet login fails before realm join | `auth.battlenet_accounts`, `auth.account`, `auth.build_info`, TLS cert/key paths, and bnet logs. |
 | Character enum is empty | `characters.characters` rows for the account's linked game account and `auth.realmcharacters`. |
 | World has no NPCs/quests | The TDB world content dump was not imported; base `world_database.sql` is DDL-only. |
+| Startup asks for `rustycore-db migrate` | Run `status`, inspect the exact pending/checksum/incomplete result, back up, then run the explicit migration command. |
+| Migration reports a held lock | Another administrator is migrating that database. Do not bypass the advisory lock; wait for it to finish. |
+| Migration is incomplete | Stop. MariaDB DDL may have committed implicitly. Inspect the recorded script and live schema; restore the backup or repair deliberately before changing the history row. Automatic rollback/retry is intentionally forbidden. |
+
+## Baseline Releases and Squashes
+
+A baseline release is a maintainer operation, not an in-place upgrade:
+
+1. Start from the pinned published TDB/content baseline and apply every active
+   core migration with `rustycore-db migrate`.
+2. Produce deterministic fresh-install dumps, record their checksums and bump
+   the explicit baseline metadata in `database/migrations/manifest.toml`.
+3. Mark migrations represented by that new dump `archived` in the manifest;
+   keep their files and checksums immutable so existing installations still
+   validate their applied history.
+4. Add a new active migration for every later change. Never edit an already
+   published migration and never require an existing realm to reimport the
+   squash.
+
+Fresh baseline acquisition/caching is owned by #255. `rustycore-db migrate`
+uses only artifacts already present in the selected checkout/release.
 
 ## Current Gaps
 

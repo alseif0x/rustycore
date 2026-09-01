@@ -1,5 +1,10 @@
 # Migration: bnetserver (Battle.net auth server binary)
 
+> Operational update (issue #256): `--update-databases-only` and startup schema
+> mutation were removed. `rustycore-db` is the explicit migration boundary;
+> bnet-server validates auth read-only before runtime writes or listeners.
+> Older updater statements below describe superseded history.
+
 > **C++ canonical path:** `src/server/bnetserver/`
 > **Rust target crate(s):** `crates/bnet-server/`
 > **Layer:** binary (executable entry point)

@@ -6,7 +6,6 @@ use super::super::*;
 pub(crate) struct WorldServerCliLikeCpp {
     pub(crate) config_file: Option<PathBuf>,
     pub(crate) config_dir: PathBuf,
-    pub(crate) update_databases_only: bool,
     pub(crate) show_version: bool,
     pub(crate) show_help: bool,
 }
@@ -20,7 +19,6 @@ impl WorldServerCliLikeCpp {
             match arg.as_str() {
                 "--help" | "-h" => cli.show_help = true,
                 "--version" | "-v" => cli.show_version = true,
-                "--update-databases-only" | "-u" => cli.update_databases_only = true,
                 "--config" | "-c" => {
                     if let Some(value) = args.next() {
                         cli.config_file = Some(PathBuf::from(value));
@@ -50,7 +48,6 @@ impl Default for WorldServerCliLikeCpp {
         Self {
             config_file: None,
             config_dir: PathBuf::from(WORLD_CONFIG_DIR),
-            update_databases_only: false,
             show_version: false,
             show_help: false,
         }
@@ -58,7 +55,7 @@ impl Default for WorldServerCliLikeCpp {
 }
 
 pub(crate) fn worldserver_cli_help_like_cpp() -> &'static str {
-    "Allowed options:\n  -h [ --help ]                  print usage message\n  -v [ --version ]               print version build info\n  -c [ --config ] <arg>          use <arg> as configuration file\n  -cd [ --config-dir ] <arg>     use <arg> as directory with additional config files\n  -u [ --update-databases-only ] updates databases only\n"
+    "Allowed options:\n  -h [ --help ]                  print usage message\n  -v [ --version ]               print version build info\n  -c [ --config ] <arg>          use <arg> as configuration file\n  -cd [ --config-dir ] <arg>     use <arg> as directory with additional config files\n"
 }
 
 pub(crate) fn worldserver_full_version_like_cpp() -> String {
@@ -141,27 +138,6 @@ pub(crate) fn database_pool_size_like_cpp(name: &str) -> u32 {
         database_thread_count_like_cpp(&format!("{name}Database.WorkerThreads"), 1);
     let synch_threads = database_thread_count_like_cpp(&format!("{name}Database.SynchThreads"), 1);
     worker_threads + synch_threads
-}
-
-pub(crate) fn updates_auto_setup_enabled_like_cpp() -> bool {
-    let auto_setup = wow_config::get_string_default("Updates.AutoSetup", "1");
-    auto_setup != "0" && !auto_setup.eq_ignore_ascii_case("false")
-}
-
-pub(crate) fn updates_database_mask_like_cpp() -> u32 {
-    wow_config::get_value_default("Updates.EnableDatabases", DATABASE_MASK_ALL_LIKE_CPP)
-}
-
-pub(crate) fn updates_enabled_for_database_like_cpp(update_mask: u32, database_flag: u32) -> bool {
-    update_mask & database_flag != 0
-}
-
-pub(crate) fn database_auto_create_enabled_like_cpp(
-    auto_setup: bool,
-    update_mask: u32,
-    database_flag: u32,
-) -> bool {
-    auto_setup && updates_enabled_for_database_like_cpp(update_mask, database_flag)
 }
 
 pub(crate) fn database_thread_count_like_cpp(key: &str, default: u32) -> u32 {

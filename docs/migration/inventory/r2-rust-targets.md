@@ -163,7 +163,7 @@
 | `database-framework.md` | `crates/wow-database/src/params.rs` | `file` | 1 | 208 | `exists_active` | file exists |
 | `database-framework.md` | `crates/wow-database/src/result.rs` | `file` | 1 | 198 | `exists_active` | file exists |
 | `database-framework.md` | `crates/wow-database/src/transaction.rs` | `file` | 1 | 108 | `exists_active` | file exists |
-| `database-framework.md` | `crates/wow-database/src/updater.rs` | `file` | 1 | 391 | `exists_active` | file exists |
+| `database-framework.md` | `crates/wow-database/src/migration.rs` | `file` | 1 | 391 | `exists_active` | explicit manifest-driven migration engine; startup updater retired by #256 |
 | `database-framework.md` | `crates/wow-database/src/statements/mod.rs` | `file` | 1 | 93 | `exists_active` | file exists |
 | `database-framework.md` | `crates/wow-database/src/statements/login.rs` | `file` | 1 | 327 | `exists_active` | file exists |
 | `database-framework.md` | `crates/wow-database/src/statements/character.rs` | `file` | 1 | 284 | `exists_active` | file exists |

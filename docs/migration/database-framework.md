@@ -1,5 +1,10 @@
 # Migration: database-framework (MySQL connection pool, prepared statements, transactions, updater)
 
+> Operational update (issue #256): the historical startup `DbUpdater` described
+> below has been removed. `rustycore-db` now owns explicit manifest-driven
+> migration; both servers perform read-only schema validation. The older
+> sections remain as a C++ parity/history record, not current operating advice.
+
 > **C++ canonical path:** `src/server/database/Database/` + `src/server/database/Updater/`
 > **Rust target crate(s):** `crates/wow-database/`
 > **Layer:** L1 infrastructure (under shared/datastores)

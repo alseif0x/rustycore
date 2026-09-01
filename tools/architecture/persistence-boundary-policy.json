@@ -38,38 +38,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:bnet-server:crate:crates/bnet-server/src/main.rs::fn run_database_updates_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "bnet-server"
-      ],
-      "sources": [
-        "crates/bnet-server/src/main.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "fn run_database_updates_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "login"
-      ],
-      "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn run_database_updates_like_cpp in crates/bnet-server/src/main.rs.",
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:bnet-server:crate:crates/bnet-server/src/main.rs::fn start_ban_expiry_timer",
       "source_class": "production",
       "packages": [
@@ -1254,6 +1222,66 @@
       "stable_boundary": false
     },
     {
+      "id": "workflow:rustycore-db:crate:crates/rustycore-db/src/main.rs::fn with_database",
+      "source_class": "production",
+      "packages": [
+        "rustycore-db"
+      ],
+      "sources": [
+        "crates/rustycore-db/src/main.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate"
+      ],
+      "enclosings": [
+        "fn with_database"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Explicit database migration composition boundary currently owns the complete rustycore-db workflow fn with_database in crates/rustycore-db/src/main.rs.",
+      "connection_affinity": "The administrative composition root opens exactly one configured typed database at a time; no cross-database transaction is claimed.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:rustycore-db:crate:crates/rustycore-db/src/main.rs::module",
+      "source_class": "production",
+      "packages": [
+        "rustycore-db"
+      ],
+      "sources": [
+        "crates/rustycore-db/src/main.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Explicit database migration composition boundary currently owns the complete rustycore-db workflow module in crates/rustycore-db/src/main.rs.",
+      "connection_affinity": "The administrative composition root opens exactly one configured typed database at a time; no cross-database transaction is claimed.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:world-server:crate:crates/world-server/src/lib.rs::const ITEM_GUID_DANGLING_REFERENCE_CLEANUP_STATEMENTS_LIKE_CPP",
       "source_class": "production",
       "packages": [
@@ -1794,38 +1822,6 @@
       ],
       "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn update_realm_list_once_like_cpp in crates/world-server/src/lib.rs.",
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate:crates/world-server/src/lib.rs::fn update_world_db_core_version_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/lib.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "fn update_world_db_core_version_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn update_world_db_core_version_like_cpp in crates/world-server/src/lib.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
@@ -11790,6 +11786,486 @@
       "connection_affinity": "The concrete adapter stores exactly one Characters-database handle and exposes it only through the typed port.",
       "current_order": "Storage alone performs no operation; the port method preserves C++ Map::LoadCorpseData order.",
       "failure_and_unknown_commit": "The handle is private and no driver error type crosses the port.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration:crates/wow-database/src/migration.rs::fn apply_one",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration"
+      ],
+      "enclosings": [
+        "fn apply_one"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary currently owns the complete wow-database workflow fn apply_one in crates/wow-database/src/migration.rs.",
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration:crates/wow-database/src/migration.rs::fn baseline_matches",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration"
+      ],
+      "enclosings": [
+        "fn baseline_matches"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary currently owns the complete wow-database workflow fn baseline_matches in crates/wow-database/src/migration.rs.",
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration:crates/wow-database/src/migration.rs::fn ensure_history_table",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration"
+      ],
+      "enclosings": [
+        "fn ensure_history_table"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary currently owns the complete wow-database workflow fn ensure_history_table in crates/wow-database/src/migration.rs.",
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration:crates/wow-database/src/migration.rs::fn history_row",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration"
+      ],
+      "enclosings": [
+        "fn history_row"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary currently owns the complete wow-database workflow fn history_row in crates/wow-database/src/migration.rs.",
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration:crates/wow-database/src/migration.rs::fn import_transition_history",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration"
+      ],
+      "enclosings": [
+        "fn import_transition_history"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary currently owns the complete wow-database workflow fn import_transition_history in crates/wow-database/src/migration.rs.",
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration:crates/wow-database/src/migration.rs::fn inspect_database",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration"
+      ],
+      "enclosings": [
+        "fn inspect_database"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary currently owns the complete wow-database workflow fn inspect_database in crates/wow-database/src/migration.rs.",
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration:crates/wow-database/src/migration.rs::fn inspect_database_for_admin",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration"
+      ],
+      "enclosings": [
+        "fn inspect_database_for_admin"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary currently owns the complete wow-database workflow fn inspect_database_for_admin in crates/wow-database/src/migration.rs.",
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration:crates/wow-database/src/migration.rs::fn legacy_import_candidates",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration"
+      ],
+      "enclosings": [
+        "fn legacy_import_candidates"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary currently owns the complete wow-database workflow fn legacy_import_candidates in crates/wow-database/src/migration.rs.",
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration:crates/wow-database/src/migration.rs::fn migrate_database",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration"
+      ],
+      "enclosings": [
+        "fn migrate_database"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary currently owns the complete wow-database workflow fn migrate_database in crates/wow-database/src/migration.rs.",
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration:crates/wow-database/src/migration.rs::fn migrate_while_locked",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration"
+      ],
+      "enclosings": [
+        "fn migrate_while_locked"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary currently owns the complete wow-database workflow fn migrate_while_locked in crates/wow-database/src/migration.rs.",
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration:crates/wow-database/src/migration.rs::fn read_history",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration"
+      ],
+      "enclosings": [
+        "fn read_history"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary currently owns the complete wow-database workflow fn read_history in crates/wow-database/src/migration.rs.",
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration:crates/wow-database/src/migration.rs::fn read_history_from",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration"
+      ],
+      "enclosings": [
+        "fn read_history_from"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary currently owns the complete wow-database workflow fn read_history_from in crates/wow-database/src/migration.rs.",
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration:crates/wow-database/src/migration.rs::fn table_exists",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration"
+      ],
+      "enclosings": [
+        "fn table_exists"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary currently owns the complete wow-database workflow fn table_exists in crates/wow-database/src/migration.rs.",
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration:crates/wow-database/src/migration.rs::fn table_exists_on",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration"
+      ],
+      "enclosings": [
+        "fn table_exists_on"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary currently owns the complete wow-database workflow fn table_exists_on in crates/wow-database/src/migration.rs.",
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration:crates/wow-database/src/migration.rs::fn validate_runtime_schema",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration"
+      ],
+      "enclosings": [
+        "fn validate_runtime_schema"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary currently owns the complete wow-database workflow fn validate_runtime_schema in crates/wow-database/src/migration.rs.",
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::migration:crates/wow-database/src/migration.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/migration.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::migration"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "updater-control"
+      ],
+      "capability_owner": "Manifest-driven MariaDB migration boundary currently owns the complete wow-database workflow module in crates/wow-database/src/migration.rs.",
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -25774,456 +26250,6 @@
       "stable_boundary": true
     },
     {
-      "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::fn populate_typed_database_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/updater.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::updater"
-      ],
-      "enclosings": [
-        "fn populate_typed_database_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "updater-control"
-      ],
-      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow fn populate_typed_database_like_cpp in crates/wow-database/src/updater.rs.",
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::fn update_typed_database_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/updater.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::updater"
-      ],
-      "enclosings": [
-        "fn update_typed_database_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "updater-control"
-      ],
-      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow fn update_typed_database_like_cpp in crates/wow-database/src/updater.rs.",
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::impl DbUpdater::apply_sql_file",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/updater.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::updater"
-      ],
-      "enclosings": [
-        "impl DbUpdater::apply_sql_file"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "updater-control"
-      ],
-      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl DbUpdater::apply_sql_file in crates/wow-database/src/updater.rs.",
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::impl DbUpdater::bootstrap_updates_include_if_empty_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/updater.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::updater"
-      ],
-      "enclosings": [
-        "impl DbUpdater::bootstrap_updates_include_if_empty_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "updater-control"
-      ],
-      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl DbUpdater::bootstrap_updates_include_if_empty_like_cpp in crates/wow-database/src/updater.rs.",
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::impl DbUpdater::cleanup_orphaned_updates_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/updater.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::updater"
-      ],
-      "enclosings": [
-        "impl DbUpdater::cleanup_orphaned_updates_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "updater-control"
-      ],
-      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl DbUpdater::cleanup_orphaned_updates_like_cpp in crates/wow-database/src/updater.rs.",
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::impl DbUpdater::ensure_updates_include_table",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/updater.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::updater"
-      ],
-      "enclosings": [
-        "impl DbUpdater::ensure_updates_include_table"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "updater-control"
-      ],
-      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl DbUpdater::ensure_updates_include_table in crates/wow-database/src/updater.rs.",
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::impl DbUpdater::ensure_updates_table",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/updater.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::updater"
-      ],
-      "enclosings": [
-        "impl DbUpdater::ensure_updates_table"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "updater-control"
-      ],
-      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl DbUpdater::ensure_updates_table in crates/wow-database/src/updater.rs.",
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::impl DbUpdater::from_database",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/updater.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::updater"
-      ],
-      "enclosings": [
-        "impl DbUpdater::from_database"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "updater-control"
-      ],
-      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl DbUpdater::from_database in crates/wow-database/src/updater.rs.",
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::impl DbUpdater::new",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/updater.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::updater"
-      ],
-      "enclosings": [
-        "impl DbUpdater::new"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "updater-control"
-      ],
-      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl DbUpdater::new in crates/wow-database/src/updater.rs.",
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::impl DbUpdater::populate",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/updater.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::updater"
-      ],
-      "enclosings": [
-        "impl DbUpdater::populate"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "updater-control"
-      ],
-      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl DbUpdater::populate in crates/wow-database/src/updater.rs.",
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::impl DbUpdater::read_applied_files",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/updater.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::updater"
-      ],
-      "enclosings": [
-        "impl DbUpdater::read_applied_files"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "updater-control"
-      ],
-      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl DbUpdater::read_applied_files in crates/wow-database/src/updater.rs.",
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::impl DbUpdater::read_updates_include",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/updater.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::updater"
-      ],
-      "enclosings": [
-        "impl DbUpdater::read_updates_include"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "updater-control"
-      ],
-      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl DbUpdater::read_updates_include in crates/wow-database/src/updater.rs.",
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::impl DbUpdater::update",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/updater.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::updater"
-      ],
-      "enclosings": [
-        "impl DbUpdater::update"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "updater-control"
-      ],
-      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl DbUpdater::update in crates/wow-database/src/updater.rs.",
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/updater.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::updater"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "updater-control"
-      ],
-      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow module in crates/wow-database/src/updater.rs.",
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
-      "id": "workflow:wow-database:crate::updater:crates/wow-database/src/updater.rs::struct DbUpdater",
-      "source_class": "production",
-      "packages": [
-        "wow-database"
-      ],
-      "sources": [
-        "crates/wow-database/src/updater.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::updater"
-      ],
-      "enclosings": [
-        "struct DbUpdater"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "updater-control"
-      ],
-      "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow struct DbUpdater in crates/wow-database/src/updater.rs.",
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [],
-      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
-      "stable_boundary": true
-    },
-    {
       "id": "workflow:wow-database:crate::vehicle_catalog_adapter:crates/wow-database/src/vehicle_catalog_adapter.rs::fn classify_hotfix_rows_like_cpp",
       "source_class": "production",
       "packages": [
@@ -31970,6 +31996,7 @@
         "crates/wow-database/src/lfg_dungeons_hotfix_adapter.rs",
         "crates/wow-database/src/lfg_world_catalog_adapter.rs",
         "crates/wow-database/src/map_corpse_adapter.rs",
+        "crates/wow-database/src/migration.rs",
         "crates/wow-database/src/next_mail_time_adapter.rs",
         "crates/wow-database/src/packet_spoof_ban_adapter.rs",
         "crates/wow-database/src/page_text_catalog_adapter.rs",
@@ -32004,7 +32031,6 @@
         "crates/wow-database/src/support_bug_report_adapter.rs",
         "crates/wow-database/src/trainer_catalog_adapter.rs",
         "crates/wow-database/src/transaction.rs",
-        "crates/wow-database/src/updater.rs",
         "crates/wow-database/src/void_storage_adapter.rs",
         "crates/wow-database/src/world_auxiliary_catalog_adapter.rs",
         "crates/wow-database/src/world_reference_catalog_adapter.rs",

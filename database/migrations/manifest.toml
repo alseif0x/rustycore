@@ -1,0 +1,86 @@
+format = 1
+
+[[baselines]]
+database = "auth"
+marker_table = "battlenet_accounts"
+
+[[baselines]]
+database = "characters"
+marker_table = "characters"
+
+[[baselines]]
+database = "world"
+marker_table = "version"
+content_version = "TDB 343.24081"
+cache_id = 24081
+
+[[baselines]]
+database = "hotfixes"
+marker_table = "hotfix_blob"
+
+[[migrations]]
+component = "core"
+database = "auth"
+version = "2026.08.02.00"
+description = "battle pet durable allocation and receipts"
+file = "../../sql/updates/auth/wotlk_classic/2026_08_02_00_auth.sql"
+sha256 = "df8dc57e3d0dcd32ce623232459b12037db24725aec438777df558eba03ddff1"
+state = "active"
+adopt_query = '''
+SELECT IF(
+  (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'battle_pet_guid_sequence' AND column_name IN ('singleton','nextGuid')) = 2
+  AND (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'battle_pet_guid_sequence' AND index_name = 'PRIMARY' AND column_name = 'singleton') = 1
+  AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'battle_pet_capacity_locks' AND column_name IN ('battlenetAccountId','species','ownerRealmScope','ownerScope')) = 4
+  AND (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'battle_pet_capacity_locks' AND index_name = 'PRIMARY') = 4
+  AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'battle_pet_add_requests' AND column_name IN ('battlenetAccountId','requestKey','battlePetGuid','species','breed','displayId','level','exp','health','quality','flags','name','nameTimestamp','owner')) = 14,
+  1, 0)
+'''
+
+[[migrations]]
+component = "core"
+database = "auth"
+version = "2026.08.03.00"
+description = "battle pet global receipt identity and account fences"
+file = "../../sql/updates/auth/wotlk_classic/2026_08_03_00_auth.sql"
+sha256 = "4e60f137edd6562a6a155df4dfe8ab43ceedf74e45fbc28a25ed80d3ebcc9729"
+state = "active"
+adopt_query = '''
+SELECT IF(
+  (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'battle_pet_add_requests' AND index_name = 'PRIMARY') = 1
+  AND (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'battle_pet_add_requests' AND index_name = 'PRIMARY' AND column_name = 'requestKey') = 1
+  AND (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'battle_pet_add_requests' AND index_name = 'idx_battle_pet_add_requests_account' AND column_name = 'battlenetAccountId') = 1
+  AND (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'battle_pet_account_fences' AND column_name IN ('battlenetAccountId','generation','operationSerial')) = 3
+  AND (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'battle_pet_account_fences' AND index_name = 'PRIMARY' AND column_name = 'battlenetAccountId') = 1,
+  1, 0)
+'''
+
+[[migrations]]
+component = "core"
+database = "characters"
+version = "2026.08.01.00"
+description = "spell acquisition operation attribution"
+file = "../../sql/updates/characters/wotlk_classic/2026_08_01_00_characters.sql"
+sha256 = "27eb81e7d04a40732e6bffffda97ab5e37ec65d636dce851c6d468c05312e4a5"
+state = "active"
+adopt_query = '''
+SELECT IF(
+  (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'character_spell_acquisition_operation' AND column_name IN ('guid','operation_token')) = 2
+  AND (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'character_spell_acquisition_operation' AND index_name = 'PRIMARY' AND column_name = 'guid') = 1,
+  1, 0)
+'''
+
+[[migrations]]
+component = "core"
+database = "characters"
+version = "2026.08.03.00"
+description = "recoverable battle pet trainer purchase"
+file = "../../sql/updates/characters/wotlk_classic/2026_08_03_00_characters.sql"
+sha256 = "606d199d9346fb766df37a65939fd7631ae2f9f6e69fd8ff89c8507efdab6aee"
+state = "active"
+adopt_query = '''
+SELECT IF(
+  (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'character_battle_pet_purchase' AND column_name IN ('request_key','guid','account_id','trainer_id','spell_id','species','breed','quality','display_id','level','price','money_before','money_after','status','published','failure_reason','created_at','updated_at')) = 18
+  AND (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'character_battle_pet_purchase' AND index_name = 'PRIMARY' AND column_name = 'request_key') = 1
+  AND (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'character_battle_pet_purchase' AND index_name = 'idx_guid_status' AND column_name IN ('guid','status')) = 2,
+  1, 0)
+'''

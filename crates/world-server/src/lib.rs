@@ -33,11 +33,9 @@ use wow_core::{
     scan_local_ipv4_networks_like_cpp,
 };
 use wow_database::{
-    CharStatements, CharacterDatabase, DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP,
-    DATABASE_LOGIN_LIKE_CPP, DATABASE_MASK_ALL_LIKE_CPP, DATABASE_WORLD_LIKE_CPP, HotfixDatabase,
-    ItemGuidAllocatorAdvisoryLockLikeCpp, LoginBattlePetPersistenceLikeCpp, LoginDatabase,
-    LoginStatements, SqlResult, SqlTransaction, StatementDef, WorldDatabase, WorldStatements,
-    escape_string_like_cpp, warn_about_sync_queries_scope_like_cpp,
+    CharStatements, CharacterDatabase, HotfixDatabase, ItemGuidAllocatorAdvisoryLockLikeCpp,
+    LoginBattlePetPersistenceLikeCpp, LoginDatabase, LoginStatements, SqlResult, SqlTransaction,
+    StatementDef, WorldDatabase, WorldStatements, warn_about_sync_queries_scope_like_cpp,
 };
 use wow_instances::{InstanceLockMgr, MapDb2Entries, ResetSchedule};
 use wow_loot::{
@@ -1205,20 +1203,6 @@ fn clear_online_accounts_sql_like_cpp(realm_id: u16) -> [String; 3] {
     ]
 }
 
-async fn update_world_db_core_version_like_cpp(world_db: &WorldDatabase) -> Result<()> {
-    world_db
-        .direct_execute(&world_db_core_version_update_sql_like_cpp())
-        .await
-        .context("Failed to update world database core version")?;
-    Ok(())
-}
-
-fn world_db_core_version_update_sql_like_cpp() -> String {
-    let core_version = escape_string_like_cpp(&worldserver_full_version_like_cpp());
-    let core_revision = escape_string_like_cpp(worldserver_revision_like_cpp());
-    format!("UPDATE version SET core_version = '{core_version}', core_revision = '{core_revision}'")
-}
-
 fn create_pid_file_from_config_like_cpp() -> Result<Option<u32>> {
     let pid_file = wow_config::get_string_default("PidFile", "");
     if pid_file.is_empty() {
@@ -1288,14 +1272,6 @@ fn set_realm_online_sql_like_cpp(realm_id: u16) -> String {
 
 fn db_keepalive_interval_minutes_like_cpp(configs: &WorldConfigSet) -> u32 {
     world_config_u32(configs, "CONFIG_DB_PING_INTERVAL", 30)
-}
-
-fn db_updater_step_like_cpp<T>(
-    result: Result<T>,
-    database_name: &str,
-    operation: &str,
-) -> Result<T> {
-    result.with_context(|| format!("Could not {operation} the {database_name} database"))
 }
 
 const REQUIRED_TDB_VERSION_LIKE_CPP: &str = "TDB 343.24081";
