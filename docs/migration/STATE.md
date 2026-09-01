@@ -23,6 +23,16 @@ Repository refactors are governed by
 one mutable owner per concept, private modules before crates, explicit mirror retirement, and
 executable Cargo/handler-contract guardrails.
 
+Database migration boundary (issue #256): the daemon-owned permissive `DbUpdater` has been
+retired. The `rustycore-db` composition binary is the sole schema migration authority, using a
+source-controlled immutable SHA-256 manifest, per-database/component chains, advisory locks and a
+durable incomplete marker that makes no false MariaDB DDL rollback claim. `world-server` validates
+auth/characters/world/hotfixes and `bnet-server` validates auth through bounded read-only queries
+before runtime writes or listeners; neither scans SQL paths, creates schemas, invokes a SQL client
+or downloads artifacts. Exact legacy hashes or explicit schema fingerprints provide the
+TDB343.24081 transition without reapplying already-materialized RustyCore DDL. Baseline artifact
+acquisition remains #255 and the terminal persistence audit remains #153.
+
 Trainer architecture note (issues #157/#158/#159): list and the intentionally undispatched buy
 adapter share one immutable offer decision. Normal trainer teaching now revalidates that decision
 under the exclusive money owner, commits effective money plus the exact #164 spell/skill result in

@@ -37,9 +37,8 @@ use super::{
     collect_legacy_creature_aggro_candidates_like_cpp,
     collect_legacy_creature_aggro_candidates_with_canonical_like_cpp,
     consume_game_event_live_update_side_effects_like_cpp, create_pid_file_like_cpp,
-    database_auto_create_enabled_like_cpp, database_pool_size_like_cpp,
-    db_keepalive_database_names_like_cpp, db_keepalive_interval_minutes_like_cpp,
-    db_keepalive_sql_like_cpp, db_updater_step_like_cpp,
+    database_pool_size_like_cpp, db_keepalive_database_names_like_cpp,
+    db_keepalive_interval_minutes_like_cpp, db_keepalive_sql_like_cpp,
     declined_names_used_for_realm_category_like_cpp,
     deliver_creature_attack_start_commands_like_cpp,
     deliver_creature_melee_damage_commands_like_cpp,
@@ -82,9 +81,7 @@ use super::{
     run_world_session_shutdown_finalize_step_like_cpp, set_realm_offline_sql_like_cpp,
     set_realm_online_sql_like_cpp, spawn_legacy_creature_runtime_update_loop_like_cpp,
     spawn_store_loader, stop_world_network_like_cpp, update_sessions_shutdown_flush_once_like_cpp,
-    updates_auto_setup_enabled_like_cpp, updates_database_mask_like_cpp,
-    updates_enabled_for_database_like_cpp, world_config_bool, world_config_f32, world_config_u8,
-    world_config_u16, world_config_u32, world_db_core_version_update_sql_like_cpp,
+    world_config_bool, world_config_f32, world_config_u8, world_config_u16, world_config_u32,
     world_db_version_matches_required_like_cpp, world_db_version_mismatch_message_like_cpp,
     world_update_loop_step_like_cpp, worldserver_cli_help_like_cpp,
     worldserver_full_version_like_cpp, worldserver_revision_like_cpp,
@@ -98,10 +95,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use wow_constants::{ConditionSourceType, ConditionType, ServerOpcodes};
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
 use wow_data::{Condition, ConditionEntriesByTypeStore};
-use wow_database::{
-    DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP, DATABASE_LOGIN_LIKE_CPP,
-    DATABASE_MASK_ALL_LIKE_CPP, DATABASE_WORLD_LIKE_CPP, StatementDef,
-};
+use wow_database::StatementDef;
 use wow_entities::{Creature, GameObject, MapObjectRecord, Player};
 use wow_instances::ResetSchedule;
 use wow_map::{
@@ -3090,7 +3084,6 @@ fn worldserver_cli_defaults_match_cpp_startup_options() {
 
     assert_eq!(cli.config_file, None);
     assert_eq!(cli.config_dir, PathBuf::from("worldserver.conf.d"));
-    assert!(!cli.update_databases_only);
     assert!(!cli.show_help);
     assert!(!cli.show_version);
 }
@@ -3104,7 +3097,6 @@ fn worldserver_cli_parses_short_and_long_options_like_cpp() {
             "/tmp/world.conf",
             "-cd",
             "/tmp/world.conf.d",
-            "-u",
         ]
         .into_iter()
         .map(str::to_string),
@@ -3112,7 +3104,6 @@ fn worldserver_cli_parses_short_and_long_options_like_cpp() {
 
     assert_eq!(cli.config_file, Some(PathBuf::from("/tmp/world.conf")));
     assert_eq!(cli.config_dir, PathBuf::from("/tmp/world.conf.d"));
-    assert!(cli.update_databases_only);
 
     let cli = WorldServerCliLikeCpp::parse_from(
         [
@@ -3142,7 +3133,7 @@ fn worldserver_cli_help_and_version_match_cpp_surface() {
     let help = worldserver_cli_help_like_cpp();
     assert!(help.contains("--config"));
     assert!(help.contains("--config-dir"));
-    assert!(help.contains("--update-databases-only"));
+    assert!(!help.contains("--update-databases-only"));
     assert!(help.contains("--version"));
     assert!(help.contains("--help"));
 
@@ -3158,18 +3149,6 @@ fn worldserver_cli_help_and_version_match_cpp_surface() {
         "world-server builds from a Git checkout must embed the exact source revision"
     );
     assert!(version.contains(revision));
-}
-
-#[test]
-fn world_db_core_version_update_sql_matches_cpp_shape() {
-    let sql = world_db_core_version_update_sql_like_cpp();
-
-    assert!(sql.starts_with("UPDATE version SET core_version = '"));
-    assert!(sql.contains("RustyCore World Server"));
-    assert!(sql.contains(env!("CARGO_PKG_VERSION")));
-    assert!(sql.contains("core_revision = '"));
-    assert!(sql.contains(worldserver_revision_like_cpp()));
-    assert!(!sql.contains('\n'));
 }
 
 #[test]
@@ -3395,10 +3374,13 @@ fn library_composition_preserves_cpp_startup_and_shutdown_order() {
     let mut cursor = 0;
     for stage in [
         "let config_report = load_world_config(&cli)?;",
-        "LoginDatabase::open_with_pool_size_and_auto_create_like_cpp(",
-        "CharacterDatabase::open_with_pool_size_and_auto_create_like_cpp(",
-        "WorldDatabase::open_with_pool_size_and_auto_create_like_cpp(",
-        "HotfixDatabase::open_with_pool_size_and_auto_create_like_cpp(",
+        "LoginDatabase::open_with_pool_size(",
+        "CharacterDatabase::open_with_pool_size(",
+        "WorldDatabase::open_with_pool_size(",
+        "HotfixDatabase::open_with_pool_size(",
+        "let migration_manifest = wow_database::migration::bundled_manifest()?;",
+        "wow_database::migration::validate_runtime_schema(",
+        "clear_online_accounts_like_cpp(&login_db, &char_db, realm_id).await?;",
         "set_realm_offline(&login_db, realm_id).await?;",
         "load_realm_info_from_snapshot_like_cpp(&realm_list, realm_id)?;",
         "wow_network::start_world_listener(",
@@ -3536,24 +3518,6 @@ fn db_keepalive_config_and_pool_scope_match_cpp() {
 }
 
 #[test]
-fn db_updater_step_errors_are_fatal_with_context_like_cpp() {
-    let ok = db_updater_step_like_cpp::<u8>(Ok(7), "Login", "populate")
-        .expect("successful updater step should pass through");
-    assert_eq!(ok, 7);
-
-    let error = db_updater_step_like_cpp::<()>(
-        Err(anyhow::anyhow!("base file missing")),
-        "Character",
-        "populate",
-    )
-    .expect_err("failed updater step should abort startup");
-    let rendered = format!("{error:#}");
-
-    assert!(rendered.contains("Could not populate the Character database"));
-    assert!(rendered.contains("base file missing"));
-}
-
-#[test]
 fn world_db_version_sentinel_accepts_only_current_tdb_like_cpp() {
     assert_eq!(REQUIRED_TDB_VERSION_LIKE_CPP, "TDB 343.24081");
     assert_eq!(REQUIRED_TDB_CACHE_ID_LIKE_CPP, 24081);
@@ -3616,96 +3580,6 @@ WorldDatabase.SynchThreads = 33
     assert_eq!(database_pool_size_like_cpp("Login"), 8);
     assert_eq!(database_pool_size_like_cpp("Character"), 3);
     assert_eq!(database_pool_size_like_cpp("World"), 2);
-}
-
-#[test]
-fn updates_auto_setup_defaults_enabled_like_cpp() {
-    let _guard = TEST_LOCK.lock().expect("test lock poisoned");
-
-    wow_config::load_config_from_str("").expect("config should load");
-    assert!(updates_auto_setup_enabled_like_cpp());
-
-    wow_config::load_config_from_str("Updates.AutoSetup = 0\n").expect("config should load");
-    assert!(!updates_auto_setup_enabled_like_cpp());
-
-    wow_config::load_config_from_str("Updates.AutoSetup = false\n").expect("config should load");
-    assert!(!updates_auto_setup_enabled_like_cpp());
-
-    wow_config::load_config_from_str("Updates.AutoSetup = 1\n").expect("config should load");
-    assert!(updates_auto_setup_enabled_like_cpp());
-}
-
-#[test]
-fn updates_enable_databases_mask_matches_cpp() {
-    let _guard = TEST_LOCK.lock().expect("test lock poisoned");
-
-    wow_config::load_config_from_str("").expect("config should load");
-    assert_eq!(updates_database_mask_like_cpp(), DATABASE_MASK_ALL_LIKE_CPP);
-    for flag in [
-        DATABASE_LOGIN_LIKE_CPP,
-        DATABASE_CHARACTER_LIKE_CPP,
-        DATABASE_WORLD_LIKE_CPP,
-        DATABASE_HOTFIX_LIKE_CPP,
-    ] {
-        assert!(updates_enabled_for_database_like_cpp(
-            updates_database_mask_like_cpp(),
-            flag
-        ));
-    }
-
-    wow_config::load_config_from_str("Updates.EnableDatabases = 5\n").expect("config should load");
-    let mask = updates_database_mask_like_cpp();
-    assert!(updates_enabled_for_database_like_cpp(
-        mask,
-        DATABASE_LOGIN_LIKE_CPP
-    ));
-    assert!(!updates_enabled_for_database_like_cpp(
-        mask,
-        DATABASE_CHARACTER_LIKE_CPP
-    ));
-    assert!(updates_enabled_for_database_like_cpp(
-        mask,
-        DATABASE_WORLD_LIKE_CPP
-    ));
-    assert!(!updates_enabled_for_database_like_cpp(
-        mask,
-        DATABASE_HOTFIX_LIKE_CPP
-    ));
-
-    wow_config::load_config_from_str("Updates.EnableDatabases = 0\n").expect("config should load");
-    let mask = updates_database_mask_like_cpp();
-    assert!(!updates_enabled_for_database_like_cpp(
-        mask,
-        DATABASE_LOGIN_LIKE_CPP
-    ));
-    assert!(!updates_enabled_for_database_like_cpp(
-        mask,
-        DATABASE_CHARACTER_LIKE_CPP
-    ));
-    assert!(!updates_enabled_for_database_like_cpp(
-        mask,
-        DATABASE_WORLD_LIKE_CPP
-    ));
-    assert!(!updates_enabled_for_database_like_cpp(
-        mask,
-        DATABASE_HOTFIX_LIKE_CPP
-    ));
-
-    assert!(!database_auto_create_enabled_like_cpp(
-        true,
-        mask,
-        DATABASE_LOGIN_LIKE_CPP
-    ));
-    assert!(!database_auto_create_enabled_like_cpp(
-        false,
-        DATABASE_MASK_ALL_LIKE_CPP,
-        DATABASE_LOGIN_LIKE_CPP
-    ));
-    assert!(database_auto_create_enabled_like_cpp(
-        true,
-        DATABASE_MASK_ALL_LIKE_CPP,
-        DATABASE_LOGIN_LIKE_CPP
-    ));
 }
 
 /// The sessionless tap index must answer what the session answered.
@@ -3795,39 +3669,17 @@ fn set_tick_owner_has_exactly_one_production_call_site_before_the_loop_spawns() 
 }
 
 #[test]
-fn database_update_bootstrap_uses_only_typed_adapter_operations_like_cpp() {
+fn startup_has_no_schema_mutation_and_validates_before_runtime_writes() {
     let app = include_str!("app.rs");
-    let (_, update_tail) = app
-        .split_once("// ── Database auto-update")
-        .expect("database updater section starts");
-    let (updates, _) = update_tail
-        .split_once("// ─────────────────────────────────────────────────────────────────────")
-        .expect("database updater section ends");
-
-    assert!(
-        !updates.contains("DbUpdater"),
-        "the composition root must not own the concrete updater"
-    );
-    assert!(
-        !updates.contains(".pool()"),
-        "the composition root must not extract a raw SQLx pool"
-    );
-    assert_eq!(
-        updates.matches("populate_typed_database_like_cpp(").count(),
-        2,
-        "Login and Character retain their C++ populate phase"
-    );
-    assert_eq!(
-        updates.matches("update_typed_database_like_cpp(").count(),
-        4,
-        "all four typed databases retain their C++ update phase"
-    );
-
-    let login = updates.find("if login_updates_enabled").unwrap();
-    let characters = updates.find("if character_updates_enabled").unwrap();
-    let world = updates.find("if world_updates_enabled").unwrap();
-    let hotfix = updates.find("if hotfix_updates_enabled").unwrap();
-    assert!(login < characters && characters < world && world < hotfix);
+    assert!(!app.contains(&["populate_typed_", "database_like_cpp"].concat()));
+    assert!(!app.contains(&["update_typed_", "database_like_cpp"].concat()));
+    assert!(!app.contains("Updates.SourcePath"));
+    assert!(!app.contains(&["update-databases", "-only"].concat()));
+    assert!(!app.contains("auto_create"));
+    assert_eq!(app.matches("validate_runtime_schema(").count(), 1);
+    let validation = app.find("validate_runtime_schema(").unwrap();
+    let first_runtime_write = app.find("clear_online_accounts_like_cpp(").unwrap();
+    assert!(validation < first_runtime_write);
 }
 
 #[test]

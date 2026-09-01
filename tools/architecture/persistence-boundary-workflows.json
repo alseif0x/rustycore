@@ -22,23 +22,6 @@
       "package": "bnet-server",
       "module": "crate",
       "source": "crates/bnet-server/src/main.rs",
-      "enclosing": "fn run_database_updates_like_cpp",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "BNet authentication capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "bnet-server",
-      "module": "crate",
-      "source": "crates/bnet-server/src/main.rs",
       "enclosing": "fn start_ban_expiry_timer",
       "logical_databases": [
         "login"
@@ -955,23 +938,6 @@
       ],
       "stable_boundary": false,
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/lib.rs",
-      "enclosing": "fn update_world_db_core_version_like_cpp",
-      "logical_databases": [
-        "world"
-      ],
-      "boundary": "world-server bootstrap/data-source boundary",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false,
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
     },
@@ -13141,231 +13107,6 @@
     },
     {
       "package": "wow-database",
-      "module": "crate::updater",
-      "source": "crates/wow-database/src/updater.rs",
-      "enclosing": "fn populate_typed_database_like_cpp",
-      "logical_databases": [
-        "updater-control"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::updater",
-      "source": "crates/wow-database/src/updater.rs",
-      "enclosing": "fn update_typed_database_like_cpp",
-      "logical_databases": [
-        "updater-control"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::updater",
-      "source": "crates/wow-database/src/updater.rs",
-      "enclosing": "impl DbUpdater::apply_sql_file",
-      "logical_databases": [
-        "updater-control"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::updater",
-      "source": "crates/wow-database/src/updater.rs",
-      "enclosing": "impl DbUpdater::bootstrap_updates_include_if_empty_like_cpp",
-      "logical_databases": [
-        "updater-control"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::updater",
-      "source": "crates/wow-database/src/updater.rs",
-      "enclosing": "impl DbUpdater::cleanup_orphaned_updates_like_cpp",
-      "logical_databases": [
-        "updater-control"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::updater",
-      "source": "crates/wow-database/src/updater.rs",
-      "enclosing": "impl DbUpdater::ensure_updates_include_table",
-      "logical_databases": [
-        "updater-control"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::updater",
-      "source": "crates/wow-database/src/updater.rs",
-      "enclosing": "impl DbUpdater::ensure_updates_table",
-      "logical_databases": [
-        "updater-control"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::updater",
-      "source": "crates/wow-database/src/updater.rs",
-      "enclosing": "impl DbUpdater::from_database",
-      "logical_databases": [
-        "updater-control"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::updater",
-      "source": "crates/wow-database/src/updater.rs",
-      "enclosing": "impl DbUpdater::new",
-      "logical_databases": [
-        "updater-control"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::updater",
-      "source": "crates/wow-database/src/updater.rs",
-      "enclosing": "impl DbUpdater::populate",
-      "logical_databases": [
-        "updater-control"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::updater",
-      "source": "crates/wow-database/src/updater.rs",
-      "enclosing": "impl DbUpdater::read_applied_files",
-      "logical_databases": [
-        "updater-control"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::updater",
-      "source": "crates/wow-database/src/updater.rs",
-      "enclosing": "impl DbUpdater::read_updates_include",
-      "logical_databases": [
-        "updater-control"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::updater",
-      "source": "crates/wow-database/src/updater.rs",
-      "enclosing": "impl DbUpdater::update",
-      "logical_databases": [
-        "updater-control"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::updater",
-      "source": "crates/wow-database/src/updater.rs",
-      "enclosing": "module",
-      "logical_databases": [
-        "updater-control"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
-      "module": "crate::updater",
-      "source": "crates/wow-database/src/updater.rs",
-      "enclosing": "struct DbUpdater",
-      "logical_databases": [
-        "updater-control"
-      ],
-      "boundary": "wow-database typed adapter",
-      "target_issues": [],
-      "stable_boundary": true,
-      "connection_affinity": "The typed adapter is instantiated against exactly one of updater-control per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
-    },
-    {
-      "package": "wow-database",
       "module": "crate::vehicle_catalog_adapter",
       "source": "crates/wow-database/src/vehicle_catalog_adapter.rs",
       "enclosing": "fn classify_hotfix_rows_like_cpp",
@@ -16352,6 +16093,276 @@
       "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee."
+    },
+    {
+      "package": "rustycore-db",
+      "module": "crate",
+      "source": "crates/rustycore-db/src/main.rs",
+      "enclosing": "fn with_database",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Explicit database migration composition boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The administrative composition root opens exactly one configured typed database at a time; no cross-database transaction is claimed.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "rustycore-db",
+      "module": "crate",
+      "source": "crates/rustycore-db/src/main.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Explicit database migration composition boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "The administrative composition root opens exactly one configured typed database at a time; no cross-database transaction is claimed.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration",
+      "source": "crates/wow-database/src/migration.rs",
+      "enclosing": "fn apply_one",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration",
+      "source": "crates/wow-database/src/migration.rs",
+      "enclosing": "fn baseline_matches",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration",
+      "source": "crates/wow-database/src/migration.rs",
+      "enclosing": "fn ensure_history_table",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration",
+      "source": "crates/wow-database/src/migration.rs",
+      "enclosing": "fn history_row",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration",
+      "source": "crates/wow-database/src/migration.rs",
+      "enclosing": "fn import_transition_history",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration",
+      "source": "crates/wow-database/src/migration.rs",
+      "enclosing": "fn inspect_database",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration",
+      "source": "crates/wow-database/src/migration.rs",
+      "enclosing": "fn inspect_database_for_admin",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration",
+      "source": "crates/wow-database/src/migration.rs",
+      "enclosing": "fn legacy_import_candidates",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration",
+      "source": "crates/wow-database/src/migration.rs",
+      "enclosing": "fn migrate_database",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration",
+      "source": "crates/wow-database/src/migration.rs",
+      "enclosing": "fn migrate_while_locked",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration",
+      "source": "crates/wow-database/src/migration.rs",
+      "enclosing": "fn read_history",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration",
+      "source": "crates/wow-database/src/migration.rs",
+      "enclosing": "fn read_history_from",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration",
+      "source": "crates/wow-database/src/migration.rs",
+      "enclosing": "fn table_exists",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration",
+      "source": "crates/wow-database/src/migration.rs",
+      "enclosing": "fn table_exists_on",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration",
+      "source": "crates/wow-database/src/migration.rs",
+      "enclosing": "fn validate_runtime_schema",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::migration",
+      "source": "crates/wow-database/src/migration.rs",
+      "enclosing": "module",
+      "logical_databases": [
+        "updater-control"
+      ],
+      "boundary": "Manifest-driven MariaDB migration boundary",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Mutation pins one MariaDB connection from advisory-lock acquisition through history and SQL application; read-only inspection uses exactly one selected pool.",
+      "current_order": "The immutable manifest orders one selected logical database by component then version; the CLI visits auth, characters, world, hotfixes and claims no distributed transaction.",
+      "failure_and_unknown_commit": "A success=false history row commits before migration SQL. MariaDB DDL may commit implicitly; failure remains incomplete and requires explicit restore or repair, never automatic rollback or rehash."
     }
   ]
 }
