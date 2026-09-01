@@ -5182,6 +5182,8 @@ struct PlayerTransportLoginStateLikeCpp {
 /// dispatches them to registered handlers, and sends responses back.
 #[derive(Default)]
 struct SessionPersistencePortsLikeCpp {
+    character_administration:
+        Option<Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>>,
     player_lifecycle: Option<Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>>,
     character_enumeration:
         Option<Arc<dyn wow_persistence::CharacterEnumerationPersistencePortLikeCpp>>,
@@ -16268,6 +16270,21 @@ impl WorldSession {
         port: Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>,
     ) {
         self.persistence_ports_like_cpp.player_lifecycle = Some(port);
+    }
+
+    pub fn set_character_administration_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.character_administration = Some(port);
+    }
+
+    pub(crate) fn character_administration_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .character_administration
+            .clone()
     }
 
     pub(crate) fn player_lifecycle_port_like_cpp(

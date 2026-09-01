@@ -4433,6 +4433,14 @@ async fn run_inner(
             Arc::clone(&world_db),
         ),
     );
+    let character_administration_persistence_port: Arc<
+        dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp,
+    > = Arc::new(
+        wow_database::MariaDbCharacterAdministrationPersistenceAdapterLikeCpp::new(
+            Arc::clone(&char_db),
+            Arc::clone(&world_db),
+        ),
+    );
     let character_enumeration_persistence_port: Arc<
         dyn wow_persistence::CharacterEnumerationPersistencePortLikeCpp,
     > = Arc::new(
@@ -4560,6 +4568,7 @@ async fn run_inner(
     let session_resources = Arc::new(SessionResources {
         char_db: Some(Arc::clone(&char_db)),
         login_db: Some(Arc::clone(&login_db)),
+        character_administration_persistence_port: Some(character_administration_persistence_port),
         player_lifecycle_port: Some(Arc::clone(&player_lifecycle_port)),
         character_enumeration_persistence_port: Some(character_enumeration_persistence_port),
         creature_query_catalog_persistence_port: Some(creature_query_catalog_persistence_port),

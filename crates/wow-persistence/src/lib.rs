@@ -25,6 +25,7 @@ mod area_trigger_template_catalog;
 mod area_trigger_world_catalog;
 mod battle_pet_selection_catalog;
 mod canonical_spawn_catalog;
+mod character_administration;
 mod chr_specialization_hotfix;
 mod condition_disable_catalog;
 mod creature_display_hotfix;
@@ -92,6 +93,12 @@ pub use canonical_spawn_catalog::{
     WaypointPathPersistenceRowLikeCpp, WorldStateSavedValuePersistenceRowLikeCpp,
     WorldStateStartupCatalogLikeCpp, WorldStateStartupLoadOutcomeLikeCpp,
     WorldStateStartupPersistencePortLikeCpp, WorldStateTemplatePersistenceRowLikeCpp,
+};
+pub use character_administration::{
+    CharacterAdministrationLoadOutcomeLikeCpp, CharacterAdministrationMutationOutcomeLikeCpp,
+    CharacterAdministrationPersistencePortLikeCpp, CharacterCreatePersistenceRequestLikeCpp,
+    CharacterCustomizationPersistenceLikeCpp, CharacterCustomizeCandidateLikeCpp,
+    CharacterRenameCandidateLikeCpp,
 };
 pub use chr_specialization_hotfix::{
     ChrSpecializationHotfixLoadOutcomeLikeCpp, ChrSpecializationHotfixPersistencePortLikeCpp,
