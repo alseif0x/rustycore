@@ -24,6 +24,7 @@ use std::pin::Pin;
 mod area_trigger_template_catalog;
 mod area_trigger_world_catalog;
 mod battle_pet_selection_catalog;
+mod canonical_spawn_catalog;
 mod chr_specialization_hotfix;
 mod creature_display_hotfix;
 mod difficulty_hotfix;
@@ -71,6 +72,18 @@ pub use area_trigger_world_catalog::{
 pub use battle_pet_selection_catalog::{
     BattlePetBreedPersistenceRowLikeCpp, BattlePetQualityPersistenceRowLikeCpp,
     BattlePetSelectionCatalogLoadOutcomeLikeCpp, BattlePetSelectionCatalogPersistencePortLikeCpp,
+};
+pub use canonical_spawn_catalog::{
+    AreaTriggerSpawnPersistenceRowLikeCpp, CanonicalSpawnCatalogLoadOutcomeLikeCpp,
+    CanonicalSpawnCatalogPersistencePortLikeCpp, CreatureFormationPersistenceRowLikeCpp,
+    CreatureSpawnPersistenceRowLikeCpp, GameObjectSpawnPersistenceRowLikeCpp,
+    LinkedRespawnPersistenceRowLikeCpp, PoolAutospawnCandidatePersistenceRowLikeCpp,
+    PoolMemberKindPersistenceLikeCpp, PoolMemberPersistenceRowLikeCpp,
+    PoolTemplatePersistenceRowLikeCpp, SpawnGroupMemberPersistenceRowLikeCpp,
+    WaypointPathCatalogLikeCpp, WaypointPathNodePersistenceRowLikeCpp,
+    WaypointPathPersistenceRowLikeCpp, WorldStateSavedValuePersistenceRowLikeCpp,
+    WorldStateStartupCatalogLikeCpp, WorldStateStartupLoadOutcomeLikeCpp,
+    WorldStateStartupPersistencePortLikeCpp, WorldStateTemplatePersistenceRowLikeCpp,
 };
 pub use chr_specialization_hotfix::{
     ChrSpecializationHotfixLoadOutcomeLikeCpp, ChrSpecializationHotfixPersistencePortLikeCpp,

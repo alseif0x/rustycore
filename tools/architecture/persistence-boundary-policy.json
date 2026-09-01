@@ -2036,557 +2036,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_area_trigger_spawns_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_area_trigger_spawns_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_area_trigger_spawns_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_canonical_spawn_store_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_canonical_spawn_store_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters",
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_canonical_spawn_store_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow uses independent characters, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_creature_formations_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_creature_formations_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_creature_formations_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_creature_spawns_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_creature_spawns_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_creature_spawns_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_gameobject_spawns_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_gameobject_spawns_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_gameobject_spawns_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_linked_respawns_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_linked_respawns_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_linked_respawns_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_pool_autospawn_candidates_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_pool_autospawn_candidates_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_pool_autospawn_candidates_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_pool_member_rows_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_pool_member_rows_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_pool_member_rows_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_pool_mgr_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_pool_mgr_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_pool_mgr_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_spawn_group_members_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_spawn_group_members_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_spawn_group_members_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_waypoint_paths_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_waypoint_paths_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_waypoint_paths_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn load_world_state_mgr_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn load_world_state_mgr_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters",
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_world_state_mgr_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow uses independent characters, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn read_unsigned_db_u16_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn read_unsigned_db_u16_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters",
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn read_unsigned_db_u16_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow uses independent characters, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn read_unsigned_db_u32_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn read_unsigned_db_u32_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters",
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn read_unsigned_db_u32_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow uses independent characters, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn read_unsigned_db_u64_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn read_unsigned_db_u64_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters",
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn read_unsigned_db_u64_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow uses independent characters, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::fn read_unsigned_db_u8_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "fn read_unsigned_db_u8_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters",
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn read_unsigned_db_u8_like_cpp in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "The workflow uses independent characters, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spawn_store_loader:crates/world-server/src/spawn_store_loader.rs::module",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spawn_store_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spawn_store_loader"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters",
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow module in crates/world-server/src/spawn_store_loader.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for characters, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:world-server:crate::spell_acquisition_loader:crates/world-server/src/spell_acquisition_loader.rs::fn load_effective_spell_reagents_like_cpp",
       "source_class": "production",
       "packages": [
@@ -7977,6 +7426,756 @@
       "connection_affinity": "The adapter stores exactly one World database handle.",
       "current_order": "The handle surface implies no order beyond the two typed methods.",
       "failure_and_unknown_commit": "The handle surface performs no I/O and implies no COMMIT outcome.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::fn load_area_triggers_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn load_area_triggers_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow fn load_area_triggers_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::fn load_creature_spawns_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn load_creature_spawns_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow fn load_creature_spawns_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::fn load_formations_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn load_formations_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow fn load_formations_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::fn load_gameobjects_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn load_gameobjects_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow fn load_gameobjects_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::fn load_linked_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn load_linked_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow fn load_linked_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::fn load_pool_members_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn load_pool_members_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow fn load_pool_members_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::fn load_waypoints_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn load_waypoints_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow fn load_waypoints_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::fn query_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn query_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow fn query_rows_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::fn read_u16_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn read_u16_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow fn read_u16_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::fn read_u32_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn read_u32_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow fn read_u32_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::fn read_u64_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn read_u64_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow fn read_u64_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::fn read_u8_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "fn read_u8_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow fn read_u8_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::impl MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow impl MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::new in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_area_trigger_spawns_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_area_trigger_spawns_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_area_trigger_spawns_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_creature_formations_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_creature_formations_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_creature_formations_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_creature_spawns_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_creature_spawns_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_creature_spawns_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_gameobject_spawns_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_gameobject_spawns_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_gameobject_spawns_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_linked_respawns_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_linked_respawns_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_linked_respawns_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_pool_autospawn_candidates_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_pool_autospawn_candidates_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_pool_autospawn_candidates_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_pool_members_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_pool_members_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_pool_members_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_pool_templates_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_pool_templates_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_pool_templates_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_spawn_group_members_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_spawn_group_members_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_spawn_group_members_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_waypoint_paths_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_waypoint_paths_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow impl wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp for MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp::load_waypoint_paths_like_cpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow module in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::canonical_spawn_catalog_adapter:crates/wow-database/src/canonical_spawn_catalog_adapter.rs::struct MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::canonical_spawn_catalog_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free staged canonical spawn startup capability (#570) currently owns the complete wow-database workflow struct MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp in crates/wow-database/src/canonical_spawn_catalog_adapter.rs.",
+      "connection_affinity": "One adapter owns one WorldDatabase handle; each ordered stage uses that same logical database and no transaction boundary is invented.",
+      "current_order": "Creature spawns, waypoint paths/nodes, formations, gameobjects, area triggers, linked respawns, pool templates, Creature/GameObject/Pool members, pool validation fence, autospawn and spawn groups remain staged in the represented startup order. Each returned stage is fully decoded before its domain application.",
+      "failure_and_unknown_commit": "Each read-only stage returns one complete typed batch or Failed; world-server preserves startup-fatal failure and stops before every later stage. No transaction or unknown-commit outcome is invented.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
@@ -28412,6 +28611,161 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::world_state_startup_adapter:crates/wow-database/src/world_state_startup_adapter.rs::fn load_world_then_character_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/world_state_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::world_state_startup_adapter"
+      ],
+      "enclosings": [
+        "fn load_world_then_character_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free WorldState startup capability (#570) currently owns the complete wow-database workflow fn load_world_then_character_rows_like_cpp in crates/wow-database/src/world_state_startup_adapter.rs.",
+      "connection_affinity": "One adapter owns independent WorldDatabase and CharacterDatabase handles; the sequential reads are not represented as one distributed transaction.",
+      "current_order": "World templates are fully decoded before Character saved values; world-server applies the complete World -> Characters catalog only after both reads succeed.",
+      "failure_and_unknown_commit": "The read-only capability returns one complete typed catalog or Failed and publishes no partial WorldState manager. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::world_state_startup_adapter:crates/wow-database/src/world_state_startup_adapter.rs::impl MariaDbWorldStateStartupPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/world_state_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::world_state_startup_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbWorldStateStartupPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free WorldState startup capability (#570) currently owns the complete wow-database workflow impl MariaDbWorldStateStartupPersistenceAdapterLikeCpp::new in crates/wow-database/src/world_state_startup_adapter.rs.",
+      "connection_affinity": "One adapter owns independent WorldDatabase and CharacterDatabase handles; the sequential reads are not represented as one distributed transaction.",
+      "current_order": "World templates are fully decoded before Character saved values; world-server applies the complete World -> Characters catalog only after both reads succeed.",
+      "failure_and_unknown_commit": "The read-only capability returns one complete typed catalog or Failed and publishes no partial WorldState manager. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::world_state_startup_adapter:crates/wow-database/src/world_state_startup_adapter.rs::impl wow_persistence::WorldStateStartupPersistencePortLikeCpp for MariaDbWorldStateStartupPersistenceAdapterLikeCpp::load_world_then_character_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/world_state_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::world_state_startup_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::WorldStateStartupPersistencePortLikeCpp for MariaDbWorldStateStartupPersistenceAdapterLikeCpp::load_world_then_character_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free WorldState startup capability (#570) currently owns the complete wow-database workflow impl wow_persistence::WorldStateStartupPersistencePortLikeCpp for MariaDbWorldStateStartupPersistenceAdapterLikeCpp::load_world_then_character_like_cpp in crates/wow-database/src/world_state_startup_adapter.rs.",
+      "connection_affinity": "One adapter owns independent WorldDatabase and CharacterDatabase handles; the sequential reads are not represented as one distributed transaction.",
+      "current_order": "World templates are fully decoded before Character saved values; world-server applies the complete World -> Characters catalog only after both reads succeed.",
+      "failure_and_unknown_commit": "The read-only capability returns one complete typed catalog or Failed and publishes no partial WorldState manager. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::world_state_startup_adapter:crates/wow-database/src/world_state_startup_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/world_state_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::world_state_startup_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free WorldState startup capability (#570) currently owns the complete wow-database workflow module in crates/wow-database/src/world_state_startup_adapter.rs.",
+      "connection_affinity": "One adapter owns independent WorldDatabase and CharacterDatabase handles; the sequential reads are not represented as one distributed transaction.",
+      "current_order": "World templates are fully decoded before Character saved values; world-server applies the complete World -> Characters catalog only after both reads succeed.",
+      "failure_and_unknown_commit": "The read-only capability returns one complete typed catalog or Failed and publishes no partial WorldState manager. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::world_state_startup_adapter:crates/wow-database/src/world_state_startup_adapter.rs::struct MariaDbWorldStateStartupPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/world_state_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::world_state_startup_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbWorldStateStartupPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the SQLx-free WorldState startup capability (#570) currently owns the complete wow-database workflow struct MariaDbWorldStateStartupPersistenceAdapterLikeCpp in crates/wow-database/src/world_state_startup_adapter.rs.",
+      "connection_affinity": "One adapter owns independent WorldDatabase and CharacterDatabase handles; the sequential reads are not represented as one distributed transaction.",
+      "current_order": "World templates are fully decoded before Character saved values; world-server applies the complete World -> Characters catalog only after both reads succeed.",
+      "failure_and_unknown_commit": "The read-only capability returns one complete typed catalog or Failed and publishes no partial WorldState manager. No transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-world:crate::canonical_player_sync:crates/wow-world/src/canonical_player_sync.rs::fn hydrate_player_presentation_like_cpp",
       "source_class": "production",
       "packages": [
@@ -32147,6 +32501,7 @@
         "crates/wow-database/src/area_trigger_world_catalog_adapter.rs",
         "crates/wow-database/src/battle_pet_account_adapter.rs",
         "crates/wow-database/src/battle_pet_selection_catalog_adapter.rs",
+        "crates/wow-database/src/canonical_spawn_catalog_adapter.rs",
         "crates/wow-database/src/character_enumeration_adapter.rs",
         "crates/wow-database/src/chr_specialization_hotfix_adapter.rs",
         "crates/wow-database/src/creature_display_hotfix_adapter.rs",
@@ -32202,7 +32557,8 @@
         "crates/wow-database/src/trainer_catalog_adapter.rs",
         "crates/wow-database/src/transaction.rs",
         "crates/wow-database/src/updater.rs",
-        "crates/wow-database/src/void_storage_adapter.rs"
+        "crates/wow-database/src/void_storage_adapter.rs",
+        "crates/wow-database/src/world_state_startup_adapter.rs"
       ],
       "source_prefixes": [],
       "modules": [],
