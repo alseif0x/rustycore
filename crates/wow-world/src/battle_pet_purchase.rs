@@ -86,10 +86,7 @@ pub(crate) const BATTLE_PET_PURCHASE_MAX_ATTEMPTS_LIKE_CPP: u32 = 3;
 pub(crate) const BATTLE_PET_PURCHASE_RETRY_BACKOFF_MS_LIKE_CPP: u64 = 25;
 
 fn record_battle_pet_purchase_publication_trace_like_cpp(name: &'static str) {
-    #[cfg(test)]
-    wow_database::persistence_trace::record_publication(name);
-    #[cfg(not(test))]
-    let _ = name;
+    tracing::trace!(publication = name, "battle-pet persistence publication");
 }
 
 // ── Saga executor (live purchase + login recovery) ────────────────────────

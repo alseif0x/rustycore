@@ -16,6 +16,7 @@ use crate::{
         CommitOutcome, ExplicitTransactionTrace, LogicalDatabase, TracedParam,
         record_batch_not_started,
     },
+    retry_deadlocked_operation_like_cpp,
 };
 
 const GROUP_LOOT_MONEY_ATTEMPT_ORDER_LIKE_CPP: [CharStatements; 2] = [
@@ -30,11 +31,11 @@ fn payouts_in_stable_lock_order_like_cpp(
     payouts
 }
 
-pub struct MariaDbGroupLootMoneyPersistenceAdapterLikeCpp {
+struct MariaDbGroupLootMoneyAttemptAdapterLikeCpp {
     character_db: Arc<CharacterDatabase>,
 }
 
-impl MariaDbGroupLootMoneyPersistenceAdapterLikeCpp {
+impl MariaDbGroupLootMoneyAttemptAdapterLikeCpp {
     pub fn new(character_db: Arc<CharacterDatabase>) -> Self {
         Self { character_db }
     }
@@ -69,7 +70,7 @@ fn rolled_back_database_like_cpp(
     }
 }
 
-impl GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyPersistenceAdapterLikeCpp {
+impl GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyAttemptAdapterLikeCpp {
     fn attempt_group_loot_money_like_cpp(
         &self,
         request: GroupLootMoneyPersistenceRequestLikeCpp,
@@ -213,6 +214,63 @@ impl GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyPersistenceAd
             }
             classify_group_loot_money_reconciliation_like_cpp(&outcomes, &observed)
         })
+    }
+}
+
+/// Concrete capability boundary. The MariaDB adapter owns its process-wide
+/// deadlock retry; gameplay receives only the normalized terminal attempt.
+pub struct MariaDbGroupLootMoneyPersistenceAdapterLikeCpp {
+    inner: MariaDbGroupLootMoneyAttemptAdapterLikeCpp,
+}
+
+impl MariaDbGroupLootMoneyPersistenceAdapterLikeCpp {
+    pub fn new(character_db: Arc<CharacterDatabase>) -> Self {
+        Self {
+            inner: MariaDbGroupLootMoneyAttemptAdapterLikeCpp::new(character_db),
+        }
+    }
+}
+
+impl GroupLootMoneyPersistencePortLikeCpp for MariaDbGroupLootMoneyPersistenceAdapterLikeCpp {
+    fn attempt_group_loot_money_like_cpp(
+        &self,
+        request: GroupLootMoneyPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'_, GroupLootMoneyPersistenceAttemptLikeCpp> {
+        Box::pin(async move {
+            match retry_deadlocked_operation_like_cpp(
+                || async {
+                    match self
+                        .inner
+                        .attempt_group_loot_money_like_cpp(request.clone())
+                        .await
+                    {
+                        GroupLootMoneyPersistenceAttemptLikeCpp::Applied(outcomes) => Ok(outcomes),
+                        other => Err(other),
+                    }
+                },
+                |error| {
+                    matches!(
+                        error,
+                        GroupLootMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
+                            retryable_deadlock: true,
+                            ..
+                        }
+                    )
+                },
+            )
+            .await
+            {
+                Ok(outcomes) => GroupLootMoneyPersistenceAttemptLikeCpp::Applied(outcomes),
+                Err(error) => error,
+            }
+        })
+    }
+
+    fn reconcile_group_loot_money_like_cpp(
+        &self,
+        outcomes: Vec<GroupLootMoneyPersistenceOutcomeLikeCpp>,
+    ) -> PersistenceFutureLikeCpp<'_, GroupLootMoneyReconciliationLikeCpp> {
+        self.inner.reconcile_group_loot_money_like_cpp(outcomes)
     }
 }
 

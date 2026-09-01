@@ -5,12 +5,6 @@
 
 //! Vendor buy/sell/buyback, extended cost, repair and trainer interaction.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::{CharStatements, SqlTransaction, WorldDatabase, WorldStatements};
-
 use super::*;
 
 impl WorldSession {
@@ -86,7 +80,7 @@ impl WorldSession {
 
     async fn resolve_vendor_buy_item_by_cpp_slot(
         &self,
-        world_db: &WorldDatabase,
+        port: Option<&dyn wow_persistence::VendorCatalogPersistencePortLikeCpp>,
         root_entry: u32,
         vendor_slot: u32,
         expected_item_id: u32,
@@ -110,6 +104,8 @@ impl WorldSession {
             });
         }
 
+        let port = port?;
+
         let mut raw_slot = 0u32;
         let mut expanded = std::collections::HashSet::<u32>::new();
         let mut queue = std::collections::VecDeque::new();
@@ -120,26 +116,24 @@ impl WorldSession {
                 continue;
             }
 
-            let mut stmt = world_db.prepare(WorldStatements::SEL_VENDOR_ITEMS);
-            stmt.set_u32(0, root_entry);
-            stmt.set_u32(1, vendor_entry);
-            let mut result = match world_db.query(&stmt).await {
-                Ok(result) => result,
-                Err(e) => {
-                    warn!("BuyItem: vendor item query failed for entry {vendor_entry}: {e}");
+            let rows = match port
+                .load_vendor_rows_like_cpp(root_entry, vendor_entry)
+                .await
+            {
+                wow_persistence::VendorCatalogOutcomeLikeCpp::Loaded(rows) => rows,
+                wow_persistence::VendorCatalogOutcomeLikeCpp::Missing => Vec::new(),
+                wow_persistence::VendorCatalogOutcomeLikeCpp::Failed { reason } => {
+                    warn!("BuyItem: vendor item query failed for entry {vendor_entry}: {reason}");
                     continue;
                 }
             };
 
-            loop {
-                let item_id: i32 = result.try_read(0).unwrap_or(0);
+            for row in rows {
+                let item_id = row.item_id;
                 if item_id > 0 {
                     let current_slot = raw_slot;
                     raw_slot = raw_slot.saturating_add(1);
-                    let item_type = result
-                        .try_read::<u8>(3)
-                        .unwrap_or(ItemVendorType::Item as u8)
-                        as i32;
+                    let item_type = i32::from(row.item_type);
                     let item_known = self
                         .item_store()
                         .map_or(true, |store| store.get(item_id as u32).is_some());
@@ -157,29 +151,18 @@ impl WorldSession {
                         return Some(VendorBuyItem {
                             item_id: row_item_id,
                             item_type,
-                            max_count: result.try_read::<u32>(1).unwrap_or(0),
-                            incr_time: result.try_read::<u32>(10).unwrap_or(0),
-                            player_condition_id: result.try_read::<u32>(11).unwrap_or(0),
-                            has_vendor_conditions: result
-                                .try_read::<u8>(12)
-                                .map(|value| value != 0)
-                                .unwrap_or(false),
-                            extended_cost: result.try_read::<u32>(2).unwrap_or(0),
-                            buy_price: result
-                                .try_read::<i64>(5)
-                                .map(|v| v as u64)
-                                .or_else(|| result.try_read::<u64>(5))
-                                .unwrap_or(0),
-                            max_durability: result.try_read::<u32>(7).unwrap_or(0),
-                            buy_count: result.try_read::<u32>(8).unwrap_or(1),
+                            max_count: row.max_count.max(0) as u32,
+                            incr_time: row.incr_time,
+                            player_condition_id: row.player_condition_id,
+                            has_vendor_conditions: row.has_vendor_conditions,
+                            extended_cost: row.extended_cost,
+                            buy_price: row.buy_price,
+                            max_durability: row.max_durability,
+                            buy_count: row.buy_count,
                         });
                     }
                 } else if item_id < 0 {
                     queue.push_back((-item_id) as u32);
-                }
-
-                if !result.next_row() {
-                    break;
                 }
             }
         }
@@ -435,10 +418,7 @@ impl WorldSession {
             }
         };
 
-        let world_db = match self.world_db() {
-            Some(db) => Arc::clone(db),
-            None => return,
-        };
+        let vendor_catalog = self.vendor_catalog_persistence_port_like_cpp();
 
         let condition_store = self.condition_store().cloned();
         let player_condition_store = self.player_condition_store().cloned();
@@ -488,7 +468,7 @@ impl WorldSession {
             let quantity = vendor_buy_currency_packet_quantity_to_cpp_count(buy.quantity);
             let vendor_item = match self
                 .resolve_vendor_buy_item_by_cpp_slot(
-                    world_db.as_ref(),
+                    vendor_catalog.as_deref(),
                     vendor_entry,
                     vendor_slot,
                     buy.item_id as u32,
@@ -563,8 +543,8 @@ impl WorldSession {
                 vendor_item.max_count,
                 quantity,
             );
-            let char_db = match self.char_db() {
-                Some(db) => Arc::clone(db),
+            let vendor_trade_port = match self.vendor_trade_persistence_port_like_cpp() {
+                Some(port) => port,
                 None => return,
             };
             let mut item_turnin_changes = Vec::new();
@@ -602,20 +582,9 @@ impl WorldSession {
                 }
             }
 
-            let mut tx = SqlTransaction::new();
-            Self::append_item_turnin_statements(
-                char_db.as_ref(),
-                &mut tx,
-                player_guid,
-                &item_turnin_changes,
-            );
             let currency_save = self.plan_player_currency_save_like_cpp(
                 player_guid.counter() as u64,
                 &mut planned_currencies,
-            );
-            wow_database::player_lifecycle_adapter::append_player_currency_save_request_like_cpp(
-                &mut tx,
-                &currency_save,
             );
 
             // C++ mutates currency plus extended-cost turn-ins in one
@@ -631,11 +600,23 @@ impl WorldSession {
                 return;
             };
             let money_marker = self.player_gold_like_cpp();
+            let persistence_request =
+                wow_persistence::VendorTradePersistenceRequestLikeCpp::CurrencyPurchase(
+                    wow_persistence::VendorCurrencyPurchasePersistenceLikeCpp {
+                        player_guid: player_guid.counter() as u64,
+                        money_before: money_marker,
+                        money_after: money_marker,
+                        item_turnins: super::items::item_turnin_persistence_rows_like_cpp(
+                            player_guid,
+                            &item_turnin_changes,
+                        ),
+                        currency_save,
+                    },
+                );
             let Some(money_persistence) = self
-                .commit_exclusive_player_money_transaction_like_cpp(
+                .await_exclusive_player_money_transaction_outcome_like_cpp(
                     money_persistence,
-                    char_db.as_ref(),
-                    tx,
+                    vendor_trade_port.persist_vendor_trade_like_cpp(persistence_request),
                     money_marker,
                     money_marker,
                     "vendor currency purchase",
@@ -714,14 +695,14 @@ impl WorldSession {
                 }
             };
 
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let vendor_trade_port = match self.vendor_trade_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return,
         };
 
         let vendor_item = match self
             .resolve_vendor_buy_item_by_cpp_slot(
-                world_db.as_ref(),
+                vendor_catalog.as_deref(),
                 vendor_entry,
                 vendor_slot,
                 buy.item_id as u32,
@@ -919,16 +900,12 @@ impl WorldSession {
         else {
             return;
         };
-        let mut tx = SqlTransaction::new();
         let old_gold = self.player_gold_like_cpp();
         let new_gold = old_gold.saturating_sub(buy_price);
-        let mut upd_money = char_db.prepare(CharStatements::UPD_CHAR_MONEY);
-        upd_money.set_u64(0, new_gold);
-        upd_money.set_u64(1, player_guid.counter() as u64);
-        tx.append(upd_money);
 
         let mut existing_updates = Vec::new();
         let mut new_stacks = Vec::new();
+        let mut persistence_new_stacks = Vec::new();
         for dest in &store_dest {
             let bag = (dest.pos >> 8) as u8;
             let slot = (dest.pos & 0x00FF) as u8;
@@ -954,11 +931,7 @@ impl WorldSession {
                     return;
                 };
                 let new_count = existing_item.count().saturating_add(dest.count);
-                let mut upd_count = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_COUNT);
-                upd_count.set_u32(0, new_count);
-                upd_count.set_u64(1, inv_item.db_guid);
-                tx.append(upd_count);
-                existing_updates.push((slot, inv_item.guid, new_count));
+                existing_updates.push((slot, inv_item.guid, inv_item.db_guid, new_count));
             } else {
                 let Some((db_guid, item_guid)) = allocated_new_item_guids.next() else {
                     warn!("BuyItem: preallocated item GUID count did not match store plan");
@@ -972,24 +945,20 @@ impl WorldSession {
 
                 let item_flags =
                     vendor_stored_new_item_flags_like_cpp(refund_template.as_ref(), bag, slot);
-                let mut ins_item =
-                    char_db.prepare(CharStatements::INS_ITEM_INSTANCE_WITH_RANDOM_CONTEXT);
-                ins_item.set_u64(0, db_guid);
-                ins_item.set_u32(1, buy.item_id as u32);
-                ins_item.set_u64(2, player_guid.counter() as u64);
-                ins_item.set_u32(3, dest.count);
-                ins_item.set_u32(4, max_durability);
-                ins_item.set_u32(5, item_flags);
-                ins_item.set_i32(6, 0);
-                ins_item.set_i32(7, 0);
-                ins_item.set_u8(8, ItemContext::Vendor as u8);
-                tx.append(ins_item);
-
-                let mut ins_inv = char_db.prepare(CharStatements::INS_CHAR_INVENTORY);
-                ins_inv.set_u64(0, player_guid.counter() as u64);
-                ins_inv.set_u8(1, slot);
-                ins_inv.set_u64(2, db_guid);
-                tx.append(ins_inv);
+                persistence_new_stacks.push(
+                    wow_persistence::VendorPurchasedStackPersistenceLikeCpp {
+                        item_guid: db_guid,
+                        item_entry: buy.item_id as u32,
+                        owner_guid: player_guid.counter() as u64,
+                        count: dest.count,
+                        durability: max_durability,
+                        flags: item_flags,
+                        random_properties_id: 0,
+                        property_seed: 0,
+                        context: ItemContext::Vendor as u8,
+                        inventory_slot: slot,
+                    },
+                );
 
                 new_stacks.push((slot, db_guid, item_guid, dest.count, item_flags));
             }
@@ -1002,21 +971,6 @@ impl WorldSession {
                 })
             })
             .flatten();
-        if let Some((refund_item_db_guid, refund_item_flags)) = refund_item_db_guid {
-            let mut upd_flags = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_FLAGS);
-            upd_flags.set_u32(0, refund_item_flags);
-            upd_flags.set_u64(1, refund_item_db_guid);
-            tx.append(upd_flags);
-            append_item_refund_insert_statements(
-                char_db.as_ref(),
-                &mut tx,
-                refund_item_db_guid,
-                player_guid.counter() as u64,
-                buy_price,
-                vendor_item.extended_cost as u16,
-            );
-        }
-
         let mut item_turnin_changes = Vec::new();
         for &(item_id, amount) in &extended_cost_item_costs {
             let Some(mut changes) = self.plan_destroy_item_count_direct_inventory(item_id, amount)
@@ -1026,13 +980,6 @@ impl WorldSession {
             };
             item_turnin_changes.append(&mut changes);
         }
-        Self::append_item_turnin_statements(
-            char_db.as_ref(),
-            &mut tx,
-            player_guid,
-            &item_turnin_changes,
-        );
-
         let mut planned_currencies = self.player_currencies_like_cpp().clone();
         for &(currency_id, amount) in &extended_cost_currency_costs {
             if i32::try_from(amount).is_err()
@@ -1050,16 +997,42 @@ impl WorldSession {
             player_guid.counter() as u64,
             &mut planned_currencies,
         );
-        wow_database::player_lifecycle_adapter::append_player_currency_save_request_like_cpp(
-            &mut tx,
-            &currency_save,
-        );
-
+        let persistence_request =
+            wow_persistence::VendorTradePersistenceRequestLikeCpp::ItemPurchase(
+                wow_persistence::VendorItemPurchasePersistenceLikeCpp {
+                    player_guid: player_guid.counter() as u64,
+                    money_before: old_gold,
+                    money_after: new_gold,
+                    existing_stacks: existing_updates
+                        .iter()
+                        .map(|&(_, _, item_guid, new_count)| {
+                            wow_persistence::VendorExistingStackPersistenceLikeCpp {
+                                item_guid,
+                                new_count,
+                            }
+                        })
+                        .collect(),
+                    new_stacks: persistence_new_stacks,
+                    refund_metadata: refund_item_db_guid.map(|(item_guid, flags_after)| {
+                        wow_persistence::VendorRefundMetadataPersistenceLikeCpp {
+                            item_guid,
+                            player_guid: player_guid.counter() as u64,
+                            paid_money: buy_price,
+                            paid_extended_cost: vendor_item.extended_cost as u16,
+                            flags_after,
+                        }
+                    }),
+                    item_turnins: super::items::item_turnin_persistence_rows_like_cpp(
+                        player_guid,
+                        &item_turnin_changes,
+                    ),
+                    currency_save,
+                },
+            );
         let Some(money_persistence) = self
-            .commit_exclusive_player_money_transaction_like_cpp(
+            .await_exclusive_player_money_transaction_outcome_like_cpp(
                 money_persistence,
-                char_db.as_ref(),
-                tx,
+                vendor_trade_port.persist_vendor_trade_like_cpp(persistence_request),
                 old_gold,
                 new_gold,
                 "vendor item purchase",
@@ -1082,7 +1055,7 @@ impl WorldSession {
         self.stage_player_money_change_like_cpp(old_gold, new_gold);
         self.apply_item_turnin_changes(player_guid, map_id, &item_turnin_changes);
         self.set_player_currencies_like_cpp(planned_currencies);
-        for &(_, item_guid, new_count) in &existing_updates {
+        for &(_, item_guid, _, new_count) in &existing_updates {
             self.update_inventory_item_object_like_cpp(item_guid, |item| {
                 item.set_count(new_count);
             });
@@ -1250,7 +1223,7 @@ impl WorldSession {
             self.send_packet(&UpdateObject::create_stored_items(item_creates, map_id));
         }
 
-        for &(_, item_guid, new_count) in &existing_updates {
+        for &(_, item_guid, _, new_count) in &existing_updates {
             self.send_packet(&UpdateObject::item_stack_count_update(
                 item_guid, map_id, new_count,
             ));
@@ -1372,8 +1345,8 @@ impl WorldSession {
             return;
         }
 
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let vendor_trade_port = match self.vendor_trade_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return,
         };
         let Some(money_persistence) = self
@@ -1382,15 +1355,11 @@ impl WorldSession {
         else {
             return;
         };
-        let mut tx = SqlTransaction::new();
         let old_gold = self.player_gold_like_cpp();
         let new_gold = old_gold.saturating_sub(price);
-        let mut upd_money = char_db.prepare(CharStatements::UPD_CHAR_MONEY);
-        upd_money.set_u64(0, new_gold);
-        upd_money.set_u64(1, player_guid.counter() as u64);
-        tx.append(upd_money);
 
         let mut existing_updates = Vec::new();
+        let mut persistence_destinations = Vec::new();
         let mut moved_slot = None;
         let mut moved_count = 0u32;
         for dest in &store_dest {
@@ -1415,11 +1384,13 @@ impl WorldSession {
                     return;
                 };
                 let new_count = existing_item.count().saturating_add(dest.count);
-                let mut upd_count = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_COUNT);
-                upd_count.set_u32(0, new_count);
-                upd_count.set_u64(1, inv_item.db_guid);
-                tx.append(upd_count);
                 existing_updates.push((slot, inv_item.guid, new_count));
+                persistence_destinations.push(
+                    wow_persistence::VendorBuybackDestinationPersistenceLikeCpp::Merge {
+                        item_guid: inv_item.db_guid,
+                        new_count,
+                    },
+                );
             } else {
                 if moved_slot.is_some() {
                     self.send_equip_error(
@@ -1431,38 +1402,31 @@ impl WorldSession {
                     );
                     return;
                 }
-                let mut upd_slot = char_db.prepare(CharStatements::UPD_CHAR_INVENTORY_SLOT);
-                upd_slot.set_u8(0, slot);
-                upd_slot.set_u64(1, player_guid.counter() as u64);
-                upd_slot.set_u64(2, buyback_item.db_guid);
-                tx.append(upd_slot);
-                if runtime_item.count() != dest.count {
-                    let mut upd_count = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_COUNT);
-                    upd_count.set_u32(0, dest.count);
-                    upd_count.set_u64(1, buyback_item.db_guid);
-                    tx.append(upd_count);
-                }
+                persistence_destinations.push(
+                    wow_persistence::VendorBuybackDestinationPersistenceLikeCpp::Move {
+                        inventory_slot: slot,
+                        item_guid: buyback_item.db_guid,
+                        new_count: (runtime_item.count() != dest.count).then_some(dest.count),
+                    },
+                );
                 moved_slot = Some(slot);
                 moved_count = dest.count;
             }
         }
 
-        if moved_slot.is_none() {
-            let mut del_inv = char_db.prepare(CharStatements::DEL_CHAR_INVENTORY_ITEM);
-            del_inv.set_u64(0, player_guid.counter() as u64);
-            del_inv.set_u64(1, buyback_item.db_guid);
-            tx.append(del_inv);
-
-            let mut del_item = char_db.prepare(CharStatements::DEL_ITEM_INSTANCE);
-            del_item.set_u64(0, buyback_item.db_guid);
-            tx.append(del_item);
-        }
-
+        let persistence_request = wow_persistence::VendorTradePersistenceRequestLikeCpp::Buyback(
+            wow_persistence::VendorBuybackPersistenceLikeCpp {
+                player_guid: player_guid.counter() as u64,
+                money_before: old_gold,
+                money_after: new_gold,
+                destinations: persistence_destinations,
+                delete_source_item_guid: moved_slot.is_none().then_some(buyback_item.db_guid),
+            },
+        );
         let Some(money_persistence) = self
-            .commit_exclusive_player_money_transaction_like_cpp(
+            .await_exclusive_player_money_transaction_outcome_like_cpp(
                 money_persistence,
-                char_db.as_ref(),
-                tx,
+                vendor_trade_port.persist_vendor_trade_like_cpp(persistence_request),
                 old_gold,
                 new_gold,
                 "vendor buyback purchase",
@@ -1585,8 +1549,8 @@ impl WorldSession {
             return;
         }
 
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let vendor_trade_port = match self.vendor_trade_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return,
         };
 
@@ -1646,14 +1610,12 @@ impl WorldSession {
 
         // ── Get sell price from item_sparse directly ──
         let sell_price: u64 = {
-            let world_db = match self.world_db() {
-                Some(db) => Arc::clone(db),
+            let port = match self.vendor_catalog_persistence_port_like_cpp() {
+                Some(port) => port,
                 None => return,
             };
-            let mut stmt = world_db.prepare(WorldStatements::SEL_ITEM_SELL_PRICE);
-            stmt.set_u32(0, item.entry_id);
-            match world_db.query(&stmt).await {
-                Ok(r) if !r.is_empty() => r.try_read::<u64>(0).unwrap_or(0),
+            match port.load_item_sell_price_like_cpp(item.entry_id).await {
+                wow_persistence::VendorCatalogOutcomeLikeCpp::Loaded(price) => price,
                 _ => 0,
             }
         };
@@ -1694,33 +1656,15 @@ impl WorldSession {
             .saturating_add(30 * 3600)
             .min(u64::from(u32::MAX)) as i64;
 
-        let mut tx = SqlTransaction::new();
-        if let Some(old_buyback) = &old_buyback {
-            let mut del_old_inv = char_db.prepare(CharStatements::DEL_CHAR_INVENTORY_ITEM);
-            del_old_inv.set_u64(0, player_guid.counter() as u64);
-            del_old_inv.set_u64(1, old_buyback.db_guid);
-            tx.append(del_old_inv);
-
-            let mut del_old_item = char_db.prepare(CharStatements::DEL_ITEM_INSTANCE);
-            del_old_item.set_u64(0, old_buyback.db_guid);
-            tx.append(del_old_item);
-        }
-
         let mut new_buyback_stack = None;
-        match sell_amount {
+        let persistence_sold_item = match sell_amount {
             SellItemAmountAction::FullStack { .. } => {
-                let mut upd_slot = char_db.prepare(CharStatements::UPD_CHAR_INVENTORY_SLOT);
-                upd_slot.set_u8(0, buyback_slot);
-                upd_slot.set_u64(1, player_guid.counter() as u64);
-                upd_slot.set_u64(2, item.db_guid);
-                tx.append(upd_slot);
+                wow_persistence::VendorSaleItemPersistenceLikeCpp::FullStack {
+                    item_guid: item.db_guid,
+                    buyback_slot,
+                }
             }
             SellItemAmountAction::PartialStack { remaining, amount } => {
-                let mut upd_count = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_COUNT);
-                upd_count.set_u32(0, remaining);
-                upd_count.set_u64(1, item.db_guid);
-                tx.append(upd_count);
-
                 let Some((new_db_guid, new_item_guid)) = self
                     .allocate_item_instance_guids_like_cpp(1)
                     .and_then(|mut allocated| allocated.pop())
@@ -1751,46 +1695,48 @@ impl WorldSession {
                     return;
                 };
 
-                let mut ins_item = char_db.prepare(CharStatements::INS_ITEM_INSTANCE_CLONE);
-                ins_item.set_u64(0, new_db_guid);
-                ins_item.set_u32(1, item.entry_id);
-                ins_item.set_u64(2, player_guid.counter() as u64);
-                ins_item.set_u64(3, cloned_data.creator.counter() as u64);
-                ins_item.set_u64(4, cloned_data.gift_creator.counter() as u64);
-                ins_item.set_u32(5, cloned_item.count());
-                ins_item.set_u32(6, cloned_data.expiration);
-                ins_item.set_string(7, charges);
-                ins_item.set_string(8, enchantments);
-                ins_item.set_u32(9, cloned_data.dynamic_flags);
-                ins_item.set_u32(10, cloned_data.durability);
-                ins_item.set_u32(11, cloned_data.create_played_time);
-                ins_item.set_i32(12, cloned_data.random_properties_id);
-                ins_item.set_i32(13, cloned_data.property_seed);
-                ins_item.set_u8(14, u8::try_from(cloned_data.context).unwrap_or(0));
-                tx.append(ins_item);
-
-                let mut ins_inv = char_db.prepare(CharStatements::INS_CHAR_INVENTORY);
-                ins_inv.set_u64(0, player_guid.counter() as u64);
-                ins_inv.set_u8(1, buyback_slot);
-                ins_inv.set_u64(2, new_db_guid);
-                tx.append(ins_inv);
+                let persistence = wow_persistence::VendorSaleItemPersistenceLikeCpp::PartialStack {
+                    source_item_guid: item.db_guid,
+                    source_count_after: remaining,
+                    sold_clone: wow_persistence::VendorSoldClonePersistenceLikeCpp {
+                        item_guid: new_db_guid,
+                        item_entry: item.entry_id,
+                        owner_guid: player_guid.counter() as u64,
+                        creator_guid: cloned_data.creator.counter() as u64,
+                        gift_creator_guid: cloned_data.gift_creator.counter() as u64,
+                        count: cloned_item.count(),
+                        expiration: cloned_data.expiration,
+                        charges,
+                        enchantments,
+                        flags: cloned_data.dynamic_flags,
+                        durability: cloned_data.durability,
+                        create_played_time: cloned_data.create_played_time,
+                        random_properties_id: cloned_data.random_properties_id,
+                        property_seed: cloned_data.property_seed,
+                        context: u8::try_from(cloned_data.context).unwrap_or(0),
+                        buyback_slot,
+                    },
+                };
 
                 new_buyback_stack = Some((new_db_guid, cloned_item, remaining));
+                persistence
             }
             SellItemAmountAction::Invalid => unreachable!(),
-        }
+        };
 
-        // ── Add gold + save to DB ──
-        let mut upd_money = char_db.prepare(CharStatements::UPD_CHAR_MONEY);
-        upd_money.set_u64(0, new_gold);
-        upd_money.set_u64(1, player_guid.counter() as u64);
-        tx.append(upd_money);
-
+        let persistence_request = wow_persistence::VendorTradePersistenceRequestLikeCpp::Sale(
+            wow_persistence::VendorSalePersistenceLikeCpp {
+                player_guid: player_guid.counter() as u64,
+                money_before: old_gold,
+                money_after: new_gold,
+                evicted_buyback_item_guid: old_buyback.as_ref().map(|item| item.db_guid),
+                sold_item: persistence_sold_item,
+            },
+        );
         let Some(money_persistence) = self
-            .commit_exclusive_player_money_transaction_like_cpp(
+            .await_exclusive_player_money_transaction_outcome_like_cpp(
                 money_persistence,
-                char_db.as_ref(),
-                tx,
+                vendor_trade_port.persist_vendor_trade_like_cpp(persistence_request),
                 old_gold,
                 new_gold,
                 "vendor item sale",
@@ -1971,8 +1917,8 @@ impl WorldSession {
             return;
         }
 
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let vendor_trade_port = match self.vendor_trade_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return,
         };
 
@@ -1985,15 +1931,22 @@ impl WorldSession {
             || refund_item.refund_recipient() != player_guid
         {
             let new_flags = refund_item.item_flags_bits() & !ItemFieldFlags::REFUNDABLE.bits();
-            let mut tx = SqlTransaction::new();
-            append_item_refund_clear_statements(
-                char_db.as_ref(),
-                &mut tx,
-                refund_inv_item.db_guid,
-                new_flags,
-            );
-            if let Err(e) = char_db.commit_transaction(tx).await {
-                warn!("ItemPurchaseRefund: refund cleanup transaction failed: {e}");
+            let outcome = vendor_trade_port
+                .clear_refund_metadata_like_cpp(
+                    wow_persistence::VendorRefundCleanupPersistenceLikeCpp {
+                        item_guid: refund_inv_item.db_guid,
+                        flags_after: new_flags,
+                    },
+                )
+                .await;
+            if !matches!(
+                outcome,
+                wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. }
+            ) {
+                warn!(
+                    ?outcome,
+                    "ItemPurchaseRefund: refund cleanup transaction failed"
+                );
                 return;
             }
 
@@ -2210,37 +2163,12 @@ impl WorldSession {
         else {
             return;
         };
-        let mut tx = SqlTransaction::new();
-        let mut del_refund = char_db.prepare(CharStatements::DEL_ITEM_REFUND_INSTANCE);
-        del_refund.set_u64(0, refund_inv_item.db_guid);
-        tx.append(del_refund);
-
-        let mut del_inv = char_db.prepare(CharStatements::DEL_CHAR_INVENTORY_ITEM);
-        del_inv.set_u64(0, player_guid.counter() as u64);
-        del_inv.set_u64(1, refund_inv_item.db_guid);
-        tx.append(del_inv);
-
-        let mut del_item = char_db.prepare(CharStatements::DEL_ITEM_INSTANCE);
-        del_item.set_u64(0, refund_inv_item.db_guid);
-        tx.append(del_item);
-
         let old_money = self.player_gold_like_cpp();
         let money_gain = player_money_gain_like_cpp(old_money, refund_item.paid_money());
         let money_overflow = money_gain.is_none();
         let new_gold = money_gain.unwrap_or(old_money);
-        let mut upd_money = char_db.prepare(CharStatements::UPD_CHAR_MONEY);
-        upd_money.set_u64(0, new_gold);
-        upd_money.set_u64(1, player_guid.counter() as u64);
-        tx.append(upd_money);
-
-        for &(_, db_guid, new_count) in planned_existing_counts.values() {
-            let mut upd_count = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_COUNT);
-            upd_count.set_u32(0, new_count);
-            upd_count.set_u64(1, db_guid);
-            tx.append(upd_count);
-        }
-
         let mut created_new_stacks = Vec::new();
+        let mut persistence_new_stacks = Vec::new();
         if !planned_new_stacks.is_empty() {
             let Some(allocated_guids) =
                 self.allocate_item_instance_guids_like_cpp(planned_new_stacks.len())
@@ -2258,19 +2186,16 @@ impl WorldSession {
             };
 
             for (stack, (db_guid, item_guid)) in planned_new_stacks.iter().zip(allocated_guids) {
-                let mut ins_item = char_db.prepare(CharStatements::INS_ITEM_INSTANCE);
-                ins_item.set_u64(0, db_guid);
-                ins_item.set_u32(1, stack.entry_id);
-                ins_item.set_u64(2, player_guid.counter() as u64);
-                ins_item.set_u32(3, stack.count);
-                ins_item.set_u32(4, stack.max_durability);
-                tx.append(ins_item);
-
-                let mut ins_inv = char_db.prepare(CharStatements::INS_CHAR_INVENTORY);
-                ins_inv.set_u64(0, player_guid.counter() as u64);
-                ins_inv.set_u8(1, stack.slot);
-                ins_inv.set_u64(2, db_guid);
-                tx.append(ins_inv);
+                persistence_new_stacks.push(
+                    wow_persistence::VendorRefundReturnedStackPersistenceLikeCpp {
+                        item_guid: db_guid,
+                        item_entry: stack.entry_id,
+                        owner_guid: player_guid.counter() as u64,
+                        count: stack.count,
+                        durability: stack.max_durability,
+                        inventory_slot: stack.slot,
+                    },
+                );
 
                 created_new_stacks.push((stack.clone(), db_guid, item_guid));
             }
@@ -2299,16 +2224,29 @@ impl WorldSession {
             &mut persisted_currencies,
         );
         self.set_player_currencies_like_cpp(persisted_currencies);
-        wow_database::player_lifecycle_adapter::append_player_currency_save_request_like_cpp(
-            &mut tx,
-            &currency_save,
+        let persistence_request = wow_persistence::VendorTradePersistenceRequestLikeCpp::Refund(
+            wow_persistence::VendorRefundPersistenceLikeCpp {
+                player_guid: player_guid.counter() as u64,
+                refunded_item_guid: refund_inv_item.db_guid,
+                money_before: old_money,
+                money_after: new_gold,
+                existing_stacks: planned_existing_counts
+                    .values()
+                    .map(|&(_, item_guid, new_count)| {
+                        wow_persistence::VendorExistingStackPersistenceLikeCpp {
+                            item_guid,
+                            new_count,
+                        }
+                    })
+                    .collect(),
+                new_stacks: persistence_new_stacks,
+                currency_save,
+            },
         );
-
         let Some(money_persistence) = self
-            .commit_exclusive_player_money_transaction_like_cpp(
+            .await_exclusive_player_money_transaction_outcome_like_cpp(
                 money_persistence,
-                char_db.as_ref(),
-                tx,
+                vendor_trade_port.persist_vendor_trade_like_cpp(persistence_request),
                 old_money,
                 new_gold,
                 "vendor item purchase refund",

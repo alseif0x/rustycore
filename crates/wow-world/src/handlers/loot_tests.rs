@@ -40,6 +40,7 @@ use super::{
     start_loot_roll_packet_like_cpp, stored_item_money_zero_without_source_outcome_like_cpp,
 };
 use crate::conditions::QUEST_STATUS_REWARDED_LIKE_CPP;
+use crate::player_inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
 use crate::session::directory::{
     PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp, PlayerRegistry,
     PlayerSessionRegistrationLikeCpp,
@@ -80,7 +81,6 @@ use wow_data::{
     SpellEffectInfo, SpellInfo, SpellMiscEntry, SpellMiscStore, SpellRangeEntry, SpellRangeStore,
     SpellStore,
 };
-use wow_database::{CharStatements, DatabaseError, SqlTransactionCommitError, StatementDef};
 use wow_entities::{
     AccessorObjectKind, CORPSE_DYNFLAG_LOOTABLE, Corpse, CorpseType, Creature, CreatureOwnedLoot,
     GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_FISHING_NODE,
@@ -112,7 +112,7 @@ use wow_packet::{ServerPacket, WorldPacket};
 use wow_persistence::{
     GroupLootMoneyPersistenceAttemptLikeCpp, GroupLootMoneyPersistenceOutcomeLikeCpp,
     GroupLootMoneyPersistencePortLikeCpp, GroupLootMoneyPersistenceRequestLikeCpp,
-    GroupLootMoneyReconciliationLikeCpp, PersistenceFutureLikeCpp,
+    GroupLootMoneyReconciliationLikeCpp, PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp,
     StoredItemMoneyPersistenceAttemptLikeCpp, StoredItemMoneyPersistencePortLikeCpp,
     StoredItemMoneyPersistenceRequestLikeCpp,
 };
@@ -2339,11 +2339,11 @@ async fn item_grant_commit_unknown_quarantines_claim_and_kicks_even_when_queue_f
         }))
         .unwrap();
 
-    let worker = super::spawn_sql_loot_claim_persistence_worker_like_cpp(
+    let worker = super::spawn_loot_item_persistence_worker_like_cpp(
         async {
-            Err(SqlTransactionCommitError::CommitOutcomeUnknown(
-                DatabaseError::Transaction("lost COMMIT reply".to_string()),
-            ))
+            PersistenceOutcomeLikeCpp::Unknown {
+                reason: "lost COMMIT reply".to_string(),
+            }
         },
         Some(claim),
         None,
@@ -2354,9 +2354,8 @@ async fn item_grant_commit_unknown_quarantines_claim_and_kicks_even_when_queue_f
 
     assert!(matches!(
         result,
-        Err(super::LootClaimPersistenceWorkerError::Persistence(
-            SqlTransactionCommitError::CommitOutcomeUnknown(_)
-        ))
+        Err(super::LootClaimPersistenceWorkerError::Persistence(reason))
+            if reason == "lost COMMIT reply"
     ));
     assert_eq!(
         authority.lifecycle_like_cpp(),
@@ -8325,16 +8324,7 @@ fn test_item_record(item_id: u32, random_select: u16, random_suffix_group_id: u1
 }
 
 #[test]
-fn loot_item_random_context_runtime_and_persistence_fields_match_entry() {
-    let sql = CharStatements::INS_ITEM_INSTANCE_WITH_RANDOM_CONTEXT.sql();
-    assert!(sql.contains("randomPropertiesId"));
-    assert!(sql.contains("randomPropertiesSeed"));
-    assert!(sql.contains("context"));
-    assert!(
-        sql.contains("'', '', ?, ?, ?, ?"),
-        "stored-new-item flags must be a bound parameter, not the old hard-coded zero"
-    );
-
+fn loot_item_random_context_runtime_fields_match_entry() {
     let item_guid = ObjectGuid::create_item(1, 902);
     let owner_guid = ObjectGuid::create_player(1, 42);
     let mut item = Item::new(0);
@@ -8449,39 +8439,6 @@ fn historical_stack_binding_adds_only_soulbound_like_cpp() {
 }
 
 #[tokio::test]
-async fn existing_stack_count_and_binding_share_one_sql_transaction() {
-    let pool = sqlx::mysql::MySqlPoolOptions::new()
-        .max_connections(1)
-        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
-        .expect("syntactically valid lazy MySQL pool");
-    let char_db = wow_database::CharacterDatabase::from_pool(pool);
-
-    let mut bound_update = wow_database::SqlTransaction::new();
-    WorldSession::append_existing_loot_stack_persistence_like_cpp(
-        &char_db,
-        &mut bound_update,
-        77,
-        19,
-        Some(ItemFieldFlags::SOULBOUND.bits()),
-    );
-    assert_eq!(
-        bound_update.len(),
-        2,
-        "count and DynamicFlags must be committed or rolled back together"
-    );
-
-    let mut count_only_update = wow_database::SqlTransaction::new();
-    WorldSession::append_existing_loot_stack_persistence_like_cpp(
-        &char_db,
-        &mut count_only_update,
-        77,
-        19,
-        None,
-    );
-    assert_eq!(count_only_update.len(), 1);
-}
-
-#[tokio::test]
 async fn failed_existing_stack_store_publishes_neither_count_nor_binding() {
     let (mut session, _send_rx) = make_session_with_send_capacity(4);
     let player_guid = ObjectGuid::create_player(1, 42);
@@ -8515,14 +8472,12 @@ async fn failed_existing_stack_store_publishes_neither_count_nor_binding() {
     );
     session.insert_inventory_item_object(item);
 
-    let failing_pool = sqlx::mysql::MySqlPoolOptions::new()
-        .max_connections(1)
-        .acquire_timeout(Duration::from_millis(100))
-        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
-        .expect("syntactically valid lazy MySQL pool");
-    session.set_char_db(Arc::new(wow_database::CharacterDatabase::from_pool(
-        failing_pool,
-    )));
+    let (persistence, requests) = PlayerInventoryPersistencePortFixtureLikeCpp::new_like_cpp(
+        PersistenceOutcomeLikeCpp::Failed {
+            reason: "fixture rollback".into(),
+        },
+    );
+    session.set_player_inventory_persistence_port_like_cpp(persistence);
 
     let stored = session
         .store_direct_loot_item_like_cpp(
@@ -8550,6 +8505,21 @@ async fn failed_existing_stack_store_publishes_neither_count_nor_binding() {
         .expect("failed transaction keeps the historical stack");
     assert_eq!(historical.count(), 4);
     assert_eq!(historical.item_flags_bits(), 0);
+    let requests = requests.lock().unwrap();
+    let [wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::LootDirectItemGrant(request)] =
+        requests.as_slice()
+    else {
+        panic!("direct loot must use its semantic inventory persistence variant");
+    };
+    assert_eq!(request.existing_stacks.len(), 1);
+    assert_eq!(request.existing_stacks[0].item_guid, 77);
+    assert_eq!(request.existing_stacks[0].new_count, 5);
+    assert_eq!(
+        request.existing_stacks[0].dynamic_flags,
+        Some(ItemFieldFlags::SOULBOUND.bits())
+    );
+    assert!(request.new_stacks.is_empty());
+    assert_eq!(request.stored_item_source, None);
 }
 
 #[test]

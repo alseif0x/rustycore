@@ -9,8 +9,6 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::WorldStatements;
-
 use super::*;
 
 impl WorldSession {
@@ -184,57 +182,45 @@ impl WorldSession {
         table: DisenchantLootTemplateTable,
         entry: u32,
     ) -> Vec<LootStoreItem> {
-        let Some(world_db) = self.world_db() else {
+        let Some(port) = self.loot_template_catalog_persistence_port_like_cpp() else {
             return Vec::new();
         };
 
-        let statement = match table {
+        let persistence_table = match table {
             DisenchantLootTemplateTable::Disenchant => {
-                WorldStatements::SEL_DISENCHANT_LOOT_TEMPLATE_ROWS
+                wow_persistence::LootTemplateTablePersistenceLikeCpp::Disenchant
             }
             DisenchantLootTemplateTable::Reference => {
-                WorldStatements::SEL_REFERENCE_LOOT_TEMPLATE_ROWS
+                wow_persistence::LootTemplateTablePersistenceLikeCpp::Reference
             }
         };
-        let mut stmt = world_db.prepare(statement);
-        stmt.set_u32(0, entry);
-
-        let mut result = match world_db.query(&stmt).await {
-            Ok(result) => result,
-            Err(err) => {
+        let rows = match port
+            .load_loot_template_rows_like_cpp(persistence_table, entry)
+            .await
+        {
+            wow_persistence::LootTemplateCatalogOutcomeLikeCpp::Loaded(rows) => rows,
+            wow_persistence::LootTemplateCatalogOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     entry,
                     table = table.name(),
-                    error = %err,
+                    error = %reason,
                     "failed to load represented disenchant loot template rows"
                 );
                 return Vec::new();
             }
         };
-
-        let mut rows = Vec::new();
-        if result.is_empty() {
-            return rows;
-        }
-
-        loop {
-            rows.push(LootStoreItem {
-                item_id: result.try_read::<u32>(0).unwrap_or(0),
-                reference: result.try_read::<u32>(1).unwrap_or(0),
-                chance: result.try_read::<f32>(2).unwrap_or(0.0),
+        rows.into_iter()
+            .map(|row| LootStoreItem {
+                item_id: row.item_id,
+                reference: row.reference,
+                chance: row.chance,
                 needs_quest: false,
-                loot_mode: result.try_read::<u16>(4).unwrap_or(0),
-                group_id: result.try_read::<u8>(5).unwrap_or(0),
-                min_count: result.try_read::<u8>(6).unwrap_or(0),
-                max_count: result.try_read::<u8>(7).unwrap_or(0),
-            });
-
-            if !result.next_row() {
-                break;
-            }
-        }
-
-        rows
+                loot_mode: row.loot_mode,
+                group_id: row.group_id,
+                min_count: row.min_count,
+                max_count: row.max_count,
+            })
+            .collect()
     }
 
     pub(super) fn has_incomplete_quest_item_drop_for_item_like_cpp(&self, item_id: u32) -> bool {

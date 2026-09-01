@@ -627,24 +627,24 @@ crate move stays open, as do the mailbox pump (#140) and the `PlayerBroadcastInf
 (#252). No public API was added: the crate-root `wow_network::PlayerRegistry` re-export was
 removed, and the exact direct-registry inventory therefore falls from 573 to 572 rows.
 
-At the same HEAD, the syntax-aware ratchet records 731 `WorldSession` fields: 719 production and
-12 `cfg(test)` fixtures. It also records all 46 logical impl owners and 3,284 exact
-associated-item signatures rather than freezing the number of physical `impl` blocks. Issue #410
-retires the rest-state statement builder and replaces the statement-shaped XP plan with one semantic
-request, a net reduction of one signature. Private composition-side `SessionResources` has 248 fields,
-of which 191 are optional;
+At the same HEAD, the syntax-aware ratchet records 726 `WorldSession` fields: 714 production and
+12 `cfg(test)` fixtures. It also records all 48 logical impl owners and 3,322 exact
+associated-item signatures rather than freezing the number of physical `impl` blocks. Issue #169
+removes the concrete Character-database field plus its getter/setter and three statement-shaped
+quest/item helpers, replacing them with one typed Player-quest capability inside the existing
+persistence aggregate. Private composition-side `SessionResources` has 273 fields, of which 216
+are optional;
 `PlayerBroadcastInfo` is retired; and `SessionCommand` has 38 variants plus 45 transitively
-reachable payload types. The factory has 252 `set_*` and one `install_*` call. The generated-input surface has 47 exact
+reachable payload types. The factory has 277 exact setter call sites. The generated-input surface has 47 exact
 records, and direct access to `PlayerRegistry`, `GroupRegistry`, or `PendingInvites` is frozen as
-589 exact AST rows. After #410 moved the represented XP/rest transaction behind the lifecycle port,
-the workspace-wide persistence inventory contains 21,655 exact rows—11,546 production and 10,109
-test-fixture—with multiplicity 23,948 (13,112 production and 10,836 test). The reviewed delta
-removes 35 production concrete-access rows (multiplicity 39) from the three `wow-world` XP/rest
-workflow groups; the existing stable `wow-database` adapter gains 38 production rows (multiplicity
-47) for statement construction and classified transaction execution, while SQL-shaped Session tests
-are replaced by semantic-request and port-outcome coverage. Its workflow annotations fall from 860
-to 859 (864 exact semantic groups in the exhaustive ratchet), while workflows targeting #169 fall
-from 19 to 17. Six generated-source
+589 exact AST rows. After #169 removes the final concrete persistence dependency from `wow-world`,
+the workspace-wide persistence inventory contains 10,255 exact rows—7,895 production and 2,360
+test-fixture—with multiplicity 11,993 (9,568 production and 2,425 test). `wow-world` contributes
+zero production rows: quest loads/status/lockouts, source/reward item grants, turn-in, reputation
+save planning and deadlock retry now cross SQLx-free typed ports. The MariaDB renderers, transactions,
+retry lock and Applied/Failed/Unknown classification remain in `wow-database`. There are 1,038
+reviewed workflow annotations (1,041 exact semantic groups), and none targets #169; the remaining 60 open annotations target the
+terminal #153 audit. Four generated-source
 inputs are an orthogonal subset, not a third source class. Schema
 v3 covers SQLx and concrete `wow_database` types/imports, typed statements/results/errors,
 prepare/query/execute/direct/raw/nonliteral/interpolated SQL, pool access, transaction construction/append/commit,
@@ -653,7 +653,7 @@ pinned—a literal, a `concat!`, or a name bound to one of those. SQL assembled 
 chains, `format!` templates, branches, helper returns, projections) is deliberately recorded as
 interpolated or nonliteral without a content claim: deciding which string an expression produces
 has no natural stopping point, so the connection-affinity and ordering facts for those call sites
-come from the reviewed workflow annotation covering them. The 868 semantic workflow groups classify every
+come from the reviewed workflow annotation covering them. The 1,041 exact semantic workflow groups classify every
 row exactly once by logical database,
 capability owner, connection/transaction affinity, current order, failure/unknown-commit behavior
 and open removal/decision issue; unmatched, overlapping or stale groups fail. The legacy/canonical

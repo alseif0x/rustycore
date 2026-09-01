@@ -9,8 +9,6 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::WorldStatements;
-
 use super::*;
 
 impl WorldSession {
@@ -2501,23 +2499,25 @@ impl WorldSession {
         &self,
         condition_id: LootConditionId,
     ) -> Vec<LootConditionRowLikeCpp> {
-        let Some(world_db) = self.world_db() else {
+        let Some(port) = self.loot_template_catalog_persistence_port_like_cpp() else {
             return Vec::new();
         };
 
-        let mut stmt = world_db.prepare(WorldStatements::SEL_LOOT_TEMPLATE_CONDITION_ROWS);
-        stmt.set_i32(0, condition_id.source_type);
-        stmt.set_u32(1, condition_id.source_group);
-        stmt.set_u32(2, condition_id.source_entry);
-
-        let mut result = match world_db.query(&stmt).await {
-            Ok(result) => result,
-            Err(err) => {
+        let rows = match port
+            .load_loot_condition_rows_like_cpp(
+                condition_id.source_type,
+                condition_id.source_group,
+                condition_id.source_entry,
+            )
+            .await
+        {
+            wow_persistence::LootTemplateCatalogOutcomeLikeCpp::Loaded(rows) => rows,
+            wow_persistence::LootTemplateCatalogOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     source_type = condition_id.source_type,
                     source_group = condition_id.source_group,
                     source_entry = condition_id.source_entry,
-                    error = %err,
+                    error = %reason,
                     "failed to load represented creature loot conditions"
                 );
                 return Vec::new();
@@ -2525,21 +2525,17 @@ impl WorldSession {
         };
 
         let mut conditions = Vec::new();
-        if result.is_empty() {
-            return conditions;
-        }
-
-        loop {
+        for row in rows {
             let condition = LootConditionRowLikeCpp {
-                else_group: result.try_read::<u32>(0).unwrap_or(0),
-                condition_type_or_reference: result.try_read::<i32>(1).unwrap_or(0),
-                condition_target: result.try_read::<u8>(2).unwrap_or(0),
-                value1: result.try_read::<u32>(3).unwrap_or(0),
-                value2: result.try_read::<u32>(4).unwrap_or(0),
-                value3: result.try_read::<u32>(5).unwrap_or(0),
-                string_value1: result.try_read::<String>(6).unwrap_or_default(),
-                negative: result.try_read::<bool>(7).unwrap_or(false),
-                script_name: result.try_read::<String>(8).unwrap_or_default(),
+                else_group: row.else_group,
+                condition_type_or_reference: row.condition_type_or_reference,
+                condition_target: row.condition_target,
+                value1: row.value1,
+                value2: row.value2,
+                value3: row.value3,
+                string_value1: row.string_value1,
+                negative: row.negative,
+                script_name: row.script_name,
             };
             if !loot_condition_reference_self_references_like_cpp(
                 condition_id.source_type,
@@ -2550,10 +2546,6 @@ impl WorldSession {
                 {
                     conditions.push(condition);
                 }
-            }
-
-            if !result.next_row() {
-                break;
             }
         }
 

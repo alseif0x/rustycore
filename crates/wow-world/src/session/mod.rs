@@ -162,10 +162,6 @@ use wow_data::{
     },
     spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
 };
-use wow_database::{
-    CharacterDatabase, LoginDatabase, SqlTransaction, WorldDatabase,
-    retry_deadlocked_operation_like_cpp,
-};
 use wow_entities::{
     AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentDurationAction,
     ApplyEnchantmentEffectAction, ApplyEnchantmentEffectRef, ApplyEnchantmentGemRequirementRef,
@@ -5181,7 +5177,9 @@ struct PlayerTransportLoginStateLikeCpp {
 /// Receives deserialized packets from the socket layer via a channel,
 /// dispatches them to registered handlers, and sends responses back.
 #[derive(Default)]
-struct SessionPersistencePortsLikeCpp {
+pub(crate) struct SessionPersistencePortsLikeCpp {
+    pub(crate) character_administration:
+        Option<Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>>,
     player_lifecycle: Option<Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>>,
     character_enumeration:
         Option<Arc<dyn wow_persistence::CharacterEnumerationPersistencePortLikeCpp>>,
@@ -5192,6 +5190,11 @@ struct SessionPersistencePortsLikeCpp {
     map_corpse: Option<Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>,
     quest_poi: Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>>,
     stored_item_money: Option<Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>>,
+    pub(crate) stored_item: Option<Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>>,
+    pub(crate) player_inventory:
+        Option<Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>>,
+    pub(crate) player_quest: Option<Arc<dyn wow_persistence::PlayerQuestPersistencePortLikeCpp>>,
+    pub(crate) vendor_trade: Option<Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>>,
     group_loot_money: Option<Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>>,
     represented_group: Option<Arc<dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp>>,
     support_bug_report: Option<Arc<dyn wow_persistence::SupportBugReportPersistencePortLikeCpp>>,
@@ -5200,6 +5203,12 @@ struct SessionPersistencePortsLikeCpp {
         Option<Arc<dyn wow_persistence::GameObjectUseTemplatePersistencePortLikeCpp>>,
     item_template_addon_catalog:
         Option<Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>>,
+    pub(crate) loot_template_catalog:
+        Option<Arc<dyn wow_persistence::LootTemplateCatalogPersistencePortLikeCpp>>,
+    pub(crate) vendor_catalog:
+        Option<Arc<dyn wow_persistence::VendorCatalogPersistencePortLikeCpp>>,
+    pub(crate) visibility_spawn_catalog:
+        Option<Arc<dyn wow_persistence::VisibilitySpawnCatalogPersistencePortLikeCpp>>,
     gossip_catalog: Option<Arc<dyn wow_persistence::GossipCatalogPersistencePortLikeCpp>>,
     creature_query_catalog:
         Option<Arc<dyn wow_persistence::CreatureQueryCatalogPersistencePortLikeCpp>>,
@@ -5278,23 +5287,16 @@ pub struct WorldSession {
     // Dispatch table (built once, shared ref)
     dispatch_table: HashMap<ClientOpcodes, &'static PacketHandlerEntry>,
 
-    // Character database
-    char_db: Option<Arc<CharacterDatabase>>,
     // FIFO sender for C++ CharacterDatabase.Execute-style detached homebind
     // writes. Its single worker drains queued jobs after session teardown and
     // preserves call order.
     homebind_persistence_tx_like_cpp:
         Option<tokio::sync::mpsc::UnboundedSender<HomebindPersistenceJobLikeCpp>>,
 
-    // Login database (for realmcharacters updates)
-    login_db: Option<Arc<LoginDatabase>>,
     /// Typed database capabilities live behind one indirection so adding a
     /// persistence workflow does not keep growing this already-large session;
     /// `wow-database` supplies the concrete adapters.
-    persistence_ports_like_cpp: Box<SessionPersistencePortsLikeCpp>,
-
-    // World database (for creature templates, spawns, etc.)
-    world_db: Option<Arc<WorldDatabase>>,
+    pub(crate) persistence_ports_like_cpp: Box<SessionPersistencePortsLikeCpp>,
 
     // C++ ObjectMgr trainer definitions and creature bindings.
     trainer_store_like_cpp: Option<Arc<TrainerStoreLikeCpp>>,
@@ -7653,11 +7655,8 @@ impl WorldSession {
             legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp::default(),
             represented_runtime_rng_like_cpp: StdRng::from_entropy(),
             dispatch_table: build_dispatch_table(),
-            char_db: None,
             homebind_persistence_tx_like_cpp: None,
-            login_db: None,
             persistence_ports_like_cpp: Box::default(),
-            world_db: None,
             trainer_store_like_cpp: None,
             bank_bag_slot_prices_store: None,
             currency_types_store: None,
@@ -9434,11 +9433,6 @@ impl WorldSession {
             rate,
             &mut self.represented_runtime_rng_like_cpp,
         )
-    }
-
-    /// Set the character database for this session.
-    pub fn set_char_db(&mut self, db: Arc<CharacterDatabase>) {
-        self.char_db = Some(db);
     }
 
     /// Inject the shared map manager. Call once at session creation, before login.
@@ -16256,11 +16250,6 @@ impl WorldSession {
         self.void_storage_item_id_generator_like_cpp = Some(generator);
     }
 
-    /// Set the login database for this session.
-    pub fn set_login_db(&mut self, db: Arc<LoginDatabase>) {
-        self.login_db = Some(db);
-    }
-
     /// Install the Player lifecycle persistence port. Composition supplies the
     /// MariaDB adapter; unit sessions leave it empty and skip durable writes.
     pub fn set_player_lifecycle_port_like_cpp(
@@ -16688,26 +16677,6 @@ impl WorldSession {
 
     pub(crate) fn is_a_recruiter_like_cpp(&self) -> bool {
         self.is_a_recruiter_like_cpp
-    }
-
-    /// Get the character database reference.
-    pub fn char_db(&self) -> Option<&Arc<CharacterDatabase>> {
-        self.char_db.as_ref()
-    }
-
-    /// Get the login database reference.
-    pub fn login_db(&self) -> Option<&Arc<LoginDatabase>> {
-        self.login_db.as_ref()
-    }
-
-    /// Set the world database for this session.
-    pub fn set_world_db(&mut self, db: Arc<WorldDatabase>) {
-        self.world_db = Some(db);
-    }
-
-    /// Get the world database reference.
-    pub fn world_db(&self) -> Option<&Arc<WorldDatabase>> {
-        self.world_db.as_ref()
     }
 
     pub fn set_trainer_store_like_cpp(&mut self, store: Arc<TrainerStoreLikeCpp>) {
@@ -28012,34 +27981,6 @@ impl WorldSession {
         Some((old_money, new_money))
     }
 
-    /// Concrete compatibility wrapper retained for persistence workflows that
-    /// have not yet moved behind typed capability ports.
-    pub(crate) async fn commit_exclusive_player_money_transaction_like_cpp(
-        &mut self,
-        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
-        char_db: &CharacterDatabase,
-        transaction: SqlTransaction,
-        money_before: u64,
-        money_after: u64,
-        operation: &'static str,
-    ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
-        let player_guid = self.player_guid().map(|guid| guid.counter() as u64);
-        let outcome_future = wow_database::player_money_transaction_adapter::
-            commit_player_money_transaction_and_observe_like_cpp(
-                char_db,
-                transaction,
-                player_guid,
-            );
-        self.await_exclusive_player_money_transaction_outcome_like_cpp(
-            money_persistence,
-            outcome_future,
-            money_before,
-            money_after,
-            operation,
-        )
-        .await
-    }
-
     /// Commit a trainer fee when the represented cast has no durable
     /// spell/skill mutation (for example, every acquisition effect was
     /// suppressed by target immunity). C++ charges and publishes its trainer
@@ -28336,39 +28277,19 @@ impl WorldSession {
                         .collect(),
                     max_money: MAX_MONEY_AMOUNT,
                 };
-                let attempt = retry_deadlocked_operation_like_cpp(
-                    || async {
-                        match persistence_port
-                            .attempt_group_loot_money_like_cpp(request.clone())
-                            .await
-                        {
-                            wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::Applied(
-                                outcomes,
-                            ) => Ok(outcomes),
-                            other => Err(other),
-                        }
-                    },
-                    |error| {
-                        matches!(
-                            error,
-                            wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
-                                retryable_deadlock: true,
-                                ..
-                            }
-                        )
-                    },
-                )
-                .await;
-                let durable_outcomes = match attempt {
-                    Ok(outcomes) => outcomes
+                let durable_outcomes = match persistence_port
+                    .attempt_group_loot_money_like_cpp(request)
+                    .await
+                {
+                    wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::Applied(outcomes) => outcomes
                         .into_iter()
                         .map(|outcome| (outcome.recipient_guid, outcome))
                         .collect::<HashMap<_, _>>(),
-                    Err(wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
+                    wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
                         kind,
                         reason,
                         ..
-                    }) => {
+                    } => {
                         return Err(match kind {
                             wow_persistence::GroupLootMoneyRollbackKindLikeCpp::MissingPlayer { .. } => {
                                 LootMoneyPersistenceErrorLikeCpp::MissingPlayer
@@ -28378,10 +28299,10 @@ impl WorldSession {
                             }
                         });
                     }
-                    Err(wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::CommitOutcomeUnknown {
+                    wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::CommitOutcomeUnknown {
                         reason,
                         outcomes: durable_outcomes,
-                    }) => match persistence_port
+                    } => match persistence_port
                         .reconcile_group_loot_money_like_cpp(durable_outcomes.clone())
                         .await
                     {
@@ -28413,9 +28334,6 @@ impl WorldSession {
                             .map(|outcome| (outcome.recipient_guid, outcome))
                             .collect::<HashMap<_, _>>(),
                     },
-                    Err(wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::Applied(_)) => {
-                        unreachable!("applied group loot-money outcome is returned through Ok")
-                    }
                 };
                 durable_outcomes
             };

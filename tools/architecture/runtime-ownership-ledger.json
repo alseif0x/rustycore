@@ -38,7 +38,7 @@
       "member_key": "name",
       "zero_gaps": true,
       "zero_overlap": true,
-      "expected_field_count": 729,
+      "expected_field_count": 728,
       "validation": "Compare the sorted AST names with the sorted concatenation of every family.field_names; reject a missing name, duplicate name, stale name, family count mismatch, or total count mismatch."
     },
     "families": [
@@ -175,17 +175,15 @@
       },
       {
         "id": "persistence_and_session_lifecycle",
-        "expected_field_count": 24,
+        "expected_field_count": 21,
         "field_names": [
           "account_data_like_cpp",
           "battle_pet_account_attachment_like_cpp",
           "battle_pet_purchase_store_like_cpp",
-          "char_db",
           "durable_item_loot_persistence_like_cpp",
           "durable_loot_money_persistence_like_cpp",
           "homebind_persistence_tx_like_cpp",
           "level_played_time",
-          "login_db",
           "login_time",
           "logout_time",
           "next_player_save_ms_like_cpp",
@@ -199,22 +197,20 @@
           "tutorials_changed_like_cpp",
           "tutorials_like_cpp",
           "tutorials_loaded_coherently_like_cpp",
-          "tutorials_loaded_from_db_like_cpp",
-          "world_db"
+          "tutorials_loaded_from_db_like_cpp"
         ],
-        "current_storage": "Concrete database handles remain on WorldSession for residual workflows. Typed lifecycle, account-state, PacketSpoof-ban, map-corpse and bounded void-storage capabilities are grouped behind persistence_ports_like_cpp so each new workflow does not enlarge WorldSession. Lifecycle flags/timers, persistence trackers and durable snapshots remain Session-owned.",
-        "sole_writer": "The owning Session/lifecycle flow mutates session flags; concrete Character/Login/World database adapters execute durable work, sometimes through detached workers or sagas.",
+        "current_storage": "WorldSession has no concrete database handle. Typed lifecycle, administration, quest, durable Item and catalog capabilities are grouped behind persistence_ports_like_cpp so each new workflow does not enlarge WorldSession. Lifecycle flags/timers, persistence trackers and durable snapshots remain Session-owned.",
+        "sole_writer": "The owning Session/lifecycle flow mutates session flags; all durable work crosses typed capabilities composed by world-server, sometimes through detached workers or sagas.",
         "readers": "Login/load, logout/save, periodic save, recovery, handlers, and post-commit publication paths.",
         "clock_lifetime": "Selected-character/session lifetime with periodic save and logout clocks; durable commands may outlive one handler call and must recover after restart.",
         "persistence_publication_order": "Preserve statement identity and parameters, connection affinity, commit/rollback/unknown-commit classification, fences, and publication strictly after the durable boundary.",
         "mirror_direction": "Durable rows load into represented Session/Player state; committed application outcomes publish outward. Unknown commit reconciles from durable truth before publication.",
         "target_owner": "wow-session lifecycle orchestration over SQLx-free wow-persistence ports; wow-database remains the sole concrete SQLx/dialect adapter.",
         "cutover_issues": [
-          153,
-          169
+          153
         ],
         "rollback_condition": "Revert the port adapter, not the durable data, if statement/transaction/fence/publication traces differ or unknown-commit recovery is weaker.",
-        "retirement_condition": "WorldSession imports no pool, row, SQLx transaction/error, raw SQL, or concrete database aggregate; lifecycle uses typed ports with equivalent failure semantics. #286 moves the ordered represented character-save plan and its Applied/Failed/Unknown boundary to the productive Player lifecycle port; #408 moves the talent-reset statement order, transaction and unknown-COMMIT money reconciliation behind the same port without changing its gameplay publication order; #410 moves the represented immediate XP/rest transaction while explicitly preserving its existing Rust timing."
+        "retirement_condition": "WorldSession imports no pool, row, SQLx transaction/error, raw SQL, or concrete database aggregate; #169 satisfies that persistence boundary with typed ports and equivalent failure semantics. #153 still owns relocation of residual lifecycle/application authority, not another concrete persistence cut."
       },
       {
         "id": "immutable_catalogs_configuration_and_services",
@@ -1044,9 +1040,9 @@
         "retirement_condition": "This residual is empty, or every remaining field has an explicit reviewed stable-Session justification and a dedicated exact-membership rule."
       }
     ],
-    "expected_field_count": 729,
-    "expected_unique_field_count": 729,
-    "expected_production_field_count": 717,
+    "expected_field_count": 726,
+    "expected_unique_field_count": 726,
+    "expected_production_field_count": 714,
     "expected_test_fixture_field_count": 12
   },
   "inventories": {
@@ -1059,8 +1055,8 @@
         "cross_check": "tools/architecture/session-ownership-policy.json#syntax_baseline.session_resources.fields"
       },
       "audited_summary": {
-        "field_count": 268,
-        "option_field_count": 210,
+        "field_count": 273,
+        "option_field_count": 216,
         "count_kind": "baseline observation; AST is authoritative"
       },
       "coverage_rule": {
@@ -1068,24 +1064,10 @@
         "member_key": "name",
         "zero_gaps": true,
         "zero_overlap": true,
-        "expected_field_count": 268,
+        "expected_field_count": 273,
         "validation": "Compare sorted AST field names with the sorted concatenation of every entry.field_names; reject gaps, duplicates, stale names, entry count drift, or total count drift."
       },
       "entries": [
-        {
-          "id": "session_resources_database_adapters",
-          "expected_field_count": 3,
-          "field_names": [
-            "char_db",
-            "login_db",
-            "world_db"
-          ],
-          "owner": "world-server composition currently stores concrete adapters; wow-database owns their implementation.",
-          "open_retirement_issues": [
-            169
-          ],
-          "retirement_condition": "Session construction supplies typed wow-persistence capability ports rather than concrete database/pool aggregates."
-        },
         {
           "id": "session_resources_directories_and_group",
           "expected_field_count": 3,
@@ -1102,9 +1084,10 @@
         },
         {
           "id": "session_resources_runtime_handles",
-          "expected_field_count": 25,
+          "expected_field_count": 33,
           "field_names": [
             "battle_pet_purchase_persistence_port",
+            "character_administration_persistence_port",
             "character_enumeration_persistence_port",
             "creature_query_catalog_persistence_port",
             "gameobject_query_catalog_persistence_port",
@@ -1114,27 +1097,34 @@
             "instance_lock_persistence_port",
             "instance_lock_mgr",
             "item_template_addon_catalog_persistence_port",
+            "loot_template_catalog_persistence_port",
             "map_corpse_persistence_port",
             "module_registry",
             "next_mail_time_persistence_port",
             "page_text_catalog_persistence_port",
             "packet_spoof_ban_persistence_port",
+            "player_inventory_persistence_port",
             "player_lifecycle_port",
             "player_name_query_persistence_port",
+            "player_quest_persistence_port",
             "player_spell_acquisition_persistence_port",
             "quest_poi_persistence_port",
             "represented_group_persistence_port",
             "session_account_state_port",
             "social_persistence_port",
             "stored_item_money_persistence_port",
+            "stored_item_persistence_port",
             "support_bug_report_persistence_port",
+            "vendor_catalog_persistence_port",
+            "vendor_trade_persistence_port",
+            "visibility_spawn_catalog_persistence_port",
             "void_storage_persistence_port"
           ],
           "owner": "world-server composition stores narrow runtime and persistence capability handles; legacy and canonical runtime owners remain distinct and audited by #188.",
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "Session receives only the minimal typed runtime ports/PlayerHandle and cannot select or tick duplicate map authorities. #452 adds the narrow stored Item money capability, #454 adds the distinct multi-recipient payout capability, #458 adds the dedicated support bug-report capability, #460 adds the transitional next-mail read capability, #472 adds the atomic trainer fee plus spell-acquisition capability, #476 adds the recoverable battle-pet purchase durability capability, #478 adds the character-enumeration read capability, #480 adds the transitional creature-query catalog capability, #482 adds the transitional gameobject-query catalog capability, #484 adds the transitional page-text catalog capability, #487 adds the transitional player-name query capability, #489 adds the transitional item-template-addon catalog capability, #491 adds the transitional gossip catalog capability, and #497 adds the instance-lock mutation/load capability without exposing a pool, row, transaction or generic query API."
+          "retirement_condition": "Session receives only minimal typed runtime ports/PlayerHandle and cannot select or tick duplicate map authorities. #169 removes every concrete Session database handle and composes the final Player-quest capability; #153 owns only the residual application/runtime boundary audit."
         },
         {
           "id": "session_resources_catalogs_and_configuration",
@@ -1396,7 +1386,7 @@
           "retirement_condition": "Every remaining field has an exact capability bundle/consumer owner or is removed from Session construction."
         }
       ],
-      "expected_field_count": 268
+      "expected_field_count": 273
     },
     "session_command": {
       "coverage_source": {
@@ -1678,9 +1668,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 72727,
-          "test_lines": 97007,
-          "total_lines": 169734,
+          "production_lines": 72649,
+          "test_lines": 97006,
+          "total_lines": 169655,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153
@@ -1700,9 +1690,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 20467,
-          "test_lines": 12990,
-          "total_lines": 33457,
+          "production_lines": 19744,
+          "test_lines": 12896,
+          "total_lines": 32640,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "open_retirement_issues": [
             153
@@ -1711,9 +1701,9 @@
         },
         {
           "path": "crates/wow-world/src/handlers/loot/mod.rs",
-          "production_lines": 13478,
-          "test_lines": 16413,
-          "total_lines": 29891,
+          "production_lines": 13402,
+          "test_lines": 16383,
+          "total_lines": 29785,
           "owner": "wow-world loot handler plus transitional loot/map/persistence coordination.",
           "open_retirement_issues": [
             153
@@ -1723,9 +1713,9 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 29364,
-          "test_lines": 26753,
-          "total_lines": 56117,
+          "production_lines": 29273,
+          "test_lines": 26605,
+          "total_lines": 55878,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
           "latest_growth_review": "#574 adds 1063 production and 239 focused test lines to the world-server logical hotspot while removing the final 24-source wow-data -> wow-database edge: private composition bridges convert typed persistence rows for DB2 overlays, world references, auxiliary/rule/condition catalogs, canonical creature/gameobject data and quests. SQL, statements and row decoding move to wow-database; parsing, validation and immutable stores remain in wow-data; the staged quest seam pins all eight reads and fail-fast boundaries. No gameplay/runtime authority or new clock moves into world-server.",
           "open_retirement_issues": [
@@ -1735,10 +1725,11 @@
         },
         {
           "path": "crates/wow-world/src/handlers/quest/mod.rs",
-          "production_lines": 8476,
-          "test_lines": 10478,
-          "total_lines": 18954,
+          "production_lines": 8319,
+          "test_lines": 10588,
+          "total_lines": 18907,
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
+          "latest_growth_review": "#169 removes 157 production lines net from the logical quest owner by replacing direct CharacterDatabase quest loads, status/lockout writes, reward grants and turn-in transactions with SQLx-free typed capabilities. The 110 focused test lines prove typed status persistence, the exact seven-stage load order, and publication suppression for definite rollback and unknown COMMIT; SQL rendering, transactions and classified commit outcomes now belong to wow-database.",
           "open_retirement_issues": [
             153
           ],

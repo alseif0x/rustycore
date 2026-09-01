@@ -9,8 +9,6 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::SqlResult;
-
 use super::*;
 
 impl WorldSession {
@@ -371,7 +369,7 @@ impl WorldSession {
     pub(super) fn materialize_creature_spawn_row_like_cpp(
         &mut self,
         map_id: u16,
-        row: &SqlResult,
+        row: &wow_persistence::CreatureVisibilityPersistenceRowLikeCpp,
         viewer_position: &Position,
         visibility_range: f32,
     ) -> Option<MaterializedCreatureSpawnLikeCpp> {
@@ -379,201 +377,81 @@ impl WorldSession {
         // Creature::LoadFromDB consumes that data for create/update fields.
         // Rust still queries lazily by visibility; keep a single row reader so
         // login and movement refresh cannot drift from each other.
-        let spawn_guid: u64 = row
-            .try_read::<i64>(0)
-            .map(|value| value as u64)
-            .or_else(|| row.try_read::<u64>(0))
-            .unwrap_or(0);
-        let entry: u32 = row.try_read(1).unwrap_or(0);
-        let pos_x: f32 = row.try_read(2).unwrap_or(0.0);
-        let pos_y: f32 = row.try_read(3).unwrap_or(0.0);
-        let pos_z: f32 = row.try_read(4).unwrap_or(0.0);
-        let orientation: f32 = row.try_read(5).unwrap_or(0.0);
+        let spawn_guid = row.spawn_guid;
+        let entry = row.entry;
+        let [pos_x, pos_y, pos_z, orientation] = row.position;
         if !is_within_2d_visibility_range_like_cpp(viewer_position, pos_x, pos_y, visibility_range)
         {
             return None;
         }
-        let spawn_difficulties: String = row
-            .try_read::<Option<String>>(CREATURE_SPAWN_DIFFICULTIES_COLUMN)
-            .flatten()
-            .or_else(|| row.try_read::<String>(CREATURE_SPAWN_DIFFICULTIES_COLUMN))
-            .unwrap_or_default();
+        let spawn_difficulties = &row.spawn_difficulties;
         if !spawn_difficulties_contains_spawn_mode_like_cpp(
-            &spawn_difficulties,
+            spawn_difficulties,
             self.current_map_difficulty_id_like_cpp(),
         ) {
             return None;
         }
 
-        let cur_health: u32 = row.try_read(6).unwrap_or(100);
-        let cur_mana: u32 = row.try_read(7).unwrap_or(0);
-        let model_id: u32 = row.try_read(8).unwrap_or(0);
-        let min_level: u8 = row.try_read::<Option<u8>>(9).flatten().unwrap_or(1);
-        let faction: i32 = row.try_read::<u16>(11).unwrap_or(35) as i32;
-        let template_npc_flags: u64 = row
-            .try_read::<i64>(12)
-            .map(|value| value as u64)
-            .or_else(|| row.try_read::<u64>(12))
-            .unwrap_or(0);
-        let template_unit_flags: u32 = row.try_read(13).unwrap_or(0);
-        let template_unit_flags2: u32 = row.try_read(14).unwrap_or(0);
-        let template_unit_flags3: u32 = row.try_read(15).unwrap_or(0);
-        let speed_walk: f32 =
-            normalize_creature_template_speed_walk_like_cpp(row.try_read(16).unwrap_or(1.0));
-        let speed_run: f32 =
-            normalize_creature_template_speed_run_like_cpp(row.try_read(17).unwrap_or(1.14286));
-        let scale: f32 = row.try_read(18).unwrap_or(1.0);
-        let unit_class: u8 = row.try_read(19).unwrap_or(1);
-        let flags_extra: u32 = row.try_read(20).unwrap_or(0);
+        let cur_health = row.current_health;
+        let cur_mana = row.current_mana;
+        let model_id = row.model_id;
+        let min_level = row.min_level;
+        let faction = row.faction;
+        let template_npc_flags = row.template_npc_flags;
+        let [
+            template_unit_flags,
+            template_unit_flags2,
+            template_unit_flags3,
+        ] = row.template_unit_flags;
+        let speed_walk = normalize_creature_template_speed_walk_like_cpp(row.speed_walk);
+        let speed_run = normalize_creature_template_speed_run_like_cpp(row.speed_run);
+        let scale = row.scale;
+        let unit_class = row.unit_class;
+        let flags_extra = row.flags_extra;
         let (npc_flags, unit_flags, unit_flags2, unit_flags3) = choose_creature_flags_like_cpp(
             template_npc_flags,
             template_unit_flags,
             template_unit_flags2,
             template_unit_flags3,
-            optional_u64_column_like_cpp(row, CREATURE_SPAWN_NPC_FLAGS_OVERRIDE_COLUMN),
-            optional_u32_column_like_cpp(row, CREATURE_SPAWN_UNIT_FLAGS_OVERRIDE_COLUMN),
-            optional_u32_column_like_cpp(row, CREATURE_SPAWN_UNIT_FLAGS2_OVERRIDE_COLUMN),
-            optional_u32_column_like_cpp(row, CREATURE_SPAWN_UNIT_FLAGS3_OVERRIDE_COLUMN),
+            row.spawn_npc_flags_override,
+            row.spawn_unit_flags_override[0],
+            row.spawn_unit_flags_override[1],
+            row.spawn_unit_flags_override[2],
             flags_extra,
         );
-        let classification: u32 = row
-            .try_read::<u32>(CREATURE_SPAWN_CLASSIFICATION_COLUMN)
-            .unwrap_or(0);
-        let regen_health: bool = row
-            .try_read::<u8>(CREATURE_SPAWN_REGEN_HEALTH_COLUMN)
-            .map(|value| value != 0)
-            .or_else(|| {
-                row.try_read::<i8>(CREATURE_SPAWN_REGEN_HEALTH_COLUMN)
-                    .map(|value| value != 0)
-            })
-            .unwrap_or(true);
-        let base_attack_time: u32 = row.try_read(21).unwrap_or(2000);
-        let template_display_id: u32 = row.try_read::<Option<u32>>(23).flatten().unwrap_or(0);
-        let template_display_scale: f32 = row
-            .try_read::<Option<f32>>(CREATURE_SPAWN_DISPLAY_SCALE_COLUMN)
-            .flatten()
-            .or_else(|| row.try_read::<f32>(CREATURE_SPAWN_DISPLAY_SCALE_COLUMN))
-            .unwrap_or(1.0);
-        let loot_id: u32 = row.try_read::<Option<u32>>(24).flatten().unwrap_or(0);
-        let skin_loot_id: u32 = row.try_read::<Option<u32>>(25).flatten().unwrap_or(0);
-        let gold_min: u32 = row.try_read::<Option<u32>>(26).flatten().unwrap_or(0);
-        let gold_max: u32 = row.try_read::<Option<u32>>(27).flatten().unwrap_or(0);
-        let respawn_delay_secs: u32 = row
-            .try_read::<Option<u32>>(CREATURE_SPAWN_RESPAWN_DELAY_SECS_COLUMN)
-            .flatten()
-            .or_else(|| row.try_read::<u32>(CREATURE_SPAWN_RESPAWN_DELAY_SECS_COLUMN))
-            .unwrap_or(wow_entities::DEFAULT_RESPAWN_DELAY_SECS);
-        let script_name: String = row
-            .try_read::<Option<String>>(CREATURE_SPAWN_SCRIPT_NAME_COLUMN)
-            .flatten()
-            .or_else(|| row.try_read::<String>(CREATURE_SPAWN_SCRIPT_NAME_COLUMN))
-            .unwrap_or_default();
-        let string_id: Option<String> = row
-            .try_read::<Option<String>>(CREATURE_SPAWN_STRING_ID_COLUMN)
-            .flatten()
-            .or_else(|| row.try_read::<String>(CREATURE_SPAWN_STRING_ID_COLUMN))
-            .filter(|value| !value.is_empty());
-        let vehicle_id: u32 = row
-            .try_read::<Option<u32>>(CREATURE_SPAWN_VEHICLE_ID_COLUMN)
-            .flatten()
-            .or_else(|| row.try_read::<u32>(CREATURE_SPAWN_VEHICLE_ID_COLUMN))
-            .unwrap_or(0);
-        let phase_use_flags: u8 = row
-            .try_read::<u8>(28)
-            .or_else(|| row.try_read::<i16>(28).map(|value| value.max(0) as u8))
-            .unwrap_or(0);
-        let phase_id: u16 = row
-            .try_read::<u16>(29)
-            .or_else(|| row.try_read::<i32>(29).map(|value| value.max(0) as u16))
-            .unwrap_or(0);
-        let phase_group_id: u32 = row
-            .try_read::<u32>(30)
-            .or_else(|| row.try_read::<i32>(30).map(|value| value.max(0) as u32))
-            .unwrap_or(0);
-        let terrain_swap_map: i32 = row.try_read(31).unwrap_or(-1);
-        let ground_movement_type: u8 = row
-            .try_read::<Option<u8>>(32)
-            .flatten()
-            .or_else(|| row.try_read::<u8>(32))
-            .or_else(|| row.try_read::<i16>(32).map(|value| value.max(0) as u8))
-            .unwrap_or(wow_constants::CreatureGroundMovementType::Run as u8);
-        let swim_allowed: bool = row
-            .try_read::<Option<u8>>(33)
-            .flatten()
-            .or_else(|| row.try_read::<u8>(33))
-            .or_else(|| row.try_read::<i16>(33).map(|value| value.max(0) as u8))
-            .unwrap_or(1)
-            != 0;
-        let flight_movement_type: u8 = row
-            .try_read::<Option<u8>>(34)
-            .flatten()
-            .or_else(|| row.try_read::<u8>(34))
-            .or_else(|| row.try_read::<i16>(34).map(|value| value.max(0) as u8))
-            .unwrap_or(0);
-        let rooted: bool = row
-            .try_read::<Option<u8>>(CREATURE_SPAWN_ROOTED_COLUMN)
-            .flatten()
-            .or_else(|| row.try_read::<u8>(CREATURE_SPAWN_ROOTED_COLUMN))
-            .or_else(|| {
-                row.try_read::<i16>(CREATURE_SPAWN_ROOTED_COLUMN)
-                    .map(|value| value.max(0) as u8)
-            })
-            .unwrap_or(0)
-            != 0;
-        let chase_movement_type: u8 = row
-            .try_read::<Option<u8>>(CREATURE_SPAWN_CHASE_MOVEMENT_TYPE_COLUMN)
-            .flatten()
-            .or_else(|| row.try_read::<u8>(CREATURE_SPAWN_CHASE_MOVEMENT_TYPE_COLUMN))
-            .or_else(|| {
-                row.try_read::<i16>(CREATURE_SPAWN_CHASE_MOVEMENT_TYPE_COLUMN)
-                    .map(|value| value.max(0) as u8)
-            })
-            .map(normalize_creature_chase_movement_type_like_cpp)
-            .unwrap_or(wow_constants::CreatureChaseMovementType::Run as u8);
-        let random_movement_type: u8 = row
-            .try_read::<Option<u8>>(CREATURE_SPAWN_RANDOM_MOVEMENT_TYPE_COLUMN)
-            .flatten()
-            .or_else(|| row.try_read::<u8>(CREATURE_SPAWN_RANDOM_MOVEMENT_TYPE_COLUMN))
-            .or_else(|| {
-                row.try_read::<i16>(CREATURE_SPAWN_RANDOM_MOVEMENT_TYPE_COLUMN)
-                    .map(|value| value.max(0) as u8)
-            })
-            .map(normalize_creature_random_movement_type_like_cpp)
-            .unwrap_or(CreatureRandomMovementType::Walk as u8);
-        let interaction_pause_timer_ms: u32 = row
-            .try_read::<Option<u32>>(CREATURE_SPAWN_INTERACTION_PAUSE_TIMER_COLUMN)
-            .flatten()
-            .or_else(|| row.try_read::<u32>(CREATURE_SPAWN_INTERACTION_PAUSE_TIMER_COLUMN))
-            .unwrap_or(wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP);
-        let wander_distance: f32 = row
-            .try_read::<Option<f32>>(CREATURE_SPAWN_WANDER_DISTANCE_COLUMN)
-            .flatten()
-            .or_else(|| row.try_read::<f32>(CREATURE_SPAWN_WANDER_DISTANCE_COLUMN))
-            .unwrap_or(0.0)
-            .max(0.0);
-        let default_movement_type = row
-            .try_read::<Option<u8>>(CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN)
-            .flatten()
-            .or_else(|| row.try_read::<u8>(CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN))
-            .or_else(|| {
-                row.try_read::<i16>(CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN)
-                    .map(|value| value.max(0) as u8)
-            })
-            .map(|movement_type| {
-                creature_movement_generator_type_from_db_like_cpp(movement_type, wander_distance)
-            })
-            .unwrap_or(MovementGeneratorType::Idle);
+        let classification = row.classification;
+        let regen_health = row.regen_health;
+        let [base_attack_time, ranged_attack_time] = row.attack_time;
+        let template_display_id = row.template_display_id;
+        let template_display_scale = row.template_display_scale;
+        let loot_id = row.loot_id;
+        let skin_loot_id = row.skin_loot_id;
+        let [gold_min, gold_max] = row.gold;
+        let respawn_delay_secs = row.respawn_delay_secs;
+        let script_name = row.script_name.clone();
+        let string_id = row.string_id.clone();
+        let vehicle_id = row.vehicle_id;
+        let phase_use_flags = row.phase_use_flags;
+        let phase_id = row.phase_id;
+        let phase_group_id = row.phase_group_id;
+        let terrain_swap_map = row.terrain_swap_map;
+        let ground_movement_type = row.ground_movement_type;
+        let swim_allowed = row.swim_allowed;
+        let flight_movement_type = row.flight_movement_type;
+        let rooted = row.rooted;
+        let chase_movement_type =
+            normalize_creature_chase_movement_type_like_cpp(row.chase_movement_type);
+        let random_movement_type =
+            normalize_creature_random_movement_type_like_cpp(row.random_movement_type);
+        let interaction_pause_timer_ms = row.interaction_pause_timer_ms;
+        let wander_distance = row.wander_distance;
+        let default_movement_type = creature_movement_generator_type_from_db_like_cpp(
+            row.effective_movement_type,
+            wander_distance,
+        );
         let wander_distance =
             normalized_creature_wander_distance_like_cpp(default_movement_type, wander_distance);
-        let waypoint_path_id: u32 = row
-            .try_read::<Option<u32>>(CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN)
-            .flatten()
-            .or_else(|| row.try_read::<u32>(CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN))
-            .or_else(|| {
-                row.try_read::<i64>(CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN)
-                    .map(|value| value.max(0) as u32)
-            })
-            .unwrap_or(0);
+        let waypoint_path_id = row.waypoint_path_id;
 
         let Some(display_selection) = self.choose_creature_display_like_cpp(
             entry,
@@ -621,7 +499,8 @@ impl WorldSession {
             .creature_addon_store_like_cpp()
             .and_then(|store| store.get_for_creature_like_cpp(spawn_guid, entry));
         let addon_fields = Self::creature_addon_create_fields_like_cpp(addon.as_ref());
-        let equipment_fields = self.creature_virtual_items_from_row_like_cpp(entry, row);
+        let equipment_fields =
+            self.creature_virtual_items_from_row_like_cpp(entry, row.equipment_id);
 
         let guid = if vehicle_id != 0 {
             ObjectGuid::create_vehicle_like_cpp(self.realm_id(), map_id, entry, spawn_guid as i64)
@@ -673,7 +552,7 @@ impl WorldSession {
             base_mana: creature_stats.base_mana,
             virtual_items: equipment_fields.virtual_items,
             base_attack_time,
-            ranged_attack_time: row.try_read(22).unwrap_or(base_attack_time),
+            ranged_attack_time,
             movement_flags,
             vehicle_id,
             play_hover_anim: false,

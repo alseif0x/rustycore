@@ -5,12 +5,6 @@
 
 //! Loot window open/close requests and the represented loot cache.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::{CharStatements, SqlTransaction};
-
 use super::*;
 
 impl WorldSession {
@@ -1074,7 +1068,7 @@ impl WorldSession {
             return true;
         }
 
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let Some(inventory_persistence) = self.player_inventory_persistence_port_like_cpp() else {
             return false;
         };
 
@@ -1258,17 +1252,6 @@ impl WorldSession {
             });
         }
 
-        let mut transaction = SqlTransaction::new();
-        for stack in &planned_existing_stacks {
-            Self::append_existing_loot_stack_persistence_like_cpp(
-                &char_db,
-                &mut transaction,
-                stack.db_guid,
-                stack.new_count,
-                stack.flags_changed.then_some(stack.dynamic_flags),
-            );
-        }
-
         let mut created_new_stacks = Vec::with_capacity(planned_new_stacks.len());
         if !planned_new_stacks.is_empty() {
             let Some(allocated_guids) =
@@ -1283,28 +1266,42 @@ impl WorldSession {
             };
 
             for (stack, (db_guid, item_guid)) in planned_new_stacks.iter().zip(allocated_guids) {
-                let mut insert_item =
-                    char_db.prepare(CharStatements::INS_ITEM_INSTANCE_WITH_RANDOM_CONTEXT);
-                insert_item.set_u64(0, db_guid);
-                insert_item.set_u32(1, stack.entry_id);
-                insert_item.set_u64(2, player_guid.counter() as u64);
-                insert_item.set_u32(3, stack.count);
-                insert_item.set_u32(4, stack.max_durability);
-                insert_item.set_u32(5, stack.dynamic_flags);
-                insert_item.set_i32(6, stack.random_properties_id);
-                insert_item.set_i32(7, stack.random_properties_seed);
-                insert_item.set_u8(8, stack.item_context);
-                transaction.append_expect_rows_affected(insert_item, 1);
-
-                let mut insert_inventory = char_db.prepare(CharStatements::INS_CHAR_INVENTORY);
-                insert_inventory.set_u64(0, player_guid.counter() as u64);
-                insert_inventory.set_u8(1, stack.slot);
-                insert_inventory.set_u64(2, db_guid);
-                transaction.append_expect_rows_affected(insert_inventory, 1);
-
                 created_new_stacks.push((stack.clone(), db_guid, item_guid));
             }
         }
+
+        let persistence_request =
+            wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::LootDisenchantBatch(
+                wow_persistence::LootDisenchantBatchPersistenceLikeCpp {
+                    existing_stacks: planned_existing_stacks
+                        .iter()
+                        .map(
+                            |stack| wow_persistence::LootExistingStackPersistenceLikeCpp {
+                                item_guid: stack.db_guid,
+                                new_count: stack.new_count,
+                                dynamic_flags: stack.flags_changed.then_some(stack.dynamic_flags),
+                            },
+                        )
+                        .collect(),
+                    new_stacks: created_new_stacks
+                        .iter()
+                        .map(|(stack, db_guid, _)| {
+                            wow_persistence::LootNewStackPersistenceLikeCpp {
+                                item_guid: *db_guid,
+                                entry_id: stack.entry_id,
+                                owner_guid: player_guid.counter() as u64,
+                                count: stack.count,
+                                max_durability: stack.max_durability,
+                                dynamic_flags: stack.dynamic_flags,
+                                random_properties_id: stack.random_properties_id,
+                                random_properties_seed: stack.random_properties_seed,
+                                item_context: stack.item_context,
+                                slot: stack.slot,
+                            }
+                        })
+                        .collect(),
+                },
+            );
 
         let runtime_inventory_applied =
             claim_commit_context.map(|_| Arc::new(AtomicBool::new(false)));
@@ -1326,11 +1323,10 @@ impl WorldSession {
                     },
                 )
             });
-        let persistence_char_db = Arc::clone(&char_db);
-        let persistence = match spawn_sql_loot_claim_persistence_worker_like_cpp(
+        let persistence = match spawn_loot_item_persistence_worker_like_cpp(
             async move {
-                transaction
-                    .commit_with_outcome_like_cpp(persistence_char_db.pool())
+                inventory_persistence
+                    .persist_inventory_mutation_like_cpp(persistence_request)
                     .await
             },
             claim.cloned(),
@@ -1719,25 +1715,27 @@ impl WorldSession {
             }
             return true;
         }
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let Some(inventory_persistence) = self.player_inventory_persistence_port_like_cpp() else {
             return false;
         };
         if let Some(bound_objective_plan) = bound_objective_plan {
-            let mut tx = SqlTransaction::new();
-            self.append_planned_quest_statuses_to_transaction_like_cpp(
-                &mut tx,
-                char_db.as_ref(),
-                player_guid.counter() as u64,
-                &bound_objective_plan.statuses,
-            );
-            if let Some(item_guid) = stored_item_loot_source {
-                let mut delete_source = char_db.prepare(CharStatements::DEL_ITEMCONTAINER_ITEM);
-                delete_source.set_u64(0, item_guid.counter() as u64);
-                delete_source.set_u32(1, item_id);
-                delete_source.set_u32(2, count);
-                delete_source.set_u32(3, u32::from(loot_entry.loot_list_id));
-                tx.append_expect_rows_affected(delete_source, 1);
-            }
+            let persistence_request =
+                wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::LootQuestBoundProgress(
+                    wow_persistence::LootQuestBoundProgressPersistenceLikeCpp {
+                        owner_guid: player_guid.counter() as u64,
+                        quest_statuses: self.represented_quest_status_persistence_rows_like_cpp(
+                            &bound_objective_plan.statuses,
+                        ),
+                        stored_item_source: stored_item_loot_source.map(|item_guid| {
+                            wow_persistence::StoredItemLootSourcePersistenceLikeCpp {
+                                item_guid: item_guid.counter() as u64,
+                                item_id,
+                                count,
+                                loot_list_id: u32::from(loot_entry.loot_list_id),
+                            }
+                        }),
+                    },
+                );
 
             let durable_completion_context = stored_item_loot_source
                 .map(|owner_guid| (owner_guid, loot_entry.loot_list_id, player_guid, true))
@@ -1776,10 +1774,10 @@ impl WorldSession {
                         )
                     },
                 );
-            let persistence_char_db = Arc::clone(&char_db);
-            let persistence = match spawn_sql_loot_claim_persistence_worker_like_cpp(
+            let persistence = match spawn_loot_item_persistence_worker_like_cpp(
                 async move {
-                    tx.commit_with_outcome_like_cpp(persistence_char_db.pool())
+                    inventory_persistence
+                        .persist_inventory_mutation_like_cpp(persistence_request)
                         .await
                 },
                 claim.cloned(),
@@ -1976,17 +1974,6 @@ impl WorldSession {
             });
         }
 
-        let mut tx = SqlTransaction::new();
-        for stack in &planned_existing_counts {
-            Self::append_existing_loot_stack_persistence_like_cpp(
-                &char_db,
-                &mut tx,
-                stack.db_guid,
-                stack.new_count,
-                stack.flags_changed.then_some(stack.dynamic_flags),
-            );
-        }
-
         let mut created_new_stacks = Vec::new();
         if !planned_new_stacks.is_empty() {
             let Some(allocated_guids) =
@@ -2001,41 +1988,53 @@ impl WorldSession {
             };
 
             for (stack, (db_guid, item_guid)) in planned_new_stacks.iter().zip(allocated_guids) {
-                let mut ins_item =
-                    char_db.prepare(CharStatements::INS_ITEM_INSTANCE_WITH_RANDOM_CONTEXT);
-                ins_item.set_u64(0, db_guid);
-                ins_item.set_u32(1, stack.entry_id);
-                ins_item.set_u64(2, player_guid.counter() as u64);
-                ins_item.set_u32(3, stack.count);
-                ins_item.set_u32(4, stack.max_durability);
-                ins_item.set_u32(5, stack.dynamic_flags);
-                ins_item.set_i32(6, stack.random_properties_id);
-                ins_item.set_i32(7, stack.random_properties_seed);
-                ins_item.set_u8(8, stack.item_context);
-                tx.append_expect_rows_affected(ins_item, 1);
-
-                let mut ins_inv = char_db.prepare(CharStatements::INS_CHAR_INVENTORY);
-                ins_inv.set_u64(0, player_guid.counter() as u64);
-                ins_inv.set_u8(1, stack.slot);
-                ins_inv.set_u64(2, db_guid);
-                tx.append_expect_rows_affected(ins_inv, 1);
-
                 created_new_stacks.push((stack.clone(), db_guid, item_guid));
             }
         }
 
-        // Item-container loot is a move between two durable stores.  Delete
-        // the source row in the same transaction that grants the destination
-        // stack so a crash cannot duplicate (grant-only) or lose (delete-only)
-        // the item.
-        if let Some(item_guid) = stored_item_loot_source {
-            let mut delete_source = char_db.prepare(CharStatements::DEL_ITEMCONTAINER_ITEM);
-            delete_source.set_u64(0, item_guid.counter() as u64);
-            delete_source.set_u32(1, item_id);
-            delete_source.set_u32(2, count);
-            delete_source.set_u32(3, u32::from(loot_entry.loot_list_id));
-            tx.append_expect_rows_affected(delete_source, 1);
-        }
+        // Item-container loot is a move between two durable stores. The
+        // semantic request keeps source deletion in the same transaction as
+        // every destination stack, so a crash cannot duplicate or lose it.
+        let persistence_request =
+            wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::LootDirectItemGrant(
+                wow_persistence::LootDirectItemGrantPersistenceLikeCpp {
+                    existing_stacks: planned_existing_counts
+                        .iter()
+                        .map(
+                            |stack| wow_persistence::LootExistingStackPersistenceLikeCpp {
+                                item_guid: stack.db_guid,
+                                new_count: stack.new_count,
+                                dynamic_flags: stack.flags_changed.then_some(stack.dynamic_flags),
+                            },
+                        )
+                        .collect(),
+                    new_stacks: created_new_stacks
+                        .iter()
+                        .map(|(stack, db_guid, _)| {
+                            wow_persistence::LootNewStackPersistenceLikeCpp {
+                                item_guid: *db_guid,
+                                entry_id: stack.entry_id,
+                                owner_guid: player_guid.counter() as u64,
+                                count: stack.count,
+                                max_durability: stack.max_durability,
+                                dynamic_flags: stack.dynamic_flags,
+                                random_properties_id: stack.random_properties_id,
+                                random_properties_seed: stack.random_properties_seed,
+                                item_context: stack.item_context,
+                                slot: stack.slot,
+                            }
+                        })
+                        .collect(),
+                    stored_item_source: stored_item_loot_source.map(|item_guid| {
+                        wow_persistence::StoredItemLootSourcePersistenceLikeCpp {
+                            item_guid: item_guid.counter() as u64,
+                            item_id,
+                            count,
+                            loot_list_id: u32::from(loot_entry.loot_list_id),
+                        }
+                    }),
+                },
+            );
 
         let durable_claim = claim.cloned();
         let durable_completion_context = stored_item_loot_source
@@ -2075,10 +2074,10 @@ impl WorldSession {
                     )
                 },
             );
-        let persistence_char_db = Arc::clone(&char_db);
-        let persistence = match spawn_sql_loot_claim_persistence_worker_like_cpp(
+        let persistence = match spawn_loot_item_persistence_worker_like_cpp(
             async move {
-                tx.commit_with_outcome_like_cpp(persistence_char_db.pool())
+                inventory_persistence
+                    .persist_inventory_mutation_like_cpp(persistence_request)
                     .await
             },
             durable_claim,

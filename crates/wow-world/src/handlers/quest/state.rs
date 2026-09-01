@@ -5,22 +5,9 @@
 
 //! Quest log slots and the accept/complete/remove status lifecycle.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::PreparedStatement;
-
 use super::*;
 
 impl WorldSession {
-    pub(super) fn bind_player_quest_status_load_guid_like_cpp(
-        stmt: &mut PreparedStatement,
-        player_guid: ObjectGuid,
-    ) {
-        stmt.set_u64(0, player_guid.counter() as u64);
-    }
-
     pub(super) fn represented_accept_and_end_time_for_new_quest_like_cpp(
         quest: &wow_data::quest::QuestTemplate,
     ) -> (i64, i64) {

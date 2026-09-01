@@ -18,11 +18,13 @@ pub mod phasing;
 #[path = "session/directory.rs"]
 pub mod player_directory;
 mod player_directory_canonical_queries;
+mod player_quest_persistence_projection;
 #[allow(dead_code)] // Private prerequisite seam consumed by trainer issue #157.
 pub(crate) mod profession;
 pub mod reputation;
 pub mod session;
 mod session_commands;
+mod session_persistence_capabilities;
 mod session_policy;
 #[allow(dead_code)] // Private prerequisite seam consumed by trainer issue #157.
 pub(crate) mod spell_acquisition;
@@ -30,11 +32,19 @@ pub(crate) mod spell_acquisition;
 pub(crate) mod trainer_offer;
 
 #[cfg(test)]
+mod character_administration_persistence_tests;
+#[cfg(test)]
 mod handler_contract_tests;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod player_directory_test_fixtures;
 #[cfg(test)]
+mod player_inventory_persistence_test_fixture;
+#[cfg(test)]
 mod player_lifecycle_contract;
+#[cfg(test)]
+mod player_quest_persistence_test_fixture;
+#[cfg(test)]
+mod vendor_trade_persistence_test_fixture;
 
 pub use map_manager::{
     ChaseTargetSnapshotLikeCpp, GridCoord, MapManager, SharedMapManager, WorldCreature,

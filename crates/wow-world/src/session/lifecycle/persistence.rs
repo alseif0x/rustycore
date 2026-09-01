@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use tracing::{info, warn};
+use tracing::{info, trace, warn};
 use wow_persistence::{
     PlayerActionButtonSaveLikeCpp, PlayerActionButtonsSaveLikeCpp,
     PlayerCharacterCommittedGroupsLikeCpp, PlayerCharacterSaveRequestLikeCpp,
@@ -653,7 +653,7 @@ impl WorldSession {
 
         let money_tracker = Arc::clone(&self.durable_loot_money_persistence_like_cpp);
         let money_save_fence = money_tracker.close_admission_for_save_like_cpp();
-        wow_database::persistence_trace::record_fence("player.save.mutations_closed");
+        trace!(fence = "player.save.mutations_closed", "persistence fence");
         self.wait_for_durable_item_loot_persistence_like_cpp().await;
         self.apply_pending_durable_item_loot_completions_with_objective_drain_like_cpp(false)
             .await;
@@ -669,7 +669,10 @@ impl WorldSession {
                 .await;
             return;
         }
-        wow_database::persistence_trace::record_fence("player.save.pending_durable_work_drained");
+        trace!(
+            fence = "player.save.pending_durable_work_drained",
+            "persistence fence"
+        );
         let money_mutation_lock = money_tracker.lock_money_mutation_like_cpp().await;
         if money_tracker.is_indeterminate_like_cpp() {
             self.kick(
@@ -729,8 +732,9 @@ impl WorldSession {
             wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows } => {
                 cancellation_fence.disarm_like_cpp();
                 self.mark_current_player_save_to_db_committed_like_cpp(&result.committed);
-                wow_database::persistence_trace::record_publication(
-                    "player.save.dirty_state_clean",
+                trace!(
+                    publication = "player.save.dirty_state_clean",
+                    "persistence publication"
                 );
                 info!(
                     guid = snapshot.guid.counter(),
@@ -751,7 +755,7 @@ impl WorldSession {
                 // committed, so preserve dirty flags and force a reload before
                 // any further money mutation can race an unknown durable base.
                 money_tracker.mark_indeterminate_like_cpp();
-                wow_database::persistence_trace::record_fence("player.save.relogin_required");
+                trace!(fence = "player.save.relogin_required", "persistence fence");
                 cancellation_fence.disarm_like_cpp();
                 self.kick(
                     "Player::SaveToDB COMMIT outcome is unknown; relog required before another money mutation",

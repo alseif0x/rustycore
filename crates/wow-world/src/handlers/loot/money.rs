@@ -9,8 +9,6 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::WorldStatements;
-
 use super::*;
 
 impl WorldSession {
@@ -247,31 +245,27 @@ impl WorldSession {
         &self,
         gameobject_entry: u32,
     ) -> (u32, u32) {
-        let Some(world_db) = self.world_db() else {
+        let Some(port) = self.gameobject_use_template_persistence_port_like_cpp() else {
             return (0, 0);
         };
 
-        let mut stmt = world_db.prepare(WorldStatements::SEL_GAMEOBJECT_TEMPLATE_ADDON_MONEY_LOOT);
-        stmt.set_u32(0, gameobject_entry);
-
-        match world_db.query(&stmt).await {
-            Ok(result) if !result.is_empty() => {
-                match (result.try_read::<u32>(0), result.try_read::<u32>(1)) {
-                    (Some(min_money), Some(max_money)) => (min_money, max_money),
-                    _ => {
-                        warn!(
-                            gameobject_entry,
-                            "failed to decode gameobject_template_addon money loot as C++ uint32 columns"
-                        );
-                        (0, 0)
-                    }
-                }
-            }
-            Ok(_) => (0, 0),
-            Err(err) => {
+        match port
+            .load_gameobject_money_loot_like_cpp(
+                wow_persistence::GameObjectMoneyLootCatalogRequestLikeCpp {
+                    entry: gameobject_entry,
+                },
+            )
+            .await
+        {
+            wow_persistence::GameObjectMoneyLootCatalogOutcomeLikeCpp::Found {
+                min_money,
+                max_money,
+            } => (min_money, max_money),
+            wow_persistence::GameObjectMoneyLootCatalogOutcomeLikeCpp::Missing => (0, 0),
+            wow_persistence::GameObjectMoneyLootCatalogOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     gameobject_entry,
-                    "failed to load gameobject_template_addon money loot: {err}"
+                    "failed to load gameobject_template_addon money loot: {reason}"
                 );
                 (0, 0)
             }
@@ -368,36 +362,16 @@ impl WorldSession {
                     cached_notified_amount,
                     max_money: MAX_MONEY_AMOUNT,
                 };
-                let attempt = retry_deadlocked_operation_like_cpp(
-                    || async {
-                        match persistence_port
-                            .attempt_stored_item_money_like_cpp(request)
-                            .await
-                        {
-                            StoredItemMoneyPersistenceAttemptLikeCpp::Applied(outcome) => {
-                                Ok(outcome)
-                            }
-                            other => Err(other),
-                        }
-                    },
-                    |error| {
-                        matches!(
-                            error,
-                            StoredItemMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
-                                retryable_deadlock: true,
-                                ..
-                            }
-                        )
-                    },
-                )
-                .await;
-                let outcome = match attempt {
-                    Ok(outcome) => outcome,
-                    Err(StoredItemMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
+                let outcome = match persistence_port
+                    .attempt_stored_item_money_like_cpp(request)
+                    .await
+                {
+                    StoredItemMoneyPersistenceAttemptLikeCpp::Applied(outcome) => outcome,
+                    StoredItemMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
                         kind,
                         reason,
                         ..
-                    }) => {
+                    } => {
                         return Err(match kind {
                             StoredItemMoneyRollbackKindLikeCpp::MissingPlayer => {
                                 LootMoneyPersistenceErrorLikeCpp::MissingPlayer
@@ -408,10 +382,10 @@ impl WorldSession {
                             }
                         });
                     }
-                    Err(StoredItemMoneyPersistenceAttemptLikeCpp::CommitOutcomeUnknown {
+                    StoredItemMoneyPersistenceAttemptLikeCpp::CommitOutcomeUnknown {
                         reason,
                         outcome,
-                    }) => match persistence_port
+                    } => match persistence_port
                         .reconcile_stored_item_money_like_cpp(request, outcome)
                         .await
                     {
@@ -431,9 +405,6 @@ impl WorldSession {
                             );
                         }
                     },
-                    Err(StoredItemMoneyPersistenceAttemptLikeCpp::Applied(_)) => {
-                        unreachable!("applied stored-money outcome is returned through Ok")
-                    }
                 };
                 (
                     outcome.before,

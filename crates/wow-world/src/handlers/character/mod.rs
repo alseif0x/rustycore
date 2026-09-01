@@ -33,10 +33,10 @@ use wow_constants::unit::{
     UNIT_FLAGS3_ALLOWED_LIKE_CPP, UnitFlags,
 };
 use wow_constants::{
-    ClientOpcodes, ConditionSourceType, CreatureFlagsExtra, CreatureRandomMovementType,
-    EnchantmentSlot, InventoryResult, InventoryType, ItemBondingType, ItemContext,
-    ItemExtendedCostFlags, ItemFieldFlags, ItemFlags, ItemFlags2, ItemModifier, ItemUpdateState,
-    ItemVendorType, PowerType, Team, TypeId, TypeMask, UnitStandStateType,
+    ClientOpcodes, ConditionSourceType, CreatureFlagsExtra, EnchantmentSlot, InventoryResult,
+    InventoryType, ItemBondingType, ItemContext, ItemExtendedCostFlags, ItemFieldFlags, ItemFlags,
+    ItemFlags2, ItemModifier, ItemUpdateState, ItemVendorType, PowerType, Team, TypeId, TypeMask,
+    UnitStandStateType,
 };
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
@@ -50,20 +50,16 @@ use wow_data::{
     TaxiPathNodeEntry, TaxiPathNodeStore, calculate_player_stat_system_like_cpp,
     hotfix_locale_mask, is_player_meeting_condition_like_cpp,
 };
-use wow_database::{
-    CharStatements, CharacterDatabase, PreparedStatement, SqlResult, SqlTransaction,
-};
 use wow_entities::{
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, Corpse, CorpseCustomizationChoice,
     CorpseType, CreatureAddonLifecycleRecordLikeCpp, GAMEOBJECT_TYPE_FISHING_HOLE,
     GAMEOBJECT_TYPE_QUESTGIVER, GameObjectTemplateData, INVENTORY_DEFAULT_SIZE,
     INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA, MovementGeneratorType, NULL_BAG,
-    NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery,
-    SendNewItemDisplayText, SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan,
-    SocketedGem, SwapItemPreflightResult, WorldObject, is_bank_pos, is_child_equipment_pos,
-    is_equipment_pos, is_inventory_pos, item_can_go_into_bag,
-    normalize_creature_chase_movement_type_like_cpp,
+    INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MovementGeneratorType, NULL_BAG, NULL_SLOT,
+    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText,
+    SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan, SocketedGem,
+    SwapItemPreflightResult, WorldObject, is_bank_pos, is_child_equipment_pos, is_equipment_pos,
+    is_inventory_pos, item_can_go_into_bag, normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
 };
 use wow_handler::{PacketProcessing, SessionStatus};
@@ -108,13 +104,6 @@ use wow_entities::GAMEOBJECT_TYPE_GOOBER;
 
 // ── Handler registration ────────────────────────────────────────────
 
-const GO_SPAWN_TEMPLATE_DATA_START: usize = 16;
-const GO_SPAWN_PHASE_USE_FLAGS_COLUMN: usize = GO_SPAWN_TEMPLATE_DATA_START + MAX_GAMEOBJECT_DATA;
-const GO_SPAWN_PHASE_ID_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 1;
-const GO_SPAWN_PHASE_GROUP_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 2;
-const GO_SPAWN_TERRAIN_SWAP_MAP_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 3;
-const GO_SPAWN_EFFECTIVE_FLAGS_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 4;
-const GO_SPAWN_EFFECTIVE_FACTION_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 5;
 const DEFAULT_MOTD_LIKE_CPP: &str = "Welcome to a Trinity Core Server.";
 const DIRECT_VENDOR_MASK_LIKE_CPP: u32 = 0x80 | 0x100 | 0x200 | 0x400 | 0x800;
 const DIRECT_TRAINER_MASK_LIKE_CPP: u32 = 0x10 | 0x20 | 0x40;
@@ -136,7 +125,6 @@ const DIRECT_INTERACTION_MASK_LIKE_CPP: u32 = DIRECT_VENDOR_MASK_LIKE_CPP
 fn npc_has_direct_interaction_like_cpp(npc_flags: u32) -> bool {
     npc_flags & DIRECT_INTERACTION_MASK_LIKE_CPP != 0
 }
-const GO_SPAWN_OVERRIDE_SOURCE_KNOWN_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 6;
 const WORLDSTATE_ANY_MAP_LIKE_CPP: i32 = -1;
 const DEFAULT_GOSSIP_MESSAGE_LIKE_CPP: i32 = 0x00FF_FFFF;
 const TRAINER_NPC_FLAGS_MASK_LIKE_CPP: u32 = 0x10 | 0x20 | 0x40;
@@ -546,17 +534,7 @@ fn inventory_storage_move_quest_directions_like_cpp(
     (moving_to_bank, moving_from_bank)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ItemStorageMutablePersistenceLikeCpp {
-    db_guid: u64,
-    count: u32,
-    expiration: u32,
-    charges: String,
-    flags: u32,
-    enchantments: String,
-    durability: u32,
-    played_time: u32,
-}
+type ItemStorageMutablePersistenceLikeCpp = wow_persistence::InventoryItemMutablePersistenceLikeCpp;
 
 fn loaded_item_random_properties_like_cpp(
     random_properties_id: i32,
@@ -1020,26 +998,6 @@ fn apply_pvp_season_world_states_like_cpp(
         }
     }
 }
-const CREATURE_SPAWN_ROOTED_COLUMN: usize = 35;
-const CREATURE_SPAWN_CHASE_MOVEMENT_TYPE_COLUMN: usize = 36;
-const CREATURE_SPAWN_RANDOM_MOVEMENT_TYPE_COLUMN: usize = 37;
-const CREATURE_SPAWN_INTERACTION_PAUSE_TIMER_COLUMN: usize = 38;
-const CREATURE_SPAWN_WANDER_DISTANCE_COLUMN: usize = 39;
-const CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN: usize = 40;
-const CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN: usize = 41;
-const CREATURE_SPAWN_DISPLAY_SCALE_COLUMN: usize = 42;
-const CREATURE_SPAWN_CLASSIFICATION_COLUMN: usize = 43;
-const CREATURE_SPAWN_REGEN_HEALTH_COLUMN: usize = 44;
-const CREATURE_SPAWN_NPC_FLAGS_OVERRIDE_COLUMN: usize = 45;
-const CREATURE_SPAWN_UNIT_FLAGS_OVERRIDE_COLUMN: usize = 46;
-const CREATURE_SPAWN_UNIT_FLAGS2_OVERRIDE_COLUMN: usize = 47;
-const CREATURE_SPAWN_UNIT_FLAGS3_OVERRIDE_COLUMN: usize = 48;
-const CREATURE_SPAWN_EQUIPMENT_ID_COLUMN: usize = 49;
-const CREATURE_SPAWN_RESPAWN_DELAY_SECS_COLUMN: usize = 50;
-const CREATURE_SPAWN_DIFFICULTIES_COLUMN: usize = 51;
-const CREATURE_SPAWN_SCRIPT_NAME_COLUMN: usize = 52;
-const CREATURE_SPAWN_STRING_ID_COLUMN: usize = 53;
-const CREATURE_SPAWN_VEHICLE_ID_COLUMN: usize = 54;
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xDF2F_53CF;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
@@ -1047,8 +1005,6 @@ const MAX_AREA_SPIRIT_HEALER_RANGE_LIKE_CPP: f32 = 20.0;
 // C++ ObjectDefines.h: DEFAULT_VISIBILITY_DISTANCE = VISIBILITY_DISTANCE_NORMAL = 100 yards.
 // Wider values here make the SQL fallback load whole areas and can crash the 3.4.3 client.
 const DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP: f32 = crate::map_manager::VISIBILITY_RADIUS;
-const DIFFICULTY_NORMAL_LIKE_CPP: u8 = 1;
-const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u8 = 14;
 const RESPONSE_SUCCESS_LIKE_CPP: u8 = 0;
 const CHAR_CREATE_ERROR_LIKE_CPP: u8 = 25;
 const CHAR_CREATE_NAME_IN_USE_LIKE_CPP: u8 = 27;
@@ -1074,7 +1030,6 @@ const CHARACTER_FLAG_DECLINED_LIKE_CPP: u32 = 0x0200_0000;
 const CHAR_CUSTOMIZE_FLAG_CUSTOMIZE_LIKE_CPP: u32 = 0x0000_0001;
 const CHAR_CUSTOMIZE_FLAG_FACTION_LIKE_CPP: u32 = 0x0001_0000;
 const CHAR_CUSTOMIZE_FLAG_RACE_LIKE_CPP: u32 = 0x0010_0000;
-const DIFFICULTY_10_N_LIKE_CPP: u8 = 3;
 const GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP: u8 = 15;
 const TAXI_PATH_NODE_FLAG_TELEPORT_LIKE_CPP: i32 = 0x1;
 const TAXI_PATH_NODE_FLAG_STOP_LIKE_CPP: i32 = 0x2;
@@ -1561,12 +1516,6 @@ fn transport_position_for_login_like_cpp(
     None
 }
 
-fn bind_create_character_difficulties_like_cpp(stmt: &mut PreparedStatement) {
-    stmt.set_u8(16, DIFFICULTY_NORMAL_LIKE_CPP);
-    stmt.set_u8(17, DIFFICULTY_NORMAL_RAID_LIKE_CPP);
-    stmt.set_u8(18, DIFFICULTY_10_N_LIKE_CPP);
-}
-
 fn initial_character_rest_state_like_cpp(is_a_recruiter: bool, recruiter_id: u32) -> u8 {
     if is_a_recruiter || recruiter_id != 0 {
         REST_STATE_RAF_LINKED_LIKE_CPP
@@ -1605,27 +1554,6 @@ fn normalize_creature_template_speed_walk_like_cpp(speed_walk: f32) -> f32 {
 
 fn normalize_creature_template_speed_run_like_cpp(speed_run: f32) -> f32 {
     if speed_run == 0.0 { 1.14286 } else { speed_run }
-}
-
-fn optional_u64_column_like_cpp(row: &SqlResult, column: usize) -> Option<u64> {
-    row.try_read::<Option<i64>>(column)
-        .flatten()
-        .map(|value| value as u64)
-        .or_else(|| row.try_read::<Option<u64>>(column).flatten())
-        .or_else(|| row.try_read::<i64>(column).map(|value| value as u64))
-        .or_else(|| row.try_read::<u64>(column))
-}
-
-fn optional_u32_column_like_cpp(row: &SqlResult, column: usize) -> Option<u32> {
-    row.try_read::<Option<u32>>(column)
-        .flatten()
-        .or_else(|| {
-            row.try_read::<Option<i64>>(column)
-                .flatten()
-                .map(|value| value.max(0) as u32)
-        })
-        .or_else(|| row.try_read::<u32>(column))
-        .or_else(|| row.try_read::<i64>(column).map(|value| value.max(0) as u32))
 }
 
 fn spawn_difficulties_contains_spawn_mode_like_cpp(
@@ -2662,35 +2590,6 @@ fn item_spell_charges_db_string(charges: &[i32], effect_count: usize) -> String 
     out
 }
 
-fn append_item_storage_mutable_persistence_like_cpp(
-    char_db: &CharacterDatabase,
-    tx: &mut SqlTransaction,
-    update: &ItemStorageMutablePersistenceLikeCpp,
-) {
-    let mut statement = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_STORAGE_MUTABLE);
-    statement.set_u32(0, update.count);
-    statement.set_u32(1, update.expiration);
-    statement.set_string(2, &update.charges);
-    statement.set_u32(3, update.flags);
-    statement.set_string(4, &update.enchantments);
-    statement.set_u32(5, update.durability);
-    statement.set_u32(6, update.played_time);
-    statement.set_u64(7, update.db_guid);
-    tx.append(statement);
-}
-
-fn fully_merged_item_cleanup_statements_like_cpp() -> [CharStatements; 7] {
-    [
-        CharStatements::DEL_ITEM_REFUND_INSTANCE,
-        CharStatements::DEL_ITEM_BOP_TRADE,
-        CharStatements::DEL_ITEM_INSTANCE_GEMS,
-        CharStatements::DEL_ITEM_INSTANCE_TRANSMOG,
-        CharStatements::DEL_GIFT,
-        CharStatements::DEL_ITEMCONTAINER_ITEMS,
-        CharStatements::DEL_ITEMCONTAINER_MONEY,
-    ]
-}
-
 fn item_storage_mutable_persistence_like_cpp(
     db_guid: u64,
     item: &wow_entities::Item,
@@ -2701,7 +2600,7 @@ fn item_storage_mutable_persistence_like_cpp(
 ) -> ItemStorageMutablePersistenceLikeCpp {
     let data = item.data();
     ItemStorageMutablePersistenceLikeCpp {
-        db_guid,
+        item_guid: db_guid,
         count,
         expiration: data.expiration,
         charges: item_spell_charges_db_string(&data.spell_charges, effect_count),
@@ -2721,42 +2620,6 @@ fn item_is_not_empty_bag_like_cpp(
     contains_items: bool,
 ) -> bool {
     matches!(inventory_type, Some(InventoryType::Bag)) && contains_items
-}
-
-fn append_item_refund_clear_statements(
-    char_db: &CharacterDatabase,
-    tx: &mut SqlTransaction,
-    item_db_guid: u64,
-    new_flags: u32,
-) {
-    let mut del_refund = char_db.prepare(CharStatements::DEL_ITEM_REFUND_INSTANCE);
-    del_refund.set_u64(0, item_db_guid);
-    tx.append(del_refund);
-
-    let mut upd_flags = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_FLAGS);
-    upd_flags.set_u32(0, new_flags);
-    upd_flags.set_u64(1, item_db_guid);
-    tx.append(upd_flags);
-}
-
-fn append_item_refund_insert_statements(
-    char_db: &CharacterDatabase,
-    tx: &mut SqlTransaction,
-    item_db_guid: u64,
-    player_db_guid: u64,
-    paid_money: u64,
-    paid_extended_cost: u16,
-) {
-    let mut del_refund = char_db.prepare(CharStatements::DEL_ITEM_REFUND_INSTANCE);
-    del_refund.set_u64(0, item_db_guid);
-    tx.append(del_refund);
-
-    let mut ins_refund = char_db.prepare(CharStatements::INS_ITEM_REFUND_INSTANCE);
-    ins_refund.set_u64(0, item_db_guid);
-    ins_refund.set_u64(1, player_db_guid);
-    ins_refund.set_u64(2, paid_money);
-    ins_refund.set_u16(3, paid_extended_cost);
-    tx.append(ins_refund);
 }
 
 fn player_class_mask(player_class: u8) -> u32 {
@@ -2862,4 +2725,4 @@ mod vendor_atomicity_tests;
 
 #[cfg(test)]
 #[path = "../character_tests.rs"]
-mod tests;
+pub(crate) mod tests;

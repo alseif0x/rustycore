@@ -5,12 +5,6 @@
 
 //! Character visibility, nearby object creation and phase updates.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::WorldStatements;
-
 use super::*;
 
 impl WorldSession {
@@ -95,8 +89,8 @@ impl WorldSession {
             return;
         }
 
-        let world_db = match self.world_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.visibility_spawn_catalog_persistence_port_like_cpp() {
+            Some(port) => port,
             None => {
                 self.client_visible_guids_like_cpp
                     .retain(|guid| !guid.is_any_type_creature());
@@ -111,29 +105,32 @@ impl WorldSession {
         let y_min = position.y - DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP;
         let y_max = position.y + DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP;
 
-        let mut stmt = world_db.prepare(WorldStatements::SEL_CREATURES_IN_RANGE);
-        stmt.set_u16(0, map_id);
-        stmt.set_f32(1, x_min);
-        stmt.set_f32(2, x_max);
-        stmt.set_f32(3, y_min);
-        stmt.set_f32(4, y_max);
+        let rows = match tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            port.load_creatures_in_bounds_like_cpp(
+                wow_persistence::VisibilitySpawnCatalogRequestLikeCpp {
+                    map_id,
+                    x_min,
+                    x_max,
+                    y_min,
+                    y_max,
+                },
+            ),
+        )
+        .await
+        {
+            Ok(wow_persistence::VisibilitySpawnCatalogOutcomeLikeCpp::Loaded(rows)) => rows,
+            Ok(wow_persistence::VisibilitySpawnCatalogOutcomeLikeCpp::Failed { reason }) => {
+                warn!("Failed to query creatures for map {map_id}: {reason}");
+                return;
+            }
+            Err(_) => {
+                warn!("Creature query timed out for map {map_id}");
+                return;
+            }
+        };
 
-        let result =
-            match tokio::time::timeout(std::time::Duration::from_secs(5), world_db.query(&stmt))
-                .await
-            {
-                Ok(Ok(r)) => r,
-                Ok(Err(e)) => {
-                    warn!("Failed to query creatures for map {map_id}: {e}");
-                    return;
-                }
-                Err(_) => {
-                    warn!("Creature query timed out for map {map_id}");
-                    return;
-                }
-            };
-
-        if result.is_empty() {
+        if rows.is_empty() {
             self.client_visible_guids_like_cpp
                 .retain(|guid| !guid.is_any_type_creature());
             self.last_visibility_pos = Some(*position);
@@ -142,28 +139,19 @@ impl WorldSession {
 
         let mut blocks = Vec::new();
         let mut visible_guids = Vec::new();
-        let mut result = result;
-
-        loop {
+        for row in &rows {
             let Some(spawn) = self.materialize_creature_spawn_row_like_cpp(
                 map_id,
-                &result,
+                row,
                 position,
                 DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP,
             ) else {
-                if !result.next_row() {
-                    break;
-                }
                 continue;
             };
 
             self.register_materialized_creature_spawn_like_cpp(map_id, &spawn);
             blocks.push(self.viewer_creature_create_block_like_cpp(&spawn));
             visible_guids.push(spawn.guid);
-
-            if !result.next_row() {
-                break;
-            }
         }
 
         if blocks.is_empty() {
@@ -616,24 +604,27 @@ impl WorldSession {
         }
 
         // ── CREATURES ───────────────────────────────────────────────────
-        let world_db = match self.world_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.visibility_spawn_catalog_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return,
         };
-        let mut stmt = world_db.prepare(WorldStatements::SEL_CREATURES_IN_RANGE);
-        stmt.set_u16(0, map_id);
-        stmt.set_f32(1, x_min);
-        stmt.set_f32(2, x_max);
-        stmt.set_f32(3, y_min);
-        stmt.set_f32(4, y_max);
-
-        let cr =
-            match tokio::time::timeout(std::time::Duration::from_secs(5), world_db.query(&stmt))
-                .await
-            {
-                Ok(Ok(r)) => r,
-                _ => return,
-            };
+        let creatures = match tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            port.load_creatures_in_bounds_like_cpp(
+                wow_persistence::VisibilitySpawnCatalogRequestLikeCpp {
+                    map_id,
+                    x_min,
+                    x_max,
+                    y_min,
+                    y_max,
+                },
+            ),
+        )
+        .await
+        {
+            Ok(wow_persistence::VisibilitySpawnCatalogOutcomeLikeCpp::Loaded(rows)) => rows,
+            _ => return,
+        };
 
         let mut new_visible_creatures: HashSet<ObjectGuid> = HashSet::new();
         let mut update_blocks: Vec<UpdateBlock> = Vec::new();
@@ -641,15 +632,11 @@ impl WorldSession {
         let mut created_creatures = 0usize;
         let mut created_gameobjects = 0usize;
 
-        if !cr.is_empty() {
-            let mut cr = cr;
-            loop {
+        if !creatures.is_empty() {
+            for row in &creatures {
                 let Some(spawn) =
-                    self.materialize_creature_spawn_row_like_cpp(map_id, &cr, &pos, range)
+                    self.materialize_creature_spawn_row_like_cpp(map_id, row, &pos, range)
                 else {
-                    if !cr.next_row() {
-                        break;
-                    }
                     continue;
                 };
 
@@ -659,10 +646,6 @@ impl WorldSession {
                     self.register_materialized_creature_spawn_like_cpp(map_id, &spawn);
                     update_blocks.push(self.viewer_creature_create_block_like_cpp(&spawn));
                     created_creatures += 1;
-                }
-
-                if !cr.next_row() {
-                    break;
                 }
             }
         }
@@ -684,127 +667,59 @@ impl WorldSession {
         }
 
         // ── GAME OBJECTS ────────────────────────────────────────────────
-        let mut go_stmt = world_db.prepare(WorldStatements::SEL_GAMEOBJECTS_IN_RANGE);
-        go_stmt.set_u16(0, map_id);
-        go_stmt.set_f32(1, x_min);
-        go_stmt.set_f32(2, x_max);
-        go_stmt.set_f32(3, y_min);
-        go_stmt.set_f32(4, y_max);
-
-        let go_result =
-            match tokio::time::timeout(std::time::Duration::from_secs(5), world_db.query(&go_stmt))
-                .await
-            {
-                Ok(Ok(r)) => r,
-                _ => {
-                    self.last_visibility_pos = Some(pos);
-                    return;
-                }
-            };
+        let gameobjects = match tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            port.load_gameobjects_in_bounds_like_cpp(
+                wow_persistence::VisibilitySpawnCatalogRequestLikeCpp {
+                    map_id,
+                    x_min,
+                    x_max,
+                    y_min,
+                    y_max,
+                },
+            ),
+        )
+        .await
+        {
+            Ok(wow_persistence::VisibilitySpawnCatalogOutcomeLikeCpp::Loaded(rows)) => rows,
+            _ => {
+                self.last_visibility_pos = Some(pos);
+                return;
+            }
+        };
 
         let mut new_visible_gos: HashSet<ObjectGuid> = HashSet::new();
 
-        if !go_result.is_empty() {
-            let mut go_result = go_result;
-            loop {
-                let spawn_guid: u64 = go_result
-                    .try_read::<i64>(0)
-                    .map(|v| v as u64)
-                    .or_else(|| go_result.try_read::<u64>(0))
-                    .unwrap_or(0);
-                let entry: u32 = go_result.try_read(1).unwrap_or(0);
-                let pos_x: f32 = go_result.try_read(2).unwrap_or(0.0);
-                let pos_y: f32 = go_result.try_read(3).unwrap_or(0.0);
-                let pos_z: f32 = go_result.try_read(4).unwrap_or(0.0);
-                let orientation: f32 = go_result.try_read(5).unwrap_or(0.0);
+        if !gameobjects.is_empty() {
+            for row in &gameobjects {
+                let spawn_guid = row.spawn_guid;
+                let entry = row.entry;
+                let [pos_x, pos_y, pos_z, orientation] = row.position;
                 if !is_within_2d_visibility_range_like_cpp(&pos, pos_x, pos_y, range) {
-                    if !go_result.next_row() {
-                        break;
-                    }
                     continue;
                 }
-                let rot0: f32 = go_result.try_read(6).unwrap_or(0.0);
-                let rot1: f32 = go_result.try_read(7).unwrap_or(0.0);
-                let rot2: f32 = go_result.try_read(8).unwrap_or(0.0);
-                let rot3: f32 = go_result.try_read(9).unwrap_or(0.0);
+                let [rot0, rot1, rot2, rot3] = row.rotation;
                 // #NEXT.R8.ENTITIES.1216: GameObjectData.ParentRotation from per-spawn
                 // gameobject_addon (cols 58-61); NULL (no addon) -> identity (0,0,0,1).
-                let parent_rot0: f32 = go_result.try_read(58).unwrap_or(0.0);
-                let parent_rot1: f32 = go_result.try_read(59).unwrap_or(0.0);
-                let parent_rot2: f32 = go_result.try_read(60).unwrap_or(0.0);
-                let parent_rot3: f32 = go_result.try_read(61).unwrap_or(1.0);
-                let anim_progress: u8 = go_result.try_read(10).unwrap_or(255);
-                let state: i8 = go_result.try_read::<u8>(11).unwrap_or(1) as i8;
-                let go_type: u8 = go_result.try_read(12).unwrap_or(0);
-                let display_id: u32 = go_result.try_read(13).unwrap_or(0);
-                let scale: f32 = go_result.try_read(15).unwrap_or(1.0);
-                let mut template_data = [0_u32; MAX_GAMEOBJECT_DATA];
-                for (index, value) in template_data.iter_mut().enumerate() {
-                    *value = go_result
-                        .try_read::<i32>(GO_SPAWN_TEMPLATE_DATA_START + index)
-                        .and_then(|raw| u32::try_from(raw).ok())
-                        .unwrap_or(0);
-                }
+                let [parent_rot0, parent_rot1, parent_rot2, parent_rot3] = row.parent_rotation;
+                let anim_progress = row.anim_progress;
+                let state = row.state;
+                let go_type = row.go_type;
+                let display_id = row.display_id;
+                let scale = row.scale;
+                let template_data = row.template_data.map(|raw| u32::try_from(raw).unwrap_or(0));
                 let data2 = template_data[2];
                 let data3 = template_data[3];
                 let template = GameObjectTemplateData::new(u32::from(go_type), template_data);
-                let phase_use_flags: u8 = go_result
-                    .try_read::<u8>(GO_SPAWN_PHASE_USE_FLAGS_COLUMN)
-                    .or_else(|| {
-                        go_result
-                            .try_read::<i16>(GO_SPAWN_PHASE_USE_FLAGS_COLUMN)
-                            .map(|value| value.max(0) as u8)
-                    })
-                    .unwrap_or(0);
-                let phase_id: u16 = go_result
-                    .try_read::<u16>(GO_SPAWN_PHASE_ID_COLUMN)
-                    .or_else(|| {
-                        go_result
-                            .try_read::<i32>(GO_SPAWN_PHASE_ID_COLUMN)
-                            .map(|value| value.max(0) as u16)
-                    })
-                    .unwrap_or(0);
-                let phase_group_id: u32 = go_result
-                    .try_read::<u32>(GO_SPAWN_PHASE_GROUP_COLUMN)
-                    .or_else(|| {
-                        go_result
-                            .try_read::<i32>(GO_SPAWN_PHASE_GROUP_COLUMN)
-                            .map(|value| value.max(0) as u32)
-                    })
-                    .unwrap_or(0);
-                let terrain_swap_map: i32 = go_result
-                    .try_read(GO_SPAWN_TERRAIN_SWAP_MAP_COLUMN)
-                    .unwrap_or(-1);
-                let effective_flags: u32 = go_result
-                    .try_read::<u32>(GO_SPAWN_EFFECTIVE_FLAGS_COLUMN)
-                    .or_else(|| {
-                        go_result
-                            .try_read::<i64>(GO_SPAWN_EFFECTIVE_FLAGS_COLUMN)
-                            .and_then(|value| u32::try_from(value).ok())
-                    })
-                    .unwrap_or(0);
-                let effective_faction: u32 = go_result
-                    .try_read::<u32>(GO_SPAWN_EFFECTIVE_FACTION_COLUMN)
-                    .or_else(|| {
-                        go_result
-                            .try_read::<i64>(GO_SPAWN_EFFECTIVE_FACTION_COLUMN)
-                            .and_then(|value| u32::try_from(value).ok())
-                    })
-                    .unwrap_or(0);
-                let override_source_known = go_result
-                    .try_read::<u8>(GO_SPAWN_OVERRIDE_SOURCE_KNOWN_COLUMN)
-                    .map(|value| value != 0)
-                    .or_else(|| {
-                        go_result
-                            .try_read::<i64>(GO_SPAWN_OVERRIDE_SOURCE_KNOWN_COLUMN)
-                            .map(|value| value != 0)
-                    })
-                    .unwrap_or(false);
+                let phase_use_flags = row.phase_use_flags;
+                let phase_id = row.phase_id;
+                let phase_group_id = row.phase_group_id;
+                let terrain_swap_map = row.terrain_swap_map;
+                let effective_flags = row.effective_flags;
+                let effective_faction = row.effective_faction;
+                let override_source_known = row.override_source_known;
 
                 if display_id == 0 {
-                    if !go_result.next_row() {
-                        break;
-                    }
                     continue;
                 }
 
@@ -816,9 +731,6 @@ impl WorldSession {
                     terrain_swap_map,
                 );
                 if !self.can_see_phase_shift_like_cpp(&target_phase_shift) {
-                    if !go_result.next_row() {
-                        break;
-                    }
                     continue;
                 }
 
@@ -832,9 +744,6 @@ impl WorldSession {
                     spawn_guid as i64,
                 );
                 if self.represented_gameobject_is_per_player_despawned_like_cpp(guid) {
-                    if !go_result.next_row() {
-                        break;
-                    }
                     continue;
                 }
                 new_visible_gos.insert(guid);
@@ -922,10 +831,6 @@ impl WorldSession {
                     [rot0, rot1, rot2, rot3],
                 );
                 self.record_represented_gameobject_anim_progress_like_cpp(guid, anim_progress);
-
-                if !go_result.next_row() {
-                    break;
-                }
             }
         }
 
@@ -1039,8 +944,8 @@ impl WorldSession {
             return;
         }
 
-        let world_db = match self.world_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.visibility_spawn_catalog_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return,
         };
 
@@ -1049,145 +954,75 @@ impl WorldSession {
         let y_min = position.y - DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP;
         let y_max = position.y + DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP;
 
-        let mut stmt = world_db.prepare(WorldStatements::SEL_GAMEOBJECTS_IN_RANGE);
-        stmt.set_u16(0, map_id);
-        stmt.set_f32(1, x_min);
-        stmt.set_f32(2, x_max);
-        stmt.set_f32(3, y_min);
-        stmt.set_f32(4, y_max);
+        let gameobjects = match tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            port.load_gameobjects_in_bounds_like_cpp(
+                wow_persistence::VisibilitySpawnCatalogRequestLikeCpp {
+                    map_id,
+                    x_min,
+                    x_max,
+                    y_min,
+                    y_max,
+                },
+            ),
+        )
+        .await
+        {
+            Ok(wow_persistence::VisibilitySpawnCatalogOutcomeLikeCpp::Loaded(rows)) => rows,
+            Ok(wow_persistence::VisibilitySpawnCatalogOutcomeLikeCpp::Failed { reason }) => {
+                warn!("Failed to query gameobjects for map {map_id}: {reason}");
+                return;
+            }
+            Err(_) => {
+                warn!("Gameobject query timed out for map {map_id}");
+                return;
+            }
+        };
 
-        let result =
-            match tokio::time::timeout(std::time::Duration::from_secs(5), world_db.query(&stmt))
-                .await
-            {
-                Ok(Ok(r)) => r,
-                Ok(Err(e)) => {
-                    warn!("Failed to query gameobjects for map {map_id}: {e}");
-                    return;
-                }
-                Err(_) => {
-                    warn!("Gameobject query timed out for map {map_id}");
-                    return;
-                }
-            };
-
-        if result.is_empty() {
+        if gameobjects.is_empty() {
             return;
         }
 
         let realm_id = self.realm_id();
         let mut blocks = Vec::new();
         let mut go_guids: Vec<wow_core::ObjectGuid> = Vec::new();
-        let mut result = result;
-
-        loop {
-            let spawn_guid: u64 = result
-                .try_read::<i64>(0)
-                .map(|v| v as u64)
-                .or_else(|| result.try_read::<u64>(0))
-                .unwrap_or(0);
-            let entry: u32 = result.try_read(1).unwrap_or(0);
-            let pos_x: f32 = result.try_read(2).unwrap_or(0.0);
-            let pos_y: f32 = result.try_read(3).unwrap_or(0.0);
-            let pos_z: f32 = result.try_read(4).unwrap_or(0.0);
-            let orientation: f32 = result.try_read(5).unwrap_or(0.0);
+        for row in &gameobjects {
+            let spawn_guid = row.spawn_guid;
+            let entry = row.entry;
+            let [pos_x, pos_y, pos_z, orientation] = row.position;
             if !is_within_2d_visibility_range_like_cpp(
                 position,
                 pos_x,
                 pos_y,
                 DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP,
             ) {
-                if !result.next_row() {
-                    break;
-                }
                 continue;
             }
-            let rot0: f32 = result.try_read(6).unwrap_or(0.0);
-            let rot1: f32 = result.try_read(7).unwrap_or(0.0);
-            let rot2: f32 = result.try_read(8).unwrap_or(0.0);
-            let rot3: f32 = result.try_read(9).unwrap_or(0.0);
+            let [rot0, rot1, rot2, rot3] = row.rotation;
             // #NEXT.R8.ENTITIES.1216: GameObjectData.ParentRotation from per-spawn
             // gameobject_addon (cols 58-61); NULL (no addon) -> identity (0,0,0,1).
-            let parent_rot0: f32 = result.try_read(58).unwrap_or(0.0);
-            let parent_rot1: f32 = result.try_read(59).unwrap_or(0.0);
-            let parent_rot2: f32 = result.try_read(60).unwrap_or(0.0);
-            let parent_rot3: f32 = result.try_read(61).unwrap_or(1.0);
+            let [parent_rot0, parent_rot1, parent_rot2, parent_rot3] = row.parent_rotation;
             // C++ GameObject::Create defaults animProgress to 255 (GameObject.cpp:1068,1089);
             // match the other GO paths (canonical ~6920) instead of 0. #NEXT.R8.ENTITIES.1218.
-            let anim_progress: u8 = result.try_read(10).unwrap_or(255);
-            let state: i8 = result.try_read::<u8>(11).unwrap_or(1) as i8;
-            let go_type: u8 = result.try_read::<u8>(12).unwrap_or(0);
-            let display_id: u32 = result.try_read(13).unwrap_or(0);
-            let _name: String = result.read_string(14);
-            let scale: f32 = result.try_read(15).unwrap_or(1.0);
-            let mut template_data = [0_u32; MAX_GAMEOBJECT_DATA];
-            for (index, value) in template_data.iter_mut().enumerate() {
-                *value = result
-                    .try_read::<i32>(GO_SPAWN_TEMPLATE_DATA_START + index)
-                    .and_then(|raw| u32::try_from(raw).ok())
-                    .unwrap_or(0);
-            }
+            let anim_progress = row.anim_progress;
+            let state = row.state;
+            let go_type = row.go_type;
+            let display_id = row.display_id;
+            let scale = row.scale;
+            let template_data = row.template_data.map(|raw| u32::try_from(raw).unwrap_or(0));
             let data2 = template_data[2];
             let data3 = template_data[3];
             let template = GameObjectTemplateData::new(u32::from(go_type), template_data);
-            let phase_use_flags: u8 = result
-                .try_read::<u8>(GO_SPAWN_PHASE_USE_FLAGS_COLUMN)
-                .or_else(|| {
-                    result
-                        .try_read::<i16>(GO_SPAWN_PHASE_USE_FLAGS_COLUMN)
-                        .map(|value| value.max(0) as u8)
-                })
-                .unwrap_or(0);
-            let phase_id: u16 = result
-                .try_read::<u16>(GO_SPAWN_PHASE_ID_COLUMN)
-                .or_else(|| {
-                    result
-                        .try_read::<i32>(GO_SPAWN_PHASE_ID_COLUMN)
-                        .map(|value| value.max(0) as u16)
-                })
-                .unwrap_or(0);
-            let phase_group_id: u32 = result
-                .try_read::<u32>(GO_SPAWN_PHASE_GROUP_COLUMN)
-                .or_else(|| {
-                    result
-                        .try_read::<i32>(GO_SPAWN_PHASE_GROUP_COLUMN)
-                        .map(|value| value.max(0) as u32)
-                })
-                .unwrap_or(0);
-            let terrain_swap_map: i32 = result
-                .try_read(GO_SPAWN_TERRAIN_SWAP_MAP_COLUMN)
-                .unwrap_or(-1);
-            let effective_flags: u32 = result
-                .try_read::<u32>(GO_SPAWN_EFFECTIVE_FLAGS_COLUMN)
-                .or_else(|| {
-                    result
-                        .try_read::<i64>(GO_SPAWN_EFFECTIVE_FLAGS_COLUMN)
-                        .and_then(|value| u32::try_from(value).ok())
-                })
-                .unwrap_or(0);
-            let effective_faction: u32 = result
-                .try_read::<u32>(GO_SPAWN_EFFECTIVE_FACTION_COLUMN)
-                .or_else(|| {
-                    result
-                        .try_read::<i64>(GO_SPAWN_EFFECTIVE_FACTION_COLUMN)
-                        .and_then(|value| u32::try_from(value).ok())
-                })
-                .unwrap_or(0);
-            let override_source_known = result
-                .try_read::<u8>(GO_SPAWN_OVERRIDE_SOURCE_KNOWN_COLUMN)
-                .map(|value| value != 0)
-                .or_else(|| {
-                    result
-                        .try_read::<i64>(GO_SPAWN_OVERRIDE_SOURCE_KNOWN_COLUMN)
-                        .map(|value| value != 0)
-                })
-                .unwrap_or(false);
+            let phase_use_flags = row.phase_use_flags;
+            let phase_id = row.phase_id;
+            let phase_group_id = row.phase_group_id;
+            let terrain_swap_map = row.terrain_swap_map;
+            let effective_flags = row.effective_flags;
+            let effective_faction = row.effective_faction;
+            let override_source_known = row.override_source_known;
 
             // Skip gameobjects with no display
             if display_id == 0 {
-                if !result.next_row() {
-                    break;
-                }
                 continue;
             }
 
@@ -1199,9 +1034,6 @@ impl WorldSession {
                 terrain_swap_map,
             );
             if !self.can_see_phase_shift_like_cpp(&target_phase_shift) {
-                if !result.next_row() {
-                    break;
-                }
                 continue;
             }
 
@@ -1288,10 +1120,6 @@ impl WorldSession {
                 [rot0, rot1, rot2, rot3],
             );
             self.record_represented_gameobject_anim_progress_like_cpp(guid, anim_progress);
-
-            if !result.next_row() {
-                break;
-            }
         }
 
         if blocks.is_empty() {

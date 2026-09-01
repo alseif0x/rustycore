@@ -5,25 +5,38 @@
 
 //! Inventory storage, equip/swap, destroy, durability and item modification.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::{CharStatements, SqlResult, SqlTransaction, WorldStatements};
-
 use super::*;
+
+pub(crate) fn item_turnin_persistence_rows_like_cpp(
+    player_guid: ObjectGuid,
+    changes: &[ExtendedCostItemTurninChange],
+) -> Vec<wow_persistence::VendorItemTurninPersistenceLikeCpp> {
+    changes
+        .iter()
+        .map(|change| match *change {
+            ExtendedCostItemTurninChange::Update {
+                db_guid, new_count, ..
+            } => wow_persistence::VendorItemTurninPersistenceLikeCpp::Update {
+                item_guid: db_guid,
+                new_count,
+            },
+            ExtendedCostItemTurninChange::Delete { db_guid, .. } => {
+                wow_persistence::VendorItemTurninPersistenceLikeCpp::Delete {
+                    owner_guid: player_guid.counter() as u64,
+                    item_guid: db_guid,
+                }
+            }
+        })
+        .collect()
+}
 
 impl WorldSession {
     pub(super) fn creature_virtual_items_from_row_like_cpp(
         &mut self,
         entry: u32,
-        row: &SqlResult,
+        persisted_equipment_id: i16,
     ) -> CreatureEquipmentCreateFieldsLikeCpp {
-        let mut equipment_id = row
-            .try_read::<i8>(CREATURE_SPAWN_EQUIPMENT_ID_COLUMN)
-            .map(i16::from)
-            .or_else(|| row.try_read::<i16>(CREATURE_SPAWN_EQUIPMENT_ID_COLUMN))
-            .unwrap_or(0);
+        let mut equipment_id = persisted_equipment_id;
         let original_equipment_id = i8::try_from(equipment_id).unwrap_or(0);
         if equipment_id == 0 {
             return CreatureEquipmentCreateFieldsLikeCpp {
@@ -319,7 +332,7 @@ impl WorldSession {
             }
             None => return,
         };
-        let Some(char_db) = self.char_db().cloned() else {
+        let Some(inventory_port) = self.player_inventory_persistence_port_like_cpp() else {
             return;
         };
 
@@ -510,20 +523,8 @@ impl WorldSession {
             ));
         }
 
-        let mut tx = SqlTransaction::new();
-        for update in &mutable_persistence {
-            append_item_storage_mutable_persistence_like_cpp(char_db.as_ref(), &mut tx, update);
-        }
-
-        if !source_stays_in_place {
-            let mut delete_source_inventory =
-                char_db.prepare(CharStatements::DEL_CHAR_INVENTORY_ITEM);
-            delete_source_inventory.set_u64(0, player_guid.counter() as u64);
-            delete_source_inventory.set_u64(1, plan.source.db_guid);
-            tx.append(delete_source_inventory);
-        }
-        if let Some((destination_bag, destination_slot, _moved_count)) = plan.moved_destination {
-            if !source_stays_in_place {
+        let destination_link = match plan.moved_destination {
+            Some((destination_bag, destination_slot, _)) if !source_stays_in_place => {
                 let Some(container_db_guid) =
                     self.inventory_container_db_guid_like_cpp(destination_bag)
                 else {
@@ -536,42 +537,41 @@ impl WorldSession {
                     );
                     return;
                 };
-                // C++ `Item::SaveToDB` persists the containing bag item's DB GUID,
-                // not the bag's player-slot number.
-                let mut replace_inventory =
-                    char_db.prepare(CharStatements::REP_CHAR_INVENTORY_ITEM);
-                replace_inventory.set_u64(0, player_guid.counter() as u64);
-                replace_inventory.set_u64(1, container_db_guid);
-                replace_inventory.set_u8(2, destination_slot);
-                replace_inventory.set_u64(3, plan.source.db_guid);
-                tx.append(replace_inventory);
+                Some(wow_persistence::InventoryLinkPersistenceLikeCpp {
+                    owner_guid: player_guid.counter() as u64,
+                    bag_guid: container_db_guid,
+                    slot: destination_slot,
+                    item_guid: plan.source.db_guid,
+                })
             }
-        } else {
-            // C++ `_StoreItem` marks a fully merged source as removed after
-            // clearing refund/trade state, and `Item::SaveToDB` removes all
-            // item-owned persistence rows in the same character transaction.
-            for statement_kind in fully_merged_item_cleanup_statements_like_cpp() {
-                let mut cleanup = char_db.prepare(statement_kind);
-                cleanup.set_u64(0, plan.source.db_guid);
-                tx.append(cleanup);
-            }
-            let mut delete_source_item = char_db.prepare(CharStatements::DEL_ITEM_INSTANCE);
-            delete_source_item.set_u64(0, plan.source.db_guid);
-            tx.append(delete_source_item);
-        }
-        self.append_planned_quest_statuses_to_transaction_like_cpp(
-            &mut tx,
-            char_db.as_ref(),
-            player_guid.counter() as u64,
-            &planned_quest_statuses,
+            _ => None,
+        };
+        let request = wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::StorageMove(
+            wow_persistence::InventoryStorageMovePersistenceLikeCpp {
+                owner_guid: player_guid.counter() as u64,
+                mutable_items: mutable_persistence,
+                delete_source_link_item_guid: (!source_stays_in_place)
+                    .then_some(plan.source.db_guid),
+                destination_link,
+                fully_merged_source_item_guid: plan
+                    .moved_destination
+                    .is_none()
+                    .then_some(plan.source.db_guid),
+                quest_statuses: self
+                    .represented_quest_status_persistence_rows_like_cpp(&planned_quest_statuses),
+            },
         );
-
-        if let Err(error) = char_db.commit_transaction(tx).await {
+        let outcome = inventory_port
+            .persist_inventory_mutation_like_cpp(request)
+            .await;
+        if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+        | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
+        {
             warn!(
                 source_bag,
                 source_slot,
                 item_guid = plan.source.db_guid,
-                error = %error,
+                error = %reason,
                 "bank storage transaction failed; runtime left unchanged"
             );
             self.send_equip_error(
@@ -774,8 +774,8 @@ impl WorldSession {
             vendor_guid, self.account_id
         );
 
-        let world_db = match self.world_db() {
-            Some(db) => Arc::clone(db),
+        let vendor_catalog = match self.vendor_catalog_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return,
         };
 
@@ -786,15 +786,14 @@ impl WorldSession {
         }) {
             Some(entry) => entry,
             None => {
-                let mut stmt = world_db.prepare(WorldStatements::SEL_CREATURE_ENTRY_BY_GUID);
-                stmt.set_u64(0, vendor_guid.low_value() as u64);
                 let fallback = match tokio::time::timeout(
                     std::time::Duration::from_secs(2),
-                    world_db.query(&stmt),
+                    vendor_catalog
+                        .load_creature_entry_by_spawn_like_cpp(vendor_guid.low_value() as u64),
                 )
                 .await
                 {
-                    Ok(Ok(r)) if !r.is_empty() => r.try_read::<u32>(0),
+                    Ok(wow_persistence::VendorCatalogOutcomeLikeCpp::Loaded(entry)) => Some(entry),
                     _ => None,
                 };
                 match fallback {
@@ -836,19 +835,16 @@ impl WorldSession {
             if !expanded.insert(vendor_entry) {
                 continue; // already expanded (avoid cycles)
             }
-            let mut stmt = world_db.prepare(WorldStatements::SEL_VENDOR_ITEMS);
-            stmt.set_u32(0, entry);
-            stmt.set_u32(1, vendor_entry);
-
-            let mut result = match tokio::time::timeout(
+            let rows = match tokio::time::timeout(
                 std::time::Duration::from_secs(5),
-                world_db.query(&stmt),
+                vendor_catalog.load_vendor_rows_like_cpp(entry, vendor_entry),
             )
             .await
             {
-                Ok(Ok(r)) => r,
-                Ok(Err(e)) => {
-                    warn!("Vendor query failed for entry {vendor_entry}: {e}");
+                Ok(wow_persistence::VendorCatalogOutcomeLikeCpp::Loaded(rows)) => rows,
+                Ok(wow_persistence::VendorCatalogOutcomeLikeCpp::Missing) => Vec::new(),
+                Ok(wow_persistence::VendorCatalogOutcomeLikeCpp::Failed { reason }) => {
+                    warn!("Vendor query failed for entry {vendor_entry}: {reason}");
                     continue;
                 }
                 Err(_) => {
@@ -857,25 +853,18 @@ impl WorldSession {
                 }
             };
 
-            loop {
-                let item_id: i32 = result.try_read(0).unwrap_or(0);
-                let maxcount: i32 = result.try_read(1).unwrap_or(0);
-                let extended_cost: i32 = result.try_read::<u32>(2).unwrap_or(0) as i32;
-                let item_type: i32 = result.try_read::<u8>(3).unwrap_or(1) as i32;
-                let buy_price: u64 = result
-                    .try_read::<i64>(5)
-                    .map(|v| v as u64)
-                    .or_else(|| result.try_read::<u64>(5))
-                    .unwrap_or(0);
-                let durability: i32 = result.try_read::<i64>(7).map(|v| v as i32).unwrap_or(0);
-                let stack_count: i32 = result.try_read::<i64>(8).map(|v| v as i32).unwrap_or(1);
-                let do_not_filter: bool = result.try_read::<u8>(9).map(|v| v != 0).unwrap_or(false);
-                let incr_time: u32 = result.try_read::<u32>(10).unwrap_or(0);
-                let player_condition_id: u32 = result.try_read::<u32>(11).unwrap_or(0);
-                let has_vendor_conditions: bool = result
-                    .try_read::<u8>(12)
-                    .map(|value| value != 0)
-                    .unwrap_or(false);
+            for row in rows {
+                let item_id = row.item_id;
+                let maxcount = row.max_count;
+                let extended_cost = row.extended_cost as i32;
+                let item_type = i32::from(row.item_type);
+                let buy_price = row.buy_price;
+                let durability = row.max_durability as i32;
+                let stack_count = row.buy_count as i32;
+                let do_not_filter = row.do_not_filter;
+                let incr_time = row.incr_time;
+                let player_condition_id = row.player_condition_id;
+                let has_vendor_conditions = row.has_vendor_conditions;
 
                 // Solo enviar items con ID válido; 0 o negativo el cliente lo muestra como ? y nombre vacío
                 // Ademas filtrar items que no existen en Item.db2, matching
@@ -891,9 +880,6 @@ impl WorldSession {
                             item_id,
                             extended_cost,
                         ) {
-                            if !result.next_row() {
-                                break;
-                            }
                             continue;
                         }
                         items.push(VendorItem {
@@ -917,9 +903,6 @@ impl WorldSession {
                         if vendor_list_reaches_cpp_item_limit(items.len()) {
                             break 'vendor_expansion;
                         }
-                        if !result.next_row() {
-                            break;
-                        }
                         continue;
                     }
                     let item_known = self
@@ -930,9 +913,6 @@ impl WorldSession {
                             "Vendor item {} not in Item.db2 (entry {}), skipping",
                             item_id, vendor_entry
                         );
-                        if !result.next_row() {
-                            break;
-                        }
                         continue;
                     }
                     let current_count = self.vendor_item_current_count(
@@ -944,9 +924,6 @@ impl WorldSession {
                     );
                     if vendor_list_should_skip_sold_out(maxcount, current_count, self.security > 0)
                     {
-                        if !result.next_row() {
-                            break;
-                        }
                         continue;
                     }
                     let template = self.item_storage_template(item_id as u32);
@@ -959,9 +936,6 @@ impl WorldSession {
                         self.player_class_like_cpp(),
                         self.security > 0,
                     ) {
-                        if !result.next_row() {
-                            break;
-                        }
                         continue;
                     }
                     if vendor_list_should_skip_faction_flags(
@@ -969,16 +943,10 @@ impl WorldSession {
                         player_team_for_race_cpp(self.player_race_like_cpp()),
                         self.security > 0,
                     ) {
-                        if !result.next_row() {
-                            break;
-                        }
                         continue;
                     }
                     if has_vendor_conditions {
                         let Some(store) = condition_store.as_ref() else {
-                            if !result.next_row() {
-                                break;
-                            }
                             continue;
                         };
                         let (vendor_object, vendor_unit_snapshot) = vendor_condition_object
@@ -1001,9 +969,6 @@ impl WorldSession {
                                 "Vendor item condition not met for creature entry {} item {}",
                                 entry, item_id
                             );
-                            if !result.next_row() {
-                                break;
-                            }
                             continue;
                         }
                     }
@@ -1040,10 +1005,6 @@ impl WorldSession {
                 } else if item_id < 0 {
                     let ref_entry = (-item_id) as u32;
                     queue.push_back(ref_entry);
-                }
-
-                if !result.next_row() {
-                    break;
                 }
             }
         }
@@ -1159,36 +1120,6 @@ impl WorldSession {
         }
 
         None
-    }
-
-    pub(crate) fn append_item_turnin_statements(
-        char_db: &wow_database::CharacterDatabase,
-        tx: &mut SqlTransaction,
-        player_guid: ObjectGuid,
-        changes: &[ExtendedCostItemTurninChange],
-    ) {
-        for change in changes {
-            match *change {
-                ExtendedCostItemTurninChange::Update {
-                    db_guid, new_count, ..
-                } => {
-                    let mut stmt = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_COUNT);
-                    stmt.set_u32(0, new_count);
-                    stmt.set_u64(1, db_guid);
-                    tx.append(stmt);
-                }
-                ExtendedCostItemTurninChange::Delete { db_guid, .. } => {
-                    let mut del_inv = char_db.prepare(CharStatements::DEL_CHAR_INVENTORY_ITEM);
-                    del_inv.set_u64(0, player_guid.counter() as u64);
-                    del_inv.set_u64(1, db_guid);
-                    tx.append(del_inv);
-
-                    let mut del_item = char_db.prepare(CharStatements::DEL_ITEM_INSTANCE);
-                    del_item.set_u64(0, db_guid);
-                    tx.append(del_item);
-                }
-            }
-        }
     }
 
     pub(crate) fn apply_item_turnin_changes(
@@ -1986,7 +1917,7 @@ impl WorldSession {
         else {
             return;
         };
-        let Some(char_db) = self.char_db().cloned() else {
+        let Some(inventory_port) = self.player_inventory_persistence_port_like_cpp() else {
             self.send_equip_error(
                 InventoryResult::InternalBagError,
                 Some(source.guid),
@@ -1996,25 +1927,31 @@ impl WorldSession {
             );
             return;
         };
-        let mut tx = SqlTransaction::new();
-        append_item_storage_mutable_persistence_like_cpp(char_db.as_ref(), &mut tx, &mutable);
-        let mut delete_source = char_db.prepare(CharStatements::DEL_CHAR_INVENTORY_ITEM);
-        delete_source.set_u64(0, player_guid.counter() as u64);
-        delete_source.set_u64(1, source.db_guid);
-        tx.append(delete_source);
-        let mut replace_destination = char_db.prepare(CharStatements::REP_CHAR_INVENTORY_ITEM);
-        replace_destination.set_u64(0, player_guid.counter() as u64);
-        replace_destination.set_u64(1, container_db_guid);
-        replace_destination.set_u8(2, destination_slot);
-        replace_destination.set_u64(3, source.db_guid);
-        tx.append(replace_destination);
-        if let Err(error) = char_db.commit_transaction(tx).await {
+        let request = wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::Equip(
+            wow_persistence::InventoryEquipPersistenceLikeCpp {
+                mutable_item: mutable,
+                delete_source_link_owner_guid: player_guid.counter() as u64,
+                delete_source_link_item_guid: source.db_guid,
+                destination_link: wow_persistence::InventoryLinkPersistenceLikeCpp {
+                    owner_guid: player_guid.counter() as u64,
+                    bag_guid: container_db_guid,
+                    slot: destination_slot,
+                    item_guid: source.db_guid,
+                },
+            },
+        );
+        let outcome = inventory_port
+            .persist_inventory_mutation_like_cpp(request)
+            .await;
+        if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+        | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
+        {
             warn!(
                 source_bag,
                 source_slot,
                 destination_bag,
                 destination_slot,
-                error = %error,
+                error = %reason,
                 "inventory equip transaction failed; runtime left unchanged"
             );
             self.send_equip_error(
@@ -2184,7 +2121,7 @@ impl WorldSession {
             destination_enchantments,
             self.item_effect_count_like_cpp(destination.entry_id),
         );
-        let Some(char_db) = self.char_db().cloned() else {
+        let Some(inventory_port) = self.player_inventory_persistence_port_like_cpp() else {
             self.send_equip_error(
                 InventoryResult::InternalBagError,
                 Some(source.guid),
@@ -2194,40 +2131,32 @@ impl WorldSession {
             );
             return;
         };
-        let mut tx = SqlTransaction::new();
-        append_item_storage_mutable_persistence_like_cpp(
-            char_db.as_ref(),
-            &mut tx,
-            &destination_mutable,
-        );
-        if source_count > 0 {
-            append_item_storage_mutable_persistence_like_cpp(
-                char_db.as_ref(),
-                &mut tx,
-                &source_mutable,
-            );
+        let source_persistence = if source_count > 0 {
+            wow_persistence::InventoryStackMergeSourcePersistenceLikeCpp::Retained(source_mutable)
         } else {
-            let mut delete_source_inventory =
-                char_db.prepare(CharStatements::DEL_CHAR_INVENTORY_ITEM);
-            delete_source_inventory.set_u64(0, player_guid.counter() as u64);
-            delete_source_inventory.set_u64(1, source.db_guid);
-            tx.append(delete_source_inventory);
-            for statement_kind in fully_merged_item_cleanup_statements_like_cpp() {
-                let mut cleanup = char_db.prepare(statement_kind);
-                cleanup.set_u64(0, source.db_guid);
-                tx.append(cleanup);
+            wow_persistence::InventoryStackMergeSourcePersistenceLikeCpp::FullyMerged {
+                item_guid: source.db_guid,
             }
-            let mut delete_source_item = char_db.prepare(CharStatements::DEL_ITEM_INSTANCE);
-            delete_source_item.set_u64(0, source.db_guid);
-            tx.append(delete_source_item);
-        }
-        if let Err(error) = char_db.commit_transaction(tx).await {
+        };
+        let request = wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::StackMerge(
+            wow_persistence::InventoryStackMergePersistenceLikeCpp {
+                owner_guid: player_guid.counter() as u64,
+                destination_item: destination_mutable,
+                source: source_persistence,
+            },
+        );
+        let outcome = inventory_port
+            .persist_inventory_mutation_like_cpp(request)
+            .await;
+        if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+        | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
+        {
             warn!(
                 source_bag,
                 source_slot,
                 destination_bag,
                 destination_slot,
-                error = %error,
+                error = %reason,
                 "inventory stack merge transaction failed; runtime left unchanged"
             );
             self.send_equip_error(
@@ -2526,7 +2455,7 @@ impl WorldSession {
             }
         }
 
-        let Some(char_db) = self.char_db().cloned() else {
+        let Some(inventory_port) = self.player_inventory_persistence_port_like_cpp() else {
             self.send_equip_error(
                 InventoryResult::InternalBagError,
                 Some(source.guid),
@@ -2536,44 +2465,48 @@ impl WorldSession {
             );
             return;
         };
-        let mut tx = SqlTransaction::new();
-        append_item_storage_mutable_persistence_like_cpp(
-            char_db.as_ref(),
-            &mut tx,
-            &source_mutable,
+        let child_links = child_moves
+            .iter()
+            .map(|(_, child_db_guid, _, _, empty_db_guid, _, to_slot)| {
+                wow_persistence::InventoryLinkPersistenceLikeCpp {
+                    owner_guid: player_guid.counter() as u64,
+                    bag_guid: *empty_db_guid,
+                    slot: *to_slot,
+                    item_guid: *child_db_guid,
+                }
+            })
+            .collect();
+        let request = wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::Swap(
+            wow_persistence::InventorySwapPersistenceLikeCpp {
+                source_item: source_mutable,
+                destination_item: destination_mutable,
+                child_links,
+                source_link: wow_persistence::InventoryLinkPersistenceLikeCpp {
+                    owner_guid: player_guid.counter() as u64,
+                    bag_guid: destination_container_db_guid,
+                    slot: destination_slot,
+                    item_guid: source.db_guid,
+                },
+                destination_link: wow_persistence::InventoryLinkPersistenceLikeCpp {
+                    owner_guid: player_guid.counter() as u64,
+                    bag_guid: source_container_db_guid,
+                    slot: source_slot,
+                    item_guid: destination.db_guid,
+                },
+            },
         );
-        append_item_storage_mutable_persistence_like_cpp(
-            char_db.as_ref(),
-            &mut tx,
-            &destination_mutable,
-        );
-        for (_, child_db_guid, _, _, empty_db_guid, _, to_slot) in &child_moves {
-            let mut replace_child = char_db.prepare(CharStatements::REP_CHAR_INVENTORY_ITEM);
-            replace_child.set_u64(0, player_guid.counter() as u64);
-            replace_child.set_u64(1, *empty_db_guid);
-            replace_child.set_u8(2, *to_slot);
-            replace_child.set_u64(3, *child_db_guid);
-            tx.append(replace_child);
-        }
-        let mut replace_source = char_db.prepare(CharStatements::REP_CHAR_INVENTORY_ITEM);
-        replace_source.set_u64(0, player_guid.counter() as u64);
-        replace_source.set_u64(1, destination_container_db_guid);
-        replace_source.set_u8(2, destination_slot);
-        replace_source.set_u64(3, source.db_guid);
-        tx.append(replace_source);
-        let mut replace_destination = char_db.prepare(CharStatements::REP_CHAR_INVENTORY_ITEM);
-        replace_destination.set_u64(0, player_guid.counter() as u64);
-        replace_destination.set_u64(1, source_container_db_guid);
-        replace_destination.set_u8(2, source_slot);
-        replace_destination.set_u64(3, destination.db_guid);
-        tx.append(replace_destination);
-        if let Err(error) = char_db.commit_transaction(tx).await {
+        let outcome = inventory_port
+            .persist_inventory_mutation_like_cpp(request)
+            .await;
+        if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+        | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
+        {
             warn!(
                 source_bag,
                 source_slot,
                 destination_bag,
                 destination_slot,
-                error = %error,
+                error = %reason,
                 "inventory real swap transaction failed; runtime left unchanged"
             );
             self.send_equip_error(
@@ -3135,8 +3068,8 @@ impl WorldSession {
         }
 
         // Delete from DB
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let inventory_port = match self.player_inventory_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return,
         };
 
@@ -3164,19 +3097,23 @@ impl WorldSession {
                         count: removed_count,
                     },
                 ]);
-            let mut upd_count = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_COUNT);
-            upd_count.set_u32(0, new_count);
-            upd_count.set_u64(1, item.db_guid);
-            let mut tx = SqlTransaction::new();
-            tx.append(upd_count);
-            self.append_planned_quest_statuses_to_transaction_like_cpp(
-                &mut tx,
-                char_db.as_ref(),
-                player_guid.counter() as u64,
-                &planned_quest_statuses,
+            let request = wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::PartialDestroy(
+                wow_persistence::InventoryPartialDestroyPersistenceLikeCpp {
+                    owner_guid: player_guid.counter() as u64,
+                    item_guid: item.db_guid,
+                    new_count,
+                    quest_statuses: self.represented_quest_status_persistence_rows_like_cpp(
+                        &planned_quest_statuses,
+                    ),
+                },
             );
-            if let Err(e) = char_db.commit_transaction(tx).await {
-                warn!("DestroyItem: update partial stack count failed: {e}");
+            let outcome = inventory_port
+                .persist_inventory_mutation_like_cpp(request)
+                .await;
+            if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
+            {
+                warn!(error = %reason, "DestroyItem: update partial stack count failed");
                 self.send_packet_realm(&InventoryChangeFailure::error(
                     InventoryResult::InternalBagError,
                 ));
@@ -3324,8 +3261,8 @@ impl WorldSession {
             Some(guid) => guid,
             None => return false,
         };
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let inventory_port = match self.player_inventory_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return false,
         };
 
@@ -3374,65 +3311,38 @@ impl WorldSession {
         let planned_quest_statuses =
             self.plan_destroyed_inventory_quest_persistence_like_cpp(&destroyed_quest_items);
 
-        let mut tx = SqlTransaction::new();
         let should_expire_refund = runtime_item
             .as_ref()
             .is_some_and(|item_object| item_object.is_refundable());
 
-        for db_guid in descendant_runtime
+        let nodes = descendant_runtime
             .iter()
             .map(|(_, _, child, _)| child.db_guid)
             .chain(std::iter::once(item.db_guid))
-        {
-            let is_guarded_root = db_guid == item.db_guid && expected_owner_db_guid.is_some();
-            let mut del_inv = char_db.prepare(if is_guarded_root {
-                CharStatements::DEL_CHAR_INVENTORY_ITEM_BY_OWNER
-            } else {
-                CharStatements::DEL_CHAR_INVENTORY_ITEM
-            });
-            del_inv.set_u64(0, player_guid.counter() as u64);
-            del_inv.set_u64(1, db_guid);
-            if let Some(expected_owner_db_guid) = expected_owner_db_guid.filter(|_| is_guarded_root)
-            {
-                del_inv.set_u64(2, expected_owner_db_guid);
-            }
-            if is_guarded_root {
-                tx.append_expect_rows_affected(del_inv, 1);
-            } else {
-                tx.append(del_inv);
-            }
-
-            for statement_kind in fully_merged_item_cleanup_statements_like_cpp() {
-                let mut cleanup = char_db.prepare(statement_kind);
-                cleanup.set_u64(0, db_guid);
-                tx.append(cleanup);
-            }
-
-            let mut del_item = char_db.prepare(if is_guarded_root {
-                CharStatements::DEL_ITEM_INSTANCE_BY_GUID_AND_OWNER
-            } else {
-                CharStatements::DEL_ITEM_INSTANCE
-            });
-            del_item.set_u64(0, db_guid);
-            if let Some(expected_owner_db_guid) = expected_owner_db_guid.filter(|_| is_guarded_root)
-            {
-                del_item.set_u64(1, expected_owner_db_guid);
-            }
-            if is_guarded_root {
-                tx.append_expect_rows_affected(del_item, 1);
-            } else {
-                tx.append(del_item);
-            }
-        }
-        self.append_planned_quest_statuses_to_transaction_like_cpp(
-            &mut tx,
-            char_db.as_ref(),
-            player_guid.counter() as u64,
-            &planned_quest_statuses,
+            .map(
+                |db_guid| wow_persistence::InventoryDestroyNodePersistenceLikeCpp {
+                    item_guid: db_guid,
+                    expected_owner_db_guid: (db_guid == item.db_guid)
+                        .then_some(expected_owner_db_guid)
+                        .flatten(),
+                },
+            )
+            .collect();
+        let request = wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::GraphDestroy(
+            wow_persistence::InventoryGraphDestroyPersistenceLikeCpp {
+                owner_guid: player_guid.counter() as u64,
+                nodes,
+                quest_statuses: self
+                    .represented_quest_status_persistence_rows_like_cpp(&planned_quest_statuses),
+            },
         );
-
-        if let Err(e) = char_db.commit_transaction(tx).await {
-            warn!("{context}: delete transaction failed: {e}");
+        let outcome = inventory_port
+            .persist_inventory_mutation_like_cpp(request)
+            .await;
+        if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+        | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
+        {
+            warn!(error = %reason, "{context}: delete transaction failed");
             self.send_packet_realm(&InventoryChangeFailure::error(
                 InventoryResult::InternalBagError,
             ));

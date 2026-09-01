@@ -9,13 +9,11 @@
 
 #![cfg(test)]
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::{CharStatements, CharacterDatabase};
-
 use super::*;
+use crate::player_inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
+use crate::player_quest_persistence_test_fixture::{
+    PlayerQuestLoadStageFixtureLikeCpp, PlayerQuestPersistencePortFixtureLikeCpp,
+};
 use crate::session::InventoryItem;
 use crate::session::directory::PlayerRegistry;
 use wow_constants::{
@@ -42,16 +40,18 @@ use wow_data::{
     },
     reputation::{ReputationRewardRateEntryLikeCpp, ReputationRewardRateStoreLikeCpp},
 };
-use wow_database::{PreparedStatement, SqlParam, StatementDef};
 use wow_entities::{ITEM_LIMIT_CATEGORY_MODE_HAVE, Player, PlayerReputationRecord};
-use wow_packet::WorldPacket;
 use wow_packet::packets::item::InventoryChangeFailure;
 use wow_packet::packets::quest::QuestGiverQuestFailed;
+use wow_packet::{ClientPacket, WorldPacket};
 use wow_persistence::{
     ItemTemplateAddonCatalogPersistencePortLikeCpp, ItemTemplateAddonCatalogRequestLikeCpp,
     ItemTemplateAddonLootMetadataOutcomeLikeCpp, ItemTemplateAddonMoneyOutcomeLikeCpp,
-    PersistenceFutureLikeCpp, QuestPoiBlobLoadRowLikeCpp, QuestPoiLoadOutcomeLikeCpp,
-    QuestPoiLoadStageLikeCpp, QuestPoiPersistencePortLikeCpp, QuestPoiPointLoadRowLikeCpp,
+    PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerQuestActivePersistenceRowLikeCpp,
+    PlayerQuestDailyPersistenceRowLikeCpp, PlayerQuestIdPersistenceRowLikeCpp,
+    PlayerQuestObjectivePersistenceRowLikeCpp, PlayerQuestStatusPersistenceRequestLikeCpp,
+    QuestPoiBlobLoadRowLikeCpp, QuestPoiLoadOutcomeLikeCpp, QuestPoiLoadStageLikeCpp,
+    QuestPoiPersistencePortLikeCpp, QuestPoiPointLoadRowLikeCpp,
 };
 use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
 
@@ -82,9 +82,9 @@ fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
     session.set_player_position_like_cpp(Position::new(10.0, 0.0, 0.0, 0.0));
     session.set_item_guid_generator_like_cpp(Arc::new(ObjectGuidGenerator::new(HighGuid::Item, 1)));
-    // Reward tests model a successful CharacterDatabase commit. The
-    // production path is fail-closed when no database is available; unit
-    // fixtures have no pool and must opt into the explicit success seam.
+    // Reward tests model successful persistence. Production composition
+    // installs the typed ports; these narrow unit fixtures retain the
+    // explicit no-I/O success seam for unrelated reward assertions.
     session.set_loot_money_persistence_test_result_like_cpp(true);
     (session, send_rx)
 }
@@ -232,29 +232,6 @@ async fn quest_giver_accept_rejected_source_sends_no_quest_log_update_like_cpp()
 
     assert!(!session.player_quests.contains_key(&quest_id));
     assert!(send_rx.try_recv().is_err());
-}
-
-#[test]
-fn player_quest_status_load_binds_full_u64_guid_like_cpp() {
-    let guid = ObjectGuid::create_player(1, i64::from(u32::MAX) + 42);
-
-    for statement in [
-        CharStatements::SEL_CHAR_QUEST_STATUS,
-        CharStatements::SEL_CHAR_QUEST_STATUS_OBJECTIVES,
-        CharStatements::SEL_CHARACTER_QUESTSTATUSREW,
-        CharStatements::SEL_CHARACTER_QUESTSTATUS_DAILY,
-        CharStatements::SEL_CHARACTER_QUESTSTATUS_WEEKLY,
-        CharStatements::SEL_CHARACTER_QUESTSTATUS_MONTHLY,
-        CharStatements::SEL_CHAR_QUEST_STATUS_SEASONAL,
-    ] {
-        let mut stmt = PreparedStatement::new(statement.sql());
-        WorldSession::bind_player_quest_status_load_guid_like_cpp(&mut stmt, guid);
-        assert_eq!(stmt.params().len(), 1);
-        assert!(matches!(
-            stmt.params()[0],
-            SqlParam::U64(value) if value == guid.counter() as u64
-        ));
-    }
 }
 
 fn quest_template(id: u32) -> QuestTemplate {
@@ -3626,6 +3603,82 @@ async fn quest_giver_choose_reward_fixed_reward_stores_and_pushes_item_like_cpp(
     }
     assert!(saw_item_push);
     assert!(saw_quest_complete);
+}
+
+#[tokio::test]
+async fn quest_reward_item_definite_and_unknown_commit_fail_closed_before_publication_like_cpp() {
+    for outcome in [
+        PersistenceOutcomeLikeCpp::Failed {
+            reason: "fixture rollback".into(),
+        },
+        PersistenceOutcomeLikeCpp::Unknown {
+            reason: "fixture unknown commit".into(),
+        },
+    ] {
+        let (mut session, _send_rx) = make_session();
+        let player_guid = session.player_guid().unwrap();
+        let quest_id = 70_120;
+        let reward_item_id = 19_126;
+        let mut quest = quest_template(quest_id);
+        quest.flags = QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
+        quest.reward_money_difficulty = 37;
+        quest.reward_items[0] = reward_item_id;
+        quest.reward_amounts[0] = 2;
+        session.set_player_gold_like_cpp(5);
+        install_source_item_template(&mut session, reward_item_id, 20, 0);
+        session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
+        session.player_quests.insert(
+            quest_id,
+            PlayerQuestStatus {
+                quest_id,
+                status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
+        let (port, requests) =
+            PlayerInventoryPersistencePortFixtureLikeCpp::with_outcomes_like_cpp([
+                PersistenceOutcomeLikeCpp::Applied { rows: 0 },
+                outcome,
+            ]);
+        session.set_player_inventory_persistence_port_like_cpp(port);
+
+        session
+            .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
+                player_guid,
+                quest_id,
+                QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
+                0,
+            ))
+            .await;
+
+        assert_eq!(
+            session
+                .player_quests
+                .get(&quest_id)
+                .map(|status| status.status),
+            Some(QUEST_STATUS_COMPLETE_LIKE_CPP)
+        );
+        assert!(!session.rewarded_quests.contains(&quest_id));
+        assert_eq!(session.player_gold_like_cpp(), 5);
+        assert!(
+            session
+                .inventory_items_like_cpp()
+                .values()
+                .all(|item| item.entry_id != reward_item_id)
+        );
+        let requests = requests.lock().unwrap();
+        assert!(matches!(
+            requests.as_slice(),
+            [
+                wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::QuestTurnIn(_),
+                wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::QuestItemGrant(_),
+            ]
+        ));
+    }
 }
 
 #[tokio::test]
@@ -9675,7 +9728,7 @@ fn save_to_db_quest_status_list_includes_active_quests_like_cpp() {
 }
 
 #[test]
-fn save_to_db_quest_status_statements_persist_nonzero_objectives_like_cpp() {
+fn quest_status_projection_persists_only_nonzero_storage_objectives_like_cpp() {
     let (mut session, _send_rx) = make_session();
     let quest_id = 5925;
     let mut quest = quest_template(quest_id);
@@ -9732,114 +9785,171 @@ fn save_to_db_quest_status_statements_persist_nonzero_objectives_like_cpp() {
         },
     );
 
-    let statements = session.represented_quest_status_save_statements_like_cpp(
-        42,
-        quest_id,
-        QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-        None,
-        |statement| PreparedStatement::new(statement.sql()),
+    let projected = session.represented_quest_status_persistence_like_cpp(
+        session.player_quests.get(&quest_id).unwrap(),
     );
-
+    assert_eq!(projected.quest_id, quest_id);
+    assert_eq!(projected.status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
+    assert!(projected.explored);
+    assert_eq!(projected.accept_time_secs, 12);
+    assert_eq!(projected.end_time_secs, 34);
     assert_eq!(
-        statements
-            .iter()
-            .map(PreparedStatement::sql)
-            .collect::<Vec<_>>(),
-        vec![
-            CharStatements::INS_CHAR_QUEST_STATUS.sql(),
-            CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql(),
-            CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES.sql(),
-        ],
-        "C++ Player::_SaveQuestStatus rewrites the status row, deletes stale objective rows, then saves only nonzero storage-backed counters"
-    );
-    assert_eq!(
-        statements[0].params(),
-        &[
-            SqlParam::U64(42),
-            SqlParam::U32(quest_id),
-            SqlParam::U8(QUEST_STATUS_INCOMPLETE_LIKE_CPP),
-            SqlParam::U8(1),
-            SqlParam::I64(12),
-            SqlParam::I64(34),
-        ]
-    );
-    assert_eq!(
-        statements[1].params(),
-        &[SqlParam::U64(42), SqlParam::U32(quest_id)]
-    );
-    assert_eq!(
-        statements[2].params(),
-        &[
-            SqlParam::U64(42),
-            SqlParam::U32(quest_id),
-            SqlParam::U8(0),
-            SqlParam::I32(3),
-        ]
+        projected.objectives,
+        vec![wow_persistence::QuestObjectiveCountPersistenceLikeCpp {
+            objective_index: 0,
+            count: 3,
+        }]
     );
 }
 
-#[test]
-fn save_to_db_rewarded_quest_statements_preserve_rewarded_before_delete_like_cpp() {
-    let (session, _send_rx) = make_session();
-    let quest_id = 5926;
-
-    let statements = session.represented_quest_status_save_statements_like_cpp(
-        42,
+#[tokio::test]
+async fn quest_status_save_uses_the_sqlx_free_player_quest_port_like_cpp() {
+    let (mut session, _send_rx) = make_session();
+    let quest_id = 5928;
+    let mut quest = quest_template(quest_id);
+    quest.objectives.push(QuestObjective {
+        id: quest_id * 10,
         quest_id,
-        QUEST_STATUS_REWARDED_LIKE_CPP,
-        None,
-        |statement| PreparedStatement::new(statement.sql()),
+        obj_type: QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL,
+        order: 0,
+        storage_index: 0,
+        object_id: 44,
+        amount: 5,
+        flags: 0,
+        flags2: 0,
+        progress_bar_weight: 0.0,
+        description: String::new(),
+    });
+    session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
+    session.player_quests.insert(
+        quest_id,
+        PlayerQuestStatus {
+            quest_id,
+            status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+            explored: true,
+            accept_time_secs: 12,
+            end_time_secs: 34,
+            objective_counts: vec![5],
+            slot: 0,
+        },
     );
+    let fixture = PlayerQuestPersistencePortFixtureLikeCpp::default();
+    let requests = Arc::clone(&fixture.status_requests);
+    session.set_player_quest_persistence_port_like_cpp(Arc::new(fixture));
+
+    session
+        .save_quest_to_db(quest_id, QUEST_STATUS_COMPLETE_LIKE_CPP)
+        .await;
 
     assert_eq!(
-        statements
-            .iter()
-            .map(PreparedStatement::sql)
-            .collect::<Vec<_>>(),
-        vec![
-            CharStatements::INS_CHAR_QUESTSTATUS_REWARDED.sql(),
-            CharStatements::DEL_CHAR_QUEST_STATUS.sql(),
-            CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql(),
-        ]
-    );
-    assert_eq!(
-        statements[0].params(),
-        &[SqlParam::U64(42), SqlParam::U32(quest_id)]
-    );
-    assert_eq!(
-        statements[1].params(),
-        &[SqlParam::U64(42), SqlParam::U32(quest_id)]
-    );
-    assert_eq!(
-        statements[2].params(),
-        &[SqlParam::U64(42), SqlParam::U32(quest_id)]
+        requests.lock().unwrap().as_slice(),
+        &[PlayerQuestStatusPersistenceRequestLikeCpp::Save {
+            owner_guid: 42,
+            status: wow_persistence::QuestStatusPersistenceLikeCpp {
+                quest_id,
+                status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: true,
+                accept_time_secs: 12,
+                end_time_secs: 34,
+                objectives: vec![wow_persistence::QuestObjectiveCountPersistenceLikeCpp {
+                    objective_index: 0,
+                    count: 5,
+                }],
+            },
+        }]
     );
 }
 
-#[test]
-fn quest_load_rewarded_active_migration_persists_rewarded_before_delete_like_cpp() {
-    let (session, _send_rx) = make_session();
-    let quest_id = 5927;
+#[tokio::test]
+async fn quest_load_keeps_the_seven_stage_order_behind_the_typed_port_like_cpp() {
+    let (mut session, _send_rx) = make_session();
+    let active_id = 5930;
+    let rewarded_id = 5931;
+    let daily_id = 5932;
+    let weekly_id = 5933;
+    let monthly_id = 5934;
+    let mut active = quest_template(active_id);
+    active.objectives.push(QuestObjective {
+        id: active_id * 10,
+        quest_id: active_id,
+        obj_type: QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL,
+        order: 0,
+        storage_index: 0,
+        object_id: 44,
+        amount: 5,
+        flags: 0,
+        flags2: 0,
+        progress_bar_weight: 0.0,
+        description: String::new(),
+    });
+    let rewarded = quest_template(rewarded_id);
+    let mut daily = quest_template(daily_id);
+    daily.flags |= QUEST_FLAGS_DAILY_LIKE_CPP;
+    let mut weekly = quest_template(weekly_id);
+    weekly.flags |= QUEST_FLAGS_WEEKLY_LIKE_CPP;
+    let mut monthly = quest_template(monthly_id);
+    monthly.special_flags |= QUEST_SPECIAL_FLAGS_MONTHLY_LIKE_CPP;
+    session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([
+        active, rewarded, daily, weekly, monthly,
+    ])));
 
-    let statements = session.represented_quest_status_save_statements_like_cpp(
-        42,
-        quest_id,
-        QUEST_STATUS_REWARDED_LIKE_CPP,
-        None,
-        |statement| PreparedStatement::new(statement.sql()),
-    );
+    let fixture = PlayerQuestPersistencePortFixtureLikeCpp {
+        active: vec![PlayerQuestActivePersistenceRowLikeCpp {
+            quest_id: Some(active_id),
+            status: Some(QUEST_STATUS_INCOMPLETE_LIKE_CPP),
+            explored: Some(1),
+            accept_time_secs: Some(12),
+            end_time_secs: Some(34),
+        }],
+        objectives: vec![PlayerQuestObjectivePersistenceRowLikeCpp {
+            quest_id: Some(active_id),
+            storage_index: Some(0),
+            count: Some(3),
+        }],
+        rewarded: vec![PlayerQuestIdPersistenceRowLikeCpp {
+            quest_id: Some(rewarded_id),
+        }],
+        daily: vec![PlayerQuestDailyPersistenceRowLikeCpp {
+            quest_id: Some(daily_id),
+            completed_time: Some(45),
+        }],
+        weekly: vec![PlayerQuestIdPersistenceRowLikeCpp {
+            quest_id: Some(weekly_id),
+        }],
+        monthly: vec![PlayerQuestIdPersistenceRowLikeCpp {
+            quest_id: Some(monthly_id),
+        }],
+        ..Default::default()
+    };
+    let stages = Arc::clone(&fixture.stages);
+    session.set_player_quest_persistence_port_like_cpp(Arc::new(fixture));
+
+    session.load_player_quests().await;
 
     assert_eq!(
-        statements
-            .iter()
-            .map(PreparedStatement::sql)
-            .collect::<Vec<_>>(),
-        vec![
-            CharStatements::INS_CHAR_QUESTSTATUS_REWARDED.sql(),
-            CharStatements::DEL_CHAR_QUEST_STATUS.sql(),
-            CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql(),
-        ],
-        "load-time migration must not delete a legacy active REWARDED row without first preserving it in character_queststatus_rewarded"
+        stages.lock().unwrap().as_slice(),
+        &[
+            PlayerQuestLoadStageFixtureLikeCpp::Active,
+            PlayerQuestLoadStageFixtureLikeCpp::Objectives,
+            PlayerQuestLoadStageFixtureLikeCpp::Rewarded,
+            PlayerQuestLoadStageFixtureLikeCpp::Daily,
+            PlayerQuestLoadStageFixtureLikeCpp::Weekly,
+            PlayerQuestLoadStageFixtureLikeCpp::Monthly,
+            PlayerQuestLoadStageFixtureLikeCpp::Seasonal,
+        ]
+    );
+    assert_eq!(session.player_quests[&active_id].objective_counts, vec![3]);
+    assert!(session.rewarded_quests.contains(&rewarded_id));
+    assert!(session.daily_quests_completed_like_cpp.contains(&daily_id));
+    assert!(
+        session
+            .weekly_quests_completed_like_cpp
+            .contains(&weekly_id)
+    );
+    assert!(
+        session
+            .monthly_quests_completed_like_cpp
+            .contains(&monthly_id)
     );
 }
 
