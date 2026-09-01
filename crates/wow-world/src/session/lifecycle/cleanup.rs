@@ -17,13 +17,6 @@ use tracing::{debug, warn};
 use super::super::WorldSession;
 
 impl WorldSession {
-    pub(crate) fn unregister_from_object_accessor(&self) {
-        let (Some(guid), Some(accessor)) = (self.player_guid(), &self.object_accessor) else {
-            return;
-        };
-        accessor.write().remove_player(guid);
-    }
-
     pub(crate) fn unregister_canonical_player_from_map_like_cpp(&mut self) {
         let Some(guid) = self.player_guid() else {
             return;
@@ -80,7 +73,6 @@ impl WorldSession {
         self.unregister_from_player_registry();
         self.notify_other_players_visibility_changed_like_cpp();
         self.unregister_canonical_player_from_map_like_cpp();
-        self.unregister_from_object_accessor();
         self.release_character_login_claim_like_cpp();
         self.clear_inventory_items_and_objects_like_cpp();
     }

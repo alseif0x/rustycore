@@ -3485,7 +3485,6 @@ fn unavailable_login_grid_cleans_partial_player_and_kicks_without_failure_packet
         let canonical: crate::session::SharedCanonicalMapManager =
             Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
         let registry = Arc::new(crate::session::directory::PlayerRegistry::default());
-        let accessor = crate::session::new_shared_object_accessor();
         session.set_canonical_map_manager(Arc::clone(&canonical));
         session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
             wow_data::MapEntry {
@@ -3499,7 +3498,6 @@ fn unavailable_login_grid_cleans_partial_player_and_kicks_without_failure_packet
             },
         ])));
         session.set_player_registry(Arc::clone(&registry));
-        session.set_object_accessor(Arc::clone(&accessor));
         assert!(session.ensure_login_player_controller_like_cpp(
             guid,
             "GridFailure".to_string(),
@@ -3512,14 +3510,12 @@ fn unavailable_login_grid_cleans_partial_player_and_kicks_without_failure_packet
         ));
         let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
         session.register_in_player_registry();
-        session.sync_object_accessor_player();
         assert!(
             session
                 .current_canonical_player_map_key_like_cpp()
                 .is_some()
         );
         assert!(registry.runtime_recipient(guid).is_some());
-        assert!(accessor.read().find_connected_player_entity(guid).is_some());
 
         assert!(!session.continue_login_after_grid_load_like_cpp(
             guid,
@@ -3544,7 +3540,6 @@ fn unavailable_login_grid_cleans_partial_player_and_kicks_without_failure_packet
                 .is_none()
         );
         assert!(registry.runtime_recipient(guid).is_none());
-        assert!(accessor.read().find_connected_player_entity(guid).is_none());
         assert!(send_rx.try_recv().is_err());
     });
 }
@@ -7716,7 +7711,6 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         "self.set_player_gold_like_cpp(new_money);",
         &[
             "self.set_player_bank_bag_slot_count_like_cpp(new_count);",
-            "self.sync_object_accessor_player();",
             "self.sync_player_registry_state_like_cpp();",
         ],
     );
@@ -7729,7 +7723,6 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
             "self.set_player_currencies_like_cpp(planned_currencies);",
             "self.insert_inventory_item_like_cpp",
             "self.update_vendor_item_current_count",
-            "self.sync_object_accessor_player();",
         ],
     );
     assert_publication_segment(
@@ -7745,7 +7738,6 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         &[
             "self.remove_buyback_item_like_cpp",
             "self.insert_inventory_item_like_cpp",
-            "self.sync_object_accessor_player();",
         ],
     );
     assert_publication_segment(
@@ -7755,7 +7747,6 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         &[
             "self.set_buyback_slot_metadata_like_cpp",
             "self.insert_buyback_item_like_cpp",
-            "self.sync_object_accessor_player();",
         ],
     );
     assert_publication_segment(
@@ -7765,7 +7756,6 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         &[
             "self.remove_inventory_item_like_cpp(refund_slot);",
             "self.insert_inventory_item_like_cpp",
-            "self.sync_object_accessor_player();",
         ],
     );
     assert_publication_segment(

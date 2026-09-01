@@ -727,7 +727,6 @@ impl WorldSession {
             }
             self.record_represented_avg_equipped_item_level_update_like_cpp();
         }
-        self.sync_object_accessor_player();
         if apply_obtain_spells {
             let _ = self
                 .apply_inventory_item_obtain_spells_like_cpp(plan.source.entry_id)
@@ -1165,7 +1164,6 @@ impl WorldSession {
         }
 
         if !cleared_slots.is_empty() {
-            self.sync_object_accessor_player();
             self.send_player_values_update_from_entity_bridge(
                 &cleared_slots,
                 &visible_item_changes,
@@ -2003,7 +2001,6 @@ impl WorldSession {
         }
         self.record_represented_titan_grip_penalty_action_like_cpp();
         self.record_represented_avg_equipped_item_level_update_like_cpp();
-        self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -2211,7 +2208,6 @@ impl WorldSession {
                 self.send_represented_item_bonus_player_stat_update_like_cpp();
             }
         }
-        self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
         if is_equipment_pos(destination_bag, destination_slot) {
             self.execute_inventory_auto_unequip_offhand_if_need_like_cpp()
@@ -2606,7 +2602,6 @@ impl WorldSession {
         }
         self.record_represented_titan_grip_penalty_action_like_cpp();
         self.record_represented_avg_equipped_item_level_update_like_cpp();
-        self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
         for plan in child_plans {
             let _ = self.execute_inventory_equip_child_like_cpp(plan).await;
@@ -3129,7 +3124,6 @@ impl WorldSession {
                 planned_quest_statuses.len(),
                 "partial destroy quest persistence must match committed runtime removal"
             );
-            self.sync_object_accessor_player();
             self.send_packet(&UpdateObject::item_stack_count_update(
                 item.guid,
                 self.player_map_id_like_cpp(),
@@ -3225,7 +3219,6 @@ impl WorldSession {
         self.update_inventory_item_object_like_cpp(item.guid, |item| {
             item.clear_enchantment(EnchantmentSlot::EnhancementTemporary);
         });
-        self.sync_object_accessor_player();
     }
 
     /// C++ `Player::DestroyItem(bag, slot, update=true)` for a full-stack item.
@@ -3414,7 +3407,6 @@ impl WorldSession {
             planned_quest_statuses.len(),
             "recursive destroy quest persistence must match child/parent runtime removals"
         );
-        self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
 
         self.send_packet(&UpdateObject::destroy_objects(

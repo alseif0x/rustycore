@@ -226,7 +226,6 @@ impl WorldSession {
                 new_money,
             },
         );
-        self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
         drop(money_persistence);
 

@@ -627,8 +627,8 @@ crate move stays open, as do the mailbox pump (#140) and the `PlayerBroadcastInf
 (#252). No public API was added: the crate-root `wow_network::PlayerRegistry` re-export was
 removed, and the exact direct-registry inventory therefore falls from 573 to 572 rows.
 
-At the same HEAD, the syntax-aware ratchet records 726 `WorldSession` fields: 714 production and
-12 `cfg(test)` fixtures. It also records all 48 logical impl owners and 3,322 exact
+At the same HEAD, the syntax-aware ratchet records 726 `WorldSession` fields: 713 production and
+13 `cfg(test)` fixtures. It also records all 48 logical impl owners and 3,318 exact
 associated-item signatures rather than freezing the number of physical `impl` blocks. Issue #169
 removes the concrete Character-database field plus its getter/setter and three statement-shaped
 quest/item helpers, replacing them with one typed Player-quest capability inside the existing

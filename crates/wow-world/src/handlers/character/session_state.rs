@@ -1846,7 +1846,6 @@ impl WorldSession {
         // `Player::SendInitialPacketsAfterAddToMap`
         // (`CharacterHandler.cpp:1241-1262`).
         self.register_in_player_registry();
-        self.sync_object_accessor_player();
 
         // C++ `HandlePlayerLogin` calls `ObjectAccessor::AddObject`, then
         // `Player::SendInitialPacketsAfterAddToMap`; that method starts with

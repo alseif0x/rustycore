@@ -86,12 +86,12 @@ use wow_data::{
 };
 use wow_data::{ItemStatEntry, PvpItemEntry};
 use wow_entities::{
-    AccessorObjectRef, ApplyEnchantmentDurationAction, ApplyEnchantmentResult,
-    ApplyEnchantmentSkipReason, BANK_SLOT_BAG_START, BANK_SLOT_ITEM_START, CharmType,
-    EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_HANDS, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_START, ItemBonusKey, MapObjectRecord, PlayerEnchantDuration,
-    REAGENT_BAG_SLOT_START, SendNewItemInstancePlan, SendNewItemModifier, SocketedGem, TYPEID_UNIT,
-    UNIT_DATA_BITS, UnitDataUpdate, UnitDataValues, UnitValuesUpdate, UpdateMask,
+    ApplyEnchantmentDurationAction, ApplyEnchantmentResult, ApplyEnchantmentSkipReason,
+    BANK_SLOT_BAG_START, BANK_SLOT_ITEM_START, CharmType, EQUIPMENT_SLOT_CHEST,
+    EQUIPMENT_SLOT_HANDS, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ItemBonusKey,
+    MapObjectRecord, PlayerEnchantDuration, REAGENT_BAG_SLOT_START, SendNewItemInstancePlan,
+    SendNewItemModifier, SocketedGem, TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate, UnitDataValues,
+    UnitValuesUpdate, UpdateMask,
 };
 use wow_packet::ServerPacket;
 use wow_packet::packets::loot::{
@@ -9112,7 +9112,7 @@ fn drain_server_packet_bytes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<Vec<u8>>
 
 #[test]
 fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp() {
-    run_object_accessor_sync_test(|| {
+    run_canonical_player_owner_test(|| {
         tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -9121,7 +9121,6 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
                 let (mut source, _, source_send_rx) = make_session();
                 let (mut viewer, _, viewer_send_rx) = make_session();
                 let canonical = shared_canonical_map_manager();
-                let accessor = new_shared_object_accessor();
                 let source_guid = ObjectGuid::create_player(1, 90_210);
                 let viewer_guid = ObjectGuid::create_player(1, 90_211);
                 let position = Position::ZERO;
@@ -9196,7 +9195,6 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
                 source.player_name = Some("BridgeSource".into());
                 source.set_player_map_position_like_cpp(571, position);
                 source.set_canonical_map_manager(Arc::clone(&canonical));
-                source.set_object_accessor(Arc::clone(&accessor));
                 source.set_spell_store(Arc::new(spell_store));
                 source.set_difficulty_store(Arc::new(difficulty_store));
                 source.set_player_stand_state_like_cpp(UnitStandStateType::Sit);
@@ -9270,7 +9268,6 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
                         );
                     })
                     .unwrap();
-                source.sync_object_accessor_player();
 
                 for (slot, spell_id) in [
                     (represented_standing_slot, standing_spell_id),
@@ -9376,59 +9373,6 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
                         assert!(!player.unit().world().object().is_object_updated());
                     })
                     .unwrap();
-                {
-                    let accessor = accessor.read();
-                    let player = accessor
-                        .find_connected_player_entity(source_guid)
-                        .expect("Kneel bridge refreshes canonical ObjectAccessor snapshot");
-                    assert_eq!(
-                        player.unit().stand_state_like_cpp(),
-                        UnitStandStateType::Kneel
-                    );
-                    assert!(
-                        player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_applied(canonical_standing)
-                    );
-                    assert!(
-                        player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_applied(canonical_snapshot_standing)
-                    );
-                    assert!(
-                        player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_owned(canonical_standing_owned)
-                    );
-                    assert!(
-                        player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_owned(canonical_kept_owned)
-                    );
-                    assert!(
-                        player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_owned(canonical_snapshot_standing_owned)
-                    );
-                    assert!(
-                        !player
-                            .unit()
-                            .unit_data_changes_mask()
-                            .is_set(wow_entities::UNIT_DATA_STAND_STATE_BIT),
-                        "ObjectAccessor snapshots do not own canonical dirty masks"
-                    );
-                    assert!(!player.unit().world().object().is_object_updated());
-                }
                 source.represented_live_applications_like_cpp.clear();
 
                 viewer.set_player_guid(Some(viewer_guid));
@@ -9570,77 +9514,6 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
                         );
                     })
                     .unwrap();
-                {
-                    let accessor = accessor.read();
-                    let player = accessor
-                        .find_connected_player_entity(source_guid)
-                        .expect("stand bridge refreshes ObjectAccessor snapshot");
-                    assert_eq!(
-                        player.unit().stand_state_like_cpp(),
-                        UnitStandStateType::Stand
-                    );
-                    assert!(
-                        !player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_applied(canonical_standing)
-                    );
-                    assert!(player.unit().subsystems().auras.has_applied(canonical_kept));
-                    assert!(
-                        !player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_applied(canonical_snapshot_standing)
-                    );
-                    assert!(
-                        !player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .visible_auras
-                            .contains_key(&represented_standing_slot)
-                    );
-                    assert_eq!(
-                        player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .visible_auras
-                            .get(&represented_kept_slot),
-                        Some(&canonical_kept.aura_ref())
-                    );
-                    assert!(
-                        !player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .visible_auras
-                            .contains_key(&represented_snapshot_standing_slot)
-                    );
-                    assert!(
-                        !player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_owned(canonical_standing_owned)
-                    );
-                    assert!(
-                        player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_owned(canonical_kept_owned)
-                    );
-                    assert!(
-                        !player
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_owned(canonical_snapshot_standing_owned)
-                    );
-                }
                 assert_eq!(
                     source.represented_live_applications_like_cpp(),
                     &[RepresentedLiveApplicationLikeCpp {
@@ -9658,10 +9531,9 @@ fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp()
 
 #[test]
 fn stand_state_casting_standing_channel_interrupts_non_melee_spells_like_cpp() {
-    run_object_accessor_sync_test(|| {
+    run_canonical_player_owner_test(|| {
         let (mut session, _, send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
-        let accessor = new_shared_object_accessor();
         let player_guid = ObjectGuid::create_player(1, 90_212);
         let position = Position::ZERO;
         let generic_spell_id = 71_001;
@@ -9694,7 +9566,6 @@ fn stand_state_casting_standing_channel_interrupts_non_melee_spells_like_cpp() {
         session.player_name = Some("StandBoundary".into());
         session.set_player_map_position_like_cpp(571, position);
         session.set_canonical_map_manager(Arc::clone(&canonical));
-        session.set_object_accessor(Arc::clone(&accessor));
         session.set_spell_store(Arc::new(spell_store));
         session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_entries([
             wow_data::DifficultyEntry {
@@ -9771,10 +9642,6 @@ fn stand_state_casting_standing_channel_interrupts_non_melee_spells_like_cpp() {
                 applied_at: Instant::now(),
             },
         );
-        let canonical_snapshot = session
-            .canonical_player_snapshot_like_cpp(Clone::clone)
-            .expect("canonical channel-boundary baseline");
-        session.sync_object_accessor_player_entity_like_cpp(canonical_snapshot);
         session.active_spell_cast = Some(SpellCastState {
             spell_id: generic_spell_id,
             target_guid: player_guid,
@@ -9868,23 +9735,6 @@ fn stand_state_casting_standing_channel_interrupts_non_melee_spells_like_cpp() {
                 assert!(!unit.has_unit_state(UnitState::CASTING.bits()));
             })
             .unwrap();
-        {
-            let accessor = accessor.read();
-            let player = accessor
-                .find_connected_player_entity(player_guid)
-                .expect("channel-boundary bridge refreshes ObjectAccessor snapshot");
-            assert_eq!(
-                player.unit().stand_state_like_cpp(),
-                UnitStandStateType::Stand
-            );
-            assert!(!player.unit().subsystems().auras.has_applied(standing_aura));
-            assert_eq!(
-                player
-                    .unit()
-                    .current_spell(wow_entities::CurrentSpellSlot::Channeled),
-                None
-            );
-        }
     });
 }
 
@@ -70286,95 +70136,14 @@ fn inventory_item_object_uses_template_durability_and_runtime_fields() {
     assert!(!session.inventory_item_objects.contains_key(&item_guid));
 }
 
-fn run_object_accessor_sync_test(test: impl FnOnce() + Send + 'static) {
+fn run_canonical_player_owner_test(test: impl FnOnce() + Send + 'static) {
     std::thread::Builder::new()
-        .name("object-accessor-sync".into())
+        .name("canonical-player-owner".into())
         .stack_size(8 * 1024 * 1024)
         .spawn(test)
         .unwrap()
         .join()
         .unwrap();
-}
-
-#[test]
-fn object_accessor_sync_exposes_session_inventory_items_like_cpp() {
-    run_object_accessor_sync_test(|| {
-        let (mut session, _, _) = make_session();
-        let accessor = new_shared_object_accessor();
-        let player_guid = ObjectGuid::create_player(1, 42);
-        let item_guid = ObjectGuid::create_item(1, 900);
-
-        session.set_object_accessor(Arc::clone(&accessor));
-        session.set_player_guid(Some(player_guid));
-        session.player_name = Some("Jaina".into());
-        session.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
-        session.current_map_id = 571;
-        session.inventory_items.insert(
-            23,
-            InventoryItem {
-                guid: item_guid,
-                entry_id: 700,
-                db_guid: 900,
-                inventory_type: None,
-            },
-        );
-        let item = session.make_inventory_item_object(
-            item_guid,
-            700,
-            player_guid,
-            2,
-            0,
-            ItemContext::None,
-            23,
-        );
-        session.insert_inventory_item_object(item);
-        session.sync_object_accessor_player();
-
-        {
-            let accessor = accessor.read();
-            assert!(accessor.find_connected_player_entity(player_guid).is_some());
-            assert!(accessor.find_player_entity(player_guid).is_some());
-            let player = accessor.find_connected_player(player_guid).unwrap();
-            match accessor.get_object_ref_by_type_mask(
-                player,
-                item_guid,
-                wow_constants::TypeMask::ITEM,
-            ) {
-                Some(AccessorObjectRef::Item(item)) => {
-                    assert_eq!(item.object().guid(), item_guid);
-                    assert_eq!(item.slot(), 23);
-                    assert_eq!(item.count(), 2);
-                }
-                other => panic!("expected item ref, got {other:?}"),
-            }
-        }
-
-        let moved = session.inventory_items.remove(&23).unwrap();
-        session.inventory_items.insert(24, moved);
-        session.set_inventory_item_object_slot(item_guid, 24);
-        session.sync_object_accessor_player();
-        {
-            let accessor = accessor.read();
-            let item = accessor.player_item(player_guid, item_guid).unwrap();
-            assert_eq!(item.slot(), 24);
-        }
-
-        session.inventory_items.remove(&24);
-        session.remove_inventory_item_object(item_guid);
-        session.sync_object_accessor_player();
-        assert!(
-            accessor
-                .read()
-                .player_item(player_guid, item_guid)
-                .is_none()
-        );
-
-        session.cleanup_shared_runtime_state();
-        let accessor = accessor.read();
-        assert!(accessor.find_connected_player(player_guid).is_none());
-        assert!(session.inventory_items.is_empty());
-        assert!(session.inventory_item_objects.is_empty());
-    });
 }
 
 #[test]
@@ -71159,16 +70928,14 @@ async fn far_sight_empty_or_missing_viewpoint_keeps_seer_and_forces_visibility_l
 }
 
 #[test]
-fn canonical_player_logout_cleanup_removes_player_from_map_before_accessor_like_cpp() {
-    run_object_accessor_sync_test(|| {
+fn canonical_player_logout_cleanup_removes_player_before_session_inventory_like_cpp() {
+    run_canonical_player_owner_test(|| {
         let (mut session, _, _) = make_session();
         let canonical = shared_canonical_map_manager();
-        let accessor = new_shared_object_accessor();
         let player_guid = ObjectGuid::create_player(1, 46);
         let item_guid = ObjectGuid::create_item(1, 901);
 
         session.set_canonical_map_manager(Arc::clone(&canonical));
-        session.set_object_accessor(Arc::clone(&accessor));
         session.set_player_guid(Some(player_guid));
         session.player_name = Some("LogoutMap".into());
         session.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
@@ -71194,7 +70961,6 @@ fn canonical_player_logout_cleanup_removes_player_from_map_before_accessor_like_
         session.insert_inventory_item_object(item);
 
         insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
-        session.sync_object_accessor_player();
 
         assert!(
             canonical
@@ -71204,12 +70970,6 @@ fn canonical_player_logout_cleanup_removes_player_from_map_before_accessor_like_
                 .unwrap()
                 .map()
                 .get_typed_player(player_guid)
-                .is_some()
-        );
-        assert!(
-            accessor
-                .read()
-                .find_connected_player_entity(player_guid)
                 .is_some()
         );
 
@@ -71225,12 +70985,6 @@ fn canonical_player_logout_cleanup_removes_player_from_map_before_accessor_like_
                 .get_typed_player(player_guid)
                 .is_none()
         );
-        assert!(
-            accessor
-                .read()
-                .find_connected_player_entity(player_guid)
-                .is_none()
-        );
         assert!(session.inventory_items.is_empty());
         assert!(session.inventory_item_objects.is_empty());
     });
@@ -71238,7 +70992,7 @@ fn canonical_player_logout_cleanup_removes_player_from_map_before_accessor_like_
 
 #[test]
 fn canonical_player_logout_retires_detached_handle_like_cpp() {
-    run_object_accessor_sync_test(|| {
+    run_canonical_player_owner_test(|| {
         let (mut session, _, _) = make_session();
         let canonical = shared_canonical_map_manager();
         let player_guid = ObjectGuid::create_player(1, 56);
@@ -71273,7 +71027,7 @@ fn canonical_player_logout_retires_detached_handle_like_cpp() {
 
 #[test]
 fn canonical_player_logout_cleanup_preserves_other_map_objects_like_cpp() {
-    run_object_accessor_sync_test(|| {
+    run_canonical_player_owner_test(|| {
         let (mut session, _, _) = make_session();
         let (mut other_session, _, _) = make_session();
         let canonical = shared_canonical_map_manager();
@@ -71323,7 +71077,7 @@ fn canonical_player_logout_cleanup_preserves_other_map_objects_like_cpp() {
 
 #[test]
 fn canonical_player_logout_cleanup_missing_map_is_noop_like_cpp() {
-    run_object_accessor_sync_test(|| {
+    run_canonical_player_owner_test(|| {
         let (mut session, _, _) = make_session();
         let canonical = shared_canonical_map_manager();
         let player_guid = ObjectGuid::create_player(1, 49);
@@ -71342,7 +71096,7 @@ fn canonical_player_logout_cleanup_missing_map_is_noop_like_cpp() {
 
 #[test]
 fn canonical_player_logout_disconnect_cleanup_removes_player_from_map_like_cpp() {
-    run_object_accessor_sync_test(|| {
+    run_canonical_player_owner_test(|| {
         tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -71350,18 +71104,15 @@ fn canonical_player_logout_disconnect_cleanup_removes_player_from_map_like_cpp()
             .block_on(async {
                 let (mut session, _, _) = make_session();
                 let canonical = shared_canonical_map_manager();
-                let accessor = new_shared_object_accessor();
                 let player_guid = ObjectGuid::create_player(1, 50);
 
                 session.set_canonical_map_manager(Arc::clone(&canonical));
-                session.set_object_accessor(Arc::clone(&accessor));
                 session.set_player_guid(Some(player_guid));
                 session.player_name = Some("DisconnectMap".into());
                 session.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
                 session.current_map_id = 571;
 
                 insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
-                session.sync_object_accessor_player();
 
                 session
                     .cleanup_shared_runtime_state_on_disconnect_like_cpp()
@@ -71377,128 +71128,7 @@ fn canonical_player_logout_disconnect_cleanup_removes_player_from_map_like_cpp()
                         .get_typed_player(player_guid)
                         .is_none()
                 );
-                assert!(
-                    accessor
-                        .read()
-                        .find_connected_player_entity(player_guid)
-                        .is_none()
-                );
             });
-    });
-}
-
-#[test]
-fn object_accessor_sync_typed_player_preserves_session_world_shape_like_cpp() {
-    run_object_accessor_sync_test(|| {
-        let (mut session, _, _) = make_session();
-        let accessor = new_shared_object_accessor();
-        let player_guid = ObjectGuid::create_player(1, 44);
-        let position = Position::new(11.0, 22.0, 33.0, 1.5);
-        let mut player_phase_shift = PhaseShift::default();
-        player_phase_shift.add_phase_like_cpp(77, wow_constants::PhaseFlags::empty(), 1);
-
-        session.set_object_accessor(Arc::clone(&accessor));
-        session.set_player_guid(Some(player_guid));
-        session.player_name = Some("Valeera".into());
-        session.player_position = Some(position);
-        session.current_map_id = 530;
-        session.set_represented_player_phase_shift_like_cpp(player_phase_shift.clone());
-        session.sync_object_accessor_player();
-
-        let accessor = accessor.read();
-        let typed_player = accessor.find_connected_player_entity(player_guid).unwrap();
-        let typed_world = typed_player.unit().world();
-        assert_eq!(typed_world.name(), "Valeera");
-        assert_eq!(typed_world.map_id(), 530);
-        assert_eq!(typed_world.position(), position);
-        assert!(typed_world.phase_shift().can_see(&player_phase_shift));
-        assert!(typed_world.phase_shift().has_phase_like_cpp(77));
-
-        let legacy_view = accessor.find_connected_player(player_guid).unwrap();
-        assert_eq!(legacy_view.name(), "Valeera");
-        assert_eq!(legacy_view.map_id(), 530);
-        assert_eq!(legacy_view.position(), position);
-        assert!(legacy_view.phase_shift().can_see(&player_phase_shift));
-    });
-}
-
-#[test]
-fn object_accessor_sync_typed_player_replaces_previous_snapshot_like_cpp() {
-    run_object_accessor_sync_test(|| {
-        let (mut session, _, _) = make_session();
-        let accessor = new_shared_object_accessor();
-        let player_guid = ObjectGuid::create_player(1, 45);
-
-        session.set_object_accessor(Arc::clone(&accessor));
-        session.set_player_guid(Some(player_guid));
-        session.player_name = Some("Anduin".into());
-        session.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
-        session.current_map_id = 0;
-        session.set_player_level_like_cpp(12);
-        session.set_player_health_like_cpp(90, 120);
-        session.sync_object_accessor_player();
-
-        let updated_position = Position::new(4.0, 5.0, 6.0, 2.0);
-        let mut updated_phase_shift = PhaseShift::default();
-        updated_phase_shift.add_phase_like_cpp(88, wow_constants::PhaseFlags::empty(), 1);
-        session.player_position = Some(updated_position);
-        session.current_map_id = 1;
-        session.set_player_level_like_cpp(13);
-        session.set_player_health_like_cpp(77, 140);
-        session.set_represented_player_phase_shift_like_cpp(updated_phase_shift.clone());
-        session.sync_object_accessor_player();
-
-        let accessor = accessor.read();
-        let typed_player = accessor.find_connected_player_entity(player_guid).unwrap();
-        assert_eq!(typed_player.unit().world().position(), updated_position);
-        assert_eq!(typed_player.unit().world().map_id(), 1);
-        assert_eq!(typed_player.unit().data().level, 13);
-        assert_eq!(typed_player.unit().data().health, 77);
-        assert_eq!(typed_player.unit().data().max_health, 140);
-        assert!(
-            typed_player
-                .unit()
-                .world()
-                .phase_shift()
-                .can_see(&updated_phase_shift)
-        );
-        assert!(
-            typed_player
-                .unit()
-                .world()
-                .phase_shift()
-                .has_phase_like_cpp(88)
-        );
-
-        let legacy_view = accessor.find_connected_player(player_guid).unwrap();
-        assert_eq!(legacy_view.position(), updated_position);
-        assert_eq!(legacy_view.map_id(), 1);
-        assert!(legacy_view.phase_shift().has_phase_like_cpp(88));
-    });
-}
-
-#[test]
-fn object_accessor_sync_preserves_represented_player_phase_shift_like_cpp() {
-    run_object_accessor_sync_test(|| {
-        let (mut session, _, _) = make_session();
-        let accessor = new_shared_object_accessor();
-        let player_guid = ObjectGuid::create_player(1, 43);
-
-        let mut player_phase_shift = PhaseShift::default();
-        player_phase_shift.add_phase_like_cpp(20, wow_constants::PhaseFlags::empty(), 1);
-        session.set_represented_player_phase_shift_like_cpp(player_phase_shift.clone());
-
-        session.set_object_accessor(Arc::clone(&accessor));
-        session.set_player_guid(Some(player_guid));
-        session.player_name = Some("Thrall".into());
-        session.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
-        session.current_map_id = 1;
-        session.sync_object_accessor_player();
-
-        let accessor = accessor.read();
-        let player = accessor.find_connected_player(player_guid).unwrap();
-        assert!(player.phase_shift().can_see(&player_phase_shift));
-        assert!(player.phase_shift().has_phase_like_cpp(20));
     });
 }
 

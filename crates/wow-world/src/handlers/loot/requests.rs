@@ -1394,7 +1394,6 @@ impl WorldSession {
             collection_updates.extend(self.on_item_added_to_collection_like_cpp(&item_object));
             self.insert_inventory_item_object(item_object);
         }
-        self.sync_object_accessor_player();
         if let Some(runtime_inventory_applied) = runtime_inventory_applied {
             runtime_inventory_applied.store(true, Ordering::Release);
         }
@@ -2149,7 +2148,6 @@ impl WorldSession {
             collection_updates.extend(self.on_item_added_to_collection_like_cpp(&item_object));
             self.insert_inventory_item_object(item_object);
         }
-        self.sync_object_accessor_player();
         if let Some(runtime_inventory_applied) = runtime_inventory_applied {
             runtime_inventory_applied.store(true, Ordering::Release);
         }

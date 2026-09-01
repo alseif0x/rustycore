@@ -126,8 +126,6 @@ impl WorldSession {
         self.unregister_from_player_registry();
         self.notify_other_players_visibility_changed_like_cpp();
         self.unregister_canonical_player_from_map_like_cpp();
-        self.unregister_from_object_accessor();
-
         // Send LogoutComplete → client returns to character select
         self.set_state(crate::session::SessionState::Authed);
         self.send_packet(&LogoutComplete);

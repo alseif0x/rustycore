@@ -24,7 +24,6 @@ use std::sync::{
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use parking_lot::RwLock;
 use rand::{Rng, RngCore, SeedableRng, rngs::StdRng, seq::SliceRandom};
 use tracing::{debug, info, trace, warn};
 
@@ -185,13 +184,13 @@ use wow_entities::{
     ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef, ItemStorageRef,
     ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT,
     MAX_POWERS, MAX_POWERS_PER_CLASS, MovementGeneratorKind, MovementSlot, NULL_BAG, NULL_SLOT,
-    ObjectAccessor, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, PROFESSION_SLOT_END, Pet,
-    PetAuraLikeCpp, PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable,
-    PetStableInfo, PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
-    PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
-    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery,
-    SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef, SwapItemPreflightItem,
-    SwapItemPreflightPlan, TYPEID_CONTAINER, TYPEID_ITEM, TitanGripPenaltyAction, UNIT_DATA_BITS,
+    PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, PROFESSION_SLOT_END, Pet, PetAuraLikeCpp,
+    PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable, PetStableInfo,
+    PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerItemTimeUpdate,
+    QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
+    REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery, SendNewItemDisplayText,
+    SendNewItemPlan, SocketedGemUniqueRef, SwapItemPreflightItem, SwapItemPreflightPlan,
+    TYPEID_CONTAINER, TYPEID_ITEM, TitanGripPenaltyAction, UNIT_DATA_BITS,
     UNIT_DATA_EMOTE_STATE_BIT, UNIT_DATA_HEALTH_BIT, UNIT_DATA_MODS_PARENT_BIT, Unit,
     UnitDataUpdate, UnitDataValues, UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle,
     VehicleAccessory, VisibleItemValues, WorldObject,
@@ -3496,7 +3495,6 @@ fn heirloom_bonus_for_flags_like_cpp(heirloom: &HeirloomEntry, flags: u32) -> u3
     0
 }
 
-pub type SharedObjectAccessor = Arc<RwLock<ObjectAccessor>>;
 pub(crate) const SKILL_FISHING_LIKE_CPP: u16 = 356;
 pub(crate) const SKILL_RIDING_LIKE_CPP: u16 = 762;
 pub(crate) const SKILL_ENCHANTING_LIKE_CPP: u16 = 333;
@@ -4602,10 +4600,6 @@ enum CreatureSpellTargetHitResultLikeCpp {
     Miss,
 }
 
-pub fn new_shared_object_accessor() -> SharedObjectAccessor {
-    Arc::new(RwLock::new(ObjectAccessor::default()))
-}
-
 fn gender_from_u8(value: u8) -> Gender {
     match value {
         1 => Gender::Female,
@@ -5377,9 +5371,6 @@ pub struct WorldSession {
 
     // Session -> world-server bridge for C++ GameEventMgr::HandleQuestComplete.
     game_event_quest_complete_tx: Option<flume::Sender<GameEventQuestCompleteCommandLikeCpp>>,
-
-    // Shared C++-style ObjectAccessor for canonical in-world/player-owned object lookups.
-    object_accessor: Option<SharedObjectAccessor>,
 
     // Shared group registry for party management
     group_registry: Option<Arc<GroupRegistry>>,
@@ -7636,7 +7627,6 @@ impl WorldSession {
             phase_group_store: None,
             player_registry: None,
             game_event_quest_complete_tx: None,
-            object_accessor: None,
             group_registry: None,
             pending_invites: None,
             group_guid: None,
@@ -9261,7 +9251,6 @@ impl WorldSession {
         }
 
         if changed_equipment {
-            self.sync_object_accessor_player();
             self.sync_player_registry_state_like_cpp();
         }
 
@@ -21342,7 +21331,6 @@ impl WorldSession {
                 self.record_represented_item_mods_like_cpp(item_guid, slot, true);
                 self.send_represented_item_bonus_player_stat_update_like_cpp();
             }
-            self.sync_object_accessor_player();
         }
         updated
     }
@@ -22036,7 +22024,6 @@ impl WorldSession {
             self.remove_inventory_item_like_cpp(slot);
         }
         self.remove_inventory_item_object(item_guid);
-        self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -32578,16 +32565,6 @@ impl WorldSession {
         self.player_registry = Some(registry);
     }
 
-    /// Set the shared ObjectAccessor used for C++-style object lookup.
-    pub fn set_object_accessor(&mut self, accessor: SharedObjectAccessor) {
-        self.object_accessor = Some(accessor);
-    }
-
-    /// Get a reference to the shared ObjectAccessor.
-    pub fn object_accessor(&self) -> Option<&SharedObjectAccessor> {
-        self.object_accessor.as_ref()
-    }
-
     /// Get a reference to the shared player registry.
     pub fn player_registry(&self) -> Option<&Arc<PlayerRegistry>> {
         self.player_registry.as_ref()
@@ -33031,44 +33008,6 @@ impl WorldSession {
         self.sync_player_registry_party_member_party_type_like_cpp();
     }
 
-    fn object_accessor_inventory_snapshot(&self) -> PlayerInventoryStorage {
-        let mut inventory = PlayerInventoryStorage::default();
-        for (&slot, item) in self.inventory_items_like_cpp() {
-            if (slot as usize) < PLAYER_SLOT_END {
-                inventory.items[slot as usize] = Some(item.guid);
-            }
-        }
-        inventory
-    }
-
-    pub(crate) fn sync_object_accessor_player(&self) {
-        let Some(player) = self.canonical_player_entity_snapshot_like_cpp() else {
-            return;
-        };
-        self.sync_object_accessor_player_entity_like_cpp(player);
-    }
-
-    /// Publish a caller-provided canonical `Player` snapshot into
-    /// `ObjectAccessor` while preserving the existing session-owned inventory
-    /// and item snapshot wiring.
-    fn sync_object_accessor_player_entity_like_cpp(&self, player: Player) {
-        let Some(accessor) = &self.object_accessor else {
-            return;
-        };
-        let Some(name) = self.player_name_like_cpp() else {
-            return;
-        };
-
-        let inventory = self.object_accessor_inventory_snapshot();
-        let items = self.inventory_item_objects_like_cpp().values().cloned();
-        if let Err(err) = accessor
-            .write()
-            .add_player_entity_with_inventory_and_items(name, player, inventory, items)
-        {
-            warn!("Failed to sync typed Player into ObjectAccessor: {err:?}");
-        }
-    }
-
     /// Update this session's position (and map) in the player registry.
     /// Called whenever `player_position` changes.
     pub(crate) fn update_registry_position(&self) {
@@ -33099,11 +33038,6 @@ impl WorldSession {
                 transport: self.player_transport_info_like_cpp(),
             },
         );
-        if let Some(accessor) = &self.object_accessor {
-            if let Some(object) = accessor.write().player_object_mut(guid) {
-                object.world_relocate(u32::from(map_id), pos);
-            }
-        }
     }
 
     /// Get the realm ID.
@@ -34996,10 +34930,6 @@ impl WorldSession {
                     .len()
             })
             .unwrap_or(0);
-
-        if canonical_removed > 0 {
-            self.sync_object_accessor_player();
-        }
 
         represented_removed + canonical_removed
     }
@@ -43379,12 +43309,10 @@ impl WorldSession {
             .current_canonical_player_map_difficulty_id_like_cpp()
             .unwrap_or(0);
         let standing_flag = wow_entities::SPELL_AURA_INTERRUPT_FLAG_STANDING_LIKE_CPP;
-        let publish_canonical_snapshot = self.object_accessor.is_some();
         let Some((
             canonical_field_changed,
             canonical_removed_auras,
             canonical_removed_visible_slots,
-            canonical_snapshot,
             mut channel_cancellation_boundary,
             canonical_interrupted_spell_ids,
         )) = self.mutate_canonical_player_like_cpp(|player| {
@@ -43505,23 +43433,10 @@ impl WorldSession {
             } else {
                 None
             };
-            let canonical_snapshot = (publish_canonical_snapshot
-                && (previous != state
-                    || !removed_auras.is_empty()
-                    || !interrupted_spell_ids.is_empty()))
-            .then(|| {
-                // ObjectAccessor is a state snapshot, not the owner of the
-                // canonical Map update queue. Preserve the canonical dirty
-                // masks on `player` while publishing a clean clone.
-                let mut snapshot = player.clone();
-                snapshot.clear_data_changes();
-                snapshot
-            });
             (
                 previous != state,
                 removed_auras,
                 removed_visible_slots,
-                canonical_snapshot,
                 channel_cancellation_boundary,
                 interrupted_spell_ids,
             )
@@ -43544,10 +43459,6 @@ impl WorldSession {
         }) = &mut channel_cancellation_boundary
         {
             *recorded = session_cast_interrupted;
-        }
-
-        if let Some(canonical_snapshot) = canonical_snapshot {
-            self.sync_object_accessor_player_entity_like_cpp(canonical_snapshot);
         }
 
         let mut represented_removed_slots = Vec::new();
@@ -52667,10 +52578,6 @@ impl WorldSession {
             })
             .unwrap_or(false);
 
-        if canonical_spells_interrupted {
-            self.sync_object_accessor_player();
-        }
-
         session_cast_interrupted || canonical_spells_interrupted
     }
 
@@ -52704,7 +52611,6 @@ impl WorldSession {
             {
                 self.active_spell_cast = None;
             }
-            self.sync_object_accessor_player();
         }
 
         interrupted
@@ -52781,7 +52687,6 @@ impl WorldSession {
                 .clear_summon_slot(slot_id);
         }
         drop(manager);
-        self.sync_object_accessor_player();
         true
     }
 

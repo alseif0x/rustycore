@@ -280,7 +280,6 @@ impl WorldSession {
             }
             self.insert_inventory_item_object(item_object);
         }
-        self.sync_object_accessor_player();
 
         let map_id = self.player_map_id_like_cpp();
         if !new_stacks.is_empty() {
@@ -630,7 +629,6 @@ impl WorldSession {
             }
             self.insert_inventory_item_object(item_object);
         }
-        self.sync_object_accessor_player();
 
         let map_id = self.player_map_id_like_cpp();
         if !new_stacks.is_empty() {

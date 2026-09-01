@@ -213,7 +213,6 @@ impl WorldSession {
             self.remove_inventory_item_object(item_guid);
         }
         self.clear_buyback_runtime_like_cpp();
-        self.sync_object_accessor_player();
     }
 
     pub(super) fn vendor_item_conditions_meet_like_cpp(
@@ -1091,7 +1090,6 @@ impl WorldSession {
             collection_updates.extend(self.on_item_added_to_collection_like_cpp(&item_object));
             self.insert_inventory_item_object(item_object);
         }
-        self.sync_object_accessor_player();
 
         let changed_slots: Vec<_> = new_stacks
             .iter()
@@ -1476,7 +1474,6 @@ impl WorldSession {
         } else {
             self.remove_inventory_item_object(buyback_item.guid);
         }
-        self.sync_object_accessor_player();
         drop(money_persistence);
 
         self.drain_represented_quest_objective_progress_like_cpp()
@@ -1799,7 +1796,6 @@ impl WorldSession {
             );
             self.set_inventory_item_object_slot(item.guid, buyback_slot);
         }
-        self.sync_object_accessor_player();
         drop(money_persistence);
 
         self.drain_represented_quest_objective_progress_like_cpp()
@@ -1953,7 +1949,6 @@ impl WorldSession {
             self.update_inventory_item_object_like_cpp(refund.item_guid, |item| {
                 item.set_not_refundable();
             });
-            self.sync_object_accessor_player();
             self.send_packet(&ItemExpirePurchaseRefund {
                 item_guid: refund.item_guid,
             });
@@ -2297,7 +2292,6 @@ impl WorldSession {
             );
             self.insert_inventory_item_object(item_object);
         }
-        self.sync_object_accessor_player();
         drop(money_persistence);
 
         self.drain_represented_quest_objective_progress_like_cpp()

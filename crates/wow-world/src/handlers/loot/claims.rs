@@ -1146,7 +1146,6 @@ impl WorldSession {
                 item.set_count(new_count);
                 item.set_loot_generated(false);
             });
-            self.sync_object_accessor_player();
             self.send_packet(&UpdateObject::item_stack_count_update(
                 item_guid,
                 self.player_map_id_like_cpp(),

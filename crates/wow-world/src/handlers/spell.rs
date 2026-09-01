@@ -999,7 +999,6 @@ impl WorldSession {
 
         self.persist_wrapped_gift_open_like_cpp(item_guid, gift.entry, gift.flags, durability)
             .await;
-        self.sync_object_accessor_player();
     }
 
     pub(crate) fn apply_wrapped_gift_row_to_runtime_item_like_cpp(

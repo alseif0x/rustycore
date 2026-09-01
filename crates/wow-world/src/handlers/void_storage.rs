@@ -644,7 +644,6 @@ impl WorldSession {
 
         self.stage_player_money_change_like_cpp(old_money, new_money);
         self.apply_committed_void_storage_unlock_like_cpp();
-        self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
         drop(money_persistence);
 
@@ -1472,7 +1471,6 @@ impl WorldSession {
             .map(|status| status.quest_id)
             .collect::<Vec<_>>();
         debug_assert_eq!(changed_quest_ids, planned_changed_quest_ids);
-        self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
         drop(money_persistence);
 

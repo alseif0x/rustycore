@@ -50,10 +50,7 @@ pub use map_manager::{
     ChaseTargetSnapshotLikeCpp, GridCoord, MapManager, SharedMapManager, WorldCreature,
     WorldMMapPathfinderWorkerLikeCpp,
 };
-pub use session::{
-    MMapRuntimeConfigLikeCpp, SharedCanonicalMapManager, SharedObjectAccessor, WorldSession,
-    new_shared_object_accessor,
-};
+pub use session::{MMapRuntimeConfigLikeCpp, SharedCanonicalMapManager, WorldSession};
 pub use session_policy::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
     LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, ReputationRatesLikeCpp,

@@ -220,7 +220,6 @@ pub(super) async fn create_session(
     canonical_map_manager: SharedCanonicalMapManager,
     canonical_spawn_metadata: SharedCanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: LoadedGridCreatureRespawnCachesLikeCpp,
-    object_accessor: wow_world::SharedObjectAccessor,
     instance_port: u16,
     max_expansion: u8,
     mmap_runtime_config: MMapRuntimeConfigLikeCpp,
@@ -1024,7 +1023,6 @@ pub(super) async fn create_session(
             )
         },
     ));
-    session.set_object_accessor(Arc::clone(&object_accessor));
     if let (Some(greg), Some(pinv)) = (&resources.group_registry, &resources.pending_invites) {
         session.set_group_registry(Arc::clone(greg), Arc::clone(pinv));
     }

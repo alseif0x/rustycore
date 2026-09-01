@@ -3734,8 +3734,6 @@ async fn run_inner(
 
     let player_registry = Arc::new(PlayerRegistry::new());
     let active_session_registry = Arc::new(ActiveWorldSessionRegistryLikeCpp::new());
-    let object_accessor = wow_world::new_shared_object_accessor();
-
     let mut condition_load_report = crate::condition_disable_catalog::load_conditions_like_cpp(
         &condition_disable_catalog_persistence,
         |_| 0,
@@ -5119,7 +5117,6 @@ async fn run_inner(
         let canonical_map = Arc::clone(&canonical_map_manager);
         let spawn_metadata = Arc::clone(&canonical_spawn_metadata);
         let loaded_grid_caches = loaded_grid_creature_respawn_caches.clone();
-        let accessor = Arc::clone(&object_accessor);
         let active_sessions = Arc::clone(&active_session_registry);
         let runtime_state = Arc::clone(&world_runtime_state);
         let battle_pet_accounts = Arc::clone(&battle_pet_account_registry);
@@ -5139,7 +5136,6 @@ async fn run_inner(
                     let canonical_map = Arc::clone(&canonical_map);
                     let spawn_metadata = Arc::clone(&spawn_metadata);
                     let loaded_grid_caches = loaded_grid_caches.clone();
-                    let accessor = Arc::clone(&accessor);
                     let active_sessions = Arc::clone(&active_sessions);
                     let runtime_state = Arc::clone(&runtime_state);
                     let mmap_pathfinder = mmap_pathfinder.clone();
@@ -5157,7 +5153,6 @@ async fn run_inner(
                         canonical_map,
                         spawn_metadata,
                         loaded_grid_caches,
-                        accessor,
                         port,
                         max_expansion,
                         mmap_config.clone(),
