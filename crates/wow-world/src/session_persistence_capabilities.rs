@@ -31,6 +31,19 @@ impl WorldSession {
         self.persistence_ports_like_cpp.player_inventory.clone()
     }
 
+    pub fn set_player_quest_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::PlayerQuestPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.player_quest = Some(port);
+    }
+
+    pub(crate) fn player_quest_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::PlayerQuestPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.player_quest.clone()
+    }
+
     pub fn set_stored_item_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>,

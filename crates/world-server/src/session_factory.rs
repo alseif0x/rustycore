@@ -275,14 +275,14 @@ pub(super) async fn create_session(
         id: active_session_id,
     };
     let account_id = account.id;
-    if let Some(ref db) = resources.char_db {
-        session.set_char_db(Arc::clone(db));
-    }
     if let Some(ref port) = resources.stored_item_persistence_port {
         session.set_stored_item_persistence_port_like_cpp(Arc::clone(port));
     }
     if let Some(ref port) = resources.player_inventory_persistence_port {
         session.set_player_inventory_persistence_port_like_cpp(Arc::clone(port));
+    }
+    if let Some(ref port) = resources.player_quest_persistence_port {
+        session.set_player_quest_persistence_port_like_cpp(Arc::clone(port));
     }
     if let Some(ref port) = resources.vendor_trade_persistence_port {
         session.set_vendor_trade_persistence_port_like_cpp(Arc::clone(port));

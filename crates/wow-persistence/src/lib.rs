@@ -49,6 +49,7 @@ mod player_base_stats;
 mod player_choice;
 mod player_creation_catalog;
 mod player_inventory;
+mod player_quest;
 mod quest_catalog;
 mod quest_item_catalog;
 mod reputation_catalog;
@@ -223,8 +224,18 @@ pub use player_inventory::{
     LootDirectItemGrantPersistenceLikeCpp, LootDisenchantBatchPersistenceLikeCpp,
     LootExistingStackPersistenceLikeCpp, LootNewStackPersistenceLikeCpp,
     LootQuestBoundProgressPersistenceLikeCpp, PlayerInventoryPersistencePortLikeCpp,
-    PlayerInventoryPersistenceRequestLikeCpp, QuestObjectiveCountPersistenceLikeCpp,
-    QuestStatusPersistenceLikeCpp, StoredItemLootSourcePersistenceLikeCpp,
+    PlayerInventoryPersistenceRequestLikeCpp, QuestItemExistingStackPersistenceLikeCpp,
+    QuestItemGrantPersistenceLikeCpp, QuestItemNewStackPersistenceLikeCpp,
+    QuestTurnInItemPersistenceLikeCpp, QuestTurnInPersistenceLikeCpp,
+    StoredItemLootSourcePersistenceLikeCpp,
+};
+pub use player_quest::{
+    PlayerQuestActivePersistenceRowLikeCpp, PlayerQuestDailyPersistenceRowLikeCpp,
+    PlayerQuestIdPersistenceRowLikeCpp, PlayerQuestLoadOutcomeLikeCpp,
+    PlayerQuestLockoutPersistenceRequestLikeCpp, PlayerQuestObjectivePersistenceRowLikeCpp,
+    PlayerQuestPersistencePortLikeCpp, PlayerQuestSeasonalCompletionPersistenceLikeCpp,
+    PlayerQuestSeasonalPersistenceRowLikeCpp, PlayerQuestStatusPersistenceRequestLikeCpp,
+    QuestObjectiveCountPersistenceLikeCpp, QuestStatusPersistenceLikeCpp,
 };
 pub use quest_catalog::*;
 pub use quest_item_catalog::{

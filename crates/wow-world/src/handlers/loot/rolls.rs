@@ -656,7 +656,7 @@ impl WorldSession {
             return;
         }
 
-        if self.char_db().is_none() {
+        if self.player_inventory_persistence_port_like_cpp().is_none() {
             return;
         }
 

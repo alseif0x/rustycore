@@ -6,15 +6,14 @@ use wow_persistence::{
     InventoryItemMutablePersistenceLikeCpp, InventoryLinkPersistenceLikeCpp,
     LootExistingStackPersistenceLikeCpp, LootNewStackPersistenceLikeCpp, PersistenceFutureLikeCpp,
     PersistenceOutcomeLikeCpp, PlayerInventoryPersistencePortLikeCpp,
-    PlayerInventoryPersistenceRequestLikeCpp, QuestStatusPersistenceLikeCpp,
+    PlayerInventoryPersistenceRequestLikeCpp, QuestItemExistingStackPersistenceLikeCpp,
+    QuestItemNewStackPersistenceLikeCpp, QuestTurnInItemPersistenceLikeCpp,
     StoredItemLootSourcePersistenceLikeCpp,
 };
 
 use crate::{
     CharStatements, CharacterDatabase, PreparedStatement, SqlTransaction, SqlTransactionCommitError,
 };
-
-const QUEST_STATUS_REWARDED_LIKE_CPP: u8 = 6;
 
 struct InventoryTransactionBuilderLikeCpp {
     transaction: SqlTransaction,
@@ -171,48 +170,60 @@ fn append_stored_item_loot_source_like_cpp(
     transaction.append_expect_rows_affected(statement, 1);
 }
 
-fn append_quest_status_like_cpp(
+fn append_quest_status_projection_like_cpp(
     transaction: &mut InventoryTransactionBuilderLikeCpp,
     owner_guid: u64,
-    status: &QuestStatusPersistenceLikeCpp,
+    status: &wow_persistence::QuestStatusPersistenceLikeCpp,
 ) {
-    if status.status == QUEST_STATUS_REWARDED_LIKE_CPP {
-        let mut rewarded =
-            PreparedStatement::for_statement(CharStatements::INS_CHAR_QUESTSTATUS_REWARDED);
-        rewarded.set_u64(0, owner_guid);
-        rewarded.set_u32(1, status.quest_id);
-        transaction.append(rewarded);
-        let mut delete = PreparedStatement::for_statement(CharStatements::DEL_CHAR_QUEST_STATUS);
-        delete.set_u64(0, owner_guid);
-        delete.set_u32(1, status.quest_id);
-        transaction.append(delete);
-    } else {
-        let mut save = PreparedStatement::for_statement(CharStatements::INS_CHAR_QUEST_STATUS);
-        save.set_u64(0, owner_guid);
-        save.set_u32(1, status.quest_id);
-        save.set_u8(2, status.status);
-        save.set_u8(3, u8::from(status.explored));
-        save.set_i64(4, status.accept_time_secs);
-        save.set_i64(5, status.end_time_secs);
-        transaction.append(save);
+    for statement in
+        crate::player_quest_adapter::player_quest_status_statements_like_cpp(owner_guid, status)
+    {
+        transaction.append(statement);
     }
-    let mut delete_objectives =
-        PreparedStatement::for_statement(CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST);
-    delete_objectives.set_u64(0, owner_guid);
-    delete_objectives.set_u32(1, status.quest_id);
-    transaction.append(delete_objectives);
-    if status.status == QUEST_STATUS_REWARDED_LIKE_CPP {
-        return;
+}
+
+fn append_quest_item_existing_stack_like_cpp(
+    transaction: &mut InventoryTransactionBuilderLikeCpp,
+    stack: QuestItemExistingStackPersistenceLikeCpp,
+) {
+    let mut count = PreparedStatement::for_statement(CharStatements::UPD_ITEM_INSTANCE_COUNT);
+    count.set_u32(0, stack.new_count);
+    count.set_u64(1, stack.item_guid);
+    transaction.append(count);
+
+    if let Some(dynamic_flags) = stack.dynamic_flags {
+        let mut flags = PreparedStatement::for_statement(CharStatements::UPD_ITEM_INSTANCE_FLAGS);
+        flags.set_u32(0, dynamic_flags);
+        flags.set_u64(1, stack.item_guid);
+        transaction.append(flags);
     }
-    for objective in &status.objectives {
-        let mut replace =
-            PreparedStatement::for_statement(CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES);
-        replace.set_u64(0, owner_guid);
-        replace.set_u32(1, status.quest_id);
-        replace.set_u8(2, objective.objective_index);
-        replace.set_i32(3, objective.count);
-        transaction.append(replace);
+}
+
+fn append_quest_item_new_stack_like_cpp(
+    transaction: &mut InventoryTransactionBuilderLikeCpp,
+    stack: QuestItemNewStackPersistenceLikeCpp,
+) {
+    let mut item = PreparedStatement::for_statement(CharStatements::INS_ITEM_INSTANCE);
+    item.set_u64(0, stack.item_guid);
+    item.set_u32(1, stack.entry_id);
+    item.set_u64(2, stack.owner_guid);
+    item.set_u32(3, stack.count);
+    item.set_u32(4, stack.max_durability);
+    transaction.append(item);
+
+    if stack.dynamic_flags != 0 {
+        let mut flags = PreparedStatement::for_statement(CharStatements::UPD_ITEM_INSTANCE_FLAGS);
+        flags.set_u32(0, stack.dynamic_flags);
+        flags.set_u64(1, stack.item_guid);
+        transaction.append(flags);
     }
+
+    let mut link = PreparedStatement::for_statement(CharStatements::REP_CHAR_INVENTORY_ITEM);
+    link.set_u64(0, stack.owner_guid);
+    link.set_u64(1, stack.bag_guid);
+    link.set_u8(2, stack.slot);
+    link.set_u64(3, stack.item_guid);
+    transaction.append(link);
 }
 
 fn inventory_transaction_like_cpp(
@@ -238,7 +249,11 @@ fn inventory_transaction_like_cpp(
                 append_delete_item_like_cpp(&mut transaction, item_guid);
             }
             for status in &request.quest_statuses {
-                append_quest_status_like_cpp(&mut transaction, request.owner_guid, status);
+                append_quest_status_projection_like_cpp(
+                    &mut transaction,
+                    request.owner_guid,
+                    status,
+                );
             }
         }
         PlayerInventoryPersistenceRequestLikeCpp::Equip(request) => {
@@ -285,7 +300,11 @@ fn inventory_transaction_like_cpp(
             update.set_u64(1, request.item_guid);
             transaction.append(update);
             for status in &request.quest_statuses {
-                append_quest_status_like_cpp(&mut transaction, request.owner_guid, status);
+                append_quest_status_projection_like_cpp(
+                    &mut transaction,
+                    request.owner_guid,
+                    status,
+                );
             }
         }
         PlayerInventoryPersistenceRequestLikeCpp::GraphDestroy(request) => {
@@ -318,7 +337,11 @@ fn inventory_transaction_like_cpp(
                 }
             }
             for status in &request.quest_statuses {
-                append_quest_status_like_cpp(&mut transaction, request.owner_guid, status);
+                append_quest_status_projection_like_cpp(
+                    &mut transaction,
+                    request.owner_guid,
+                    status,
+                );
             }
         }
         PlayerInventoryPersistenceRequestLikeCpp::LootDisenchantBatch(request) => {
@@ -331,7 +354,11 @@ fn inventory_transaction_like_cpp(
         }
         PlayerInventoryPersistenceRequestLikeCpp::LootQuestBoundProgress(request) => {
             for status in &request.quest_statuses {
-                append_quest_status_like_cpp(&mut transaction, request.owner_guid, status);
+                append_quest_status_projection_like_cpp(
+                    &mut transaction,
+                    request.owner_guid,
+                    status,
+                );
             }
             if let Some(source) = request.stored_item_source {
                 append_stored_item_loot_source_like_cpp(&mut transaction, source);
@@ -346,6 +373,46 @@ fn inventory_transaction_like_cpp(
             }
             if let Some(source) = request.stored_item_source {
                 append_stored_item_loot_source_like_cpp(&mut transaction, source);
+            }
+        }
+        PlayerInventoryPersistenceRequestLikeCpp::QuestItemGrant(request) => {
+            for stack in &request.existing_stacks {
+                append_quest_item_existing_stack_like_cpp(&mut transaction, *stack);
+            }
+            for stack in &request.new_stacks {
+                append_quest_item_new_stack_like_cpp(&mut transaction, *stack);
+            }
+        }
+        PlayerInventoryPersistenceRequestLikeCpp::QuestTurnIn(request) => {
+            for item in &request.items {
+                match item {
+                    QuestTurnInItemPersistenceLikeCpp::Update {
+                        item_guid,
+                        new_count,
+                    } => {
+                        let mut statement = PreparedStatement::for_statement(
+                            CharStatements::UPD_ITEM_INSTANCE_COUNT,
+                        );
+                        statement.set_u32(0, *new_count);
+                        statement.set_u64(1, *item_guid);
+                        transaction.append(statement);
+                    }
+                    QuestTurnInItemPersistenceLikeCpp::Delete { item_guid } => {
+                        append_delete_inventory_link_like_cpp(
+                            &mut transaction,
+                            request.owner_guid,
+                            *item_guid,
+                        );
+                        append_delete_item_like_cpp(&mut transaction, *item_guid);
+                    }
+                }
+            }
+            for statement in
+                crate::player_lifecycle_adapter::player_currency_save_statements_like_cpp(
+                    &request.currency_save,
+                )
+            {
+                transaction.append(statement);
             }
         }
     }
@@ -399,8 +466,13 @@ mod tests {
         InventoryStackMergeSourcePersistenceLikeCpp, InventoryStorageMovePersistenceLikeCpp,
         InventorySwapPersistenceLikeCpp, LootDirectItemGrantPersistenceLikeCpp,
         LootDisenchantBatchPersistenceLikeCpp, LootQuestBoundProgressPersistenceLikeCpp,
-        QuestObjectiveCountPersistenceLikeCpp,
+        PlayerCurrencySaveKindLikeCpp, PlayerCurrencySaveRequestLikeCpp,
+        PlayerCurrencySaveRowLikeCpp, QuestItemGrantPersistenceLikeCpp,
+        QuestObjectiveCountPersistenceLikeCpp, QuestStatusPersistenceLikeCpp,
+        QuestTurnInPersistenceLikeCpp,
     };
+
+    const QUEST_STATUS_REWARDED_LIKE_CPP: u8 = 6;
 
     fn mutable(item_guid: u64) -> InventoryItemMutablePersistenceLikeCpp {
         InventoryItemMutablePersistenceLikeCpp {
@@ -675,6 +747,76 @@ mod tests {
                 CharStatements::INS_ITEM_INSTANCE_WITH_RANDOM_CONTEXT.sql(),
                 CharStatements::INS_CHAR_INVENTORY.sql(),
                 CharStatements::DEL_ITEMCONTAINER_ITEM.sql(),
+            ]
+        );
+    }
+
+    #[test]
+    fn quest_item_grant_preserves_existing_then_new_stack_order_like_cpp() {
+        let request = PlayerInventoryPersistenceRequestLikeCpp::QuestItemGrant(
+            QuestItemGrantPersistenceLikeCpp {
+                existing_stacks: vec![QuestItemExistingStackPersistenceLikeCpp {
+                    item_guid: 20,
+                    new_count: 3,
+                    dynamic_flags: Some(4),
+                }],
+                new_stacks: vec![QuestItemNewStackPersistenceLikeCpp {
+                    item_guid: 21,
+                    entry_id: 22,
+                    owner_guid: 10,
+                    count: 5,
+                    max_durability: 6,
+                    dynamic_flags: 7,
+                    bag_guid: 30,
+                    slot: 8,
+                }],
+            },
+        );
+        assert_eq!(
+            sqls(request),
+            [
+                CharStatements::UPD_ITEM_INSTANCE_COUNT.sql(),
+                CharStatements::UPD_ITEM_INSTANCE_FLAGS.sql(),
+                CharStatements::INS_ITEM_INSTANCE.sql(),
+                CharStatements::UPD_ITEM_INSTANCE_FLAGS.sql(),
+                CharStatements::REP_CHAR_INVENTORY_ITEM.sql(),
+            ]
+        );
+    }
+
+    #[test]
+    fn quest_turnin_preserves_item_then_currency_order_like_cpp() {
+        let request =
+            PlayerInventoryPersistenceRequestLikeCpp::QuestTurnIn(QuestTurnInPersistenceLikeCpp {
+                owner_guid: 10,
+                items: vec![
+                    QuestTurnInItemPersistenceLikeCpp::Update {
+                        item_guid: 20,
+                        new_count: 2,
+                    },
+                    QuestTurnInItemPersistenceLikeCpp::Delete { item_guid: 21 },
+                ],
+                currency_save: PlayerCurrencySaveRequestLikeCpp {
+                    player_guid: 10,
+                    rows: vec![PlayerCurrencySaveRowLikeCpp {
+                        kind: PlayerCurrencySaveKindLikeCpp::Changed,
+                        currency_id: 22,
+                        quantity: 23,
+                        weekly_quantity: 24,
+                        tracked_quantity: 25,
+                        increased_cap_quantity: 26,
+                        earned_quantity: 27,
+                        flags: 28,
+                    }],
+                },
+            });
+        assert_eq!(
+            sqls(request),
+            [
+                CharStatements::UPD_ITEM_INSTANCE_COUNT.sql(),
+                CharStatements::DEL_CHAR_INVENTORY_ITEM.sql(),
+                CharStatements::DEL_ITEM_INSTANCE.sql(),
+                CharStatements::UPD_PLAYER_CURRENCY.sql(),
             ]
         );
     }

@@ -1,6 +1,9 @@
 //! SQLx-free persistence contract for Player-owned inventory mutations.
 
-use crate::{PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp};
+use crate::{
+    PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerCurrencySaveRequestLikeCpp,
+    QuestStatusPersistenceLikeCpp,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InventoryItemMutablePersistenceLikeCpp {
@@ -20,22 +23,6 @@ pub struct InventoryLinkPersistenceLikeCpp {
     pub bag_guid: u64,
     pub slot: u8,
     pub item_guid: u64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct QuestObjectiveCountPersistenceLikeCpp {
-    pub objective_index: u8,
-    pub count: i32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct QuestStatusPersistenceLikeCpp {
-    pub quest_id: u32,
-    pub status: u8,
-    pub explored: bool,
-    pub accept_time_secs: i64,
-    pub end_time_secs: i64,
-    pub objectives: Vec<QuestObjectiveCountPersistenceLikeCpp>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -151,6 +138,44 @@ pub struct LootDirectItemGrantPersistenceLikeCpp {
     pub stored_item_source: Option<StoredItemLootSourcePersistenceLikeCpp>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QuestItemExistingStackPersistenceLikeCpp {
+    pub item_guid: u64,
+    pub new_count: u32,
+    pub dynamic_flags: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QuestItemNewStackPersistenceLikeCpp {
+    pub item_guid: u64,
+    pub entry_id: u32,
+    pub owner_guid: u64,
+    pub count: u32,
+    pub max_durability: u32,
+    pub dynamic_flags: u32,
+    pub bag_guid: u64,
+    pub slot: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuestItemGrantPersistenceLikeCpp {
+    pub existing_stacks: Vec<QuestItemExistingStackPersistenceLikeCpp>,
+    pub new_stacks: Vec<QuestItemNewStackPersistenceLikeCpp>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuestTurnInItemPersistenceLikeCpp {
+    Update { item_guid: u64, new_count: u32 },
+    Delete { item_guid: u64 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuestTurnInPersistenceLikeCpp {
+    pub owner_guid: u64,
+    pub items: Vec<QuestTurnInItemPersistenceLikeCpp>,
+    pub currency_save: PlayerCurrencySaveRequestLikeCpp,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlayerInventoryPersistenceRequestLikeCpp {
     StorageMove(InventoryStorageMovePersistenceLikeCpp),
@@ -162,6 +187,8 @@ pub enum PlayerInventoryPersistenceRequestLikeCpp {
     LootDisenchantBatch(LootDisenchantBatchPersistenceLikeCpp),
     LootQuestBoundProgress(LootQuestBoundProgressPersistenceLikeCpp),
     LootDirectItemGrant(LootDirectItemGrantPersistenceLikeCpp),
+    QuestItemGrant(QuestItemGrantPersistenceLikeCpp),
+    QuestTurnIn(QuestTurnInPersistenceLikeCpp),
 }
 
 pub trait PlayerInventoryPersistencePortLikeCpp: Send + Sync {

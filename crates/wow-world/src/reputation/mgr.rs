@@ -13,7 +13,6 @@ use wow_data::reputation::{
     MAX_SPILLOVER_FACTIONS_LIKE_CPP, RepSpilloverTemplateLikeCpp, ReputationFlagsLikeCpp,
     ReputationRankLikeCpp,
 };
-use wow_database::{CharStatements, PreparedStatement, StatementDef};
 use wow_packet::packets::reputation::{
     FACTION_COUNT_LIKE_CPP, FactionStandingData as FactionStandingDataPacketLikeCpp,
     ForcedReaction as ForcedReactionPacketLikeCpp,
@@ -584,33 +583,6 @@ impl ReputationMgrLikeCpp {
         }
     }
 
-    pub fn pending_save_to_db_statement_plan_like_cpp(
-        &self,
-        player_guid_counter: u64,
-    ) -> Vec<PreparedStatement> {
-        let mut statements = Vec::new();
-        for faction in self.factions.values() {
-            if !faction.need_save {
-                continue;
-            }
-
-            let mut delete =
-                PreparedStatement::for_statement(CharStatements::DEL_CHAR_REPUTATION_BY_FACTION);
-            delete.set_u64(0, player_guid_counter);
-            delete.set_u16(1, faction.id as u16);
-            statements.push(delete);
-
-            let mut insert =
-                PreparedStatement::for_statement(CharStatements::INS_CHAR_REPUTATION_BY_FACTION);
-            insert.set_u64(0, player_guid_counter);
-            insert.set_u16(1, faction.id as u16);
-            insert.set_i32(2, faction.standing);
-            insert.set_u16(3, faction.flags.bits());
-            statements.push(insert);
-        }
-        statements
-    }
-
     /// SQLx-free rows consumed by the Player lifecycle persistence port.
     /// Iteration order intentionally matches the existing statement builder.
     pub fn pending_save_rows_like_cpp(&self) -> Vec<(u16, i32, u16)> {
@@ -627,15 +599,6 @@ impl ReputationMgrLikeCpp {
                 faction.need_save = false;
             }
         }
-    }
-
-    pub fn save_to_db_statement_plan_like_cpp(
-        &mut self,
-        player_guid_counter: u64,
-    ) -> Vec<PreparedStatement> {
-        let statements = self.pending_save_to_db_statement_plan_like_cpp(player_guid_counter);
-        self.mark_pending_save_to_db_committed_like_cpp();
-        statements
     }
 
     pub fn initialize_factions_packet_like_cpp(&mut self) -> InitializeFactionsPacketLikeCpp {
@@ -1389,7 +1352,6 @@ mod tests {
     use wow_constants::{CurrencyTypesFlags, CurrencyTypesFlagsB};
     use wow_data::CurrencyTypesEntry;
     use wow_data::progression_rewards::{FriendshipRepReactionEntry, ParagonReputationEntry};
-    use wow_database::SqlParam;
 
     #[test]
     fn faction_state_defaults_match_cpp_initialize_shape() {
@@ -1766,7 +1728,7 @@ mod tests {
     }
 
     #[test]
-    fn save_to_db_statement_plan_like_cpp_deletes_then_inserts_dirty_rows() {
+    fn pending_save_rows_like_cpp_preserve_dirty_faction_projection() {
         let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
         mgr.insert_state_for_test_like_cpp(FactionStateLikeCpp {
             standing: 123,
@@ -1774,37 +1736,27 @@ mod tests {
             ..FactionStateLikeCpp::new_like_cpp(85, 14, ReputationFlagsLikeCpp::VISIBLE)
         });
 
-        let statements = mgr.save_to_db_statement_plan_like_cpp(44);
+        assert_eq!(
+            mgr.pending_save_rows_like_cpp(),
+            vec![(
+                85,
+                123,
+                (ReputationFlagsLikeCpp::VISIBLE | ReputationFlagsLikeCpp::AT_WAR).bits(),
+            )]
+        );
+        assert!(mgr.get_state(14).expect("pending state").need_save);
 
-        assert_eq!(statements.len(), 2);
+        mgr.mark_pending_save_to_db_committed_like_cpp();
+
         assert_eq!(
-            statements[0].sql(),
-            CharStatements::DEL_CHAR_REPUTATION_BY_FACTION.sql()
-        );
-        assert_eq!(
-            statements[0].params(),
-            &[SqlParam::U64(44), SqlParam::U16(85)]
-        );
-        assert_eq!(
-            statements[1].sql(),
-            CharStatements::INS_CHAR_REPUTATION_BY_FACTION.sql()
-        );
-        assert_eq!(
-            statements[1].params(),
-            &[
-                SqlParam::U64(44),
-                SqlParam::U16(85),
-                SqlParam::I32(123),
-                SqlParam::U16(
-                    (ReputationFlagsLikeCpp::VISIBLE | ReputationFlagsLikeCpp::AT_WAR).bits()
-                )
-            ]
+            mgr.pending_save_rows_like_cpp(),
+            Vec::<(u16, i32, u16)>::new()
         );
         assert!(!mgr.get_state(14).expect("saved state").need_save);
     }
 
     #[test]
-    fn pending_save_to_db_statement_plan_like_cpp_does_not_clear_dirty_until_commit() {
+    fn pending_save_rows_like_cpp_do_not_clear_dirty_until_commit() {
         let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
         mgr.insert_state_for_test_like_cpp(FactionStateLikeCpp {
             standing: 456,
@@ -1812,9 +1764,12 @@ mod tests {
             ..FactionStateLikeCpp::new_like_cpp(86, 15, ReputationFlagsLikeCpp::VISIBLE)
         });
 
-        let statements = mgr.pending_save_to_db_statement_plan_like_cpp(44);
+        let rows = mgr.pending_save_rows_like_cpp();
 
-        assert_eq!(statements.len(), 2);
+        assert_eq!(
+            rows,
+            vec![(86, 456, ReputationFlagsLikeCpp::VISIBLE.bits())]
+        );
         assert!(
             mgr.get_state(15).expect("pending state").need_save,
             "failed Player::SaveToDB transaction must leave reputation dirty for retry"

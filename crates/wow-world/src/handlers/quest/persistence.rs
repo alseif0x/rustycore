@@ -5,12 +5,6 @@
 
 //! Quest status persistence and load.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::{CharStatements, PreparedStatement, SqlTransaction};
-
 use super::*;
 
 impl WorldSession {
@@ -505,182 +499,118 @@ impl WorldSession {
         }
     }
 
-    /// Save quest status and represented objective counters to the characters database.
-    ///
-    /// C++ anchor: `Player::_SaveQuestStatus`, `Player.cpp:20160-20191`.
-    /// The represented path keeps Rust's existing direct save timing, but mirrors the
-    /// C++ objective persistence order for a saved quest: status row first, then delete
-    /// stale objective rows for the quest, then replace nonzero objective counters.
-    /// For Rust's combined rewarded migration path, preserve the rewarded row before
-    /// deleting the stale active row.
-    pub(super) fn represented_quest_status_save_statements_like_cpp(
-        &self,
-        guid: u64,
-        quest_id: u32,
-        status: u8,
-        status_snapshot: Option<&PlayerQuestStatus>,
-        mut prepare: impl FnMut(CharStatements) -> PreparedStatement,
-    ) -> Vec<PreparedStatement> {
-        let mut statements = Vec::new();
-
-        if status == QUEST_STATUS_REWARDED_LIKE_CPP {
-            let mut rewarded = prepare(CharStatements::INS_CHAR_QUESTSTATUS_REWARDED);
-            rewarded.set_u64(0, guid);
-            rewarded.set_u32(1, quest_id);
-            statements.push(rewarded);
-
-            let mut del_status = prepare(CharStatements::DEL_CHAR_QUEST_STATUS);
-            del_status.set_u64(0, guid);
-            del_status.set_u32(1, quest_id);
-            statements.push(del_status);
-
-            let mut del_objectives =
-                prepare(CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST);
-            del_objectives.set_u64(0, guid);
-            del_objectives.set_u32(1, quest_id);
-            statements.push(del_objectives);
-
-            return statements;
-        }
-
-        let saved_status = status_snapshot.or_else(|| self.player_quests.get(&quest_id));
-        let represented_explored = saved_status.map(|status| status.explored).unwrap_or(false);
-        let represented_accept_time = saved_status
-            .map(|status| status.accept_time_secs)
-            .unwrap_or(0);
-        let represented_end_time = saved_status.map(|status| status.end_time_secs).unwrap_or(0);
-        let mut stmt = prepare(CharStatements::INS_CHAR_QUEST_STATUS);
-        stmt.set_u64(0, guid);
-        stmt.set_u32(1, quest_id);
-        stmt.set_u8(2, status);
-        stmt.set_u8(3, u8::from(represented_explored));
-        stmt.set_i64(4, represented_accept_time);
-        stmt.set_i64(5, represented_end_time);
-        statements.push(stmt);
-
-        let mut del_objectives = prepare(CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST);
-        del_objectives.set_u64(0, guid);
-        del_objectives.set_u32(1, quest_id);
-        statements.push(del_objectives);
-
-        if let (Some(quest_store), Some(saved_status)) = (self.quest_store.as_ref(), saved_status)
-            && let Some(quest) = quest_store.get(quest_id)
-        {
-            for objective in &quest.objectives {
-                if objective.storage_index < 0 {
-                    continue;
-                }
-                let storage_index = objective.storage_index as usize;
-                let count = saved_status
-                    .objective_counts
-                    .get(storage_index)
-                    .copied()
-                    .unwrap_or(0);
-                if count == 0 {
-                    continue;
-                }
-
-                let Ok(objective_index) = u8::try_from(objective.storage_index) else {
-                    continue;
-                };
-                let mut rep_objective = prepare(CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES);
-                rep_objective.set_u64(0, guid);
-                rep_objective.set_u32(1, quest_id);
-                rep_objective.set_u8(2, objective_index);
-                rep_objective.set_i32(3, count);
-                statements.push(rep_objective);
-            }
-        }
-
-        statements
-    }
-
     pub(super) async fn save_quest_to_db(&self, quest_id: u32, status: u8) {
-        let guid = match self.player_guid() {
+        let owner_guid = match self.player_guid() {
             Some(g) => g.counter() as u64,
             None => return,
         };
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.player_quest_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return,
         };
+        let mut projection = match self.player_quests.get(&quest_id) {
+            Some(saved) => self.represented_quest_status_persistence_like_cpp(saved),
+            None if status == QUEST_STATUS_REWARDED_LIKE_CPP => {
+                wow_persistence::QuestStatusPersistenceLikeCpp {
+                    quest_id,
+                    status,
+                    explored: false,
+                    accept_time_secs: 0,
+                    end_time_secs: 0,
+                    objectives: Vec::new(),
+                }
+            }
+            None => {
+                warn!(
+                    account = self.account_id,
+                    quest_id,
+                    "Quest status save skipped because canonical Player quest state is unavailable"
+                );
+                return;
+            }
+        };
+        projection.status = status;
 
-        let mut tx = SqlTransaction::new();
-        for stmt in self.represented_quest_status_save_statements_like_cpp(
-            guid,
-            quest_id,
-            status,
-            None,
-            |statement| char_db.prepare(statement),
-        ) {
-            tx.append(stmt);
-        }
-
-        if let Err(e) = char_db.commit_transaction(tx).await {
-            warn!(
+        match port
+            .persist_status_like_cpp(
+                wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp::Save {
+                    owner_guid,
+                    status: projection,
+                },
+            )
+            .await
+        {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
                 account = self.account_id,
-                quest_id, "Failed to save quest status: {e}"
-            );
+                quest_id,
+                error = %reason,
+                "Failed to save quest status"
+            ),
+            wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
+                account = self.account_id,
+                quest_id,
+                error = %reason,
+                "Quest status save commit outcome is unknown"
+            ),
         }
     }
 
     /// Delete a quest from the characters database (abandon).
     pub(super) async fn delete_quest_from_db(&self, quest_id: u32) {
-        use wow_database::CharStatements;
-
-        let guid = match self.player_guid() {
+        let owner_guid = match self.player_guid() {
             Some(g) => g.counter() as u64,
             None => return,
         };
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.player_quest_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return,
         };
-
-        let mut tx = SqlTransaction::new();
-        let mut stmt = char_db.prepare(CharStatements::DEL_CHAR_QUEST_STATUS);
-        stmt.set_u64(0, guid);
-        stmt.set_u32(1, quest_id);
-        tx.append(stmt);
-
-        let mut del_objectives =
-            char_db.prepare(CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST);
-        del_objectives.set_u64(0, guid);
-        del_objectives.set_u32(1, quest_id);
-        tx.append(del_objectives);
-
-        if let Err(e) = char_db.commit_transaction(tx).await {
-            warn!(
+        match port
+            .persist_status_like_cpp(
+                wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp::Delete {
+                    owner_guid,
+                    quest_id,
+                },
+            )
+            .await
+        {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
                 account = self.account_id,
-                quest_id, "Failed to delete quest: {e}"
-            );
+                quest_id,
+                error = %reason,
+                "Failed to delete quest"
+            ),
+            wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
+                account = self.account_id,
+                quest_id,
+                error = %reason,
+                "Quest deletion commit outcome is unknown"
+            ),
         }
     }
 
     /// Load all active quests for this player from the characters DB.
     pub(crate) async fn load_player_quests(&mut self) {
-        use wow_database::CharStatements;
-
         self.begin_player_quest_status_authority_load_like_cpp();
 
-        let player_guid = match self.player_guid() {
-            Some(g) => g,
+        let owner_guid = match self.player_guid() {
+            Some(g) => g.counter() as u64,
             None => return,
         };
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.player_quest_persistence_port_like_cpp() {
+            Some(port) => port,
             None => return,
         };
 
-        let mut stmt = char_db.prepare(CharStatements::SEL_CHAR_QUEST_STATUS);
-        Self::bind_player_quest_status_load_guid_like_cpp(&mut stmt, player_guid);
-
-        let result = match char_db.query(&stmt).await {
-            Ok(r) => r,
-            Err(e) => {
+        let active_rows = match port.load_active_statuses_like_cpp(owner_guid).await {
+            wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Loaded(rows) => rows,
+            wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
-                    "Failed to load quest status: {e}"
+                    error = %reason,
+                    "Failed to load quest status"
                 );
                 return;
             }
@@ -693,87 +623,71 @@ impl WorldSession {
         let mut next_active_slot: u8 = 0;
         let mut stale_rewarded_active_rows = Vec::new();
 
-        if !result.is_empty() {
-            let mut result = result;
-            loop {
-                let row = (
-                    result.try_read::<u32>(0),
-                    result.try_read::<u8>(1),
-                    result.try_read::<u8>(2),
-                    result.try_read::<i64>(3),
-                    result.try_read::<i64>(4),
-                );
-                let (
-                    Some(quest_id),
-                    Some(status),
-                    Some(explored),
-                    Some(accept_time_secs),
-                    Some(end_time_secs),
-                ) = row
-                else {
+        for row in active_rows {
+            let (
+                Some(quest_id),
+                Some(status),
+                Some(explored),
+                Some(accept_time_secs),
+                Some(end_time_secs),
+            ) = (
+                row.quest_id,
+                row.status,
+                row.explored,
+                row.accept_time_secs,
+                row.end_time_secs,
+            )
+            else {
+                quest_status_rows_coherent_like_cpp = false;
+                continue;
+            };
+            let status = if status < 7 {
+                status
+            } else {
+                QUEST_STATUS_INCOMPLETE_LIKE_CPP
+            };
+            let explored = explored != 0;
+
+            if status == QUEST_STATUS_REWARDED_LIKE_CPP {
+                // Rewarded (C++ QuestStatus::QUEST_STATUS_REWARDED / m_RewardedQuests).
+                // Non-repeatable quests cannot be re-taken once rewarded.
+                self.rewarded_quests.insert(quest_id);
+                stale_rewarded_active_rows.push(quest_id);
+            } else if next_active_slot < MAX_QUEST_LOG_SIZE_LIKE_CPP {
+                // Active or complete-but-not-turned-in.
+                // C++ _LoadQuestStatus assigns sequential visible slots in DB row order
+                // because the character DB status row has no persisted quest-log slot.
+                let slot = next_active_slot;
+                next_active_slot = next_active_slot.saturating_add(1);
+                let obj_count = self
+                    .quest_store
+                    .as_ref()
+                    .and_then(|s| s.get(quest_id))
+                    .map_or(0, |q| q.objectives.len());
+                if self.player_quests.contains_key(&quest_id) {
                     quest_status_rows_coherent_like_cpp = false;
-                    if !result.next_row() {
-                        break;
-                    }
-                    continue;
-                };
-                let status = if status < 7 {
-                    status
-                } else {
-                    QUEST_STATUS_INCOMPLETE_LIKE_CPP
-                };
-                let explored = explored != 0;
-
-                if status == QUEST_STATUS_REWARDED_LIKE_CPP {
-                    // Rewarded (C++ QuestStatus::QUEST_STATUS_REWARDED / m_RewardedQuests).
-                    // Non-repeatable quests cannot be re-taken once rewarded.
-                    self.rewarded_quests.insert(quest_id);
-                    stale_rewarded_active_rows.push(quest_id);
-                } else if next_active_slot < MAX_QUEST_LOG_SIZE_LIKE_CPP {
-                    // Active or complete-but-not-turned-in.
-                    // C++ _LoadQuestStatus assigns sequential visible slots in DB row order
-                    // because the character DB status row has no persisted quest-log slot.
-                    let slot = next_active_slot;
-                    next_active_slot = next_active_slot.saturating_add(1);
-                    let obj_count = self
-                        .quest_store
-                        .as_ref()
-                        .and_then(|s| s.get(quest_id))
-                        .map_or(0, |q| q.objectives.len());
-                    if self.player_quests.contains_key(&quest_id) {
-                        quest_status_rows_coherent_like_cpp = false;
-                    }
-                    self.player_quests.insert(
+                }
+                self.player_quests.insert(
+                    quest_id,
+                    PlayerQuestStatus {
                         quest_id,
-                        PlayerQuestStatus {
-                            quest_id,
-                            status,
-                            explored,
-                            accept_time_secs,
-                            end_time_secs,
-                            objective_counts: vec![0; obj_count],
-                            slot,
-                        },
-                    );
-                }
-
-                if !result.next_row() {
-                    break;
-                }
+                        status,
+                        explored,
+                        accept_time_secs,
+                        end_time_secs,
+                        objective_counts: vec![0; obj_count],
+                        slot,
+                    },
+                );
             }
         }
 
-        let mut objective_stmt = char_db.prepare(CharStatements::SEL_CHAR_QUEST_STATUS_OBJECTIVES);
-        Self::bind_player_quest_status_load_guid_like_cpp(&mut objective_stmt, player_guid);
-
-        match char_db.query(&objective_stmt).await {
-            Ok(objective_rows) if !objective_rows.is_empty() => {
-                let mut objective_rows = objective_rows;
-                loop {
-                    let quest_id: u32 = objective_rows.try_read::<u32>(0).unwrap_or(0);
-                    let storage_index: u8 = objective_rows.try_read::<u8>(1).unwrap_or(0);
-                    let data: i32 = objective_rows.try_read::<i32>(2).unwrap_or(0);
-
+        match port.load_objectives_like_cpp(owner_guid).await {
+            wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Loaded(objective_rows) => {
+                for row in objective_rows {
+                    let quest_id = row.quest_id.unwrap_or(0);
+                    let storage_index = row.storage_index.unwrap_or(0);
+                    let data = row.count.unwrap_or(0);
                     if let (Some(status), Some(quest)) = (
                         self.player_quests.get_mut(&quest_id),
                         self.quest_store
@@ -795,34 +709,24 @@ impl WorldSession {
                             };
                         }
                     }
-
-                    if !objective_rows.next_row() {
-                        break;
-                    }
                 }
             }
-            Ok(_) => {}
-            Err(e) => {
+            wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
-                    "Failed to load quest objective status: {e}"
+                    error = %reason,
+                    "Failed to load quest objective status"
                 );
             }
         }
 
         let mut rewarded_rows_coherent_like_cpp = false;
-        let mut rewarded_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_QUESTSTATUSREW);
-        Self::bind_player_quest_status_load_guid_like_cpp(&mut rewarded_stmt, player_guid);
-        match char_db.query(&rewarded_stmt).await {
-            Ok(rewarded_rows) if !rewarded_rows.is_empty() => {
+        match port.load_rewarded_like_cpp(owner_guid).await {
+            wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Loaded(rewarded_rows) => {
                 rewarded_rows_coherent_like_cpp = true;
-                let mut rewarded_rows = rewarded_rows;
-                loop {
-                    let Some(quest_id) = rewarded_rows.try_read::<u32>(0) else {
+                for row in rewarded_rows {
+                    let Some(quest_id) = row.quest_id else {
                         rewarded_rows_coherent_like_cpp = false;
-                        if !rewarded_rows.next_row() {
-                            break;
-                        }
                         continue;
                     };
                     self.record_represented_rewarded_quest_row_like_cpp(quest_id);
@@ -832,17 +736,13 @@ impl WorldSession {
                     {
                         self.rewarded_quests.insert(quest_id);
                     }
-
-                    if !rewarded_rows.next_row() {
-                        break;
-                    }
                 }
             }
-            Ok(_) => rewarded_rows_coherent_like_cpp = true,
-            Err(e) => {
+            wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
-                    "Failed to load rewarded quest status: {e}"
+                    error = %reason,
+                    "Failed to load rewarded quest status"
                 );
             }
         }
@@ -868,14 +768,11 @@ impl WorldSession {
         self.df_quests_like_cpp.clear();
         self.daily_quests_completed_like_cpp.clear();
         self.last_daily_quest_time_like_cpp = 0;
-        let mut daily_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_QUESTSTATUS_DAILY);
-        Self::bind_player_quest_status_load_guid_like_cpp(&mut daily_stmt, player_guid);
-        match char_db.query(&daily_stmt).await {
-            Ok(daily_rows) if !daily_rows.is_empty() => {
-                let mut daily_rows = daily_rows;
-                loop {
-                    let quest_id = daily_rows.try_read::<u32>(0).unwrap_or(0);
-                    let completed_time = daily_rows.try_read::<i64>(1).unwrap_or(0);
+        match port.load_daily_like_cpp(owner_guid).await {
+            wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Loaded(daily_rows) => {
+                for row in daily_rows {
+                    let quest_id = row.quest_id.unwrap_or(0);
+                    let completed_time = row.completed_time.unwrap_or(0);
                     if let Some(quest) = self
                         .quest_store
                         .as_ref()
@@ -888,29 +785,22 @@ impl WorldSession {
                             self.daily_quests_completed_like_cpp.insert(quest_id);
                         }
                     }
-
-                    if !daily_rows.next_row() {
-                        break;
-                    }
                 }
             }
-            Ok(_) => {}
-            Err(e) => {
+            wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
-                    "Failed to load daily quest status: {e}"
+                    error = %reason,
+                    "Failed to load daily quest status"
                 );
             }
         }
 
         self.weekly_quests_completed_like_cpp.clear();
-        let mut weekly_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_QUESTSTATUS_WEEKLY);
-        Self::bind_player_quest_status_load_guid_like_cpp(&mut weekly_stmt, player_guid);
-        match char_db.query(&weekly_stmt).await {
-            Ok(weekly_rows) if !weekly_rows.is_empty() => {
-                let mut weekly_rows = weekly_rows;
-                loop {
-                    let quest_id = weekly_rows.try_read::<u32>(0).unwrap_or(0);
+        match port.load_weekly_like_cpp(owner_guid).await {
+            wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Loaded(weekly_rows) => {
+                for row in weekly_rows {
+                    let quest_id = row.quest_id.unwrap_or(0);
                     if self
                         .quest_store
                         .as_ref()
@@ -919,29 +809,22 @@ impl WorldSession {
                     {
                         self.weekly_quests_completed_like_cpp.insert(quest_id);
                     }
-
-                    if !weekly_rows.next_row() {
-                        break;
-                    }
                 }
             }
-            Ok(_) => {}
-            Err(e) => {
+            wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
-                    "Failed to load weekly quest status: {e}"
+                    error = %reason,
+                    "Failed to load weekly quest status"
                 );
             }
         }
 
         self.monthly_quests_completed_like_cpp.clear();
-        let mut monthly_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_QUESTSTATUS_MONTHLY);
-        Self::bind_player_quest_status_load_guid_like_cpp(&mut monthly_stmt, player_guid);
-        match char_db.query(&monthly_stmt).await {
-            Ok(monthly_rows) if !monthly_rows.is_empty() => {
-                let mut monthly_rows = monthly_rows;
-                loop {
-                    let quest_id = monthly_rows.try_read::<u32>(0).unwrap_or(0);
+        match port.load_monthly_like_cpp(owner_guid).await {
+            wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Loaded(monthly_rows) => {
+                for row in monthly_rows {
+                    let quest_id = row.quest_id.unwrap_or(0);
                     if self
                         .quest_store
                         .as_ref()
@@ -950,68 +833,54 @@ impl WorldSession {
                     {
                         self.monthly_quests_completed_like_cpp.insert(quest_id);
                     }
-
-                    if !monthly_rows.next_row() {
-                        break;
-                    }
                 }
             }
-            Ok(_) => {}
-            Err(e) => {
+            wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
-                    "Failed to load monthly quest status: {e}"
+                    error = %reason,
+                    "Failed to load monthly quest status"
                 );
             }
         }
 
-        let mut seasonal_stmt = char_db.prepare(CharStatements::SEL_CHAR_QUEST_STATUS_SEASONAL);
-        Self::bind_player_quest_status_load_guid_like_cpp(&mut seasonal_stmt, player_guid);
-
-        let seasonal_rows = match char_db.query(&seasonal_stmt).await {
-            Ok(result) => {
-                let mut rows = Vec::new();
-                if !result.is_empty() {
-                    let mut result = result;
-                    loop {
-                        let quest_id = result.try_read::<u32>(0).unwrap_or_else(|| {
-                            warn!(
-                                account = self.account_id,
-                                "Failed to read seasonal quest id"
-                            );
-                            0
-                        });
-                        let event_id = result.try_read::<u32>(1).unwrap_or_else(|| {
-                            warn!(
-                                account = self.account_id,
-                                quest_id, "Failed to read seasonal quest event id"
-                            );
-                            u32::MAX
-                        });
-                        let completed_time = result.try_read::<i64>(2).unwrap_or_else(|| {
-                            warn!(
-                                account = self.account_id,
-                                quest_id, event_id, "Failed to read seasonal quest completedTime"
-                            );
-                            -1
-                        });
-                        rows.push(SeasonalQuestStatusDbRowLikeCpp {
-                            quest_id,
-                            event_id,
-                            completed_time,
-                        });
-
-                        if !result.next_row() {
-                            break;
-                        }
+        let seasonal_rows = match port.load_seasonal_like_cpp(owner_guid).await {
+            wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Loaded(rows) => rows
+                .into_iter()
+                .map(|row| {
+                    let quest_id = row.quest_id.unwrap_or_else(|| {
+                        warn!(
+                            account = self.account_id,
+                            "Failed to read seasonal quest id"
+                        );
+                        0
+                    });
+                    let event_id = row.event_id.unwrap_or_else(|| {
+                        warn!(
+                            account = self.account_id,
+                            quest_id, "Failed to read seasonal quest event id"
+                        );
+                        u32::MAX
+                    });
+                    let completed_time = row.completed_time.unwrap_or_else(|| {
+                        warn!(
+                            account = self.account_id,
+                            quest_id, event_id, "Failed to read seasonal quest completedTime"
+                        );
+                        -1
+                    });
+                    SeasonalQuestStatusDbRowLikeCpp {
+                        quest_id,
+                        event_id,
+                        completed_time,
                     }
-                }
-                rows
-            }
-            Err(e) => {
+                })
+                .collect(),
+            wow_persistence::PlayerQuestLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
                     account = self.account_id,
-                    "Failed to load seasonal quest status: {e}"
+                    error = %reason,
+                    "Failed to load seasonal quest status"
                 );
                 Vec::new()
             }

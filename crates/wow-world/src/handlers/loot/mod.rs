@@ -59,7 +59,6 @@ use wow_constants::{
 };
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_data::{ItemRandomEnchantmentTemplateEntry, ItemRandomPropertyTemplateEntry};
-use wow_database::retry_deadlocked_operation_like_cpp;
 use wow_entities::{
     AccessorObjectKind, CORPSE_DYNFLAG_LOOTABLE, GAMEOBJECT_TYPE_AREADAMAGE,
     GAMEOBJECT_TYPE_BARBER_CHAIR, GAMEOBJECT_TYPE_BINDER, GAMEOBJECT_TYPE_CAMERA,

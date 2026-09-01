@@ -154,10 +154,7 @@ pub(crate) fn player_currency_save_statements_like_cpp(
         .collect()
 }
 
-/// Transitional MariaDB bridge for mixed inventory/currency transactions.
-/// The application still owns those wider transaction boundaries, while this
-/// adapter alone owns `_SaveCurrency` statement identity and bind order.
-pub fn append_player_currency_save_request_like_cpp(
+fn append_player_currency_save_request_like_cpp(
     transaction: &mut SqlTransaction,
     request: &PlayerCurrencySaveRequestLikeCpp,
 ) {

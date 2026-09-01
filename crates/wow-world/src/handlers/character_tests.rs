@@ -13,7 +13,6 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::{CharStatements, PreparedStatement};
 
 use super::*;
 use crate::player_inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
@@ -37,7 +36,6 @@ use wow_data::{
     ItemChildEquipmentEntry, ItemChildEquipmentStore, PlayerConditionEntry, PlayerLevelStats,
     PlayerStatsStore, SpellMiscEntry, SpellMiscStore,
 };
-use wow_database::StatementDef;
 use wow_entities::{CHILD_EQUIPMENT_SLOT_START, EQUIPMENT_SLOT_MAINHAND};
 use wow_packet::packets::loot::{
     CreatureLoot, LOOT_TYPE_CORPSE_LIKE_CPP, LootEntry, LootEntryFlags,
@@ -4638,34 +4636,9 @@ fn spell_charge_entry_skips_expired_recharges_like_cpp() {
 
 #[test]
 fn account_mount_spells_are_dependent_and_not_saved_to_character_spell_like_cpp() {
-    assert_eq!(
-        CharStatements::INS_CHARACTER_SPELL.sql(),
-        "INSERT IGNORE INTO character_spell (guid, spell, active, disabled) VALUES (?, ?, 1, 0)",
-        "trainer/regular learned spells still use the character_spell insert seam"
-    );
     assert!(
         WorldSession::account_mount_spells_are_session_dependent_like_cpp(),
         "C++ CollectionMgr::AddMount calls Player::LearnSpell(spellId, true); Player::_SaveSpells skips dependent spells, so account mounts must not be persisted into character_spell"
-    );
-}
-
-#[test]
-fn create_character_binds_cpp_default_difficulties() {
-    let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHARACTER);
-
-    bind_create_character_difficulties_like_cpp(&mut stmt);
-
-    assert_eq!(
-        stmt.params()[16],
-        wow_database::SqlParam::U8(DIFFICULTY_NORMAL_LIKE_CPP)
-    );
-    assert_eq!(
-        stmt.params()[17],
-        wow_database::SqlParam::U8(DIFFICULTY_NORMAL_RAID_LIKE_CPP)
-    );
-    assert_eq!(
-        stmt.params()[18],
-        wow_database::SqlParam::U8(DIFFICULTY_10_N_LIKE_CPP)
     );
 }
 

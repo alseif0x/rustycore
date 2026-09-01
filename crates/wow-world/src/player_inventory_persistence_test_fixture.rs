@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use wow_persistence::{
@@ -8,6 +9,7 @@ use wow_persistence::{
 pub(crate) struct PlayerInventoryPersistencePortFixtureLikeCpp {
     requests: Arc<Mutex<Vec<PlayerInventoryPersistenceRequestLikeCpp>>>,
     outcome: PersistenceOutcomeLikeCpp,
+    outcomes: Mutex<VecDeque<PersistenceOutcomeLikeCpp>>,
 }
 
 impl PlayerInventoryPersistencePortFixtureLikeCpp {
@@ -22,6 +24,24 @@ impl PlayerInventoryPersistencePortFixtureLikeCpp {
             Arc::new(Self {
                 requests: Arc::clone(&requests),
                 outcome,
+                outcomes: Mutex::new(VecDeque::new()),
+            }),
+            requests,
+        )
+    }
+
+    pub(crate) fn with_outcomes_like_cpp(
+        outcomes: impl IntoIterator<Item = PersistenceOutcomeLikeCpp>,
+    ) -> (
+        Arc<Self>,
+        Arc<Mutex<Vec<PlayerInventoryPersistenceRequestLikeCpp>>>,
+    ) {
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        (
+            Arc::new(Self {
+                requests: Arc::clone(&requests),
+                outcome: PersistenceOutcomeLikeCpp::Applied { rows: 0 },
+                outcomes: Mutex::new(outcomes.into_iter().collect()),
             }),
             requests,
         )
@@ -41,7 +61,12 @@ impl PlayerInventoryPersistencePortLikeCpp for PlayerInventoryPersistencePortFix
         request: PlayerInventoryPersistenceRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'_, PersistenceOutcomeLikeCpp> {
         self.requests.lock().unwrap().push(request);
-        let outcome = self.outcome.clone();
+        let outcome = self
+            .outcomes
+            .lock()
+            .unwrap()
+            .pop_front()
+            .unwrap_or_else(|| self.outcome.clone());
         Box::pin(async move { outcome })
     }
 }

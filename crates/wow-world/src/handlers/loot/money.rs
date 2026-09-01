@@ -362,36 +362,16 @@ impl WorldSession {
                     cached_notified_amount,
                     max_money: MAX_MONEY_AMOUNT,
                 };
-                let attempt = retry_deadlocked_operation_like_cpp(
-                    || async {
-                        match persistence_port
-                            .attempt_stored_item_money_like_cpp(request)
-                            .await
-                        {
-                            StoredItemMoneyPersistenceAttemptLikeCpp::Applied(outcome) => {
-                                Ok(outcome)
-                            }
-                            other => Err(other),
-                        }
-                    },
-                    |error| {
-                        matches!(
-                            error,
-                            StoredItemMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
-                                retryable_deadlock: true,
-                                ..
-                            }
-                        )
-                    },
-                )
-                .await;
-                let outcome = match attempt {
-                    Ok(outcome) => outcome,
-                    Err(StoredItemMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
+                let outcome = match persistence_port
+                    .attempt_stored_item_money_like_cpp(request)
+                    .await
+                {
+                    StoredItemMoneyPersistenceAttemptLikeCpp::Applied(outcome) => outcome,
+                    StoredItemMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
                         kind,
                         reason,
                         ..
-                    }) => {
+                    } => {
                         return Err(match kind {
                             StoredItemMoneyRollbackKindLikeCpp::MissingPlayer => {
                                 LootMoneyPersistenceErrorLikeCpp::MissingPlayer
@@ -402,10 +382,10 @@ impl WorldSession {
                             }
                         });
                     }
-                    Err(StoredItemMoneyPersistenceAttemptLikeCpp::CommitOutcomeUnknown {
+                    StoredItemMoneyPersistenceAttemptLikeCpp::CommitOutcomeUnknown {
                         reason,
                         outcome,
-                    }) => match persistence_port
+                    } => match persistence_port
                         .reconcile_stored_item_money_like_cpp(request, outcome)
                         .await
                     {
@@ -425,9 +405,6 @@ impl WorldSession {
                             );
                         }
                     },
-                    Err(StoredItemMoneyPersistenceAttemptLikeCpp::Applied(_)) => {
-                        unreachable!("applied stored-money outcome is returned through Ok")
-                    }
                 };
                 (
                     outcome.before,

@@ -50,7 +50,6 @@ use wow_data::{
     TaxiPathNodeEntry, TaxiPathNodeStore, calculate_player_stat_system_like_cpp,
     hotfix_locale_mask, is_player_meeting_condition_like_cpp,
 };
-use wow_database::PreparedStatement;
 use wow_entities::{
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, Corpse, CorpseCustomizationChoice,
     CorpseType, CreatureAddonLifecycleRecordLikeCpp, GAMEOBJECT_TYPE_FISHING_HOLE,
@@ -1006,8 +1005,6 @@ const MAX_AREA_SPIRIT_HEALER_RANGE_LIKE_CPP: f32 = 20.0;
 // C++ ObjectDefines.h: DEFAULT_VISIBILITY_DISTANCE = VISIBILITY_DISTANCE_NORMAL = 100 yards.
 // Wider values here make the SQL fallback load whole areas and can crash the 3.4.3 client.
 const DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP: f32 = crate::map_manager::VISIBILITY_RADIUS;
-const DIFFICULTY_NORMAL_LIKE_CPP: u8 = 1;
-const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u8 = 14;
 const RESPONSE_SUCCESS_LIKE_CPP: u8 = 0;
 const CHAR_CREATE_ERROR_LIKE_CPP: u8 = 25;
 const CHAR_CREATE_NAME_IN_USE_LIKE_CPP: u8 = 27;
@@ -1033,7 +1030,6 @@ const CHARACTER_FLAG_DECLINED_LIKE_CPP: u32 = 0x0200_0000;
 const CHAR_CUSTOMIZE_FLAG_CUSTOMIZE_LIKE_CPP: u32 = 0x0000_0001;
 const CHAR_CUSTOMIZE_FLAG_FACTION_LIKE_CPP: u32 = 0x0001_0000;
 const CHAR_CUSTOMIZE_FLAG_RACE_LIKE_CPP: u32 = 0x0010_0000;
-const DIFFICULTY_10_N_LIKE_CPP: u8 = 3;
 const GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP: u8 = 15;
 const TAXI_PATH_NODE_FLAG_TELEPORT_LIKE_CPP: i32 = 0x1;
 const TAXI_PATH_NODE_FLAG_STOP_LIKE_CPP: i32 = 0x2;
@@ -1526,12 +1522,6 @@ fn initial_character_rest_state_like_cpp(is_a_recruiter: bool, recruiter_id: u32
     } else {
         REST_STATE_NORMAL_LIKE_CPP
     }
-}
-
-fn bind_create_character_difficulties_like_cpp(stmt: &mut PreparedStatement) {
-    stmt.set_u8(16, DIFFICULTY_NORMAL_LIKE_CPP);
-    stmt.set_u8(17, DIFFICULTY_NORMAL_RAID_LIKE_CPP);
-    stmt.set_u8(18, DIFFICULTY_10_N_LIKE_CPP);
 }
 
 fn creature_movement_generator_type_from_db_like_cpp(

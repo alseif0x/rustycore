@@ -5,12 +5,6 @@
 
 //! Inventory storage, equip/swap, destroy, durability and item modification.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::{CharStatements, SqlTransaction};
-
 use super::*;
 
 pub(crate) fn item_turnin_persistence_rows_like_cpp(
@@ -1126,36 +1120,6 @@ impl WorldSession {
         }
 
         None
-    }
-
-    pub(crate) fn append_item_turnin_statements(
-        char_db: &wow_database::CharacterDatabase,
-        tx: &mut SqlTransaction,
-        player_guid: ObjectGuid,
-        changes: &[ExtendedCostItemTurninChange],
-    ) {
-        for change in changes {
-            match *change {
-                ExtendedCostItemTurninChange::Update {
-                    db_guid, new_count, ..
-                } => {
-                    let mut stmt = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_COUNT);
-                    stmt.set_u32(0, new_count);
-                    stmt.set_u64(1, db_guid);
-                    tx.append(stmt);
-                }
-                ExtendedCostItemTurninChange::Delete { db_guid, .. } => {
-                    let mut del_inv = char_db.prepare(CharStatements::DEL_CHAR_INVENTORY_ITEM);
-                    del_inv.set_u64(0, player_guid.counter() as u64);
-                    del_inv.set_u64(1, db_guid);
-                    tx.append(del_inv);
-
-                    let mut del_item = char_db.prepare(CharStatements::DEL_ITEM_INSTANCE);
-                    del_item.set_u64(0, db_guid);
-                    tx.append(del_item);
-                }
-            }
-        }
     }
 
     pub(crate) fn apply_item_turnin_changes(

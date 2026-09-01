@@ -162,7 +162,6 @@ use wow_data::{
     },
     spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
 };
-use wow_database::{CharacterDatabase, retry_deadlocked_operation_like_cpp};
 use wow_entities::{
     AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentDurationAction,
     ApplyEnchantmentEffectAction, ApplyEnchantmentEffectRef, ApplyEnchantmentGemRequirementRef,
@@ -5194,6 +5193,7 @@ pub(crate) struct SessionPersistencePortsLikeCpp {
     pub(crate) stored_item: Option<Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>>,
     pub(crate) player_inventory:
         Option<Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>>,
+    pub(crate) player_quest: Option<Arc<dyn wow_persistence::PlayerQuestPersistencePortLikeCpp>>,
     pub(crate) vendor_trade: Option<Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>>,
     group_loot_money: Option<Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>>,
     represented_group: Option<Arc<dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp>>,
@@ -5287,8 +5287,6 @@ pub struct WorldSession {
     // Dispatch table (built once, shared ref)
     dispatch_table: HashMap<ClientOpcodes, &'static PacketHandlerEntry>,
 
-    // Character database
-    char_db: Option<Arc<CharacterDatabase>>,
     // FIFO sender for C++ CharacterDatabase.Execute-style detached homebind
     // writes. Its single worker drains queued jobs after session teardown and
     // preserves call order.
@@ -7657,7 +7655,6 @@ impl WorldSession {
             legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp::default(),
             represented_runtime_rng_like_cpp: StdRng::from_entropy(),
             dispatch_table: build_dispatch_table(),
-            char_db: None,
             homebind_persistence_tx_like_cpp: None,
             persistence_ports_like_cpp: Box::default(),
             trainer_store_like_cpp: None,
@@ -9436,11 +9433,6 @@ impl WorldSession {
             rate,
             &mut self.represented_runtime_rng_like_cpp,
         )
-    }
-
-    /// Set the character database for this session.
-    pub fn set_char_db(&mut self, db: Arc<CharacterDatabase>) {
-        self.char_db = Some(db);
     }
 
     /// Inject the shared map manager. Call once at session creation, before login.
@@ -16685,11 +16677,6 @@ impl WorldSession {
 
     pub(crate) fn is_a_recruiter_like_cpp(&self) -> bool {
         self.is_a_recruiter_like_cpp
-    }
-
-    /// Get the character database reference.
-    pub fn char_db(&self) -> Option<&Arc<CharacterDatabase>> {
-        self.char_db.as_ref()
     }
 
     pub fn set_trainer_store_like_cpp(&mut self, store: Arc<TrainerStoreLikeCpp>) {
@@ -28290,39 +28277,19 @@ impl WorldSession {
                         .collect(),
                     max_money: MAX_MONEY_AMOUNT,
                 };
-                let attempt = retry_deadlocked_operation_like_cpp(
-                    || async {
-                        match persistence_port
-                            .attempt_group_loot_money_like_cpp(request.clone())
-                            .await
-                        {
-                            wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::Applied(
-                                outcomes,
-                            ) => Ok(outcomes),
-                            other => Err(other),
-                        }
-                    },
-                    |error| {
-                        matches!(
-                            error,
-                            wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
-                                retryable_deadlock: true,
-                                ..
-                            }
-                        )
-                    },
-                )
-                .await;
-                let durable_outcomes = match attempt {
-                    Ok(outcomes) => outcomes
+                let durable_outcomes = match persistence_port
+                    .attempt_group_loot_money_like_cpp(request)
+                    .await
+                {
+                    wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::Applied(outcomes) => outcomes
                         .into_iter()
                         .map(|outcome| (outcome.recipient_guid, outcome))
                         .collect::<HashMap<_, _>>(),
-                    Err(wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
+                    wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
                         kind,
                         reason,
                         ..
-                    }) => {
+                    } => {
                         return Err(match kind {
                             wow_persistence::GroupLootMoneyRollbackKindLikeCpp::MissingPlayer { .. } => {
                                 LootMoneyPersistenceErrorLikeCpp::MissingPlayer
@@ -28332,10 +28299,10 @@ impl WorldSession {
                             }
                         });
                     }
-                    Err(wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::CommitOutcomeUnknown {
+                    wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::CommitOutcomeUnknown {
                         reason,
                         outcomes: durable_outcomes,
-                    }) => match persistence_port
+                    } => match persistence_port
                         .reconcile_group_loot_money_like_cpp(durable_outcomes.clone())
                         .await
                     {
@@ -28367,9 +28334,6 @@ impl WorldSession {
                             .map(|outcome| (outcome.recipient_guid, outcome))
                             .collect::<HashMap<_, _>>(),
                     },
-                    Err(wow_persistence::GroupLootMoneyPersistenceAttemptLikeCpp::Applied(_)) => {
-                        unreachable!("applied group loot-money outcome is returned through Ok")
-                    }
                 };
                 durable_outcomes
             };

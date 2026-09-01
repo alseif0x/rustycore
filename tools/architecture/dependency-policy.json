@@ -163,12 +163,6 @@
     },
     {
       "from": "wow-world",
-      "to": "wow-database",
-      "tracking_issue": 153,
-      "reason": "The #186 exact inventory assigned concrete gameplay persistence to #189 loot, #199 group, #200 Player lifecycle and measured #153 capability children. #286 moves the remaining represented Player character-save plan through the SQLx-free lifecycle port; the other concrete wow-world workflows remain explicitly owned by the terminal #153 capability audit, which owns removal of this final crate edge."
-    },
-    {
-      "from": "wow-world",
       "to": "wow-handler",
       "tracking_issue": 153,
       "reason": "WorldSession still owns concrete packet admission and dispatch. #152 extracts those private submodules, #140 extracts the command pump, and #182-#184 complete the transitional Session shell; none removes this Cargo edge. The #153 post-shell re-audit owns the terminal PacketRouter inversion and final handler-registry boundary decision. Closed since this was written: #140, #152, #182, #184 \u2014 the residue is owned by #153."
@@ -398,13 +392,6 @@
         "kind": "normal",
         "tracking_issue": 133,
         "reason": "Loot authority still exposes Tokio watch-based asynchronous coordination from a domain/runtime crate."
-      },
-      {
-        "from": "wow-world",
-        "to": "sqlx",
-        "kind": "normal",
-        "tracking_issue": 153,
-        "reason": "The #186 exact inventory assigns direct SQLx workflows to #187 behavior goldens, #189 durable loot, #199 group, #200 Player lifecycle, and #153 residual capability children; #153 owns removal of the final edge."
       },
       {
         "from": "wow-world",

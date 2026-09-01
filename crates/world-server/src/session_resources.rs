@@ -20,11 +20,12 @@ use wow_world::{
 /// The outer world-server callback captures this aggregate; the listener
 /// neither receives it nor exposes any field through the `wow-network` API.
 pub(super) struct SessionResources {
-    pub(super) char_db: Option<Arc<wow_database::CharacterDatabase>>,
     pub(super) stored_item_persistence_port:
         Option<Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>>,
     pub(super) player_inventory_persistence_port:
         Option<Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>>,
+    pub(super) player_quest_persistence_port:
+        Option<Arc<dyn wow_persistence::PlayerQuestPersistencePortLikeCpp>>,
     pub(super) vendor_trade_persistence_port:
         Option<Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>>,
     pub(super) character_administration_persistence_port:
