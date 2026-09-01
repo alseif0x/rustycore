@@ -73113,10 +73113,9 @@ fn legit_characters_management() {
 }
 
 #[test]
-fn char_db_and_realm_id() {
+fn realm_id_and_virtual_address_defaults() {
     let (mut session, _, _) = make_session();
 
-    assert!(session.char_db().is_none());
     assert_eq!(session.realm_id(), 1);
     assert_eq!(session.virtual_realm_address(), 0x0101_0001);
 

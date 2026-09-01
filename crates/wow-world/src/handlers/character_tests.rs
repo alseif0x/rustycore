@@ -13,9 +13,9 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::{CharStatements, PreparedStatement};
 
 use super::*;
+use crate::player_inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
 use crate::session::{
     AuraApplication, InventoryItem, RepresentedAuraEffectLikeCpp, RepresentedHomebindLikeCpp,
     RepresentedTaxiFlightNodeLikeCpp,
@@ -36,7 +36,6 @@ use wow_data::{
     ItemChildEquipmentEntry, ItemChildEquipmentStore, PlayerConditionEntry, PlayerLevelStats,
     PlayerStatsStore, SpellMiscEntry, SpellMiscStore,
 };
-use wow_database::StatementDef;
 use wow_entities::{CHILD_EQUIPMENT_SLOT_START, EQUIPMENT_SLOT_MAINHAND};
 use wow_packet::packets::loot::{
     CreatureLoot, LOOT_TYPE_CORPSE_LIKE_CPP, LootEntry, LootEntryFlags,
@@ -1777,7 +1776,7 @@ fn bank_storage_mutable_state_round_trips_loaded_expiration_and_charges_like_cpp
         5,
     );
 
-    assert_eq!(persisted.db_guid, 7_777);
+    assert_eq!(persisted.item_guid, 7_777);
     assert_eq!(persisted.count, 3);
     assert_eq!(persisted.expiration, 90_000);
     assert_eq!(persisted.charges, "5 -2 0 7 1 ");
@@ -1806,22 +1805,6 @@ fn loaded_item_storage_normalizes_template_duration_and_effect_charge_scope_like
     assert_eq!(
         item_spell_charges_db_string(&[7, -3, 99, 100, 101], 2),
         "7 -3 "
-    );
-}
-
-#[test]
-fn fully_merged_bank_item_cleanup_removes_stored_container_loot_like_cpp() {
-    let statements = fully_merged_item_cleanup_statements_like_cpp();
-
-    assert!(statements.contains(&CharStatements::DEL_ITEMCONTAINER_ITEMS));
-    assert!(statements.contains(&CharStatements::DEL_ITEMCONTAINER_MONEY));
-    assert_eq!(
-        CharStatements::DEL_ITEMCONTAINER_ITEMS.sql(),
-        "DELETE FROM item_loot_items WHERE container_id = ?"
-    );
-    assert_eq!(
-        CharStatements::DEL_ITEMCONTAINER_MONEY.sql(),
-        "DELETE FROM item_loot_money WHERE container_id = ?"
     );
 }
 
@@ -2422,7 +2405,9 @@ fn sql_creature_movement_type_random_requires_wander_distance_like_cpp() {
     );
 }
 
-fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {
+pub(crate) fn make_session_with_send_capacity(
+    capacity: usize,
+) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
     let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(capacity);
     let mut session = WorldSession::new(
@@ -4651,34 +4636,9 @@ fn spell_charge_entry_skips_expired_recharges_like_cpp() {
 
 #[test]
 fn account_mount_spells_are_dependent_and_not_saved_to_character_spell_like_cpp() {
-    assert_eq!(
-        CharStatements::INS_CHARACTER_SPELL.sql(),
-        "INSERT IGNORE INTO character_spell (guid, spell, active, disabled) VALUES (?, ?, 1, 0)",
-        "trainer/regular learned spells still use the character_spell insert seam"
-    );
     assert!(
         WorldSession::account_mount_spells_are_session_dependent_like_cpp(),
         "C++ CollectionMgr::AddMount calls Player::LearnSpell(spellId, true); Player::_SaveSpells skips dependent spells, so account mounts must not be persisted into character_spell"
-    );
-}
-
-#[test]
-fn create_character_binds_cpp_default_difficulties() {
-    let mut stmt = PreparedStatement::for_statement(CharStatements::INS_CHARACTER);
-
-    bind_create_character_difficulties_like_cpp(&mut stmt);
-
-    assert_eq!(
-        stmt.params()[16],
-        wow_database::SqlParam::U8(DIFFICULTY_NORMAL_LIKE_CPP)
-    );
-    assert_eq!(
-        stmt.params()[17],
-        wow_database::SqlParam::U8(DIFFICULTY_NORMAL_RAID_LIKE_CPP)
-    );
-    assert_eq!(
-        stmt.params()[18],
-        wow_database::SqlParam::U8(DIFFICULTY_10_N_LIKE_CPP)
     );
 }
 
@@ -5739,14 +5699,9 @@ async fn swap_inv_item_commit_failure_keeps_runtime_unchanged_like_cpp() {
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
     install_bank_move_item_fixture(&mut session, 106, 1);
     let item_guid = insert_bank_move_test_item(&mut session, INVENTORY_SLOT_ITEM_START, 106, 61, 1);
-    let failing_pool = sqlx::mysql::MySqlPoolOptions::new()
-        .max_connections(1)
-        .acquire_timeout(std::time::Duration::from_millis(100))
-        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
-        .expect("syntactically valid lazy MySQL pool");
-    session.set_char_db(Arc::new(wow_database::CharacterDatabase::from_pool(
-        failing_pool,
-    )));
+    session.set_player_inventory_persistence_port_like_cpp(
+        PlayerInventoryPersistencePortFixtureLikeCpp::failed(),
+    );
 
     session
         .handle_swap_inv_item(SwapInvItem {
@@ -5857,14 +5812,9 @@ async fn auto_equip_item_slot_commit_failure_does_not_apply_item_mods_like_cpp()
         64,
         InventoryType::Weapon,
     );
-    let failing_pool = sqlx::mysql::MySqlPoolOptions::new()
-        .max_connections(1)
-        .acquire_timeout(std::time::Duration::from_millis(100))
-        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
-        .expect("syntactically valid lazy MySQL pool");
-    session.set_char_db(Arc::new(wow_database::CharacterDatabase::from_pool(
-        failing_pool,
-    )));
+    session.set_player_inventory_persistence_port_like_cpp(
+        PlayerInventoryPersistencePortFixtureLikeCpp::failed(),
+    );
 
     session
         .handle_auto_equip_item_slot(AutoEquipItemSlot {
@@ -6912,14 +6862,9 @@ async fn recursive_destroy_commit_failure_keeps_bag_and_children_like_cpp() {
     );
     child.set_container_guid_and_slot(bag_guid, INVENTORY_SLOT_ITEM_START);
     session.insert_inventory_item_object(child);
-    let failing_pool = sqlx::mysql::MySqlPoolOptions::new()
-        .max_connections(1)
-        .acquire_timeout(std::time::Duration::from_millis(100))
-        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
-        .expect("syntactically valid lazy MySQL pool");
-    session.set_char_db(Arc::new(wow_database::CharacterDatabase::from_pool(
-        failing_pool,
-    )));
+    session.set_player_inventory_persistence_port_like_cpp(
+        PlayerInventoryPersistencePortFixtureLikeCpp::failed(),
+    );
     let item = session
         .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
         .expect("bag metadata");
@@ -8842,17 +8787,9 @@ async fn autobank_item_commit_failure_keeps_runtime_unchanged_like_cpp() {
     session.handle_banker_activate(Hello { unit: banker }).await;
     assert!(send_rx.try_recv().is_ok(), "bank open should be sent");
 
-    // A lazy pool lets the handler reach its real SQL transaction path while
-    // guaranteeing that acquiring the connection for COMMIT fails quickly.
-    let failing_pool = sqlx::mysql::MySqlPoolOptions::new()
-        .max_connections(1)
-        .acquire_timeout(std::time::Duration::from_millis(100))
-        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
-        .expect("syntactically valid lazy MySQL pool");
-    session.set_char_db(Arc::new(wow_database::CharacterDatabase::from_pool(
-        failing_pool,
-    )));
-    assert!(session.char_db().is_some());
+    session.set_player_inventory_persistence_port_like_cpp(
+        PlayerInventoryPersistencePortFixtureLikeCpp::failed(),
+    );
     assert!(session.represented_can_use_current_bank_like_cpp());
     let precommit_plan = session
         .plan_inventory_storage_move_like_cpp(

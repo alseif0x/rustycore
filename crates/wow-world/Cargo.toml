@@ -26,7 +26,6 @@ wow-anticheat = { workspace = true }
 wow-ai = { workspace = true }
 wow-chat = { workspace = true }
 wow-data = { workspace = true }
-wow-database = { workspace = true }
 wow-entities = { workspace = true }
 wow-network = { workspace = true }
 wow-logging = { workspace = true }
@@ -42,7 +41,6 @@ wow-session = { workspace = true }
 wow-instances = { workspace = true }
 wow-script = { workspace = true }
 wow-social = { workspace = true }
-sqlx = { workspace = true }
 
 [dev-dependencies]
 wow-session = { workspace = true, features = ["test-support"] }

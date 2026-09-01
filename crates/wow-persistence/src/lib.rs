@@ -25,6 +25,7 @@ mod area_trigger_template_catalog;
 mod area_trigger_world_catalog;
 mod battle_pet_selection_catalog;
 mod canonical_spawn_catalog;
+mod character_administration;
 mod chr_specialization_hotfix;
 mod condition_disable_catalog;
 mod creature_display_hotfix;
@@ -40,12 +41,15 @@ mod item_random_enchantment_catalog;
 mod jump_charge_catalog;
 mod lfg_dungeons_hotfix;
 mod lfg_world_catalog;
+mod loot_template_catalog;
 mod mount_catalog;
 mod phase_hotfix_catalog;
 mod phase_world_catalog;
 mod player_base_stats;
 mod player_choice;
 mod player_creation_catalog;
+mod player_inventory;
+mod player_quest;
 mod quest_catalog;
 mod quest_item_catalog;
 mod reputation_catalog;
@@ -57,8 +61,12 @@ mod spell_core_db2_hotfix;
 mod spell_info_key_hotfix;
 mod spell_world_catalog;
 mod static_data_overlay;
+mod stored_item;
 mod trainer_catalog;
 mod vehicle_catalog;
+mod vendor_catalog;
+mod vendor_trade;
+mod visibility_spawn_catalog;
 mod world_auxiliary_catalog;
 mod world_object_catalog;
 mod world_reference_catalog;
@@ -92,6 +100,12 @@ pub use canonical_spawn_catalog::{
     WaypointPathPersistenceRowLikeCpp, WorldStateSavedValuePersistenceRowLikeCpp,
     WorldStateStartupCatalogLikeCpp, WorldStateStartupLoadOutcomeLikeCpp,
     WorldStateStartupPersistencePortLikeCpp, WorldStateTemplatePersistenceRowLikeCpp,
+};
+pub use character_administration::{
+    CharacterAdministrationLoadOutcomeLikeCpp, CharacterAdministrationMutationOutcomeLikeCpp,
+    CharacterAdministrationPersistencePortLikeCpp, CharacterCreatePersistenceRequestLikeCpp,
+    CharacterCustomizationPersistenceLikeCpp, CharacterCustomizeCandidateLikeCpp,
+    CharacterRenameCandidateLikeCpp,
 };
 pub use chr_specialization_hotfix::{
     ChrSpecializationHotfixLoadOutcomeLikeCpp, ChrSpecializationHotfixPersistencePortLikeCpp,
@@ -164,6 +178,11 @@ pub use lfg_world_catalog::{
     LfgDungeonRewardPersistenceRowLikeCpp, LfgDungeonTemplatePersistenceRowLikeCpp,
     LfgWorldCatalogLoadOutcomeLikeCpp, LfgWorldCatalogPersistencePortLikeCpp,
 };
+pub use loot_template_catalog::{
+    LootConditionPersistenceRowLikeCpp, LootTemplateCatalogOutcomeLikeCpp,
+    LootTemplateCatalogPersistencePortLikeCpp, LootTemplatePersistenceRowLikeCpp,
+    LootTemplateTablePersistenceLikeCpp,
+};
 pub use mount_catalog::{
     MountCapabilityHotfixRowLikeCpp, MountCatalogLoadOutcomeLikeCpp,
     MountCatalogPersistencePortLikeCpp, MountDefinitionRowLikeCpp, MountHotfixRowLikeCpp,
@@ -195,6 +214,28 @@ pub use player_creation_catalog::{
     PlayerCreateCastSpellPersistenceRowLikeCpp, PlayerCreateCustomSpellPersistenceRowLikeCpp,
     PlayerCreateInfoPersistenceRowLikeCpp, PlayerCreationCatalogLoadOutcomeLikeCpp,
     PlayerCreationCatalogPersistencePortLikeCpp,
+};
+pub use player_inventory::{
+    InventoryDestroyNodePersistenceLikeCpp, InventoryEquipPersistenceLikeCpp,
+    InventoryGraphDestroyPersistenceLikeCpp, InventoryItemMutablePersistenceLikeCpp,
+    InventoryLinkPersistenceLikeCpp, InventoryPartialDestroyPersistenceLikeCpp,
+    InventoryStackMergePersistenceLikeCpp, InventoryStackMergeSourcePersistenceLikeCpp,
+    InventoryStorageMovePersistenceLikeCpp, InventorySwapPersistenceLikeCpp,
+    LootDirectItemGrantPersistenceLikeCpp, LootDisenchantBatchPersistenceLikeCpp,
+    LootExistingStackPersistenceLikeCpp, LootNewStackPersistenceLikeCpp,
+    LootQuestBoundProgressPersistenceLikeCpp, PlayerInventoryPersistencePortLikeCpp,
+    PlayerInventoryPersistenceRequestLikeCpp, QuestItemExistingStackPersistenceLikeCpp,
+    QuestItemGrantPersistenceLikeCpp, QuestItemNewStackPersistenceLikeCpp,
+    QuestTurnInItemPersistenceLikeCpp, QuestTurnInPersistenceLikeCpp,
+    StoredItemLootSourcePersistenceLikeCpp,
+};
+pub use player_quest::{
+    PlayerQuestActivePersistenceRowLikeCpp, PlayerQuestDailyPersistenceRowLikeCpp,
+    PlayerQuestIdPersistenceRowLikeCpp, PlayerQuestLoadOutcomeLikeCpp,
+    PlayerQuestLockoutPersistenceRequestLikeCpp, PlayerQuestObjectivePersistenceRowLikeCpp,
+    PlayerQuestPersistencePortLikeCpp, PlayerQuestSeasonalCompletionPersistenceLikeCpp,
+    PlayerQuestSeasonalPersistenceRowLikeCpp, PlayerQuestStatusPersistenceRequestLikeCpp,
+    QuestObjectiveCountPersistenceLikeCpp, QuestStatusPersistenceLikeCpp,
 };
 pub use quest_catalog::*;
 pub use quest_item_catalog::{
@@ -261,6 +302,12 @@ pub use static_data_overlay::{
     StaticDataOverlayPersistencePortLikeCpp, StaticDataRowsLoadOutcomeLikeCpp,
     UiMapXMapArtHotfixRowLikeCpp,
 };
+pub use stored_item::{
+    InventoryItemCountPersistenceRequestLikeCpp, InventoryItemDestroyPersistenceRequestLikeCpp,
+    StoredItemLoadOutcomeLikeCpp, StoredItemLootPersistenceRowLikeCpp,
+    StoredItemLootSaveRequestLikeCpp, StoredItemPersistencePortLikeCpp,
+    WrappedGiftOpenPersistenceRequestLikeCpp, WrappedGiftPersistenceRowLikeCpp,
+};
 pub use trainer_catalog::{
     CreatureTrainerPersistenceRowLikeCpp, TrainerCatalogLoadOutcomeLikeCpp,
     TrainerCatalogPersistencePortLikeCpp, TrainerCatalogPersistenceRowsLikeCpp,
@@ -273,6 +320,15 @@ pub use vehicle_catalog::{
     VehicleSeatHotfixPersistenceRowLikeCpp, VehicleSpawnAccessoryPersistenceRowLikeCpp,
     VehicleTemplateAccessoryPersistenceRowLikeCpp, VehicleTemplatePersistenceRowLikeCpp,
     VehicleWorldCatalogLoadOutcomeLikeCpp, VehicleWorldCatalogPersistencePortLikeCpp,
+};
+pub use vendor_catalog::{
+    VendorCatalogOutcomeLikeCpp, VendorCatalogPersistencePortLikeCpp, VendorCatalogRowLikeCpp,
+};
+pub use vendor_trade::*;
+pub use visibility_spawn_catalog::{
+    CreatureVisibilityPersistenceRowLikeCpp, GameObjectVisibilityPersistenceRowLikeCpp,
+    VisibilitySpawnCatalogOutcomeLikeCpp, VisibilitySpawnCatalogPersistencePortLikeCpp,
+    VisibilitySpawnCatalogRequestLikeCpp,
 };
 pub use world_auxiliary_catalog::{
     AccessRequirementPersistenceRowLikeCpp, GraveyardZonePersistenceRowLikeCpp,
@@ -1047,6 +1103,18 @@ pub enum GameObjectUseTemplateLoadOutcomeLikeCpp {
     Failed { reason: String },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GameObjectMoneyLootCatalogRequestLikeCpp {
+    pub entry: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GameObjectMoneyLootCatalogOutcomeLikeCpp {
+    Found { min_money: u32, max_money: u32 },
+    Missing,
+    Failed { reason: String },
+}
+
 /// Dedicated SQLx-free capability for the transitional gameobject template
 /// read. #153 owns replacing it with the canonical startup-loaded store.
 pub trait GameObjectUseTemplatePersistencePortLikeCpp: Send + Sync {
@@ -1054,6 +1122,17 @@ pub trait GameObjectUseTemplatePersistencePortLikeCpp: Send + Sync {
         &'a self,
         request: GameObjectUseTemplateLoadRequestLikeCpp,
     ) -> PersistenceFutureLikeCpp<'a, GameObjectUseTemplateLoadOutcomeLikeCpp>;
+
+    fn load_gameobject_money_loot_like_cpp(
+        &self,
+        _request: GameObjectMoneyLootCatalogRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'_, GameObjectMoneyLootCatalogOutcomeLikeCpp> {
+        Box::pin(async {
+            GameObjectMoneyLootCatalogOutcomeLikeCpp::Failed {
+                reason: "gameobject money catalog is unavailable".into(),
+            }
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

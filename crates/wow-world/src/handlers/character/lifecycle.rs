@@ -5,19 +5,13 @@
 
 //! Character create/delete/rename/customise, corpse and resurrection.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::{CharStatements, SqlTransaction, WorldStatements};
-
 use super::*;
 
 impl WorldSession {
     /// Handle CMSG_CREATE_CHARACTER — create a new character.
     pub async fn handle_create_character(&mut self, pkt: CreateCharacter) {
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.character_administration_persistence_port_like_cpp() {
+            Some(port) => port,
             None => {
                 self.send_packet(&CreateChar {
                     code: response_codes::CHAR_CREATE_ERROR,
@@ -45,35 +39,28 @@ impl WorldSession {
             return;
         }
 
-        // Check name uniqueness
-        let mut name_stmt = char_db.prepare(CharStatements::SEL_CHECK_NAME);
-        name_stmt.set_string(0, &pkt.name);
-
-        if let Ok(result) = char_db.query(&name_stmt).await {
-            if !result.is_empty() {
-                self.send_packet(&CreateChar {
-                    code: response_codes::CHAR_CREATE_NAME_IN_USE,
-                    guid: ObjectGuid::EMPTY,
-                });
-                return;
-            }
+        if matches!(
+            port.find_character_name_like_cpp(&pkt.name).await,
+            wow_persistence::CharacterAdministrationLoadOutcomeLikeCpp::Loaded(())
+        ) {
+            self.send_packet(&CreateChar {
+                code: response_codes::CHAR_CREATE_NAME_IN_USE,
+                guid: ObjectGuid::EMPTY,
+            });
+            return;
         }
 
-        // Check account character limit
-        let mut count_stmt = char_db.prepare(CharStatements::SEL_SUM_CHARS);
-        count_stmt.set_u32(0, self.account_id);
-
-        if let Ok(result) = char_db.query(&count_stmt).await {
-            if !result.is_empty() {
-                let count: i64 = result.try_read(0).unwrap_or(0);
-                if count >= MAX_CHARACTERS_PER_ACCOUNT as i64 {
-                    self.send_packet(&CreateChar {
-                        code: response_codes::CHAR_CREATE_ACCOUNT_LIMIT,
-                        guid: ObjectGuid::EMPTY,
-                    });
-                    return;
-                }
-            }
+        if matches!(
+            port.load_account_character_count_like_cpp(self.account_id)
+                .await,
+            wow_persistence::CharacterAdministrationLoadOutcomeLikeCpp::Loaded(count)
+                if count >= u64::from(MAX_CHARACTERS_PER_ACCOUNT)
+        ) {
+            self.send_packet(&CreateChar {
+                code: response_codes::CHAR_CREATE_ACCOUNT_LIMIT,
+                guid: ObjectGuid::EMPTY,
+            });
+            return;
         }
 
         // Generate new GUID
@@ -114,97 +101,37 @@ impl WorldSession {
             .unwrap_or_default()
             .as_secs() as i64;
 
-        // Insert character using the full Trinity-style persistence row. Fields that the
-        // simplified path previously left to DB defaults are bound explicitly here.
-        let mut ins_stmt = char_db.prepare(CharStatements::INS_CHARACTER);
-        ins_stmt.set_u64(0, new_guid_counter as u64); // guid (bigint unsigned)
-        ins_stmt.set_u32(1, self.account_id); // account
-        ins_stmt.set_string(2, &pkt.name); // name
-        ins_stmt.set_u8(3, pkt.race); // race
-        ins_stmt.set_u8(4, pkt.class); // class
-        ins_stmt.set_u8(5, sex); // gender
-        ins_stmt.set_u8(6, 1); // level
-        ins_stmt.set_u64(7, 0); // xp
-        ins_stmt.set_u64(8, 0); // money
-        ins_stmt.set_u32(9, u32::from(INVENTORY_DEFAULT_SIZE)); // inventorySlots
-        ins_stmt.set_u32(10, 0); // bankSlots
-        ins_stmt.set_u8(
-            11,
-            initial_character_rest_state_like_cpp(
+        let request = wow_persistence::CharacterCreatePersistenceRequestLikeCpp {
+            guid: new_guid_counter as u64,
+            account_id: self.account_id,
+            name: pkt.name.clone(),
+            race: pkt.race,
+            class: pkt.class,
+            sex,
+            rest_state: initial_character_rest_state_like_cpp(
                 self.is_a_recruiter_like_cpp(),
                 self.recruiter_id_like_cpp(),
             ),
-        ); // restState, C++ Player::Create
-        ins_stmt.set_u32(12, 0); // playerFlags
-        ins_stmt.set_u32(13, 0); // playerFlagsEx
-        ins_stmt.set_i32(14, map_id); // map
-        ins_stmt.set_u32(15, 0); // instance_id
-        bind_create_character_difficulties_like_cpp(&mut ins_stmt);
-        ins_stmt.set_f32(19, x); // position_x
-        ins_stmt.set_f32(20, y); // position_y
-        ins_stmt.set_f32(21, z); // position_z
-        ins_stmt.set_f32(22, o); // orientation
-        ins_stmt.set_f32(23, 0.0); // trans_x
-        ins_stmt.set_f32(24, 0.0); // trans_y
-        ins_stmt.set_f32(25, 0.0); // trans_z
-        ins_stmt.set_f32(26, 0.0); // trans_o
-        ins_stmt.set_u64(27, 0); // transguid
-        ins_stmt.set_string(28, ""); // taximask
-        ins_stmt.set_i64(29, create_time); // createTime
-        ins_stmt.set_u8(30, 0); // createMode
-        ins_stmt.set_u8(31, 0); // cinematic
-        ins_stmt.set_u32(32, 0); // totaltime
-        ins_stmt.set_u32(33, 0); // leveltime
-        ins_stmt.set_f32(34, 0.0); // rest_bonus
-        ins_stmt.set_u64(35, create_time.max(0) as u64); // logout_time
-        ins_stmt.set_u8(36, 0); // is_logout_resting
-        ins_stmt.set_u32(37, 0); // resettalents_cost
-        ins_stmt.set_u32(38, 0); // resettalents_time
-        ins_stmt.set_u8(39, 0); // activeTalentGroup
-        ins_stmt.set_u8(40, 0); // bonusTalentGroups
-        ins_stmt.set_u32(41, 0); // extra_flags
-        ins_stmt.set_u32(42, 0); // summonedPetNumber
-        ins_stmt.set_u32(43, 0x20); // at_login (AT_LOGIN_FIRST)
-        ins_stmt.set_u32(44, 0); // death_expire_time
-        ins_stmt.set_string(45, ""); // taxi_path
-        ins_stmt.set_u32(46, 0); // totalKills
-        ins_stmt.set_u32(47, 0); // todayKills
-        ins_stmt.set_u32(48, 0); // yesterdayKills
-        ins_stmt.set_u32(49, 0); // chosenTitle
-        ins_stmt.set_i32(50, 0); // watchedFaction
-        ins_stmt.set_u8(51, 0); // drunk
-        ins_stmt.set_u32(52, health); // health
-        ins_stmt.set_u32(53, power1); // power1
-        ins_stmt.set_u32(54, 0); // power2
-        ins_stmt.set_u32(55, 0); // power3
-        ins_stmt.set_u32(56, 0); // power4
-        ins_stmt.set_u32(57, 0); // power5
-        ins_stmt.set_u32(58, 0); // power6
-        ins_stmt.set_u32(59, 0); // power7
-        ins_stmt.set_u32(60, 0); // power8
-        ins_stmt.set_u32(61, 0); // power9
-        ins_stmt.set_u32(62, 0); // power10
-        ins_stmt.set_u32(63, 0); // latency
-        ins_stmt.set_u32(64, 0); // lootSpecId
-        ins_stmt.set_string(65, ""); // exploredZones
-        ins_stmt.set_string(66, ""); // equipmentCache
-        ins_stmt.set_string(67, ""); // knownTitles
-        ins_stmt.set_u8(68, 0); // actionBars
-        ins_stmt.set_u32(69, self.build); // lastLoginBuild
+            map_id,
+            position: [x, y, z, o],
+            create_time,
+            health,
+            power1,
+            last_login_build: self.build,
+            customizations: pkt
+                .customizations
+                .iter()
+                .map(
+                    |choice| wow_persistence::CharacterCustomizationPersistenceLikeCpp {
+                        option_id: choice.option_id,
+                        choice_id: choice.choice_id,
+                    },
+                )
+                .collect(),
+        };
 
-        match char_db.execute(&ins_stmt).await {
-            Ok(_) => {
-                // Insert customizations into character_customizations table
-                for c in &pkt.customizations {
-                    let mut cust_stmt = char_db.prepare(CharStatements::INS_CHAR_CUSTOMIZATION);
-                    cust_stmt.set_u64(0, new_guid_counter as u64);
-                    cust_stmt.set_i32(1, c.option_id);
-                    cust_stmt.set_i32(2, c.choice_id);
-                    if let Err(e) = char_db.execute(&cust_stmt).await {
-                        warn!("Failed to insert customization for guid {new_guid_counter}: {e}");
-                    }
-                }
-
+        match port.create_character_like_cpp(request).await {
+            wow_persistence::CharacterAdministrationMutationOutcomeLikeCpp::Applied => {
                 let guid = ObjectGuid::create_player(self.realm_id(), new_guid_counter);
                 info!(
                     "Character '{}' created (guid={}, {} customizations) for account {}",
@@ -214,46 +141,6 @@ impl WorldSession {
                     self.account_id
                 );
 
-                // Insert initial action buttons from playercreateinfo_action
-                if let Some(world_db) = self.world_db().map(Arc::clone) {
-                    let action_stmt =
-                        world_db.prepare(WorldStatements::SEL_PLAYER_CREATEINFO_ACTION);
-                    if let Ok(mut action_result) = world_db.query(&action_stmt).await {
-                        let mut action_count = 0u32;
-                        loop {
-                            let a_race: u8 = action_result.read(0);
-                            let a_class: u8 = action_result.read(1);
-                            if a_race == pkt.race && a_class == pkt.class {
-                                let button: u8 = action_result.read(2);
-                                let action: i32 = action_result.try_read(3).unwrap_or(0);
-                                let btn_type: u8 = action_result.try_read(4).unwrap_or(0);
-                                if action > 0 {
-                                    let mut ins =
-                                        char_db.prepare(CharStatements::INS_CHARACTER_ACTION);
-                                    ins.set_u64(0, new_guid_counter as u64);
-                                    ins.set_u8(1, button);
-                                    ins.set_i32(2, action);
-                                    ins.set_u8(3, btn_type);
-                                    if let Err(e) = char_db.execute(&ins).await {
-                                        warn!("Failed to insert action button {button}: {e}");
-                                    } else {
-                                        action_count += 1;
-                                    }
-                                }
-                            }
-                            if !action_result.next_row() {
-                                break;
-                            }
-                        }
-                        if action_count > 0 {
-                            info!(
-                                "Inserted {action_count} initial action buttons for '{}'",
-                                pkt.name
-                            );
-                        }
-                    }
-                }
-
                 // Update realmcharacters count in login DB
                 self.update_realm_characters().await;
 
@@ -262,8 +149,8 @@ impl WorldSession {
                     guid,
                 });
             }
-            Err(e) => {
-                warn!("Failed to create character: {e}");
+            wow_persistence::CharacterAdministrationMutationOutcomeLikeCpp::Failed { reason } => {
+                warn!("Failed to create character: {reason}");
                 self.send_packet(&CreateChar {
                     code: response_codes::CHAR_CREATE_ERROR,
                     guid: ObjectGuid::EMPTY,
@@ -274,8 +161,8 @@ impl WorldSession {
 
     /// Handle CMSG_CHAR_DELETE — delete a character.
     pub async fn handle_char_delete(&mut self, pkt: CharDelete) {
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.character_administration_persistence_port_like_cpp() {
+            Some(port) => port,
             None => {
                 self.send_packet(&DeleteChar {
                     code: response_codes::CHAR_DELETE_FAILED,
@@ -296,26 +183,11 @@ impl WorldSession {
             return;
         }
 
-        // Double-check in DB
-        let mut check_stmt = char_db.prepare(CharStatements::SEL_CHAR_DEL_CHECK);
-        check_stmt.set_u32(0, pkt.guid.counter() as u32);
-        check_stmt.set_u32(1, self.account_id);
-
-        if let Ok(result) = char_db.query(&check_stmt).await {
-            if result.is_empty() {
-                self.send_packet(&DeleteChar {
-                    code: response_codes::CHAR_DELETE_FAILED,
-                });
-                return;
-            }
-        }
-
-        // Delete
-        let mut del_stmt = char_db.prepare(CharStatements::DEL_CHARACTER);
-        del_stmt.set_u32(0, pkt.guid.counter() as u32);
-
-        match char_db.execute(&del_stmt).await {
-            Ok(_) => {
+        match port
+            .delete_owned_character_like_cpp(pkt.guid.counter() as u64, self.account_id)
+            .await
+        {
+            wow_persistence::CharacterAdministrationMutationOutcomeLikeCpp::Applied => {
                 info!(
                     "Character {:?} deleted for account {}",
                     pkt.guid, self.account_id
@@ -329,8 +201,8 @@ impl WorldSession {
                     code: response_codes::CHAR_DELETE_SUCCESS,
                 });
             }
-            Err(e) => {
-                warn!("Failed to delete character: {e}");
+            wow_persistence::CharacterAdministrationMutationOutcomeLikeCpp::Failed { reason } => {
+                warn!("Failed to delete character: {reason}");
                 self.send_packet(&DeleteChar {
                     code: response_codes::CHAR_DELETE_FAILED,
                 });
@@ -388,8 +260,8 @@ impl WorldSession {
             return;
         }
 
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.character_administration_persistence_port_like_cpp() {
+            Some(port) => port,
             None => {
                 self.send_character_rename_like_cpp(
                     CHAR_CREATE_ERROR_LIKE_CPP,
@@ -400,14 +272,23 @@ impl WorldSession {
             }
         };
 
-        let mut free_name_stmt = char_db.prepare(CharStatements::SEL_FREE_NAME);
-        free_name_stmt.set_u64(0, pkt.guid.counter() as u64);
-        free_name_stmt.set_string(1, &pkt.new_name);
-
-        let result = match char_db.query(&free_name_stmt).await {
-            Ok(result) => result,
-            Err(error) => {
-                warn!("Character rename free-name query failed: {error}");
+        let candidate = match port
+            .load_rename_candidate_like_cpp(pkt.guid.counter() as u64, &pkt.new_name)
+            .await
+        {
+            wow_persistence::CharacterAdministrationLoadOutcomeLikeCpp::Loaded(candidate) => {
+                candidate
+            }
+            wow_persistence::CharacterAdministrationLoadOutcomeLikeCpp::NotFound => {
+                self.send_character_rename_like_cpp(
+                    CHAR_CREATE_ERROR_LIKE_CPP,
+                    pkt.guid,
+                    pkt.new_name,
+                );
+                return;
+            }
+            wow_persistence::CharacterAdministrationLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!("Character rename free-name query failed: {reason}");
                 self.send_character_rename_like_cpp(
                     CHAR_CREATE_ERROR_LIKE_CPP,
                     pkt.guid,
@@ -417,13 +298,8 @@ impl WorldSession {
             }
         };
 
-        if result.is_empty() {
-            self.send_character_rename_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, pkt.guid, pkt.new_name);
-            return;
-        }
-
-        let old_name: String = result.read_string(0);
-        let mut at_login_flags: u16 = result.try_read(1).unwrap_or(0);
+        let old_name = candidate.old_name;
+        let mut at_login_flags = candidate.at_login_flags;
         if (at_login_flags & AT_LOGIN_RENAME_LIKE_CPP) == 0 {
             self.send_character_rename_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, pkt.guid, pkt.new_name);
             return;
@@ -431,19 +307,11 @@ impl WorldSession {
 
         at_login_flags &= !AT_LOGIN_RENAME_LIKE_CPP;
 
-        let mut tx = SqlTransaction::new();
-        let mut update_name = char_db.prepare(CharStatements::UPD_CHAR_NAME_AT_LOGIN);
-        update_name.set_string(0, &pkt.new_name);
-        update_name.set_u16(1, at_login_flags);
-        update_name.set_u64(2, pkt.guid.counter() as u64);
-        tx.append(update_name);
-
-        let mut delete_declined = char_db.prepare(CharStatements::DEL_CHAR_DECLINED_NAME);
-        delete_declined.set_u64(0, pkt.guid.counter() as u64);
-        tx.append(delete_declined);
-
-        if let Err(error) = char_db.commit_transaction(tx).await {
-            warn!("Character rename transaction failed: {error}");
+        if let wow_persistence::CharacterAdministrationMutationOutcomeLikeCpp::Failed { reason } =
+            port.commit_rename_like_cpp(pkt.guid.counter() as u64, &pkt.new_name, at_login_flags)
+                .await
+        {
+            warn!("Character rename transaction failed: {reason}");
             self.send_character_rename_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, pkt.guid, pkt.new_name);
             return;
         }
@@ -479,35 +347,34 @@ impl WorldSession {
             return;
         }
 
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
+        let port = match self.character_administration_persistence_port_like_cpp() {
+            Some(port) => port,
             None => {
                 self.send_char_customize_failure_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, request.guid);
                 return;
             }
         };
 
-        let mut info_stmt = char_db.prepare(CharStatements::SEL_CHAR_CUSTOMIZE_INFO);
-        info_stmt.set_u64(0, request.guid.counter() as u64);
-        let result = match char_db.query(&info_stmt).await {
-            Ok(result) => result,
-            Err(error) => {
-                warn!("Character customize info query failed: {error}");
+        let candidate = match port
+            .load_customize_candidate_like_cpp(request.guid.counter() as u64)
+            .await
+        {
+            wow_persistence::CharacterAdministrationLoadOutcomeLikeCpp::Loaded(candidate) => {
+                candidate
+            }
+            wow_persistence::CharacterAdministrationLoadOutcomeLikeCpp::NotFound => {
+                self.send_char_customize_failure_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, request.guid);
+                return;
+            }
+            wow_persistence::CharacterAdministrationLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!("Character customize info query failed: {reason}");
                 self.send_char_customize_failure_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, request.guid);
                 return;
             }
         };
 
-        if result.is_empty() {
-            self.send_char_customize_failure_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, request.guid);
-            return;
-        }
-
-        let old_name: String = result.read_string(0);
-        let _race: u8 = result.try_read(1).unwrap_or(0);
-        let _class: u8 = result.try_read(2).unwrap_or(0);
-        let _gender: u8 = result.try_read(3).unwrap_or(0);
-        let mut at_login_flags: u16 = result.try_read(4).unwrap_or(0);
+        let old_name = candidate.old_name;
+        let mut at_login_flags = candidate.at_login_flags;
         if (at_login_flags & AT_LOGIN_CUSTOMIZE_LIKE_CPP) == 0 {
             self.send_char_customize_failure_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, request.guid);
             return;
@@ -520,56 +387,48 @@ impl WorldSession {
         }
 
         if request.name != old_name {
-            let mut name_stmt = char_db.prepare(CharStatements::SEL_CHECK_NAME);
-            name_stmt.set_string(0, &request.name);
-            match char_db.query(&name_stmt).await {
-                Ok(existing) if !existing.is_empty() => {
+            match port.find_character_name_like_cpp(&request.name).await {
+                wow_persistence::CharacterAdministrationLoadOutcomeLikeCpp::Loaded(()) => {
                     self.send_char_customize_failure_like_cpp(
                         CHAR_CREATE_NAME_IN_USE_LIKE_CPP,
                         request.guid,
                     );
                     return;
                 }
-                Err(error) => {
-                    warn!("Character customize name query failed: {error}");
+                wow_persistence::CharacterAdministrationLoadOutcomeLikeCpp::Failed { reason } => {
+                    warn!("Character customize name query failed: {reason}");
                     self.send_char_customize_failure_like_cpp(
                         CHAR_CREATE_ERROR_LIKE_CPP,
                         request.guid,
                     );
                     return;
                 }
-                _ => {}
+                wow_persistence::CharacterAdministrationLoadOutcomeLikeCpp::NotFound => {}
             }
         }
 
         at_login_flags &= !AT_LOGIN_CUSTOMIZE_LIKE_CPP;
 
-        let mut tx = SqlTransaction::new();
-        let mut delete_customizations =
-            char_db.prepare(CharStatements::DEL_CHARACTER_CUSTOMIZATIONS);
-        delete_customizations.set_u64(0, request.guid.counter() as u64);
-        tx.append(delete_customizations);
-
-        for customization in &request.customizations {
-            let mut insert_customization = char_db.prepare(CharStatements::INS_CHAR_CUSTOMIZATION);
-            insert_customization.set_u64(0, request.guid.counter() as u64);
-            insert_customization.set_i32(1, customization.option_id);
-            insert_customization.set_i32(2, customization.choice_id);
-            tx.append(insert_customization);
-        }
-
-        let mut update_name = char_db.prepare(CharStatements::UPD_CHAR_NAME_AT_LOGIN);
-        update_name.set_string(0, &request.name);
-        update_name.set_u16(1, at_login_flags);
-        update_name.set_u64(2, request.guid.counter() as u64);
-        tx.append(update_name);
-
-        let mut delete_declined = char_db.prepare(CharStatements::DEL_CHAR_DECLINED_NAME);
-        delete_declined.set_u64(0, request.guid.counter() as u64);
-        tx.append(delete_declined);
-
-        if let Err(error) = char_db.commit_transaction(tx).await {
-            warn!("Character customize transaction failed: {error}");
+        let customizations = request
+            .customizations
+            .iter()
+            .map(
+                |choice| wow_persistence::CharacterCustomizationPersistenceLikeCpp {
+                    option_id: choice.option_id,
+                    choice_id: choice.choice_id,
+                },
+            )
+            .collect();
+        if let wow_persistence::CharacterAdministrationMutationOutcomeLikeCpp::Failed { reason } =
+            port.commit_customize_like_cpp(
+                request.guid.counter() as u64,
+                &request.name,
+                at_login_flags,
+                customizations,
+            )
+            .await
+        {
+            warn!("Character customize transaction failed: {reason}");
             self.send_char_customize_failure_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, request.guid);
             return;
         }

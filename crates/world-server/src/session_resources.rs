@@ -20,8 +20,16 @@ use wow_world::{
 /// The outer world-server callback captures this aggregate; the listener
 /// neither receives it nor exposes any field through the `wow-network` API.
 pub(super) struct SessionResources {
-    pub(super) char_db: Option<Arc<wow_database::CharacterDatabase>>,
-    pub(super) login_db: Option<Arc<wow_database::LoginDatabase>>,
+    pub(super) stored_item_persistence_port:
+        Option<Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>>,
+    pub(super) player_inventory_persistence_port:
+        Option<Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>>,
+    pub(super) player_quest_persistence_port:
+        Option<Arc<dyn wow_persistence::PlayerQuestPersistencePortLikeCpp>>,
+    pub(super) vendor_trade_persistence_port:
+        Option<Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>>,
+    pub(super) character_administration_persistence_port:
+        Option<Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>>,
     /// Player lifecycle capability (#200); Session never depends on its handles.
     pub(super) player_lifecycle_port: Option<Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>>,
     pub(super) character_enumeration_persistence_port:
@@ -32,6 +40,12 @@ pub(super) struct SessionResources {
         Option<Arc<dyn wow_persistence::GameObjectQueryCatalogPersistencePortLikeCpp>>,
     pub(super) item_template_addon_catalog_persistence_port:
         Option<Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>>,
+    pub(super) loot_template_catalog_persistence_port:
+        Option<Arc<dyn wow_persistence::LootTemplateCatalogPersistencePortLikeCpp>>,
+    pub(super) vendor_catalog_persistence_port:
+        Option<Arc<dyn wow_persistence::VendorCatalogPersistencePortLikeCpp>>,
+    pub(super) visibility_spawn_catalog_persistence_port:
+        Option<Arc<dyn wow_persistence::VisibilitySpawnCatalogPersistencePortLikeCpp>>,
     pub(super) gossip_catalog_persistence_port:
         Option<Arc<dyn wow_persistence::GossipCatalogPersistencePortLikeCpp>>,
     pub(super) page_text_catalog_persistence_port:
@@ -81,7 +95,6 @@ pub(super) struct SessionResources {
     /// Characters-database durability for the recoverable battle-pet purchase saga.
     pub(super) battle_pet_purchase_persistence_port:
         Option<Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>>,
-    pub(super) world_db: Option<Arc<wow_database::WorldDatabase>>,
     /// Process-wide C++ trainer/default-trainer snapshot.
     pub(super) trainer_store: Option<Arc<wow_data::TrainerStoreLikeCpp>>,
     pub(super) guid_generator: Option<Arc<wow_core::ObjectGuidGenerator>>,

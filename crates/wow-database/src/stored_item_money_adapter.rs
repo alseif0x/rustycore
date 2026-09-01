@@ -17,6 +17,7 @@ use crate::{
         CommitOutcome, ExplicitTransactionTrace, LogicalDatabase, TracedParam,
         record_batch_not_started,
     },
+    retry_deadlocked_operation_like_cpp,
 };
 
 const STORED_ITEM_MONEY_ATTEMPT_ORDER_LIKE_CPP: [CharStatements; 4] = [
@@ -30,11 +31,11 @@ const STORED_ITEM_MONEY_RECONCILIATION_ORDER_LIKE_CPP: [CharStatements; 2] = [
     CharStatements::SEL_ITEMCONTAINER_MONEY_FOR_UPDATE,
 ];
 
-pub struct MariaDbStoredItemMoneyPersistenceAdapterLikeCpp {
+struct MariaDbStoredItemMoneyAttemptAdapterLikeCpp {
     character_db: Arc<CharacterDatabase>,
 }
 
-impl MariaDbStoredItemMoneyPersistenceAdapterLikeCpp {
+impl MariaDbStoredItemMoneyAttemptAdapterLikeCpp {
     pub fn new(character_db: Arc<CharacterDatabase>) -> Self {
         Self { character_db }
     }
@@ -68,7 +69,7 @@ fn rolled_back_database_like_cpp(
     }
 }
 
-impl StoredItemMoneyPersistencePortLikeCpp for MariaDbStoredItemMoneyPersistenceAdapterLikeCpp {
+impl StoredItemMoneyPersistencePortLikeCpp for MariaDbStoredItemMoneyAttemptAdapterLikeCpp {
     fn attempt_stored_item_money_like_cpp(
         &self,
         request: StoredItemMoneyPersistenceRequestLikeCpp,
@@ -318,6 +319,62 @@ impl StoredItemMoneyPersistencePortLikeCpp for MariaDbStoredItemMoneyPersistence
                 },
             }
         })
+    }
+}
+
+/// Concrete capability boundary. Deadlock retry remains inside the MariaDB
+/// adapter so gameplay consumes one normalized persistence attempt and never
+/// imports database retry machinery.
+pub struct MariaDbStoredItemMoneyPersistenceAdapterLikeCpp {
+    inner: MariaDbStoredItemMoneyAttemptAdapterLikeCpp,
+}
+
+impl MariaDbStoredItemMoneyPersistenceAdapterLikeCpp {
+    pub fn new(character_db: Arc<CharacterDatabase>) -> Self {
+        Self {
+            inner: MariaDbStoredItemMoneyAttemptAdapterLikeCpp::new(character_db),
+        }
+    }
+}
+
+impl StoredItemMoneyPersistencePortLikeCpp for MariaDbStoredItemMoneyPersistenceAdapterLikeCpp {
+    fn attempt_stored_item_money_like_cpp(
+        &self,
+        request: StoredItemMoneyPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'_, StoredItemMoneyPersistenceAttemptLikeCpp> {
+        Box::pin(async move {
+            match retry_deadlocked_operation_like_cpp(
+                || async {
+                    match self.inner.attempt_stored_item_money_like_cpp(request).await {
+                        StoredItemMoneyPersistenceAttemptLikeCpp::Applied(outcome) => Ok(outcome),
+                        other => Err(other),
+                    }
+                },
+                |error| {
+                    matches!(
+                        error,
+                        StoredItemMoneyPersistenceAttemptLikeCpp::DefinitelyRolledBack {
+                            retryable_deadlock: true,
+                            ..
+                        }
+                    )
+                },
+            )
+            .await
+            {
+                Ok(outcome) => StoredItemMoneyPersistenceAttemptLikeCpp::Applied(outcome),
+                Err(error) => error,
+            }
+        })
+    }
+
+    fn reconcile_stored_item_money_like_cpp(
+        &self,
+        request: StoredItemMoneyPersistenceRequestLikeCpp,
+        outcome: StoredItemMoneyPersistenceOutcomeLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'_, StoredItemMoneyReconciliationLikeCpp> {
+        self.inner
+            .reconcile_stored_item_money_like_cpp(request, outcome)
     }
 }
 

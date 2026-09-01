@@ -42,9 +42,6 @@ use wow_data::{
     quest::QuestStore,
     reputation::reputation_rank_from_standing_like_cpp as reputation_rank_from_standing_data_like_cpp,
 };
-use wow_database::{
-    CharStatements, CharacterDatabase, PreparedStatement, SqlTransaction, WorldStatements,
-};
 use wow_entities::{
     ItemPosCount, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemInstancePlan,
     SendNewItemModifier, SendNewItemPlan, is_bag_pos,
@@ -52,6 +49,7 @@ use wow_entities::{
 use wow_handler::{PacketProcessing, SessionStatus};
 
 use crate::session::registry::PacketHandlerEntry;
+use wow_packet::ServerPacket;
 use wow_packet::packets::misc::SetCurrency;
 use wow_packet::packets::query::{
     QueryQuestCompletionNpcs, QuestCompletionNpc, QuestCompletionNpcResponse, QuestPoiBlobData,
@@ -68,7 +66,6 @@ use wow_packet::packets::update::{
     ItemCreateData, ItemEnchantmentValuesUpdate, PlayerDataValuesDeltaUpdate, QuestLogValuesUpdate,
     UpdateObject,
 };
-use wow_packet::{ClientPacket, ServerPacket};
 
 use crate::conditions::{
     QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,

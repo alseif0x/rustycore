@@ -3709,7 +3709,7 @@ async fn run_inner(
         format_ipv4(realm_local_address),
     );
 
-    // Wrap login_db in Arc for sharing between account lookup and sessions
+    // Share the Login DB only with account-owned composition adapters.
     let login_db = Arc::new(login_db);
     let battle_pet_account_registry = Arc::new(BattlePetAccountRegistryLikeCpp::new(
         Arc::new(LoginBattlePetPersistenceLikeCpp::new(Arc::clone(&login_db))),
@@ -4433,6 +4433,14 @@ async fn run_inner(
             Arc::clone(&world_db),
         ),
     );
+    let character_administration_persistence_port: Arc<
+        dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp,
+    > = Arc::new(
+        wow_database::MariaDbCharacterAdministrationPersistenceAdapterLikeCpp::new(
+            Arc::clone(&char_db),
+            Arc::clone(&world_db),
+        ),
+    );
     let character_enumeration_persistence_port: Arc<
         dyn wow_persistence::CharacterEnumerationPersistencePortLikeCpp,
     > = Arc::new(
@@ -4458,6 +4466,25 @@ async fn run_inner(
         dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp,
     > = Arc::new(
         wow_database::MariaDbItemTemplateAddonCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
+            &world_db,
+        )),
+    );
+    let loot_template_catalog_persistence_port: Arc<
+        dyn wow_persistence::LootTemplateCatalogPersistencePortLikeCpp,
+    > = Arc::new(
+        wow_database::MariaDbLootTemplateCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
+            &world_db,
+        )),
+    );
+    let vendor_catalog_persistence_port: Arc<
+        dyn wow_persistence::VendorCatalogPersistencePortLikeCpp,
+    > = Arc::new(
+        wow_database::MariaDbVendorCatalogPersistenceAdapterLikeCpp::new(Arc::clone(&world_db)),
+    );
+    let visibility_spawn_catalog_persistence_port: Arc<
+        dyn wow_persistence::VisibilitySpawnCatalogPersistencePortLikeCpp,
+    > = Arc::new(
+        wow_database::MariaDbVisibilitySpawnCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
             &world_db,
         )),
     );
@@ -4557,9 +4584,29 @@ async fn run_inner(
         )),
     );
     // Build session resources
+    let stored_item_persistence_port: Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp> =
+        Arc::new(
+            wow_database::MariaDbStoredItemPersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
+        );
+    let player_inventory_persistence_port: Arc<
+        dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp,
+    > = Arc::new(
+        wow_database::MariaDbPlayerInventoryPersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
+    );
+    let player_quest_persistence_port: Arc<dyn wow_persistence::PlayerQuestPersistencePortLikeCpp> =
+        Arc::new(
+            wow_database::MariaDbPlayerQuestPersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
+        );
+    let vendor_trade_persistence_port: Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp> =
+        Arc::new(
+            wow_database::MariaDbVendorTradePersistenceAdapterLikeCpp::new(Arc::clone(&char_db)),
+        );
     let session_resources = Arc::new(SessionResources {
-        char_db: Some(Arc::clone(&char_db)),
-        login_db: Some(Arc::clone(&login_db)),
+        stored_item_persistence_port: Some(stored_item_persistence_port),
+        player_inventory_persistence_port: Some(player_inventory_persistence_port),
+        player_quest_persistence_port: Some(player_quest_persistence_port),
+        vendor_trade_persistence_port: Some(vendor_trade_persistence_port),
+        character_administration_persistence_port: Some(character_administration_persistence_port),
         player_lifecycle_port: Some(Arc::clone(&player_lifecycle_port)),
         character_enumeration_persistence_port: Some(character_enumeration_persistence_port),
         creature_query_catalog_persistence_port: Some(creature_query_catalog_persistence_port),
@@ -4567,6 +4614,9 @@ async fn run_inner(
         item_template_addon_catalog_persistence_port: Some(
             item_template_addon_catalog_persistence_port,
         ),
+        loot_template_catalog_persistence_port: Some(loot_template_catalog_persistence_port),
+        vendor_catalog_persistence_port: Some(vendor_catalog_persistence_port),
+        visibility_spawn_catalog_persistence_port: Some(visibility_spawn_catalog_persistence_port),
         gossip_catalog_persistence_port: Some(gossip_catalog_persistence_port),
         page_text_catalog_persistence_port: Some(page_text_catalog_persistence_port),
         player_name_query_persistence_port: Some(player_name_query_persistence_port),
@@ -4587,7 +4637,6 @@ async fn run_inner(
         player_spell_acquisition_persistence_port: Some(spell_acquisition_port),
         battle_pet_purchase_persistence_port: Some(battle_pet_purchase_persistence_port),
         instance_lock_persistence_port: Some(instance_lock_persistence_port),
-        world_db: Some(Arc::clone(&world_db)),
         trainer_store: Some(Arc::clone(&trainer_data_store)),
         guid_generator: Some(Arc::clone(&guid_generator)),
         item_guid_generator: Some(Arc::clone(&item_guid_generator)),

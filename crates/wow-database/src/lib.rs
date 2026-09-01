@@ -39,6 +39,7 @@ pub mod battle_pet_account_adapter;
 pub mod battle_pet_purchase_adapter;
 pub mod battle_pet_selection_catalog_adapter;
 pub mod canonical_spawn_catalog_adapter;
+pub mod character_administration_adapter;
 pub mod character_enumeration_adapter;
 pub mod chr_specialization_hotfix_adapter;
 pub mod condition_disable_catalog_adapter;
@@ -64,6 +65,7 @@ pub mod jump_charge_catalog_adapter;
 pub mod lfg_dungeons_hotfix_adapter;
 pub mod lfg_world_catalog_adapter;
 pub mod loader;
+pub mod loot_template_catalog_adapter;
 pub mod map_corpse_adapter;
 pub mod migration;
 pub mod mount_catalog_adapter;
@@ -77,9 +79,11 @@ pub mod phase_world_catalog_adapter;
 pub mod player_base_stats_adapter;
 pub mod player_choice_catalog_adapter;
 pub mod player_creation_catalog_adapter;
+pub mod player_inventory_adapter;
 pub mod player_lifecycle_adapter;
 pub mod player_money_transaction_adapter;
 pub mod player_name_query_adapter;
+pub mod player_quest_adapter;
 pub mod player_spell_acquisition_adapter;
 pub mod query_holder;
 pub mod quest_catalog_adapter;
@@ -100,11 +104,15 @@ pub mod spell_info_key_hotfix_adapter;
 pub mod spell_world_catalog_adapter;
 pub mod statements;
 pub mod static_data_overlay_adapter;
+pub mod stored_item_adapter;
 pub mod stored_item_money_adapter;
 pub mod support_bug_report_adapter;
 pub mod trainer_catalog_adapter;
 pub mod transaction;
 pub mod vehicle_catalog_adapter;
+pub mod vendor_catalog_adapter;
+pub mod vendor_trade_adapter;
+pub mod visibility_spawn_catalog_adapter;
 pub mod void_storage_adapter;
 pub mod world_auxiliary_catalog_adapter;
 pub mod world_object_catalog_adapter;
@@ -118,6 +126,7 @@ pub use battle_pet_account_adapter::LoginBattlePetPersistenceLikeCpp;
 pub use battle_pet_purchase_adapter::CharacterBattlePetPurchasePersistenceAdapterLikeCpp;
 pub use battle_pet_selection_catalog_adapter::MariaDbBattlePetSelectionCatalogPersistenceAdapterLikeCpp;
 pub use canonical_spawn_catalog_adapter::MariaDbCanonicalSpawnCatalogPersistenceAdapterLikeCpp;
+pub use character_administration_adapter::MariaDbCharacterAdministrationPersistenceAdapterLikeCpp;
 pub use character_enumeration_adapter::MariaDbCharacterEnumerationPersistenceAdapterLikeCpp;
 pub use chr_specialization_hotfix_adapter::MariaDbChrSpecializationHotfixPersistenceAdapterLikeCpp;
 pub use condition_disable_catalog_adapter::MariaDbConditionDisableCatalogPersistenceAdapterLikeCpp;
@@ -149,6 +158,7 @@ pub use loader::{
     DATABASE_MASK_ALL_LIKE_CPP, DATABASE_NONE_LIKE_CPP, DATABASE_WORLD_LIKE_CPP,
     DatabaseLoaderLikeCpp,
 };
+pub use loot_template_catalog_adapter::MariaDbLootTemplateCatalogPersistenceAdapterLikeCpp;
 pub use mount_catalog_adapter::MariaDbMountCatalogPersistenceAdapterLikeCpp;
 pub use page_text_catalog_adapter::MariaDbPageTextCatalogPersistenceAdapterLikeCpp;
 pub use params::{PreparedStatement, SqlParam};
@@ -157,7 +167,9 @@ pub use phase_world_catalog_adapter::MariaDbPhaseWorldCatalogPersistenceAdapterL
 pub use player_base_stats_adapter::MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp;
 pub use player_choice_catalog_adapter::MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp;
 pub use player_creation_catalog_adapter::MariaDbPlayerCreationCatalogPersistenceAdapterLikeCpp;
+pub use player_inventory_adapter::MariaDbPlayerInventoryPersistenceAdapterLikeCpp;
 pub use player_name_query_adapter::MariaDbPlayerNameQueryPersistenceAdapterLikeCpp;
+pub use player_quest_adapter::MariaDbPlayerQuestPersistenceAdapterLikeCpp;
 pub use query_holder::{SqlQueryHolder, SqlQueryHolderResult};
 pub use quest_catalog_adapter::MariaDbQuestCatalogPersistenceAdapterLikeCpp;
 pub use quest_item_catalog_adapter::MariaDbQuestItemCatalogPersistenceAdapterLikeCpp;
@@ -179,6 +191,7 @@ pub use statements::{
     HotfixStatements, LoginStatements, StatementDef, WorldStatements,
 };
 pub use static_data_overlay_adapter::MariaDbStaticDataOverlayPersistenceAdapterLikeCpp;
+pub use stored_item_adapter::MariaDbStoredItemPersistenceAdapterLikeCpp;
 pub use trainer_catalog_adapter::MariaDbTrainerCatalogPersistenceAdapterLikeCpp;
 pub use transaction::{
     ItemGuidAllocatorAdvisoryLockLikeCpp, SqlTransaction, SqlTransactionCommitError,
@@ -188,6 +201,9 @@ pub use vehicle_catalog_adapter::{
     MariaDbVehicleHotfixPersistenceAdapterLikeCpp,
     MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp,
 };
+pub use vendor_catalog_adapter::MariaDbVendorCatalogPersistenceAdapterLikeCpp;
+pub use vendor_trade_adapter::MariaDbVendorTradePersistenceAdapterLikeCpp;
+pub use visibility_spawn_catalog_adapter::MariaDbVisibilitySpawnCatalogPersistenceAdapterLikeCpp;
 pub use world_auxiliary_catalog_adapter::MariaDbWorldAuxiliaryCatalogPersistenceAdapterLikeCpp;
 pub use world_object_catalog_adapter::MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp;
 pub use world_reference_catalog_adapter::MariaDbWorldReferenceCatalogPersistenceAdapterLikeCpp;

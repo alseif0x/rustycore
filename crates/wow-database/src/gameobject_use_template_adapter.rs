@@ -3,7 +3,8 @@
 use std::sync::Arc;
 
 use wow_persistence::{
-    GAMEOBJECT_USE_TEMPLATE_DATA_COUNT_LIKE_CPP, GameObjectUseTemplateLoadOutcomeLikeCpp,
+    GAMEOBJECT_USE_TEMPLATE_DATA_COUNT_LIKE_CPP, GameObjectMoneyLootCatalogOutcomeLikeCpp,
+    GameObjectMoneyLootCatalogRequestLikeCpp, GameObjectUseTemplateLoadOutcomeLikeCpp,
     GameObjectUseTemplateLoadRequestLikeCpp, GameObjectUseTemplateLoadRowLikeCpp,
     GameObjectUseTemplatePersistencePortLikeCpp, PersistenceFutureLikeCpp,
 };
@@ -21,6 +22,15 @@ fn gameobject_use_template_statement_like_cpp(
 ) -> PreparedStatement {
     let mut statement =
         PreparedStatement::for_statement(WorldStatements::SEL_GAMEOBJECT_TEMPLATE_BY_ENTRY);
+    statement.set_u32(0, request.entry);
+    statement
+}
+
+fn gameobject_money_loot_statement_like_cpp(
+    request: GameObjectMoneyLootCatalogRequestLikeCpp,
+) -> PreparedStatement {
+    let mut statement =
+        PreparedStatement::for_statement(WorldStatements::SEL_GAMEOBJECT_TEMPLATE_ADDON_MONEY_LOOT);
     statement.set_u32(0, request.entry);
     statement
 }
@@ -76,6 +86,34 @@ impl GameObjectUseTemplatePersistencePortLikeCpp
             })
         })
     }
+
+    fn load_gameobject_money_loot_like_cpp(
+        &self,
+        request: GameObjectMoneyLootCatalogRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'_, GameObjectMoneyLootCatalogOutcomeLikeCpp> {
+        Box::pin(async move {
+            let statement = gameobject_money_loot_statement_like_cpp(request);
+            match self.world_db.query(&statement).await {
+                Ok(result) if result.is_empty() => {
+                    GameObjectMoneyLootCatalogOutcomeLikeCpp::Missing
+                }
+                Ok(result) => match (result.try_read(0), result.try_read(1)) {
+                    (Some(min_money), Some(max_money)) => {
+                        GameObjectMoneyLootCatalogOutcomeLikeCpp::Found {
+                            min_money,
+                            max_money,
+                        }
+                    }
+                    _ => GameObjectMoneyLootCatalogOutcomeLikeCpp::Failed {
+                        reason: "invalid gameobject money loot columns".into(),
+                    },
+                },
+                Err(error) => GameObjectMoneyLootCatalogOutcomeLikeCpp::Failed {
+                    reason: error.to_string(),
+                },
+            }
+        })
+    }
 }
 
 #[cfg(test)]
@@ -105,5 +143,18 @@ mod tests {
             42
         );
         assert_eq!(CONTENT_TUNING_ID_COLUMN_LIKE_CPP, 43);
+    }
+
+    #[test]
+    fn gameobject_money_loot_preserves_statement_identity_and_entry_bind() {
+        let statement =
+            gameobject_money_loot_statement_like_cpp(GameObjectMoneyLootCatalogRequestLikeCpp {
+                entry: 42,
+            });
+        assert_eq!(
+            statement.sql(),
+            WorldStatements::SEL_GAMEOBJECT_TEMPLATE_ADDON_MONEY_LOOT.sql()
+        );
+        assert_eq!(statement.params(), [SqlParam::U32(42)]);
     }
 }

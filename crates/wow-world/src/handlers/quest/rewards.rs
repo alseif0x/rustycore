@@ -5,12 +5,6 @@
 
 //! Quest reward selection, item/currency granting and required-item removal.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::{CharStatements, SqlTransaction};
-
 use super::*;
 
 impl WorldSession {
@@ -74,7 +68,8 @@ impl WorldSession {
 
         let mut existing_updates: Vec<ExistingStackUpdate> = Vec::new();
         let mut new_stacks: Vec<NewStack> = Vec::new();
-        let mut tx = SqlTransaction::new();
+        let mut persistence_existing_stacks = Vec::new();
+        let mut persistence_new_stacks = Vec::new();
         let source_item_bonding = self
             .item_storage_template(entry_id)
             .map(|template| template.bonding);
@@ -127,19 +122,14 @@ impl WorldSession {
                     matches!(bonding, ItemBondingType::OnAcquire | ItemBondingType::Quest)
                         || (bonding == ItemBondingType::OnEquip && is_bag_pos(dest.pos))
                 });
-                if let Some(char_db) = self.char_db() {
-                    let mut upd_count = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_COUNT);
-                    upd_count.set_u32(0, new_count);
-                    upd_count.set_u64(1, inv_item.db_guid);
-                    tx.append(upd_count);
-                    if should_bind && !existing_item.is_soul_bound() {
-                        let mut upd_flags =
-                            char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_FLAGS);
-                        upd_flags.set_u32(0, existing_flags | ItemFieldFlags::SOULBOUND.bits());
-                        upd_flags.set_u64(1, inv_item.db_guid);
-                        tx.append(upd_flags);
-                    }
-                }
+                persistence_existing_stacks.push(
+                    wow_persistence::QuestItemExistingStackPersistenceLikeCpp {
+                        item_guid: inv_item.db_guid,
+                        new_count,
+                        dynamic_flags: (should_bind && !existing_item.is_soul_bound())
+                            .then_some(existing_flags | ItemFieldFlags::SOULBOUND.bits()),
+                    },
+                );
                 existing_updates.push(ExistingStackUpdate {
                     item_guid: inv_item.guid,
                     new_count,
@@ -189,29 +179,16 @@ impl WorldSession {
                     0
                 };
 
-                if let Some(char_db) = self.char_db() {
-                    let mut ins_item = char_db.prepare(CharStatements::INS_ITEM_INSTANCE);
-                    ins_item.set_u64(0, db_guid);
-                    ins_item.set_u32(1, entry_id);
-                    ins_item.set_u64(2, player_guid.counter() as u64);
-                    ins_item.set_u32(3, dest.count);
-                    ins_item.set_u32(4, max_durability);
-                    tx.append(ins_item);
-                    if item_flags != 0 {
-                        let mut upd_flags =
-                            char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_FLAGS);
-                        upd_flags.set_u32(0, item_flags);
-                        upd_flags.set_u64(1, db_guid);
-                        tx.append(upd_flags);
-                    }
-
-                    let mut ins_inv = char_db.prepare(CharStatements::REP_CHAR_INVENTORY_ITEM);
-                    ins_inv.set_u64(0, player_guid.counter() as u64);
-                    ins_inv.set_u64(1, inventory_bag_db_guid);
-                    ins_inv.set_u8(2, slot);
-                    ins_inv.set_u64(3, db_guid);
-                    tx.append(ins_inv);
-                }
+                persistence_new_stacks.push(wow_persistence::QuestItemNewStackPersistenceLikeCpp {
+                    item_guid: db_guid,
+                    entry_id,
+                    owner_guid: player_guid.counter() as u64,
+                    count: dest.count,
+                    max_durability,
+                    dynamic_flags: item_flags,
+                    bag_guid: inventory_bag_db_guid,
+                    slot,
+                });
 
                 new_stacks.push(NewStack {
                     bag,
@@ -230,16 +207,31 @@ impl WorldSession {
             }
         }
 
-        if let Some(char_db) = self.char_db().map(Arc::clone) {
-            if let Err(error) = char_db.commit_transaction(tx).await {
-                warn!(
-                    account = self.account_id,
-                    entry_id,
-                    ?error,
-                    "QuestConfirmAccept: source item StoreNewItem transaction failed"
-                );
-                self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
-                return None;
+        if let Some(port) = self.player_inventory_persistence_port_like_cpp() {
+            let outcome = port
+                .persist_inventory_mutation_like_cpp(
+                    wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::QuestItemGrant(
+                        wow_persistence::QuestItemGrantPersistenceLikeCpp {
+                            existing_stacks: persistence_existing_stacks,
+                            new_stacks: persistence_new_stacks,
+                        },
+                    ),
+                )
+                .await;
+            match outcome {
+                wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+                wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => {
+                    warn!(account = self.account_id, entry_id, error = %reason,
+                        "QuestConfirmAccept: source item StoreNewItem transaction failed");
+                    self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
+                    return None;
+                }
+                wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                    warn!(account = self.account_id, entry_id, error = %reason,
+                        "QuestConfirmAccept: source item StoreNewItem commit outcome is unknown");
+                    self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
+                    return None;
+                }
             }
         }
 
@@ -429,7 +421,8 @@ impl WorldSession {
             .map(|template| template.bonding);
         let mut existing_updates = Vec::new();
         let mut new_stacks = Vec::new();
-        let mut tx = SqlTransaction::new();
+        let mut persistence_existing_stacks = Vec::new();
+        let mut persistence_new_stacks = Vec::new();
         let mut last_item_guid = ObjectGuid::EMPTY;
         let mut last_bag = u8::from(wow_entities::INVENTORY_SLOT_BAG_0);
         let mut last_slot = 0;
@@ -479,19 +472,14 @@ impl WorldSession {
                     matches!(bonding, ItemBondingType::OnAcquire | ItemBondingType::Quest)
                         || (bonding == ItemBondingType::OnEquip && is_bag_pos(dest.pos))
                 });
-                if let Some(char_db) = self.char_db() {
-                    let mut upd_count = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_COUNT);
-                    upd_count.set_u32(0, new_count);
-                    upd_count.set_u64(1, inv_item.db_guid);
-                    tx.append(upd_count);
-                    if should_bind && !existing_item.is_soul_bound() {
-                        let mut upd_flags =
-                            char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_FLAGS);
-                        upd_flags.set_u32(0, existing_flags | ItemFieldFlags::SOULBOUND.bits());
-                        upd_flags.set_u64(1, inv_item.db_guid);
-                        tx.append(upd_flags);
-                    }
-                }
+                persistence_existing_stacks.push(
+                    wow_persistence::QuestItemExistingStackPersistenceLikeCpp {
+                        item_guid: inv_item.db_guid,
+                        new_count,
+                        dynamic_flags: (should_bind && !existing_item.is_soul_bound())
+                            .then_some(existing_flags | ItemFieldFlags::SOULBOUND.bits()),
+                    },
+                );
                 existing_updates.push(ExistingStackUpdate {
                     item_guid: inv_item.guid,
                     new_count,
@@ -541,29 +529,16 @@ impl WorldSession {
                     0
                 };
 
-                if let Some(char_db) = self.char_db() {
-                    let mut ins_item = char_db.prepare(CharStatements::INS_ITEM_INSTANCE);
-                    ins_item.set_u64(0, db_guid);
-                    ins_item.set_u32(1, entry_id);
-                    ins_item.set_u64(2, player_guid.counter() as u64);
-                    ins_item.set_u32(3, dest.count);
-                    ins_item.set_u32(4, max_durability);
-                    tx.append(ins_item);
-                    if item_flags != 0 {
-                        let mut upd_flags =
-                            char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_FLAGS);
-                        upd_flags.set_u32(0, item_flags);
-                        upd_flags.set_u64(1, db_guid);
-                        tx.append(upd_flags);
-                    }
-
-                    let mut ins_inv = char_db.prepare(CharStatements::REP_CHAR_INVENTORY_ITEM);
-                    ins_inv.set_u64(0, player_guid.counter() as u64);
-                    ins_inv.set_u64(1, inventory_bag_db_guid);
-                    ins_inv.set_u8(2, slot);
-                    ins_inv.set_u64(3, db_guid);
-                    tx.append(ins_inv);
-                }
+                persistence_new_stacks.push(wow_persistence::QuestItemNewStackPersistenceLikeCpp {
+                    item_guid: db_guid,
+                    entry_id,
+                    owner_guid: player_guid.counter() as u64,
+                    count: dest.count,
+                    max_durability,
+                    dynamic_flags: item_flags,
+                    bag_guid: inventory_bag_db_guid,
+                    slot,
+                });
 
                 new_stacks.push(NewStack {
                     bag,
@@ -582,16 +557,31 @@ impl WorldSession {
             }
         }
 
-        if let Some(char_db) = self.char_db().map(Arc::clone) {
-            if let Err(error) = char_db.commit_transaction(tx).await {
-                warn!(
-                    account = self.account_id,
-                    entry_id,
-                    ?error,
-                    "RewardQuest: reward item StoreNewItem transaction failed"
-                );
-                self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
-                return false;
+        if let Some(port) = self.player_inventory_persistence_port_like_cpp() {
+            let outcome = port
+                .persist_inventory_mutation_like_cpp(
+                    wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::QuestItemGrant(
+                        wow_persistence::QuestItemGrantPersistenceLikeCpp {
+                            existing_stacks: persistence_existing_stacks,
+                            new_stacks: persistence_new_stacks,
+                        },
+                    ),
+                )
+                .await;
+            match outcome {
+                wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+                wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => {
+                    warn!(account = self.account_id, entry_id, error = %reason,
+                        "RewardQuest: reward item StoreNewItem transaction failed");
+                    self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
+                    return false;
+                }
+                wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                    warn!(account = self.account_id, entry_id, error = %reason,
+                        "RewardQuest: reward item StoreNewItem commit outcome is unknown");
+                    self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
+                    return false;
+                }
             }
         }
 
@@ -1135,31 +1125,60 @@ impl WorldSession {
             }
         }
 
-        if let Some(char_db) = self.char_db().map(Arc::clone) {
-            let mut tx = SqlTransaction::new();
-            Self::append_item_turnin_statements(
-                char_db.as_ref(),
-                &mut tx,
-                player_guid,
-                &item_changes,
-            );
+        if let Some(port) = self.player_inventory_persistence_port_like_cpp() {
             let mut currencies = self.player_currencies_like_cpp().clone();
             let currency_save = self
                 .plan_player_currency_save_like_cpp(player_guid.counter() as u64, &mut currencies);
             self.set_player_currencies_like_cpp(currencies);
-            wow_database::player_lifecycle_adapter::append_player_currency_save_request_like_cpp(
-                &mut tx,
-                &currency_save,
-            );
-            if let Err(error) = char_db.commit_transaction(tx).await {
-                self.set_player_currencies_like_cpp(currency_snapshot);
-                warn!(
+            let items = item_changes
+                .iter()
+                .map(|change| match *change {
+                    ExtendedCostItemTurninChange::Update {
+                        db_guid, new_count, ..
+                    } => wow_persistence::QuestTurnInItemPersistenceLikeCpp::Update {
+                        item_guid: db_guid,
+                        new_count,
+                    },
+                    ExtendedCostItemTurninChange::Delete { db_guid, .. } => {
+                        wow_persistence::QuestTurnInItemPersistenceLikeCpp::Delete {
+                            item_guid: db_guid,
+                        }
+                    }
+                })
+                .collect();
+            let outcome = port
+                .persist_inventory_mutation_like_cpp(
+                    wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::QuestTurnIn(
+                        wow_persistence::QuestTurnInPersistenceLikeCpp {
+                            owner_guid: player_guid.counter() as u64,
+                            items,
+                            currency_save,
+                        },
+                    ),
+                )
+                .await;
+            match outcome {
+                wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+                wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => {
+                    self.set_player_currencies_like_cpp(currency_snapshot);
+                    warn!(
+                        account = self.account_id,
+                        quest_id = quest.id,
+                        error = %reason,
+                        "ChooseReward: quest objective item/currency removal save failed"
+                    );
+                    return false;
+                }
+                wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                    self.set_player_currencies_like_cpp(currency_snapshot);
+                    warn!(
                     account = self.account_id,
                     quest_id = quest.id,
-                    ?error,
-                    "ChooseReward: quest objective item/currency removal save failed"
-                );
-                return false;
+                        error = %reason,
+                        "ChooseReward: quest objective item/currency removal commit outcome is unknown"
+                    );
+                    return false;
+                }
             }
         }
 
@@ -1557,88 +1576,79 @@ impl WorldSession {
             save_seasonal = true;
         }
 
-        let Some(char_db) = self.char_db().map(Arc::clone) else {
+        let Some(port) = self.player_quest_persistence_port_like_cpp() else {
             return;
         };
 
-        let guid = player_guid.counter() as u64;
-        let mut tx = SqlTransaction::new();
-
-        if save_daily {
-            let mut del = char_db.prepare(CharStatements::DEL_CHARACTER_QUESTSTATUS_DAILY);
-            del.set_u64(0, guid);
-            tx.append(del);
-
-            for quest_id in &self.daily_quests_completed_like_cpp {
-                let mut ins = char_db.prepare(CharStatements::INS_CHARACTER_QUESTSTATUS_DAILY);
-                ins.set_u64(0, guid);
-                ins.set_u32(1, *quest_id);
-                ins.set_i64(2, self.last_daily_quest_time_like_cpp);
-                tx.append(ins);
+        let owner_guid = player_guid.counter() as u64;
+        let request = if save_daily {
+            let mut quest_ids = self
+                .daily_quests_completed_like_cpp
+                .iter()
+                .copied()
+                .collect::<Vec<_>>();
+            quest_ids.extend(self.df_quests_like_cpp.iter().copied());
+            wow_persistence::PlayerQuestLockoutPersistenceRequestLikeCpp::Daily {
+                owner_guid,
+                completed_time: self.last_daily_quest_time_like_cpp,
+                quest_ids,
             }
-            for quest_id in &self.df_quests_like_cpp {
-                let mut ins = char_db.prepare(CharStatements::INS_CHARACTER_QUESTSTATUS_DAILY);
-                ins.set_u64(0, guid);
-                ins.set_u32(1, *quest_id);
-                ins.set_i64(2, self.last_daily_quest_time_like_cpp);
-                tx.append(ins);
+        } else if save_weekly {
+            wow_persistence::PlayerQuestLockoutPersistenceRequestLikeCpp::Weekly {
+                owner_guid,
+                quest_ids: self
+                    .weekly_quests_completed_like_cpp
+                    .iter()
+                    .copied()
+                    .collect(),
             }
-        }
-
-        if save_weekly {
-            let mut del = char_db.prepare(CharStatements::DEL_CHARACTER_QUESTSTATUS_WEEKLY);
-            del.set_u64(0, guid);
-            tx.append(del);
-
-            for quest_id in &self.weekly_quests_completed_like_cpp {
-                let mut ins = char_db.prepare(CharStatements::INS_CHARACTER_QUESTSTATUS_WEEKLY);
-                ins.set_u64(0, guid);
-                ins.set_u32(1, *quest_id);
-                tx.append(ins);
+        } else if save_monthly {
+            wow_persistence::PlayerQuestLockoutPersistenceRequestLikeCpp::Monthly {
+                owner_guid,
+                quest_ids: self
+                    .monthly_quests_completed_like_cpp
+                    .iter()
+                    .copied()
+                    .collect(),
             }
-        }
-
-        if save_monthly {
-            let mut del = char_db.prepare(CharStatements::DEL_CHARACTER_QUESTSTATUS_MONTHLY);
-            del.set_u64(0, guid);
-            tx.append(del);
-
-            for quest_id in &self.monthly_quests_completed_like_cpp {
-                let mut ins = char_db.prepare(CharStatements::INS_CHARACTER_QUESTSTATUS_MONTHLY);
-                ins.set_u64(0, guid);
-                ins.set_u32(1, *quest_id);
-                tx.append(ins);
+        } else if save_seasonal {
+            let completions = self
+                .seasonal_quests_like_cpp
+                .iter()
+                .flat_map(|(event_id, quests)| {
+                    quests.iter().filter_map(|(quest_id, completed_time)| {
+                        Some(
+                            wow_persistence::PlayerQuestSeasonalCompletionPersistenceLikeCpp {
+                                quest_id: *quest_id,
+                                event_id: *event_id,
+                                completed_time: i64::try_from(*completed_time).ok()?,
+                            },
+                        )
+                    })
+                })
+                .collect();
+            wow_persistence::PlayerQuestLockoutPersistenceRequestLikeCpp::Seasonal {
+                owner_guid,
+                completions,
             }
-        }
+        } else {
+            return;
+        };
 
-        if save_seasonal {
-            let mut del = char_db.prepare(CharStatements::DEL_CHARACTER_QUESTSTATUS_SEASONAL);
-            del.set_u64(0, guid);
-            tx.append(del);
-
-            for (event_id, quests) in &self.seasonal_quests_like_cpp {
-                for (quest_id, completed_time) in quests {
-                    let Some(completed_time) = i64::try_from(*completed_time).ok() else {
-                        continue;
-                    };
-                    let mut ins =
-                        char_db.prepare(CharStatements::INS_CHARACTER_QUESTSTATUS_SEASONAL);
-                    ins.set_u64(0, guid);
-                    ins.set_u32(1, *quest_id);
-                    ins.set_u32(2, u32::from(*event_id));
-                    ins.set_i64(3, completed_time);
-                    tx.append(ins);
-                }
-            }
-        }
-
-        if let Err(error) = char_db.commit_transaction(tx).await {
-            warn!(
+        match port.persist_lockout_like_cpp(request).await {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
                 account = self.account_id,
                 quest_id = quest.id,
-                ?error,
+                error = %reason,
                 "ChooseReward: represented reward lockout status save failed"
-            );
+            ),
+            wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
+                account = self.account_id,
+                quest_id = quest.id,
+                error = %reason,
+                "ChooseReward: represented reward lockout commit outcome is unknown"
+            ),
         }
     }
 

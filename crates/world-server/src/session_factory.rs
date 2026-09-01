@@ -275,14 +275,23 @@ pub(super) async fn create_session(
         id: active_session_id,
     };
     let account_id = account.id;
-    if let Some(ref db) = resources.char_db {
-        session.set_char_db(Arc::clone(db));
+    if let Some(ref port) = resources.stored_item_persistence_port {
+        session.set_stored_item_persistence_port_like_cpp(Arc::clone(port));
     }
-    if let Some(ref db) = resources.login_db {
-        session.set_login_db(Arc::clone(db));
+    if let Some(ref port) = resources.player_inventory_persistence_port {
+        session.set_player_inventory_persistence_port_like_cpp(Arc::clone(port));
+    }
+    if let Some(ref port) = resources.player_quest_persistence_port {
+        session.set_player_quest_persistence_port_like_cpp(Arc::clone(port));
+    }
+    if let Some(ref port) = resources.vendor_trade_persistence_port {
+        session.set_vendor_trade_persistence_port_like_cpp(Arc::clone(port));
     }
     if let Some(ref port) = resources.player_lifecycle_port {
         session.set_player_lifecycle_port_like_cpp(Arc::clone(port));
+    }
+    if let Some(ref port) = resources.character_administration_persistence_port {
+        session.set_character_administration_persistence_port_like_cpp(Arc::clone(port));
     }
     if let Some(ref port) = resources.character_enumeration_persistence_port {
         session.set_character_enumeration_persistence_port_like_cpp(Arc::clone(port));
@@ -295,6 +304,15 @@ pub(super) async fn create_session(
     }
     if let Some(ref port) = resources.item_template_addon_catalog_persistence_port {
         session.set_item_template_addon_catalog_persistence_port_like_cpp(Arc::clone(port));
+    }
+    if let Some(ref port) = resources.loot_template_catalog_persistence_port {
+        session.set_loot_template_catalog_persistence_port_like_cpp(Arc::clone(port));
+    }
+    if let Some(ref port) = resources.vendor_catalog_persistence_port {
+        session.set_vendor_catalog_persistence_port_like_cpp(Arc::clone(port));
+    }
+    if let Some(ref port) = resources.visibility_spawn_catalog_persistence_port {
+        session.set_visibility_spawn_catalog_persistence_port_like_cpp(Arc::clone(port));
     }
     if let Some(ref port) = resources.gossip_catalog_persistence_port {
         session.set_gossip_catalog_persistence_port_like_cpp(Arc::clone(port));
@@ -369,9 +387,6 @@ pub(super) async fn create_session(
     }
     if let Some(ref mgr) = resources.instance_lock_mgr {
         session.set_instance_lock_mgr(Arc::clone(mgr));
-    }
-    if let Some(ref db) = resources.world_db {
-        session.set_world_db(Arc::clone(db));
     }
     if let Some(ref store) = resources.trainer_store {
         session.set_trainer_store_like_cpp(Arc::clone(store));
