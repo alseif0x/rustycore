@@ -5,12 +5,6 @@
 
 //! Durable loot persistence and its worker.
 
-// Explicit database imports: this module reaches its parent through
-// `use super::*`, and the persistence inventory cannot resolve a glob, so
-// without these every database access in the file is invisible to the
-// ratchet (see #277).
-use wow_database::{CharStatements, CharacterDatabase, SqlTransaction};
-
 use super::*;
 
 impl WorldSession {
@@ -557,27 +551,5 @@ impl WorldSession {
             self.close_stale_active_loot_view_like_cpp(item_guid, player_guid);
         }
         self.loot_table.remove(&item_guid);
-    }
-
-    /// Queue count and any binding transition in one transaction. Runtime
-    /// state is deliberately updated only after this transaction commits.
-    pub(super) fn append_existing_loot_stack_persistence_like_cpp(
-        char_db: &CharacterDatabase,
-        transaction: &mut SqlTransaction,
-        db_guid: u64,
-        new_count: u32,
-        dynamic_flags: Option<u32>,
-    ) {
-        let mut update_count = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_COUNT);
-        update_count.set_u32(0, new_count);
-        update_count.set_u64(1, db_guid);
-        transaction.append_expect_rows_affected(update_count, 1);
-
-        if let Some(dynamic_flags) = dynamic_flags {
-            let mut update_flags = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_FLAGS);
-            update_flags.set_u32(0, dynamic_flags);
-            update_flags.set_u64(1, db_guid);
-            transaction.append_expect_rows_affected(update_flags, 1);
-        }
     }
 }

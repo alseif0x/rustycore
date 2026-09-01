@@ -59,7 +59,7 @@ use wow_constants::{
 };
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_data::{ItemRandomEnchantmentTemplateEntry, ItemRandomPropertyTemplateEntry};
-use wow_database::{SqlTransactionCommitError, retry_deadlocked_operation_like_cpp};
+use wow_database::retry_deadlocked_operation_like_cpp;
 use wow_entities::{
     AccessorObjectKind, CORPSE_DYNFLAG_LOOTABLE, GAMEOBJECT_TYPE_AREADAMAGE,
     GAMEOBJECT_TYPE_BARBER_CHAIR, GAMEOBJECT_TYPE_BINDER, GAMEOBJECT_TYPE_CAMERA,
@@ -87,6 +87,7 @@ use wow_loot::{
     loot_conditions_allow_player_with_references_like_cpp_representable,
     loot_item_ui_type_for_player_like_cpp,
 };
+use wow_packet::ServerPacket;
 use wow_packet::packets::item::{
     ItemExpirePurchaseRefund, ItemInstance, ItemModList, ItemPushResult, ItemPushResultDisplayType,
 };
@@ -105,16 +106,16 @@ use wow_packet::packets::loot::{
     MasterLootItem, NotNormalLootItem, SLootRelease, SetLootSpecialization, StartLootRoll,
 };
 use wow_packet::packets::update::{ItemCreateData, ItemEnchantmentValuesUpdate, UpdateObject};
-use wow_packet::{ClientPacket, ServerPacket};
+use wow_persistence::{
+    PersistenceOutcomeLikeCpp, StoredItemMoneyPersistenceAttemptLikeCpp,
+    StoredItemMoneyPersistenceRequestLikeCpp, StoredItemMoneyReconciliationLikeCpp,
+    StoredItemMoneyRollbackKindLikeCpp,
+};
 #[cfg(test)]
 use wow_persistence::{
     STORED_ITEM_MONEY_SOURCE_ROWS_EXPECTED_LIKE_CPP, StoredItemMoneyPersistenceOutcomeLikeCpp,
     classify_stored_item_money_reconciliation_like_cpp,
     stored_item_money_zero_without_source_outcome_like_cpp,
-};
-use wow_persistence::{
-    StoredItemMoneyPersistenceAttemptLikeCpp, StoredItemMoneyPersistenceRequestLikeCpp,
-    StoredItemMoneyReconciliationLikeCpp, StoredItemMoneyRollbackKindLikeCpp,
 };
 
 use crate::conditions::{
@@ -1478,11 +1479,11 @@ where
     }))
 }
 
-/// Outcome-aware SQL variant for consume-and-grant item transactions. A
-/// transport failure returned by COMMIT cannot be treated as rollback: the
-/// old object allocation is quarantined permanently and the player is kicked
-/// to reload whichever durable state MySQL ultimately kept.
-fn spawn_sql_loot_claim_persistence_worker_like_cpp<F>(
+/// Outcome-aware persistence worker for consume-and-grant item transactions.
+/// An unknown COMMIT cannot be treated as rollback: the old object allocation
+/// is quarantined permanently and the player is kicked to reload whichever
+/// durable state the concrete adapter ultimately kept.
+fn spawn_loot_item_persistence_worker_like_cpp<F>(
     persistence: F,
     claim: Option<LootClaimLease>,
     durable_item_completion: Option<(
@@ -1491,11 +1492,11 @@ fn spawn_sql_loot_claim_persistence_worker_like_cpp<F>(
     )>,
     command_tx: flume::Sender<SessionCommand>,
 ) -> Result<
-    tokio::task::JoinHandle<Result<(), LootClaimPersistenceWorkerError<SqlTransactionCommitError>>>,
+    tokio::task::JoinHandle<Result<(), LootClaimPersistenceWorkerError<String>>>,
     LootClaimCommitError,
 >
 where
-    F: std::future::Future<Output = Result<(), SqlTransactionCommitError>> + Send + 'static,
+    F: std::future::Future<Output = PersistenceOutcomeLikeCpp> + Send + 'static,
 {
     let mut persistence_guard = claim
         .as_ref()
@@ -1505,11 +1506,11 @@ where
     Ok(tokio::spawn(async move {
         let mut durable_item_completion = durable_item_completion;
         match persistence.await {
-            Ok(()) => {}
-            Err(error @ SqlTransactionCommitError::DefinitelyRolledBack(_)) => {
-                return Err(LootClaimPersistenceWorkerError::Persistence(error));
+            PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            PersistenceOutcomeLikeCpp::Failed { reason } => {
+                return Err(LootClaimPersistenceWorkerError::Persistence(reason));
             }
-            Err(error @ SqlTransactionCommitError::CommitOutcomeUnknown(_)) => {
+            PersistenceOutcomeLikeCpp::Unknown { reason } => {
                 if let Some(guard) = persistence_guard.as_mut() {
                     let _ = guard.quarantine_commit_unknown_like_cpp();
                 }
@@ -1522,7 +1523,7 @@ where
                         let _ = command_tx.send_async(kick).await;
                     });
                 }
-                return Err(LootClaimPersistenceWorkerError::Persistence(error));
+                return Err(LootClaimPersistenceWorkerError::Persistence(reason));
             }
         }
         if let Some(mut guard) = persistence_guard {

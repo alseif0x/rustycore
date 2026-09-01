@@ -102,6 +102,55 @@ pub struct InventoryGraphDestroyPersistenceLikeCpp {
     pub quest_statuses: Vec<QuestStatusPersistenceLikeCpp>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LootExistingStackPersistenceLikeCpp {
+    pub item_guid: u64,
+    pub new_count: u32,
+    pub dynamic_flags: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LootNewStackPersistenceLikeCpp {
+    pub item_guid: u64,
+    pub entry_id: u32,
+    pub owner_guid: u64,
+    pub count: u32,
+    pub max_durability: u32,
+    pub dynamic_flags: u32,
+    pub random_properties_id: i32,
+    pub random_properties_seed: i32,
+    pub item_context: u8,
+    pub slot: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StoredItemLootSourcePersistenceLikeCpp {
+    pub item_guid: u64,
+    pub item_id: u32,
+    pub count: u32,
+    pub loot_list_id: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LootDisenchantBatchPersistenceLikeCpp {
+    pub existing_stacks: Vec<LootExistingStackPersistenceLikeCpp>,
+    pub new_stacks: Vec<LootNewStackPersistenceLikeCpp>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LootQuestBoundProgressPersistenceLikeCpp {
+    pub owner_guid: u64,
+    pub quest_statuses: Vec<QuestStatusPersistenceLikeCpp>,
+    pub stored_item_source: Option<StoredItemLootSourcePersistenceLikeCpp>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LootDirectItemGrantPersistenceLikeCpp {
+    pub existing_stacks: Vec<LootExistingStackPersistenceLikeCpp>,
+    pub new_stacks: Vec<LootNewStackPersistenceLikeCpp>,
+    pub stored_item_source: Option<StoredItemLootSourcePersistenceLikeCpp>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlayerInventoryPersistenceRequestLikeCpp {
     StorageMove(InventoryStorageMovePersistenceLikeCpp),
@@ -110,6 +159,9 @@ pub enum PlayerInventoryPersistenceRequestLikeCpp {
     Swap(InventorySwapPersistenceLikeCpp),
     PartialDestroy(InventoryPartialDestroyPersistenceLikeCpp),
     GraphDestroy(InventoryGraphDestroyPersistenceLikeCpp),
+    LootDisenchantBatch(LootDisenchantBatchPersistenceLikeCpp),
+    LootQuestBoundProgress(LootQuestBoundProgressPersistenceLikeCpp),
+    LootDirectItemGrant(LootDirectItemGrantPersistenceLikeCpp),
 }
 
 pub trait PlayerInventoryPersistencePortLikeCpp: Send + Sync {

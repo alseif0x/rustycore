@@ -220,8 +220,11 @@ pub use player_inventory::{
     InventoryLinkPersistenceLikeCpp, InventoryPartialDestroyPersistenceLikeCpp,
     InventoryStackMergePersistenceLikeCpp, InventoryStackMergeSourcePersistenceLikeCpp,
     InventoryStorageMovePersistenceLikeCpp, InventorySwapPersistenceLikeCpp,
-    PlayerInventoryPersistencePortLikeCpp, PlayerInventoryPersistenceRequestLikeCpp,
-    QuestObjectiveCountPersistenceLikeCpp, QuestStatusPersistenceLikeCpp,
+    LootDirectItemGrantPersistenceLikeCpp, LootDisenchantBatchPersistenceLikeCpp,
+    LootExistingStackPersistenceLikeCpp, LootNewStackPersistenceLikeCpp,
+    LootQuestBoundProgressPersistenceLikeCpp, PlayerInventoryPersistencePortLikeCpp,
+    PlayerInventoryPersistenceRequestLikeCpp, QuestObjectiveCountPersistenceLikeCpp,
+    QuestStatusPersistenceLikeCpp, StoredItemLootSourcePersistenceLikeCpp,
 };
 pub use quest_catalog::*;
 pub use quest_item_catalog::{

@@ -4,8 +4,10 @@ use std::sync::Arc;
 
 use wow_persistence::{
     InventoryItemMutablePersistenceLikeCpp, InventoryLinkPersistenceLikeCpp,
-    PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, PlayerInventoryPersistencePortLikeCpp,
+    LootExistingStackPersistenceLikeCpp, LootNewStackPersistenceLikeCpp, PersistenceFutureLikeCpp,
+    PersistenceOutcomeLikeCpp, PlayerInventoryPersistencePortLikeCpp,
     PlayerInventoryPersistenceRequestLikeCpp, QuestStatusPersistenceLikeCpp,
+    StoredItemLootSourcePersistenceLikeCpp,
 };
 
 use crate::{
@@ -114,6 +116,59 @@ fn append_delete_item_like_cpp(
     let mut statement = PreparedStatement::for_statement(CharStatements::DEL_ITEM_INSTANCE);
     statement.set_u64(0, item_guid);
     transaction.append(statement);
+}
+
+fn append_loot_existing_stack_like_cpp(
+    transaction: &mut InventoryTransactionBuilderLikeCpp,
+    stack: LootExistingStackPersistenceLikeCpp,
+) {
+    let mut count = PreparedStatement::for_statement(CharStatements::UPD_ITEM_INSTANCE_COUNT);
+    count.set_u32(0, stack.new_count);
+    count.set_u64(1, stack.item_guid);
+    transaction.append_expect_rows_affected(count, 1);
+
+    if let Some(dynamic_flags) = stack.dynamic_flags {
+        let mut flags = PreparedStatement::for_statement(CharStatements::UPD_ITEM_INSTANCE_FLAGS);
+        flags.set_u32(0, dynamic_flags);
+        flags.set_u64(1, stack.item_guid);
+        transaction.append_expect_rows_affected(flags, 1);
+    }
+}
+
+fn append_loot_new_stack_like_cpp(
+    transaction: &mut InventoryTransactionBuilderLikeCpp,
+    stack: LootNewStackPersistenceLikeCpp,
+) {
+    let mut item =
+        PreparedStatement::for_statement(CharStatements::INS_ITEM_INSTANCE_WITH_RANDOM_CONTEXT);
+    item.set_u64(0, stack.item_guid);
+    item.set_u32(1, stack.entry_id);
+    item.set_u64(2, stack.owner_guid);
+    item.set_u32(3, stack.count);
+    item.set_u32(4, stack.max_durability);
+    item.set_u32(5, stack.dynamic_flags);
+    item.set_i32(6, stack.random_properties_id);
+    item.set_i32(7, stack.random_properties_seed);
+    item.set_u8(8, stack.item_context);
+    transaction.append_expect_rows_affected(item, 1);
+
+    let mut link = PreparedStatement::for_statement(CharStatements::INS_CHAR_INVENTORY);
+    link.set_u64(0, stack.owner_guid);
+    link.set_u8(1, stack.slot);
+    link.set_u64(2, stack.item_guid);
+    transaction.append_expect_rows_affected(link, 1);
+}
+
+fn append_stored_item_loot_source_like_cpp(
+    transaction: &mut InventoryTransactionBuilderLikeCpp,
+    source: StoredItemLootSourcePersistenceLikeCpp,
+) {
+    let mut statement = PreparedStatement::for_statement(CharStatements::DEL_ITEMCONTAINER_ITEM);
+    statement.set_u64(0, source.item_guid);
+    statement.set_u32(1, source.item_id);
+    statement.set_u32(2, source.count);
+    statement.set_u32(3, source.loot_list_id);
+    transaction.append_expect_rows_affected(statement, 1);
 }
 
 fn append_quest_status_like_cpp(
@@ -266,6 +321,33 @@ fn inventory_transaction_like_cpp(
                 append_quest_status_like_cpp(&mut transaction, request.owner_guid, status);
             }
         }
+        PlayerInventoryPersistenceRequestLikeCpp::LootDisenchantBatch(request) => {
+            for stack in &request.existing_stacks {
+                append_loot_existing_stack_like_cpp(&mut transaction, *stack);
+            }
+            for stack in &request.new_stacks {
+                append_loot_new_stack_like_cpp(&mut transaction, *stack);
+            }
+        }
+        PlayerInventoryPersistenceRequestLikeCpp::LootQuestBoundProgress(request) => {
+            for status in &request.quest_statuses {
+                append_quest_status_like_cpp(&mut transaction, request.owner_guid, status);
+            }
+            if let Some(source) = request.stored_item_source {
+                append_stored_item_loot_source_like_cpp(&mut transaction, source);
+            }
+        }
+        PlayerInventoryPersistenceRequestLikeCpp::LootDirectItemGrant(request) => {
+            for stack in &request.existing_stacks {
+                append_loot_existing_stack_like_cpp(&mut transaction, *stack);
+            }
+            for stack in &request.new_stacks {
+                append_loot_new_stack_like_cpp(&mut transaction, *stack);
+            }
+            if let Some(source) = request.stored_item_source {
+                append_stored_item_loot_source_like_cpp(&mut transaction, source);
+            }
+        }
     }
     transaction
 }
@@ -315,7 +397,9 @@ mod tests {
         InventoryDestroyNodePersistenceLikeCpp, InventoryEquipPersistenceLikeCpp,
         InventoryGraphDestroyPersistenceLikeCpp, InventoryStackMergePersistenceLikeCpp,
         InventoryStackMergeSourcePersistenceLikeCpp, InventoryStorageMovePersistenceLikeCpp,
-        InventorySwapPersistenceLikeCpp, QuestObjectiveCountPersistenceLikeCpp,
+        InventorySwapPersistenceLikeCpp, LootDirectItemGrantPersistenceLikeCpp,
+        LootDisenchantBatchPersistenceLikeCpp, LootQuestBoundProgressPersistenceLikeCpp,
+        QuestObjectiveCountPersistenceLikeCpp,
     };
 
     fn mutable(item_guid: u64) -> InventoryItemMutablePersistenceLikeCpp {
@@ -351,6 +435,38 @@ mod tests {
                 objective_index: 2,
                 count: 4,
             }],
+        }
+    }
+
+    fn loot_existing(dynamic_flags: Option<u32>) -> LootExistingStackPersistenceLikeCpp {
+        LootExistingStackPersistenceLikeCpp {
+            item_guid: 20,
+            new_count: 3,
+            dynamic_flags,
+        }
+    }
+
+    fn loot_new() -> LootNewStackPersistenceLikeCpp {
+        LootNewStackPersistenceLikeCpp {
+            item_guid: 21,
+            entry_id: 22,
+            owner_guid: 10,
+            count: 4,
+            max_durability: 5,
+            dynamic_flags: 6,
+            random_properties_id: 7,
+            random_properties_seed: 8,
+            item_context: 9,
+            slot: 10,
+        }
+    }
+
+    fn loot_source() -> StoredItemLootSourcePersistenceLikeCpp {
+        StoredItemLootSourcePersistenceLikeCpp {
+            item_guid: 30,
+            item_id: 31,
+            count: 2,
+            loot_list_id: 3,
         }
     }
 
@@ -483,5 +599,83 @@ mod tests {
         );
         assert_eq!(builder.statement_sqls[0].1, Some(1));
         assert_eq!(builder.statement_sqls[8].1, Some(1));
+    }
+
+    #[test]
+    fn disenchant_batch_preserves_existing_then_new_stack_order_like_cpp() {
+        let insert_sql = CharStatements::INS_ITEM_INSTANCE_WITH_RANDOM_CONTEXT.sql();
+        assert!(insert_sql.contains("randomPropertiesId"));
+        assert!(insert_sql.contains("randomPropertiesSeed"));
+        assert!(insert_sql.contains("context"));
+        assert!(
+            insert_sql.contains("'', '', ?, ?, ?, ?"),
+            "stored-new-item flags must remain a bound parameter"
+        );
+        let request = PlayerInventoryPersistenceRequestLikeCpp::LootDisenchantBatch(
+            LootDisenchantBatchPersistenceLikeCpp {
+                existing_stacks: vec![loot_existing(Some(6))],
+                new_stacks: vec![loot_new()],
+            },
+        );
+        let builder = inventory_transaction_like_cpp(&request);
+        assert_eq!(
+            builder
+                .statement_sqls
+                .iter()
+                .map(|(sql, _)| sql.as_str())
+                .collect::<Vec<_>>(),
+            [
+                CharStatements::UPD_ITEM_INSTANCE_COUNT.sql(),
+                CharStatements::UPD_ITEM_INSTANCE_FLAGS.sql(),
+                CharStatements::INS_ITEM_INSTANCE_WITH_RANDOM_CONTEXT.sql(),
+                CharStatements::INS_CHAR_INVENTORY.sql(),
+            ]
+        );
+        assert!(
+            builder
+                .statement_sqls
+                .iter()
+                .all(|(_, expected)| *expected == Some(1))
+        );
+    }
+
+    #[test]
+    fn quest_bound_loot_preserves_quest_then_stored_source_order_like_cpp() {
+        let request = PlayerInventoryPersistenceRequestLikeCpp::LootQuestBoundProgress(
+            LootQuestBoundProgressPersistenceLikeCpp {
+                owner_guid: 10,
+                quest_statuses: vec![quest(3)],
+                stored_item_source: Some(loot_source()),
+            },
+        );
+        assert_eq!(
+            sqls(request),
+            [
+                CharStatements::INS_CHAR_QUEST_STATUS.sql(),
+                CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql(),
+                CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES.sql(),
+                CharStatements::DEL_ITEMCONTAINER_ITEM.sql(),
+            ]
+        );
+    }
+
+    #[test]
+    fn direct_loot_grant_preserves_stacks_then_stored_source_order_like_cpp() {
+        let request = PlayerInventoryPersistenceRequestLikeCpp::LootDirectItemGrant(
+            LootDirectItemGrantPersistenceLikeCpp {
+                existing_stacks: vec![loot_existing(None)],
+                new_stacks: vec![loot_new()],
+                stored_item_source: Some(loot_source()),
+            },
+        );
+        assert_eq!(
+            sqls(request),
+            [
+                CharStatements::UPD_ITEM_INSTANCE_COUNT.sql(),
+                CharStatements::INS_ITEM_INSTANCE_WITH_RANDOM_CONTEXT.sql(),
+                CharStatements::INS_CHAR_INVENTORY.sql(),
+                CharStatements::DEL_ITEMCONTAINER_ITEM.sql(),
+            ]
+        );
     }
 }

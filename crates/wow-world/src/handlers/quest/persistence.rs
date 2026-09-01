@@ -9,7 +9,7 @@
 // `use super::*`, and the persistence inventory cannot resolve a glob, so
 // without these every database access in the file is invisible to the
 // ratchet (see #277).
-use wow_database::{CharStatements, CharacterDatabase, PreparedStatement, SqlTransaction};
+use wow_database::{CharStatements, PreparedStatement, SqlTransaction};
 
 use super::*;
 
@@ -396,26 +396,6 @@ impl WorldSession {
             );
         }
         self.finish_item_transfer_quest_persistence_like_cpp(plan)
-    }
-
-    pub(crate) fn append_planned_quest_statuses_to_transaction_like_cpp(
-        &self,
-        transaction: &mut SqlTransaction,
-        char_db: &CharacterDatabase,
-        player_guid: u64,
-        planned_statuses: &[PlayerQuestStatus],
-    ) {
-        for status in planned_statuses {
-            for statement in self.represented_quest_status_save_statements_like_cpp(
-                player_guid,
-                status.quest_id,
-                status.status,
-                Some(status),
-                |statement| char_db.prepare(statement),
-            ) {
-                transaction.append(statement);
-            }
-        }
     }
 
     /// Pure form of the first C++ `Player::StoreNewItem` quest pass:

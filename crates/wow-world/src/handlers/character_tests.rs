@@ -16,6 +16,7 @@
 use wow_database::{CharStatements, PreparedStatement};
 
 use super::*;
+use crate::player_inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
 use crate::session::{
     AuraApplication, InventoryItem, RepresentedAuraEffectLikeCpp, RepresentedHomebindLikeCpp,
     RepresentedTaxiFlightNodeLikeCpp,
@@ -74,35 +75,6 @@ use wow_persistence::{
     PlayerNameQueryRequestLikeCpp, PlayerNameQueryRowLikeCpp, PlayerOfflineMarkLikeCpp,
     PlayerOnlineMarkRequestLikeCpp,
 };
-
-struct PlayerInventoryPersistencePortFixtureLikeCpp {
-    requests: std::sync::Mutex<Vec<wow_persistence::PlayerInventoryPersistenceRequestLikeCpp>>,
-    outcome: PersistenceOutcomeLikeCpp,
-}
-
-impl PlayerInventoryPersistencePortFixtureLikeCpp {
-    fn failed() -> Arc<Self> {
-        Arc::new(Self {
-            requests: std::sync::Mutex::new(Vec::new()),
-            outcome: PersistenceOutcomeLikeCpp::Failed {
-                reason: "inventory fixture rollback".into(),
-            },
-        })
-    }
-}
-
-impl wow_persistence::PlayerInventoryPersistencePortLikeCpp
-    for PlayerInventoryPersistencePortFixtureLikeCpp
-{
-    fn persist_inventory_mutation_like_cpp(
-        &self,
-        request: wow_persistence::PlayerInventoryPersistenceRequestLikeCpp,
-    ) -> PersistenceFutureLikeCpp<'_, PersistenceOutcomeLikeCpp> {
-        self.requests.lock().unwrap().push(request);
-        let outcome = self.outcome.clone();
-        Box::pin(async move { outcome })
-    }
-}
 
 struct CreatureQueryCatalogPortFixtureLikeCpp {
     requests: std::sync::Mutex<Vec<CreatureQueryCatalogRequestLikeCpp>>,

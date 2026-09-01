@@ -38,6 +38,8 @@ mod handler_contract_tests;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod player_directory_test_fixtures;
 #[cfg(test)]
+mod player_inventory_persistence_test_fixture;
+#[cfg(test)]
 mod player_lifecycle_contract;
 #[cfg(test)]
 mod vendor_trade_persistence_test_fixture;
