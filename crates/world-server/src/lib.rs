@@ -1560,6 +1560,7 @@ mod player_base_stats;
 mod skill_catalog_hotfix;
 mod skill_world_rules;
 mod static_data_overlay;
+mod world_reference_catalog;
 use bootstrap::*;
 
 async fn load_loot_stores_like_cpp(

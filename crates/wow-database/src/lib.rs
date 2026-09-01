@@ -103,6 +103,7 @@ pub mod transaction;
 pub mod updater;
 pub mod vehicle_catalog_adapter;
 pub mod void_storage_adapter;
+pub mod world_reference_catalog_adapter;
 pub mod world_state_startup_adapter;
 
 // Re-export primary types at crate root for convenience.
@@ -179,6 +180,7 @@ pub use vehicle_catalog_adapter::{
     MariaDbVehicleHotfixPersistenceAdapterLikeCpp,
     MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp,
 };
+pub use world_reference_catalog_adapter::MariaDbWorldReferenceCatalogPersistenceAdapterLikeCpp;
 pub use world_state_startup_adapter::MariaDbWorldStateStartupPersistenceAdapterLikeCpp;
 
 /// Type aliases for each database connection.

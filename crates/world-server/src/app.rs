@@ -152,6 +152,10 @@ async fn run_inner(
 
     info!("Connected to world database");
     let world_db = Arc::new(world_db);
+    let world_reference_catalog_persistence =
+        wow_database::MariaDbWorldReferenceCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
+            &world_db,
+        ));
     let player_base_stats_persistence =
         wow_database::MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp::new(Arc::clone(&world_db));
     let player_creation_catalog_persistence =
@@ -636,9 +640,12 @@ async fn run_inner(
     );
     info!("Loaded {} maps from Map.db2", map_store.len());
     let (world_safe_loc_store, world_safe_loc_report) =
-        wow_data::WorldSafeLocStore::load_like_cpp(world_db.as_ref(), &map_store)
-            .await
-            .context("Failed to load C++ world_safe_locs")?;
+        crate::world_reference_catalog::load_world_safe_locs_like_cpp(
+            &world_reference_catalog_persistence,
+            &map_store,
+        )
+        .await
+        .context("Failed to load C++ world_safe_locs")?;
     info!(
         "Loaded {} world safe locs ({} missing maps, {} invalid positions)",
         world_safe_loc_store.len(),
@@ -753,19 +760,17 @@ async fn run_inner(
         spawn_group_report.inserted_default_groups.len()
     );
     let creature_template_store = Arc::new(
-        wow_data::WorldIdStore::load_like_cpp(
-            world_db.as_ref(),
-            "creature_template",
-            WorldStatements::SEL_CREATURE_TEMPLATE_IDS,
+        crate::world_reference_catalog::load_world_id_store_like_cpp(
+            &world_reference_catalog_persistence,
+            wow_persistence::WorldObjectIdCatalogKindLikeCpp::CreatureTemplate,
         )
         .await
         .context("Failed to load creature_template ids for C++ ConditionMgr validation")?,
     );
     let gameobject_template_store = Arc::new(
-        wow_data::WorldIdStore::load_like_cpp(
-            world_db.as_ref(),
-            "gameobject_template",
-            WorldStatements::SEL_GAMEOBJECT_TEMPLATE_IDS,
+        crate::world_reference_catalog::load_world_id_store_like_cpp(
+            &world_reference_catalog_persistence,
+            wow_persistence::WorldObjectIdCatalogKindLikeCpp::GameObjectTemplate,
         )
         .await
         .context("Failed to load gameobject_template ids for C++ ConditionMgr validation")?,
@@ -1027,19 +1032,17 @@ async fn run_inner(
             .context("Failed to load C++ vehicle accessory rows")?,
     );
     let creature_spawn_store = Arc::new(
-        wow_data::WorldSpawnIdStore::load_like_cpp(
-            world_db.as_ref(),
-            "creature",
-            WorldStatements::SEL_CREATURE_SPAWN_IDS,
+        crate::world_reference_catalog::load_world_spawn_id_store_like_cpp(
+            &world_reference_catalog_persistence,
+            wow_persistence::WorldSpawnCatalogKindLikeCpp::Creature,
         )
         .await
         .context("Failed to load creature spawn ids for C++ ConditionMgr validation")?,
     );
     let gameobject_spawn_store = Arc::new(
-        wow_data::WorldSpawnIdStore::load_like_cpp(
-            world_db.as_ref(),
-            "gameobject",
-            WorldStatements::SEL_GAMEOBJECT_SPAWN_IDS,
+        crate::world_reference_catalog::load_world_spawn_id_store_like_cpp(
+            &world_reference_catalog_persistence,
+            wow_persistence::WorldSpawnCatalogKindLikeCpp::GameObject,
         )
         .await
         .context("Failed to load gameobject spawn ids for C++ ConditionMgr validation")?,
@@ -1473,19 +1476,17 @@ async fn run_inner(
         creature_addon_store.len()
     );
     let active_event_store = Arc::new(
-        wow_data::WorldIdStore::load_like_cpp(
-            world_db.as_ref(),
-            "game_event",
-            WorldStatements::SEL_VALID_GAME_EVENT_IDS,
+        crate::world_reference_catalog::load_world_id_store_like_cpp(
+            &world_reference_catalog_persistence,
+            wow_persistence::WorldObjectIdCatalogKindLikeCpp::GameEvent,
         )
         .await
         .context("Failed to load game_event ids for C++ ConditionMgr validation")?,
     );
     let world_state_store = Arc::new(
-        wow_data::WorldIdStore::load_like_cpp(
-            world_db.as_ref(),
-            "world_state",
-            WorldStatements::SEL_WORLD_STATE_IDS,
+        crate::world_reference_catalog::load_world_id_store_like_cpp(
+            &world_reference_catalog_persistence,
+            wow_persistence::WorldObjectIdCatalogKindLikeCpp::WorldState,
         )
         .await
         .context("Failed to load world_state ids for C++ ConditionMgr validation")?,
@@ -1496,10 +1497,9 @@ async fn run_inner(
         world_state_store.len()
     );
     let trainer_store = Arc::new(
-        wow_data::WorldIdStore::load_like_cpp(
-            world_db.as_ref(),
-            "trainer",
-            WorldStatements::SEL_TRAINER_IDS,
+        crate::world_reference_catalog::load_world_id_store_like_cpp(
+            &world_reference_catalog_persistence,
+            wow_persistence::WorldObjectIdCatalogKindLikeCpp::Trainer,
         )
         .await
         .context("Failed to load trainer ids for C++ ConditionMgr validation")?,
@@ -2163,10 +2163,9 @@ async fn run_inner(
             .context("Failed to load ConversationLine.db2 — check DataDir and DBC.Locale config")?,
     );
     let conversation_line_template_store = Arc::new(
-        wow_data::WorldIdStore::load_filtering_like_cpp(
-            world_db.as_ref(),
-            "conversation_line_template",
-            WorldStatements::SEL_CONVERSATION_LINE_TEMPLATE_IDS,
+        crate::world_reference_catalog::load_filtering_world_id_store_like_cpp(
+            &world_reference_catalog_persistence,
+            wow_persistence::WorldObjectIdCatalogKindLikeCpp::ConversationLineTemplate,
             |line_id| conversation_line_store.contains(line_id),
         )
         .await

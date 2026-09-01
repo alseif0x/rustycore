@@ -56,6 +56,7 @@ mod spell_world_catalog;
 mod static_data_overlay;
 mod trainer_catalog;
 mod vehicle_catalog;
+mod world_reference_catalog;
 
 pub use area_trigger_template_catalog::{
     AREA_TRIGGER_SHAPE_DATA_COUNT_LIKE_CPP, AreaTriggerCreatePropertiesOrbitPersistenceRowLikeCpp,
@@ -257,6 +258,11 @@ pub use vehicle_catalog::{
     VehicleSeatHotfixPersistenceRowLikeCpp, VehicleSpawnAccessoryPersistenceRowLikeCpp,
     VehicleTemplateAccessoryPersistenceRowLikeCpp, VehicleTemplatePersistenceRowLikeCpp,
     VehicleWorldCatalogLoadOutcomeLikeCpp, VehicleWorldCatalogPersistencePortLikeCpp,
+};
+pub use world_reference_catalog::{
+    WorldObjectIdCatalogKindLikeCpp, WorldReferenceCatalogPersistencePortLikeCpp,
+    WorldReferenceRowsLoadOutcomeLikeCpp, WorldSafeLocPersistenceRowLikeCpp,
+    WorldSpawnCatalogKindLikeCpp,
 };
 
 /// A future returned by a port method.
