@@ -1,5 +1,10 @@
 # Migration: DB Schemas (`auth` / `characters` / `world` / `hotfixes`)
 
+> Operational update (issue #256): RustyCore daemons no longer run the
+> TrinityCore-style updater at startup. Use the immutable manifest and
+> `rustycore-db`; startup performs bounded read-only compatibility checks. Any
+> contrary updater wiring below is retained historical audit text.
+
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/sql/`
 > **Rust target crate(s):** `crates/wow-database/` (pools + statement registry + updater helpers); world-server startup wires the current updater path.
 > **Layer:** L1 (infrastructure — datastores; sits below `datastores.md` which loads DB2/hotfix into typed stores)

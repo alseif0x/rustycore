@@ -77,12 +77,13 @@ async fn main() -> Result<()> {
 
     tracing::info!("Connected to login database");
 
-    run_database_updates_like_cpp(&login_db, &login_info).await;
-    if cli.update_databases_only {
-        login_db.close().await;
-        tracing::info!("Database update-only mode complete.");
-        return Ok(());
-    }
+    let migration_manifest = wow_database::migration::bundled_manifest()?;
+    wow_database::migration::validate_runtime_schema(
+        login_db.pool(),
+        &migration_manifest,
+        wow_database::migration::DatabaseKind::Auth,
+    )
+    .await?;
 
     let legacy_password_report =
         legacy_password::migrate_legacy_password_hashes_like_cpp(&login_db)
@@ -277,7 +278,6 @@ async fn drain_rest_requests_like_cpp(drain: &rest::RestDrain, grace: std::time:
 struct BnetCliLikeCpp {
     config_file: PathBuf,
     config_dir: PathBuf,
-    update_databases_only: bool,
     show_version: bool,
     show_help: bool,
 }
@@ -291,7 +291,6 @@ impl BnetCliLikeCpp {
             match arg.as_str() {
                 "--help" | "-h" => cli.show_help = true,
                 "--version" | "-v" => cli.show_version = true,
-                "--update-databases-only" | "-u" => cli.update_databases_only = true,
                 "--config" | "-c" => {
                     if let Some(value) = args.next() {
                         cli.config_file = PathBuf::from(value);
@@ -321,7 +320,6 @@ impl Default for BnetCliLikeCpp {
         Self {
             config_file: PathBuf::from(BNET_CONFIG_CANDIDATES[0]),
             config_dir: PathBuf::from(BNET_CONFIG_DIR),
-            update_databases_only: false,
             show_version: false,
             show_help: false,
         }
@@ -329,7 +327,7 @@ impl Default for BnetCliLikeCpp {
 }
 
 fn bnet_cli_help_like_cpp() -> &'static str {
-    "Allowed options:\n  -h [ --help ]                  print usage message\n  -v [ --version ]               print version build info\n  -c [ --config ] <arg>          use <arg> as configuration file\n  -cd [ --config-dir ] <arg>     use <arg> as directory with additional config files\n  -u [ --update-databases-only ] updates databases only\n"
+    "Allowed options:\n  -h [ --help ]                  print usage message\n  -v [ --version ]               print version build info\n  -c [ --config ] <arg>          use <arg> as configuration file\n  -cd [ --config-dir ] <arg>     use <arg> as directory with additional config files\n"
 }
 
 fn load_bnet_config(cli: &BnetCliLikeCpp) -> Result<LoadReport> {
@@ -355,44 +353,6 @@ fn load_bnet_config_from(
     }
 
     Ok(loaded_config)
-}
-
-async fn run_database_updates_like_cpp(login_db: &LoginDatabase, login_info: &DatabaseInfo) {
-    let auto_setup = wow_config::get_string_default("Updates.AutoSetup", "1");
-    if auto_setup == "0" || auto_setup.eq_ignore_ascii_case("false") {
-        return;
-    }
-
-    use wow_database::updater::{populate_typed_database_like_cpp, update_typed_database_like_cpp};
-    let src = wow_config::get_string_default("Updates.SourcePath", ".");
-    if let Err(e) = populate_typed_database_like_cpp(
-        login_db,
-        &login_info.host,
-        &login_info.port_or_socket,
-        &login_info.username,
-        &login_info.password,
-        &login_info.database,
-        login_info.ssl,
-        &format!("{src}/sql/base/auth_database.sql"),
-    )
-    .await
-    {
-        tracing::warn!("Auth populate skipped: {e}");
-    }
-    if let Err(e) = update_typed_database_like_cpp(
-        login_db,
-        &login_info.host,
-        &login_info.port_or_socket,
-        &login_info.username,
-        &login_info.password,
-        &login_info.database,
-        login_info.ssl,
-        &src,
-    )
-    .await
-    {
-        tracing::warn!("Auth update error: {e}");
-    }
 }
 
 fn log_database_target_like_cpp(kind: &str, info: &DatabaseInfo) {
@@ -918,13 +878,11 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
             "custom.conf".to_string(),
             "-cd".to_string(),
             "custom.conf.d".to_string(),
-            "-u".to_string(),
             "--unknown".to_string(),
         ]);
 
         assert_eq!(cli.config_file, PathBuf::from("custom.conf"));
         assert_eq!(cli.config_dir, PathBuf::from("custom.conf.d"));
-        assert!(cli.update_databases_only);
         assert!(!cli.show_help);
         assert!(!cli.show_version);
     }
@@ -942,7 +900,7 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
         assert_eq!(cli.config_dir, PathBuf::from("custom.conf.d"));
         assert!(cli.show_help);
         assert!(cli.show_version);
-        assert!(bnet_cli_help_like_cpp().contains("--update-databases-only"));
+        assert!(!bnet_cli_help_like_cpp().contains(&["--update-databases", "-only"].concat()));
     }
 
     #[test]
@@ -958,25 +916,16 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
     }
 
     #[test]
-    fn bnet_database_update_bootstrap_uses_only_typed_adapter_operations_like_cpp() {
+    fn bnet_startup_only_validates_schema_before_runtime_database_writes() {
         let source = include_str!("main.rs");
-        let (_, update_tail) = source
-            .split_once("async fn run_database_updates_like_cpp")
-            .expect("BNet database updater starts");
-        let (updates, _) = update_tail
-            .split_once("fn log_database_target_like_cpp")
-            .expect("BNet database updater ends");
-
-        assert!(!updates.contains("DbUpdater"));
-        assert!(!updates.contains(".pool()"));
-        assert_eq!(
-            updates.matches("populate_typed_database_like_cpp(").count(),
-            1
-        );
-        assert_eq!(
-            updates.matches("update_typed_database_like_cpp(").count(),
-            1
-        );
+        assert!(!source.contains(&["populate_typed_", "database_like_cpp"].concat()));
+        assert!(!source.contains(&["update_typed_", "database_like_cpp"].concat()));
+        assert!(!source.contains(&["update-databases", "-only"].concat()));
+        let validation = source.find("validate_runtime_schema(").unwrap();
+        let first_runtime_write = source
+            .find("migrate_legacy_password_hashes_like_cpp")
+            .unwrap();
+        assert!(validation < first_runtime_write);
     }
 
     #[test]

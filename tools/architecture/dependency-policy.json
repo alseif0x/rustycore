@@ -44,6 +44,7 @@
     ],
     "composition": [
       "bnet-server",
+      "rustycore-db",
       "world-modules",
       "world-server"
     ],

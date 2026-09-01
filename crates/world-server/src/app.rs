@@ -63,17 +63,6 @@ async fn run_inner(
     let world_configs = wow_config::load_world_config_values();
     create_pid_file_from_config_like_cpp()?;
     let ip_location_store = Arc::new(load_ip_location_from_config_like_cpp());
-    let updates_auto_setup = updates_auto_setup_enabled_like_cpp();
-    let updates_database_mask = updates_database_mask_like_cpp();
-    let login_updates_enabled =
-        updates_enabled_for_database_like_cpp(updates_database_mask, DATABASE_LOGIN_LIKE_CPP);
-    let character_updates_enabled =
-        updates_enabled_for_database_like_cpp(updates_database_mask, DATABASE_CHARACTER_LIKE_CPP);
-    let world_updates_enabled =
-        updates_enabled_for_database_like_cpp(updates_database_mask, DATABASE_WORLD_LIKE_CPP);
-    let hotfix_updates_enabled =
-        updates_enabled_for_database_like_cpp(updates_database_mask, DATABASE_HOTFIX_LIKE_CPP);
-
     // Connect to login database (needed for session key validation)
     let login_info = wow_config::get_database_info_default(
         "Login",
@@ -81,22 +70,18 @@ async fn run_inner(
     );
     log_database_target_like_cpp("login", &login_info);
 
-    let login_db = LoginDatabase::open_with_pool_size_and_auto_create_like_cpp(
+    let login_connection = wow_database::build_connection_string_with_ssl_like_cpp(
         &login_info.host,
         &login_info.port_or_socket,
         &login_info.username,
         &login_info.password,
         &login_info.database,
         login_info.ssl,
-        database_pool_size_like_cpp("Login"),
-        database_auto_create_enabled_like_cpp(
-            updates_auto_setup,
-            updates_database_mask,
-            DATABASE_LOGIN_LIKE_CPP,
-        ),
-    )
-    .await
-    .context("Failed to connect to login database")?;
+    );
+    let login_db =
+        LoginDatabase::open_with_pool_size(&login_connection, database_pool_size_like_cpp("Login"))
+            .await
+            .context("Failed to connect to login database")?;
 
     info!("Connected to login database");
 
@@ -107,19 +92,17 @@ async fn run_inner(
     );
     log_database_target_like_cpp("character", &char_info);
 
-    let char_db = CharacterDatabase::open_with_pool_size_and_auto_create_like_cpp(
+    let character_connection = wow_database::build_connection_string_with_ssl_like_cpp(
         &char_info.host,
         &char_info.port_or_socket,
         &char_info.username,
         &char_info.password,
         &char_info.database,
         char_info.ssl,
+    );
+    let char_db = CharacterDatabase::open_with_pool_size(
+        &character_connection,
         database_pool_size_like_cpp("Character"),
-        database_auto_create_enabled_like_cpp(
-            updates_auto_setup,
-            updates_database_mask,
-            DATABASE_CHARACTER_LIKE_CPP,
-        ),
     )
     .await
     .context("Failed to connect to character database")?;
@@ -133,22 +116,18 @@ async fn run_inner(
     );
     log_database_target_like_cpp("world", &world_info);
 
-    let world_db = WorldDatabase::open_with_pool_size_and_auto_create_like_cpp(
+    let world_connection = wow_database::build_connection_string_with_ssl_like_cpp(
         &world_info.host,
         &world_info.port_or_socket,
         &world_info.username,
         &world_info.password,
         &world_info.database,
         world_info.ssl,
-        database_pool_size_like_cpp("World"),
-        database_auto_create_enabled_like_cpp(
-            updates_auto_setup,
-            updates_database_mask,
-            DATABASE_WORLD_LIKE_CPP,
-        ),
-    )
-    .await
-    .context("Failed to connect to world database")?;
+    );
+    let world_db =
+        WorldDatabase::open_with_pool_size(&world_connection, database_pool_size_like_cpp("World"))
+            .await
+            .context("Failed to connect to world database")?;
 
     info!("Connected to world database");
     let world_db = Arc::new(world_db);
@@ -190,136 +169,42 @@ async fn run_inner(
     );
     log_database_target_like_cpp("hotfix", &hotfix_info);
 
-    let hotfix_db = HotfixDatabase::open_with_pool_size_and_auto_create_like_cpp(
+    let hotfix_connection = wow_database::build_connection_string_with_ssl_like_cpp(
         &hotfix_info.host,
         &hotfix_info.port_or_socket,
         &hotfix_info.username,
         &hotfix_info.password,
         &hotfix_info.database,
         hotfix_info.ssl,
+    );
+    let hotfix_db = HotfixDatabase::open_with_pool_size(
+        &hotfix_connection,
         database_pool_size_like_cpp("Hotfix"),
-        database_auto_create_enabled_like_cpp(
-            updates_auto_setup,
-            updates_database_mask,
-            DATABASE_HOTFIX_LIKE_CPP,
-        ),
     )
     .await
     .context("Failed to connect to hotfix database")?;
 
     info!("Connected to hotfix database");
 
-    // ── Database auto-update ──────────────────────────────────────────────
-    if updates_database_mask != 0 {
-        use wow_database::updater::{
-            populate_typed_database_like_cpp, update_typed_database_like_cpp,
-        };
-        let src = wow_config::get_string_default("Updates.SourcePath", ".");
-
-        if login_updates_enabled {
-            db_updater_step_like_cpp(
-                populate_typed_database_like_cpp(
-                    &login_db,
-                    &login_info.host,
-                    &login_info.port_or_socket,
-                    &login_info.username,
-                    &login_info.password,
-                    &login_info.database,
-                    login_info.ssl,
-                    &format!("{src}/sql/base/auth_database.sql"),
-                )
-                .await,
-                "Login",
-                "populate",
-            )?;
-            db_updater_step_like_cpp(
-                update_typed_database_like_cpp(
-                    &login_db,
-                    &login_info.host,
-                    &login_info.port_or_socket,
-                    &login_info.username,
-                    &login_info.password,
-                    &login_info.database,
-                    login_info.ssl,
-                    &src,
-                )
-                .await,
-                "Login",
-                "update",
-            )?;
-        }
-
-        if character_updates_enabled {
-            db_updater_step_like_cpp(
-                populate_typed_database_like_cpp(
-                    &char_db,
-                    &char_info.host,
-                    &char_info.port_or_socket,
-                    &char_info.username,
-                    &char_info.password,
-                    &char_info.database,
-                    char_info.ssl,
-                    &format!("{src}/sql/base/characters_database.sql"),
-                )
-                .await,
-                "Character",
-                "populate",
-            )?;
-            db_updater_step_like_cpp(
-                update_typed_database_like_cpp(
-                    &char_db,
-                    &char_info.host,
-                    &char_info.port_or_socket,
-                    &char_info.username,
-                    &char_info.password,
-                    &char_info.database,
-                    char_info.ssl,
-                    &src,
-                )
-                .await,
-                "Character",
-                "update",
-            )?;
-        }
-
-        // world + hotfixes: only update (base SQL is the full TDB, downloaded separately)
-        if world_updates_enabled {
-            db_updater_step_like_cpp(
-                update_typed_database_like_cpp(
-                    world_db.as_ref(),
-                    &world_info.host,
-                    &world_info.port_or_socket,
-                    &world_info.username,
-                    &world_info.password,
-                    &world_info.database,
-                    world_info.ssl,
-                    &src,
-                )
-                .await,
-                "World",
-                "update",
-            )?;
-        }
-
-        if hotfix_updates_enabled {
-            db_updater_step_like_cpp(
-                update_typed_database_like_cpp(
-                    &hotfix_db,
-                    &hotfix_info.host,
-                    &hotfix_info.port_or_socket,
-                    &hotfix_info.username,
-                    &hotfix_info.password,
-                    &hotfix_info.database,
-                    hotfix_info.ssl,
-                    &src,
-                )
-                .await,
-                "Hotfix",
-                "update",
-            )?;
-        }
+    let migration_manifest = wow_database::migration::bundled_manifest()?;
+    for (database, pool) in [
+        (wow_database::migration::DatabaseKind::Auth, login_db.pool()),
+        (
+            wow_database::migration::DatabaseKind::Characters,
+            char_db.pool(),
+        ),
+        (
+            wow_database::migration::DatabaseKind::World,
+            world_db.pool(),
+        ),
+        (
+            wow_database::migration::DatabaseKind::Hotfixes,
+            hotfix_db.pool(),
+        ),
+    ] {
+        wow_database::migration::validate_runtime_schema(pool, &migration_manifest, database)
+            .await?;
     }
-    // ─────────────────────────────────────────────────────────────────────
 
     let hotfix_db = Arc::new(hotfix_db);
     let static_data_overlay_persistence =
@@ -329,12 +214,7 @@ async fn run_inner(
         );
     let realm_id = realm_id_like_cpp()?;
     clear_online_accounts_like_cpp(&login_db, &char_db, realm_id).await?;
-    update_world_db_core_version_like_cpp(world_db.as_ref()).await?;
     verify_world_db_version_like_cpp(world_db.as_ref()).await?;
-    if cli.update_databases_only {
-        info!("Database updates completed; exiting before network startup");
-        return Ok(ExitCode::SUCCESS);
-    }
     set_realm_offline(&login_db, realm_id).await?;
     let realm_list = Arc::new(Mutex::new(RealmListSnapshotLikeCpp::default()));
     let realm_list_summary = update_realm_list_once_like_cpp(&login_db, &realm_list)
