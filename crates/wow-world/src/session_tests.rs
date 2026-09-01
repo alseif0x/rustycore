@@ -30840,6 +30840,73 @@ fn canonical_player_same_target_sync_preserves_mutable_state_like_cpp() {
 }
 
 #[test]
+fn canonical_player_far_teleport_keeps_one_detached_identity_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 55);
+    let target_guid = test_creature_guid(19_055);
+    let target_position = Position::new(-8815.0, 635.0, 94.0, 1.0);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "FarTeleport".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let handle = session.player_handle_like_cpp.expect("canonical handle");
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_attacking(Some(target_guid));
+            player.set_player_flag(PLAYER_FLAGS_UBER_LIKE_CPP);
+        })
+        .unwrap();
+
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical.lock().unwrap().player_residence_like_cpp(handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        session.canonical_player_snapshot_like_cpp(|player| (
+            player.unit().attacking(),
+            player.has_player_flag(PLAYER_FLAGS_UBER_LIKE_CPP),
+        )),
+        Some((Some(target_guid), true))
+    );
+
+    session.set_player_map_position_like_cpp(0, target_position);
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("target world map");
+
+    assert_eq!(session.player_handle_like_cpp, Some(handle));
+    let manager = canonical.lock().unwrap();
+    assert_eq!(
+        manager.player_residence_like_cpp(handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Active(
+            wow_map::MapKey::new(0, 0)
+        ))
+    );
+    assert_eq!(
+        manager.with_player_like_cpp(handle, |player| (
+            player.unit().world().position(),
+            player.unit().attacking(),
+            player.has_player_flag(PLAYER_FLAGS_UBER_LIKE_CPP),
+        )),
+        Some((target_position, Some(target_guid), true))
+    );
+}
+
+#[test]
 fn canonical_player_rejected_map_sync_does_not_remove_existing_map_player_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -71185,6 +71252,41 @@ fn canonical_player_logout_cleanup_removes_player_from_map_before_accessor_like_
         );
         assert!(session.inventory_items.is_empty());
         assert!(session.inventory_item_objects.is_empty());
+    });
+}
+
+#[test]
+fn canonical_player_logout_retires_detached_handle_like_cpp() {
+    run_object_accessor_sync_test(|| {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 56);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "LogoutDetached".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .expect("initial world map");
+        let handle = session.player_handle_like_cpp.expect("canonical handle");
+        assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+
+        session.cleanup_shared_runtime_state();
+
+        assert_eq!(session.player_handle_like_cpp, None);
+        assert_eq!(
+            canonical.lock().unwrap().player_residence_like_cpp(handle),
+            None
+        );
     });
 }
 

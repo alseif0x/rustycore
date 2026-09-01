@@ -47,6 +47,9 @@ pub enum PlayerOwnerError {
     InvalidPosition { position: Position },
     ReplacementRetireFailed { guid: ObjectGuid },
     GenerationExhausted,
+    AlreadyOwned { guid: ObjectGuid },
+    ActivePlayerMissing { guid: ObjectGuid },
+    AmbiguousActivePlayer { guid: ObjectGuid },
     StaleHandle,
     NotDetached,
     NotActive,
@@ -57,6 +60,40 @@ pub enum PlayerOwnerError {
 }
 
 impl MapManager {
+    /// Adopt an already map-owned Player into the generation-checked lifetime
+    /// registry without cloning or relocating it. This is the transition seam
+    /// for callers that inserted the canonical record before handles existed.
+    pub fn adopt_active_player_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+    ) -> Result<PlayerHandle, PlayerOwnerError> {
+        if self.player_owners_like_cpp.contains_key(&guid) {
+            return Err(PlayerOwnerError::AlreadyOwned { guid });
+        }
+        if AccessorObjectKind::from_guid(guid) != Some(AccessorObjectKind::Player) {
+            return Err(PlayerOwnerError::InvalidGuid { guid });
+        }
+        let mut residence = None;
+        for (key, managed) in &self.maps {
+            if managed.map().get_typed_player(guid).is_none() {
+                continue;
+            }
+            if residence.replace(*key).is_some() {
+                return Err(PlayerOwnerError::AmbiguousActivePlayer { guid });
+            }
+        }
+        let key = residence.ok_or(PlayerOwnerError::ActivePlayerMissing { guid })?;
+        let generation = self.allocate_player_generation_like_cpp()?;
+        self.player_owners_like_cpp.insert(
+            guid,
+            PlayerOwnershipLikeCpp {
+                generation,
+                residence: PlayerResidenceLikeCpp::Active(key),
+            },
+        );
+        Ok(PlayerHandle { guid, generation })
+    }
+
     /// Install one selected character under the canonical lifetime owner.
     /// Replacing the same GUID invalidates every older handle.
     pub fn install_detached_player_like_cpp(
@@ -92,10 +129,7 @@ impl MapManager {
             let _ = player.unit_mut().world_mut().reset_map();
         }
 
-        let generation = self.next_player_generation_like_cpp;
-        self.next_player_generation_like_cpp = generation
-            .checked_add(1)
-            .ok_or(PlayerOwnerError::GenerationExhausted)?;
+        let generation = self.allocate_player_generation_like_cpp()?;
         self.detached_players_like_cpp.insert(guid, player);
         self.player_owners_like_cpp.insert(
             guid,
@@ -240,6 +274,14 @@ impl MapManager {
             .copied()
             .filter(|owner| owner.generation == handle.generation)
     }
+
+    fn allocate_player_generation_like_cpp(&mut self) -> Result<u64, PlayerOwnerError> {
+        let generation = self.next_player_generation_like_cpp;
+        self.next_player_generation_like_cpp = generation
+            .checked_add(1)
+            .ok_or(PlayerOwnerError::GenerationExhausted)?;
+        Ok(generation)
+    }
 }
 
 #[cfg(test)]
@@ -356,6 +398,43 @@ mod tests {
         assert_eq!(
             manager.with_player_like_cpp(handle, |player| player.unit().data().level),
             Some(13)
+        );
+    }
+
+    #[test]
+    fn existing_map_player_is_adopted_without_replacement_like_cpp() {
+        let mut manager = MapManager::default();
+        let key = MapKey::new(530, 0);
+        manager.create_world_map(key.map_id, key.instance_id);
+        let mut player = detached_player(90_005, 34);
+        player
+            .unit_mut()
+            .world_mut()
+            .set_map(key.map_id, key.instance_id)
+            .unwrap();
+        player
+            .unit_mut()
+            .world_mut()
+            .relocate(Position::xyz(7.0, 8.0, 9.0));
+        manager
+            .find_map_mut(key.map_id, key.instance_id)
+            .unwrap()
+            .map_mut()
+            .add_map_object_record_to_map_like_cpp(
+                MapObjectRecord::new_boxed_player(player).unwrap(),
+            )
+            .unwrap();
+
+        let handle = manager
+            .adopt_active_player_like_cpp(ObjectGuid::create_player(1, 90_005))
+            .unwrap();
+        assert_eq!(
+            manager.player_residence_like_cpp(handle),
+            Some(PlayerResidenceLikeCpp::Active(key))
+        );
+        assert_eq!(
+            manager.with_player_like_cpp(handle, |player| player.unit().data().level),
+            Some(34)
         );
     }
 }

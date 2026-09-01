@@ -24,17 +24,28 @@ impl WorldSession {
         accessor.write().remove_player(guid);
     }
 
-    pub(crate) fn unregister_canonical_player_from_map_like_cpp(&self) {
+    pub(crate) fn unregister_canonical_player_from_map_like_cpp(&mut self) {
         let Some(guid) = self.player_guid() else {
             return;
         };
         let Some(manager) = self.canonical_map_manager.as_ref() else {
             return;
         };
-        let map_id = u32::from(self.player_map_id_like_cpp());
         let Ok(mut manager) = manager.lock() else {
             return;
         };
+
+        if let Some(handle) = self.player_handle_like_cpp.take() {
+            if manager.retire_player_like_cpp(handle).is_none() {
+                warn!(
+                    "Failed to retire canonical Player {:?}: stale handle or missing owner value",
+                    guid
+                );
+            }
+            return;
+        }
+
+        let map_id = u32::from(self.player_map_id_like_cpp());
 
         let mut instance_id = None;
         manager.do_for_all_maps_with_map_id(map_id, |managed| {

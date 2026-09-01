@@ -5906,6 +5906,9 @@ pub struct WorldSession {
     /// Canonical C++-style `wow-map` manager. This is injected separately from
     /// the legacy `wow-world` manager while handlers migrate to `wow-map`.
     pub(crate) canonical_map_manager: Option<SharedCanonicalMapManager>,
+    /// Generation-checked identity of the one canonical Player value owned by
+    /// MapManager. It remains resolvable while detached for a far teleport.
+    player_handle_like_cpp: Option<wow_map::PlayerHandle>,
     /// Dedicated Detour owner handle. The underlying `MMapManager` remains on
     /// its worker thread because Detour state is not `Send + Sync`.
     mmap_pathfinder_like_cpp: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
@@ -7988,6 +7991,7 @@ impl WorldSession {
             vendor_buy_item_test_override_like_cpp: None,
             map_manager: None,
             canonical_map_manager: None,
+            player_handle_like_cpp: None,
             mmap_pathfinder_like_cpp: None,
             combat_target: None,
             combat_tick_last_at_like_cpp: Instant::now(),
@@ -9516,6 +9520,19 @@ impl WorldSession {
         &self,
         key: wow_map::MapKey,
     ) -> Option<Player> {
+        if let (Some(manager), Some(handle)) = (
+            self.canonical_map_manager.as_ref(),
+            self.player_handle_like_cpp,
+        ) {
+            let manager = manager.lock().ok()?;
+            if manager.player_residence_like_cpp(handle)
+                != Some(wow_map::PlayerResidenceLikeCpp::Active(key))
+            {
+                return None;
+            }
+            return manager.with_player_like_cpp(handle, Clone::clone);
+        }
+
         let guid = self.player_guid()?;
         let position = self.player_position_like_cpp()?;
         let name = self.player_name_like_cpp()?;
@@ -9906,6 +9923,15 @@ impl WorldSession {
         let Ok(mut manager) = manager.lock() else {
             return false;
         };
+        if let Some(handle) = self.player_handle_like_cpp {
+            return match manager.player_residence_like_cpp(handle) {
+                Some(wow_map::PlayerResidenceLikeCpp::Active(_)) => {
+                    manager.detach_player_like_cpp(handle).is_ok()
+                }
+                Some(wow_map::PlayerResidenceLikeCpp::Detached) => true,
+                None => false,
+            };
+        }
         let map_id = u32::from(self.player_map_id_like_cpp());
         let mut removed = false;
         manager.do_for_all_maps_mut(|managed| {
@@ -10050,9 +10076,14 @@ impl WorldSession {
         guid: ObjectGuid,
         f: impl FnOnce(&mut Player) -> R,
     ) -> Option<R> {
-        let map_id = u32::from(self.player_map_id_like_cpp());
         let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
         let mut manager = manager.lock().ok()?;
+        if let Some(handle) = self.player_handle_like_cpp
+            && handle.guid() == guid
+        {
+            return manager.with_player_mut_like_cpp(handle, f);
+        }
+        let map_id = u32::from(self.player_map_id_like_cpp());
         let mut instance_id = None;
         manager.do_for_all_maps_with_map_id(map_id, |managed| {
             if instance_id.is_none() && managed.map().get_typed_player(guid).is_some() {
@@ -11491,6 +11522,7 @@ impl WorldSession {
         &mut self,
     ) -> Option<wow_map::CreateMapDecision> {
         let map_id = u32::from(self.player_map_id_like_cpp());
+        let position = self.player_position_like_cpp()?;
         let map_entry = self.map_store.as_ref()?.get(map_id).copied()?;
         if map_entry.is_battleground_or_arena() {
             return None;
@@ -11718,15 +11750,97 @@ impl WorldSession {
         }
 
         if let Some(key) = key
-            && let Some(player) = self.canonical_player_entity_snapshot_for_map_like_cpp(key)
+            && !self.ensure_canonical_player_owner_for_map_like_cpp(key, position)
         {
-            let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
-            if let Ok(mut manager) = manager.lock() {
-                self.sync_canonical_player_entity_for_map_like_cpp(&mut manager, key, player);
-            }
+            return None;
         }
 
         Some(decision)
+    }
+
+    /// Resolve the one canonical Player identity and move that exact value to
+    /// the selected map. Existing map records predate Player handles, so the
+    /// transition must adopt them before considering a new initial value.
+    fn ensure_canonical_player_owner_for_map_like_cpp(
+        &mut self,
+        key: wow_map::MapKey,
+        position: Position,
+    ) -> bool {
+        let Some(guid) = self.player_guid() else {
+            return false;
+        };
+        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
+            return false;
+        };
+
+        if self.player_handle_like_cpp.is_none() {
+            let adopted = {
+                let Ok(mut manager) = manager.lock() else {
+                    return false;
+                };
+                manager.adopt_active_player_like_cpp(guid)
+            };
+            match adopted {
+                Ok(handle) => self.player_handle_like_cpp = Some(handle),
+                Err(wow_map::PlayerOwnerError::ActivePlayerMissing { .. }) => {
+                    // Snapshot construction resolves map difficulty through
+                    // MapManager, so it must run outside the manager lock.
+                    let Some(player) = self.transitional_initial_player_box_like_cpp(key) else {
+                        return false;
+                    };
+                    let Ok(mut manager) = manager.lock() else {
+                        return false;
+                    };
+                    let handle = match manager.adopt_active_player_like_cpp(guid) {
+                        Ok(handle) => handle,
+                        Err(wow_map::PlayerOwnerError::ActivePlayerMissing { .. }) => {
+                            let Ok(handle) = manager.install_detached_player_like_cpp(player)
+                            else {
+                                return false;
+                            };
+                            handle
+                        }
+                        Err(_) => return false,
+                    };
+                    self.player_handle_like_cpp = Some(handle);
+                }
+                Err(_) => return false,
+            }
+        }
+
+        let Some(handle) = self.player_handle_like_cpp else {
+            return false;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return false;
+        };
+        match manager.player_residence_like_cpp(handle) {
+            Some(wow_map::PlayerResidenceLikeCpp::Active(current)) if current == key => manager
+                .with_player_mut_like_cpp(handle, |player| {
+                    player.unit_mut().world_mut().relocate(position);
+                })
+                .is_some(),
+            Some(wow_map::PlayerResidenceLikeCpp::Active(_)) => {
+                manager.detach_player_like_cpp(handle).is_ok()
+                    && manager
+                        .attach_player_like_cpp(handle, key, position)
+                        .is_ok()
+            }
+            Some(wow_map::PlayerResidenceLikeCpp::Detached) => manager
+                .attach_player_like_cpp(handle, key, position)
+                .is_ok(),
+            None => false,
+        }
+    }
+
+    #[inline(never)]
+    fn transitional_initial_player_box_like_cpp(
+        &self,
+        key: wow_map::MapKey,
+    ) -> Option<Box<Player>> {
+        Some(Box::new(
+            self.canonical_player_entity_snapshot_for_map_like_cpp(key)?,
+        ))
     }
 
     fn send_transfer_aborted_like_cpp(&self, map_id: u32, transfer_abort: u32) {
@@ -22147,6 +22261,13 @@ impl WorldSession {
     /// (#252), so one player's canonical state cannot be reached two ways.
     fn canonical_player_snapshot_like_cpp<R>(&self, f: impl FnOnce(&Player) -> R) -> Option<R> {
         let guid = self.player_guid()?;
+        if let (Some(manager), Some(handle)) = (
+            self.canonical_map_manager.as_ref(),
+            self.player_handle_like_cpp,
+        ) && handle.guid() == guid
+        {
+            return manager.lock().ok()?.with_player_like_cpp(handle, f);
+        }
         let key = self.current_canonical_player_map_key_like_cpp();
         let manager = self.canonical_map_manager.as_ref()?;
         let map_id = key
@@ -53191,6 +53312,14 @@ impl WorldSession {
         let guid = self.player_guid()?;
         let manager = self.canonical_map_manager.as_ref()?;
         let manager = manager.lock().ok()?;
+        if let Some(handle) = self.player_handle_like_cpp
+            && handle.guid() == guid
+        {
+            return match manager.player_residence_like_cpp(handle)? {
+                wow_map::PlayerResidenceLikeCpp::Active(key) => Some(key),
+                wow_map::PlayerResidenceLikeCpp::Detached => None,
+            };
+        }
         let mut key = None;
         let mut ambiguous = false;
         manager.do_for_all_maps(|managed| {
