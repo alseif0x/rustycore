@@ -106,6 +106,7 @@ pub mod updater;
 pub mod vehicle_catalog_adapter;
 pub mod void_storage_adapter;
 pub mod world_auxiliary_catalog_adapter;
+pub mod world_object_catalog_adapter;
 pub mod world_reference_catalog_adapter;
 pub mod world_state_startup_adapter;
 
@@ -186,6 +187,7 @@ pub use vehicle_catalog_adapter::{
     MariaDbVehicleWorldCatalogPersistenceAdapterLikeCpp,
 };
 pub use world_auxiliary_catalog_adapter::MariaDbWorldAuxiliaryCatalogPersistenceAdapterLikeCpp;
+pub use world_object_catalog_adapter::MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp;
 pub use world_reference_catalog_adapter::MariaDbWorldReferenceCatalogPersistenceAdapterLikeCpp;
 pub use world_state_startup_adapter::MariaDbWorldStateStartupPersistenceAdapterLikeCpp;
 

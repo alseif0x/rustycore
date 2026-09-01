@@ -160,6 +160,10 @@ async fn run_inner(
         wow_database::MariaDbWorldAuxiliaryCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
             &world_db,
         ));
+    let world_object_catalog_persistence =
+        wow_database::MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
+            &world_db,
+        ));
     let gameplay_rule_catalog_persistence =
         wow_database::MariaDbGameplayRuleCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
             &world_db,
@@ -795,12 +799,16 @@ async fn run_inner(
         gameobject_template_store.len()
     );
     let creature_template_classification_store = Arc::new(
-        wow_data::CreatureTemplateClassificationStoreLikeCpp::load_like_cpp(world_db.as_ref())
+        crate::world_object_catalog::load_creature_classifications_like_cpp(
+            &world_object_catalog_persistence,
+        )
             .await
             .context("Failed to load creature_template classifications for C++ creature difficulty damage rates")?,
     );
     let mut creature_template_lifecycle_store = Arc::new(
-        wow_data::CreatureTemplateLifecycleStoreLikeCpp::load_like_cpp(world_db.as_ref())
+        crate::world_object_catalog::load_creature_templates_like_cpp(
+            &world_object_catalog_persistence,
+        )
             .await
             .context("Failed to load DB-backed creature_template lifecycle rows for C++ Creature::LoadFromDB")?,
     );
@@ -809,8 +817,8 @@ async fn run_inner(
         creature_template_lifecycle_store.len()
     );
     let creature_template_sparring_store = Arc::new(
-        wow_data::CreatureTemplateSparringStoreLikeCpp::load_like_cpp(
-            world_db.as_ref(),
+        crate::world_object_catalog::load_creature_sparring_like_cpp(
+            &world_object_catalog_persistence,
             creature_template_lifecycle_store.as_ref(),
         )
         .await
@@ -821,12 +829,16 @@ async fn run_inner(
         creature_template_sparring_store.len()
     );
     let gameobject_template_lifecycle_store = Arc::new(
-        wow_data::GameObjectTemplateLifecycleStoreLikeCpp::load_like_cpp(world_db.as_ref())
+        crate::world_object_catalog::load_gameobject_templates_like_cpp(
+            &world_object_catalog_persistence,
+        )
             .await
             .context("Failed to load DB-backed gameobject_template lifecycle rows for C++ GameObject::LoadFromDB")?,
     );
     let gameobject_override_lifecycle_store = Arc::new(
-        wow_data::GameObjectOverrideLifecycleStoreLikeCpp::load_like_cpp(world_db.as_ref())
+        crate::world_object_catalog::load_gameobject_overrides_like_cpp(
+            &world_object_catalog_persistence,
+        )
             .await
             .context("Failed to load DB-backed gameobject_overrides lifecycle rows for C++ GameObject::Create")?,
     );
@@ -888,8 +900,8 @@ async fn run_inner(
         difficulty_store.len()
     );
     let creature_difficulty_store = Arc::new(
-        wow_data::CreatureDifficultyStoreLikeCpp::load_like_cpp(
-            world_db.as_ref(),
+        crate::world_object_catalog::load_creature_difficulties_like_cpp(
+            &world_object_catalog_persistence,
             &difficulty_store,
             |entry| {
                 // C++ missing-template rows are skipped before insertion. This data-wiring
@@ -908,9 +920,11 @@ async fn run_inner(
         )?,
     );
     let creature_base_stats_store = Arc::new(
-        wow_data::CreatureBaseStatsStoreLikeCpp::load_like_cpp(world_db.as_ref())
-            .await
-            .context("Failed to load creature_classlevelstats rows")?,
+        crate::world_object_catalog::load_creature_base_stats_like_cpp(
+            &world_object_catalog_persistence,
+        )
+        .await
+        .context("Failed to load creature_classlevelstats rows")?,
     );
     info!(
         "Loaded C++ creature runtime data stores: {} template classifications, {} difficulty rows, {} base stat rows",
@@ -919,9 +933,11 @@ async fn run_inner(
         creature_base_stats_store.len()
     );
     let creature_template_mount_store = Arc::new(
-        wow_data::CreatureTemplateMountStoreLikeCpp::load_like_cpp(world_db.as_ref())
-            .await
-            .context("Failed to load creature_template mount fallback rows")?,
+        crate::world_object_catalog::load_creature_mounts_like_cpp(
+            &world_object_catalog_persistence,
+        )
+        .await
+        .context("Failed to load creature_template mount fallback rows")?,
     );
     info!(
         "Loaded {} creature template mount fallback rows",
@@ -958,8 +974,8 @@ async fn run_inner(
         creature_model_data_store.len()
     );
     let creature_model_info_store = Arc::new(
-        wow_data::CreatureModelInfoStoreLikeCpp::load_like_cpp(
-            world_db.as_ref(),
+        crate::world_object_catalog::load_creature_model_info_like_cpp(
+            &world_object_catalog_persistence,
             creature_display_info_store.as_ref(),
             creature_model_data_store.as_ref(),
         )
@@ -1471,8 +1487,8 @@ async fn run_inner(
         spell_shapeshift_form_store.len()
     );
     let creature_addon_store = Arc::new(
-        wow_data::CreatureAddonStoreLikeCpp::load_like_cpp(
-            world_db.as_ref(),
+        crate::world_object_catalog::load_creature_addons_like_cpp(
+            &world_object_catalog_persistence,
             creature_template_lifecycle_store.as_ref(),
             creature_spawn_store.as_ref(),
             creature_display_info_store.as_ref(),
@@ -1813,8 +1829,8 @@ async fn run_inner(
         item_stats_store.len()
     );
     let creature_equipment_store = Arc::new(
-        wow_data::CreatureEquipmentStoreLikeCpp::load_like_cpp(
-            world_db.as_ref(),
+        crate::world_object_catalog::load_creature_equipment_like_cpp(
+            &world_object_catalog_persistence,
             |entry| creature_template_lifecycle_store.get(entry).is_some(),
             |item_id| {
                 item_stats_store

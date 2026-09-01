@@ -152,9 +152,12 @@ pub use creature_display::{
     CreatureModelDataStore, DEFAULT_COLLISION_HEIGHT_LIKE_CPP, unit_collision_height_like_cpp,
 };
 pub use creature_equipment::{
-    CreatureEquipmentInfoLikeCpp, CreatureEquipmentItemLikeCpp, CreatureEquipmentStoreLikeCpp,
+    CreatureEquipmentInfoLikeCpp, CreatureEquipmentItemLikeCpp, CreatureEquipmentRowLikeCpp,
+    CreatureEquipmentStoreLikeCpp,
 };
-pub use creature_model_info::{CreatureModelInfoLikeCpp, CreatureModelInfoStoreLikeCpp};
+pub use creature_model_info::{
+    CreatureModelInfoLikeCpp, CreatureModelInfoRowLikeCpp, CreatureModelInfoStoreLikeCpp,
+};
 pub use creature_template::{
     CREATURE_CURRENT_EXPANSION_LIKE_CPP, CREATURE_EXPANSION_LEVEL_CURRENT_LIKE_CPP,
     CreatureAddonRowLikeCpp, CreatureAddonStoreLikeCpp, CreatureBaseStatsRecordLikeCpp,
