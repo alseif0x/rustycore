@@ -619,7 +619,9 @@ impl WorldSession {
 
         // C++ ModifyMoney clamps at zero; unlocking does not have a separate
         // HasEnoughMoney gate in this audited branch.
-        let old_money = self.player_gold_like_cpp();
+        let Some(old_money) = self.resolved_player_money_like_cpp() else {
+            return;
+        };
         let new_money = old_money.saturating_sub(VOID_STORAGE_UNLOCK_COST_LIKE_CPP);
         let new_flags = self.represented_player_flags_value_like_cpp()
             | crate::session::PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP;
@@ -642,7 +644,12 @@ impl WorldSession {
             return;
         };
 
-        self.stage_player_money_change_like_cpp(old_money, new_money);
+        if !self.stage_player_money_change_like_cpp(old_money, new_money) {
+            self.kick(
+                "canonical Player money owner became unavailable after void-storage unlock COMMIT",
+            );
+            return;
+        }
         self.apply_committed_void_storage_unlock_like_cpp();
         self.sync_player_registry_state_like_cpp();
         drop(money_persistence);
@@ -711,7 +718,10 @@ impl WorldSession {
         }
         let requested_cost =
             (transfer.deposits.len() as u64).saturating_mul(VOID_STORAGE_STORE_ITEM_COST_LIKE_CPP);
-        if self.player_gold_like_cpp() < requested_cost {
+        if !self
+            .resolved_player_money_like_cpp()
+            .is_some_and(|money| money >= requested_cost)
+        {
             self.send_void_storage_transfer_result_like_cpp(
                 VoidTransferErrorLikeCpp::NotEnoughMoney,
             );
@@ -1179,7 +1189,9 @@ impl WorldSession {
         else {
             return;
         };
-        let old_money = self.player_gold_like_cpp();
+        let Some(old_money) = self.resolved_player_money_like_cpp() else {
+            return;
+        };
         let actual_cost =
             (planned_deposits.len() as u64).saturating_mul(VOID_STORAGE_STORE_ITEM_COST_LIKE_CPP);
         let new_money = old_money.saturating_sub(actual_cost);
@@ -1306,7 +1318,10 @@ impl WorldSession {
 
         // Publish the complete durable state before reopening payout
         // admission or reaching any cancellation point.
-        self.stage_player_money_change_like_cpp(old_money, new_money);
+        if !self.stage_player_money_change_like_cpp(old_money, new_money) {
+            self.kick("canonical Player money owner became unavailable after void-storage transfer COMMIT");
+            return;
+        }
         let mut added_items = Vec::new();
         let mut removed_items = Vec::new();
         let mut destroyed_deposit_items = Vec::new();
@@ -1558,7 +1573,9 @@ impl WorldSession {
         else {
             return;
         };
-        let money = self.player_gold_like_cpp();
+        let Some(money) = self.resolved_player_money_like_cpp() else {
+            return;
+        };
         let request = wow_persistence::VoidStorageSwapWriteRequestLikeCpp {
             player_guid: player_guid.counter() as u64,
             money_before: money,

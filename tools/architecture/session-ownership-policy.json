@@ -2002,8 +2002,10 @@
           "name": "player_gold",
           "type": "u64",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_grid_load_resolver_like_cpp",
@@ -29263,8 +29265,10 @@
           "name": "player_gold_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_gold_like_cpp (& self) -> u64",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -38125,6 +38129,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_player_money_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_money_like_cpp (& self) -> Option < u64 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_player_next_level_xp_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_player_next_level_xp_like_cpp (& self) -> Option < u32 >",
@@ -42898,7 +42915,7 @@
           "kind": "method",
           "name": "set_player_gold_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_player_gold_like_cpp (& mut self , gold : u64)",
+          "signature": "fn set_player_gold_like_cpp (& mut self , gold : u64) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -46575,7 +46592,7 @@
           "kind": "method",
           "name": "stage_player_money_change_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn stage_player_money_change_like_cpp (& mut self , old_money : u64 , new_money : u64)",
+          "signature": "fn stage_player_money_change_like_cpp (& mut self , old_money : u64 , new_money : u64 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -70381,7 +70398,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:cc44b80d8cd03422662588bc4df7ace1:len=4398|evidence=fnv1a64x2:da3a2201484f893be857e271e825236a:len=448",
+          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:083a56a8013d293aac454b31db479829:len=4459|evidence=fnv1a64x2:da3a2201484f893be857e271e825236a:len=448",
           "cfg": [],
           "multiplicity": 1
         },
@@ -74119,7 +74136,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:e605934e2e09d10b9e9cada8d4a479d6:len=91048|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:652b0bd30ef675c983d9a0d4461b0912:len=91079|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

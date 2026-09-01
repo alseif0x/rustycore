@@ -855,13 +855,18 @@ impl WorldSession {
                     continue;
                 }
 
+                let Some(old_money) = self.resolved_player_money_like_cpp() else {
+                    continue;
+                };
+
                 if apply_balance {
-                    let old_money = self.player_gold_like_cpp();
                     let new_money = old_money
                         .checked_add(applied_delta)
                         .filter(|money| *money <= MAX_MONEY_AMOUNT)
                         .unwrap_or(old_money);
-                    self.set_player_gold_like_cpp(new_money);
+                    if !self.set_player_gold_like_cpp(new_money) {
+                        continue;
+                    }
                     if applied_delta != 0 {
                         self.enqueue_represented_quest_objective_progress_like_cpp(
                             RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {

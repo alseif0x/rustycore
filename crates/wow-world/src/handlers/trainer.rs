@@ -699,7 +699,9 @@ impl WorldSession {
                 return;
             }
         }
-        let old_money = self.player_gold_like_cpp();
+        let Some(old_money) = self.resolved_player_money_like_cpp() else {
+            return;
+        };
         let price = u64::from(offer.effective_price);
         if old_money < price {
             self.send_packet_realm(&TrainerBuyFailed {
@@ -839,7 +841,10 @@ impl WorldSession {
                 return;
             }
         };
-        self.stage_player_money_change_like_cpp(old_money, new_money);
+        if !self.stage_player_money_change_like_cpp(old_money, new_money) {
+            self.kick("canonical Player money owner became unavailable after trainer COMMIT");
+            return;
+        }
         if old_money != new_money {
             self.send_player_values_update_from_entity_bridge(&[], &[], &[], &[], Some(new_money));
         }

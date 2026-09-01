@@ -606,7 +606,9 @@ impl WorldSession {
             else {
                 return;
             };
-            let money_marker = self.player_gold_like_cpp();
+            let Some(money_marker) = self.resolved_player_money_like_cpp() else {
+                return;
+            };
             let persistence_request =
                 wow_persistence::VendorTradePersistenceRequestLikeCpp::CurrencyPurchase(
                     wow_persistence::VendorCurrencyPurchasePersistenceLikeCpp {
@@ -845,7 +847,10 @@ impl WorldSession {
         );
 
         // ── Check gold ──
-        if self.player_gold_like_cpp() < buy_price {
+        let Some(admission_money) = self.resolved_player_money_like_cpp() else {
+            return;
+        };
+        if admission_money < buy_price {
             self.send_buy_error(
                 BuyResult::NotEnoughtMoney,
                 Some(buy.vendor_guid),
@@ -907,7 +912,9 @@ impl WorldSession {
         else {
             return;
         };
-        let old_gold = self.player_gold_like_cpp();
+        let Some(old_gold) = self.resolved_player_money_like_cpp() else {
+            return;
+        };
         let new_gold = old_gold.saturating_sub(buy_price);
 
         let mut existing_updates = Vec::new();
@@ -1059,7 +1066,12 @@ impl WorldSession {
         // stacks, currencies and refund metadata. Publish all of that runtime
         // state synchronously before reopening payout admission; cancelling
         // the handler after COMMIT must not leave runtime at the pre-buy state.
-        self.stage_player_money_change_like_cpp(old_gold, new_gold);
+        if !self.stage_player_money_change_like_cpp(old_gold, new_gold) {
+            self.kick(
+                "canonical Player money owner became unavailable after vendor purchase COMMIT",
+            );
+            return;
+        }
         self.apply_item_turnin_changes(player_guid, map_id, &item_turnin_changes);
         self.set_player_currencies_like_cpp(planned_currencies);
         for &(_, item_guid, _, new_count) in &existing_updates {
@@ -1200,7 +1212,7 @@ impl WorldSession {
             buy.item_id,
             store_dest.len(),
             buy_price,
-            self.player_gold_like_cpp()
+            new_gold
         );
 
         if !new_stacks.is_empty() {
@@ -1267,7 +1279,7 @@ impl WorldSession {
             &[],
             &[],
             &[],
-            vendor_buy_coinage_update_like_cpp(buy_price, self.player_gold_like_cpp()),
+            vendor_buy_coinage_update_like_cpp(buy_price, new_gold),
         );
         for update in &collection_updates {
             self.send_player_values_update_like_cpp(update);
@@ -1325,7 +1337,10 @@ impl WorldSession {
 
         let buyback_index = (buyback_slot - BUYBACK_SLOT_START) as usize;
         let price = u64::from(self.buyback_price_like_cpp()[buyback_index]);
-        if self.player_gold_like_cpp() < price {
+        let Some(admission_money) = self.resolved_player_money_like_cpp() else {
+            return;
+        };
+        if admission_money < price {
             self.send_buy_error(
                 BuyResult::NotEnoughtMoney,
                 Some(buyback.vendor_guid),
@@ -1361,7 +1376,9 @@ impl WorldSession {
         else {
             return;
         };
-        let old_gold = self.player_gold_like_cpp();
+        let Some(old_gold) = self.resolved_player_money_like_cpp() else {
+            return;
+        };
         let new_gold = old_gold.saturating_sub(price);
 
         let mut existing_updates = Vec::new();
@@ -1447,7 +1464,12 @@ impl WorldSession {
         // The same COMMIT moved the buyback item (or merged/deleted it) and
         // charged the player. Mirror that entire durable state before the
         // guard can reopen admission or this future can be cancelled.
-        self.stage_player_money_change_like_cpp(old_gold, new_gold);
+        if !self.stage_player_money_change_like_cpp(old_gold, new_gold) {
+            self.kick(
+                "canonical Player money owner became unavailable after vendor buyback COMMIT",
+            );
+            return;
+        }
         self.remove_buyback_item_like_cpp(buyback_slot);
         self.clear_buyback_slot_metadata_like_cpp(buyback_slot);
         if self
@@ -1504,7 +1526,7 @@ impl WorldSession {
             &[],
             &[],
             &[(buyback_slot, 0, 0)],
-            Some(self.player_gold_like_cpp()),
+            Some(new_gold),
         );
     }
 
@@ -1640,7 +1662,9 @@ impl WorldSession {
         else {
             return;
         };
-        let old_gold = self.player_gold_like_cpp();
+        let Some(old_gold) = self.resolved_player_money_like_cpp() else {
+            return;
+        };
         let Some(new_gold) = player_money_gain_like_cpp(old_gold, money) else {
             self.send_sell_error(
                 SellResult::CantSellItem,
@@ -1760,7 +1784,10 @@ impl WorldSession {
         // C++ mutates money, inventory and buyback state as one in-memory
         // operation. Our durable-first adaptation must publish the same whole
         // state before reopening admission or reaching a cancellation point.
-        self.stage_player_money_change_like_cpp(old_gold, new_gold);
+        if !self.stage_player_money_change_like_cpp(old_gold, new_gold) {
+            self.kick("canonical Player money owner became unavailable after vendor sale COMMIT");
+            return;
+        }
         if let Some(old_buyback) = old_buyback {
             self.remove_buyback_item_like_cpp(buyback_slot);
             self.remove_inventory_item_object(old_buyback.guid);
@@ -1811,12 +1838,7 @@ impl WorldSession {
 
         info!(
             "SellItem: player {:?} sold {}x item {} from slot {} for {} copper (total: {})",
-            player_guid,
-            sold_count,
-            item.entry_id,
-            slot,
-            money,
-            self.player_gold_like_cpp()
+            player_guid, sold_count, item.entry_id, slot, money, new_gold
         );
 
         if let Some((item_guid, stack_count, durability, max_durability)) = created_buyback_item {
@@ -1862,7 +1884,7 @@ impl WorldSession {
             &[],
             &[],
             &[(buyback_slot, buyback_price, buyback_timestamp)],
-            Some(self.player_gold_like_cpp()),
+            Some(new_gold),
         );
     }
 
@@ -2166,7 +2188,9 @@ impl WorldSession {
         else {
             return;
         };
-        let old_money = self.player_gold_like_cpp();
+        let Some(old_money) = self.resolved_player_money_like_cpp() else {
+            return;
+        };
         let money_gain = player_money_gain_like_cpp(old_money, refund_item.paid_money());
         let money_overflow = money_gain.is_none();
         let new_gold = money_gain.unwrap_or(old_money);
@@ -2269,7 +2293,10 @@ impl WorldSession {
         // Refund COMMIT covers money, currencies, destruction of the refunded
         // item, and every restored stack. Publish the corresponding runtime
         // inventory before the guard opens or an await permits cancellation.
-        self.stage_player_money_change_like_cpp(old_money, new_gold);
+        if !self.stage_player_money_change_like_cpp(old_money, new_gold) {
+            self.kick("canonical Player money owner became unavailable after item-refund COMMIT");
+            return;
+        }
         self.remove_inventory_item_like_cpp(refund_slot);
         self.remove_inventory_item_object(refund.item_guid);
 
@@ -2386,7 +2413,7 @@ impl WorldSession {
             &[],
             &[],
             &[],
-            Some(self.player_gold_like_cpp()),
+            Some(new_gold),
         );
 
         if refund_slot < 19 {

@@ -53,6 +53,11 @@ impl Player {
         });
     }
 
+    /// C++ `Player::GetMoney` (`Player.h:1690`).
+    pub const fn money(&self) -> u64 {
+        self.active_data.coinage
+    }
+
     pub fn set_money(&mut self, value: u64) {
         self.set_active_u64(ACTIVE_PLAYER_DATA_COINAGE_BIT, value, |data| {
             &mut data.coinage

@@ -166,7 +166,9 @@ impl WorldSession {
             return;
         };
 
-        let old_money = self.player_gold_like_cpp();
+        let Some(old_money) = self.resolved_player_money_like_cpp() else {
+            return;
+        };
         if old_money < u64::from(price) {
             debug!(
                 next_slot,
@@ -213,7 +215,10 @@ impl WorldSession {
         // Publish both runtime fields only after the combined SQL COMMIT. Set
         // the values synchronously while admission is still closed, then drop
         // the fence before criteria processing can re-enter persistence.
-        self.set_player_gold_like_cpp(new_money);
+        if !self.set_player_gold_like_cpp(new_money) {
+            self.kick("canonical Player money owner became unavailable after bank-slot COMMIT");
+            return;
+        }
         // This helper builds a clean snapshot from current runtime and then
         // marks the requested count dirty. Emit it while runtime still holds
         // the old count, after the durable COMMIT but before storing the new

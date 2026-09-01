@@ -150,7 +150,7 @@ impl WorldSession {
             },
             level: self.player_level_like_cpp(),
             xp: self.resolved_player_xp_like_cpp()?,
-            money: self.player_gold_like_cpp(),
+            money: self.resolved_player_money_like_cpp()?,
             rest_state: self.represented_xp_rest_state_like_cpp(),
             player_flags: self.represented_player_flags_for_rest_state_save_like_cpp(),
             rest_bonus: self.represented_xp_rest_bonus_like_cpp(),

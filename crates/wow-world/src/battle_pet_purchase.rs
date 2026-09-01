@@ -280,7 +280,11 @@ impl WorldSession {
             );
         };
 
-        let old_money = self.player_gold_like_cpp();
+        let Some(old_money) = self.resolved_player_money_like_cpp() else {
+            return BattlePetPurchaseExecutionLikeCpp::Unavailable(
+                BattlePetPurchaseAdmissionFailureLikeCpp::StoreUnavailable,
+            );
+        };
         let price = u64::from(offer.effective_price);
         if old_money < price {
             // C++ `FailReason::NotEnoughMoney` (`Trainer.cpp:113-117`).
@@ -361,7 +365,12 @@ impl WorldSession {
 
         // Publish the durable charge under the guard (C++ `ModifyMoney`),
         // then release it before draining criteria, matching the #159 order.
-        self.stage_player_money_change_like_cpp(old_money, new_money);
+        if !self.stage_player_money_change_like_cpp(old_money, new_money) {
+            self.kick(
+                "canonical Player money owner became unavailable after battle-pet charge COMMIT",
+            );
+            return BattlePetPurchaseExecutionLikeCpp::ChargeIndeterminate;
+        }
         if old_money != new_money {
             // The client sees the charge before the pet, and this packet goes
             // out *after* the Character transaction commits -- the charge is
@@ -1064,9 +1073,15 @@ impl WorldSession {
                 // Reconcile to the absolute durable value. Attribution based
                 // on a lost COMMIT reply is racy when another driver can finish
                 // compensation before the status re-read.
-                let current = self.player_gold_like_cpp();
+                let Some(current) = self.resolved_player_money_like_cpp() else {
+                    drop(refund_guard);
+                    return BattlePetPurchaseExecutionLikeCpp::Compensated;
+                };
                 let restored = durable_money.min(wow_entities::MAX_MONEY_AMOUNT);
-                self.stage_player_money_change_like_cpp(current, restored);
+                if !self.stage_player_money_change_like_cpp(current, restored) {
+                    drop(refund_guard);
+                    return BattlePetPurchaseExecutionLikeCpp::Compensated;
+                }
                 if refund_publication
                     == BattlePetPurchaseRefundPublicationLikeCpp::ValuesUpdatePacket
                     && current != restored

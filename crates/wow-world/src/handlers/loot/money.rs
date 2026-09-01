@@ -141,7 +141,9 @@ impl WorldSession {
         if self.player_guid().is_none() {
             return ApplyLootMoneyResultLikeCpp::TargetMismatch;
         }
-        let old_money = self.player_gold_like_cpp();
+        let Some(old_money) = self.resolved_player_money_like_cpp() else {
+            return ApplyLootMoneyResultLikeCpp::TargetMismatch;
+        };
         let new_money = if apply_money {
             old_money
                 .checked_add(durable_applied_amount)
@@ -151,6 +153,9 @@ impl WorldSession {
             old_money
         };
 
+        if apply_money && !self.set_player_gold_like_cpp(new_money) {
+            return ApplyLootMoneyResultLikeCpp::TargetMismatch;
+        }
         if apply_money && durable_applied_amount != 0 {
             self.enqueue_represented_quest_objective_progress_like_cpp(
                 RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
@@ -158,9 +163,6 @@ impl WorldSession {
                     new_money,
                 },
             );
-        }
-        if apply_money {
-            self.set_player_gold_like_cpp(new_money);
         }
         if publish {
             self.send_packet(&LootMoneyNotify {
@@ -326,7 +328,7 @@ impl WorldSession {
         } else {
             Some(self.stored_item_money_persistence_port_like_cpp()?)
         };
-        let test_current_money = self.player_gold_like_cpp();
+        let test_current_money = self.resolved_player_money_like_cpp()?;
         let balance_applied = Arc::new(AtomicBool::new(false));
         let publication_applied = Arc::new(AtomicBool::new(false));
         let mut item_persistence_guard = self.begin_durable_item_loot_persistence_like_cpp();

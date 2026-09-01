@@ -22,7 +22,7 @@
       "a curated hotspot path must remain measurable until its ledger row is explicitly retired or replaced",
       "a removed source member must also disappear from this ledger or have its family retirement evidence updated"
     ],
-    "field_identity": "Rust named-field identifier. The baseline contains 726 distinct identifiers; source_class is retained by the syntax baseline and the 22 test_fixture members are listed in test_only_fixtures."
+    "field_identity": "Rust named-field identifier. The baseline contains 726 distinct identifiers; source_class is retained by the syntax baseline and the 23 test_fixture members are listed in test_only_fixtures."
   },
   "world_session_responsibility_families": {
     "coverage_source": {
@@ -44,7 +44,7 @@
     "families": [
       {
         "id": "test_only_fixtures",
-        "expected_field_count": 22,
+        "expected_field_count": 23,
         "field_names": [
           "battle_pet_purchase_selection_override_like_cpp",
           "driver_phase_trace_like_cpp",
@@ -56,6 +56,7 @@
           "player_alive_like_cpp",
           "player_bootstrap_attached_like_cpp",
           "player_character_points_like_cpp",
+          "player_gold",
           "player_health_like_cpp",
           "player_max_health_like_cpp",
           "player_next_level_xp",
@@ -69,7 +70,7 @@
           "represented_transmog_criteria_events",
           "vendor_buy_item_test_override_like_cpp"
         ],
-        "current_storage": "Fields compiled only under cfg(test) inside wow_world::session::WorldSession. #578 retains bootstrap values for fixtures that inject MapManager after attachment and moves the former health/death, power/base-mana and XP/next-level-XP/character-points mirrors here while production resolves them exclusively through PlayerHandle.",
+        "current_storage": "Fields compiled only under cfg(test) inside wow_world::session::WorldSession. #578 retains bootstrap values for fixtures that inject MapManager after attachment and moves the former health/death, power/base-mana, XP/next-level-XP/character-points and money mirrors here while production resolves them exclusively through PlayerHandle.",
         "sole_writer": "Focused tests and their test-only setters; production has no writer.",
         "readers": "Focused tests in wow-world and handler test modules.",
         "clock_lifetime": "One test/session fixture; no production clock.",
@@ -468,7 +469,7 @@
       },
       {
         "id": "player_inventory_loot_and_economy",
-        "expected_field_count": 65,
+        "expected_field_count": 64,
         "field_names": [
           "active_loot_guid",
           "active_loot_view_authorities_like_cpp",
@@ -487,7 +488,6 @@
           "max_primary_trade_skills_like_cpp",
           "player_bank_bag_slot_count_like_cpp",
           "player_equipment_inventory_authority_complete_like_cpp",
-          "player_gold",
           "player_inventory_slot_count_like_cpp",
           "repair_cost_rate_like_cpp",
           "represented_active_trade_partner_like_cpp",
@@ -1042,8 +1042,8 @@
     ],
     "expected_field_count": 726,
     "expected_unique_field_count": 726,
-    "expected_production_field_count": 704,
-    "expected_test_fixture_field_count": 22
+    "expected_production_field_count": 703,
+    "expected_test_fixture_field_count": 23
   },
   "inventories": {
     "session_resources": {
@@ -1668,9 +1668,9 @@
       "entries": [
         {
           "path": "crates/wow-world/src/session/mod.rs",
-          "production_lines": 73084,
-          "test_lines": 96982,
-          "total_lines": 170066,
+          "production_lines": 73162,
+          "test_lines": 97051,
+          "total_lines": 170213,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
             153
@@ -1686,29 +1686,29 @@
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "Map runtime/storage/visibility/respawn submodules have one writer and clock per transition; physical splitting is not combined with authority flips. #578 adds the generation-checked active/detached Player owner and stale-handle tests, raising the reviewed production/total ceilings by 16 lines at this logical owner."
+          "retirement_condition": "Map runtime/storage/visibility/respawn submodules have one writer and clock per transition; physical splitting is not combined with authority flips. #578 adds the generation-checked active/detached Player owner and stale-handle tests, then moves vitals, powers, progression and money behind that owner. Explicit fail-closed money resolution across durable COMMIT/publication paths raises the reviewed production/test ceilings while deleting the production money field."
         },
         {
           "path": "crates/wow-world/src/handlers/character/mod.rs",
-          "production_lines": 19744,
-          "test_lines": 12896,
-          "total_lines": 32640,
+          "production_lines": 19776,
+          "test_lines": 12886,
+          "total_lines": 32662,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "Character verticals are thin capability adapters with typed owners/ports and no raw directory or concrete persistence access. #386 removes the five concrete Login-database collection reads while preserving gameplay filtering in the character adapter; explicit typed-result handling raises production 20865 -> 20872 and focused success, empty, malformed-row, full-failure and partial-failure coverage raises tests 10764 -> 10964. #390 moves customization reads behind the same lifecycle port; typed result validation raises production 20872 -> 20877 and the shared port fixture grows tests 10964 -> 10976. #392 removes the concrete corpse-load workflow, reducing production 20877 -> 20848; its typed-port success, base-failure and independent auxiliary-failure fixtures raise tests 10976 -> 11143. #394 removes the five remaining concrete homebind workflows from this adapter, reducing production 20848 -> 20812; primary/fallback catalog resolution plus semantic delete/insert/failure coverage raises tests 11143 -> 11374. #398 removes the concrete trait-entry/config query workflow; explicit typed failure and unknown-column handling raises production 20825 -> 20849 while retaining gameplay and DB2 validation in the Player adapter. #400 removes the concrete logout buyback transaction, reducing production 20849 -> 20848; the shared lifecycle-port fixtures grow tests 11374 -> 11392. #408 extends both character-handler lifecycle-port fixtures for the new semantic talent-reset operation, raising tests 11597 -> 11615 without adding production authority. #410 extends both fixtures for represented XP/rest persistence, raising tests 11615 -> 11633 without adding production authority. #414 removes the core `SEL_CHARACTER` query/row decode with no net production growth; exact typed-outcome/source-contract coverage plus fixture plumbing raises tests 11633 -> 11671. #416 removes the three direct admission queries; explicit typed failure/mismatch branches raise production 20765 -> 20798 and statement/source-contract plus fixture coverage raises tests 11671 -> 11718. #418 removes seven direct pet-login read families while retaining Player-owned application order and defaults, reducing production 20798 -> 20757 without growing Session authority. #420 removes the direct group-member lookup; explicit typed outcome handling raises production 20757 -> 20760 while registry resolution and group-sequence mutation remain with the gameplay adapter. #422 removes four profile read families while retaining equipment/transmog shared completion, CUF bounds and currency-catalog publication in the gameplay adapter, reducing production 20760 -> 20719. #424 removes seven progression query families while retaining every gameplay/catalog decision and completion marker in the adapter; explicit typed outcome handling raises production 20719 -> 20722. #426 removes both character-aura query families while retaining independent authority gating and gameplay application order; explicit typed outcome handling raises production 20722 -> 20730. #428 removes top-level inventory, bag-content and void-storage query/decode logic while retaining item interpretation and repair ordering; production falls 20730 -> 20688 and focused source-contract coverage raises tests 11711 -> 11738. #430 removes both login item-repair transaction builders; typed action/outcome handling raises production 20688 -> 20705 and exact adapter/source-contract plus fixture coverage raises tests 11738 -> 11781. #444 extends the two character-handler lifecycle fixtures for the typed money methods, raising tests 11847 -> 11883 without adding production authority. #446 routes three mixed vendor currency plans through the adapter rendering bridge, raising production 20695 -> 20710 while removing statement identity from the handler; its two lifecycle fixtures grow tests 11883 -> 11901. #456 extends those same test fixtures for the standalone durability method, raising tests 11901 -> 11919 without adding production authority. #466 routes the guarded deletion postcondition through the typed lifecycle port; explicit outcome handling raises production 20689 -> 20691 and the two existing trait fixtures grow tests 11975 -> 11999. #478 moves the enum statement choice, cleanup write and row decoding into the MariaDB adapter, reducing production 20691 -> 20656; focused typed success, declined-name, best-effort-cleanup and query-failure coverage raises tests 11999 -> 12093. #480 moves the base, locale and display query/decode workflow into the typed MariaDB adapter, reducing production 20656 -> 20586; byte-exact success plus Missing/Failed coverage raises tests 12093 -> 12252."
+          "retirement_condition": "Character verticals are thin capability adapters with typed owners/ports and no raw directory or concrete persistence access. #386 removes the five concrete Login-database collection reads while preserving gameplay filtering in the character adapter; explicit typed-result handling raises production 20865 -> 20872 and focused success, empty, malformed-row, full-failure and partial-failure coverage raises tests 10764 -> 10964. #390 moves customization reads behind the same lifecycle port; typed result validation raises production 20872 -> 20877 and the shared port fixture grows tests 10964 -> 10976. #392 removes the concrete corpse-load workflow, reducing production 20877 -> 20848; its typed-port success, base-failure and independent auxiliary-failure fixtures raise tests 10976 -> 11143. #394 removes the five remaining concrete homebind workflows from this adapter, reducing production 20848 -> 20812; primary/fallback catalog resolution plus semantic delete/insert/failure coverage raises tests 11143 -> 11374. #398 removes the concrete trait-entry/config query workflow; explicit typed failure and unknown-column handling raises production 20825 -> 20849 while retaining gameplay and DB2 validation in the Player adapter. #400 removes the concrete logout buyback transaction, reducing production 20849 -> 20848; the shared lifecycle-port fixtures grow tests 11374 -> 11392. #408 extends both character-handler lifecycle-port fixtures for the new semantic talent-reset operation, raising tests 11597 -> 11615 without adding production authority. #410 extends both fixtures for represented XP/rest persistence, raising tests 11615 -> 11633 without adding production authority. #414 removes the core `SEL_CHARACTER` query/row decode with no net production growth; exact typed-outcome/source-contract coverage plus fixture plumbing raises tests 11633 -> 11671. #416 removes the three direct admission queries; explicit typed failure/mismatch branches raise production 20765 -> 20798 and statement/source-contract plus fixture coverage raises tests 11671 -> 11718. #418 removes seven direct pet-login read families while retaining Player-owned application order and defaults, reducing production 20798 -> 20757 without growing Session authority. #420 removes the direct group-member lookup; explicit typed outcome handling raises production 20757 -> 20760 while registry resolution and group-sequence mutation remain with the gameplay adapter. #422 removes four profile read families while retaining equipment/transmog shared completion, CUF bounds and currency-catalog publication in the gameplay adapter, reducing production 20760 -> 20719. #424 removes seven progression query families while retaining every gameplay/catalog decision and completion marker in the adapter; explicit typed outcome handling raises production 20719 -> 20722. #426 removes both character-aura query families while retaining independent authority gating and gameplay application order; explicit typed outcome handling raises production 20722 -> 20730. #428 removes top-level inventory, bag-content and void-storage query/decode logic while retaining item interpretation and repair ordering; production falls 20730 -> 20688 and focused source-contract coverage raises tests 11711 -> 11738. #430 removes both login item-repair transaction builders; typed action/outcome handling raises production 20688 -> 20705 and exact adapter/source-contract plus fixture coverage raises tests 11738 -> 11781. #444 extends the two character-handler lifecycle fixtures for the typed money methods, raising tests 11847 -> 11883 without adding production authority. #446 routes three mixed vendor currency plans through the adapter rendering bridge, raising production 20695 -> 20710 while removing statement identity from the handler; its two lifecycle fixtures grow tests 11883 -> 11901. #456 extends those same test fixtures for the standalone durability method, raising tests 11901 -> 11919 without adding production authority. #466 routes the guarded deletion postcondition through the typed lifecycle port; explicit outcome handling raises production 20689 -> 20691 and the two existing trait fixtures grow tests 11975 -> 11999. #478 moves the enum statement choice, cleanup write and row decoding into the MariaDB adapter, reducing production 20691 -> 20656; focused typed success, declined-name, best-effort-cleanup and query-failure coverage raises tests 11999 -> 12093. #480 moves the base, locale and display query/decode workflow into the typed MariaDB adapter, reducing production 20656 -> 20586; byte-exact success plus Missing/Failed coverage raises tests 12093 -> 12252. #578 routes login, bank, vendor and self-create money reads/writes through the generation-checked canonical Player and makes every post-COMMIT publication fail closed if that owner becomes stale."
         },
         {
           "path": "crates/wow-world/src/handlers/loot/mod.rs",
-          "production_lines": 13402,
+          "production_lines": 13410,
           "test_lines": 16383,
-          "total_lines": 29785,
+          "total_lines": 29793,
           "owner": "wow-world loot handler plus transitional loot/map/persistence coordination.",
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "Loot handlers adapt typed wow-loot/Player/Map/persistence outcomes and no longer coordinate dual authorities or durable trackers. #371 changes no loot production path; its test assertions read stable logical corpse deadlines, increasing test LOC 16240 -> 16257. #452 removes the stored-item SQLx transaction, reconciliation and concrete driver error vocabulary from the handler, reducing production 13764 -> 13470; typed-port missing/success coverage and retained reconciliation fixtures raise tests 16257 -> 16317. #454 adds missing-port and successful group payout seam coverage, raising tests 16317 -> 16413 without growing loot production logic. #489 replaces the creature-loot item-addon query with a typed outcome, raising production 13470 -> 13478 while removing its statement and database access."
+          "retirement_condition": "Loot handlers adapt typed wow-loot/Player/Map/persistence outcomes and no longer coordinate dual authorities or durable trackers. #371 changes no loot production path; its test assertions read stable logical corpse deadlines, increasing test LOC 16240 -> 16257. #452 removes the stored-item SQLx transaction, reconciliation and concrete driver error vocabulary from the handler, reducing production 13764 -> 13470; typed-port missing/success coverage and retained reconciliation fixtures raise tests 16257 -> 16317. #454 adds missing-port and successful group payout seam coverage, raising tests 16317 -> 16413 without growing loot production logic. #489 replaces the creature-loot item-addon query with a typed outcome, raising production 13470 -> 13478 while removing its statement and database access. #578 makes stored-item and shared loot-money application resolve the generation-checked canonical Player before applying an already-durable balance or publishing its notification."
         },
         {
           "path": "crates/world-server/src/lib.rs",
@@ -1737,14 +1737,14 @@
         },
         {
           "path": "crates/wow-entities/src/player/mod.rs",
-          "production_lines": 9411,
+          "production_lines": 9416,
           "test_lines": 8891,
-          "total_lines": 18302,
+          "total_lines": 18307,
           "owner": "wow-entities partial canonical Player model.",
           "open_retirement_issues": [
             153
           ],
-          "retirement_condition": "Player submodules own one mutable representation per responsibility with colocated tests; Session and directory mirrors for migrated families are removed."
+          "retirement_condition": "Player submodules own one mutable representation per responsibility with colocated tests; Session and directory mirrors for migrated families are removed. #578 exposes C++-named canonical Player money access alongside the existing update-field-tracked mutation."
         },
         {
           "path": "crates/wow-social/src/group/mod.rs",

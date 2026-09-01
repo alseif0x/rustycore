@@ -2375,6 +2375,9 @@ impl WorldSession {
             ) else {
                 return false;
             };
+            let Some(player_money) = self.resolved_player_money_like_cpp() else {
+                return false;
+            };
             info!(
                 toys = account_toys.len(),
                 heirlooms = account_heirlooms.len(),
@@ -2399,7 +2402,7 @@ impl WorldSession {
                 inv_slots,
                 combat,
                 skill_info,
-                self.player_gold_like_cpp(),
+                player_money,
                 quest_log,
                 self.party_member_party_type_like_cpp(),
             );

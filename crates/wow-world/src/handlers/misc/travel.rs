@@ -128,6 +128,9 @@ impl crate::session::WorldSession {
         ) else {
             return;
         };
+        let Some(player_money) = self.resolved_player_money_like_cpp() else {
+            return;
+        };
 
         // Equipped items drive the visible model; bag slots / item objects are not re-sent here.
         let mut visible_items = [(0i32, 0u16, 0u16); 19];
@@ -214,7 +217,7 @@ impl crate::session::WorldSession {
             [ObjectGuid::EMPTY; 141],
             combat,
             skill_info,
-            self.player_gold_like_cpp(),
+            player_money,
             quest_log,
             party_type,
         );

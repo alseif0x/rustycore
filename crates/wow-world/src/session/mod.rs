@@ -5500,8 +5500,9 @@ pub struct WorldSession {
     rest_offline_tavern_or_city_rate_like_cpp: f32,
     /// C++ `RATE_REST_INGAME`.
     rest_ingame_rate_like_cpp: f32,
-    /// Player's current money in copper (1 gold = 10,000 copper).
-    /// Loaded from `characters.money` on login; saved on logout + buy/sell.
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    /// Production money lives exclusively in `Player::ActivePlayerData::Coinage`.
+    #[cfg(test)]
     player_gold: u64,
     /// C++ `Player::m_resetTalentsCost`, represented until character DB load/save owns it.
     represented_talent_reset_cost_like_cpp: u32,
@@ -7705,6 +7706,7 @@ impl WorldSession {
             rest_offline_wilderness_rate_like_cpp: 1.0,
             rest_offline_tavern_or_city_rate_like_cpp: 1.0,
             rest_ingame_rate_like_cpp: 1.0,
+            #[cfg(test)]
             player_gold: 0,
             represented_talent_reset_cost_like_cpp: 0,
             represented_talent_reset_time_secs_like_cpp: 0,
@@ -9468,6 +9470,9 @@ impl WorldSession {
         );
         #[cfg(test)]
         player.set_scaling_player_level_delta_like_cpp(self.player_scaling_level_delta_like_cpp());
+        #[cfg(not(test))]
+        player.set_money(0);
+        #[cfg(test)]
         player.set_money(self.player_gold_like_cpp());
         player.set_inventory_slot_count(self.player_inventory_slot_count_like_cpp());
         player.set_bank_bag_slot_count(self.player_bank_bag_slot_count_like_cpp());
@@ -9606,6 +9611,7 @@ impl WorldSession {
         // stale session incarnation.
         let powers = self.resolved_player_power_snapshot_like_cpp()?;
         let xp = self.resolved_player_xp_like_cpp()?;
+        let money = self.resolved_player_money_like_cpp()?;
         let pending_teleport_destination = self.pending_teleport_save_destination_like_cpp();
         if let Some(manager) = self.canonical_map_manager.as_ref()
             && let Ok(manager) = manager.lock()
@@ -9657,7 +9663,7 @@ impl WorldSession {
                     position,
                     level: self.player_level_like_cpp(),
                     xp,
-                    money: self.player_gold_like_cpp(),
+                    money,
                     health,
                     max_health: canonical_max_health,
                     powers,
@@ -9689,7 +9695,7 @@ impl WorldSession {
             position,
             level: self.player_level_like_cpp(),
             xp,
-            money: self.player_gold_like_cpp(),
+            money,
             health,
             max_health,
             powers,
@@ -9713,7 +9719,9 @@ impl WorldSession {
         self.set_player_map_position_like_cpp(snapshot.map_id, snapshot.position);
         self.set_player_level_like_cpp(snapshot.level);
         self.set_player_xp_like_cpp(snapshot.xp);
-        self.set_player_gold_like_cpp(snapshot.money);
+        if !self.set_player_gold_like_cpp(snapshot.money) {
+            return None;
+        }
         self.set_player_health_like_cpp(snapshot.health, snapshot.max_health);
         #[cfg(test)]
         if self.player_handle_like_cpp.is_none() {
@@ -21398,7 +21406,10 @@ impl WorldSession {
             else {
                 return false;
             };
-            let old_money = self.player_gold_like_cpp();
+            let Some(old_money) = self.resolved_player_money_like_cpp() else {
+                self.kick("canonical Player money owner is unavailable before durability repair");
+                return false;
+            };
             if old_money < cost {
                 return false;
             }
@@ -21442,7 +21453,10 @@ impl WorldSession {
             // Publish both runtime fields before the guard opens; otherwise a
             // cancelled criteria drain can leave durable durability repaired
             // while the live item remains broken.
-            self.stage_player_money_change_like_cpp(old_money, new_money);
+            if !self.stage_player_money_change_like_cpp(old_money, new_money) {
+                self.kick("canonical Player money owner became unavailable after durability-repair COMMIT");
+                return false;
+            }
             let repaired = self.apply_inventory_item_durability_repair_runtime_like_cpp(item_guid);
             drop(money_persistence);
             self.drain_represented_quest_objective_progress_like_cpp()
@@ -21559,7 +21573,9 @@ impl WorldSession {
         else {
             return false;
         };
-        let old_money = self.player_gold_like_cpp();
+        let Some(old_money) = self.resolved_player_money_like_cpp() else {
+            return false;
+        };
         if old_money < total_cost {
             return false;
         }
@@ -21603,7 +21619,12 @@ impl WorldSession {
         // Money and every durability row share one COMMIT. Mirror all of those
         // rows in runtime while admission is still fenced and before the first
         // cancellation point.
-        self.stage_player_money_change_like_cpp(old_money, new_money);
+        if !self.stage_player_money_change_like_cpp(old_money, new_money) {
+            self.kick(
+                "canonical Player money owner became unavailable after durability-repair COMMIT",
+            );
+            return false;
+        }
         let mut repaired_any = false;
         for (item_guid, _, _) in planned_repairs {
             repaired_any |= self.apply_inventory_item_durability_repair_runtime_like_cpp(item_guid);
@@ -22688,7 +22709,7 @@ impl WorldSession {
 
     fn player_values_update_snapshot(&self) -> Option<Player> {
         let mut player = self.direct_inventory_player_snapshot()?;
-        player.set_money(self.player_gold_like_cpp());
+        player.set_money(self.resolved_player_money_like_cpp()?);
         player.set_bank_bag_slot_count(self.player_bank_bag_slot_count_like_cpp());
         for (index, value) in self
             .represented_bank_bag_slot_flags_like_cpp
@@ -28015,12 +28036,22 @@ impl WorldSession {
             {
                 continue;
             }
-            let old_money = self.player_gold_like_cpp();
+            let Some(old_money) = self.resolved_player_money_like_cpp() else {
+                self.kick(
+                    "canonical Player money owner is unavailable during durable reconciliation",
+                );
+                return false;
+            };
             let new_money = old_money
                 .checked_add(completion.durable_applied_amount)
                 .filter(|money| *money <= MAX_MONEY_AMOUNT)
                 .unwrap_or(old_money);
-            self.set_player_gold_like_cpp(new_money);
+            if !self.set_player_gold_like_cpp(new_money) {
+                self.kick(
+                    "canonical Player money owner became unavailable during durable reconciliation",
+                );
+                return false;
+            }
             if old_money != new_money {
                 self.enqueue_represented_quest_objective_progress_like_cpp(
                     RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
@@ -28082,7 +28113,7 @@ impl WorldSession {
             .begin_exclusive_player_money_persistence_like_cpp()
             .await?;
         let guid = self.player_guid()?.counter() as u64;
-        let old_money = self.player_gold_like_cpp();
+        let old_money = self.resolved_player_money_like_cpp()?;
         let new_money = mutation(old_money);
 
         #[cfg(test)]
@@ -28090,7 +28121,9 @@ impl WorldSession {
             if !success {
                 return None;
             }
-            self.set_player_gold_like_cpp(new_money);
+            if !self.set_player_gold_like_cpp(new_money) {
+                return None;
+            }
             drop(money_persistence);
             return Some((old_money, new_money));
         }
@@ -28115,7 +28148,10 @@ impl WorldSession {
                 "exclusive player-money mutation",
             )
             .await?;
-        self.set_player_gold_like_cpp(new_money);
+        if !self.set_player_gold_like_cpp(new_money) {
+            self.kick("canonical Player money owner became unavailable after durable COMMIT");
+            return None;
+        }
         drop(money_persistence);
         Some((old_money, new_money))
     }
@@ -32342,9 +32378,12 @@ impl WorldSession {
     }
 
     pub(crate) async fn money_changed_like_cpp(&mut self, new_money: u64) {
+        let Some(old_money) = self.resolved_player_money_like_cpp() else {
+            return;
+        };
         self.enqueue_represented_quest_objective_progress_like_cpp(
             RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
-                old_money: self.player_gold_like_cpp(),
+                old_money,
                 new_money,
             },
         );
@@ -32357,7 +32396,9 @@ impl WorldSession {
         old_money: u64,
         new_money: u64,
     ) {
-        self.stage_player_money_change_like_cpp(old_money, new_money);
+        if !self.stage_player_money_change_like_cpp(old_money, new_money) {
+            return;
+        }
         self.drain_represented_quest_objective_progress_like_cpp()
             .await;
     }
@@ -32366,7 +32407,14 @@ impl WorldSession {
     /// Transactional callers use this while their exclusive money guard is
     /// still held, then drop the guard before draining criteria (which can
     /// re-enter money persistence through a quest reward).
-    pub(crate) fn stage_player_money_change_like_cpp(&mut self, old_money: u64, new_money: u64) {
+    pub(crate) fn stage_player_money_change_like_cpp(
+        &mut self,
+        old_money: u64,
+        new_money: u64,
+    ) -> bool {
+        if !self.set_player_gold_like_cpp(new_money) {
+            return false;
+        }
         if old_money != new_money {
             self.enqueue_represented_quest_objective_progress_like_cpp(
                 RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
@@ -32375,7 +32423,7 @@ impl WorldSession {
                 },
             );
         }
-        self.set_player_gold_like_cpp(new_money);
+        true
     }
 
     pub(crate) fn represented_next_reset_talents_cost_like_cpp(&self, now_secs: u64) -> u32 {
@@ -32410,7 +32458,7 @@ impl WorldSession {
         let money_persistence = self
             .begin_exclusive_player_money_persistence_like_cpp()
             .await?;
-        let old_money = self.player_gold_like_cpp();
+        let old_money = self.resolved_player_money_like_cpp()?;
         if old_money < cost {
             self.send_buy_error(BuyResult::NotEnoughtMoney, None, 0);
             return None;
@@ -32520,7 +32568,10 @@ impl WorldSession {
         self.represented_talents_like_cpp = state_plan.post_talents;
         self.refresh_represented_talent_points_like_cpp();
 
-        self.stage_player_money_change_like_cpp(old_money, new_money);
+        if !self.stage_player_money_change_like_cpp(old_money, new_money) {
+            self.kick("canonical Player money owner became unavailable after talent-reset COMMIT");
+            return;
+        }
         self.represented_talent_reset_cost_like_cpp = cost;
         self.represented_talent_reset_time_secs_like_cpp = reset_time_secs;
         self.record_represented_talent_respec_criteria_like_cpp(cost);
@@ -37665,8 +37716,15 @@ impl WorldSession {
         self.player_create_mode_like_cpp = create_mode;
     }
 
-    pub(crate) fn set_player_gold_like_cpp(&mut self, gold: u64) {
-        self.player_gold = gold;
+    pub(crate) fn set_player_gold_like_cpp(&mut self, gold: u64) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.set_money(gold))
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_gold = gold;
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
     }
 
     pub(crate) fn set_represented_talent_reset_state_like_cpp(
@@ -37874,7 +37932,11 @@ impl WorldSession {
             return false;
         };
 
-        if deposit && self.player_gold_like_cpp() < money {
+        if deposit
+            && !self
+                .resolved_player_money_like_cpp()
+                .is_some_and(|player_money| player_money >= money)
+        {
             return false;
         }
 
@@ -40803,8 +40865,24 @@ impl WorldSession {
         crate::canonical_player_sync::sync_player_primary_specialization_like_cpp(self, spec_id);
     }
 
+    pub(crate) fn resolved_player_money_like_cpp(&self) -> Option<u64> {
+        let canonical = self.with_owned_player_like_cpp(Player::money);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.player_gold);
+        }
+        canonical
+    }
+
+    #[cfg(test)]
     pub(crate) fn player_gold_like_cpp(&self) -> u64 {
-        self.player_gold
+        self.resolved_player_money_like_cpp()
+            .or_else(|| {
+                self.player_handle_like_cpp
+                    .is_none()
+                    .then_some(self.player_gold)
+            })
+            .expect("test Player money owner must resolve")
     }
 
     pub(crate) fn represented_talent_reset_cost_like_cpp(&self) -> u32 {
@@ -44859,7 +44937,10 @@ impl WorldSession {
             return;
         }
 
-        if self.player_gold_like_cpp() < coinage {
+        if !self
+            .resolved_player_money_like_cpp()
+            .is_some_and(|player_money| player_money >= coinage)
+        {
             let packet_bytes =
                 TradeStatus::failed_like_cpp(EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP, 0).to_bytes();
             self.send_raw_packet(&packet_bytes);
