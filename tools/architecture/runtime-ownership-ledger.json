@@ -1723,11 +1723,11 @@
         {
           "path": "crates/world-server/src/lib.rs",
           "logical_scope": "crate",
-          "production_lines": 28047,
-          "test_lines": 26457,
-          "total_lines": 54504,
+          "production_lines": 28301,
+          "test_lines": 26514,
+          "total_lines": 54815,
           "owner": "world-server crate composition root, bootstrap/loaders and runtime orchestration.",
-          "latest_growth_review": "#570 removes 447 net production lines from the world-server logical hotspot while adding 242 focused pipeline-order/fail-fast and typed-boundary test lines: the remaining canonical spawn and WorldState SQL, handles, binds, rows and decoding move to staged wow-database adapters behind SQLx-free wow-persistence capabilities. SpawnStore, PoolMgr, WorldState domain validation, map/DB2 validation, reports, publication and runtime authority remain unchanged.",
+          "latest_growth_review": "#572 adds 254 production and 57 focused test lines to the world-server logical hotspot for the SQLx-free spell-acquisition startup bridge: seven Hotfix overlays, reagents, server-side spell/effect rows, custom attributes, spell-learn rows and trainer audit data now cross one typed capability while preserving the existing WDC/official/custom/removal and World-stage order. Concrete handles, SQL, statements and row decoding move out to wow-database; wow-data retains catalog composition and validation, and no gameplay/runtime authority moves into world-server.",
           "open_retirement_issues": [
             153
           ],
