@@ -71,8 +71,9 @@ impl WorldSession {
         }
 
         if self.learn_represented_talent_like_cpp(request.talent_id as u32, request.requested_rank)
+            && let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp()
         {
-            self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
+            self.send_packet(&talent_data);
         }
     }
 
@@ -94,7 +95,9 @@ impl WorldSession {
 
         for talent_id in request.talent_ids {
             if self.learn_represented_talent_like_cpp(u32::from(talent_id), 0) {
-                self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
+                if let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp() {
+                    self.send_packet(&talent_data);
+                }
             }
         }
     }

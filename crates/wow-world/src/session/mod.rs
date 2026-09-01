@@ -5512,6 +5512,8 @@ pub struct WorldSession {
     /// C++ `Player::GetInventorySlotCount`, loaded from `characters.inventorySlots`.
     player_inventory_slot_count_like_cpp: u8,
     /// C++ `UF::ActivePlayerData::CharacterPoints`, recalculated by InitTalentForLevel/LearnTalent.
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     player_character_points_like_cpp: i32,
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
     #[cfg(test)]
@@ -5533,8 +5535,12 @@ pub struct WorldSession {
     represented_auction_remove_items_like_cpp: Vec<RepresentedAuctionRemoveItemLikeCpp>,
     represented_auction_sell_items_like_cpp: Vec<RepresentedAuctionSellItemLikeCpp>,
     represented_auto_unequip_offhand_requests_like_cpp: Vec<RepresentedAutoUnequipOffhandLikeCpp>,
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     player_xp: u32,
     /// XP required to reach next level, cached from player_xp_for_level.
+    /// Test-only bootstrap for fixtures without a canonical `Player` owner.
+    #[cfg(test)]
     player_next_level_xp: u32,
     /// Currently selected target GUID (SetSelection).
     selection_guid: Option<wow_core::ObjectGuid>,
@@ -7704,6 +7710,7 @@ impl WorldSession {
             represented_talent_reset_time_secs_like_cpp: 0,
             player_bank_bag_slot_count_like_cpp: 0,
             player_inventory_slot_count_like_cpp: INVENTORY_DEFAULT_SIZE,
+            #[cfg(test)]
             player_character_points_like_cpp: 0,
             #[cfg(test)]
             represented_player_powers_like_cpp: empty_character_power_snapshot_like_cpp(),
@@ -7722,7 +7729,9 @@ impl WorldSession {
             represented_auction_remove_items_like_cpp: Vec::new(),
             represented_auction_sell_items_like_cpp: Vec::new(),
             represented_auto_unequip_offhand_requests_like_cpp: Vec::new(),
+            #[cfg(test)]
             player_xp: 0,
+            #[cfg(test)]
             player_next_level_xp: 400,
             player_xp_table: None,
             exploration_base_xp_store: None,
@@ -9434,8 +9443,30 @@ impl WorldSession {
         }
         #[cfg(test)]
         self.apply_represented_player_powers_to_canonical_like_cpp(&mut player);
-        player.set_xp(self.player_xp_like_cpp() as i32);
-        player.set_next_level_xp(self.player_next_level_xp_like_cpp() as i32);
+        #[cfg(not(test))]
+        {
+            // This value is the pre-Character-row bootstrap only. Production
+            // immediately hydrates the same owned Player through the setters
+            // below; it is never used as a fallback for an unresolved handle.
+            player.set_xp(0);
+            player.set_next_level_xp(400);
+            player.set_character_points_like_cpp(0);
+        }
+        #[cfg(test)]
+        {
+            player.set_xp(self.player_xp_like_cpp() as i32);
+            player.set_next_level_xp(self.player_next_level_xp_like_cpp() as i32);
+            player.set_character_points_like_cpp(self.player_character_points_like_cpp());
+        }
+        #[cfg(not(test))]
+        player.set_scaling_player_level_delta_like_cpp(
+            if self.player_level_like_cpp() < WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP {
+                -1
+            } else {
+                0
+            },
+        );
+        #[cfg(test)]
         player.set_scaling_player_level_delta_like_cpp(self.player_scaling_level_delta_like_cpp());
         player.set_money(self.player_gold_like_cpp());
         player.set_inventory_slot_count(self.player_inventory_slot_count_like_cpp());
@@ -9574,6 +9605,7 @@ impl WorldSession {
         // lookup so a replacement with the same GUID cannot be persisted by a
         // stale session incarnation.
         let powers = self.resolved_player_power_snapshot_like_cpp()?;
+        let xp = self.resolved_player_xp_like_cpp()?;
         let pending_teleport_destination = self.pending_teleport_save_destination_like_cpp();
         if let Some(manager) = self.canonical_map_manager.as_ref()
             && let Ok(manager) = manager.lock()
@@ -9624,7 +9656,7 @@ impl WorldSession {
                     instance_id,
                     position,
                     level: self.player_level_like_cpp(),
-                    xp: self.player_xp_like_cpp(),
+                    xp,
                     money: self.player_gold_like_cpp(),
                     health,
                     max_health: canonical_max_health,
@@ -9656,7 +9688,7 @@ impl WorldSession {
             instance_id,
             position,
             level: self.player_level_like_cpp(),
-            xp: self.player_xp_like_cpp(),
+            xp,
             money: self.player_gold_like_cpp(),
             health,
             max_health,
@@ -27704,7 +27736,7 @@ impl WorldSession {
     }
 
     pub(crate) fn opening_cinematic_like_cpp(&mut self) -> Option<u32> {
-        if self.player_xp_like_cpp() != 0 {
+        if self.resolved_player_xp_like_cpp()? != 0 {
             return None;
         }
 
@@ -28667,17 +28699,20 @@ impl WorldSession {
         u32::from(self.player_level_like_cpp()) >= self.player_active_max_level_like_cpp()
     }
 
-    fn can_gain_represented_xp_rest_bonus_like_cpp(&self) -> bool {
+    fn can_gain_represented_xp_rest_bonus_like_cpp(&self) -> Option<bool> {
         if self.player_is_at_configured_max_level_like_cpp() {
-            return false;
+            return Some(false);
         }
 
-        let next_level_xp = self.player_next_level_xp_like_cpp();
-        next_level_xp != 0 && next_level_xp != u32::MAX
+        let next_level_xp = self.resolved_player_next_level_xp_like_cpp()?;
+        Some(next_level_xp != 0 && next_level_xp != u32::MAX)
     }
 
-    fn represented_xp_rest_bonus_cap_like_cpp(&self) -> f32 {
-        self.player_next_level_xp_like_cpp() as f32 * REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP
+    fn represented_xp_rest_bonus_cap_like_cpp(&self) -> Option<f32> {
+        Some(
+            self.resolved_player_next_level_xp_like_cpp()? as f32
+                * REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP,
+        )
     }
 
     fn represented_recruit_a_friend_xp_rest_state_applies_like_cpp(&self) -> bool {
@@ -28729,11 +28764,17 @@ impl WorldSession {
         let old_threshold = self.represented_xp_rest_threshold_like_cpp();
         let old_state = self.represented_xp_rest_state_like_cpp();
         let mut rest_bonus = Self::sanitize_rest_bonus_like_cpp(rest_bonus);
-        if !self.can_gain_represented_xp_rest_bonus_like_cpp() {
+        let Some(can_gain) = self.can_gain_represented_xp_rest_bonus_like_cpp() else {
+            return 0;
+        };
+        if !can_gain {
             rest_bonus = 0.0;
         }
 
-        rest_bonus = rest_bonus.clamp(0.0, self.represented_xp_rest_bonus_cap_like_cpp());
+        let Some(rest_bonus_cap) = self.represented_xp_rest_bonus_cap_like_cpp() else {
+            return 0;
+        };
+        rest_bonus = rest_bonus.clamp(0.0, rest_bonus_cap);
         let is_raf_linked = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
         self.represented_rest_bonus_xp_like_cpp = rest_bonus;
         // The older legacy2 snapshot uses a `rest_bonus > 10` deadband here.
@@ -28768,11 +28809,11 @@ impl WorldSession {
         self.set_represented_xp_rest_bonus_like_cpp(total)
     }
 
-    fn calc_represented_xp_rest_extra_per_sec_like_cpp(&self, bubble: f32) -> f32 {
-        if !self.can_gain_represented_xp_rest_bonus_like_cpp() {
-            return 0.0;
+    fn calc_represented_xp_rest_extra_per_sec_like_cpp(&self, bubble: f32) -> Option<f32> {
+        if !self.can_gain_represented_xp_rest_bonus_like_cpp()? {
+            return Some(0.0);
         }
-        self.player_next_level_xp_like_cpp() as f32 / 72_000.0 * bubble
+        Some(self.resolved_player_next_level_xp_like_cpp()? as f32 / 72_000.0 * bubble)
     }
 
     pub(crate) fn apply_offline_xp_rest_bonus_like_cpp(
@@ -28801,7 +28842,11 @@ impl WorldSession {
         } else {
             REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP * self.rest_offline_wilderness_rate_like_cpp
         };
-        let extra = time_diff as f32 * self.calc_represented_xp_rest_extra_per_sec_like_cpp(bubble);
+        let Some(extra_per_sec) = self.calc_represented_xp_rest_extra_per_sec_like_cpp(bubble)
+        else {
+            return 0.0;
+        };
+        let extra = time_diff as f32 * extra_per_sec;
         let _ = self.add_represented_xp_rest_bonus_like_cpp(extra);
         extra
     }
@@ -28820,7 +28865,11 @@ impl WorldSession {
 
         self.represented_rest_time_secs_like_cpp = now_secs;
         let bubble = REST_ONLINE_INGAME_BUBBLE_LIKE_CPP * self.rest_ingame_rate_like_cpp;
-        let extra = time_diff as f32 * self.calc_represented_xp_rest_extra_per_sec_like_cpp(bubble);
+        let Some(extra_per_sec) = self.calc_represented_xp_rest_extra_per_sec_like_cpp(bubble)
+        else {
+            return (0.0, 0);
+        };
+        let extra = time_diff as f32 * extra_per_sec;
         let nested_mask = self.add_represented_xp_rest_bonus_like_cpp(extra);
         (extra, nested_mask)
     }
@@ -29301,6 +29350,28 @@ impl WorldSession {
         (player_flags, player_flags_ex)
     }
 
+    fn resolved_current_player_xp_persistence_request_like_cpp(
+        &self,
+        level_changed: bool,
+        rest_info_changed: bool,
+        guid_counter: u64,
+    ) -> Option<wow_persistence::PlayerXpPersistenceRequestLikeCpp> {
+        Some(wow_persistence::PlayerXpPersistenceRequestLikeCpp {
+            player_guid: guid_counter,
+            level_changed,
+            level: self.player_level_like_cpp(),
+            xp: self.resolved_player_xp_like_cpp()?,
+            rest: rest_info_changed.then(|| wow_persistence::PlayerXpRestStateSaveLikeCpp {
+                rest_state: self.represented_xp_rest_state_like_cpp(),
+                player_flags: self.represented_player_flags_for_rest_state_save_like_cpp(),
+                rest_bonus: Self::sanitize_rest_bonus_like_cpp(
+                    self.represented_xp_rest_bonus_like_cpp(),
+                ),
+            }),
+        })
+    }
+
+    #[cfg(test)]
     fn current_player_xp_persistence_request_like_cpp(
         &self,
         level_changed: bool,
@@ -29437,7 +29508,10 @@ impl WorldSession {
         self.remove_represented_pet_not_in_slot_like_cpp();
 
         if self.reset_represented_active_talents_like_cpp() {
-            self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
+            let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp() else {
+                return false;
+            };
+            self.send_packet(&talent_data);
             self.send_notification_like_cpp(self.reset_talents_notification_text_like_cpp());
             return true;
         }
@@ -30091,7 +30165,10 @@ impl WorldSession {
     }
 
     fn validate_represented_talent_learn_like_cpp(&self, talent_id: u32, rank: u8) -> bool {
-        let available_points = self.player_character_points_like_cpp().max(0) as u32;
+        let Some(available_points) = self.resolved_player_character_points_like_cpp() else {
+            return false;
+        };
+        let available_points = available_points.max(0) as u32;
         if available_points == 0 {
             return false;
         }
@@ -30586,8 +30663,17 @@ impl WorldSession {
         true
     }
 
-    pub(crate) fn represented_update_talent_data_packet_like_cpp(
+    pub(crate) fn resolved_update_talent_data_packet_like_cpp(
         &self,
+    ) -> Option<wow_packet::packets::misc::UpdateTalentData> {
+        Some(self.build_update_talent_data_packet_like_cpp(
+            self.resolved_player_character_points_like_cpp()?,
+        ))
+    }
+
+    fn build_update_talent_data_packet_like_cpp(
+        &self,
+        character_points: i32,
     ) -> wow_packet::packets::misc::UpdateTalentData {
         let group_count = (1 + usize::from(self.represented_bonus_talent_groups_like_cpp))
             .min(MAX_SPECIALIZATIONS_LIKE_CPP);
@@ -30613,11 +30699,18 @@ impl WorldSession {
         }
 
         wow_packet::packets::misc::UpdateTalentData {
-            unspent_talent_points: self.player_character_points_like_cpp().max(0) as u32,
+            unspent_talent_points: character_points.max(0) as u32,
             active_group: self.represented_active_talent_group_like_cpp,
             groups,
             is_pet_talents: false,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_update_talent_data_packet_like_cpp(
+        &self,
+    ) -> wow_packet::packets::misc::UpdateTalentData {
+        self.build_update_talent_data_packet_like_cpp(self.player_character_points_like_cpp())
     }
 
     pub(crate) fn represented_active_glyphs_packet_like_cpp(
@@ -30706,6 +30799,15 @@ impl WorldSession {
             return false;
         } // max level
 
+        // Resolve the generation-checked owner before consuming rest state or
+        // publishing LogXPGain. A stale session must produce no side effect.
+        let (Some(current_xp), Some(_next_level_xp)) = (
+            self.resolved_player_xp_like_cpp(),
+            self.resolved_player_next_level_xp_like_cpp(),
+        ) else {
+            return false;
+        };
+
         // C++ `Player::GiveXP`: Recruit-A-Friend is mutually exclusive with
         // rested XP and contributes 2 * base XP (3x total).
         let recruit_a_friend = self.gets_recruit_a_friend_xp_bonus_like_cpp();
@@ -30727,15 +30829,24 @@ impl WorldSession {
             amount: xp.min(i32::MAX as u32) as i32,
             group_bonus: group_rate,
         });
-        self.set_player_xp_like_cpp(self.player_xp_like_cpp().saturating_add(total_xp));
+        if !self.set_player_xp_like_cpp(current_xp.saturating_add(total_xp)) {
+            return false;
+        }
 
         // C++ `Player::GiveXP`: while (newXP >= nextLvlXP && !IsMaxLevel()).
-        while self.player_xp_like_cpp() >= self.player_next_level_xp_like_cpp()
-            && !self.player_is_max_level_like_cpp()
-        {
-            self.set_player_xp_like_cpp(
-                self.player_xp_like_cpp() - self.player_next_level_xp_like_cpp(),
-            );
+        loop {
+            let (Some(current_xp), Some(next_level_xp)) = (
+                self.resolved_player_xp_like_cpp(),
+                self.resolved_player_next_level_xp_like_cpp(),
+            ) else {
+                return false;
+            };
+            if current_xp < next_level_xp || self.player_is_max_level_like_cpp() {
+                break;
+            }
+            if !self.set_player_xp_like_cpp(current_xp - next_level_xp) {
+                return false;
+            }
             let new_level = self.player_level_like_cpp() + 1;
 
             info!(account = self.account_id, new_level, "Player leveled up");
@@ -30784,19 +30895,34 @@ impl WorldSession {
         }
 
         let level = self.player_level_like_cpp();
-        let xp = self.player_xp_like_cpp().min(i32::MAX as u32) as i32;
-        let next_level_xp = self.player_next_level_xp_like_cpp().min(i32::MAX as u32) as i32;
-        let scaling_player_level_delta = self.player_scaling_level_delta_like_cpp();
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
-            player.unit_mut().set_level(level);
-            player.set_xp(xp);
-            // C++ `SetXP` uses `ModifyValue` before assignment, so even an
-            // equal final remainder remains dirty after a level boundary.
-            player.mark_xp_changed_like_cpp();
-            player.set_next_level_xp(next_level_xp);
-            player.set_scaling_player_level_delta_like_cpp(scaling_player_level_delta);
-            player.mark_scaling_player_level_delta_changed_like_cpp();
-        });
+        let (Some(xp), Some(next_level_xp), Some(scaling_player_level_delta)) = (
+            self.resolved_player_xp_like_cpp(),
+            self.resolved_player_next_level_xp_like_cpp(),
+            self.resolved_player_scaling_level_delta_like_cpp(),
+        ) else {
+            return;
+        };
+        let xp = xp.min(i32::MAX as u32) as i32;
+        let next_level_xp = next_level_xp.min(i32::MAX as u32) as i32;
+        // `GiveLevel` may publish and clear its stat delta before C++'s final
+        // `SetXP(newXP)`. Preserve that final unconditional ModifyValue mark
+        // without writing a second progression value back into the owner.
+        let owner_marked = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.mark_xp_changed_like_cpp();
+                player.mark_scaling_player_level_delta_changed_like_cpp();
+            })
+            .is_some();
+        #[cfg(not(test))]
+        if !owner_marked {
+            return;
+        }
+        #[cfg(test)]
+        if !owner_marked && self.player_handle_like_cpp.is_some() {
+            // A stale handle is an unknown owner in tests too. Only legacy
+            // handle-less fixtures may exercise the isolated packet adapter.
+            return;
+        }
 
         // C++ mutates RestInfo and XP on the same Player update mask before
         // `Map::SendObjectUpdates`. Build one isolated transitional delta so
@@ -30840,11 +30966,13 @@ impl WorldSession {
         ) else {
             return;
         };
-        let request = self.current_player_xp_persistence_request_like_cpp(
+        let Some(request) = self.resolved_current_player_xp_persistence_request_like_cpp(
             self.player_level_like_cpp() != old_level,
             self.represented_xp_rest_info_changed_since_like_cpp(old_rest_bonus, old_rest_state),
             guid.counter() as u64,
-        );
+        ) else {
+            return;
+        };
         match port.persist_xp_like_cpp(request).await {
             wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
             wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
@@ -32397,7 +32525,9 @@ impl WorldSession {
         self.represented_talent_reset_time_secs_like_cpp = reset_time_secs;
         self.record_represented_talent_respec_criteria_like_cpp(cost);
 
-        self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
+        if let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp() {
+            self.send_packet(&talent_data);
+        }
         if let Some(player_guid) = self.player_guid() {
             self.record_represented_talent_respec_visual_spell_cast_like_cpp(
                 RepresentedTalentRespecVisualSpellCastLikeCpp {
@@ -32600,8 +32730,13 @@ impl WorldSession {
     /// C++ `Player::InitStatsForLevel` repairs an invalid persisted XP value
     /// after deriving `ActivePlayerData::NextLevelXP` for the loaded level.
     pub(crate) fn clamp_loaded_player_xp_to_next_level_like_cpp(&mut self) {
-        let next_level_xp = self.player_next_level_xp_like_cpp();
-        if self.player_xp_like_cpp() >= next_level_xp {
+        let (Some(player_xp), Some(next_level_xp)) = (
+            self.resolved_player_xp_like_cpp(),
+            self.resolved_player_next_level_xp_like_cpp(),
+        ) else {
+            return;
+        };
+        if player_xp >= next_level_xp {
             self.set_player_xp_like_cpp(next_level_xp.saturating_sub(1));
         }
     }
@@ -32609,14 +32744,28 @@ impl WorldSession {
     /// C++ `Player::SetXP` updates this field every time XP changes. It uses
     /// the client build's compile-time `MAX_LEVEL`, not the configurable or
     /// account-expansion-specific active maximum.
-    pub(crate) fn player_scaling_level_delta_like_cpp(&self) -> i32 {
-        if self.player_level_like_cpp() < WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP
-            && self.player_xp_like_cpp() < self.player_next_level_xp_like_cpp() / 2
-        {
-            -1
-        } else {
-            0
+    pub(crate) fn resolved_player_scaling_level_delta_like_cpp(&self) -> Option<i32> {
+        let canonical = self
+            .with_owned_player_like_cpp(|player| player.active_data().scaling_player_level_delta);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(
+                if self.player_level_like_cpp() < WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP
+                    && self.player_xp < self.player_next_level_xp / 2
+                {
+                    -1
+                } else {
+                    0
+                },
+            );
         }
+        canonical
+    }
+
+    #[cfg(test)]
+    pub(crate) fn player_scaling_level_delta_like_cpp(&self) -> i32 {
+        self.resolved_player_scaling_level_delta_like_cpp()
+            .expect("test Player progression owner must resolve")
     }
 
     /// C++ `Player::GetQuestLevel`.
@@ -37537,8 +37686,17 @@ impl WorldSession {
         self.player_inventory_slot_count_like_cpp = count;
     }
 
-    pub(crate) fn set_player_character_points_like_cpp(&mut self, points: i32) {
-        self.player_character_points_like_cpp = points;
+    pub(crate) fn set_player_character_points_like_cpp(&mut self, points: i32) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_character_points_like_cpp(points);
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_character_points_like_cpp = points;
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
     }
 
     pub(crate) fn reset_player_interaction_data_like_cpp(&mut self) {
@@ -37923,12 +38081,56 @@ impl WorldSession {
         true
     }
 
-    pub(crate) fn set_player_xp_like_cpp(&mut self, xp: u32) {
-        self.player_xp = xp;
+    pub(crate) fn set_player_xp_like_cpp(&mut self, xp: u32) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                let xp = xp.min(i32::MAX as u32) as i32;
+                player.set_xp(xp);
+                player.mark_xp_changed_like_cpp();
+                let scaling_level_delta = if player.unit().data().level
+                    < i32::from(WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP)
+                    && xp < player.active_data().next_level_xp / 2
+                {
+                    -1
+                } else {
+                    0
+                };
+                player.set_scaling_player_level_delta_like_cpp(scaling_level_delta);
+                player.mark_scaling_player_level_delta_changed_like_cpp();
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_xp = xp;
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
     }
 
-    pub(crate) fn set_player_next_level_xp_like_cpp(&mut self, xp: u32) {
-        self.player_next_level_xp = xp;
+    pub(crate) fn set_player_next_level_xp_like_cpp(&mut self, xp: u32) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                let next_level_xp = xp.min(i32::MAX as u32) as i32;
+                player.set_next_level_xp(next_level_xp);
+                // Rust hydrates the Character row before its XP table refresh,
+                // while C++ has NextLevelXP ready before `SetXP`. Recompute the
+                // dependent SetXP field here so the final canonical value is
+                // independent of that transitional load ordering.
+                let scaling_level_delta = if player.unit().data().level
+                    < i32::from(WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP)
+                    && player.active_data().xp < next_level_xp / 2
+                {
+                    -1
+                } else {
+                    0
+                };
+                player.set_scaling_player_level_delta_like_cpp(scaling_level_delta);
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.player_handle_like_cpp.is_none() {
+            self.player_next_level_xp = xp;
+        }
+        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
     }
 
     pub(crate) fn set_selection_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
@@ -40621,16 +40823,67 @@ impl WorldSession {
         self.player_inventory_slot_count_like_cpp
     }
 
+    pub(crate) fn resolved_player_character_points_like_cpp(&self) -> Option<i32> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.active_data().character_points);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.player_character_points_like_cpp);
+        }
+        canonical
+    }
+
+    pub(crate) fn resolved_player_xp_like_cpp(&self) -> Option<u32> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.active_data().xp.max(0) as u32);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.player_xp);
+        }
+        canonical
+    }
+
+    pub(crate) fn resolved_player_next_level_xp_like_cpp(&self) -> Option<u32> {
+        let canonical = self
+            .with_owned_player_like_cpp(|player| player.active_data().next_level_xp.max(0) as u32);
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(self.player_next_level_xp);
+        }
+        canonical
+    }
+
+    #[cfg(test)]
     pub(crate) fn player_character_points_like_cpp(&self) -> i32 {
-        self.player_character_points_like_cpp
+        self.resolved_player_character_points_like_cpp()
+            .or_else(|| {
+                self.player_handle_like_cpp
+                    .is_none()
+                    .then_some(self.player_character_points_like_cpp)
+            })
+            .expect("test Player progression owner must resolve")
     }
 
+    #[cfg(test)]
     pub(crate) fn player_xp_like_cpp(&self) -> u32 {
-        self.player_xp
+        self.resolved_player_xp_like_cpp()
+            .or_else(|| {
+                self.player_handle_like_cpp
+                    .is_none()
+                    .then_some(self.player_xp)
+            })
+            .expect("test Player progression owner must resolve")
     }
 
+    #[cfg(test)]
     pub(crate) fn player_next_level_xp_like_cpp(&self) -> u32 {
-        self.player_next_level_xp
+        self.resolved_player_next_level_xp_like_cpp()
+            .or_else(|| {
+                self.player_handle_like_cpp
+                    .is_none()
+                    .then_some(self.player_next_level_xp)
+            })
+            .expect("test Player progression owner must resolve")
     }
 
     #[allow(dead_code)]

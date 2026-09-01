@@ -149,7 +149,7 @@ impl WorldSession {
                 zone_id: self.player_zone_id_like_cpp as u16,
             },
             level: self.player_level_like_cpp(),
-            xp: self.player_xp_like_cpp(),
+            xp: self.resolved_player_xp_like_cpp()?,
             money: self.player_gold_like_cpp(),
             rest_state: self.represented_xp_rest_state_like_cpp(),
             player_flags: self.represented_player_flags_for_rest_state_save_like_cpp(),

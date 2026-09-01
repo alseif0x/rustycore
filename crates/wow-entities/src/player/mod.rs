@@ -3694,6 +3694,14 @@ impl Player {
         );
     }
 
+    /// Set C++ `UF::ActivePlayerData::CharacterPoints` without narrowing the
+    /// signed update-field value used by talent initialization.
+    pub fn set_character_points_like_cpp(&mut self, points: i32) {
+        self.set_active_i32(ACTIVE_PLAYER_DATA_CHARACTER_POINTS_BIT, points, |data| {
+            &mut data.character_points
+        });
+    }
+
     pub fn is_valid_pos(&self, bag: u8, slot: u8, explicit_pos: bool) -> bool {
         if bag == NULL_BAG && !explicit_pos {
             return true;

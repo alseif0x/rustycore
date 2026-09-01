@@ -1711,7 +1711,10 @@ impl WorldSession {
         self.send_packet(&login_bind_point_update_like_cpp(homebind));
 
         // 9. UpdateTalentData — C++ `Player::SendTalentsInfoData`.
-        self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
+        let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp() else {
+            return false;
+        };
+        self.send_packet(&talent_data);
 
         // 10. SendKnownSpells — populated from character_spell table
         info!("Sending {} known spells for {:?}", known_spells.len(), guid);
@@ -2365,6 +2368,13 @@ impl WorldSession {
             let trait_configs = self.load_active_player_trait_configs_like_cpp(guid).await;
             let player_customizations = self.load_player_customizations_like_cpp(guid).await;
             self.set_loaded_player_customizations_like_cpp(player_customizations.clone());
+            let (Some(player_xp), Some(player_next_level_xp), Some(scaling_level_delta)) = (
+                self.resolved_player_xp_like_cpp(),
+                self.resolved_player_next_level_xp_like_cpp(),
+                self.resolved_player_scaling_level_delta_like_cpp(),
+            ) else {
+                return false;
+            };
             info!(
                 toys = account_toys.len(),
                 heirlooms = account_heirlooms.len(),
@@ -2397,14 +2407,12 @@ impl WorldSession {
                 self.represented_player_flags_for_create_like_cpp();
             player_pkt.set_player_flags_like_cpp(player_flags, player_flags_ex);
             player_pkt.set_player_current_power0_like_cpp(current_power0);
-            player_pkt.set_player_xp_like_cpp(self.player_xp_like_cpp() as i32);
+            player_pkt.set_player_xp_like_cpp(player_xp.min(i32::MAX as u32) as i32);
             player_pkt
-                .set_player_next_level_xp_like_cpp(self.player_next_level_xp_like_cpp() as i32);
+                .set_player_next_level_xp_like_cpp(player_next_level_xp.min(i32::MAX as u32) as i32);
             player_pkt
                 .set_player_max_level_like_cpp(self.player_active_max_level_like_cpp() as i32);
-            player_pkt.set_player_scaling_level_delta_like_cpp(
-                self.player_scaling_level_delta_like_cpp(),
-            );
+            player_pkt.set_player_scaling_level_delta_like_cpp(scaling_level_delta);
             player_pkt.set_player_rest_info_like_cpp(
                 0,
                 self.represented_xp_rest_threshold_like_cpp(),

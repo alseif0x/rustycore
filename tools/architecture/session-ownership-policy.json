@@ -1881,8 +1881,10 @@
           "name": "player_character_points_like_cpp",
           "type": "i32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_cheat_god_like_cpp",
@@ -2179,8 +2181,10 @@
           "name": "player_next_level_xp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_normal_damage_immune_like_cpp",
@@ -2382,8 +2386,10 @@
           "name": "player_xp",
           "type": "u32",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "player_xp_table",
@@ -21677,6 +21683,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "build_update_talent_data_packet_like_cpp",
+          "visibility": "private",
+          "signature": "fn build_update_talent_data_packet_like_cpp (& self , character_points : i32 ,) -> wow_packet :: packets :: misc :: UpdateTalentData",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "buyback_items_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn buyback_items_like_cpp (& self) -> & HashMap < u8 , InventoryItem >",
@@ -21731,7 +21748,7 @@
           "kind": "method",
           "name": "calc_represented_xp_rest_extra_per_sec_like_cpp",
           "visibility": "private",
-          "signature": "fn calc_represented_xp_rest_extra_per_sec_like_cpp (& self , bubble : f32) -> f32",
+          "signature": "fn calc_represented_xp_rest_extra_per_sec_like_cpp (& self , bubble : f32) -> Option < f32 >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -21903,7 +21920,7 @@
           "kind": "method",
           "name": "can_gain_represented_xp_rest_bonus_like_cpp",
           "visibility": "private",
-          "signature": "fn can_gain_represented_xp_rest_bonus_like_cpp (& self) -> bool",
+          "signature": "fn can_gain_represented_xp_rest_bonus_like_cpp (& self) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -23760,8 +23777,10 @@
           "name": "current_player_xp_persistence_request_like_cpp",
           "visibility": "private",
           "signature": "fn current_player_xp_persistence_request_like_cpp (& self , level_changed : bool , rest_info_changed : bool , guid_counter : u64 ,) -> wow_persistence :: PlayerXpPersistenceRequestLikeCpp",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": []
         },
         {
@@ -29049,8 +29068,10 @@
           "name": "player_character_points_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_character_points_like_cpp (& self) -> i32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -29769,8 +29790,10 @@
           "name": "player_next_level_xp_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_next_level_xp_like_cpp (& self) -> u32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -29860,8 +29883,10 @@
           "name": "player_scaling_level_delta_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_scaling_level_delta_like_cpp (& self) -> i32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -30117,8 +30142,10 @@
           "name": "player_xp_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn player_xp_like_cpp (& self) -> u32",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -37215,8 +37242,10 @@
           "name": "represented_update_talent_data_packet_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_update_talent_data_packet_like_cpp (& self ,) -> wow_packet :: packets :: misc :: UpdateTalentData",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -37529,7 +37558,7 @@
           "kind": "method",
           "name": "represented_xp_rest_bonus_cap_like_cpp",
           "visibility": "private",
-          "signature": "fn represented_xp_rest_bonus_cap_like_cpp (& self) -> f32",
+          "signature": "fn represented_xp_rest_bonus_cap_like_cpp (& self) -> Option < f32 >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -38059,9 +38088,46 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_current_player_xp_persistence_request_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_current_player_xp_persistence_request_like_cpp (& self , level_changed : bool , rest_info_changed : bool , guid_counter : u64 ,) -> Option < wow_persistence :: PlayerXpPersistenceRequestLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_character_points_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_character_points_like_cpp (& self) -> Option < i32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_player_is_alive_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_player_is_alive_like_cpp (& self) -> Option < bool >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_next_level_xp_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_next_level_xp_like_cpp (& self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -38094,9 +38160,48 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_player_scaling_level_delta_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_scaling_level_delta_like_cpp (& self) -> Option < i32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_player_vitals_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_player_vitals_like_cpp (& self) -> Option < (u32 , u32 , bool) >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_player_xp_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_player_xp_like_cpp (& self) -> Option < u32 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_update_talent_data_packet_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_update_talent_data_packet_like_cpp (& self ,) -> Option < wow_packet :: packets :: misc :: UpdateTalentData >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -42574,7 +42679,7 @@
           "kind": "method",
           "name": "set_player_character_points_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_player_character_points_like_cpp (& mut self , points : i32)",
+          "signature": "fn set_player_character_points_like_cpp (& mut self , points : i32) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -43090,7 +43195,7 @@
           "kind": "method",
           "name": "set_player_next_level_xp_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_player_next_level_xp_like_cpp (& mut self , xp : u32)",
+          "signature": "fn set_player_next_level_xp_like_cpp (& mut self , xp : u32) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -43336,7 +43441,7 @@
           "kind": "method",
           "name": "set_player_xp_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn set_player_xp_like_cpp (& mut self , xp : u32)",
+          "signature": "fn set_player_xp_like_cpp (& mut self , xp : u32) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -70276,7 +70381,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:daacc07375488e46c27cff4188203561:len=3977|evidence=fnv1a64x2:da3a2201484f893be857e271e825236a:len=448",
+          "fingerprint": "signature=impl:WorldSession::fn canonical_player_entity_snapshot_for_map_like_cpp (& self , key : wow_map :: MapKey ,) -> Option < Player >|body=fnv1a64x2:cc44b80d8cd03422662588bc4df7ace1:len=4398|evidence=fnv1a64x2:da3a2201484f893be857e271e825236a:len=448",
           "cfg": [],
           "multiplicity": 1
         },
@@ -74014,7 +74119,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:6c7927bfb628527e00cf6f2f8224bdd5:len=90757|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:e605934e2e09d10b9e9cada8d4a479d6:len=91048|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

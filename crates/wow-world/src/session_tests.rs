@@ -30918,6 +30918,85 @@ fn canonical_player_powers_follow_active_detached_and_stale_handle_ownership_lik
 }
 
 #[test]
+fn canonical_player_progression_follows_active_detached_and_stale_handle_ownership_like_cpp() {
+    let (mut session, _pkt_tx, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_559);
+    let position = Position::new(3700.0, 1500.0, 120.0, 0.0);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "ProgressionOwner".to_string(),
+        position,
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+    assert!(session.set_player_xp_like_cpp(123));
+    assert!(session.set_player_next_level_xp_like_cpp(456));
+    assert!(session.set_player_character_points_like_cpp(7));
+
+    assert_eq!(session.resolved_player_xp_like_cpp(), Some(123));
+    assert_eq!(session.resolved_player_next_level_xp_like_cpp(), Some(456));
+    assert_eq!(session.resolved_player_character_points_like_cpp(), Some(7));
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.resolved_player_xp_like_cpp(), Some(123));
+    assert_eq!(session.resolved_player_next_level_xp_like_cpp(), Some(456));
+    assert_eq!(session.resolved_player_character_points_like_cpp(), Some(7));
+
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.set_xp(900);
+    replacement.set_next_level_xp(1_000);
+    replacement.set_character_points_like_cpp(11);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_player_xp_like_cpp(), None);
+    assert_eq!(session.resolved_player_next_level_xp_like_cpp(), None);
+    assert_eq!(session.resolved_player_character_points_like_cpp(), None);
+    assert!(!session.set_player_xp_like_cpp(1));
+    assert!(!session.set_player_next_level_xp_like_cpp(2));
+    assert!(!session.set_player_character_points_like_cpp(3));
+    assert!(!session.give_xp_runtime_like_cpp(10, ObjectGuid::EMPTY, 1.0));
+    assert!(drain_server_packet_bytes(&send_rx).is_empty());
+    assert_eq!(session.current_player_save_to_db_snapshot_like_cpp(), None);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player.active_data().xp,
+                player.active_data().next_level_xp,
+                player.active_data().character_points,
+            )),
+        Some((900, 1_000, 11))
+    );
+}
+
+#[test]
 fn canonical_player_rejected_map_sync_does_not_remove_existing_map_player_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -52684,7 +52763,7 @@ fn player_attack_can_always_see_unit_being_moved_like_cpp() {
 }
 
 #[test]
-fn logout_save_snapshot_uses_session_money_xp_and_canonical_health_like_cpp() {
+fn logout_save_snapshot_uses_canonical_xp_health_and_session_money_like_cpp() {
     let (mut session, _, _) = make_session();
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 70);
@@ -52747,7 +52826,7 @@ fn logout_save_snapshot_uses_session_money_xp_and_canonical_health_like_cpp() {
             instance_id: 0,
             position: latest_session_position,
             level: 10,
-            xp: 1,
+            xp: 1234,
             money: 2,
             health: 456,
             max_health: 900,
@@ -52759,7 +52838,7 @@ fn logout_save_snapshot_uses_session_money_xp_and_canonical_health_like_cpp() {
         Some(latest_session_position)
     );
     assert_eq!(session.player_level_like_cpp(), 10);
-    assert_eq!(session.player_xp_like_cpp(), 1);
+    assert_eq!(session.player_xp_like_cpp(), 1234);
     assert_eq!(session.player_gold_like_cpp(), 2);
     assert_eq!(session.player_health_like_cpp(), 456);
 }
@@ -55289,6 +55368,10 @@ fn give_xp_runtime_updates_canonical_progression_and_client_fields_like_cpp() {
     );
     session.set_player_next_level_xp_like_cpp(50);
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
+    assert!(session.ensure_canonical_player_owner_for_map_like_cpp(
+        wow_map::MapKey::new(1, 0),
+        Position::new(1.0, 2.0, 3.0, 0.0),
+    ));
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert!(session.give_xp_runtime_like_cpp(50, ObjectGuid::EMPTY, 1.0));
