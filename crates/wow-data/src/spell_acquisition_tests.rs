@@ -232,13 +232,7 @@ fn spell_effect_wdc_hydrates_planner_fields_from_cpp_physical_indices() {
 }
 
 #[test]
-fn spell_effect_sql_hydrates_planner_fields_from_projection_columns() {
-    let projection = SPELL_EFFECT_SQL
-        .strip_prefix("SELECT ")
-        .and_then(|sql| sql.split_once(" FROM spell_effect "))
-        .map(|(columns, _)| columns.split(", ").collect::<Vec<_>>())
-        .expect("SpellEffect SQL projection");
-    assert_eq!(projection.len(), 21);
+fn spell_effect_overlay_source_hydrates_planner_fields_from_projection_columns() {
     assert_eq!(
         [
             SPELL_EFFECT_SQL_CHAIN_TARGETS_COLUMN,
@@ -251,14 +245,6 @@ fn spell_effect_sql_hydrates_planner_fields_from_projection_columns() {
         ],
         [14, 15, 16, 17, 18, 19, 20]
     );
-    assert_eq!(projection[14], "EffectChainTargets");
-    assert_eq!(projection[15], "EffectPointsPerResource");
-    assert_eq!(projection[16], "EffectRealPointsPerLevel");
-    assert_eq!(projection[17], "EffectItemType");
-    assert_eq!(projection[18], "EffectAura");
-    assert_eq!(projection[19], "EffectMechanic");
-    assert_eq!(projection[20], "EffectAttributes");
-
     let mut source = SentinelSpellEffectSqlSource {
         raw: [0; 21],
         f32_bits: [0; 21],

@@ -2036,233 +2036,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:world-server:crate::spell_acquisition_loader:crates/world-server/src/spell_acquisition_loader.rs::fn load_effective_spell_reagents_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spell_acquisition_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_acquisition_loader"
-      ],
-      "enclosings": [
-        "fn load_effective_spell_reagents_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_effective_spell_reagents_like_cpp in crates/world-server/src/spell_acquisition_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spell_acquisition_loader:crates/world-server/src/spell_acquisition_loader.rs::fn load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spell_acquisition_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_acquisition_loader"
-      ],
-      "enclosings": [
-        "fn load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix",
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_like_cpp in crates/world-server/src/spell_acquisition_loader.rs.",
-      "connection_affinity": "The workflow uses independent hotfix, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spell_acquisition_loader:crates/world-server/src/spell_acquisition_loader.rs::fn load_signed_spell_id_set_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spell_acquisition_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_acquisition_loader"
-      ],
-      "enclosings": [
-        "fn load_signed_spell_id_set_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_signed_spell_id_set_like_cpp in crates/world-server/src/spell_acquisition_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spell_acquisition_loader:crates/world-server/src/spell_acquisition_loader.rs::fn load_spell_script_bindings_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spell_acquisition_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_acquisition_loader"
-      ],
-      "enclosings": [
-        "fn load_spell_script_bindings_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_spell_script_bindings_like_cpp in crates/world-server/src/spell_acquisition_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spell_acquisition_loader:crates/world-server/src/spell_acquisition_loader.rs::fn load_trainer_static_authority_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spell_acquisition_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_acquisition_loader"
-      ],
-      "enclosings": [
-        "fn load_trainer_static_authority_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix",
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_trainer_static_authority_like_cpp in crates/world-server/src/spell_acquisition_loader.rs.",
-      "connection_affinity": "The workflow uses independent hotfix, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spell_acquisition_loader:crates/world-server/src/spell_acquisition_loader.rs::fn load_unsigned_spell_id_set_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spell_acquisition_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_acquisition_loader"
-      ],
-      "enclosings": [
-        "fn load_unsigned_spell_id_set_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn load_unsigned_spell_id_set_like_cpp in crates/world-server/src/spell_acquisition_loader.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate::spell_acquisition_loader:crates/world-server/src/spell_acquisition_loader.rs::module",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/spell_acquisition_loader.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_acquisition_loader"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix",
-        "world"
-      ],
-      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow module in crates/world-server/src/spell_acquisition_loader.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for hotfix, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:wow-data:crate::access_requirement:crates/wow-data/src/access_requirement.rs::impl AccessRequirementStoreLikeCpp::load_like_cpp",
       "source_class": "production",
       "packages": [
@@ -3981,585 +3754,6 @@
         "world"
       ],
       "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow module in crates/wow-data/src/spawn_group.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell:crates/wow-data/src/spell/mod.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell/mod.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix",
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow module in crates/wow-data/src/spell/mod.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for hotfix, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell::acquisition:crates/wow-data/src/spell/acquisition.rs::impl SpellLearnSpellStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell/acquisition.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell::acquisition"
-      ],
-      "enclosings": [
-        "impl SpellLearnSpellStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl SpellLearnSpellStoreLikeCpp::load_like_cpp in crates/wow-data/src/spell/acquisition.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell::acquisition:crates/wow-data/src/spell/acquisition.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell/acquisition.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell::acquisition"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix",
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow module in crates/wow-data/src/spell/acquisition.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for hotfix, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell::corrections:crates/wow-data/src/spell/corrections.rs::impl ServersideSpellEffectStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell/corrections.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell::corrections"
-      ],
-      "enclosings": [
-        "impl ServersideSpellEffectStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl ServersideSpellEffectStoreLikeCpp::load_like_cpp in crates/wow-data/src/spell/corrections.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell::corrections:crates/wow-data/src/spell/corrections.rs::impl ServersideSpellStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell/corrections.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell::corrections"
-      ],
-      "enclosings": [
-        "impl ServersideSpellStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl ServersideSpellStoreLikeCpp::load_like_cpp in crates/wow-data/src/spell/corrections.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell::corrections:crates/wow-data/src/spell/corrections.rs::impl SpellCustomAttributeStoreLikeCpp::load_for_variants_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell/corrections.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell::corrections"
-      ],
-      "enclosings": [
-        "impl SpellCustomAttributeStoreLikeCpp::load_for_variants_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl SpellCustomAttributeStoreLikeCpp::load_for_variants_like_cpp in crates/wow-data/src/spell/corrections.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell::corrections:crates/wow-data/src/spell/corrections.rs::impl SpellCustomAttributeStoreLikeCpp::load_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell/corrections.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell::corrections"
-      ],
-      "enclosings": [
-        "impl SpellCustomAttributeStoreLikeCpp::load_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl SpellCustomAttributeStoreLikeCpp::load_like_cpp in crates/wow-data/src/spell/corrections.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell::corrections:crates/wow-data/src/spell/corrections.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell/corrections.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell::corrections"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix",
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow module in crates/wow-data/src/spell/corrections.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for hotfix, world; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell_acquisition:crates/wow-data/src/spell_acquisition.rs::fn load_sql_overlays_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_acquisition.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_acquisition"
-      ],
-      "enclosings": [
-        "fn load_sql_overlays_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow fn load_sql_overlays_like_cpp in crates/wow-data/src/spell_acquisition.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell_acquisition:crates/wow-data/src/spell_acquisition.rs::fn spell_acquisition_effect_from_sql_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_acquisition.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_acquisition"
-      ],
-      "enclosings": [
-        "fn spell_acquisition_effect_from_sql_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow fn spell_acquisition_effect_from_sql_like_cpp in crates/wow-data/src/spell_acquisition.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell_acquisition:crates/wow-data/src/spell_acquisition.rs::fn sql_f32_bits_or_invalid",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_acquisition.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_acquisition"
-      ],
-      "enclosings": [
-        "fn sql_f32_bits_or_invalid"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow fn sql_f32_bits_or_invalid in crates/wow-data/src/spell_acquisition.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell_acquisition:crates/wow-data/src/spell_acquisition.rs::fn sql_raw_i64",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_acquisition.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_acquisition"
-      ],
-      "enclosings": [
-        "fn sql_raw_i64"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow fn sql_raw_i64 in crates/wow-data/src/spell_acquisition.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell_acquisition:crates/wow-data/src/spell_acquisition.rs::fn sql_raw_or_invalid",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_acquisition.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_acquisition"
-      ],
-      "enclosings": [
-        "fn sql_raw_or_invalid"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow fn sql_raw_or_invalid in crates/wow-data/src/spell_acquisition.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell_acquisition:crates/wow-data/src/spell_acquisition.rs::impl SpellAcquisitionCatalogLikeCpp::load_effective_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_acquisition.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_acquisition"
-      ],
-      "enclosings": [
-        "impl SpellAcquisitionCatalogLikeCpp::load_effective_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl SpellAcquisitionCatalogLikeCpp::load_effective_like_cpp in crates/wow-data/src/spell_acquisition.rs.",
-      "connection_affinity": "The workflow acquires or uses the hotfix adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell_acquisition:crates/wow-data/src/spell_acquisition.rs::impl spell_acquisition::SpellEffectSqlFieldSourceLikeCpp for SpellEffectSqlResultSourceLikeCpp < '_ >::f32_bits",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_acquisition.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_acquisition"
-      ],
-      "enclosings": [
-        "impl spell_acquisition::SpellEffectSqlFieldSourceLikeCpp for SpellEffectSqlResultSourceLikeCpp < '_ >::f32_bits"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl spell_acquisition::SpellEffectSqlFieldSourceLikeCpp for SpellEffectSqlResultSourceLikeCpp < '_ >::f32_bits in crates/wow-data/src/spell_acquisition.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell_acquisition:crates/wow-data/src/spell_acquisition.rs::impl spell_acquisition::SpellEffectSqlFieldSourceLikeCpp for SpellEffectSqlResultSourceLikeCpp < '_ >::raw",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_acquisition.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_acquisition"
-      ],
-      "enclosings": [
-        "impl spell_acquisition::SpellEffectSqlFieldSourceLikeCpp for SpellEffectSqlResultSourceLikeCpp < '_ >::raw"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow impl spell_acquisition::SpellEffectSqlFieldSourceLikeCpp for SpellEffectSqlResultSourceLikeCpp < '_ >::raw in crates/wow-data/src/spell_acquisition.rs.",
-      "connection_affinity": "The workflow acquires or uses the world adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell_acquisition:crates/wow-data/src/spell_acquisition.rs::module",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_acquisition.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_acquisition"
-      ],
-      "enclosings": [
-        "module"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "hotfix"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow module in crates/wow-data/src/spell_acquisition.rs.",
-      "connection_affinity": "This is a shared dependency/type surface for hotfix; it does not itself imply a runtime transaction.",
-      "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-data:crate::spell_acquisition:crates/wow-data/src/spell_acquisition.rs::struct SpellEffectSqlResultSourceLikeCpp",
-      "source_class": "production",
-      "packages": [
-        "wow-data"
-      ],
-      "sources": [
-        "crates/wow-data/src/spell_acquisition.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::spell_acquisition"
-      ],
-      "enclosings": [
-        "struct SpellEffectSqlResultSourceLikeCpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "world"
-      ],
-      "capability_owner": "wow-data catalog/data-source boundary currently owns the complete wow-data workflow struct SpellEffectSqlResultSourceLikeCpp in crates/wow-data/src/spell_acquisition.rs.",
       "connection_affinity": "This is a shared dependency/type surface for world; it does not itself imply a runtime transaction.",
       "current_order": "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -23759,6 +22953,549 @@
       "stable_boundary": true
     },
     {
+      "id": "workflow:wow-database:crate::spell_acquisition_startup_adapter:crates/wow-database/src/spell_acquisition_startup_adapter.rs::fn decode_hotfix_row_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_acquisition_startup_adapter"
+      ],
+      "enclosings": [
+        "fn decode_hotfix_row_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572) currently owns the complete wow-database workflow fn decode_hotfix_row_like_cpp in crates/wow-database/src/spell_acquisition_startup_adapter.rs.",
+      "connection_affinity": "The adapter owns and reuses its HotfixDatabase handle for ordered official/custom overlay reads; no wider transaction is inferred.",
+      "current_order": "Each caller awaits the official overlay before the custom overlay and applies RecordRemoved only after both complete; helper decoding does not publish partial state.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_acquisition_startup_adapter:crates/wow-database/src/spell_acquisition_startup_adapter.rs::fn decode_serverside_effect_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_acquisition_startup_adapter"
+      ],
+      "enclosings": [
+        "fn decode_serverside_effect_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572) currently owns the complete wow-database workflow fn decode_serverside_effect_like_cpp in crates/wow-database/src/spell_acquisition_startup_adapter.rs.",
+      "connection_affinity": "The adapter owns and reuses its WorldDatabase handle for ordered catalog reads; no wider transaction is inferred.",
+      "current_order": "World rows are fully decoded before domain validation or publication; trainer audit preserves script bindings -> legacy scripts -> conditions and stops on the first failure.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_acquisition_startup_adapter:crates/wow-database/src/spell_acquisition_startup_adapter.rs::fn decode_serverside_spell_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_acquisition_startup_adapter"
+      ],
+      "enclosings": [
+        "fn decode_serverside_spell_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572) currently owns the complete wow-database workflow fn decode_serverside_spell_like_cpp in crates/wow-database/src/spell_acquisition_startup_adapter.rs.",
+      "connection_affinity": "The adapter owns and reuses its WorldDatabase handle for ordered catalog reads; no wider transaction is inferred.",
+      "current_order": "World rows are fully decoded before domain validation or publication; trainer audit preserves script bindings -> legacy scripts -> conditions and stops on the first failure.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_acquisition_startup_adapter:crates/wow-database/src/spell_acquisition_startup_adapter.rs::fn f32_bits_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_acquisition_startup_adapter"
+      ],
+      "enclosings": [
+        "fn f32_bits_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572) currently owns the complete wow-database workflow fn f32_bits_like_cpp in crates/wow-database/src/spell_acquisition_startup_adapter.rs.",
+      "connection_affinity": "The adapter owns and reuses its HotfixDatabase handle for ordered official/custom overlay reads; no wider transaction is inferred.",
+      "current_order": "Each caller awaits the official overlay before the custom overlay and applies RecordRemoved only after both complete; helper decoding does not publish partial state.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_acquisition_startup_adapter:crates/wow-database/src/spell_acquisition_startup_adapter.rs::fn load_hotfix_overlay_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_acquisition_startup_adapter"
+      ],
+      "enclosings": [
+        "fn load_hotfix_overlay_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572) currently owns the complete wow-database workflow fn load_hotfix_overlay_like_cpp in crates/wow-database/src/spell_acquisition_startup_adapter.rs.",
+      "connection_affinity": "The adapter owns and reuses its HotfixDatabase handle for ordered official/custom overlay reads; no wider transaction is inferred.",
+      "current_order": "Each caller awaits the official overlay before the custom overlay and applies RecordRemoved only after both complete; helper decoding does not publish partial state.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_acquisition_startup_adapter:crates/wow-database/src/spell_acquisition_startup_adapter.rs::fn load_spell_reagents_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_acquisition_startup_adapter"
+      ],
+      "enclosings": [
+        "fn load_spell_reagents_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572) currently owns the complete wow-database workflow fn load_spell_reagents_like_cpp in crates/wow-database/src/spell_acquisition_startup_adapter.rs.",
+      "connection_affinity": "The adapter owns and reuses its HotfixDatabase handle for ordered official/custom overlay reads; no wider transaction is inferred.",
+      "current_order": "Each caller awaits the official overlay before the custom overlay and applies RecordRemoved only after both complete; helper decoding does not publish partial state.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_acquisition_startup_adapter:crates/wow-database/src/spell_acquisition_startup_adapter.rs::fn query_world_rows_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_acquisition_startup_adapter"
+      ],
+      "enclosings": [
+        "fn query_world_rows_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572) currently owns the complete wow-database workflow fn query_world_rows_like_cpp in crates/wow-database/src/spell_acquisition_startup_adapter.rs.",
+      "connection_affinity": "The adapter owns and reuses its WorldDatabase handle for ordered catalog reads; no wider transaction is inferred.",
+      "current_order": "World rows are fully decoded before domain validation or publication; trainer audit preserves script bindings -> legacy scripts -> conditions and stops on the first failure.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_acquisition_startup_adapter:crates/wow-database/src/spell_acquisition_startup_adapter.rs::fn raw_i64_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_acquisition_startup_adapter"
+      ],
+      "enclosings": [
+        "fn raw_i64_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572) currently owns the complete wow-database workflow fn raw_i64_like_cpp in crates/wow-database/src/spell_acquisition_startup_adapter.rs.",
+      "connection_affinity": "The adapter owns and reuses its HotfixDatabase handle for ordered official/custom overlay reads; no wider transaction is inferred.",
+      "current_order": "Each caller awaits the official overlay before the custom overlay and applies RecordRemoved only after both complete; helper decoding does not publish partial state.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_acquisition_startup_adapter:crates/wow-database/src/spell_acquisition_startup_adapter.rs::impl MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::new",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_acquisition_startup_adapter"
+      ],
+      "enclosings": [
+        "impl MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::new"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix",
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572) currently owns the complete wow-database workflow impl MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::new in crates/wow-database/src/spell_acquisition_startup_adapter.rs.",
+      "connection_affinity": "One adapter owns independent HotfixDatabase and WorldDatabase handles; ordered startup reads are not represented as one distributed transaction.",
+      "current_order": "The composition root preserves server-side effects -> server-side spells -> acquisition catalogs -> trainer audit, while each Hotfix family preserves WDC -> official -> custom -> RecordRemoved order.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_acquisition_startup_adapter:crates/wow-database/src/spell_acquisition_startup_adapter.rs::impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_hotfix_overlay_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_acquisition_startup_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_hotfix_overlay_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572) currently owns the complete wow-database workflow impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_hotfix_overlay_like_cpp in crates/wow-database/src/spell_acquisition_startup_adapter.rs.",
+      "connection_affinity": "The adapter owns and reuses its HotfixDatabase handle for ordered official/custom overlay reads; no wider transaction is inferred.",
+      "current_order": "Each caller awaits the official overlay before the custom overlay and applies RecordRemoved only after both complete; helper decoding does not publish partial state.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_acquisition_startup_adapter:crates/wow-database/src/spell_acquisition_startup_adapter.rs::impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_serverside_spell_effects_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_acquisition_startup_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_serverside_spell_effects_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572) currently owns the complete wow-database workflow impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_serverside_spell_effects_like_cpp in crates/wow-database/src/spell_acquisition_startup_adapter.rs.",
+      "connection_affinity": "The adapter owns and reuses its WorldDatabase handle for ordered catalog reads; no wider transaction is inferred.",
+      "current_order": "World rows are fully decoded before domain validation or publication; trainer audit preserves script bindings -> legacy scripts -> conditions and stops on the first failure.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_acquisition_startup_adapter:crates/wow-database/src/spell_acquisition_startup_adapter.rs::impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_serverside_spells_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_acquisition_startup_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_serverside_spells_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572) currently owns the complete wow-database workflow impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_serverside_spells_like_cpp in crates/wow-database/src/spell_acquisition_startup_adapter.rs.",
+      "connection_affinity": "The adapter owns and reuses its WorldDatabase handle for ordered catalog reads; no wider transaction is inferred.",
+      "current_order": "World rows are fully decoded before domain validation or publication; trainer audit preserves script bindings -> legacy scripts -> conditions and stops on the first failure.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_acquisition_startup_adapter:crates/wow-database/src/spell_acquisition_startup_adapter.rs::impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_spell_custom_attributes_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_acquisition_startup_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_spell_custom_attributes_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572) currently owns the complete wow-database workflow impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_spell_custom_attributes_like_cpp in crates/wow-database/src/spell_acquisition_startup_adapter.rs.",
+      "connection_affinity": "The adapter owns and reuses its WorldDatabase handle for ordered catalog reads; no wider transaction is inferred.",
+      "current_order": "World rows are fully decoded before domain validation or publication; trainer audit preserves script bindings -> legacy scripts -> conditions and stops on the first failure.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_acquisition_startup_adapter:crates/wow-database/src/spell_acquisition_startup_adapter.rs::impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_spell_learn_spells_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_acquisition_startup_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_spell_learn_spells_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572) currently owns the complete wow-database workflow impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_spell_learn_spells_like_cpp in crates/wow-database/src/spell_acquisition_startup_adapter.rs.",
+      "connection_affinity": "The adapter owns and reuses its WorldDatabase handle for ordered catalog reads; no wider transaction is inferred.",
+      "current_order": "World rows are fully decoded before domain validation or publication; trainer audit preserves script bindings -> legacy scripts -> conditions and stops on the first failure.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_acquisition_startup_adapter:crates/wow-database/src/spell_acquisition_startup_adapter.rs::impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_spell_reagents_overlay_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_acquisition_startup_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_spell_reagents_overlay_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572) currently owns the complete wow-database workflow impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_spell_reagents_overlay_like_cpp in crates/wow-database/src/spell_acquisition_startup_adapter.rs.",
+      "connection_affinity": "The adapter owns and reuses its HotfixDatabase handle for ordered official/custom overlay reads; no wider transaction is inferred.",
+      "current_order": "Each caller awaits the official overlay before the custom overlay and applies RecordRemoved only after both complete; helper decoding does not publish partial state.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_acquisition_startup_adapter:crates/wow-database/src/spell_acquisition_startup_adapter.rs::impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_trainer_spell_audit_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_acquisition_startup_adapter"
+      ],
+      "enclosings": [
+        "impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_trainer_spell_audit_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572) currently owns the complete wow-database workflow impl wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp for MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp::load_trainer_spell_audit_like_cpp in crates/wow-database/src/spell_acquisition_startup_adapter.rs.",
+      "connection_affinity": "The adapter owns and reuses its WorldDatabase handle for ordered catalog reads; no wider transaction is inferred.",
+      "current_order": "World rows are fully decoded before domain validation or publication; trainer audit preserves script bindings -> legacy scripts -> conditions and stops on the first failure.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_acquisition_startup_adapter:crates/wow-database/src/spell_acquisition_startup_adapter.rs::module",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_acquisition_startup_adapter"
+      ],
+      "enclosings": [
+        "module"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix",
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572) currently owns the complete wow-database workflow module in crates/wow-database/src/spell_acquisition_startup_adapter.rs.",
+      "connection_affinity": "One adapter owns independent HotfixDatabase and WorldDatabase handles; ordered startup reads are not represented as one distributed transaction.",
+      "current_order": "The composition root preserves server-side effects -> server-side spells -> acquisition catalogs -> trainer audit, while each Hotfix family preserves WDC -> official -> custom -> RecordRemoved order.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
+      "id": "workflow:wow-database:crate::spell_acquisition_startup_adapter:crates/wow-database/src/spell_acquisition_startup_adapter.rs::struct MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp",
+      "source_class": "production",
+      "packages": [
+        "wow-database"
+      ],
+      "sources": [
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate::spell_acquisition_startup_adapter"
+      ],
+      "enclosings": [
+        "struct MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "hotfix",
+        "world"
+      ],
+      "capability_owner": "wow-database MariaDB adapter for the complete SQLx-free spell-acquisition startup capability (#572) currently owns the complete wow-database workflow struct MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp in crates/wow-database/src/spell_acquisition_startup_adapter.rs.",
+      "connection_affinity": "One adapter owns independent HotfixDatabase and WorldDatabase handles; ordered startup reads are not represented as one distributed transaction.",
+      "current_order": "The composition root preserves server-side effects -> server-side spells -> acquisition catalogs -> trainer audit, while each Hotfix family preserves WDC -> official -> custom -> RecordRemoved order.",
+      "failure_and_unknown_commit": "Each read-only semantic operation returns Loaded (including empty) or Failed; callers stop before later reads or publication, and no transaction or unknown-commit outcome is invented.",
+      "target_issues": [],
+      "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
+      "stable_boundary": true
+    },
+    {
       "id": "workflow:wow-database:crate::spell_core_db2_hotfix_adapter:crates/wow-database/src/spell_core_db2_hotfix_adapter.rs::fn classify_rows_like_cpp",
       "source_class": "production",
       "packages": [
@@ -32546,6 +32283,7 @@
         "crates/wow-database/src/session_account_state_adapter.rs",
         "crates/wow-database/src/skill_catalog_hotfix_adapter.rs",
         "crates/wow-database/src/skill_world_rules_adapter.rs",
+        "crates/wow-database/src/spell_acquisition_startup_adapter.rs",
         "crates/wow-database/src/spell_core_db2_hotfix_adapter.rs",
         "crates/wow-database/src/spell_world_catalog_adapter.rs",
         "crates/wow-database/src/statements/character.rs",
