@@ -2855,6 +2855,12 @@ async fn remote_group_money_is_one_atomic_durable_fanout_like_cpp() {
         ));
     install_group_loot_group(&mut first, first_guid, second_guid);
     let player_registry = Arc::new(PlayerRegistry::default());
+    let (first_presence_tx, _first_presence_rx) = flume::bounded(1);
+    player_registry.register_or_replace(
+        first_guid,
+        broadcast_info(first_guid, first_presence_tx),
+        Default::default(),
+    );
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     let mut second_info = broadcast_info(second_guid, registry_send_tx);
     second_info.command_tx = second.session_command_tx();
@@ -3089,6 +3095,12 @@ async fn failed_remote_group_money_transaction_credits_nobody_and_retries_like_c
         ));
     install_group_loot_group(&mut first, first_guid, second_guid);
     let player_registry = Arc::new(PlayerRegistry::default());
+    let (first_presence_tx, _first_presence_rx) = flume::bounded(1);
+    player_registry.register_or_replace(
+        first_guid,
+        broadcast_info(first_guid, first_presence_tx),
+        Default::default(),
+    );
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     let mut second_info = broadcast_info(second_guid, registry_send_tx);
     second_info.command_tx = second.session_command_tx();
@@ -3135,6 +3147,12 @@ async fn group_loot_money_worker_requires_and_uses_the_typed_persistence_port_li
         ));
     install_group_loot_group(&mut first, first_guid, second_guid);
     let registry = Arc::new(PlayerRegistry::default());
+    let (first_presence_tx, _first_presence_rx) = flume::bounded(1);
+    registry.register_or_replace(
+        first_guid,
+        broadcast_info(first_guid, first_presence_tx),
+        Default::default(),
+    );
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     let mut second_info = broadcast_info(second_guid, registry_send_tx);
     second_info.command_tx = second.session_command_tx();
@@ -5631,8 +5649,9 @@ fn install_master_loot_group(
     group.master_looter_guid = master_guid;
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
+    assert_eq!(session.resolved_group_guid_like_cpp(), Some(group_guid));
 }
 
 fn install_group_loot_group(
@@ -5646,8 +5665,9 @@ fn install_group_loot_group(
     group.loot_method = LOOT_METHOD_GROUP_LIKE_CPP;
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
+    assert_eq!(session.resolved_group_guid_like_cpp(), Some(group_guid));
 }
 
 fn generation_guarded_group_loot_like_cpp(
@@ -11735,6 +11755,12 @@ async fn loot_money_splits_corpse_gold_to_near_group_members_like_cpp() {
     group.add_member(other_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
+    let (player_presence_tx, _player_presence_rx) = flume::bounded(1);
+    player_registry.register_or_replace(
+        player_guid,
+        broadcast_info(player_guid, player_presence_tx),
+        Default::default(),
+    );
     player_registry.register_or_replace(
         other_guid,
         broadcast_info(other_guid, other_tx),

@@ -130,7 +130,7 @@ impl crate::session::WorldSession {
             return;
         }
 
-        let reset_owner_guid = if let Some(group_guid) = self.group_guid {
+        let reset_owner_guid = if let Some(group_guid) = self.resolved_group_guid_like_cpp() {
             let Some(group_registry) = self.group_registry() else {
                 return;
             };

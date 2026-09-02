@@ -5,12 +5,12 @@ use wow_core::ObjectGuid;
 use crate::{
     PlayerAchievementCriteriaRecord, PlayerAchievementRecord, PlayerActionButtonRecord,
     PlayerBattlegroundState, PlayerCufProfile, PlayerCustomizationChoice,
-    PlayerEquipmentSetLikeCpp, PlayerGroupState, PlayerGuildState, PlayerMailRecord,
-    PlayerPersistentCapabilityStateLikeCpp, PlayerQuestGameplayState, PlayerReputationRecord,
-    PlayerRestState, PlayerSkillRecord, PlayerSocialState, PlayerSpellChargeRecord,
-    PlayerSpellCooldownRecord, PlayerSpellRuntimeState, PlayerTalentRuntimeState, PlayerTaxiState,
-    PlayerTradeStateLikeCpp, PlayerTransportState, PlayerVoidStorageItemLikeCpp,
-    PlayerWorldLocalState,
+    PlayerEquipmentSetLikeCpp, PlayerGroupState, PlayerGroupUpdateSequenceLikeCpp,
+    PlayerGuildState, PlayerMailRecord, PlayerPersistentCapabilityStateLikeCpp,
+    PlayerQuestGameplayState, PlayerReputationRecord, PlayerRestState, PlayerSkillRecord,
+    PlayerSocialState, PlayerSpellChargeRecord, PlayerSpellCooldownRecord, PlayerSpellRuntimeState,
+    PlayerTalentRuntimeState, PlayerTaxiState, PlayerTradeStateLikeCpp, PlayerTransportState,
+    PlayerVoidStorageItemLikeCpp, PlayerWorldLocalState,
 };
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -72,6 +72,8 @@ pub struct PlayerGameplayState {
     pub void_storage_items: Vec<Option<PlayerVoidStorageItemLikeCpp>>,
     pub void_storage_loaded: bool,
     pub group: Option<PlayerGroupState>,
+    /// C++ `Player::m_groupUpdateSequences`; home and instance categories.
+    pub group_update_sequences: [PlayerGroupUpdateSequenceLikeCpp; 2],
     pub guild: PlayerGuildState,
     /// C++ `Player::m_trade`; `None` is the normal no-trade state.
     pub trade: Option<PlayerTradeStateLikeCpp>,

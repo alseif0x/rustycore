@@ -450,7 +450,7 @@ impl WorldSession {
         &self,
         player_guid: ObjectGuid,
     ) -> Vec<ObjectGuid> {
-        let Some(group_guid) = self.group_guid else {
+        let Some(group_guid) = self.resolved_group_guid_like_cpp() else {
             return vec![player_guid];
         };
         let Some(group_registry) = self.group_registry() else {
@@ -503,15 +503,16 @@ impl WorldSession {
         &self,
         connected_tappers: &[ObjectGuid],
     ) -> ObjectGuid {
-        let selected =
-            if let (Some(group_guid), Some(registry)) = (self.group_guid, self.group_registry()) {
-                registry
-                    .get(&group_guid)
-                    .map(|group| group.looter_guid_like_cpp())
-                    .filter(|looter| connected_tappers.contains(looter))
-            } else {
-                None
-            };
+        let selected = if let (Some(group_guid), Some(registry)) =
+            (self.resolved_group_guid_like_cpp(), self.group_registry())
+        {
+            registry
+                .get(&group_guid)
+                .map(|group| group.looter_guid_like_cpp())
+                .filter(|looter| connected_tappers.contains(looter))
+        } else {
+            None
+        };
         selected.unwrap_or(connected_tappers[0])
     }
 
@@ -519,7 +520,9 @@ impl WorldSession {
         &self,
         connected_tappers: &[ObjectGuid],
     ) {
-        let (Some(group_guid), Some(registry)) = (self.group_guid, self.group_registry()) else {
+        let (Some(group_guid), Some(registry)) =
+            (self.resolved_group_guid_like_cpp(), self.group_registry())
+        else {
             return;
         };
         let _ = registry

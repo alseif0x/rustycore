@@ -1046,7 +1046,7 @@ impl WorldSession {
             return;
         }
 
-        if self.group_guid.is_none() {
+        if self.resolved_group_guid_like_cpp().is_none() {
             self.send_push_quest_result_to_sender_if_available_like_cpp(
                 sender_guid,
                 quest_push_reason::NOT_IN_PARTY,
@@ -1065,7 +1065,7 @@ impl WorldSession {
             return;
         }
 
-        let Some(group_guid) = self.group_guid else {
+        let Some(group_guid) = self.resolved_group_guid_like_cpp() else {
             return;
         };
 

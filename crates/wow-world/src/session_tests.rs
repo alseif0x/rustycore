@@ -8804,21 +8804,21 @@ fn reset_group_update_sequence_starts_loaded_group_at_one_like_cpp() {
     let group = GroupInfo::new(leader);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
 
     assert!(session.reset_group_update_sequence_if_needed_like_cpp());
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
-        1
+        Some(1)
     );
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
-        2
+        Some(2)
     );
 }
 
@@ -8830,21 +8830,21 @@ fn reset_group_update_sequence_does_not_reset_same_group_like_cpp() {
     let group = GroupInfo::new(leader);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
 
     assert!(session.reset_group_update_sequence_if_needed_like_cpp());
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
-        1
+        Some(1)
     );
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
-        2
+        Some(2)
     );
 
     assert!(!session.reset_group_update_sequence_if_needed_like_cpp());
@@ -8852,7 +8852,7 @@ fn reset_group_update_sequence_does_not_reset_same_group_like_cpp() {
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
-        3
+        Some(3)
     );
 }
 
@@ -8876,13 +8876,13 @@ fn reset_group_update_sequence_resets_when_group_changes_like_cpp() {
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
-        1
+        Some(1)
     );
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
-        2
+        Some(2)
     );
 
     session.group_guid = Some(second_group_guid);
@@ -8891,7 +8891,7 @@ fn reset_group_update_sequence_resets_when_group_changes_like_cpp() {
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
-        1
+        Some(1)
     );
 }
 
@@ -8904,9 +8904,9 @@ fn reset_group_update_sequence_without_group_is_noop_like_cpp() {
         session.next_group_update_sequence_number_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
         ),
-        0
+        Some(0)
     );
-    assert_eq!(session.next_group_update_sequence_number_like_cpp(99), 0);
+    assert_eq!(session.next_group_update_sequence_number_like_cpp(99), None);
 }
 
 #[tokio::test]
@@ -8917,8 +8917,8 @@ async fn party_update_command_consumes_receiver_sequence_like_cpp() {
     let group = GroupInfo::new(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
     session.set_player_guid(Some(player_guid));
     session.state = SessionState::LoggedIn;
 
@@ -9141,8 +9141,8 @@ fn represented_group_leader_flag_is_set_for_loaded_leader_like_cpp() {
     let group = GroupInfo::new(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
 
     assert!(session.apply_represented_group_leader_flag_like_cpp());
 
@@ -31692,6 +31692,88 @@ fn canonical_player_battleground_context_follows_detached_and_stale_ownership_li
                 player.gameplay_state().battleground.clone()
             }),
         Some(replacement_state)
+    );
+}
+
+#[test]
+fn canonical_player_group_reference_follows_detached_and_stale_ownership_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 5_571);
+    let groups = Arc::new(GroupRegistry::default());
+    let group = GroupInfo::new(player_guid);
+    let group_guid = group.group_guid;
+    groups.register_group_like_cpp(group_guid, group);
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.set_group_registry(Arc::clone(&groups), Arc::new(PendingInvites::default()));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "GroupOwner".to_string(),
+        Position::new(3700.0, 1500.0, 120.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("initial world map");
+    let old_handle = session.player_handle_like_cpp.expect("canonical handle");
+
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
+    assert!(session.reset_group_update_sequence_if_needed_like_cpp());
+    assert_eq!(session.resolved_group_guid_like_cpp(), Some(group_guid));
+    assert_eq!(
+        session.next_group_update_sequence_number_like_cpp(0),
+        Some(1)
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(session.resolved_group_guid_like_cpp(), Some(group_guid));
+    assert_eq!(
+        session.next_group_update_sequence_number_like_cpp(0),
+        Some(2)
+    );
+
+    let replacement_state = wow_entities::PlayerGroupState {
+        group_guid: ObjectGuid::create_group(group_guid + 1),
+        leader_guid: ObjectGuid::create_player(1, 9_999),
+        role_mask: 4,
+        subgroup: 3,
+    };
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    replacement.gameplay_state_mut().group = Some(replacement_state.clone());
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+
+    assert_eq!(session.resolved_group_guid_like_cpp(), None);
+    assert!(!session.set_owned_player_group_like_cpp(None));
+    assert_eq!(session.next_group_update_sequence_number_like_cpp(0), None);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player.gameplay_state().group.clone()
+            }),
+        Some(Some(replacement_state))
     );
 }
 
@@ -54533,8 +54615,8 @@ fn player_attack_uses_owner_group_visibility_like_cpp() {
     group.add_member(owner);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
     assert_eq!(
         session.start_player_attack_like_cpp(victim),
         PlayerAttackStartLikeCppResult::Accepted {
@@ -54623,8 +54705,8 @@ fn player_attack_uses_private_object_group_visibility_like_cpp() {
     );
 
     group_registry.register_group_like_cpp(group_guid, group);
-    session.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
     assert_eq!(
         session.start_player_attack_like_cpp(victim),
         PlayerAttackStartLikeCppResult::Accepted {
@@ -54727,7 +54809,6 @@ fn player_attack_uses_private_summon_group_owner_like_cpp() {
     let group_registry = Arc::new(GroupRegistry::default());
     let group = GroupInfo::new(attacker);
     let group_guid = group.group_guid;
-    session.group_guid = Some(group_guid);
     let properties = SummonPropertiesEntry {
         id: 2,
         control: 0,
@@ -54739,9 +54820,11 @@ fn player_attack_uses_private_summon_group_owner_like_cpp() {
             0,
         ],
     };
-    let private_owner =
-        session.summon_private_object_owner_like_cpp(attacker, ObjectGuid::EMPTY, &properties);
-    assert_eq!(private_owner, ObjectGuid::create_group(group_guid));
+    assert_eq!(
+        session.summon_private_object_owner_like_cpp(attacker, ObjectGuid::EMPTY, &properties),
+        attacker
+    );
+    let private_owner = ObjectGuid::create_group(group_guid);
     assert!(session.set_canonical_creature_private_object_owner_like_cpp(summon, private_owner));
 
     assert_eq!(
@@ -54751,6 +54834,11 @@ fn player_attack_uses_private_summon_group_owner_like_cpp() {
 
     group_registry.register_group_like_cpp(group_guid, group);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+    assert!(session.set_owned_player_group_like_cpp(Some((group_guid, 0))));
+    assert_eq!(
+        session.summon_private_object_owner_like_cpp(attacker, ObjectGuid::EMPTY, &properties),
+        private_owner
+    );
     assert_eq!(
         session.start_player_attack_like_cpp(summon),
         PlayerAttackStartLikeCppResult::Accepted {

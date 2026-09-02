@@ -903,8 +903,10 @@
           "name": "group_guid",
           "type": "Option < u64 >",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "group_registry",
@@ -3521,10 +3523,12 @@
         },
         {
           "name": "represented_group_update_sequences_like_cpp",
-          "type": "[RepresentedGroupUpdateSequenceLikeCpp ; wow_social :: group :: MAX_GROUP_CATEGORY_LIKE_CPP as usize]",
+          "type": "[wow_entities :: PlayerGroupUpdateSequenceLikeCpp ; wow_social :: group :: MAX_GROUP_CATEGORY_LIKE_CPP as usize]",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_guild_accept_invites_like_cpp",
@@ -4332,8 +4336,10 @@
           "name": "represented_subgroup_like_cpp",
           "type": "Option < u8 >",
           "visibility": "private",
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "name": "represented_summoned_battle_pet_guid_like_cpp",
@@ -20985,7 +20991,7 @@
           "kind": "method",
           "name": "apply_target_visibility_context_for_current_player_like_cpp",
           "visibility": "private",
-          "signature": "fn apply_target_visibility_context_for_current_player_like_cpp (& self , target_unit : & mut wow_entities :: Unit , seer_unit : & mut wow_entities :: Unit , moved_unit_guid : Option < ObjectGuid > ,)",
+          "signature": "fn apply_target_visibility_context_for_current_player_like_cpp (& self , target_unit : & mut wow_entities :: Unit , seer_unit : & mut wow_entities :: Unit , moved_unit_guid : Option < ObjectGuid > , current_group_guid : Option < u64 > ,)",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -24113,7 +24119,7 @@
           "kind": "method",
           "name": "current_player_is_group_visible_for_owner_like_cpp",
           "visibility": "private",
-          "signature": "fn current_player_is_group_visible_for_owner_like_cpp (& self , owner_guid : ObjectGuid) -> bool",
+          "signature": "fn current_player_is_group_visible_for_owner_like_cpp (& self , current_group_guid : Option < u64 > , owner_guid : ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -24124,7 +24130,7 @@
           "kind": "method",
           "name": "current_player_is_in_group_guid_like_cpp",
           "visibility": "private",
-          "signature": "fn current_player_is_in_group_guid_like_cpp (& self , group_owner : ObjectGuid) -> bool",
+          "signature": "fn current_player_is_in_group_guid_like_cpp (& self , current_group_guid : Option < u64 > , group_owner : ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -28947,7 +28953,7 @@
           "kind": "method",
           "name": "next_group_update_sequence_number_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn next_group_update_sequence_number_like_cpp (& mut self , category : u8) -> i32",
+          "signature": "fn next_group_update_sequence_number_like_cpp (& mut self , category : u8 ,) -> Option < i32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -39224,6 +39230,30 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "resolved_group_guid_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn resolved_group_guid_like_cpp (& self) -> Option < u64 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "resolved_group_subgroup_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_group_subgroup_like_cpp (& self) -> Option < u8 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "resolved_in_combat_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_in_combat_like_cpp (& self) -> Option < bool >",
@@ -43964,6 +43994,20 @@
           "name": "set_offhand_check_at_spell_unlearn_like_cpp",
           "visibility": "pub",
           "signature": "fn set_offhand_check_at_spell_unlearn_like_cpp (& mut self , enabled : bool)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "setter",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "set_owned_player_group_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn set_owned_player_group_like_cpp (& mut self , membership : Option < (u64 , u8) > ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -64427,6 +64471,19 @@
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session/mod.rs",
+          "enclosing": "impl WorldSession::load_represented_group_by_db_store_id_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "get(& group_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session",
+          "source": "crates/wow-world/src/session/mod.rs",
           "enclosing": "impl WorldSession::load_represented_group_difficulties_like_cpp",
           "registry": "GroupRegistry",
           "operation": "member",
@@ -65240,6 +65297,45 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "self . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session",
+          "source": "crates/wow-world/src/session/mod.rs",
+          "enclosing": "impl WorldSession::set_owned_player_group_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "self . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session",
+          "source": "crates/wow-world/src/session/mod.rs",
+          "enclosing": "impl WorldSession::set_owned_player_group_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "group_registry:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session",
+          "source": "crates/wow-world/src/session/mod.rs",
+          "enclosing": "impl WorldSession::set_owned_player_group_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "get(& group_guid)",
           "count": 1
         },
         {
@@ -75582,7 +75678,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:b99a21f1de22f7a3a1891962a398287c:len=94533|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:d5c11ec67c87b4b6f8dd4f864d60fe3d:len=94589|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

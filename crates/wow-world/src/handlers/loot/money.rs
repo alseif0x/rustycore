@@ -31,7 +31,7 @@ impl WorldSession {
         }
 
         let (Some(group_guid), Some(group_registry), Some(player_registry)) = (
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             self.group_registry(),
             self.player_registry(),
         ) else {
@@ -45,10 +45,19 @@ impl WorldSession {
         let Some(source_position) = self.player_position_like_cpp() else {
             return vec![player_guid];
         };
-        let Some(source_instance_id) = self
+        let mut source_instance_id = self
             .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-        else {
+            .map(|key| key.instance_id);
+        // Old packet fixtures have no canonical map resident. They must still
+        // provide an explicit routing-directory placement; never invent an
+        // instance identifier for them.
+        #[cfg(test)]
+        if source_instance_id.is_none() {
+            source_instance_id = player_registry
+                .loot_presence(player_guid)
+                .map(|presence| presence.instance_id);
+        }
+        let Some(source_instance_id) = source_instance_id else {
             return vec![player_guid];
         };
         let mut recipients = Vec::new();

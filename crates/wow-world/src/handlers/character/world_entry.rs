@@ -829,7 +829,7 @@ impl WorldSession {
         {
             self.apply_represented_login_pet_talent_reset_like_cpp();
         }
-        self.group_guid = None;
+        let _ = self.set_owned_player_group_like_cpp(None);
         match player_lifecycle_port
             .load_login_auxiliary_like_cpp(
                 wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::GroupMembership {

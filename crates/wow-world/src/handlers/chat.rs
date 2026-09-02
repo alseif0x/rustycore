@@ -1375,7 +1375,7 @@ impl WorldSession {
 
     fn current_chat_group_like_cpp(&self, sender_guid: ObjectGuid) -> Option<GroupInfo> {
         let registry = self.group_registry()?;
-        if let Some(group_guid) = self.group_guid
+        if let Some(group_guid) = self.resolved_group_guid_like_cpp()
             && let Some(group) = registry.get(&group_guid)
             && group.members.contains(&sender_guid)
         {

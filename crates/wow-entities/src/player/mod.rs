@@ -747,6 +747,13 @@ pub struct PlayerGroupState {
     pub subgroup: u8,
 }
 
+/// C++ `Player::GroupUpdateSequence`, owned per player and group category.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PlayerGroupUpdateSequenceLikeCpp {
+    pub group_guid: Option<u64>,
+    pub update_sequence_number: i32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PlayerGuildState {
     pub guild_id: Option<u64>,

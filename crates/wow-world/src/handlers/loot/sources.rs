@@ -1863,7 +1863,7 @@ impl WorldSession {
         if !use_group_loot_rules {
             return (0, ObjectGuid::EMPTY, ObjectGuid::EMPTY);
         }
-        let Some(group_guid) = self.group_guid else {
+        let Some(group_guid) = self.resolved_group_guid_like_cpp() else {
             return (0, ObjectGuid::EMPTY, ObjectGuid::EMPTY);
         };
         let Some(registry) = self.group_registry() else {
@@ -2325,7 +2325,7 @@ impl WorldSession {
         &self,
         loot_owner_guid: ObjectGuid,
     ) -> (u8, ObjectGuid, ObjectGuid) {
-        let Some(group_guid) = self.group_guid else {
+        let Some(group_guid) = self.resolved_group_guid_like_cpp() else {
             return (0, ObjectGuid::EMPTY, ObjectGuid::EMPTY);
         };
         let Some(registry) = self.group_registry() else {

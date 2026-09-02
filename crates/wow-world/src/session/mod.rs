@@ -5172,20 +5172,6 @@ fn default_account_data_like_cpp() -> [AccountDataLikeCpp; NUM_ACCOUNT_DATA_TYPE
     std::array::from_fn(|_| AccountDataLikeCpp::default())
 }
 
-/// C++ `Player::GroupUpdateSequence` entry used by
-/// `ResetGroupUpdateSequenceIfNeeded` and `NextGroupUpdateSequenceNumber`.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) struct RepresentedGroupUpdateSequenceLikeCpp {
-    pub group_guid: Option<u64>,
-    pub update_sequence_number: i32,
-}
-
-fn default_group_update_sequences_like_cpp()
--> [RepresentedGroupUpdateSequenceLikeCpp; wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP as usize]
-{
-    std::array::from_fn(|_| RepresentedGroupUpdateSequenceLikeCpp::default())
-}
-
 fn trinity_sprintf_like_cpp(format: &str, args: &[&str]) -> String {
     let mut output = String::with_capacity(format.len());
     let mut chars = format.chars().peekable();
@@ -5627,10 +5613,14 @@ pub struct WorldSession {
     // Pending party invites: invited_guid → inviter_guid
     pending_invites: Option<Arc<PendingInvites>>,
 
-    // Group state for this session
+    // Test-only compatibility for pre-#578 fixtures. Production group
+    // membership and Player-owned update sequences live on canonical Player.
+    #[cfg(test)]
     pub(crate) group_guid: Option<u64>,
+    #[cfg(test)]
     represented_subgroup_like_cpp: Option<u8>,
-    represented_group_update_sequences_like_cpp: [RepresentedGroupUpdateSequenceLikeCpp;
+    #[cfg(test)]
+    represented_group_update_sequences_like_cpp: [wow_entities::PlayerGroupUpdateSequenceLikeCpp;
         wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP as usize],
     #[cfg(test)]
     pub(crate) pass_on_group_loot: bool,
@@ -7211,7 +7201,7 @@ impl RepresentedPlayerConditionContextLikeCpp {
             lifetime_max_pvp_rank: 0,
             movement_flags: [0, 0],
             mainhand_weapon_subclass: self.mainhand_weapon_subclass,
-            party_status: if session.group_guid.is_some() {
+            party_status: if session.resolved_group_guid_like_cpp().is_some() {
                 PlayerConditionPartyStatusLikeCpp::InParty
             } else {
                 PlayerConditionPartyStatusLikeCpp::Solo
@@ -7925,9 +7915,14 @@ impl WorldSession {
             game_event_quest_complete_tx: None,
             group_registry: None,
             pending_invites: None,
+            #[cfg(test)]
             group_guid: None,
+            #[cfg(test)]
             represented_subgroup_like_cpp: None,
-            represented_group_update_sequences_like_cpp: default_group_update_sequences_like_cpp(),
+            #[cfg(test)]
+            represented_group_update_sequences_like_cpp: std::array::from_fn(|_| {
+                Default::default()
+            }),
             #[cfg(test)]
             pass_on_group_loot: false,
             #[cfg(test)]
@@ -11601,8 +11596,12 @@ impl WorldSession {
         )
     }
 
-    fn current_player_is_in_group_guid_like_cpp(&self, group_owner: ObjectGuid) -> bool {
-        let Some(group_guid) = self.group_guid else {
+    fn current_player_is_in_group_guid_like_cpp(
+        &self,
+        current_group_guid: Option<u64>,
+        group_owner: ObjectGuid,
+    ) -> bool {
+        let Some(group_guid) = current_group_guid else {
             return false;
         };
         if ObjectGuid::create_group(group_guid) != group_owner {
@@ -11619,9 +11618,13 @@ impl WorldSession {
             .is_some_and(|group| group.members.contains(&player_guid))
     }
 
-    fn current_player_is_group_visible_for_owner_like_cpp(&self, owner_guid: ObjectGuid) -> bool {
+    fn current_player_is_group_visible_for_owner_like_cpp(
+        &self,
+        current_group_guid: Option<u64>,
+        owner_guid: ObjectGuid,
+    ) -> bool {
         let (Some(group_guid), Some(group_registry), Some(player_guid)) = (
-            self.group_guid,
+            current_group_guid,
             self.group_registry.as_ref(),
             self.player_guid(),
         ) else {
@@ -11634,7 +11637,7 @@ impl WorldSession {
 
     fn current_player_is_in_raid_group_like_cpp(&self) -> bool {
         let (Some(group_guid), Some(group_registry), Some(player_guid)) = (
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             self.group_registry.as_ref(),
             self.player_guid(),
         ) else {
@@ -11651,9 +11654,10 @@ impl WorldSession {
         player_guid: ObjectGuid,
         owner_guid: ObjectGuid,
     ) -> bool {
-        let (Some(group_guid), Some(group_registry)) =
-            (self.group_guid, self.group_registry.as_ref())
-        else {
+        let (Some(group_guid), Some(group_registry)) = (
+            self.resolved_group_guid_like_cpp(),
+            self.group_registry.as_ref(),
+        ) else {
             return false;
         };
         group_registry.get(&group_guid).is_some_and(|group| {
@@ -11665,9 +11669,10 @@ impl WorldSession {
         &self,
         player_guid: ObjectGuid,
     ) -> Vec<ObjectGuid> {
-        let (Some(group_guid), Some(group_registry)) =
-            (self.group_guid, self.group_registry.as_ref())
-        else {
+        let (Some(group_guid), Some(group_registry)) = (
+            self.resolved_group_guid_like_cpp(),
+            self.group_registry.as_ref(),
+        ) else {
             return Vec::new();
         };
         group_registry
@@ -11703,7 +11708,7 @@ impl WorldSession {
         }
 
         if only_visible_to_summoner_group && caster_guid.is_player() {
-            if let Some(group_guid) = self.group_guid {
+            if let Some(group_guid) = self.resolved_group_guid_like_cpp() {
                 return ObjectGuid::create_group(group_guid);
             }
         }
@@ -11745,6 +11750,7 @@ impl WorldSession {
         target_unit: &mut wow_entities::Unit,
         seer_unit: &mut wow_entities::Unit,
         moved_unit_guid: Option<ObjectGuid>,
+        current_group_guid: Option<u64>,
     ) {
         target_unit.set_object_id_visibility_conditions_met_like_cpp(
             self.object_id_visibility_conditions_met_like_cpp(
@@ -11761,7 +11767,7 @@ impl WorldSession {
         let private_owner = target_unit.private_object_owner_like_cpp();
         if !private_owner.is_empty() {
             seer_unit.set_seer_group_visible_for_private_owner_like_cpp(
-                self.current_player_is_in_group_guid_like_cpp(private_owner),
+                self.current_player_is_in_group_guid_like_cpp(current_group_guid, private_owner),
             );
         }
 
@@ -11770,7 +11776,10 @@ impl WorldSession {
             .control
             .charmer_or_owner_guid()
             .is_some_and(|owner_guid| {
-                self.current_player_is_group_visible_for_owner_like_cpp(owner_guid)
+                self.current_player_is_group_visible_for_owner_like_cpp(
+                    current_group_guid,
+                    owner_guid,
+                )
             });
         target_unit.set_target_owner_group_visible_for_seer_like_cpp(owner_group_visible);
     }
@@ -11782,6 +11791,7 @@ impl WorldSession {
         // Resolve the Player-owned control state before taking the map lock;
         // visibility checks below run while that same manager is borrowed.
         let moved_unit_guid = self.player_moved_unit_guid_like_cpp();
+        let current_group_guid = self.resolved_group_guid_like_cpp();
         let Some(manager) = self.canonical_map_manager.as_ref() else {
             return (
                 true,
@@ -11817,6 +11827,7 @@ impl WorldSession {
                             &mut target_unit,
                             &mut seer_unit,
                             moved_unit_guid,
+                            current_group_guid,
                         );
                         seer_unit.can_see_or_detect_unit_like_cpp(&target_unit, false, true, false)
                     })
@@ -11852,6 +11863,7 @@ impl WorldSession {
                             &mut target_unit,
                             &mut seer_unit,
                             moved_unit_guid,
+                            current_group_guid,
                         );
                         seer_unit.can_see_or_detect_unit_like_cpp(&target_unit, false, true, false)
                     })
@@ -13118,7 +13130,7 @@ impl WorldSession {
             return false;
         };
         let leader_guid = self
-            .group_guid
+            .resolved_group_guid_like_cpp()
             .and_then(|group_guid| self.group_registry.as_ref()?.get(&group_guid))
             .map(|group| group.leader_guid)
             .unwrap_or(player_guid);
@@ -13181,7 +13193,7 @@ impl WorldSession {
                         .ok()
                         .map(|counter| ObjectGuid::create_player(1, counter));
                     let updated = self
-                        .group_guid
+                        .resolved_group_guid_like_cpp()
                         .zip(owner_guid)
                         .and_then(|(group_guid, owner_guid)| {
                             self.group_registry
@@ -13296,7 +13308,7 @@ impl WorldSession {
             self.represented_player_difficulty_id_for_map_entry_like_cpp(map_id, map_entry)?;
 
         let group = self
-            .group_guid
+            .resolved_group_guid_like_cpp()
             .and_then(|group_guid| self.group_registry.as_ref()?.get(&group_guid))
             .map(|group| {
                 let difficulty_id = self.represented_group_difficulty_id_for_map_entry_like_cpp(
@@ -13393,7 +13405,7 @@ impl WorldSession {
     }
 
     fn create_map_instance_owner_guid_like_cpp(&self, map_id: u32) -> Option<ObjectGuid> {
-        self.group_guid
+        self.resolved_group_guid_like_cpp()
             .and_then(|group_guid| self.group_registry.as_ref()?.get(&group_guid))
             .map(|group| group.recent_instance_owner_like_cpp(map_id))
             .or(self.player_guid)
@@ -25309,9 +25321,10 @@ impl WorldSession {
     /// the current group values because the leader may change them while the
     /// member is offline.
     pub(crate) fn load_represented_group_difficulties_like_cpp(&mut self) -> bool {
-        let (Some(group_guid), Some(group_registry)) =
-            (self.group_guid, self.group_registry.as_ref())
-        else {
+        let (Some(group_guid), Some(group_registry)) = (
+            self.resolved_group_guid_like_cpp(),
+            self.group_registry.as_ref(),
+        ) else {
             return false;
         };
 
@@ -25333,42 +25346,118 @@ impl WorldSession {
         )
     }
 
+    /// Resolve C++ `Player::m_group` through this session incarnation's
+    /// generation-checked canonical Player handle. An unresolved owner never
+    /// falls back in production.
+    pub(crate) fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player
+                .gameplay_state()
+                .group
+                .as_ref()
+                .map(|group| group.group_guid.counter() as u64)
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return self.group_guid;
+        }
+        canonical.flatten()
+    }
+
+    fn resolved_group_subgroup_like_cpp(&self) -> Option<u8> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player
+                .gameplay_state()
+                .group
+                .as_ref()
+                .map(|group| group.subgroup)
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return self.represented_subgroup_like_cpp;
+        }
+        canonical.flatten()
+    }
+
+    /// C++ `Player::SetGroup`: replace the Player-owned `GroupReference`
+    /// snapshot. Group membership itself remains authoritative in GroupRegistry.
+    pub(crate) fn set_owned_player_group_like_cpp(
+        &mut self,
+        membership: Option<(u64, u8)>,
+    ) -> bool {
+        #[cfg(test)]
+        if self.player_handle_like_cpp.is_none() {
+            self.group_guid = membership.map(|(group_guid, _)| group_guid);
+            self.represented_subgroup_like_cpp = membership.map(|(_, subgroup)| subgroup);
+            return true;
+        }
+
+        let state = match membership {
+            None => None,
+            Some((group_guid, subgroup)) => {
+                let Some(player_guid) = self.player_guid() else {
+                    return false;
+                };
+                let Some(group_registry) = self.group_registry.as_ref() else {
+                    return false;
+                };
+                let Some(group) = group_registry.get(&group_guid) else {
+                    return false;
+                };
+                let Some(slot) = group.member_slot_like_cpp(player_guid) else {
+                    return false;
+                };
+                Some(wow_entities::PlayerGroupState {
+                    group_guid: ObjectGuid::create_group(group_guid),
+                    leader_guid: group.leader_guid,
+                    role_mask: slot.roles,
+                    subgroup,
+                })
+            }
+        };
+
+        self.with_owned_player_mut_like_cpp(move |player| {
+            player.gameplay_state_mut().group = state;
+        })
+        .is_some()
+    }
+
     /// C++ `Player::SetGroup(group, subgroup)` stores the subgroup on the
     /// player's `GroupReference`; `Player::GetSubGroup()` reads it from there.
     pub(crate) fn load_represented_group_subgroup_like_cpp(&mut self) -> bool {
         let (Some(group_guid), Some(player_guid), Some(group_registry)) = (
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             self.player_guid(),
             self.group_registry.as_ref(),
         ) else {
-            self.represented_subgroup_like_cpp = None;
+            let _ = self.set_owned_player_group_like_cpp(None);
             return false;
         };
 
         let Some(group) = group_registry.get(&group_guid) else {
-            self.represented_subgroup_like_cpp = None;
+            let _ = self.set_owned_player_group_like_cpp(None);
             return false;
         };
         let Some(slot) = group.member_slot_like_cpp(player_guid) else {
-            self.represented_subgroup_like_cpp = None;
+            let _ = self.set_owned_player_group_like_cpp(None);
             return false;
         };
 
-        self.represented_subgroup_like_cpp = Some(slot.subgroup);
-        true
+        self.set_owned_player_group_like_cpp(Some((group_guid, slot.subgroup)))
     }
 
     pub(crate) fn apply_group_subgroup_like_cpp(&mut self, group_guid: u64, subgroup: u8) {
-        if self.group_guid == Some(group_guid) {
-            self.represented_subgroup_like_cpp = Some(subgroup);
+        if self.resolved_group_guid_like_cpp() == Some(group_guid)
+            && self.set_owned_player_group_like_cpp(Some((group_guid, subgroup)))
+        {
             self.sync_player_registry_state_like_cpp();
         }
     }
 
     pub(crate) fn apply_group_join_like_cpp(&mut self, group_guid: u64, subgroup: u8) {
-        self.group_guid = Some(group_guid);
-        self.represented_subgroup_like_cpp = Some(subgroup);
-        self.sync_player_registry_party_member_party_type_like_cpp();
+        if self.set_owned_player_group_like_cpp(Some((group_guid, subgroup))) {
+            self.sync_player_registry_party_member_party_type_like_cpp();
+        }
     }
 
     pub(crate) fn sync_player_registry_party_member_party_type_like_cpp(&self) {
@@ -25380,12 +25469,12 @@ impl WorldSession {
     }
 
     pub(crate) fn clear_represented_group_subgroup_like_cpp(&mut self) {
-        self.represented_subgroup_like_cpp = None;
+        let _ = self.set_owned_player_group_like_cpp(None);
     }
 
     #[cfg(test)]
     pub(crate) fn represented_subgroup_like_cpp(&self) -> Option<u8> {
-        self.represented_subgroup_like_cpp
+        self.resolved_group_subgroup_like_cpp()
     }
 
     /// C++ `Player::_LoadGroup` resolves `CHAR_SEL_GROUP_MEMBER.guid` through
@@ -25396,32 +25485,42 @@ impl WorldSession {
         db_store_id: u32,
     ) -> bool {
         let Some(group_registry) = self.group_registry.as_ref() else {
-            self.group_guid = None;
-            self.represented_subgroup_like_cpp = None;
+            let _ = self.set_owned_player_group_like_cpp(None);
             return false;
         };
         let Some(group_guid) = group_guid_by_db_store_id_like_cpp(db_store_id) else {
-            self.group_guid = None;
-            self.represented_subgroup_like_cpp = None;
+            let _ = self.set_owned_player_group_like_cpp(None);
             return false;
         };
         if !group_registry.contains_key(&group_guid) {
-            self.group_guid = None;
-            self.represented_subgroup_like_cpp = None;
+            let _ = self.set_owned_player_group_like_cpp(None);
             return false;
         }
 
-        self.group_guid = Some(group_guid);
-        let _ = self.load_represented_group_subgroup_like_cpp();
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        let Some(subgroup) = group_registry.get(&group_guid).and_then(|group| {
+            group
+                .member_slot_like_cpp(player_guid)
+                .map(|slot| slot.subgroup)
+        }) else {
+            let _ = self.set_owned_player_group_like_cpp(None);
+            return false;
+        };
+        if !self.set_owned_player_group_like_cpp(Some((group_guid, subgroup))) {
+            return false;
+        }
         self.load_represented_group_difficulties_like_cpp()
     }
 
     /// C++ `Player::ResetGroupUpdateSequenceIfNeeded` resets the per-player
     /// sequence for a group category only when the loaded group guid changed.
     pub(crate) fn reset_group_update_sequence_if_needed_like_cpp(&mut self) -> bool {
-        let (Some(group_guid), Some(group_registry)) =
-            (self.group_guid, self.group_registry.as_ref())
-        else {
+        let (Some(group_guid), Some(group_registry)) = (
+            self.resolved_group_guid_like_cpp(),
+            self.group_registry.as_ref(),
+        ) else {
             return false;
         };
 
@@ -25433,27 +25532,56 @@ impl WorldSession {
             return false;
         }
 
-        let sequence = &mut self.represented_group_update_sequences_like_cpp[usize::from(category)];
-        if sequence.group_guid == Some(group_guid) {
-            return false;
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            let sequence =
+                &mut player.gameplay_state_mut().group_update_sequences[usize::from(category)];
+            if sequence.group_guid == Some(group_guid) {
+                return false;
+            }
+            sequence.group_guid = Some(group_guid);
+            sequence.update_sequence_number = 1;
+            true
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            let sequence =
+                &mut self.represented_group_update_sequences_like_cpp[usize::from(category)];
+            if sequence.group_guid == Some(group_guid) {
+                return false;
+            }
+            sequence.group_guid = Some(group_guid);
+            sequence.update_sequence_number = 1;
+            return true;
         }
-
-        sequence.group_guid = Some(group_guid);
-        sequence.update_sequence_number = 1;
-        true
+        canonical.unwrap_or(false)
     }
 
     /// C++ `Player::NextGroupUpdateSequenceNumber` returns the current
     /// per-player category sequence and then increments it.
-    pub(crate) fn next_group_update_sequence_number_like_cpp(&mut self, category: u8) -> i32 {
+    pub(crate) fn next_group_update_sequence_number_like_cpp(
+        &mut self,
+        category: u8,
+    ) -> Option<i32> {
         if category >= wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP {
-            return 0;
+            return None;
         }
 
-        let sequence = &mut self.represented_group_update_sequences_like_cpp[usize::from(category)];
-        let current = sequence.update_sequence_number;
-        sequence.update_sequence_number = sequence.update_sequence_number.saturating_add(1);
-        current
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            let sequence =
+                &mut player.gameplay_state_mut().group_update_sequences[usize::from(category)];
+            let current = sequence.update_sequence_number;
+            sequence.update_sequence_number = sequence.update_sequence_number.saturating_add(1);
+            current
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            let sequence =
+                &mut self.represented_group_update_sequences_like_cpp[usize::from(category)];
+            let current = sequence.update_sequence_number;
+            sequence.update_sequence_number = sequence.update_sequence_number.saturating_add(1);
+            return Some(current);
+        }
+        canonical
     }
 
     /// C++ `Group::SendUpdateDestroyGroupToPlayer` (`Group.cpp:917-926`): the
@@ -25466,7 +25594,9 @@ impl WorldSession {
         group_guid: u64,
         category: u8,
     ) {
-        let sequence_num = self.next_group_update_sequence_number_like_cpp(category);
+        let Some(sequence_num) = self.next_group_update_sequence_number_like_cpp(category) else {
+            return;
+        };
         self.send_packet_realm(&wow_packet::packets::party::PartyUpdate {
             party_flags: wow_social::group::GROUP_FLAG_DESTROYED_LIKE_CPP,
             party_index: category,
@@ -25490,7 +25620,7 @@ impl WorldSession {
         };
 
         let is_group_leader = self
-            .group_guid
+            .resolved_group_guid_like_cpp()
             .and_then(|group_guid| {
                 self.group_registry
                     .as_ref()
@@ -25530,7 +25660,7 @@ impl WorldSession {
         difficulty_id: u32,
         kind: wow_social::group::GroupDifficultyKindLikeCpp,
     ) {
-        if self.group_guid != Some(group_guid) {
+        if self.resolved_group_guid_like_cpp() != Some(group_guid) {
             return;
         }
 
@@ -25623,7 +25753,7 @@ impl WorldSession {
             ) {
                 return vec![statement];
             }
-            if self.group_guid.is_some() || difficulty_id == current_dungeon {
+            if self.resolved_group_guid_like_cpp().is_some() || difficulty_id == current_dungeon {
                 return Vec::new();
             }
 
@@ -25651,7 +25781,7 @@ impl WorldSession {
             {
                 return vec![statement];
             }
-            if self.group_guid.is_some() {
+            if self.resolved_group_guid_like_cpp().is_some() {
                 return Vec::new();
             }
             let current = if legacy {
@@ -25713,7 +25843,7 @@ impl WorldSession {
         difficulty_id: u32,
         kind: wow_social::group::GroupDifficultyKindLikeCpp,
     ) -> Option<wow_persistence::RepresentedGroupPersistenceCommandLikeCpp> {
-        let group_guid = self.group_guid?;
+        let group_guid = self.resolved_group_guid_like_cpp()?;
         let player_guid = self.player_guid()?;
         let registry = self.group_registry.as_ref()?;
         let outcome = registry
@@ -25766,7 +25896,7 @@ impl WorldSession {
         }
 
         let player_guid = self.player_guid()?;
-        if let Some(group_guid) = self.group_guid {
+        if let Some(group_guid) = self.resolved_group_guid_like_cpp() {
             let group = self.group_registry.as_ref()?.get(&group_guid)?;
             if !group.is_leader_like_cpp(player_guid) || group.is_lfg_group_like_cpp() {
                 return None;
@@ -33147,7 +33277,7 @@ impl WorldSession {
         }
         let (Some(player_guid), Some(group_guid), Some(group_registry), Some(player_registry)) = (
             self.player_guid(),
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             self.group_registry.as_ref(),
             self.player_registry.as_ref(),
         ) else {
@@ -33315,9 +33445,10 @@ impl WorldSession {
         player_guid: ObjectGuid,
         creature_guid: ObjectGuid,
     ) -> f32 {
-        let (Some(group_guid), Some(group_registry)) =
-            (self.group_guid, self.group_registry.as_ref())
-        else {
+        let (Some(group_guid), Some(group_registry)) = (
+            self.resolved_group_guid_like_cpp(),
+            self.group_registry.as_ref(),
+        ) else {
             return 1.0;
         };
         let Some(group) = group_registry.get(&group_guid) else {
@@ -39029,9 +39160,11 @@ impl WorldSession {
     }
 
     fn broadcast_item_push_result_to_group(&self, bytes: Vec<u8>) -> bool {
-        let (Some(group_guid), Some(group_registry), Some(player_registry)) =
-            (self.group_guid, &self.group_registry, &self.player_registry)
-        else {
+        let (Some(group_guid), Some(group_registry), Some(player_registry)) = (
+            self.resolved_group_guid_like_cpp(),
+            &self.group_registry,
+            &self.player_registry,
+        ) else {
             return false;
         };
 
@@ -45986,7 +46119,7 @@ impl WorldSession {
 
         let (Some(player_guid), Some(group_guid), Some(group_registry)) = (
             self.player_guid(),
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             self.group_registry.as_ref(),
         ) else {
             return false;
@@ -46061,7 +46194,7 @@ impl WorldSession {
         let group_guid = if join_as_group {
             let (Some(player_guid), Some(group_guid), Some(group_registry)) = (
                 self.player_guid(),
-                self.group_guid,
+                self.resolved_group_guid_like_cpp(),
                 self.group_registry.as_ref(),
             ) else {
                 return false;
@@ -46245,7 +46378,7 @@ impl WorldSession {
             Some(group_registry),
         ) = (
             self.player_guid(),
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             self.player_registry.as_ref(),
             self.group_registry.as_ref(),
         )
@@ -54132,7 +54265,9 @@ impl WorldSession {
         }
 
         let mut credit_guids = Vec::new();
-        if let (Some(group_guid), Some(group_registry)) = (self.group_guid, &self.group_registry) {
+        if let (Some(group_guid), Some(group_registry)) =
+            (self.resolved_group_guid_like_cpp(), &self.group_registry)
+        {
             if let Some(group) = group_registry.get(&group_guid) {
                 if group.members.contains(&player_guid) {
                     credit_guids.extend(group.members.iter().copied());
@@ -70239,7 +70374,7 @@ impl WorldSession {
         let Some(destination) = target_data.dst_location.as_ref() else {
             return false;
         };
-        let Some(group_guid) = self.group_guid else {
+        let Some(group_guid) = self.resolved_group_guid_like_cpp() else {
             return false;
         };
         let Some(group_registry) = self.group_registry().cloned() else {

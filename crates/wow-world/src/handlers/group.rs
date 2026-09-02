@@ -1258,8 +1258,12 @@ impl WorldSession {
             None => return,
         };
 
-        let inviter_group_guid =
-            current_group_guid_like_cpp(group_reg, self.group_guid, my_guid, party_index);
+        let inviter_group_guid = current_group_guid_like_cpp(
+            group_reg,
+            self.resolved_group_guid_like_cpp(),
+            my_guid,
+            party_index,
+        );
         let lookup_category = party_index.unwrap_or(GROUP_CATEGORY_HOME_LIKE_CPP);
         let invite = match group_reg.create_invite_like_cpp(
             pending,
@@ -1480,9 +1484,14 @@ impl WorldSession {
         };
         let group_guid = group.group_guid;
 
-        // Update self's group_guid in session — all Arc borrows are gone now.
-        self.group_guid = Some(group_guid);
-        let _ = self.load_represented_group_subgroup_like_cpp();
+        // Attach C++ `Player::m_group` after the Group owner accepted us.
+        if let Some(subgroup) = group_reg.get(&group_guid).and_then(|group| {
+            group
+                .member_slot_like_cpp(my_guid)
+                .map(|slot| slot.subgroup)
+        }) {
+            self.apply_group_join_like_cpp(group_guid, subgroup);
+        }
         if let Some(group) = group_reg.get(&group_guid) {
             self.send_player_party_type_update_like_cpp(
                 group.group_category_like_cpp(),
@@ -1545,7 +1554,7 @@ impl WorldSession {
         let pending_invites = self.pending_invites().map(std::sync::Arc::clone);
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             uninvite.party_index,
         ) else {
@@ -1662,7 +1671,7 @@ impl WorldSession {
         }
 
         if should_disband {
-            self.group_guid = None;
+            let _ = self.set_owned_player_group_like_cpp(None);
             self.clear_represented_group_subgroup_like_cpp();
             self.send_player_party_type_update_like_cpp(
                 wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP,
@@ -1716,8 +1725,12 @@ impl WorldSession {
         let vra = self.virtual_realm_address();
 
         // 1. Find the real group or the C++ `GroupInvite` we're currently in.
-        let real_group_guid =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, my_guid, party_index);
+        let real_group_guid = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            my_guid,
+            party_index,
+        );
         let pending_invite = pending_invites
             .as_ref()
             .and_then(|pending| pending.get(&my_guid));
@@ -1808,7 +1821,7 @@ impl WorldSession {
                 }
             }
             // Tell self to leave.
-            self.group_guid = None;
+            let _ = self.set_owned_player_group_like_cpp(None);
             self.clear_represented_group_subgroup_like_cpp();
             self.send_player_party_type_update_like_cpp(
                 wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP,
@@ -1824,7 +1837,7 @@ impl WorldSession {
         send_party_update(&outcome.group, &registry, vra);
 
         // 4. Uninvite self.
-        self.group_guid = None;
+        let _ = self.set_owned_player_group_like_cpp(None);
         self.clear_represented_group_subgroup_like_cpp();
         self.send_player_party_type_update_like_cpp(
             wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP,
@@ -1855,9 +1868,12 @@ impl WorldSession {
             Some(registry) => std::sync::Arc::clone(registry),
             None => return,
         };
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, my_guid, None)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            my_guid,
+            None,
+        ) else {
             return;
         };
         let registry = match self.player_registry() {
@@ -1936,7 +1952,7 @@ impl WorldSession {
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             change.party_index,
         ) else {
@@ -2005,9 +2021,12 @@ impl WorldSession {
         };
         let vra = self.virtual_realm_address();
 
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid, swap.party_index)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            sender_guid,
+            swap.party_index,
+        ) else {
             return;
         };
 
@@ -2084,7 +2103,7 @@ impl WorldSession {
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             set_leader.party_index,
         ) else {
@@ -2139,7 +2158,7 @@ impl WorldSession {
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             set_assistant.party_index,
         ) else {
@@ -2192,7 +2211,7 @@ impl WorldSession {
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             set_everyone.party_index,
         ) else {
@@ -2236,9 +2255,12 @@ impl WorldSession {
             None => return,
         };
 
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid, None)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            sender_guid,
+            None,
+        ) else {
             return;
         };
         let Some(group) = group_reg.get(&group_guid) else {
@@ -2283,7 +2305,7 @@ impl WorldSession {
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             ready_check.party_index,
         ) else {
@@ -2333,7 +2355,7 @@ impl WorldSession {
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             response.party_index,
         ) else {
@@ -2385,7 +2407,7 @@ impl WorldSession {
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             assignment.party_index,
         ) else {
@@ -2447,7 +2469,7 @@ impl WorldSession {
 
         let group_guid = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             set_role.party_index,
         );
@@ -2531,7 +2553,7 @@ impl WorldSession {
         };
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             update.party_index,
         ) else {
@@ -2611,9 +2633,12 @@ impl WorldSession {
             Some(registry) => std::sync::Arc::clone(registry),
             None => return,
         };
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid, None)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            sender_guid,
+            None,
+        ) else {
             return;
         };
 
@@ -2654,7 +2679,7 @@ impl WorldSession {
         };
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             request.party_index,
         ) else {
@@ -2715,7 +2740,7 @@ impl WorldSession {
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
-            self.group_guid,
+            self.resolved_group_guid_like_cpp(),
             sender_guid,
             role_poll.party_index,
         ) else {
@@ -2828,9 +2853,12 @@ impl WorldSession {
             None => return,
         };
 
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid, ping.party_index)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            sender_guid,
+            ping.party_index,
+        ) else {
             return;
         };
 
@@ -2907,9 +2935,12 @@ impl WorldSession {
             return;
         };
 
-        let Some(group_guid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, sender_guid, None)
-        else {
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            sender_guid,
+            None,
+        ) else {
             self.send_packet(&response);
             return;
         };

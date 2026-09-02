@@ -1056,15 +1056,16 @@ impl WorldSession {
             return;
         };
 
-        let is_represented_master_looter =
-            if let (Some(group_guid), Some(registry)) = (self.group_guid, self.group_registry()) {
-                registry.get(&group_guid).is_some_and(|group| {
-                    group.loot_method == LOOT_METHOD_MASTER_LIKE_CPP
-                        && group.master_looter_guid == player_guid
-                })
-            } else {
-                false
-            };
+        let is_represented_master_looter = if let (Some(group_guid), Some(registry)) =
+            (self.resolved_group_guid_like_cpp(), self.group_registry())
+        {
+            registry.get(&group_guid).is_some_and(|group| {
+                group.loot_method == LOOT_METHOD_MASTER_LIKE_CPP
+                    && group.master_looter_guid == player_guid
+            })
+        } else {
+            false
+        };
 
         if !is_represented_master_looter {
             self.send_loot_error_like_cpp(
@@ -1314,11 +1315,11 @@ impl WorldSession {
         if self.state() != SessionState::LoggedIn {
             return;
         }
-        if self.group_guid != Some(command.group_guid) {
+        if self.resolved_group_guid_like_cpp() != Some(command.group_guid) {
             return;
         }
 
-        self.group_guid = None;
+        let _ = self.set_owned_player_group_like_cpp(None);
         self.clear_represented_group_subgroup_like_cpp();
         self.send_player_party_type_update_like_cpp(command.category, command.party_type);
         self.sync_player_registry_state_like_cpp();
@@ -1367,8 +1368,12 @@ impl WorldSession {
             return;
         }
 
-        command.party_update.sequence_num =
-            self.next_group_update_sequence_number_like_cpp(command.party_update.party_index);
+        let Some(sequence_num) =
+            self.next_group_update_sequence_number_like_cpp(command.party_update.party_index)
+        else {
+            return;
+        };
+        command.party_update.sequence_num = sequence_num;
         // `SMSG_PARTY_UPDATE` and `SMSG_PARTY_MEMBER_FULL_STATE` are both
         // CONNECTION_TYPE_REALM in legacy C++ Opcodes.cpp:1829/1832.
         self.send_packet_realm(&command.party_update);
